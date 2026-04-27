@@ -11,6 +11,10 @@ class AudioHandler {
   final SubsonicService subsonicService;
   List<Song> _currentQueue = [];
 
+  // Kept alive between queue mutations so we can use incremental APIs
+  // (add / removeAt / move) instead of rebuilding the entire source.
+  ConcatenatingAudioSource? _playlist;
+
   AudioHandler(this.subsonicService, {AudioPlayer? player})
       : player = player ?? AudioPlayer();
 
@@ -19,45 +23,93 @@ class AudioHandler {
 
   List<Song> get currentQueue => _currentQueue;
 
-  Future<void> setQueue(List<Song> songs, int startIndex) async {
-    _currentQueue = List.from(songs);
-    await _updatePlayerSource(startIndex);
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
+  AudioSource _toSource(Song song) {
+    return AudioSource.uri(
+      Uri.parse(subsonicService.getStreamUrl(song.id)),
+      tag: MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        genre: song.genre,
+        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+        duration: Duration(seconds: song.duration),
+        extras: {'composer': song.composer},
+      ),
+    );
   }
 
-  Future<void> _updatePlayerSource(int startIndex) async {
-    if (player.audioSource == null && _currentQueue.isEmpty) return; // Basic safety for tests
+  // ---------------------------------------------------------------------------
+  // Full rebuild — only called when the entire queue is replaced (setQueue /
+  // shuffle).  For incremental changes use addToQueue / removeFromQueue /
+  // reorderQueue below.
+  // ---------------------------------------------------------------------------
+  Future<void> setQueue(List<Song> songs, int startIndex) async {
+    _currentQueue = List.from(songs);
+    await _rebuildSource(startIndex);
+  }
 
-    final audioSources = _currentQueue.map((song) {
-      return AudioSource.uri(
-        Uri.parse(subsonicService.getStreamUrl(song.id)),
-        tag: MediaItem(
-          id: song.id,
-          title: song.title,
-          artist: song.artist,
-          album: song.album,
-          genre: song.genre,
-          artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
-          duration: Duration(seconds: song.duration),
-          extras: {'composer': song.composer},
-        ),
-      );
-    }).toList();
+  Future<void> _rebuildSource(int startIndex) async {
+    if (_currentQueue.isEmpty) return;
+    final sources = _currentQueue.map(_toSource).toList();
+    _playlist = ConcatenatingAudioSource(children: sources);
+    await player.setAudioSource(_playlist!, initialIndex: startIndex);
+  }
 
-    final playlist = ConcatenatingAudioSource(children: audioSources);
-    await player.setAudioSource(playlist, initialIndex: startIndex);
+  // ---------------------------------------------------------------------------
+  // Incremental queue mutations — BUG-1 fix
+  // These mutate the existing ConcatenatingAudioSource so playback of the
+  // current song is never interrupted.
+  // ---------------------------------------------------------------------------
+
+  Future<void> addToQueue(Song song) async {
+    _currentQueue.add(song);
+    if (_playlist != null) {
+      await _playlist!.add(_toSource(song));
+    } else {
+      await _rebuildSource(_currentQueue.length - 1);
+    }
+  }
+
+  Future<void> removeFromQueue(int index) async {
+    if (index < 0 || index >= _currentQueue.length) return;
+    _currentQueue.removeAt(index);
+    if (_playlist != null) {
+      await _playlist!.removeAt(index);
+    } else {
+      final currentIndex = player.currentIndex ?? 0;
+      await _rebuildSource(currentIndex.clamp(0, _currentQueue.length - 1));
+    }
+  }
+
+  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    if (oldIndex < 0 || oldIndex >= _currentQueue.length) return;
+    if (newIndex < 0 || newIndex >= _currentQueue.length) return;
+    final song = _currentQueue.removeAt(oldIndex);
+    _currentQueue.insert(newIndex, song);
+    if (_playlist != null) {
+      await _playlist!.move(oldIndex, newIndex);
+    } else {
+      final currentIndex = player.currentIndex ?? 0;
+      await _rebuildSource(currentIndex.clamp(0, _currentQueue.length - 1));
+    }
   }
 
   // ---------------------------------------------------------------------------
   // 1. Standard Fisher-Yates shuffle (keeps current song at index 0)
   // ---------------------------------------------------------------------------
-  void standardShuffle() {
+  Future<void> standardShuffle() async {
     if (_currentQueue.isEmpty) return;
     final currentIndex = player.currentIndex ?? 0;
     final currentSong = _currentQueue[currentIndex];
     final rest = _currentQueue.where((s) => s.id != currentSong.id).toList();
     rest.shuffle();
     _currentQueue = [currentSong, ...rest];
-    _updatePlayerSource(0);
+    await _rebuildSource(0); // BUG-13: now properly awaited
   }
 
   // ---------------------------------------------------------------------------
@@ -65,7 +117,7 @@ class AudioHandler {
   //    Groups songs by the user's preferred category (composer or genre) and
   //    interleaves them so the same category never plays back-to-back.
   // ---------------------------------------------------------------------------
-  void spotifyDitherShuffle(ShufflePreference preference) {
+  Future<void> spotifyDitherShuffle(ShufflePreference preference) async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Balanced Shuffle ($preference)');
 
@@ -124,7 +176,7 @@ class AudioHandler {
     }
 
     _currentQueue = result;
-    _updatePlayerSource(0);
+    await _rebuildSource(0); // BUG-13: now properly awaited
   }
 
   // ---------------------------------------------------------------------------
@@ -135,7 +187,7 @@ class AudioHandler {
   //      - rating         (+0–1 additive bonus, normalised from 1–5)
   //      - playCount      (+0–1 additive bonus, clamped at 100 plays)
   // ---------------------------------------------------------------------------
-  void youtubeWeightedShuffle() {
+  Future<void> youtubeWeightedShuffle() async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Weighted Shuffle');
 
@@ -178,7 +230,7 @@ class AudioHandler {
     }
 
     _currentQueue = shuffled;
-    _updatePlayerSource(0);
+    await _rebuildSource(0); // BUG-13: now properly awaited
   }
 
   // ---------------------------------------------------------------------------
@@ -196,5 +248,13 @@ class AudioHandler {
         break;
       }
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Dispose
+  // ---------------------------------------------------------------------------
+  Future<void> dispose() async {
+    await player.stop();
+    await player.dispose();
   }
 }

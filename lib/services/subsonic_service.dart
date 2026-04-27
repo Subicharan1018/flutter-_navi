@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
@@ -37,6 +38,18 @@ class SubsonicService {
     return uri.toString().replaceAll(RegExp(r'/+$'), '');
   }
 
+  // BUG-8: generate a random salt per request so the token is never the same,
+  // preventing the fixed-token equivalent-to-plaintext vulnerability.
+  static final Random _random = Random.secure();
+  static const _saltChars =
+      'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
+
+  String _generateSalt() {
+    return List.generate(
+            16, (_) => _saltChars[_random.nextInt(_saltChars.length)])
+        .join();
+  }
+
   String _generateToken(String salt) {
     final bytes = utf8.encode(password + salt);
     final digest = md5.convert(bytes);
@@ -44,7 +57,8 @@ class SubsonicService {
   }
 
   String _buildUrl(String endpoint, [Map<String, String>? params]) {
-    final salt = Constants.defaultSalt;
+    // BUG-8: fresh random salt on every URL build
+    final salt = _generateSalt();
     final token = _generateToken(salt);
 
     final queryParams = <String, String>{
@@ -277,7 +291,8 @@ class SubsonicService {
       return;
     }
 
-    final salt = Constants.defaultSalt;
+    // BUG-8: use a fresh random salt
+    final salt = _generateSalt();
     final token = _generateToken(salt);
 
     final uri = Uri.parse('$serverUrl/setPlaylistImage.view');
@@ -368,7 +383,8 @@ class SubsonicService {
       return;
     }
 
-    final salt = Constants.defaultSalt;
+    // BUG-8: use a fresh random salt
+    final salt = _generateSalt();
     final token = _generateToken(salt);
 
     final uri = Uri.parse('$serverUrl/upload.view');
@@ -439,5 +455,10 @@ class SubsonicService {
       debugPrint('Upload(WebDAV): Response body: ${response.body}');
       throw Exception('WebDAV upload failed (${response.statusCode}): ${response.body}');
     }
+  }
+  // BUG-3: close the http.Client to release socket connections.
+  // Called by the Riverpod provider's onDispose callback.
+  void dispose() {
+    _client.close();
   }
 }

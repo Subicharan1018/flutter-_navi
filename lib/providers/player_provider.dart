@@ -71,18 +71,32 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   AudioPlayer get player => _audioHandler.player;
 
+  // BUG-5: track the last song id we used to detect a song change and clear
+  // _scrobbledIds so the same song can be scrobbled again in a new playthrough.
+  String? _lastScrobbleSongId;
+
   void _init() {
+    // BUG-5: clear _scrobbledIds when the current song changes
     _subscriptions.add(player.currentIndexStream.listen((index) {
-      if (index != null) state = state.copyWith(currentIndex: index);
+      if (index != null) {
+        state = state.copyWith(currentIndex: index);
+        // Determine the song at the new index
+        if (index < state.queue.length) {
+          final songId = state.queue[index].id;
+          if (songId != _lastScrobbleSongId) {
+            _scrobbledIds.clear();
+            _lastScrobbleSongId = songId;
+          }
+        }
+      }
     }));
 
     _subscriptions.add(player.playingStream.listen((playing) {
       state = state.copyWith(isPlaying: playing);
     }));
 
-    _subscriptions.add(player.shuffleModeEnabledStream.listen((shuffle) {
-      state = state.copyWith(shuffleMode: shuffle);
-    }));
+    // BUG-13: removed shuffleModeEnabledStream listener; shuffle state is now
+    // driven solely by our custom algorithms, not just_audio's internal shuffle.
 
     _subscriptions.add(player.loopModeStream.listen((loopMode) {
       state = state.copyWith(repeatMode: loopMode);
@@ -108,6 +122,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     for (final sub in _subscriptions) {
       sub.cancel();
     }
+    // BUG-14: dispose the AudioHandler (stops playback, releases native resources)
+    _audioHandler.dispose();
     super.dispose();
   }
 
@@ -156,12 +172,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> addToQueue(Song song) async {
+    // BUG-1: use incremental API — no full source rebuild
     final currentQueue = List<Song>.from(state.queue)..add(song);
     state = state.copyWith(queue: currentQueue);
-    await _audioHandler.setQueue(currentQueue, state.currentIndex);
+    await _audioHandler.addToQueue(song);
   }
 
   Future<void> removeFromQueue(int index) async {
+    // BUG-1: use incremental API — no full source rebuild
     final currentQueue = List<Song>.from(state.queue)..removeAt(index);
     int newIndex = state.currentIndex;
     if (index < state.currentIndex) {
@@ -170,10 +188,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (newIndex >= currentQueue.length) newIndex = 0;
     }
     state = state.copyWith(queue: currentQueue, currentIndex: newIndex);
-    await _audioHandler.setQueue(currentQueue, newIndex);
+    await _audioHandler.removeFromQueue(index);
   }
 
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
+    // BUG-1: use incremental API — no full source rebuild
+    // BUG-12: ReorderableListView passes pre-adjusted newIndex; no extra -1 needed.
     final currentQueue = List<Song>.from(state.queue);
     final item = currentQueue.removeAt(oldIndex);
     currentQueue.insert(newIndex, item);
@@ -188,7 +208,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
 
     state = state.copyWith(queue: currentQueue, currentIndex: currentIndex);
-    await _audioHandler.setQueue(currentQueue, currentIndex);
+    await _audioHandler.reorderQueue(oldIndex, newIndex);
   }
 
   // ---------------------------------------------------------------------------
@@ -227,28 +247,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> setShuffleMode(bool enabled) async {
     debugPrint('🔘 [UI] Set Shuffle Mode: $enabled');
-    await player.setShuffleModeEnabled(enabled);
+    // BUG-13: do NOT call player.setShuffleModeEnabled — our custom algorithms
+    // already reorder _currentQueue, so using just_audio's internal shuffle on
+    // top causes a double-shuffle and a race condition that flashes black.
+    state = state.copyWith(shuffleMode: enabled);
 
     if (enabled) {
-      applyShuffleAlgorithm();
+      await applyShuffleAlgorithm();
     }
   }
 
-  void applyShuffleAlgorithm() {
+  // BUG-13: made async so the full source rebuild is awaited before updating
+  // Riverpod state, preventing the transient-empty-queue black screen.
+  Future<void> applyShuffleAlgorithm() async {
     final settings = _ref.read(settingsProvider);
     final algorithm = settings.shuffleAlgorithm;
     switch (algorithm) {
       case ShuffleAlgorithm.spotify:
-        _audioHandler.spotifyDitherShuffle(settings.shufflePreference);
+        await _audioHandler.spotifyDitherShuffle(settings.shufflePreference);
         break;
       case ShuffleAlgorithm.youtube:
-        _audioHandler.youtubeWeightedShuffle();
+        await _audioHandler.youtubeWeightedShuffle();
         break;
       case ShuffleAlgorithm.standard:
-        _audioHandler.standardShuffle();
+        await _audioHandler.standardShuffle();
         break;
     }
-    // Sync state with the newly reordered queue from the handler
+    // Sync state with the newly reordered queue AFTER the rebuild is complete
     state = state.copyWith(queue: _audioHandler.currentQueue);
   }
 

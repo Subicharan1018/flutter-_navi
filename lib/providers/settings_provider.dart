@@ -148,11 +148,15 @@ final settingsProvider =
 
 final subsonicServiceProvider = Provider<SubsonicService>((ref) {
   final settings = ref.watch(settingsProvider);
-  return SubsonicService(
+  final service = SubsonicService(
     serverUrl: settings.serverUrl,
     username: settings.username,
     password: settings.password,
     customUploadUrl: settings.uploadApiUrl,
     customUploadDir: settings.uploadDirectory,
   );
+  // BUG-3: close the http.Client when this provider instance is disposed
+  // (i.e., when settings change and a new SubsonicService is created).
+  ref.onDispose(service.dispose);
+  return service;
 });

@@ -3,6 +3,7 @@
 
 > **Analysed:** 28 source files · ~6,000 LOC · Flutter 3.11 + Riverpod + just_audio
 > **Date:** 2026-04-27
+> **Last Fix Pass:** 2026-04-27 — 8 issues resolved (see [Fix Status Summary](#fix-status-summary))
 
 ---
 
@@ -15,6 +16,37 @@
 5. [🔵 Code Quality & Structural Issues](#code-quality-issues)
 6. [🟢 Improvement Recommendations](#improvement-recommendations)
 7. [Priority Fix Roadmap](#priority-fix-roadmap)
+
+---
+
+## Fix Status Summary
+
+| ID | Issue | Status | Files Changed |
+|----|-------|--------|---------------|
+| **PERF-1** | Scroll `setState` rebuilds entire HomeScreen 60×/sec | ✅ **FIXED** | `home_screen.dart` |
+| **BUG-1** | Queue fully rebuilt on every mutation — audio glitch | ✅ **FIXED** | `audio_handler.dart`, `player_provider.dart` |
+| **BUG-3** | `http.Client` created per instance, never closed | ✅ **FIXED** | `subsonic_service.dart`, `settings_provider.dart` |
+| **BUG-5** | `_scrobbledIds` never cleared — re-plays don't scrobble | ✅ **FIXED** | `player_provider.dart` |
+| **BUG-8** | Hardcoded salt `'vibe123'` — auth equivalent to plaintext | ✅ **FIXED** | `subsonic_service.dart` |
+| **BUG-11** | `CurvedAnimation` leaked in `transitionsBuilder` (60×/sec) | ✅ **FIXED** | `navigation_transitions.dart` |
+| **BUG-13** | NowPlaying blacks out when toggling shuffle (race condition) | ✅ **FIXED** | `audio_handler.dart`, `player_provider.dart` |
+| **BUG-14** | App persists after swipe-kill; foreground service undismissable | ✅ **FIXED** | `main.dart`, `player_provider.dart` |
+| **BUG-2** | `AnimatedBuilder` usage note | ⚪ N/A | Compiles fine in target SDK |
+| **BUG-4** | `IndexedStack` keeps all screens alive | 🟡 Pending | Phase 3 |
+| **BUG-6** | "Remove from Playlist" is a no-op | 🟡 Pending | Phase 2 |
+| **BUG-7** | Hardcoded "Apple Music" strings | 🟡 Pending | Phase 2 |
+| **BUG-9** | Password in plaintext SharedPreferences | 🟡 Pending | Phase 2 |
+| **BUG-10** | `Song.dynamicWeight` mutable on value-like model | 🟡 Pending | Phase 2 |
+| **BUG-12** | Queue reorder off-by-one | ✅ **FIXED** | `player_provider.dart` (comment + correct index pass-through) |
+| **BUG-15** | Slide-to-delete broken in queue (`Slidable` vs `ReorderableListView`) | 🟡 Pending | Phase 2 |
+| **BUG-16** | Song history section missing | 🟡 Pending | Phase 2 |
+| **BUG-17** | "Go to Album" is a no-op | 🟡 Pending | Phase 3 |
+| **BUG-18** | Multiple no-op buttons across UI | 🟡 Pending | Phase 2 |
+| **PERF-2** | `PaletteGenerator` blocks main thread | 🟡 Pending | Phase 1 |
+| **PERF-3** | 4× simultaneous 60fps animations on NowPlaying | 🟡 Pending | Phase 1 |
+| **PERF-4** | Heavy `BackdropFilter` stacking | 🟡 Pending | Phase 1 |
+| **PERF-5** | Unbounded animation delay on list items | 🟡 Pending | Phase 1 |
+| **PERF-6** | 5000 songs fetched eagerly, no pagination | 🟡 Pending | Phase 3 |
 
 ---
 
@@ -66,7 +98,7 @@ graph TD
 
 ## 🔴 Critical Bugs
 
-### BUG-1: Queue rebuilt from scratch on every modification — causes audio glitch & playback restart
+### BUG-1: Queue rebuilt from scratch on every modification — causes audio glitch & playback restart ✅ FIXED
 
 **File:** [audio_handler.dart](file:///c:/projects/flutter-_navi/lib/services/audio_handler.dart#L22-L48)
 
@@ -91,7 +123,7 @@ Future<void> _updatePlayerSource(int startIndex) async {
 
 ---
 
-### BUG-2: `AnimatedBuilder` does not exist — `_SoundBar` widget uses non-existent widget
+### BUG-2: `AnimatedBuilder` does not exist — `_SoundBar` widget uses non-existent widget ⚪ N/A
 
 **File:** [now_playing_screen.dart:60](file:///c:/projects/flutter-_navi/lib/screens/now_playing_screen.dart#L60)
 
@@ -109,7 +141,7 @@ The correct widget is `AnimatedBuilder` which **does not exist** — it should b
 
 ---
 
-### BUG-3: `SubsonicService` creates a new `http.Client` per instance but never closes it
+### BUG-3: `SubsonicService` creates a new `http.Client` per instance but never closes it ✅ FIXED
 
 **File:** [subsonic_service.dart:20](file:///c:/projects/flutter-_navi/lib/services/subsonic_service.dart#L20)
 
@@ -125,7 +157,7 @@ Every time `settingsProvider` emits a new state, `subsonicServiceProvider` creat
 
 ---
 
-### BUG-4: `IndexedStack` keeps all 3 main screens alive — wasted memory + network calls
+### BUG-4: `IndexedStack` keeps all 3 main screens alive — wasted memory + network calls 🟡 Pending
 
 **File:** [app_scaffold.dart:29-32](file:///c:/projects/flutter-_navi/lib/widgets/app_scaffold.dart#L29-L32)
 
@@ -150,7 +182,7 @@ All three screens remain mounted at all times. Combined with `FutureProvider`s t
 
 Here is a systematic breakdown of **every contributing factor**:
 
-### PERF-1: 🔥 Scroll listener calls `setState` on every pixel — HomeScreen
+### PERF-1: 🔥 Scroll listener calls `setState` on every pixel — HomeScreen ✅ FIXED
 
 **File:** [home_screen.dart:69](file:///c:/projects/flutter-_navi/lib/screens/home_screen.dart#L69) — **HIGHEST IMPACT**
 
@@ -167,7 +199,7 @@ This calls `setState` **60 times per second** during any scroll, causing the **e
 
 ---
 
-### PERF-2: 🔥 `PaletteGenerator.fromImageProvider()` called on the main thread — blocks UI
+### PERF-2: 🔥 `PaletteGenerator.fromImageProvider()` called on the main thread — blocks UI 🟡 Pending
 
 **Files:**
 - [mini_player.dart:106-126](file:///c:/projects/flutter-_navi/lib/widgets/mini_player.dart#L106-L126)
@@ -191,7 +223,7 @@ final palette = await PaletteGenerator.fromImageProvider(
 
 ---
 
-### PERF-3: 🔥 `AnimatedMeshGradient` running continuously on NowPlaying
+### PERF-3: 🔥 `AnimatedMeshGradient` running continuously on NowPlaying 🟡 Pending
 
 **File:** [now_playing_screen.dart:416-419](file:///c:/projects/flutter-_navi/lib/screens/now_playing_screen.dart#L416-L419)
 
@@ -211,7 +243,7 @@ You have **4 simultaneous 60fps animations** on NowPlaying, all fighting for the
 
 ---
 
-### PERF-4: Heavy `BackdropFilter` stacking
+### PERF-4: Heavy `BackdropFilter` stacking 🟡 Pending
 
 Multiple nested `BackdropFilter` instances with high sigma values cause expensive GPU composition:
 
@@ -228,7 +260,7 @@ Multiple nested `BackdropFilter` instances with high sigma values cause expensiv
 
 ---
 
-### PERF-5: `flutter_animate` animations with unbounded delay on list items
+### PERF-5: `flutter_animate` animations with unbounded delay on list items 🟡 Pending
 
 **Files:**
 - [home_screen.dart:514](file:///c:/projects/flutter-_navi/lib/screens/home_screen.dart#L514): `delay: (index * 50).ms`
@@ -241,7 +273,7 @@ For the library screen with 5000 songs, that's `5000 * 20ms = 100 seconds` of st
 
 ---
 
-### PERF-6: `allSongsProvider` fetches 5000 songs eagerly with no pagination
+### PERF-6: `allSongsProvider` fetches 5000 songs eagerly with no pagination 🟡 Pending
 
 **File:** [library_provider.dart:26-39](file:///c:/projects/flutter-_navi/lib/providers/library_provider.dart#L26-L39)
 
@@ -274,7 +306,7 @@ This triggers an asynchronous palette computation **inside `build()`**. The `set
 
 ## 🟠 Medium-Severity Bugs
 
-### BUG-5: Scrobble tracking set `_scrobbledIds` is never cleared
+### BUG-5: Scrobble tracking set `_scrobbledIds` is never cleared ✅ FIXED
 
 **File:** [player_provider.dart:57](file:///c:/projects/flutter-_navi/lib/providers/player_provider.dart#L57)
 
@@ -286,7 +318,7 @@ Once a song ID is added to `_scrobbledIds`, it's **never removed**. If the user 
 
 ---
 
-### BUG-6: "Remove from Playlist" option does nothing
+### BUG-6: "Remove from Playlist" option does nothing 🟡 Pending
 
 **File:** [options_menu.dart:140-143](file:///c:/projects/flutter-_navi/lib/widgets/options_menu.dart#L140-L143)
 
@@ -301,7 +333,7 @@ The "Remove from Playlist" action only closes the menu — it never actually rem
 
 ---
 
-### BUG-7: Hard-coded "Apple Music" branding in playlist details
+### BUG-7: Hard-coded "Apple Music" branding in playlist details 🟡 Pending
 
 **File:** [playlist_details_screen.dart:622-637](file:///c:/projects/flutter-_navi/lib/screens/playlist_details_screen.dart#L622-L637)
 
@@ -314,7 +346,7 @@ These are clearly leftover placeholder strings.
 
 ---
 
-### BUG-8: Hard-coded salt value defeats token authentication security
+### BUG-8: Hard-coded salt value defeats token authentication security ✅ FIXED
 
 **File:** [constants.dart:4](file:///c:/projects/flutter-_navi/lib/core/constants.dart#L4)
 
@@ -333,7 +365,7 @@ The Subsonic token auth scheme uses `token = md5(password + salt)`. If the salt 
 
 ---
 
-### BUG-9: Password stored in plaintext in SharedPreferences
+### BUG-9: Password stored in plaintext in SharedPreferences 🟡 Pending
 
 **File:** [settings_provider.dart:115](file:///c:/projects/flutter-_navi/lib/providers/settings_provider.dart#L115)
 
@@ -345,7 +377,7 @@ SharedPreferences is backed by XML on Android and plist on iOS — both are read
 
 ---
 
-### BUG-10: `Song.dynamicWeight` is mutable on an otherwise value-like model
+### BUG-10: `Song.dynamicWeight` is mutable on an otherwise value-like model 🟡 Pending
 
 **File:** [song.dart:18](file:///c:/projects/flutter-_navi/lib/models/song.dart#L18)
 
@@ -357,7 +389,7 @@ This mutable field on a model class breaks the immutability contract expected by
 
 ---
 
-### BUG-11: `CurvedAnimation` leak in `navigation_transitions.dart`
+### BUG-11: `CurvedAnimation` leak in `navigation_transitions.dart` ✅ FIXED
 
 **File:** [navigation_transitions.dart:13-17](file:///c:/projects/flutter-_navi/lib/core/navigation_transitions.dart#L13-L17)
 
@@ -373,7 +405,7 @@ final curved = CurvedAnimation(
 
 ---
 
-### BUG-12: Queue reorder index calculation is wrong
+### BUG-12: Queue reorder index calculation is wrong ✅ FIXED
 
 **File:** [queue_screen.dart:153-154](file:///c:/projects/flutter-_navi/lib/screens/queue_screen.dart#L153-L154)
 
@@ -388,7 +420,7 @@ onReorder: (oldIndex, newIndex) {
 
 ---
 
-### BUG-13: 🔥 NowPlaying screen blacks out when toggling shuffle mode
+### BUG-13: 🔥 NowPlaying screen blacks out when toggling shuffle mode ✅ FIXED
 
 **Files:**
 - [player_provider.dart:228-253](file:///c:/projects/flutter-_navi/lib/providers/player_provider.dart#L228-L253)
@@ -457,7 +489,7 @@ Future<void> setShuffleMode(bool enabled) async {
 
 ---
 
-### BUG-14: App continues running in background after swipe-kill
+### BUG-14: App continues running in background after swipe-kill ✅ FIXED
 
 **Files:**
 - [main.dart:9-14](file:///c:/projects/flutter-_navi/lib/main.dart#L9-L14)
@@ -523,7 +555,7 @@ This makes the service externally accessible, meaning the system media router ca
 
 ---
 
-### BUG-15: Queue slide-to-delete is broken and unresponsive
+### BUG-15: Queue slide-to-delete is broken and unresponsive 🟡 Pending
 
 **File:** [queue_screen.dart:151-175, 202-214](file:///c:/projects/flutter-_navi/lib/screens/queue_screen.dart#L151-L214)
 
@@ -571,7 +603,7 @@ The `ReorderableListView`'s internal `GestureRecognizer` wins the gesture arena 
 
 ---
 
-### BUG-16: Song History deletion is not implemented (feature missing)
+### BUG-16: Song History deletion is not implemented (feature missing) 🟡 Pending
 
 **Files:**
 - [queue_screen.dart](file:///c:/projects/flutter-_navi/lib/screens/queue_screen.dart) — no history section exists
@@ -590,7 +622,7 @@ The Subsonic API does have `getNowPlaying` and play history endpoints, but they 
 
 ---
 
-### BUG-17: "Go to Album" action is a no-op
+### BUG-17: "Go to Album" action is a no-op 🟡 Pending
 
 **File:** [options_menu.dart:176-179](file:///c:/projects/flutter-_navi/lib/widgets/options_menu.dart#L176-L179)
 
@@ -608,7 +640,7 @@ The "Go to Album" button in the song options menu closes the menu but does nothi
 
 ---
 
-### BUG-18: Multiple no-op / placeholder buttons across the UI
+### BUG-18: Multiple no-op / placeholder buttons across the UI 🟡 Pending
 
 Several interactive elements in the app are visually present but do nothing when tapped:
 
@@ -776,28 +808,28 @@ Album lists, playlist lists, and the song library rarely change. Add an in-memor
 
 ### Phase 1 — Eliminate Lag (Do These First)
 
-| # | Issue | Impact | Effort |
-|---|-------|--------|--------|
-| 1 | **PERF-1**: Replace scroll `setState` with `ValueNotifier` | 🔥🔥🔥 | 15 min |
-| 2 | **BUG-1**: Use `ConcatenatingAudioSource` incremental APIs | 🔥🔥🔥 | 2 hrs |
-| 3 | **BUG-11**: Fix `CurvedAnimation` leak in transitions | 🔥🔥 | 30 min |
-| 4 | **PERF-2**: Move `PaletteGenerator` to isolate | 🔥🔥 | 1 hr |
-| 5 | **PERF-5**: Cap animation delay at `clamp(0, 300)` for all lists | 🔥🔥 | 15 min |
-| 6 | **PERF-4**: Replace decorative `BackdropFilter`s with solid colors on non-flagship devices | 🔥 | 1 hr |
+| # | Issue | Impact | Effort | Status |
+|---|-------|--------|--------|--------|
+| 1 | **PERF-1**: Replace scroll `setState` with `ValueNotifier` | 🔥🔥🔥 | 15 min | ✅ Fixed |
+| 2 | **BUG-1**: Use `ConcatenatingAudioSource` incremental APIs | 🔥🔥🔥 | 2 hrs | ✅ Fixed |
+| 3 | **BUG-11**: Fix `CurvedAnimation` leak in transitions | 🔥🔥 | 30 min | ✅ Fixed |
+| 4 | **PERF-2**: Move `PaletteGenerator` to isolate | 🔥🔥 | 1 hr | 🟡 Pending |
+| 5 | **PERF-5**: Cap animation delay at `clamp(0, 300)` for all lists | 🔥🔥 | 15 min | 🟡 Pending |
+| 6 | **PERF-4**: Replace decorative `BackdropFilter`s with solid colors on non-flagship devices | 🔥 | 1 hr | 🟡 Pending |
 
 ### Phase 2 — Fix Bugs
 
-| # | Issue | Impact | Effort |
-|---|-------|--------|--------|
-| 7 | **BUG-13**: Fix shuffle black-out (await rebuild + remove dual shuffle) | 🔥🔥 | 1 hr |
-| 8 | **BUG-14**: Fix background persistence (notification + dispose + lifecycle) | 🔥🔥 | 1 hr |
-| 9 | **BUG-3**: Close `http.Client` on disposal / use singleton | 🟠 | 30 min |
-| 10 | **BUG-5**: Clear `_scrobbledIds` on song change | 🟠 | 10 min |
-| 11 | **BUG-6**: Implement "Remove from Playlist" action | 🟠 | 30 min |
-| 12 | **BUG-7**: Remove hardcoded "Apple Music" strings | 🟡 | 5 min |
-| 13 | **BUG-8**: Generate random salt per request | 🔴 Security | 15 min |
-| 14 | **BUG-9**: Use `flutter_secure_storage` for credentials | 🔴 Security | 30 min |
-| 15 | **BUG-15**: Fix queue slide-to-delete (replace Slidable or separate gestures) | 🔥🔥 | 1.5 hrs |
+| # | Issue | Impact | Effort | Status |
+|---|-------|--------|--------|--------|
+| 7 | **BUG-13**: Fix shuffle black-out (await rebuild + remove dual shuffle) | 🔥🔥 | 1 hr | ✅ Fixed |
+| 8 | **BUG-14**: Fix background persistence (notification + dispose + lifecycle) | 🔥🔥 | 1 hr | ✅ Fixed |
+| 9 | **BUG-3**: Close `http.Client` on disposal / use singleton | 🟠 | 30 min | ✅ Fixed |
+| 10 | **BUG-5**: Clear `_scrobbledIds` on song change | 🟠 | 10 min | ✅ Fixed |
+| 11 | **BUG-6**: Implement "Remove from Playlist" action | 🟠 | 30 min | 🟡 Pending |
+| 12 | **BUG-7**: Remove hardcoded "Apple Music" strings | 🟡 | 5 min | 🟡 Pending |
+| 13 | **BUG-8**: Generate random salt per request | 🔴 Security | 15 min | ✅ Fixed |
+| 14 | **BUG-9**: Use `flutter_secure_storage` for credentials | 🔴 Security | 30 min | 🟡 Pending |
+| 15 | **BUG-15**: Fix queue slide-to-delete (replace Slidable or separate gestures) | 🔥🔥 | 1.5 hrs | 🟡 Pending |
 | 16 | **BUG-16**: Implement song history section with deletion | 🟠 | 3 hrs |
 | 17 | **BUG-17**: Implement "Go to Album" navigation | 🟡 | 2 hrs |
 | 18 | **BUG-18**: Fix or remove all no-op buttons | 🟡 | 1 hr |

@@ -9,7 +9,9 @@ Future<void> main() async {
   await JustAudioBackground.init(
     androidNotificationChannelId: 'com.mymusicplayer.audio',
     androidNotificationChannelName: 'My Music Player',
-    androidNotificationOngoing: true,
+    // BUG-14: false allows the user to dismiss the notification, which
+    // kills the foreground service so the app doesn't persist after swipe-kill.
+    androidNotificationOngoing: false,
     androidStopForegroundOnPause: true,
   );
   runApp(const ProviderScope(child: MyMusicPlayerApp()));

@@ -61,17 +61,21 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen> {
   final _sc = ScrollController();
-  double _off = 0;
+  // PERF-1: ValueNotifier instead of setState — only the sticky header
+  // needs to know the scroll offset. Using setState here rebuilt the entire
+  // 869-line build() method 60×/sec during scroll (primary jank source).
+  final _scrollOffset = ValueNotifier<double>(0);
 
   @override
   void initState() {
     super.initState();
-    _sc.addListener(() => setState(() => _off = _sc.offset));
+    _sc.addListener(() => _scrollOffset.value = _sc.offset);
   }
 
   @override
   void dispose() {
     _sc.dispose();
+    _scrollOffset.dispose();
     super.dispose();
   }
 
@@ -88,7 +92,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final frequentAsync  = ref.watch(frequentAlbumsProvider);
     final playlistsAsync = ref.watch(playlistsProvider);
     final topPad         = MediaQuery.of(context).padding.top;
-    final hdrOpacity     = (_off / 70).clamp(0.0, 1.0);
+    // PERF-1: hdrOpacity is now computed inside ValueListenableBuilder,
+    // so this build() method is no longer involved in scroll-driven rebuilds.
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -282,47 +287,55 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
             ),
 
             // ── Sticky frosted header ────────────────────────────────────
+            // PERF-1: ValueListenableBuilder means ONLY this subtree rebuilds
+            // on every scroll tick — not the entire HomeScreen.
             Positioned(
               top: 0, left: 0, right: 0,
-              child: AnimatedOpacity(
-                opacity: hdrOpacity,
-                duration: Duration.zero,
-                child: ClipRect(
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
-                    child: Container(
-                      height: topPad + 52,
-                      decoration: BoxDecoration(
-                        color: _DS.bg.withOpacity(0.82),
-                        border: Border(
-                            bottom: BorderSide(
-                                color: Colors.white.withOpacity(0.05),
-                                width: 0.5)),
-                      ),
-                      padding: EdgeInsets.fromLTRB(
-                          22, topPad + 12, 22, 0),
-                      child: Row(
-                        children: [
-                          Text('Home', style: _DS.headline(20)),
-                          const Spacer(),
-                          _IconBtn(
-                              icon: Icons.notifications_none_rounded,
-                              onTap: () {}),
-                          const SizedBox(width: 8),
-                          _IconBtn(
-                            icon: Icons.settings_outlined,
-                            onTap: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) =>
-                                      const SettingsScreen()),
-                            ),
+              child: ValueListenableBuilder<double>(
+                valueListenable: _scrollOffset,
+                builder: (context, offset, _) {
+                  final hdrOpacity = (offset / 70).clamp(0.0, 1.0);
+                  return AnimatedOpacity(
+                    opacity: hdrOpacity,
+                    duration: Duration.zero,
+                    child: ClipRect(
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+                        child: Container(
+                          height: topPad + 52,
+                          decoration: BoxDecoration(
+                            color: _DS.bg.withOpacity(0.82),
+                            border: Border(
+                                bottom: BorderSide(
+                                    color: Colors.white.withOpacity(0.05),
+                                    width: 0.5)),
                           ),
-                        ],
+                          padding: EdgeInsets.fromLTRB(
+                              22, topPad + 12, 22, 0),
+                          child: Row(
+                            children: [
+                              Text('Home', style: _DS.headline(20)),
+                              const Spacer(),
+                              _IconBtn(
+                                  icon: Icons.notifications_none_rounded,
+                                  onTap: () {}),
+                              const SizedBox(width: 8),
+                              _IconBtn(
+                                icon: Icons.settings_outlined,
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                      builder: (_) =>
+                                          const SettingsScreen()),
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
+                  );
+                },
               ),
             ),
           ],
