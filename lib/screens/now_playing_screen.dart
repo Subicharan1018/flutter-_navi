@@ -375,7 +375,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final song = playerState.queue[playerState.currentIndex];
     final imageUrl = service.getCoverArtUrl(song.coverArt);
 
+    // BUG FIX: Only trigger palette load if the image URL actually changed.
+    // Store _lastImageUrl BEFORE calling _loadPalette to avoid infinite loops
+    // where the check always returns true on every rebuild.
     if (imageUrl != _lastImageUrl) {
+      _lastImageUrl = imageUrl;
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _loadPalette(imageUrl));
     }

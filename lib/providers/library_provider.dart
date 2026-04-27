@@ -10,6 +10,7 @@ final libraryFilterProvider = StateProvider<LibraryFilter>((ref) => LibraryFilte
 
 final recentlyPlayedAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   final service = ref.watch(subsonicServiceProvider);
+  // Caching is now handled at the SubsonicService level
   return await service.getRecentlyPlayedAlbums();
 });
 

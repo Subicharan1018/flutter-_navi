@@ -35,7 +35,7 @@ class _FadeScaleRoute<T> extends PageRouteBuilder<T> {
 
   // One CurvedAnimation for the lifetime of this route.
   late final CurvedAnimation _curved = CurvedAnimation(
-    parent: animation,
+    parent: animation!,
     curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
   );
@@ -78,7 +78,7 @@ class _SlideUpRoute<T> extends PageRouteBuilder<T> {
         );
 
   late final CurvedAnimation _curved = CurvedAnimation(
-    parent: animation,
+    parent: animation!,
     curve: Curves.easeOutCubic,
     reverseCurve: Curves.easeInCubic,
   );

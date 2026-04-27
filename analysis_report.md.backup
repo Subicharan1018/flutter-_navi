@@ -798,55 +798,6 @@ After first call, `imageUrl == _lastImageUrl`, so subsequent rebuilds skip the p
 
 ---
 
-### BUG-22: 🔴 Song Refresh When Picked/Clicked from Library 🟡 PENDING
-
-**Problem:** When a user clicks or picks a song from the Library screen or playlist, the UI refreshes/reloads unexpectedly. This causes:
-- Brief visual stutter or blank screen
-- Redundant data fetches from the server
-- Interruption in user's interaction flow
-- Potentially resets the current queue state
-
-**Suspected Root Cause:**
-This likely stems from one of the following:
-- `allSongsProvider` or `libraryAlbumsProvider` re-fetching data when the player state changes
-- `setQueue()` triggering an unintended rebuild of the Library screen
-- Race condition between UI state updates and player state updates
-- Missing proper cache invalidation logic causing unnecessary refreshes
-
-**Investigation Needed:**
-- Trace `Navigator.push()` or `onTap()` handlers in `home_screen.dart`, `library_screen.dart`, and `playlist_details_screen.dart`
-- Check if `setQueue()` triggers any `ref.refresh()` calls on library providers
-- Monitor network requests to see if duplicate API calls occur on song selection
-- Verify `playerProvider` state changes don't cascade refresh to library providers
-
----
-
-### BUG-23: 🔴 Smart Shuffle Freeze When Mode Switched 🟡 PENDING
-
-**Problem:** When the user switches between different shuffle modes (standard, Spotify dither, YouTube weighted, or off), the app freezes momentarily. This causes:
-- 500ms-2s UI freeze
-- Unresponsive touch during transition
-- Audio may drop out momentarily
-- Appears like a complete app hang to the user
-
-**Suspected Root Cause:**
-This is likely caused by:
-- `_rebuildSource()` or `player.setAudioSource()` blocking on the main thread without yielding
-- Heavy shuffling algorithm computation (sorting 5000 songs) happening synchronously
-- Multiple consecutive `await` calls stacking without proper async scheduling
-- Palette generation or heavy state mutations happening during shuffle transition
-- Missing `Future.microtask()` or `Future.delayed()` to yield to the event loop between operations
-
-**Investigation Needed:**
-- Profile `standardShuffle()`, `spotifyDitherShuffle()`, `youtubeWeightedShuffle()` methods for CPU-bound work
-- Check if `_currentQueue` operations (sorting, filtering) are running on main isolate
-- Verify `player.setAudioSource()` is properly awaited and not causing lock-ups
-- Add performance markers around shuffle operations to identify bottleneck
-- Check if `applyShuffleAlgorithm()` awaits properly and doesn't race with other state updates
-
----
-
-
 ## �🔵 Code Quality & Structural Issues
 
 ### QUALITY-1: Excessive use of `dynamic` types

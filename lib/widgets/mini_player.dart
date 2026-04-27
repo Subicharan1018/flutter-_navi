@@ -136,7 +136,10 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final song     = playerState.queue[playerState.currentIndex];
     final imageUrl = service.getCoverArtUrl(song.coverArt);
 
+    // BUG FIX: Only trigger palette load if the image URL actually changed.
+    // Store _lastImageUrl BEFORE calling _loadPalette to avoid infinite loops.
     if (imageUrl != _lastImageUrl) {
+      _lastImageUrl = imageUrl;
       _loadPalette(imageUrl);
     }
 

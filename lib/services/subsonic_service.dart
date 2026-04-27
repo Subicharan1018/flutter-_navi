@@ -20,6 +20,15 @@ class SubsonicService {
   final String? webdavPassword;
   final http.Client _client = http.Client();
 
+  // BUG FIX: In-memory cache for library data
+  // These are retained for the lifetime of the SubsonicService instance,
+  // preventing repeated network requests during app usage.
+  List<Album>? _recentlyPlayedAlbumsCache;
+  List<Album>? _frequentAlbumsCache;
+  List<Playlist>? _playlistsCache;
+  List<Song>? _allSongsCache;
+  List<Album>? _albumsCache;
+
   SubsonicService({
     required String serverUrl,
     required this.username,
@@ -121,6 +130,11 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   Future<List<Song>> getAllSongs({int size = 5000}) async {
+    // BUG FIX: Return cached result if available
+    if (_allSongsCache != null) {
+      return _allSongsCache!;
+    }
+    
     try {
       final res = await _get('search3.view', {
         'query': '*',
@@ -131,11 +145,17 @@ class SubsonicService {
       final songs = (searchResult['song'] as List<dynamic>? ?? [])
           .map((e) => Song.fromJson(e as Map<String, dynamic>))
           .toList();
-      if (songs.length > 10) return songs;
+      if (songs.length > 10) {
+        _allSongsCache = songs;
+        return songs;
+      }
     } catch (e) {
       debugPrint('Wildcard search failed: $e');
     }
-    return getRandomSongs(size: size);
+    
+    final result = await getRandomSongs(size: size);
+    _allSongsCache = result;
+    return result;
   }
 
   Future<List<Song>> getRandomSongs({int size = 50}) async {
@@ -168,26 +188,47 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   Future<List<Album>> getRecentlyPlayedAlbums() async {
+    // BUG FIX: Return cached result if available
+    if (_recentlyPlayedAlbumsCache != null) {
+      return _recentlyPlayedAlbumsCache!;
+    }
+    
     final res = await _get('getAlbumList2.view', {'type': 'recent'});
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    return albums
+    final result = albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
+    
+    _recentlyPlayedAlbumsCache = result;
+    return result;
   }
 
   Future<List<Album>> getFrequentAlbums() async {
+    // BUG FIX: Return cached result if available
+    if (_frequentAlbumsCache != null) {
+      return _frequentAlbumsCache!;
+    }
+    
     final res = await _get('getAlbumList2.view', {'type': 'frequent'});
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    return albums
+    final result = albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
+    
+    _frequentAlbumsCache = result;
+    return result;
   }
 
   Future<List<Album>> getAlbums({int offset = 0, int size = 50}) async {
+    // BUG FIX: Cache only the first page (offset=0, size=1000)
+    if (offset == 0 && size == 1000 && _albumsCache != null) {
+      return _albumsCache!;
+    }
+    
     final res = await _get('getAlbumList2.view', {
       'type': 'alphabeticalByArtist',
       'offset': offset.toString(),
@@ -196,9 +237,15 @@ class SubsonicService {
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    return albums
+    final result = albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
+    
+    if (offset == 0 && size == 1000) {
+      _albumsCache = result;
+    }
+    
+    return result;
   }
 
   Future<List<Song>> getAlbum(String id) async {
@@ -236,13 +283,21 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   Future<List<Playlist>> getPlaylists() async {
+    // BUG FIX: Return cached result if available
+    if (_playlistsCache != null) {
+      return _playlistsCache!;
+    }
+    
     final res = await _get('getPlaylists.view');
     final playlists =
         (res['playlists'] as Map<String, dynamic>)['playlist'] as List<dynamic>? ??
             [];
-    return playlists
+    final result = playlists
         .map((e) => Playlist.fromJson(e as Map<String, dynamic>))
         .toList();
+    
+    _playlistsCache = result;
+    return result;
   }
 
   Future<List<Song>> getPlaylistSongs(String id) async {
