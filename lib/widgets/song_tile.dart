@@ -24,11 +24,20 @@ class SongTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final service = ref.watch(subsonicServiceProvider);
-    final playerState = ref.watch(playerProvider);
-    
-    final bool isActive = playerState.queue.isNotEmpty && 
-        playerState.currentIndex < playerState.queue.length &&
-        playerState.queue[playerState.currentIndex].id == song.id;
+
+    // BUG-22 FIX: Use select() to narrow the subscription to only the boolean
+    // that matters for THIS tile. Riverpod memoises the derived value and only
+    // notifies this widget when isActive flips — all other queue mutations
+    // (setQueue, addToQueue, reorder, shuffle) are silently ignored here,
+    // eliminating the ~200-tile cascade rebuild that caused the stutter.
+    final bool isActive = ref.watch(
+      playerProvider.select(
+        (s) =>
+            s.queue.isNotEmpty &&
+            s.currentIndex < s.queue.length &&
+            s.queue[s.currentIndex].id == song.id,
+      ),
+    );
 
     return CupertinoClickable(
       onTap: onTap,
@@ -49,13 +58,21 @@ class SongTile extends ConsumerWidget {
                     width: 48,
                     height: 48,
                     color: AppTheme.topLevel,
-                    child: const Icon(Icons.music_note_rounded, color: AppTheme.textMuted, size: 24),
+                    child: const Icon(
+                      Icons.music_note_rounded,
+                      color: AppTheme.textMuted,
+                      size: 24,
+                    ),
                   ),
                   errorWidget: (context, url, error) => Container(
                     width: 48,
                     height: 48,
                     color: AppTheme.topLevel,
-                    child: const Icon(Icons.music_note_rounded, color: AppTheme.textMuted, size: 24),
+                    child: const Icon(
+                      Icons.music_note_rounded,
+                      color: AppTheme.textMuted,
+                      size: 24,
+                    ),
                   ),
                 ),
               ),
@@ -91,13 +108,18 @@ class SongTile extends ConsumerWidget {
               IconButton(
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
-                icon: const Icon(Icons.more_horiz_rounded, color: AppTheme.textSecondary, size: 20),
+                icon: const Icon(
+                  Icons.more_horiz_rounded,
+                  color: AppTheme.textSecondary,
+                  size: 20,
+                ),
                 onPressed: () {
                   showModalBottomSheet(
                     context: context,
                     isScrollControlled: true,
                     backgroundColor: Colors.transparent,
-                    builder: (context) => OptionsMenu(song: song, playlistId: playlistId),
+                    builder: (context) =>
+                        OptionsMenu(song: song, playlistId: playlistId),
                   );
                 },
               ),
