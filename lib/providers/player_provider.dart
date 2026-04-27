@@ -19,6 +19,24 @@ class PlayerState {
   final LoopMode repeatMode;
   final List<String> starredIds;
 
+  // ---------------------------------------------------------------------------
+  // History
+  //
+  // Apple Music model:
+  //   • history  — songs that have *already* finished playing, oldest → newest.
+  //                Pressing "previous" pops from here rather than from the queue.
+  //   • queue    — songs yet to be played, index 0 = now playing.
+  //
+  // The two lists are kept separate so the Queue screen can display them with
+  // a clear visual divider ("History" header above, "Next Up" header below the
+  // now-playing row).  History is capped at [maxHistoryLength] to prevent
+  // unbounded memory growth on long listening sessions.
+  // ---------------------------------------------------------------------------
+  final List<Song> history;
+
+  /// Maximum number of songs retained in history.
+  static const int maxHistoryLength = 50;
+
   const PlayerState({
     required this.queue,
     required this.currentIndex,
@@ -26,6 +44,7 @@ class PlayerState {
     required this.shuffleMode,
     required this.repeatMode,
     required this.starredIds,
+    this.history = const [],
   });
 
   PlayerState copyWith({
@@ -35,6 +54,7 @@ class PlayerState {
     bool? shuffleMode,
     LoopMode? repeatMode,
     List<String>? starredIds,
+    List<Song>? history,
   }) {
     return PlayerState(
       queue: queue ?? this.queue,
@@ -43,8 +63,26 @@ class PlayerState {
       shuffleMode: shuffleMode ?? this.shuffleMode,
       repeatMode: repeatMode ?? this.repeatMode,
       starredIds: starredIds ?? this.starredIds,
+      history: history ?? this.history,
     );
   }
+
+  // ---------------------------------------------------------------------------
+  // Convenience views used by the Queue/History screen
+  // ---------------------------------------------------------------------------
+
+  /// Songs that have already played (oldest first).
+  List<Song> get historySongs => history;
+
+  /// The song currently playing (null if queue is empty).
+  Song? get currentSong =>
+      queue.isNotEmpty && currentIndex < queue.length ? queue[currentIndex] : null;
+
+  /// Songs *after* the current index — i.e. "Next Up".
+  List<Song> get upNext =>
+      queue.isNotEmpty && currentIndex + 1 < queue.length
+          ? queue.sublist(currentIndex + 1)
+          : const [];
 }
 
 // ---------------------------------------------------------------------------
@@ -65,6 +103,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           shuffleMode: false,
           repeatMode: LoopMode.off,
           starredIds: [],
+          history: [],
         )) {
     _init();
   }
@@ -75,18 +114,59 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // _scrobbledIds so the same song can be scrobbled again in a new playthrough.
   String? _lastScrobbleSongId;
 
+  // ---------------------------------------------------------------------------
+  // BUG-13 FIX — isShuffling guard
+  //
+  // During the async gap between setQueue() and the completion of
+  // applyShuffleAlgorithm() the queue may briefly appear "changed" while the
+  // audio source is being rebuilt.  The NowPlayingScreen's queue.isEmpty guard
+  // would show a black Scaffold during that window.
+  //
+  // Solution: expose a flag that the NowPlayingScreen can read.  While true,
+  // the screen suppresses the empty-queue fallback and keeps the last-rendered
+  // content visible (the album art / mesh gradient are already on screen from
+  // the previous frame).
+  // ---------------------------------------------------------------------------
+  bool _isShuffling = false;
+  bool get isShuffling => _isShuffling;
+
   void _init() {
-    // BUG-5: clear _scrobbledIds when the current song changes
+    // ---------------------------------------------------------------------------
+    // History tracking
+    //
+    // When currentIndex advances (song change detected via currentIndexStream)
+    // we push the *previous* song onto history before updating currentIndex in
+    // state.  We intentionally do NOT push when the user manually seeks
+    // backwards via playPrev() — that method handles its own history pop.
+    // ---------------------------------------------------------------------------
+    int _lastKnownIndex = 0;
+
     _subscriptions.add(player.currentIndexStream.listen((index) {
-      if (index != null) {
-        state = state.copyWith(currentIndex: index);
-        // Determine the song at the new index
-        if (index < state.queue.length) {
-          final songId = state.queue[index].id;
-          if (songId != _lastScrobbleSongId) {
-            _scrobbledIds.clear();
-            _lastScrobbleSongId = songId;
-          }
+      if (index == null) return;
+
+      final prevIndex = _lastKnownIndex;
+      _lastKnownIndex = index;
+
+      // Detect a *forward* track change (autoadvance or seekToNext).
+      // We recognise it by the index moving forward by exactly 1 step.
+      // Manual jumps (jumpTo / playNext for non-contiguous) are handled
+      // separately in those methods and do their own history push, so we
+      // skip double-pushing here by checking _suppressNextHistoryPush.
+      if (!_suppressNextHistoryPush &&
+          index > prevIndex &&
+          prevIndex < state.queue.length) {
+        _pushToHistory(state.queue[prevIndex]);
+      }
+      _suppressNextHistoryPush = false;
+
+      state = state.copyWith(currentIndex: index);
+
+      // BUG-5: clear scrobble cache on song change
+      if (index < state.queue.length) {
+        final songId = state.queue[index].id;
+        if (songId != _lastScrobbleSongId) {
+          _scrobbledIds.clear();
+          _lastScrobbleSongId = songId;
         }
       }
     }));
@@ -117,6 +197,39 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }));
   }
 
+  // Set this to true immediately before any navigation that should NOT push a
+  // history entry (playPrev, manual jumpTo).  The currentIndexStream listener
+  // clears it after reading it once.
+  bool _suppressNextHistoryPush = false;
+
+  // ---------------------------------------------------------------------------
+  // History helpers
+  // ---------------------------------------------------------------------------
+
+  /// Push [song] onto history, capping at [PlayerState.maxHistoryLength].
+  void _pushToHistory(Song song) {
+    final updated = [...state.history, song];
+    if (updated.length > PlayerState.maxHistoryLength) {
+      updated.removeRange(0, updated.length - PlayerState.maxHistoryLength);
+    }
+    state = state.copyWith(history: updated);
+  }
+
+  /// Pop the most-recently-played song from history and return it.
+  /// Returns null if history is empty.
+  Song? _popFromHistory() {
+    if (state.history.isEmpty) return null;
+    final updated = [...state.history];
+    final song = updated.removeLast();
+    state = state.copyWith(history: updated);
+    return song;
+  }
+
+  /// Clear history (used when a brand-new queue is loaded).
+  void _clearHistory() {
+    state = state.copyWith(history: []);
+  }
+
   @override
   void dispose() {
     for (final sub in _subscriptions) {
@@ -132,43 +245,159 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // ---------------------------------------------------------------------------
 
   Future<void> setQueue(List<Song> songs, int startIndex) async {
+    _clearHistory();
     state = state.copyWith(queue: songs, currentIndex: startIndex);
     await _audioHandler.setQueue(songs, startIndex);
     player.play();
   }
 
+  // BUG-19 FIX: A dedicated method to start a playlist that handles shuffle
+  // elegantly without double-rebuilding the audio source or forcing song[0].
+  Future<void> playPlaylist(List<Song> songs, {bool shuffle = false}) async {
+    if (songs.isEmpty) return;
+    _clearHistory();
+
+    if (!shuffle) {
+      state = state.copyWith(shuffleMode: false);
+      state = state.copyWith(queue: songs, currentIndex: 0);
+      await _audioHandler.setQueue(songs, 0);
+      player.play();
+      return;
+    }
+
+    // Shuffle requested:
+    state = state.copyWith(shuffleMode: true);
+    _isShuffling = true;
+    try {
+      // Pick a random starting song so the first track is unpredictable
+      final startIndex = Random().nextInt(songs.length);
+      final currentSong = songs[startIndex];
+      final pool = songs.where((s) => s.id != currentSong.id).toList();
+
+      final settings = _ref.read(settingsProvider);
+      
+      // Shuffle the rest of the pool using the chosen algorithm directly via the handler
+      final shuffled = await _audioHandler.computeShuffle(
+        pool,
+        settings.shuffleAlgorithm,
+        settings.shufflePreference,
+      );
+
+      final finalQueue = [currentSong, ...shuffled];
+      state = state.copyWith(queue: finalQueue, currentIndex: 0);
+      
+      // Only one rebuild/play call!
+      await _audioHandler.setQueue(finalQueue, 0);
+      player.play();
+    } finally {
+      _isShuffling = false;
+    }
+  }
+
   Future<void> playNext() async {
+    // Push current song to history before advancing
+    if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
+      _pushToHistory(state.queue[state.currentIndex]);
+    }
+    _suppressNextHistoryPush = true;
+
     try {
       if (player.hasNext) {
         await player.seekToNext();
       } else {
-        await jumpTo(state.currentIndex < state.queue.length - 1
-            ? state.currentIndex + 1
-            : 0);
+        await _jumpToInternal(
+            state.currentIndex < state.queue.length - 1
+                ? state.currentIndex + 1
+                : 0,
+            pushHistory: false);
       }
     } catch (_) {
-      await jumpTo(state.currentIndex < state.queue.length - 1
-          ? state.currentIndex + 1
-          : 0);
+      await _jumpToInternal(
+          state.currentIndex < state.queue.length - 1
+              ? state.currentIndex + 1
+              : 0,
+          pushHistory: false);
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // BUG-13 FIX — playPrev() now uses history
+  //
+  // Apple Music behaviour:
+  //   1. If position > 3 s → seek to start of current song.
+  //   2. Else if history is non-empty → pop from history and play that song.
+  //   3. Else if there is a previous track in the queue → seek to it.
+  //   4. Else stay on track 0.
+  //
+  // Crucially, when we pop from history we must NOT push the current song
+  // back onto history (that would create an infinite "previous" loop).
+  // ---------------------------------------------------------------------------
   Future<void> playPrev() async {
     try {
       if (player.position.inSeconds > 3) {
+        // Just restart the current track — no history change
         await player.seek(Duration.zero);
-      } else if (player.hasPrevious) {
+        return;
+      }
+
+      final historySong = _popFromHistory();
+      if (historySong != null) {
+        // Jump to the song from history.
+        // We need to find it in the queue.  History songs are always past
+        // entries so they exist at indices < currentIndex.
+        final historyIndex = state.queue
+            .sublist(0, state.currentIndex)
+            .lastIndexWhere((s) => s.id == historySong.id);
+
+        if (historyIndex >= 0) {
+          _suppressNextHistoryPush = true;
+          await player.seek(Duration.zero, index: historyIndex);
+          state = state.copyWith(currentIndex: historyIndex);
+        } else {
+          // Song was removed from queue after being played — just go back one
+          // position conventionally.
+          _suppressNextHistoryPush = true;
+          final prevIdx =
+              state.currentIndex > 0 ? state.currentIndex - 1 : 0;
+          await player.seek(Duration.zero, index: prevIdx);
+          state = state.copyWith(currentIndex: prevIdx);
+        }
+        return;
+      }
+
+      // No history → fall back to previous queue index
+      if (player.hasPrevious) {
+        _suppressNextHistoryPush = true;
         await player.seekToPrevious();
       } else {
-        await jumpTo(state.currentIndex > 0 ? state.currentIndex - 1 : 0);
+        _suppressNextHistoryPush = true;
+        await _jumpToInternal(
+            state.currentIndex > 0 ? state.currentIndex - 1 : 0,
+            pushHistory: false);
       }
     } catch (_) {
-      await jumpTo(state.currentIndex > 0 ? state.currentIndex - 1 : 0);
+      _suppressNextHistoryPush = true;
+      await _jumpToInternal(
+          state.currentIndex > 0 ? state.currentIndex - 1 : 0,
+          pushHistory: false);
     }
   }
 
   Future<void> jumpTo(int index) async {
+    await _jumpToInternal(index, pushHistory: true);
+  }
+
+  /// Internal jump.  [pushHistory] controls whether the current song is pushed
+  /// before navigating (false for prev, true for tapping a song in the list).
+  Future<void> _jumpToInternal(int index, {required bool pushHistory}) async {
+    if (pushHistory &&
+        state.queue.isNotEmpty &&
+        state.currentIndex < state.queue.length) {
+      _pushToHistory(state.queue[state.currentIndex]);
+    }
+    _suppressNextHistoryPush = true;
     await player.seek(Duration.zero, index: index);
+    state = state.copyWith(currentIndex: index);
   }
 
   Future<void> addToQueue(Song song) async {
@@ -257,24 +486,44 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  // BUG-13: made async so the full source rebuild is awaited before updating
-  // Riverpod state, preventing the transient-empty-queue black screen.
+  // ---------------------------------------------------------------------------
+  // BUG-13 FIX — applyShuffleAlgorithm is fully awaited before state update.
+  //
+  // The _isShuffling flag is raised for the entire async duration so that the
+  // NowPlayingScreen's empty-queue guard can be suppressed during the rebuild
+  // gap (see now_playing_screen.dart).
+  //
+  // BUG-19 FIX — when called from _playAll(shuffle:true) the queue has just
+  // been set to the raw playlist at index 0.  The shuffle algorithms all keep
+  // the current song at position 0 and shuffle the rest, so song[0] is always
+  // played first — not a random song — which matches Spotify/Apple behaviour.
+  // No random startIndex is ever passed; the shuffle itself provides variety.
+  // ---------------------------------------------------------------------------
   Future<void> applyShuffleAlgorithm() async {
-    final settings = _ref.read(settingsProvider);
-    final algorithm = settings.shuffleAlgorithm;
-    switch (algorithm) {
-      case ShuffleAlgorithm.spotify:
-        await _audioHandler.spotifyDitherShuffle(settings.shufflePreference);
-        break;
-      case ShuffleAlgorithm.youtube:
-        await _audioHandler.youtubeWeightedShuffle();
-        break;
-      case ShuffleAlgorithm.standard:
-        await _audioHandler.standardShuffle();
-        break;
+    _isShuffling = true;
+    try {
+      final settings = _ref.read(settingsProvider);
+      final algorithm = settings.shuffleAlgorithm;
+      switch (algorithm) {
+        case ShuffleAlgorithm.spotify:
+          await _audioHandler.spotifyDitherShuffle(settings.shufflePreference);
+          break;
+        case ShuffleAlgorithm.youtube:
+          await _audioHandler.youtubeWeightedShuffle();
+          break;
+        case ShuffleAlgorithm.standard:
+          await _audioHandler.standardShuffle();
+          break;
+      }
+      // Sync state with the newly reordered queue AFTER the rebuild is complete.
+      // currentIndex is always 0 after a shuffle (current song moves to front).
+      state = state.copyWith(
+        queue: _audioHandler.currentQueue,
+        currentIndex: 0,
+      );
+    } finally {
+      _isShuffling = false;
     }
-    // Sync state with the newly reordered queue AFTER the rebuild is complete
-    state = state.copyWith(queue: _audioHandler.currentQueue);
   }
 
   // ---------------------------------------------------------------------------
@@ -330,6 +579,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> scrobble(String songId) async {
     await _subsonicService.scrobble(songId);
   }
+
+  // ---------------------------------------------------------------------------
+  // History management — exposed for the queue/history screen
+  // ---------------------------------------------------------------------------
+
+  /// Manually clear playback history.
+  void clearHistory() => _clearHistory();
 }
 
 // ---------------------------------------------------------------------------

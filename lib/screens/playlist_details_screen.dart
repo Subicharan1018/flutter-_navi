@@ -118,17 +118,12 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
     if (_songs.isEmpty) return;
 
     final playerNotifier = ref.read(playerProvider.notifier);
-    // BUG FIX: Always start from index 0 regardless of shuffle.
-    // When shuffling, the shuffle algorithm provides the randomness.
-    // Previously, setting a random startIndex then immediately shuffling
-    // caused a jump: random index → (shuffle rebuilds) → index 0
-    await playerNotifier.setQueue(_songs, 0);
     if (shuffle) {
       debugPrint('👉 [UI] Playlist Shuffle Button Tapped');
-      await playerNotifier.setShuffleMode(true);
-    } else {
-      await playerNotifier.setShuffleMode(false);
     }
+    // BUG-19 FIX: Use the dedicated playPlaylist method which properly handles
+    // randomizing the first track and pre-shuffling the rest without stuttering.
+    await playerNotifier.playPlaylist(_songs, shuffle: shuffle);
   }
 
   Future<void> _deleteSong(int index) async {

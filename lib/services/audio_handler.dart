@@ -297,6 +297,20 @@ class AudioHandler {
   }
 
   // ---------------------------------------------------------------------------
+  // Direct access to compute shuffles for initial playlist playback
+  // ---------------------------------------------------------------------------
+  Future<List<Song>> computeShuffle(List<Song> pool, ShuffleAlgorithm algorithm, ShufflePreference preference) async {
+    switch (algorithm) {
+      case ShuffleAlgorithm.standard:
+        return compute(_standardShuffleIsolate, pool);
+      case ShuffleAlgorithm.spotify:
+        return compute(_balancedShuffleIsolate, {'songs': pool, 'pref': preference.index});
+      case ShuffleAlgorithm.youtube:
+        return compute(_weightedShuffleIsolate, pool);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Update the dynamic weight of a song in the current queue.
   // suggestMore = true  → increase weight by 50% (max 10.0)
   // suggestMore = false → decrease weight by 50% (min 0.1)

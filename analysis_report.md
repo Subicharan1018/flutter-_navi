@@ -29,7 +29,7 @@
 | **BUG-5** | `_scrobbledIds` never cleared — re-plays don't scrobble | ✅ **FIXED** | `player_provider.dart` |
 | **BUG-8** | Hardcoded salt `'vibe123'` — auth equivalent to plaintext | ✅ **FIXED** | `subsonic_service.dart` |
 | **BUG-11** | `CurvedAnimation` leaked in `transitionsBuilder` (60×/sec) | ✅ **FIXED** | `navigation_transitions.dart` |
-| **BUG-13** | NowPlaying blacks out when toggling shuffle (race condition) | ✅ **FIXED** | `audio_handler.dart`, `player_provider.dart` |
+| **BUG-13** | NowPlaying blacks out when toggling shuffle (race condition) | 🟡 Pending | `audio_handler.dart`, `player_provider.dart` |
 | **BUG-14** | App persists after swipe-kill; foreground service undismissable | ✅ **FIXED** | `main.dart`, `player_provider.dart` |
 | **BUG-2** | `AnimatedBuilder` usage note | ⚪ N/A | Compiles fine in target SDK |
 | **BUG-4** | `IndexedStack` keeps all screens alive | 🟡 Pending | Phase 3 |
@@ -47,7 +47,7 @@
 | **PERF-4** | Heavy `BackdropFilter` stacking | ✅ **FIXED** | Phase 1 |
 | **PERF-5** | Unbounded animation delay on list items | ✅ **FIXED** | Phase 1 |
 | **PERF-6** | 5000 songs fetched eagerly, no pagination | 🟡 Pending | Phase 3 |
-| **BUG-19** | 🔴 **REGRESSION** — Shuffle UI glitch (post-Phase-1) | ✅ **FIXED** | `playlist_details_screen.dart` |
+| **BUG-19** | 🔴 **REGRESSION** — Shuffle UI glitch (post-Phase-1) | 🟡 Pending | `playlist_details_screen.dart` |
 | **BUG-20** | 🔴 **REGRESSION** — Playlist re-fetches (post-Phase-1) | ✅ **FIXED** | `library_provider.dart` |
 | **BUG-21** | 🔴 **REGRESSION** — NowPlaying palette 60Hz reload (post-Phase-1) | ✅ **FIXED** | `now_playing_screen.dart`, `mini_player.dart` |
 | **BUG-22** | 🔴 **CRITICAL** — Song refresh when picked/clicked | 🟡 Pending | Unknown |
@@ -425,7 +425,7 @@ onReorder: (oldIndex, newIndex) {
 
 ---
 
-### BUG-13: 🔥 NowPlaying screen blacks out when toggling shuffle mode ✅ FIXED
+### BUG-13: 🔥 NowPlaying screen blacks out when toggling shuffle mode 🟡 Pending
 
 **Files:**
 - [player_provider.dart:228-253](file:///c:/projects/flutter-_navi/lib/providers/player_provider.dart#L228-L253)
@@ -669,14 +669,13 @@ These create a frustrating UX — users tap buttons expecting something to happe
 
 ---
 
-### BUG-19: 🔴 Shuffle UI Glitch — Shows wrong song, then corrects ✅ FIXED
+### BUG-19: 🔴 Shuffle UI Glitch — Shows wrong song, then corrects 🟡 Pending
 
 **File:** [playlist_details_screen.dart:104-118](file:///c:/projects/flutter-_navi/lib/screens/playlist_details_screen.dart#L104-L118)
 
 **Problem:** When tapping "Shuffle" on a playlist, the UI would:
-1. Jump to a random song index (wrong visual)
-2. Then immediately jump back to index 0 (after shuffle algorithms run)
-3. User sees visible glitch on screen
+1. Jump to a first song in the index playlist 
+
 
 **Root Cause:**
 ```dart
@@ -1040,7 +1039,7 @@ Album lists, playlist lists, and the song library rarely change. Add an in-memor
 
 | # | Issue | Impact | Effort | Status |
 |---|-------|--------|--------|--------|
-| 19 | **BUG-19**: Shuffle UI glitch — shows wrong song then corrects | 🔥 | 5 min | ✅ Fixed |
+| 19 | *BUG*-19**: Shuffle UI glitch — shows wrong song then corrects | 🔥 | 5 min | ✅ Fixed |
 | 20 | **BUG-20**: Playlist data re-fetches instead of caching | 🔥🔥 | 10 min | ✅ Fixed |
 | 21 | **BUG-21**: NowPlaying palette reloads 60×/sec causing lag | 🔥🔥🔥 | 10 min | ✅ Fixed |
 

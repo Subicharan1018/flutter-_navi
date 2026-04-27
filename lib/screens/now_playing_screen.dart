@@ -15,6 +15,7 @@ import '../core/theme.dart';
 import 'queue_screen.dart';
 import 'package:flutter/foundation.dart';
 import '../widgets/options_menu.dart';
+import '../models/song.dart';
 
 // ---------------------------------------------------------------------------
 // Isolate-safe color extraction
@@ -134,6 +135,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   Timer? _sleepTimer;
   Timer? _sleepCountdownTimer;
   int? _sleepSecondsRemaining;
+
+  // -------------------------------------------------------------------------
+  // BUG-13 FIX: snapshot of last valid song for use during shuffle rebuild gap
+  //
+  // During the async gap while applyShuffleAlgorithm() rebuilds the audio
+  // source, playerState.queue may transiently appear empty (the source reset
+  // clears currentIndex).  Instead of showing the black Scaffold fallback we
+  // hold onto the last successfully rendered song and keep it visible.
+  // -------------------------------------------------------------------------
+  Song? _lastKnownSong;
+  String? _lastKnownImageUrl;
 
   @override
   void didChangeDependencies() {
@@ -369,16 +381,45 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
+    final notifier = ref.read(playerProvider.notifier);
     final settings = ref.watch(settingsProvider);
     final service = ref.watch(subsonicServiceProvider);
 
-    if (playerState.queue.isEmpty) {
+    // -------------------------------------------------------------------------
+    // BUG-13 FIX: suppress black-screen flash during shuffle rebuild
+    //
+    // The async gap between setQueue() and the completion of
+    // applyShuffleAlgorithm() can produce a frame where queue.isEmpty is
+    // true even though music is playing and the screen is visible.  Instead of
+    // the pure-black fallback Scaffold we:
+    //   1. Keep a _lastKnownSong snapshot that is only updated when the queue
+    //      is genuinely populated.
+    //   2. During the shuffle gap (notifier.isShuffling == true) we keep
+    //      rendering the previous song rather than flashing to black.
+    // -------------------------------------------------------------------------
+    final bool queueReady =
+        playerState.queue.isNotEmpty && playerState.currentIndex < playerState.queue.length;
+
+    if (queueReady) {
+      _lastKnownSong = playerState.queue[playerState.currentIndex];
+      _lastKnownImageUrl = service.getCoverArtUrl(_lastKnownSong!.coverArt);
+    }
+
+    // True empty state — nothing has ever played, or the screen was opened
+    // with no queue at all.  Only show the black fallback when we have no
+    // snapshot to fall back to AND we are not in the middle of a shuffle rebuild.
+    if (!queueReady && _lastKnownSong == null && !notifier.isShuffling) {
       return const Scaffold(
           backgroundColor: AppTheme.coreBackground, body: SizedBox());
     }
 
-    final song = playerState.queue[playerState.currentIndex];
-    final imageUrl = service.getCoverArtUrl(song.coverArt);
+    // Use the last known song/image during a transient empty-queue window.
+    final song = queueReady
+        ? playerState.queue[playerState.currentIndex]
+        : _lastKnownSong!;
+    final imageUrl = queueReady
+        ? service.getCoverArtUrl(song.coverArt)
+        : _lastKnownImageUrl!;
 
     // BUG FIX: Only trigger palette load if the image URL actually changed.
     // Store _lastImageUrl BEFORE calling _loadPalette to avoid infinite loops
@@ -434,108 +475,64 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               Positioned.fill(
                   child: ColoredBox(color: Colors.black.withOpacity(0.28))),
 
+              // Main content
               SafeArea(
                 child: Column(
                   children: [
-                    // --------------------------------------------------------
-                    // Top bar
-                    // --------------------------------------------------------
-                    const SizedBox(height: 12),
-                    Container(
-                      width: 36,
-                      height: 4,
-                      decoration: BoxDecoration(
-                        color: Colors.white.withOpacity(0.25),
-                        borderRadius: BorderRadius.circular(2),
-                      ),
-                    ),
+                    // ── Top bar ────────────────────────────────────────────
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 4),
+                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                color: Colors.white,
-                                size: 28),
+                            icon: const Icon(Icons.keyboard_arrow_down_rounded,
+                                color: Colors.white, size: 32),
                             onPressed: () => Navigator.pop(context),
                           ),
                           const Spacer(),
-                          const Text('Now Playing',
-                              style: TextStyle(
-                                  color: Colors.white,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w600)),
-                          const Spacer(),
                           IconButton(
                             icon: const Icon(Icons.more_horiz_rounded,
-                                color: Colors.white, size: 24),
-                            onPressed: () => showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) =>
-                                  OptionsMenu(song: song),
-                            ),
+                                color: Colors.white54, size: 28),
+                            onPressed: () {
+                              showModalBottomSheet(
+                                context: context,
+                                isScrollControlled: true,
+                                backgroundColor: Colors.transparent,
+                                builder: (_) => OptionsMenu(song: song),
+                              );
+                            },
                           ),
                         ],
                       ),
                     ),
 
-                    const Spacer(),
-
-                    // --------------------------------------------------------
-                    // Artwork
-                    // --------------------------------------------------------
+                    // ── Album art ──────────────────────────────────────────
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
-                      child: Container(
-                        decoration: _transitionFinished
-                            ? BoxDecoration(
-                                borderRadius: BorderRadius.circular(16),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: Colors.black.withOpacity(0.6),
-                                    blurRadius: 48,
-                                    spreadRadius: 8,
-                                    offset: const Offset(0, 16),
-                                  )
-                                ],
-                              )
-                            : null,
-                        child: Hero(
-                          tag: 'now_playing_artwork',
-                          child: ClipRRect(
-                            borderRadius: BorderRadius.circular(16),
-                            child: AspectRatio(
-                              aspectRatio: 1,
-                              child: CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  fit: BoxFit.cover),
-                            ),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 32, vertical: 16),
+                      child: AspectRatio(
+                        aspectRatio: 1,
+                        child: ClipRRect(
+                          borderRadius: BorderRadius.circular(16),
+                          child: CachedNetworkImage(
+                            imageUrl: imageUrl,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => Container(
+                                color: AppTheme.surfaceLevel,
+                                child: const Icon(Icons.music_note_rounded,
+                                    size: 80, color: AppTheme.textMuted)),
+                            errorWidget: (_, __, ___) => Container(
+                                color: AppTheme.surfaceLevel,
+                                child: const Icon(Icons.music_note_rounded,
+                                    size: 80, color: AppTheme.textMuted)),
                           ),
                         ),
-                      ).animate(
-                          target: (playerState.isPlaying &&
-                                  _transitionFinished)
-                              ? 1
-                              : 0)
-                          .scale(
-                            begin: const Offset(0.88, 0.88),
-                            end: const Offset(1, 1),
-                            duration: 350.ms,
-                            curve: Curves.easeOutBack,
-                          ),
+                      ),
                     ),
 
-                    const Spacer(),
-
-                    // --------------------------------------------------------
-                    // Song title + artist + star
-                    // --------------------------------------------------------
+                    // ── Song info ──────────────────────────────────────────
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
                       child: Row(
                         children: [
                           Expanded(
@@ -543,33 +540,33 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 SizedBox(
-                                  height: 34,
-                                  child: song.title.length > 22
+                                  height: 28,
+                                  child: song.title.length > 28
                                       ? Marquee(
                                           text: song.title,
                                           style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.bold),
-                                          blankSpace: 40,
-                                          velocity: 28,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white),
+                                          scrollAxis: Axis.horizontal,
+                                          blankSpace: 48,
+                                          velocity: 30,
                                         )
                                       : Text(
                                           song.title,
                                           style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.bold),
-                                          maxLines: 1,
+                                              fontSize: 20,
+                                              fontWeight: FontWeight.bold,
+                                              color: Colors.white),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                 ),
+                                const SizedBox(height: 2),
                                 Text(
                                   song.artist,
-                                  style: TextStyle(
-                                      color: Colors.white.withOpacity(0.65),
-                                      fontSize: 16,
-                                      fontWeight: FontWeight.w500),
-                                  maxLines: 1,
+                                  style: const TextStyle(
+                                      fontSize: 15, color: Colors.white60),
+                                  overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
@@ -580,8 +577,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                   ? Icons.favorite_rounded
                                   : Icons.favorite_border_rounded,
                               color: playerState.starredIds.contains(song.id)
-                                  ? AppTheme.spotifyGreen
-                                  : Colors.white70,
+                                  ? Colors.pinkAccent
+                                  : Colors.white54,
                               size: 26,
                             ),
                             onPressed: () => ref
@@ -592,13 +589,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
-                    const SizedBox(height: 28),
+                    const SizedBox(height: 20),
 
-                    // --------------------------------------------------------
-                    // Progress bar
-                    // --------------------------------------------------------
+                    // ── Progress bar ───────────────────────────────────────
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 24),
+                      padding: const EdgeInsets.symmetric(horizontal: 32),
                       child: StreamBuilder<Duration>(
                         stream: ref
                             .read(playerProvider.notifier)
@@ -630,9 +625,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
                     const SizedBox(height: 20),
 
-                    // --------------------------------------------------------
-                    // Transport controls
-                    // --------------------------------------------------------
+                    // ── Transport controls ─────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Row(
@@ -701,12 +694,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
                     const Spacer(),
 
-                    // --------------------------------------------------------
-                    // Custom bottom bar
-                    // ┌──────────────────────────────────────────────┐
-                    // │  [Sound Bar]  [Infinity]  [Sleep]  [Queue]   │
-                    // └──────────────────────────────────────────────┘
-                    // --------------------------------------------------------
+                    // ── Custom bottom bar ──────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
                       child: Row(
@@ -787,7 +775,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             ),
                           ),
 
-                          // ---- Queue ----
+                          // ---- Queue / History ----
                           IconButton(
                             icon: const Icon(Icons.queue_music_rounded,
                                 color: Colors.white54, size: 24),
