@@ -466,7 +466,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ? AnimatedMeshGradient(
                           colors: _meshColors,
                           options: AnimatedMeshGradientOptions(
-                              speed: playerState.isPlaying ? 2 : 0, grain: 0.05))
+                              speed: playerState.isPlaying ? 2 : 0.01, grain: 0.05))
                       : const SizedBox.shrink(),
                 ),
               ),
@@ -631,14 +631,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          IconButton(
-                            icon: Icon(Icons.shuffle_rounded,
-                                color: isShuffleActive
-                                    ? AppTheme.spotifyGreen
-                                    : Colors.white54,
-                                size: 24),
-                            onPressed: () =>
-                                ref.read(playerProvider.notifier).toggleShuffle(),
+                          // ---- Shuffle ----
+                          GestureDetector(
+                            onLongPress: _showSmartShuffleDialog,
+                            child: IconButton(
+                              icon: Icon(Icons.shuffle_rounded,
+                                  color: isShuffleActive
+                                      ? AppTheme.spotifyGreen
+                                      : Colors.white54,
+                                  size: 24),
+                              onPressed: () =>
+                                  ref.read(playerProvider.notifier).toggleShuffle(),
+                            ),
                           ),
                           IconButton(
                             icon: const Icon(Icons.skip_previous_rounded,
@@ -717,27 +721,25 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             ],
                           ),
 
-                          // ---- Infinity (Smart Shuffle) ----
+                          // ---- Infinity (Autoplay) ----
                           GestureDetector(
-                            onTap: _showSmartShuffleDialog,
+                            onTap: () => ref.read(playerProvider.notifier).toggleAutoplay(),
                             child: Column(
                               mainAxisSize: MainAxisSize.min,
                               children: [
                                 Icon(
                                   Icons.all_inclusive_rounded,
-                                  color: isShuffleActive
-                                      ? AppTheme.spotifyGreen
+                                  color: playerState.autoplayMode
+                                      ? AppTheme.electricBlue
                                       : Colors.white54,
                                   size: 24,
                                 ),
                                 const SizedBox(height: 4),
                                 Text(
-                                  isShuffleActive
-                                      ? _shuffleModeLabel(shuffleAlgo)
-                                      : 'Smart',
+                                  'Infinity',
                                   style: TextStyle(
-                                    color: isShuffleActive
-                                        ? AppTheme.spotifyGreen
+                                    color: playerState.autoplayMode
+                                        ? AppTheme.electricBlue
                                         : Colors.white54,
                                     fontSize: 9,
                                   ),

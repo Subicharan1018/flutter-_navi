@@ -183,6 +183,19 @@ class SubsonicService {
     return allSongs.take(size).toList();
   }
 
+  Future<List<Song>> getSimilarSongs(String songId, {int count = 20}) async {
+    final res = await _get('getSimilarSongs2.view', {
+      'id': songId,
+      'count': count.toString(),
+    });
+    final similarSongs =
+        (res['similarSongs2'] as Map<String, dynamic>)['song'] as List<dynamic>? ??
+            [];
+    return similarSongs
+        .map((e) => Song.fromJson(e as Map<String, dynamic>))
+        .toList();
+  }
+
   // ---------------------------------------------------------------------------
   // Albums
   // ---------------------------------------------------------------------------

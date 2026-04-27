@@ -16,6 +16,7 @@ class PlayerState {
   final int currentIndex;
   final bool isPlaying;
   final bool shuffleMode;
+  final bool autoplayMode;
   final LoopMode repeatMode;
   final List<String> starredIds;
 
@@ -42,6 +43,7 @@ class PlayerState {
     required this.currentIndex,
     required this.isPlaying,
     required this.shuffleMode,
+    required this.autoplayMode,
     required this.repeatMode,
     required this.starredIds,
     this.history = const [],
@@ -52,6 +54,7 @@ class PlayerState {
     int? currentIndex,
     bool? isPlaying,
     bool? shuffleMode,
+    bool? autoplayMode,
     LoopMode? repeatMode,
     List<String>? starredIds,
     List<Song>? history,
@@ -61,6 +64,7 @@ class PlayerState {
       currentIndex: currentIndex ?? this.currentIndex,
       isPlaying: isPlaying ?? this.isPlaying,
       shuffleMode: shuffleMode ?? this.shuffleMode,
+      autoplayMode: autoplayMode ?? this.autoplayMode,
       repeatMode: repeatMode ?? this.repeatMode,
       starredIds: starredIds ?? this.starredIds,
       history: history ?? this.history,
@@ -95,12 +99,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final Set<String> _scrobbledIds = {};
   final List<StreamSubscription> _subscriptions = [];
 
+  // Infinity (Autoplay) State
+  bool _isFetchingSimilar = false;
+  final Set<String> _autoplayTriggeredFor = {};
+
   PlayerNotifier(this._ref, this._audioHandler, this._subsonicService)
       : super(const PlayerState(
           queue: [],
           currentIndex: 0,
           isPlaying: false,
           shuffleMode: false,
+          autoplayMode: false,
           repeatMode: LoopMode.off,
           starredIds: [],
           history: [],
@@ -160,6 +169,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _suppressNextHistoryPush = false;
 
       state = state.copyWith(currentIndex: index);
+
+      // --- INFINITY (AUTOPLAY) LOGIC ---
+      if (state.autoplayMode && !_isFetchingSimilar && index == state.queue.length - 1) {
+        final lastSong = state.queue[index];
+        if (!_autoplayTriggeredFor.contains(lastSong.id)) {
+          _autoplayTriggeredFor.add(lastSong.id);
+          _fetchAndAppendSimilar(lastSong);
+        }
+      }
 
       // BUG-5: clear scrobble cache on song change
       if (index < state.queue.length) {
@@ -228,6 +246,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// Clear history (used when a brand-new queue is loaded).
   void _clearHistory() {
     state = state.copyWith(history: []);
+    _autoplayTriggeredFor.clear();
   }
 
   @override
@@ -260,7 +279,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (!shuffle) {
       state = state.copyWith(shuffleMode: false);
       state = state.copyWith(queue: songs, currentIndex: 0);
-      await _audioHandler.setQueue(songs, 0);
+      await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
       player.play();
       return;
     }
@@ -272,7 +291,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // Pick a random starting song so the first track is unpredictable
       final startIndex = Random().nextInt(songs.length);
       final currentSong = songs[startIndex];
-      final pool = songs.where((s) => s.id != currentSong.id).toList();
+      final pool = List<Song>.from(songs)..removeAt(startIndex);
 
       final settings = _ref.read(settingsProvider);
       
@@ -287,7 +306,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       state = state.copyWith(queue: finalQueue, currentIndex: 0);
       
       // Only one rebuild/play call!
-      await _audioHandler.setQueue(finalQueue, 0);
+      await _audioHandler.setQueue(finalQueue, 0, unshuffledSongs: songs);
       player.play();
     } finally {
       _isShuffling = false;
@@ -437,7 +456,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
 
     state = state.copyWith(queue: currentQueue, currentIndex: currentIndex);
-    await _audioHandler.reorderQueue(oldIndex, newIndex);
+    await _audioHandler.reorderQueue(oldIndex, newIndex, isShuffleMode: state.shuffleMode);
   }
 
   // ---------------------------------------------------------------------------
@@ -483,6 +502,22 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     if (enabled) {
       await applyShuffleAlgorithm();
+    } else {
+      await unshuffleQueue();
+    }
+  }
+
+  Future<void> unshuffleQueue() async {
+    _isShuffling = true;
+    try {
+      await Future.delayed(const Duration(milliseconds: 50));
+      await _audioHandler.unshuffle();
+      state = state.copyWith(
+        queue: _audioHandler.currentQueue,
+        currentIndex: _audioHandler.player.currentIndex ?? 0,
+      );
+    } finally {
+      _isShuffling = false;
     }
   }
 
@@ -502,6 +537,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> applyShuffleAlgorithm() async {
     _isShuffling = true;
     try {
+      // Yield to event loop to allow UI animations to complete smoothly
+      await Future.delayed(const Duration(milliseconds: 50));
       final settings = _ref.read(settingsProvider);
       final algorithm = settings.shuffleAlgorithm;
       switch (algorithm) {
@@ -578,6 +615,32 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> scrobble(String songId) async {
     await _subsonicService.scrobble(songId);
+  }
+
+  // ---------------------------------------------------------------------------
+  // Infinity / Autoplay
+  // ---------------------------------------------------------------------------
+
+  Future<void> toggleAutoplay() async {
+    state = state.copyWith(autoplayMode: !state.autoplayMode);
+  }
+
+  Future<void> _fetchAndAppendSimilar(Song lastSong) async {
+    debugPrint('♾️ [AUTOPLAY] Fetching similar songs for: ${lastSong.title}');
+    _isFetchingSimilar = true;
+    try {
+      final similar = await _subsonicService.getSimilarSongs(lastSong.id);
+      if (similar.isNotEmpty) {
+        debugPrint('♾️ [AUTOPLAY] Found ${similar.length} similar songs. Appending to queue.');
+        for (final song in similar) {
+          await addToQueue(song);
+        }
+      }
+    } catch (e) {
+      debugPrint('❌ [AUTOPLAY] Failed to fetch similar songs: $e');
+    } finally {
+      _isFetchingSimilar = false;
+    }
   }
 
   // ---------------------------------------------------------------------------

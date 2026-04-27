@@ -128,6 +128,7 @@ class AudioHandler {
   final AudioPlayer player;
   final SubsonicService subsonicService;
   List<Song> _currentQueue = [];
+  List<Song> _unshuffledQueue = [];
 
   // Kept alive between queue mutations so we can use incremental APIs
   // (add / removeAt / move) instead of rebuilding the entire source.
@@ -166,8 +167,9 @@ class AudioHandler {
   // shuffle). For incremental changes use addToQueue / removeFromQueue /
   // reorderQueue below.
   // ---------------------------------------------------------------------------
-  Future<void> setQueue(List<Song> songs, int startIndex) async {
+  Future<void> setQueue(List<Song> songs, int startIndex, {List<Song>? unshuffledSongs}) async {
     _currentQueue = List.from(songs);
+    _unshuffledQueue = List.from(unshuffledSongs ?? songs);
     await _rebuildSource(startIndex);
   }
 
@@ -178,6 +180,25 @@ class AudioHandler {
     await player.setAudioSource(_playlist!, initialIndex: startIndex);
   }
 
+  /// Updates the Future part of the queue without interrupting the current song.
+  Future<void> _updateQueueAfterAnchor(int anchorIndex) async {
+    if (_playlist == null) {
+      await _rebuildSource(anchorIndex);
+      return;
+    }
+
+    // Remove everything after the current song
+    if (_playlist!.length > anchorIndex + 1) {
+      await _playlist!.removeRange(anchorIndex + 1, _playlist!.length);
+    }
+
+    // Append the new Future
+    final newFuture = _currentQueue.sublist(anchorIndex + 1);
+    if (newFuture.isNotEmpty) {
+      await _playlist!.addAll(newFuture.map(_toSource).toList());
+    }
+  }
+
   // ---------------------------------------------------------------------------
   // Incremental queue mutations
   // These mutate the existing ConcatenatingAudioSource so playback of the
@@ -186,6 +207,7 @@ class AudioHandler {
 
   Future<void> addToQueue(Song song) async {
     _currentQueue.add(song);
+    _unshuffledQueue.add(song);
     if (_playlist != null) {
       await _playlist!.add(_toSource(song));
     } else {
@@ -195,7 +217,10 @@ class AudioHandler {
 
   Future<void> removeFromQueue(int index) async {
     if (index < 0 || index >= _currentQueue.length) return;
-    _currentQueue.removeAt(index);
+    final song = _currentQueue.removeAt(index);
+    final unIdx = _unshuffledQueue.indexWhere((s) => s.id == song.id);
+    if (unIdx != -1) _unshuffledQueue.removeAt(unIdx);
+
     if (_playlist != null) {
       await _playlist!.removeAt(index);
     } else {
@@ -204,11 +229,17 @@ class AudioHandler {
     }
   }
 
-  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+  Future<void> reorderQueue(int oldIndex, int newIndex, {bool isShuffleMode = false}) async {
     if (oldIndex < 0 || oldIndex >= _currentQueue.length) return;
     if (newIndex < 0 || newIndex >= _currentQueue.length) return;
     final song = _currentQueue.removeAt(oldIndex);
     _currentQueue.insert(newIndex, song);
+    
+    if (!isShuffleMode) {
+      final unSong = _unshuffledQueue.removeAt(oldIndex);
+      _unshuffledQueue.insert(newIndex, unSong);
+    }
+
     if (_playlist != null) {
       await _playlist!.move(oldIndex, newIndex);
     } else {
@@ -229,14 +260,20 @@ class AudioHandler {
   Future<void> standardShuffle() async {
     if (_currentQueue.isEmpty) return;
     final currentIndex = player.currentIndex ?? 0;
-    final currentSong = _currentQueue[currentIndex];
-    final rest = _currentQueue.where((s) => s.id != currentSong.id).toList();
+    final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
 
-    // Offload Fisher-Yates to isolate; await result before touching the queue.
-    final shuffled = await compute(_standardShuffleIsolate, rest);
+    // Three-Part Timeline:
+    // Section A+B: Past + Present (Immutable)
+    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
 
-    _currentQueue = [currentSong, ...shuffled];
-    await _rebuildSource(0);
+    // Section C: Future (The only part we shuffle)
+    final future = _currentQueue.sublist(safeIndex + 1);
+    if (future.isEmpty) return;
+
+    final shuffledFuture = await compute(_standardShuffleIsolate, future);
+
+    _currentQueue = [...pastAndPresent, ...shuffledFuture];
+    await _updateQueueAfterAnchor(safeIndex);
   }
 
   // ---------------------------------------------------------------------------
@@ -253,23 +290,24 @@ class AudioHandler {
     debugPrint('🚀 [SHUFFLE] Balanced Shuffle ($preference)');
 
     final currentIndex = player.currentIndex ?? 0;
-    final currentSong = _currentQueue[currentIndex];
-    final rest = _currentQueue.where((s) => s.id != currentSong.id).toList();
+    final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
 
-    // Pass preference as its raw index — ShufflePreference.values[index]
-    // reconstructs it inside the isolate without touching Flutter bindings.
+    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
+    final future = _currentQueue.sublist(safeIndex + 1);
+    if (future.isEmpty) return;
+
     final result = await compute(
       _balancedShuffleIsolate,
       <String, dynamic>{
-        'songs': rest,
+        'songs': future,
         'pref': preference.index,
       },
     );
 
     debugPrint('✅ [SHUFFLE] Balanced result: ${result.length} songs');
 
-    _currentQueue = [currentSong, ...result];
-    await _rebuildSource(0);
+    _currentQueue = [...pastAndPresent, ...result];
+    await _updateQueueAfterAnchor(safeIndex);
   }
 
   // ---------------------------------------------------------------------------
@@ -287,13 +325,41 @@ class AudioHandler {
     debugPrint('🚀 [SHUFFLE] Weighted Shuffle');
 
     final currentIndex = player.currentIndex ?? 0;
-    final currentSong = _currentQueue[currentIndex];
-    final pool = _currentQueue.where((s) => s.id != currentSong.id).toList();
+    final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
 
-    final shuffled = await compute(_weightedShuffleIsolate, pool);
+    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
+    final future = _currentQueue.sublist(safeIndex + 1);
+    if (future.isEmpty) return;
 
-    _currentQueue = [currentSong, ...shuffled];
-    await _rebuildSource(0);
+    final shuffledFuture = await compute(_weightedShuffleIsolate, future);
+
+    _currentQueue = [...pastAndPresent, ...shuffledFuture];
+    await _updateQueueAfterAnchor(safeIndex);
+  }
+
+  // ---------------------------------------------------------------------------
+  // 4. Unshuffle (Restore original queue)
+  // ---------------------------------------------------------------------------
+  Future<void> unshuffle() async {
+    if (_currentQueue.isEmpty || _unshuffledQueue.isEmpty) return;
+
+    final currentIndex = player.currentIndex ?? 0;
+    final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
+    final currentSong = _currentQueue[safeIndex];
+
+    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
+
+    // Restore the Future from original order
+    final unIndex = _unshuffledQueue.indexWhere((s) => s.id == currentSong.id);
+
+    if (unIndex != -1 && unIndex < _unshuffledQueue.length - 1) {
+      final futureOriginal = _unshuffledQueue.sublist(unIndex + 1);
+      _currentQueue = [...pastAndPresent, ...futureOriginal];
+    } else {
+      _currentQueue = pastAndPresent;
+    }
+
+    await _updateQueueAfterAnchor(safeIndex);
   }
 
   // ---------------------------------------------------------------------------
