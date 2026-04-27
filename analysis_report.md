@@ -382,8 +382,144 @@ onReorder: (oldIndex, newIndex) {
   ref.read(playerProvider.notifier).reorderQueue(oldIndex, newIndex);
 },
 ```
+```
 
 `ReorderableListView` adjusts `newIndex` when dragging downward (`if (newIndex > oldIndex) newIndex -= 1;`). However, the `PlayerNotifier.reorderQueue` doesn't account for this correction — it uses raw indices from `ReorderableListView` which have already been adjusted by the framework in some versions, leading to off-by-one errors.
+
+---
+
+### BUG-13: 🔥 NowPlaying screen blacks out when toggling shuffle mode
+
+**Files:**
+- [player_provider.dart:228-253](file:///c:/projects/flutter-_navi/lib/providers/player_provider.dart#L228-L253)
+- [audio_handler.dart:53-61](file:///c:/projects/flutter-_navi/lib/services/audio_handler.dart#L53-L61)
+- [now_playing_screen.dart:370-373](file:///c:/projects/flutter-_navi/lib/screens/now_playing_screen.dart#L370-L373)
+
+This is a **race condition** caused by three compounding issues:
+
+**① Fire-and-forget audio source rebuild**
+
+All three shuffle methods (`standardShuffle`, `spotifyDitherShuffle`, `youtubeWeightedShuffle`) are `void` functions that call `_updatePlayerSource(0)` **without awaiting it**:
+
+```dart
+void standardShuffle() {
+  // ...reorder _currentQueue...
+  _updatePlayerSource(0);  // ← async, but NOT awaited (fire-and-forget)
+}
+```
+
+Then immediately after, `applyShuffleAlgorithm()` updates the Riverpod state:
+
+```dart
+void applyShuffleAlgorithm() {
+  _audioHandler.standardShuffle();  // ← starts async rebuild
+  state = state.copyWith(queue: _audioHandler.currentQueue);  // ← state updated before rebuild finishes
+}
+```
+
+The state now has the new queue, but the player is still in the middle of `player.setAudioSource()`. During this transient window:
+- `player.currentIndex` may be `null` or stale
+- `player.playing` flips to `false` (source reset stops playback)
+- `currentIndexStream` fires rapidly with transient values
+
+**② Black screen fallback renders during transient state**
+
+The NowPlaying screen has this guard at the top of `build()`:
+
+```dart
+if (playerState.queue.isEmpty) {
+  return const Scaffold(
+    backgroundColor: AppTheme.coreBackground,  // ← Color(0xFF000000) = PURE BLACK
+    body: SizedBox(),                           // ← empty screen
+  );
+}
+```
+
+If the state cycles through a transient frame where the queue appears empty, **the screen flashes pure black**. Even if the queue isn't empty, `player.setAudioSource()` resets playback which briefly kills the mesh gradient animation and shows the base dark layer (`Color(0xFF1C1C1E)` + 28% black scrim ≈ near-black).
+
+**③ Dual shuffle mechanisms conflict**
+
+`setShuffleMode()` calls **both** the player's built-in shuffle AND a custom algorithm:
+
+```dart
+Future<void> setShuffleMode(bool enabled) async {
+  await player.setShuffleModeEnabled(enabled);  // ← just_audio's internal shuffle
+  if (enabled) {
+    applyShuffleAlgorithm();  // ← custom shuffle that ALSO rebuilds the audio source
+  }
+}
+```
+
+`player.setShuffleModeEnabled(true)` internally reorders the playback sequence. Then `applyShuffleAlgorithm()` immediately reorders `_currentQueue` and calls `player.setAudioSource()` which **overwrites** the player's internal order. This double-shuffle causes two rapid state transitions, doubling the chance of hitting the transient black screen.
+
+> [!WARNING]
+> **Fix:** Make shuffle methods `async` and `await _updatePlayerSource()`. Remove `player.setShuffleModeEnabled()` since the custom algorithms already handle reordering. Add a state guard to prevent the black screen fallback from rendering during the async gap.
+
+---
+
+### BUG-14: App continues running in background after swipe-kill
+
+**Files:**
+- [main.dart:9-14](file:///c:/projects/flutter-_navi/lib/main.dart#L9-L14)
+- [AndroidManifest.xml:3-5, 38](file:///c:/projects/flutter-_navi/android/app/src/main/AndroidManifest.xml#L3-L5)
+- [player_provider.dart:106-112](file:///c:/projects/flutter-_navi/lib/providers/player_provider.dart#L106-L112)
+
+This is caused by **three things working together**:
+
+**① `androidNotificationOngoing: true` creates an undismissable foreground service**
+
+```dart
+await JustAudioBackground.init(
+  androidNotificationOngoing: true,  // ← makes the notification persistent/undismissable
+  androidStopForegroundOnPause: true,
+);
+```
+
+The `androidNotificationOngoing: true` flag marks the notification as **ongoing**, meaning Android treats it as a critical foreground service. On many Android OEMs (Samsung, Xiaomi, Oppo), an ongoing foreground service **survives the activity being swiped away** from recents. The OS keeps the service alive because it assumes the user wants playback to continue.
+
+While `androidStopForegroundOnPause: true` does remove the foreground status when paused, if the user swipes away the app **while music is playing**, the service persists.
+
+**② `AudioPlayer` is never disposed**
+
+The `PlayerNotifier.dispose()` cancels stream subscriptions but **never calls `player.dispose()`**:
+
+```dart
+@override
+void dispose() {
+  for (final sub in _subscriptions) {
+    sub.cancel();
+  }
+  // player.dispose()  ← MISSING!
+  super.dispose();
+}
+```
+
+Since `PlayerNotifier` is a Riverpod `StateNotifier` at the root `ProviderScope`, it's **never disposed** during the app's lifetime anyway. The `AudioPlayer` instance holds native resources (media session, audio focus, wake lock) that remain active even after the Flutter engine is detached.
+
+**③ `WAKE_LOCK` permission is held indefinitely**
+
+```xml
+<uses-permission android:name="android.permission.WAKE_LOCK"/>
+```
+
+`just_audio` acquires a wake lock when streaming audio. Combined with the foreground service, this prevents the CPU from sleeping and keeps the process alive.
+
+**④ The `AudioService` is declared with `android:exported="true"`**
+
+```xml
+<service android:name="com.ryanheise.audioservice.AudioService"
+         android:foregroundServiceType="mediaPlayback"
+         android:exported="true">  <!-- ← accessible by other apps/system -->
+```
+
+This makes the service externally accessible, meaning the system media router can keep it bound even after the owning activity is destroyed.
+
+> [!CAUTION]
+> **Fix requires multiple changes:**
+> 1. Set `androidNotificationOngoing: false` — allows user to dismiss the notification, which kills the foreground service
+> 2. Add `player.stop()` and `player.dispose()` in a `WidgetsBindingObserver.didChangeAppLifecycleState` handler for `AppLifecycleState.detached`
+> 3. Listen to `AudioService.notificationClicked` stream to handle the notification dismiss → stop playback → release resources
+> 4. Consider setting `android:exported="false"` on the AudioService unless you need external media browser access
 
 ---
 
@@ -550,12 +686,14 @@ Album lists, playlist lists, and the song library rarely change. Add an in-memor
 
 | # | Issue | Impact | Effort |
 |---|-------|--------|--------|
-| 7 | **BUG-3**: Close `http.Client` on disposal / use singleton | 🟠 | 30 min |
-| 8 | **BUG-5**: Clear `_scrobbledIds` on song change | 🟠 | 10 min |
-| 9 | **BUG-6**: Implement "Remove from Playlist" action | 🟠 | 30 min |
-| 10 | **BUG-7**: Remove hardcoded "Apple Music" strings | 🟡 | 5 min |
-| 11 | **BUG-8**: Generate random salt per request | 🔴 Security | 15 min |
-| 12 | **BUG-9**: Use `flutter_secure_storage` for credentials | 🔴 Security | 30 min |
+| 7 | **BUG-13**: Fix shuffle black-out (await rebuild + remove dual shuffle) | 🔥🔥 | 1 hr |
+| 8 | **BUG-14**: Fix background persistence (notification + dispose + lifecycle) | 🔥🔥 | 1 hr |
+| 9 | **BUG-3**: Close `http.Client` on disposal / use singleton | 🟠 | 30 min |
+| 10 | **BUG-5**: Clear `_scrobbledIds` on song change | 🟠 | 10 min |
+| 11 | **BUG-6**: Implement "Remove from Playlist" action | 🟠 | 30 min |
+| 12 | **BUG-7**: Remove hardcoded "Apple Music" strings | 🟡 | 5 min |
+| 13 | **BUG-8**: Generate random salt per request | 🔴 Security | 15 min |
+| 14 | **BUG-9**: Use `flutter_secure_storage` for credentials | 🔴 Security | 30 min |
 
 ### Phase 3 — Architecture
 
