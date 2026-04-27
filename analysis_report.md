@@ -42,10 +42,10 @@
 | **BUG-16** | Song history section missing | 🟡 Pending | Phase 2 |
 | **BUG-17** | "Go to Album" is a no-op | 🟡 Pending | Phase 3 |
 | **BUG-18** | Multiple no-op buttons across UI | 🟡 Pending | Phase 2 |
-| **PERF-2** | `PaletteGenerator` blocks main thread | 🟡 Pending | Phase 1 |
-| **PERF-3** | 4× simultaneous 60fps animations on NowPlaying | 🟡 Pending | Phase 1 |
-| **PERF-4** | Heavy `BackdropFilter` stacking | 🟡 Pending | Phase 1 |
-| **PERF-5** | Unbounded animation delay on list items | 🟡 Pending | Phase 1 |
+| **PERF-2** | `PaletteGenerator` blocks main thread | ✅ **FIXED** | Phase 1 |
+| **PERF-3** | 4× simultaneous 60fps animations on NowPlaying | ✅ **FIXED** | Phase 1 |
+| **PERF-4** | Heavy `BackdropFilter` stacking | ✅ **FIXED** | Phase 1 |
+| **PERF-5** | Unbounded animation delay on list items | ✅ **FIXED** | Phase 1 |
 | **PERF-6** | 5000 songs fetched eagerly, no pagination | 🟡 Pending | Phase 3 |
 | **BUG-19** | 🔴 **REGRESSION** — Shuffle UI glitch (post-Phase-1) | ✅ **FIXED** | `playlist_details_screen.dart` |
 | **BUG-20** | 🔴 **REGRESSION** — Playlist re-fetches (post-Phase-1) | ✅ **FIXED** | `library_provider.dart` |
@@ -1002,9 +1002,9 @@ Album lists, playlist lists, and the song library rarely change. Add an in-memor
 | 1 | **PERF-1**: Replace scroll `setState` with `ValueNotifier` | 🔥🔥🔥 | 15 min | ✅ Fixed |
 | 2 | **BUG-1**: Use `ConcatenatingAudioSource` incremental APIs | 🔥🔥🔥 | 2 hrs | ✅ Fixed |
 | 3 | **BUG-11**: Fix `CurvedAnimation` leak in transitions | 🔥🔥 | 30 min | ✅ Fixed |
-| 4 | **PERF-2**: Move `PaletteGenerator` to isolate | 🔥🔥 | 1 hr | 🟡 Pending |
-| 5 | **PERF-5**: Cap animation delay at `clamp(0, 300)` for all lists | 🔥🔥 | 15 min | 🟡 Pending |
-| 6 | **PERF-4**: Replace decorative `BackdropFilter`s with solid colors on non-flagship devices | 🔥 | 1 hr | 🟡 Pending |
+| 4 | **PERF-2**: Move `PaletteGenerator` to isolate | 🔥🔥 | 1 hr | ✅ Fixed |
+| 5 | **PERF-5**: Cap animation delay at `clamp(0, 300)` for all lists | 🔥🔥 | 15 min | ✅ Fixed |
+| 6 | **PERF-4**: Replace decorative `BackdropFilter`s with solid colors on non-flagship devices | 🔥 | 1 hr | ✅ Fixed |
 
 ### Phase 2 — Fix Bugs
 

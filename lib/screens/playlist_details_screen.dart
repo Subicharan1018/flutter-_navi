@@ -16,7 +16,24 @@ import '../widgets/song_tile.dart';
 import '../widgets/options_menu.dart';
 import '../core/theme.dart';
 import 'song_picker_screen.dart';
+import 'package:flutter/foundation.dart';
 import 'edit_playlist_screen.dart';
+
+// ---------------------------------------------------------------------------
+// Isolate-safe color extraction
+// ---------------------------------------------------------------------------
+Future<Color?> _extractPlaylistPalette(String imageUrl) async {
+  try {
+    final palette = await PaletteGenerator.fromImageProvider(
+      NetworkImage(imageUrl),
+      size: const Size(100, 100),
+    );
+    return palette.vibrantColor?.color ?? palette.dominantColor?.color;
+  } catch (_) {
+    return null;
+  }
+}
+
 
 class PlaylistDetailsScreen extends ConsumerStatefulWidget {
   final Playlist playlist;
@@ -57,12 +74,8 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
 
       if (coverArtId != null) {
         final imageUrl = service.getCoverArtUrl(coverArtId);
-        final palette = await PaletteGenerator.fromImageProvider(
-          CachedNetworkImageProvider(imageUrl),
-          size: const Size(100, 100),
-        );
-        _vibrantColor =
-            palette.vibrantColor?.color ?? palette.dominantColor?.color ?? AppTheme.surfaceLevel;
+        final color = await compute(_extractPlaylistPalette, imageUrl);
+        _vibrantColor = color ?? AppTheme.surfaceLevel;
       }
 
       setState(() {

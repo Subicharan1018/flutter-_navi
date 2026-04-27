@@ -7,6 +7,26 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../core/navigation_transitions.dart';
+import 'package:flutter/foundation.dart';
+
+// ---------------------------------------------------------------------------
+// Isolate-safe color extraction
+// ---------------------------------------------------------------------------
+Future<Color?> _extractMiniPalette(String imageUrl) async {
+  try {
+    final palette = await PaletteGenerator.fromImageProvider(
+      NetworkImage(imageUrl),
+      size: const Size(40, 40),
+      maximumColorCount: 5,
+    );
+    return palette.vibrantColor?.color ??
+           palette.dominantColor?.color ??
+           const Color(0xFF1DB954);
+  } catch (_) {
+    return const Color(0xFF1DB954);
+  }
+}
+
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 class _G {
@@ -107,21 +127,11 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     if (_lastImageUrl == imageUrl) return;
     _lastImageUrl = imageUrl;
 
-    try {
-      final palette = await PaletteGenerator.fromImageProvider(
-        CachedNetworkImageProvider(imageUrl),
-        size: const Size(40, 40),
-        maximumColorCount: 5,
-      );
-      if (mounted) {
-        setState(() {
-          _artworkColor = palette.vibrantColor?.color ??
-                         palette.dominantColor?.color ??
-                         const Color(0xFF1DB954);
-        });
-      }
-    } catch (e) {
-      debugPrint('MiniPlayer palette error: $e');
+    final color = await compute(_extractMiniPalette, imageUrl);
+    if (mounted) {
+      setState(() {
+        _artworkColor = color;
+      });
     }
   }
 
@@ -305,23 +315,12 @@ class _GlassShell extends StatelessWidget {
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
-          child: Container(
-            decoration: BoxDecoration(
-              gradient: LinearGradient(
-                begin: Alignment.topLeft,
-                end: Alignment.bottomRight,
-                colors: [
-                  Colors.white.withOpacity(0.13),
-                  Colors.white.withOpacity(0.06),
-                ],
-              ),
-              borderRadius: BorderRadius.circular(22),
-              border: Border.all(color: _G.glassBorder, width: 0.7),
-            ),
-            child: child,
+        child: Container(
+          decoration: BoxDecoration(
+            color: const Color(0xFF1C1C1E),
+            border: Border.all(color: _G.glassBorder, width: 0.7),
           ),
+          child: child,
         ),
       ),
     );

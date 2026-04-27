@@ -13,7 +13,25 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../core/theme.dart';
 import 'queue_screen.dart';
+import 'package:flutter/foundation.dart';
 import '../widgets/options_menu.dart';
+
+// ---------------------------------------------------------------------------
+// Isolate-safe color extraction
+// ---------------------------------------------------------------------------
+Future<List<Color>> _extractMeshColors(String imageUrl) async {
+  final palette = await PaletteGenerator.fromImageProvider(
+    NetworkImage(imageUrl),
+    size: const Size(80, 80),
+    maximumColorCount: 8,
+  );
+  return [
+    palette.dominantColor?.color ?? const Color(0xFF1C1C1E),
+    palette.vibrantColor?.color ?? palette.mutedColor?.color ?? const Color(0xFF000000),
+    palette.darkMutedColor?.color ?? const Color(0xFF2C2C2E),
+    palette.lightVibrantColor?.color ?? palette.lightMutedColor?.color ?? const Color(0xFF1C1C1E),
+  ];
+}
 
 // ---------------------------------------------------------------------------
 // Animated sound-bar widget (replaces the lyrics button)
@@ -166,23 +184,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     _lastImageUrl = imageUrl;
 
     try {
-      final palette = await PaletteGenerator.fromImageProvider(
-        CachedNetworkImageProvider(imageUrl),
-        size: const Size(80, 80),
-        maximumColorCount: 8,
-      );
+      final colors = await compute(_extractMeshColors, imageUrl);
       if (!mounted) return;
       setState(() {
-        _meshColors = [
-          palette.dominantColor?.color ?? const Color(0xFF1C1C1E),
-          palette.vibrantColor?.color ??
-              palette.mutedColor?.color ??
-              const Color(0xFF000000),
-          palette.darkMutedColor?.color ?? const Color(0xFF2C2C2E),
-          palette.lightVibrantColor?.color ??
-              palette.lightMutedColor?.color ??
-              const Color(0xFF1C1C1E),
-        ];
+        _meshColors = colors;
         _meshReady = true;
       });
     } catch (_) {
@@ -420,7 +425,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ? AnimatedMeshGradient(
                           colors: _meshColors,
                           options: AnimatedMeshGradientOptions(
-                              speed: 2, grain: 0.05))
+                              speed: playerState.isPlaying ? 2 : 0, grain: 0.05))
                       : const SizedBox.shrink(),
                 ),
               ),

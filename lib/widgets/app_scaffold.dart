@@ -34,16 +34,13 @@ class _AppScaffoldState extends State<AppScaffold> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const MiniPlayer(),
-          ClipRRect(
-            child: BackdropFilter(
-              filter: ImageFilter.blur(sigmaX: 32, sigmaY: 32),
-              child: Container(
-                decoration: BoxDecoration(
-                  color: AppTheme.coreBackground.withOpacity(0.8),
-                  border: const Border(
-                    top: BorderSide(color: AppTheme.outlineColor, width: 0.5),
-                  ),
-                ),
+          Container(
+            decoration: const BoxDecoration(
+              color: AppTheme.coreBackground,
+              border: Border(
+                top: BorderSide(color: AppTheme.outlineColor, width: 0.5),
+              ),
+            ),
                 child: BottomNavigationBar(
                   currentIndex: _currentIndex,
                   onTap: (index) {
@@ -83,8 +80,6 @@ class _AppScaffoldState extends State<AppScaffold> {
                   ],
                 ),
               ),
-            ),
-          ),
         ],
       ),
     );

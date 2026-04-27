@@ -524,7 +524,7 @@ class _QuickTile extends ConsumerWidget {
         ),
       ),
     )
-        .animate(delay: (index * 50).ms)
+        .animate(delay: (index * 50).clamp(0, 300).ms)
         .fadeIn(duration: 350.ms)
         .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
   }
@@ -636,7 +636,7 @@ class _PlaylistCard extends ConsumerWidget {
         ),
       ),
     )
-        .animate(delay: (index * 45).ms)
+        .animate(delay: (index * 45).clamp(0, 300).ms)
         .fadeIn(duration: 400.ms)
         .slideX(begin: 0.07, end: 0, curve: Curves.easeOutCubic);
   }
@@ -740,7 +740,7 @@ class _PlaylistRow extends ConsumerWidget {
         ),
       ),
     )
-        .animate(delay: (index * 36).ms)
+        .animate(delay: (index * 36).clamp(0, 300).ms)
         .fadeIn(duration: 340.ms)
         .slideY(begin: 0.03, end: 0, curve: Curves.easeOutCubic);
   }

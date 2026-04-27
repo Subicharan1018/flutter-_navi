@@ -119,7 +119,7 @@ class LibraryScreen extends ConsumerWidget {
                         final item = items[index];
                         return _buildLibraryItem(context, ref, filter, item)
                             .animate()
-                            .fadeIn(duration: 400.ms, delay: (index * 20).ms);
+                            .fadeIn(duration: 400.ms, delay: (index * 20).clamp(0, 300).ms);
                       },
                       childCount: items.length,
                     ),
