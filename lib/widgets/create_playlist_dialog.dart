@@ -1,0 +1,89 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../providers/library_provider.dart';
+import '../providers/settings_provider.dart';
+import '../core/theme.dart';
+
+class CreatePlaylistDialog extends ConsumerStatefulWidget {
+  const CreatePlaylistDialog({super.key});
+
+  @override
+  ConsumerState<CreatePlaylistDialog> createState() => _CreatePlaylistDialogState();
+}
+
+class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
+  final TextEditingController _nameController = TextEditingController();
+  bool _isCreating = false;
+
+  @override
+  void dispose() {
+    _nameController.dispose();
+    super.dispose();
+  }
+
+  Future<void> _create() async {
+    final name = _nameController.text.trim();
+    if (name.isEmpty) return;
+
+    setState(() => _isCreating = true);
+    try {
+      final service = ref.read(subsonicServiceProvider);
+      await service.createPlaylist(name);
+      ref.invalidate(playlistsProvider);
+      
+      if (mounted) {
+        Navigator.pop(context);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Playlist "$name" created')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCreating = false);
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Failed to create playlist: $e')),
+        );
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      backgroundColor: AppTheme.surfaceLevel,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(16),
+        side: const BorderSide(color: AppTheme.outlineColor),
+      ),
+      title: const Text(
+        'New Playlist',
+        style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18),
+      ),
+      content: TextField(
+        controller: _nameController,
+        autofocus: true,
+        style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
+        cursorColor: AppTheme.electricBlue,
+        decoration: InputDecoration(
+          hintText: 'Playlist name',
+          hintStyle: TextStyle(color: AppTheme.textMuted.withValues(alpha: 0.5), fontSize: 15),
+          focusedBorder: const UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.electricBlue)),
+          enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: AppTheme.textMuted.withValues(alpha: 0.3))),
+        ),
+        onSubmitted: (_) => _create(),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.pop(context),
+          child: const Text('Cancel', style: TextStyle(color: AppTheme.textPrimary, fontSize: 14)),
+        ),
+        TextButton(
+          onPressed: _isCreating ? null : _create,
+          child: _isCreating
+              ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.electricBlue))
+              : const Text('Create', style: TextStyle(color: AppTheme.electricBlue, fontWeight: FontWeight.bold, fontSize: 14)),
+        ),
+      ],
+    );
+  }
+}
