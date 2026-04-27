@@ -523,6 +523,109 @@ This makes the service externally accessible, meaning the system media router ca
 
 ---
 
+### BUG-15: Queue slide-to-delete is broken and unresponsive
+
+**File:** [queue_screen.dart:151-175, 202-214](file:///c:/projects/flutter-_navi/lib/screens/queue_screen.dart#L151-L214)
+
+The queue uses a `Slidable` widget **inside** a `ReorderableListView.builder`. Both widgets compete for the **same horizontal drag gesture**:
+
+```dart
+ReorderableListView.builder(
+  itemBuilder: (context, index) {
+    return _QueueTile(
+      // ...
+      child: Slidable(              // ← needs horizontal drag
+        endActionPane: ActionPane(
+          motion: const ScrollMotion(),
+          children: [
+            SlidableAction(         // ← delete button revealed by slide
+              onPressed: (_) => onRemove(),
+            ),
+          ],
+        ),
+        child: Material(
+          child: CupertinoClickable( // ← also has its own gesture recognizer
+            child: ReorderableDragStartListener(  // ← needs long-press + drag
+              index: index,
+            ),
+          ),
+        ),
+      ),
+    );
+  },
+)
+```
+
+**Three gesture recognizers fight for the same touch:**
+1. `ReorderableListView` — captures drag for reordering
+2. `Slidable` — needs horizontal drag to reveal the delete action
+3. `CupertinoClickable` — applies a scale-down animation on press
+
+The `ReorderableListView`'s internal `GestureRecognizer` wins the gesture arena over `Slidable`'s horizontal drag, making the slide-to-delete **completely unresponsive** on most devices.
+
+> [!WARNING]
+> **Fix options:**
+> 1. Replace `Slidable` with `Dismissible` (which cooperates better with `ReorderableListView`)
+> 2. Or use `ReorderableDragStartListener` with a dedicated drag handle and separate the slide gesture zone
+> 3. Or switch to `SliverReorderableList` + manual slide implementation
+
+---
+
+### BUG-16: Song History deletion is not implemented (feature missing)
+
+**Files:**
+- [queue_screen.dart](file:///c:/projects/flutter-_navi/lib/screens/queue_screen.dart) — no history section exists
+- [player_provider.dart](file:///c:/projects/flutter-_navi/lib/providers/player_provider.dart) — no history tracking state
+
+The queue screen shows "Now Playing" and "Up Next" sections, but there is **no "Song History" / "Previously Played" section** at all. The user cannot:
+
+- See previously played songs
+- Delete songs from play history
+- Navigate back to recently played tracks from the queue view
+
+The Subsonic API does have `getNowPlaying` and play history endpoints, but they are not wired into the queue screen.
+
+> [!IMPORTANT]
+> **Implementation needed:** Add a "Recently Played" section above "Up Next" in the queue screen, backed by a local history list in `PlayerState`. Each item should support swipe-to-delete (matching the queue deletion UX).
+
+---
+
+### BUG-17: "Go to Album" action is a no-op
+
+**File:** [options_menu.dart:176-179](file:///c:/projects/flutter-_navi/lib/widgets/options_menu.dart#L176-L179)
+
+```dart
+ListTile(
+  title: const Text('Go to Album', ...),
+  onTap: () {
+    Navigator.pop(context);
+    // TODO: navigate to album screen  ← never implemented
+  },
+),
+```
+
+The "Go to Album" button in the song options menu closes the menu but does nothing — there is no album detail screen to navigate to.
+
+---
+
+### BUG-18: Multiple no-op / placeholder buttons across the UI
+
+Several interactive elements in the app are visually present but do nothing when tapped:
+
+| Location | Element | Issue |
+|----------|---------|-------|
+| [home_screen.dart:388](file:///c:/projects/flutter-_navi/lib/screens/home_screen.dart#L388) | 🔔 Notification bell (header) | `onTap: () {}` — no-op |
+| [home_screen.dart:310](file:///c:/projects/flutter-_navi/lib/screens/home_screen.dart#L310) | 🔔 Notification bell (sticky header) | `onTap: () {}` — no-op |
+| [home_screen.dart:751](file:///c:/projects/flutter-_navi/lib/screens/home_screen.dart#L751) | "See all" links on every section | No `onTap` handler — not tappable at all |
+| [library_screen.dart:50](file:///c:/projects/flutter-_navi/lib/screens/library_screen.dart#L50) | 🔍 Search icon in Library header | `onPressed: () {}` — no-op |
+| [playlist_details_screen.dart:693](file:///c:/projects/flutter-_navi/lib/screens/playlist_details_screen.dart#L693) | Queue button in playlist header | `onTap: () {}` — no-op |
+| [settings_screen.dart:514](file:///c:/projects/flutter-_navi/lib/screens/settings_screen.dart#L514) | "Terms of Service" row | `onTap: () {}` — no-op |
+| [settings_screen.dart:233](file:///c:/projects/flutter-_navi/lib/screens/settings_screen.dart#L233) | "High Quality Audio" toggle | `onChanged: (v) {}` — always true, no-op |
+
+These create a frustrating UX — users tap buttons expecting something to happen and get no feedback. They should either be **implemented, disabled with a visual cue, or removed**.
+
+---
+
 ## 🔵 Code Quality & Structural Issues
 
 ### QUALITY-1: Excessive use of `dynamic` types
@@ -694,6 +797,10 @@ Album lists, playlist lists, and the song library rarely change. Add an in-memor
 | 12 | **BUG-7**: Remove hardcoded "Apple Music" strings | 🟡 | 5 min |
 | 13 | **BUG-8**: Generate random salt per request | 🔴 Security | 15 min |
 | 14 | **BUG-9**: Use `flutter_secure_storage` for credentials | 🔴 Security | 30 min |
+| 15 | **BUG-15**: Fix queue slide-to-delete (replace Slidable or separate gestures) | 🔥🔥 | 1.5 hrs |
+| 16 | **BUG-16**: Implement song history section with deletion | 🟠 | 3 hrs |
+| 17 | **BUG-17**: Implement "Go to Album" navigation | 🟡 | 2 hrs |
+| 18 | **BUG-18**: Fix or remove all no-op buttons | 🟡 | 1 hr |
 
 ### Phase 3 — Architecture
 
