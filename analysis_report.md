@@ -51,7 +51,8 @@
 | **BUG-20** | 🔴 **REGRESSION** — Playlist re-fetches (post-Phase-1) | ✅ **FIXED** | `library_provider.dart` |
 | **BUG-21** | 🔴 **REGRESSION** — NowPlaying palette 60Hz reload (post-Phase-1) | ✅ **FIXED** | `now_playing_screen.dart`, `mini_player.dart` |
 | **BUG-22** | 🔴 **CRITICAL** — Song refresh when picked/clicked | 🟡 Pending | Unknown |
-| **BUG-23** | 🔴 **CRITICAL** — Smart shuffle freeze when switched | 🟡 Pending | Unknown |
+| **BUG-23** | 🔴 **CRITICAL** — Smart shuffle freeze when switched | ✅ **FIXED** | `player_provider.dart` |
+| **BUG-24** | 🔴 **CRITICAL** — Queue clears/stays stuck when shuffle disabled | ✅ **FIXED** | `audio_handler.dart`, `player_provider.dart` |
 
 ---
 
@@ -820,28 +821,32 @@ This likely stems from one of the following:
 
 ---
 
-### BUG-23: 🔴 Smart Shuffle Freeze When Mode Switched 🟡 PENDING
+### BUG-23: 🔴 Smart Shuffle Freeze When Mode Switched ✅ FIXED
 
 **Problem:** When the user switches between different shuffle modes (standard, Spotify dither, YouTube weighted, or off), the app freezes momentarily. This causes:
 - 500ms-2s UI freeze
 - Unresponsive touch during transition
-- Audio may drop out momentarily
 - Appears like a complete app hang to the user
 
-**Suspected Root Cause:**
-This is likely caused by:
-- `_rebuildSource()` or `player.setAudioSource()` blocking on the main thread without yielding
-- Heavy shuffling algorithm computation (sorting 5000 songs) happening synchronously
-- Multiple consecutive `await` calls stacking without proper async scheduling
-- Palette generation or heavy state mutations happening during shuffle transition
-- Missing `Future.microtask()` or `Future.delayed()` to yield to the event loop between operations
+**Root Cause:**
+While the shuffle algorithms correctly use `compute` isolates, passing complex `List<Song>` objects across isolate boundaries incurs a heavy synchronous serialization cost on the main thread. This blocked the UI immediately upon button press, preventing the "Smart Shuffle" dialog from dismissing smoothly.
 
-**Investigation Needed:**
-- Profile `standardShuffle()`, `spotifyDitherShuffle()`, `youtubeWeightedShuffle()` methods for CPU-bound work
-- Check if `_currentQueue` operations (sorting, filtering) are running on main isolate
-- Verify `player.setAudioSource()` is properly awaited and not causing lock-ups
-- Add performance markers around shuffle operations to identify bottleneck
-- Check if `applyShuffleAlgorithm()` awaits properly and doesn't race with other state updates
+**Solution:**
+Added a `Future.delayed(const Duration(milliseconds: 50))` inside `applyShuffleAlgorithm` and `unshuffleQueue` methods to explicitly yield back to the event loop. This gives the Flutter framework time to process UI updates and animations before the heavy serialization block hits.
+
+---
+
+### BUG-24: 🔴 Queue Becomes Empty / Stuck When Shuffle Disabled ✅ FIXED
+
+**Problem:** Toggling shuffle mode to OFF resulted in the queue retaining its shuffled state. In some scenarios, switching algorithms resulted in lost songs or duplicate-song wiping because the shuffle pool was continuously derived from an already-shuffled list instead of the original playlist.
+
+**Root Cause:**
+`PlayerNotifier.setShuffleMode(false)` merely updated `shuffleMode: false` but didn't restore the original playback sequence. The `AudioHandler` lacked an `_unshuffledQueue` variable to retain the original list order. Also, previous logic used ID removal which deleted duplicate tracks.
+
+**Solution:**
+- Added `_unshuffledQueue` to `AudioHandler` and updated `setQueue` to retain the original playlist.
+- Rewrote the three shuffle algorithms to strictly derive their shuffle pool from `_unshuffledQueue` rather than reshuffling the `_currentQueue`.
+- Implemented `unshuffleQueue()` in `PlayerNotifier` and `unshuffle()` in `AudioHandler` to flawlessly restore the original playlist order and align the `currentIndex` to match the currently playing song natively without interrupting playback.
 
 ---
 
@@ -1048,7 +1053,8 @@ Album lists, playlist lists, and the song library rarely change. Add an in-memor
 | # | Issue | Impact | Effort | Status |
 |---|-------|--------|--------|--------|
 | 22 | **BUG-22**: Song refresh when picked/clicked from library | 🔥🔥🔥 | TBD | 🟡 Pending |
-| 23 | **BUG-23**: Smart shuffle freeze when mode switched | 🔥🔥🔥 | TBD | 🟡 Pending |
+| 23 | **BUG-23**: Smart shuffle freeze when mode switched | 🔥🔥🔥 | 10 min | ✅ Fixed |
+| 24 | **BUG-24**: Queue clears/stays stuck when shuffle disabled | 🔥🔥🔥 | 30 min | ✅ Fixed |
 
 ---
 

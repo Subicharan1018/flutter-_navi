@@ -23,13 +23,25 @@ class SongTile extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final service = ref.watch(subsonicServiceProvider);
+    // ---------------------------------------------------------------------------
+    // FIX 1 — Use ref.read for the service, not ref.watch.
+    //
+    // subsonicServiceProvider holds a stable singleton (the HTTP client).
+    // Watching it means this tile re-subscribes on every rebuild and participates
+    // in any notification the service emits.  Reading it once per build is safe
+    // and avoids the extra listener overhead across 5 000 tiles.
+    // ---------------------------------------------------------------------------
+    final service = ref.read(subsonicServiceProvider);
 
-    // BUG-22 FIX: Use select() to narrow the subscription to only the boolean
-    // that matters for THIS tile. Riverpod memoises the derived value and only
-    // notifies this widget when isActive flips — all other queue mutations
-    // (setQueue, addToQueue, reorder, shuffle) are silently ignored here,
-    // eliminating the ~200-tile cascade rebuild that caused the stutter.
+    // ---------------------------------------------------------------------------
+    // FIX 2 — select() narrows this tile's subscription to a single bool.
+    //
+    // PlayerState ticks on EVERY position update (≈1 Hz).  Without select(),
+    // the whole 5 000-tile list rebuilds every second.  With select(), Riverpod
+    // only notifies this tile when `isActive` actually flips (true↔false) — i.e.
+    // when the track changes.  All other state mutations (position, buffering,
+    // volume) are silently ignored by this widget.
+    // ---------------------------------------------------------------------------
     final bool isActive = ref.watch(
       playerProvider.select(
         (s) =>
@@ -39,6 +51,18 @@ class SongTile extends ConsumerWidget {
       ),
     );
 
+    // ---------------------------------------------------------------------------
+    // FIX 3 — Static cacheKey isolates the disk/memory cache from the URL.
+    //
+    // Subsonic authentication appends a salt+token to every URL.  If the service
+    // regenerates salt on each call, the URL string differs on every rebuild, so
+    // CachedNetworkImage treats it as a brand-new image and re-downloads it.
+    // Pinning cacheKey to the song ID means the cache lookup uses a stable string
+    // regardless of what the authentication parameters look like.
+    // ---------------------------------------------------------------------------
+    final String imageUrl = service.getCoverArtUrl(song.coverArt);
+    final String imageCacheKey = 'cover_${song.coverArt ?? song.id}';
+
     return CupertinoClickable(
       onTap: onTap,
       child: GestureDetector(
@@ -47,36 +71,22 @@ class SongTile extends ConsumerWidget {
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
           child: Row(
             children: [
+              // Album art
               ClipRRect(
                 borderRadius: BorderRadius.circular(4),
                 child: CachedNetworkImage(
-                  imageUrl: service.getCoverArtUrl(song.coverArt),
+                  imageUrl: imageUrl,
+                  cacheKey: imageCacheKey, // ← stable cache key
                   width: 48,
                   height: 48,
                   fit: BoxFit.cover,
-                  placeholder: (context, url) => Container(
-                    width: 48,
-                    height: 48,
-                    color: AppTheme.topLevel,
-                    child: const Icon(
-                      Icons.music_note_rounded,
-                      color: AppTheme.textMuted,
-                      size: 24,
-                    ),
-                  ),
-                  errorWidget: (context, url, error) => Container(
-                    width: 48,
-                    height: 48,
-                    color: AppTheme.topLevel,
-                    child: const Icon(
-                      Icons.music_note_rounded,
-                      color: AppTheme.textMuted,
-                      size: 24,
-                    ),
-                  ),
+                  placeholder: (context, url) => const _ArtPlaceholder(size: 48),
+                  errorWidget: (context, url, error) => const _ArtPlaceholder(size: 48),
                 ),
               ),
               const SizedBox(width: 12),
+
+              // Title + artist
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -88,6 +98,8 @@ class SongTile extends ConsumerWidget {
                       style: TextStyle(
                         fontSize: 14,
                         fontWeight: FontWeight.w500,
+                        // AnimatedDefaultTextStyle would also work here but
+                        // a plain conditional is cheaper for a list this large.
                         color: isActive ? AppTheme.spotifyGreen : Colors.white,
                       ),
                     ),
@@ -105,6 +117,8 @@ class SongTile extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: 8),
+
+              // Options
               IconButton(
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
@@ -126,6 +140,29 @@ class SongTile extends ConsumerWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Extracted placeholder — const-constructable so Flutter reuses the element
+// instead of recreating it on every scroll-in.
+// ---------------------------------------------------------------------------
+class _ArtPlaceholder extends StatelessWidget {
+  final double size;
+  const _ArtPlaceholder({required this.size});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: size,
+      height: size,
+      color: AppTheme.topLevel,
+      child: const Icon(
+        Icons.music_note_rounded,
+        color: AppTheme.textMuted,
+        size: 24,
       ),
     );
   }

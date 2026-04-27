@@ -1,6 +1,4 @@
 import 'dart:ui';
-import 'dart:math';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
@@ -20,7 +18,7 @@ import 'package:flutter/foundation.dart';
 import 'edit_playlist_screen.dart';
 
 // ---------------------------------------------------------------------------
-// Isolate-safe color extraction
+// Isolate-safe color extraction (unchanged)
 // ---------------------------------------------------------------------------
 Future<Color?> _extractPlaylistPalette(String imageUrl) async {
   try {
@@ -34,22 +32,34 @@ Future<Color?> _extractPlaylistPalette(String imageUrl) async {
   }
 }
 
-
+// ---------------------------------------------------------------------------
+// Playlist Details Screen
+// ---------------------------------------------------------------------------
 class PlaylistDetailsScreen extends ConsumerStatefulWidget {
   final Playlist playlist;
   const PlaylistDetailsScreen({super.key, required this.playlist});
 
   @override
-  ConsumerState<PlaylistDetailsScreen> createState() => _PlaylistDetailsScreenState();
+  ConsumerState<PlaylistDetailsScreen> createState() =>
+      _PlaylistDetailsScreenState();
 }
 
-class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
+class _PlaylistDetailsScreenState
+    extends ConsumerState<PlaylistDetailsScreen> {
   List<Song> _songs = [];
   List<Song> _filteredSongs = [];
   bool _isLoading = true;
+  bool _hasError = false;
   Color _vibrantColor = AppTheme.surfaceLevel;
+  String _coverImageUrl = '';
+  String _coverCacheKey = '';
+
   final TextEditingController _searchController = TextEditingController();
   final ScrollController _scrollController = ScrollController();
+
+  // Track whether the initial animation has already run so re-entry doesn't
+  // re-animate the list (avoids the "always re-animating on scroll" trap).
+  bool _listAnimated = false;
 
   @override
   void initState() {
@@ -65,70 +75,101 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
     super.dispose();
   }
 
+  // ---------------------------------------------------------------------------
+  // Data loading
+  // ---------------------------------------------------------------------------
+
   Future<void> _loadSongs() async {
+    // Only show the full loading spinner on first load.
+    // On refresh (e.g. after adding songs) keep existing songs visible while
+    // the new list fetches in the background.
+    if (!_isLoading) {
+      // silent background refresh — don't reset to loading state
+    }
+
     try {
       final service = ref.read(subsonicServiceProvider);
       final songs = await service.getPlaylistSongs(widget.playlist.id);
 
-      final String? coverArtId = widget.playlist.coverArt ?? (songs.isNotEmpty ? songs.first.coverArt : null);
+      // Determine cover art — prefer playlist-level art, fallback to first song
+      final String? coverArtId =
+          widget.playlist.coverArt ?? (songs.isNotEmpty ? songs.first.coverArt : null);
 
-      if (coverArtId != null) {
-        final imageUrl = service.getCoverArtUrl(coverArtId);
-        final color = await compute(_extractPlaylistPalette, imageUrl);
-        _vibrantColor = color ?? AppTheme.surfaceLevel;
+      String imageUrl = '';
+      String cacheKey = '';
+      Color vibrant = AppTheme.surfaceLevel;
+
+      if (coverArtId != null && coverArtId.isNotEmpty) {
+        // getCoverArtUrl now returns a stable URL (subsonic_service fix)
+        imageUrl = service.getCoverArtUrl(coverArtId);
+        cacheKey = 'cover_$coverArtId';
+
+        // Only extract palette when cover art changes (e.g. after edit)
+        if (imageUrl != _coverImageUrl) {
+          final color = await compute(_extractPlaylistPalette, imageUrl);
+          vibrant = color ?? AppTheme.surfaceLevel;
+        } else {
+          vibrant = _vibrantColor; // reuse existing
+        }
       }
 
+      if (!mounted) return;
       setState(() {
         _songs = songs;
-        _filteredSongs = songs;
+        _filteredSongs = List.of(songs);
+        _vibrantColor = vibrant;
+        _coverImageUrl = imageUrl;
+        _coverCacheKey = cacheKey;
         _isLoading = false;
+        _hasError = false;
+        _listAnimated = false; // allow animation on fresh load
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         _isLoading = false;
+        _hasError = true;
       });
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Helpers
+  // ---------------------------------------------------------------------------
+
   void _filterSongs() {
-    final query = _searchController.text.toLowerCase();
+    final query = _searchController.text.toLowerCase().trim();
     setState(() {
-      _filteredSongs = _songs
-          .where((song) =>
-              song.title.toLowerCase().contains(query) ||
-              song.artist.toLowerCase().contains(query))
-          .toList();
+      _filteredSongs = query.isEmpty
+          ? List.of(_songs)
+          : _songs
+              .where((s) =>
+                  s.title.toLowerCase().contains(query) ||
+                  s.artist.toLowerCase().contains(query))
+              .toList();
     });
   }
 
   String _formatDuration(int totalSeconds) {
-    final duration = Duration(seconds: totalSeconds);
-    final hours = duration.inHours;
-    final minutes = duration.inMinutes % 60;
-    if (hours > 0) {
-      return '$hours hr $minutes min';
-    } else {
-      return '$minutes min';
-    }
+    final d = Duration(seconds: totalSeconds);
+    final h = d.inHours;
+    final m = d.inMinutes % 60;
+    if (h > 0) return '$h hr $m min';
+    return '$m min';
   }
 
-  int get _totalDurationSeconds => _songs.fold(0, (sum, song) => sum + song.duration);
+  int get _totalDurationSeconds =>
+      _songs.fold(0, (sum, s) => sum + s.duration);
 
   void _playAll({bool shuffle = false}) async {
     if (_songs.isEmpty) return;
-
-    final playerNotifier = ref.read(playerProvider.notifier);
-    if (shuffle) {
-      debugPrint('👉 [UI] Playlist Shuffle Button Tapped');
-    }
-    // BUG-19 FIX: Use the dedicated playPlaylist method which properly handles
-    // randomizing the first track and pre-shuffling the rest without stuttering.
-    await playerNotifier.playPlaylist(_songs, shuffle: shuffle);
+    await ref.read(playerProvider.notifier).playPlaylist(_songs, shuffle: shuffle);
   }
 
-  Future<void> _deleteSong(int index) async {
-    final song = _filteredSongs[index];
+  Future<void> _deleteSong(int filteredIndex) async {
+    final song = _filteredSongs[filteredIndex];
     final originalIndex = _songs.indexOf(song);
+    if (originalIndex == -1) return;
 
     setState(() {
       _songs.removeAt(originalIndex);
@@ -137,16 +178,21 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
 
     try {
       final service = ref.read(subsonicServiceProvider);
-      await service.updatePlaylist(widget.playlist.id, songIndexToRemove: originalIndex);
+      await service.updatePlaylist(
+          widget.playlist.id, songIndexToRemove: originalIndex);
       ref.invalidate(playlistsProvider);
     } catch (e) {
       _loadSongs();
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Failed to remove song: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Failed to remove song: $e')));
       }
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Build
+  // ---------------------------------------------------------------------------
 
   @override
   Widget build(BuildContext context) {
@@ -158,254 +204,145 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             controller: _scrollController,
             physics: const BouncingScrollPhysics(),
             slivers: [
+              // ── Flexible App Bar ────────────────────────────────────────
               SliverAppBar(
-                expandedHeight: 480,
+                expandedHeight: 460,
                 pinned: true,
                 stretch: true,
-                backgroundColor: Colors.transparent,
+                backgroundColor: AppTheme.coreBackground,
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 leading: Padding(
-                  padding: const EdgeInsets.all(8.0),
-                  child: GestureDetector(
+                  padding: const EdgeInsets.all(8),
+                  child: _CircleIconButton(
+                    icon: Icons.arrow_back_ios_new_rounded,
                     onTap: () => Navigator.pop(context),
-                    child: Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: AppTheme.surfaceLevel.withOpacity(0.5),
-                      ),
-                      child: const Icon(Icons.arrow_back_ios_new_rounded,
-                          color: AppTheme.textPrimary, size: 18),
-                    ),
                   ),
                 ),
                 flexibleSpace: FlexibleSpaceBar(
                   stretchModes: const [StretchMode.zoomBackground],
-                  centerTitle: true,
-                  title: _AppBarTitle(title: widget.playlist.name),
-                  background: _FlexibleHeaderContent(
-                    playlist: widget.playlist,
-                    songs: _songs,
-                    vibrantColor: _vibrantColor,
-                    onPlayAll: () => _playAll(),
-                    onShuffleAll: () => _playAll(shuffle: true),
-                  ),
+                  // Title fades in only when collapsed
+                  title: _CollapsedTitle(title: widget.playlist.name),
+                  titlePadding:
+                      const EdgeInsets.only(left: 56, right: 56, bottom: 14),
+                  background: _isLoading
+                      ? _LoadingHeader(playlist: widget.playlist)
+                      : _ExpandedHeader(
+                          playlist: widget.playlist,
+                          coverImageUrl: _coverImageUrl,
+                          coverCacheKey: _coverCacheKey,
+                          vibrantColor: _vibrantColor,
+                          songCount: _songs.length,
+                          totalDuration: _formatDuration(_totalDurationSeconds),
+                          onPlayAll: () => _playAll(),
+                          onShuffleAll: () => _playAll(shuffle: true),
+                        ),
                 ),
                 actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 4),
-                    child: GestureDetector(
-                      onTap: () async {
-                        await Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => SongPickerScreen(
-                              playlistId: widget.playlist.id,
-                              playlistName: widget.playlist.name,
-                            ),
+                  _CircleIconButton(
+                    icon: Icons.add_rounded,
+                    size: 22,
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongPickerScreen(
+                            playlistId: widget.playlist.id,
+                            playlistName: widget.playlist.name,
                           ),
-                        );
-                        _loadSongs();
-                      },
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.surfaceLevel.withOpacity(0.5),
                         ),
-                        child: const Icon(Icons.add_rounded,
-                            color: AppTheme.textPrimary, size: 22),
-                      ),
-                    ),
+                      );
+                      _loadSongs();
+                    },
                   ),
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: GestureDetector(
-                      onTap: () {
-                        showModalBottomSheet(
-                          context: context,
-                          backgroundColor: AppTheme.surfaceLevel,
-                          shape: const RoundedRectangleBorder(
-                            borderRadius: BorderRadius.vertical(top: Radius.circular(16)),
-                          ),
-                          builder: (context) => SafeArea(
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                ListTile(
-                                  leading: const Icon(Icons.edit_rounded,
-                                      color: AppTheme.textPrimary),
-                                  title: const Text('Edit Playlist',
-                                      style: TextStyle(
-                                          color: AppTheme.textPrimary, fontSize: 15)),
-                                  onTap: () async {
-                                    Navigator.pop(context);
-                                    final changed = await Navigator.push(
-                                      context,
-                                      MaterialPageRoute(
-                                        builder: (_) =>
-                                            EditPlaylistScreen(playlist: widget.playlist),
-                                      ),
-                                    );
-                                    if (changed == true) {
-                                      _loadSongs();
-                                    }
-                                  },
-                                ),
-                                ListTile(
-                                  leading: const Icon(Icons.delete_outline_rounded,
-                                      color: Colors.redAccent),
-                                  title: const Text('Delete Playlist',
-                                      style: TextStyle(
-                                          color: Colors.redAccent, fontSize: 15)),
-                                  onTap: () async {
-                                    Navigator.pop(context);
-                                  },
-                                ),
-                              ],
-                            ),
-                          ),
-                        );
-                      },
-                      child: Container(
-                        width: 36,
-                        height: 36,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: AppTheme.surfaceLevel.withOpacity(0.5),
-                        ),
-                        child: const Icon(Icons.more_horiz_rounded,
-                            color: AppTheme.textPrimary, size: 22),
-                      ),
-                    ),
+                  const SizedBox(width: 4),
+                  _CircleIconButton(
+                    icon: Icons.more_horiz_rounded,
+                    onTap: () => _showPlaylistMenu(),
                   ),
+                  const SizedBox(width: 8),
                 ],
               ),
 
-              // Song count + duration row AND search bar
+              // ── Search bar + meta ────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 0),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(
-                        '${_songs.length} songs • ${_formatDuration(_totalDurationSeconds)}',
-                        style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
-                      ),
+                      if (!_isLoading)
+                        Text(
+                          '${_songs.length} songs • ${_formatDuration(_totalDurationSeconds)}',
+                          style: const TextStyle(
+                              color: AppTheme.textMuted, fontSize: 13),
+                        ).animate().fadeIn(duration: 300.ms),
                       const SizedBox(height: 12),
-                      ValueListenableBuilder<TextEditingValue>(
-                        valueListenable: _searchController,
-                        builder: (context, value, _) {
-                          return ClipRRect(
-                            borderRadius: BorderRadius.circular(12),
-                            child: TextField(
-                              controller: _searchController,
-                              style: const TextStyle(
-                                  color: AppTheme.textPrimary, fontSize: 15),
-                              cursorColor: AppTheme.electricBlue,
-                              decoration: InputDecoration(
-                                hintText: 'Search in playlist',
-                                hintStyle: TextStyle(
-                                    color: AppTheme.textMuted.withOpacity(0.6),
-                                    fontSize: 15),
-                                prefixIcon: const Icon(Icons.search_rounded,
-                                    color: AppTheme.textMuted, size: 18),
-                                suffixIcon: value.text.isNotEmpty
-                                    ? GestureDetector(
-                                        onTap: () => _searchController.clear(),
-                                        child: const Icon(Icons.cancel_rounded,
-                                            color: AppTheme.textMuted, size: 18),
-                                      )
-                                    : null,
-                                filled: true,
-                                fillColor: AppTheme.surfaceLevel.withOpacity(0.55),
-                                border: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                      color: AppTheme.outlineColor.withOpacity(0.25),
-                                      width: 0.5),
-                                ),
-                                enabledBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                      color: AppTheme.outlineColor.withOpacity(0.25),
-                                      width: 0.5),
-                                ),
-                                focusedBorder: OutlineInputBorder(
-                                  borderRadius: BorderRadius.circular(12),
-                                  borderSide: BorderSide(
-                                      color: AppTheme.electricBlue.withOpacity(0.5),
-                                      width: 1),
-                                ),
-                                contentPadding:
-                                    const EdgeInsets.symmetric(vertical: 10),
-                              ),
-                            ),
-                          );
-                        },
-                      ),
+                      _SearchField(controller: _searchController),
                     ],
                   ),
                 ),
               ),
 
-              // Add Songs button — circular
+              // ── Add Songs row ────────────────────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 20, 16, 8),
-                  child: Row(
-                    children: [
-                      GestureDetector(
-                        onTap: () async {
-                          await Navigator.push(
-                            context,
-                            MaterialPageRoute(
-                              builder: (_) => SongPickerScreen(
-                                playlistId: widget.playlist.id,
-                                playlistName: widget.playlist.name,
-                              ),
-                            ),
-                          );
-                          _loadSongs();
-                        },
-                        child: Container(
-                          width: 48,
-                          height: 48,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: Colors.green.withOpacity(0.15),
-                            border: Border.all(
-                              color: Colors.green.withOpacity(0.5),
-                              width: 1.5,
-                            ),
+                  padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+                  child: _AddSongsRow(
+                    onTap: () async {
+                      await Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => SongPickerScreen(
+                            playlistId: widget.playlist.id,
+                            playlistName: widget.playlist.name,
                           ),
-                          child: const Icon(Icons.add_rounded,
-                              color: Colors.green, size: 24),
                         ),
-                      ),
-                      const SizedBox(width: 14),
-                      const Text(
-                        'Add Songs',
-                        style: TextStyle(
-                          color: AppTheme.textPrimary,
-                          fontSize: 16,
-                          fontWeight: FontWeight.w500,
-                        ),
-                      ),
-                    ],
+                      );
+                      _loadSongs();
+                    },
                   ),
                 ),
               ),
 
-              // Song list
+              // ── Song list ────────────────────────────────────────────────
               if (_isLoading)
                 const SliverFillRemaining(
-                    child: Center(
-                        child: CircularProgressIndicator(color: AppTheme.electricBlue)))
+                  child: _SongListSkeleton(),
+                )
+              else if (_hasError)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Icon(Icons.wifi_off_rounded,
+                            color: AppTheme.textMuted, size: 48),
+                        const SizedBox(height: 12),
+                        const Text('Could not load songs',
+                            style: TextStyle(color: AppTheme.textSecondary)),
+                        const SizedBox(height: 16),
+                        TextButton(
+                          onPressed: () {
+                            setState(() => _isLoading = true);
+                            _loadSongs();
+                          },
+                          child: const Text('Retry',
+                              style:
+                                  TextStyle(color: AppTheme.electricBlue)),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else if (_filteredSongs.isEmpty &&
+                  _searchController.text.isNotEmpty)
+                const SliverFillRemaining(
+                  child: Center(
+                    child: Text('No songs match your search',
+                        style: TextStyle(color: AppTheme.textMuted)),
+                  ),
+                )
               else
                 SliverReorderableList(
                   itemCount: _filteredSongs.length,
@@ -419,42 +356,67 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                   },
                   itemBuilder: (context, index) {
                     final song = _filteredSongs[index];
+
+                    // -------------------------------------------------------
+                    // KEY RULE: SliverReorderableList requires the widget
+                    // returned by itemBuilder to have a non-null key at the
+                    // very top level.  We must NEVER wrap the
+                    // ReorderableDelayedDragStartListener in .animate() or any
+                    // other wrapper — that strips the key from the root.
+                    //
+                    // Instead, the animation lives on the SongTile *inside*
+                    // the Dismissible so the keyed listener is always root.
+                    // -------------------------------------------------------
+
+                    // Build the inner song tile, optionally animated.
+                    Widget tileContent = SongTile(
+                      song: song,
+                      onTap: () => ref
+                          .read(playerProvider.notifier)
+                          .setQueue(_filteredSongs, index),
+                      onLongPress: () => showModalBottomSheet(
+                        context: context,
+                        isScrollControlled: true,
+                        backgroundColor: Colors.transparent,
+                        builder: (_) => OptionsMenu(
+                            song: song, playlistId: widget.playlist.id),
+                      ),
+                    );
+
+                    // Only animate on first load; skip on scroll rebuilds.
+                    if (!_listAnimated) {
+                      tileContent = tileContent
+                          .animate()
+                          .fadeIn(
+                            duration: 350.ms,
+                            delay: (index * 30).clamp(0, 280).ms,
+                          )
+                          .slideY(
+                            begin: 0.04,
+                            end: 0,
+                            duration: 350.ms,
+                            delay: (index * 30).clamp(0, 280).ms,
+                            curve: Curves.easeOut,
+                          );
+
+                      // After the last item's animation frame, mark done.
+                      if (index == _filteredSongs.length - 1) {
+                        WidgetsBinding.instance.addPostFrameCallback((_) {
+                          if (mounted) setState(() => _listAnimated = true);
+                        });
+                      }
+                    }
+
+                    // Keyed listener is ALWAYS the root widget returned.
                     return ReorderableDelayedDragStartListener(
                       key: ValueKey(song.id),
                       index: index,
                       child: Dismissible(
                         key: ValueKey('dismiss_${song.id}'),
                         direction: DismissDirection.endToStart,
-                        background: Container(
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          color: Colors.redAccent,
-                          child: const Icon(Icons.delete_outline_rounded,
-                              color: AppTheme.textPrimary),
-                        ),
+                        background: _DismissBackground(),
                         onDismissed: (_) => _deleteSong(index),
-                        child: SongTile(
-                          song: song,
-                          onTap: () {
-                            ref
-                                .read(playerProvider.notifier)
-                                .setQueue(_filteredSongs, index);
-                          },
-                          onLongPress: () {
-                            showModalBottomSheet(
-                              context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
-                              builder: (context) =>
-                                  OptionsMenu(song: song, playlistId: widget.playlist.id),
-                            );
-                          },
-                        )
-                            .animate()
-                            .fadeIn(
-                                duration: 400.ms,
-                                delay: (index * 40).clamp(0, 400).ms)
-                            .slideY(begin: 0.05, end: 0, curve: Curves.easeOut),
+                        child: tileContent,
                       ),
                     );
                   },
@@ -464,13 +426,161 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             ],
           ),
 
+          // ── Mini player ────────────────────────────────────────────────
           const Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: SafeArea(
-              top: false,
-              child: MiniPlayer(),
+            child: SafeArea(top: false, child: MiniPlayer()),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // ---------------------------------------------------------------------------
+  // Playlist options bottom sheet
+  // ---------------------------------------------------------------------------
+  void _showPlaylistMenu() {
+    showModalBottomSheet(
+      context: context,
+      backgroundColor: AppTheme.surfaceLevel,
+      shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const SizedBox(height: 12),
+            Container(
+              width: 36,
+              height: 4,
+              decoration: BoxDecoration(
+                  color: AppTheme.outlineColor,
+                  borderRadius: BorderRadius.circular(2)),
+            ),
+            const SizedBox(height: 8),
+            ListTile(
+              leading: const Icon(Icons.edit_rounded, color: AppTheme.textPrimary),
+              title: const Text('Edit Playlist',
+                  style: TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
+              onTap: () async {
+                Navigator.pop(ctx);
+                final changed = await Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) =>
+                        EditPlaylistScreen(playlist: widget.playlist),
+                  ),
+                );
+                if (changed == true) _loadSongs();
+              },
+            ),
+            ListTile(
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: Colors.redAccent),
+              title: const Text('Delete Playlist',
+                  style: TextStyle(color: Colors.redAccent, fontSize: 15)),
+              onTap: () => Navigator.pop(ctx),
+            ),
+            const SizedBox(height: 8),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ===========================================================================
+// Sub-widgets — all const-constructable / stateless for zero rebuild overhead
+// ===========================================================================
+
+// ---------------------------------------------------------------------------
+// Collapsed app-bar title (fades in when scrolled up)
+// ---------------------------------------------------------------------------
+class _CollapsedTitle extends StatelessWidget {
+  final String title;
+  const _CollapsedTitle({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    // FlexibleSpaceBar handles the opacity transition internally when pinned.
+    // We just supply the styled text; no manual LayoutBuilder math needed.
+    return Text(
+      title,
+      maxLines: 1,
+      overflow: TextOverflow.ellipsis,
+      style: const TextStyle(
+        color: AppTheme.textPrimary,
+        fontSize: 16,
+        fontWeight: FontWeight.w600,
+        letterSpacing: -0.2,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Skeleton placeholder shown while songs are loading
+// ---------------------------------------------------------------------------
+class _SongListSkeleton extends StatelessWidget {
+  const _SongListSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView.builder(
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: 10,
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemBuilder: (_, i) => _SkeletonTile()
+          .animate(onPlay: (c) => c.repeat())
+          .shimmer(
+            duration: 1200.ms,
+            delay: (i * 60).ms,
+            color: Colors.white.withOpacity(0.06),
+          ),
+    );
+  }
+}
+
+class _SkeletonTile extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppTheme.surfaceLevel,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Container(
+                  height: 13,
+                  width: double.infinity,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceLevel,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+                const SizedBox(height: 8),
+                Container(
+                  height: 11,
+                  width: 120,
+                  decoration: BoxDecoration(
+                    color: AppTheme.surfaceLevel.withOpacity(0.6),
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -479,25 +589,375 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   }
 }
 
-class _AppBarTitle extends StatelessWidget {
-  final String title;
-  const _AppBarTitle({required this.title});
+// ---------------------------------------------------------------------------
+// Loading state header (shown while _isLoading)
+// ---------------------------------------------------------------------------
+class _LoadingHeader extends StatelessWidget {
+  final Playlist playlist;
+  const _LoadingHeader({required this.playlist});
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double opacity =
-            (constraints.maxHeight - kToolbarHeight) / (480 - kToolbarHeight);
-        return Opacity(
-          opacity: (1 - opacity).clamp(0.0, 1.0),
-          child: Text(
-            title,
-            style: const TextStyle(
-              color: AppTheme.textPrimary,
-              fontSize: 17,
-              fontWeight: FontWeight.w600,
-              letterSpacing: -0.2,
+    return Container(
+      decoration: const BoxDecoration(color: AppTheme.coreBackground),
+      child: SafeArea(
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            // Pulsing placeholder art
+            Container(
+              width: 180,
+              height: 180,
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceLevel,
+                borderRadius: BorderRadius.circular(16),
+              ),
+            )
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .fadeIn(duration: 600.ms)
+                .then()
+                .fadeOut(duration: 600.ms),
+            const SizedBox(height: 24),
+            Container(
+              width: 160,
+              height: 20,
+              decoration: BoxDecoration(
+                color: AppTheme.surfaceLevel,
+                borderRadius: BorderRadius.circular(8),
+              ),
+            )
+                .animate(onPlay: (c) => c.repeat(reverse: true))
+                .fadeIn(duration: 600.ms, delay: 100.ms)
+                .then()
+                .fadeOut(duration: 600.ms),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Fully expanded header (shown after songs are loaded)
+// ---------------------------------------------------------------------------
+class _ExpandedHeader extends StatelessWidget {
+  final Playlist playlist;
+  final String coverImageUrl;
+  final String coverCacheKey;
+  final Color vibrantColor;
+  final int songCount;
+  final String totalDuration;
+  final VoidCallback onPlayAll;
+  final VoidCallback onShuffleAll;
+
+  const _ExpandedHeader({
+    required this.playlist,
+    required this.coverImageUrl,
+    required this.coverCacheKey,
+    required this.vibrantColor,
+    required this.songCount,
+    required this.totalDuration,
+    required this.onPlayAll,
+    required this.onShuffleAll,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final double topPadding =
+        MediaQuery.of(context).padding.top + kToolbarHeight;
+
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        // ── Blurred background
+        if (coverImageUrl.isNotEmpty)
+          Positioned.fill(
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 48, sigmaY: 48),
+              child: ColorFiltered(
+                colorFilter: ColorFilter.mode(
+                    Colors.black.withOpacity(0.55), BlendMode.darken),
+                child: CachedNetworkImage(
+                  imageUrl: coverImageUrl,
+                  cacheKey: '${coverCacheKey}_bg', // separate key for blurred bg
+                  fit: BoxFit.cover,
+                  // No placeholder — blurred bg is decorative, silence errors
+                  errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
+                ),
+              ),
+            ),
+          ),
+
+        // ── Gradient scrim (top tint → transparent → coreBackground)
+        Positioned.fill(
+          child: DecoratedBox(
+            decoration: BoxDecoration(
+              gradient: LinearGradient(
+                begin: Alignment.topCenter,
+                end: Alignment.bottomCenter,
+                stops: const [0.0, 0.4, 0.78, 1.0],
+                colors: [
+                  vibrantColor.withOpacity(0.55),
+                  vibrantColor.withOpacity(0.08),
+                  AppTheme.coreBackground.withOpacity(0.8),
+                  AppTheme.coreBackground,
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // ── Content
+        Positioned(
+          top: topPadding + 12,
+          left: 0,
+          right: 0,
+          child: Column(
+            children: [
+              // Artwork
+              Container(
+                width: 176,
+                height: 176,
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.65),
+                      blurRadius: 36,
+                      spreadRadius: 2,
+                      offset: const Offset(0, 12),
+                    ),
+                    if (vibrantColor != AppTheme.surfaceLevel)
+                      BoxShadow(
+                        color: vibrantColor.withOpacity(0.28),
+                        blurRadius: 48,
+                        offset: const Offset(0, 8),
+                      ),
+                  ],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: coverImageUrl.isNotEmpty
+                      ? CachedNetworkImage(
+                          imageUrl: coverImageUrl,
+                          cacheKey: coverCacheKey, // ← stable key
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(
+                              color: AppTheme.surfaceLevel,
+                              child: const Icon(Icons.music_note_rounded,
+                                  size: 72, color: AppTheme.textMuted)),
+                          errorWidget: (_, __, ___) => Container(
+                              color: AppTheme.surfaceLevel,
+                              child: const Icon(Icons.music_note_rounded,
+                                  size: 72, color: AppTheme.textMuted)),
+                        )
+                      : Container(
+                          color: AppTheme.surfaceLevel,
+                          child: const Icon(Icons.music_note_rounded,
+                              size: 72, color: AppTheme.textMuted)),
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Playlist name
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 32),
+                child: Text(
+                  playlist.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(
+                    fontSize: 26,
+                    fontWeight: FontWeight.bold,
+                    color: AppTheme.textPrimary,
+                    letterSpacing: -0.5,
+                    height: 1.15,
+                  ),
+                ),
+              ),
+              const SizedBox(height: 4),
+
+              // Subtitle — song count + duration (real data, no hardcoded strings)
+              Text(
+                '$songCount songs • $totalDuration',
+                style: const TextStyle(
+                  fontSize: 13,
+                  color: AppTheme.textSecondary,
+                  fontWeight: FontWeight.w400,
+                ),
+              ),
+              const SizedBox(height: 20),
+
+              // Play / Shuffle buttons
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  // Shuffle
+                  _HeaderButton(
+                    size: 52,
+                    onTap: onShuffleAll,
+                    filled: false,
+                    child: const Icon(Icons.shuffle_rounded,
+                        color: AppTheme.textPrimary, size: 22),
+                  ),
+                  const SizedBox(width: 20),
+
+                  // Play (larger, accent filled)
+                  _HeaderButton(
+                    size: 64,
+                    onTap: onPlayAll,
+                    filled: true,
+                    child: const Icon(Icons.play_arrow_rounded,
+                        color: Colors.white, size: 36),
+                  ),
+                  const SizedBox(width: 20),
+
+                  // Queue
+                  _HeaderButton(
+                    size: 52,
+                    onTap: () {},
+                    filled: false,
+                    child: const Icon(Icons.queue_music_rounded,
+                        color: AppTheme.textPrimary, size: 22),
+                  ),
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reusable header button (filled = accent gradient, unfilled = ghost)
+// ---------------------------------------------------------------------------
+class _HeaderButton extends StatelessWidget {
+  final double size;
+  final VoidCallback onTap;
+  final bool filled;
+  final Widget child;
+
+  const _HeaderButton({
+    required this.size,
+    required this.onTap,
+    required this.filled,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          gradient: filled
+              ? const LinearGradient(
+                  colors: [Color(0xFFF54EA2), Color(0xFFFF7676)],
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                )
+              : null,
+          color: filled ? null : Colors.white.withOpacity(0.10),
+          border: filled
+              ? null
+              : Border.all(
+                  color: AppTheme.textPrimary.withOpacity(0.55),
+                  width: 1.5,
+                ),
+          boxShadow: filled
+              ? [
+                  BoxShadow(
+                    color: const Color(0xFFF54EA2).withOpacity(0.40),
+                    blurRadius: 18,
+                    offset: const Offset(0, 6),
+                  ),
+                ]
+              : null,
+        ),
+        child: child,
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Dismiss background (swipe-to-delete)
+// ---------------------------------------------------------------------------
+class _DismissBackground extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      alignment: Alignment.centerRight,
+      padding: const EdgeInsets.only(right: 24),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [
+            Colors.transparent,
+            Colors.redAccent.withOpacity(0.85),
+          ],
+        ),
+      ),
+      child: const Icon(Icons.delete_outline_rounded,
+          color: Colors.white, size: 24),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Search field — extracted so ValueListenableBuilder only rebuilds this widget
+// ---------------------------------------------------------------------------
+class _SearchField extends StatelessWidget {
+  final TextEditingController controller;
+  const _SearchField({required this.controller});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<TextEditingValue>(
+      valueListenable: controller,
+      builder: (context, value, _) {
+        return ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: TextField(
+            controller: controller,
+            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
+            cursorColor: AppTheme.electricBlue,
+            decoration: InputDecoration(
+              hintText: 'Search in playlist',
+              hintStyle: TextStyle(
+                  color: AppTheme.textMuted.withOpacity(0.6), fontSize: 15),
+              prefixIcon: const Icon(Icons.search_rounded,
+                  color: AppTheme.textMuted, size: 18),
+              suffixIcon: value.text.isNotEmpty
+                  ? GestureDetector(
+                      onTap: () => controller.clear(),
+                      child: const Icon(Icons.cancel_rounded,
+                          color: AppTheme.textMuted, size: 18),
+                    )
+                  : null,
+              filled: true,
+              fillColor: AppTheme.surfaceLevel.withOpacity(0.55),
+              border: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: AppTheme.outlineColor.withOpacity(0.25), width: 0.5),
+              ),
+              enabledBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: AppTheme.outlineColor.withOpacity(0.25), width: 0.5),
+              ),
+              focusedBorder: OutlineInputBorder(
+                borderRadius: BorderRadius.circular(12),
+                borderSide: BorderSide(
+                    color: AppTheme.electricBlue.withOpacity(0.55), width: 1),
+              ),
+              contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
           ),
         );
@@ -506,225 +966,73 @@ class _AppBarTitle extends StatelessWidget {
   }
 }
 
-class _FlexibleHeaderContent extends StatelessWidget {
-  final Playlist playlist;
-  final List<Song> songs;
-  final Color vibrantColor;
-  final VoidCallback onPlayAll;
-  final VoidCallback onShuffleAll;
+// ---------------------------------------------------------------------------
+// Add songs row
+// ---------------------------------------------------------------------------
+class _AddSongsRow extends StatelessWidget {
+  final VoidCallback onTap;
+  const _AddSongsRow({required this.onTap});
 
-  const _FlexibleHeaderContent({
-    required this.playlist,
-    required this.songs,
-    required this.vibrantColor,
-    required this.onPlayAll,
-    required this.onShuffleAll,
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: Row(
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: Colors.green.withOpacity(0.12),
+              border: Border.all(
+                  color: Colors.green.withOpacity(0.45), width: 1.5),
+            ),
+            child: const Icon(Icons.add_rounded, color: Colors.green, size: 24),
+          ),
+          const SizedBox(width: 14),
+          const Text(
+            'Add Songs',
+            style: TextStyle(
+              color: AppTheme.textPrimary,
+              fontSize: 15,
+              fontWeight: FontWeight.w500,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reusable circular icon button (app bar back / add / more)
+// ---------------------------------------------------------------------------
+class _CircleIconButton extends StatelessWidget {
+  final IconData icon;
+  final VoidCallback onTap;
+  final double size;
+
+  const _CircleIconButton({
+    required this.icon,
+    required this.onTap,
+    this.size = 18,
   });
 
   @override
   Widget build(BuildContext context) {
-    final service = ProviderScope.containerOf(context).read(subsonicServiceProvider);
-    final String? coverArtId = playlist.coverArt ?? (songs.isNotEmpty ? songs.first.coverArt : null);
-    final String imageUrl = coverArtId != null ? service.getCoverArtUrl(coverArtId) : '';
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final double topPadding = MediaQuery.of(context).padding.top + kToolbarHeight;
-        final double currentHeight = constraints.maxHeight;
-        final double t =
-            ((currentHeight - topPadding) / (480 - topPadding)).clamp(0.0, 1.0);
-
-        final double artworkScale = 0.7 + 0.3 * t;
-
-        return Opacity(
-          opacity: t,
-          child: Stack(
-            fit: StackFit.expand,
-            children: [
-              // Blurred background
-              if (imageUrl.isNotEmpty)
-                Positioned.fill(
-                  child: ImageFiltered(
-                    imageFilter: ImageFilter.blur(sigmaX: 40, sigmaY: 40),
-                    child: ColorFiltered(
-                      colorFilter: ColorFilter.mode(
-                          Colors.black.withOpacity(0.5), BlendMode.darken),
-                      child: CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        fit: BoxFit.cover,
-                      ),
-                    ),
-                  ),
-                ),
-
-              // Gradient overlay
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      stops: const [0.0, 0.45, 0.8],
-                      colors: [
-                        vibrantColor.withOpacity(0.6),
-                        vibrantColor.withOpacity(0.1),
-                        AppTheme.coreBackground,
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              // Content
-              Positioned(
-                top: topPadding + (20 * t),
-                left: 0,
-                right: 0,
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    // Artwork
-                    Transform.scale(
-                      scale: artworkScale,
-                      child: Container(
-                        width: 180,
-                        height: 180,
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(16),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withOpacity(0.6),
-                              blurRadius: 30,
-                              offset: const Offset(0, 10),
-                            ),
-                          ],
-                          border: Border.all(
-                              color: AppTheme.outlineColor.withOpacity(0.3)),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(15),
-                          child: imageUrl.isNotEmpty
-                              ? CachedNetworkImage(
-                                  imageUrl: imageUrl, fit: BoxFit.cover)
-                              : Container(
-                                  color: AppTheme.surfaceLevel,
-                                  child: const Icon(Icons.music_note_rounded,
-                                      size: 80, color: AppTheme.textMuted)),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Playlist name
-                    Text(
-                      playlist.name,
-                      style: const TextStyle(
-                        fontSize: 28,
-                        fontWeight: FontWeight.bold,
-                        color: AppTheme.textPrimary,
-                        letterSpacing: -0.5,
-                        height: 1.1,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                    const SizedBox(height: 8),
-                    const Text(
-                      'Apple Music',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: AppTheme.textSecondary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    const Text(
-                      'Apple Music for Chances',
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: AppTheme.textMuted,
-                        fontWeight: FontWeight.w400,
-                      ),
-                    ),
-                    const SizedBox(height: 24),
-
-                    // Play / Shuffle / Queue — all circular
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        // Shuffle button
-                        GestureDetector(
-                          onTap: onShuffleAll,
-                          child: Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.1),
-                              border: Border.all(
-                                color: AppTheme.textPrimary.withOpacity(0.8),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: const Icon(Icons.shuffle_rounded,
-                                color: AppTheme.textPrimary, size: 22),
-                          ),
-                        ),
-                        const SizedBox(width: 24),
-
-                        // Play button (larger, gradient filled)
-                        GestureDetector(
-                          onTap: onPlayAll,
-                          child: Container(
-                            width: 64,
-                            height: 64,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              gradient: const LinearGradient(
-                                colors: [Color(0xFFF54EA2), Color(0xFFFF7676)],
-                                begin: Alignment.topLeft,
-                                end: Alignment.bottomRight,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFFF54EA2).withOpacity(0.45),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 6),
-                                ),
-                              ],
-                            ),
-                            child: const Icon(Icons.play_arrow_rounded,
-                                color: Colors.white, size: 36),
-                          ),
-                        ),
-                        const SizedBox(width: 24),
-
-                        // Queue button
-                        GestureDetector(
-                          onTap: () {}, // wire to queue action if needed
-                          child: Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: Colors.white.withOpacity(0.1),
-                              border: Border.all(
-                                color: AppTheme.textPrimary.withOpacity(0.8),
-                                width: 1.5,
-                              ),
-                            ),
-                            child: const Icon(Icons.queue_music_rounded,
-                                color: AppTheme.textPrimary, size: 22),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-        );
-      },
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        width: 36,
+        height: 36,
+        decoration: BoxDecoration(
+          shape: BoxShape.circle,
+          color: AppTheme.surfaceLevel.withOpacity(0.55),
+        ),
+        child: Icon(icon, color: AppTheme.textPrimary, size: size),
+      ),
     );
   }
 }

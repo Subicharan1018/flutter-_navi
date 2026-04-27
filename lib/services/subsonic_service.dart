@@ -20,14 +20,33 @@ class SubsonicService {
   final String? webdavPassword;
   final http.Client _client = http.Client();
 
-  // BUG FIX: In-memory cache for library data
-  // These are retained for the lifetime of the SubsonicService instance,
-  // preventing repeated network requests during app usage.
+  // ---------------------------------------------------------------------------
+  // In-memory library cache (retained for the lifetime of this service instance)
+  // ---------------------------------------------------------------------------
   List<Album>? _recentlyPlayedAlbumsCache;
   List<Album>? _frequentAlbumsCache;
   List<Playlist>? _playlistsCache;
   List<Song>? _allSongsCache;
   List<Album>? _albumsCache;
+
+  // ---------------------------------------------------------------------------
+  // COVER ART URL FIX
+  //
+  // _buildUrl() generates a fresh random salt on every call (BUG-8 security
+  // fix). That is correct for API requests, but getCoverArtUrl() is called
+  // inside widget build() methods, meaning a new URL — with a new salt/token —
+  // is produced on every rebuild.  CachedNetworkImage uses the URL string as
+  // its primary cache key, so the image is treated as uncached and re-downloaded
+  // on every scroll/rebuild, causing the "images refreshing on scroll" bug.
+  //
+  // Fix: generate ONE stable salt+token pair at construction time, used
+  // exclusively for cover-art URLs.  Cover art never changes for a given ID so
+  // there is no security downside to reusing the same token here.  All other
+  // API calls (stream, search, star, scrobble …) continue to use a fresh random
+  // salt via _buildUrl().
+  // ---------------------------------------------------------------------------
+  late final String _coverArtSalt;
+  late final String _coverArtToken;
 
   SubsonicService({
     required String serverUrl,
@@ -37,7 +56,11 @@ class SubsonicService {
     this.customUploadDir,
     this.webdavUsername,
     this.webdavPassword,
-  }) : serverUrl = _normalizeServerUrl(serverUrl);
+  }) : serverUrl = _normalizeServerUrl(serverUrl) {
+    // Initialise the stable cover-art credentials once.
+    _coverArtSalt = _generateSalt();
+    _coverArtToken = _generateToken(_coverArtSalt);
+  }
 
   static String _normalizeServerUrl(String url) {
     final uri = Uri.parse(url.trim());
@@ -47,8 +70,10 @@ class SubsonicService {
     return uri.toString().replaceAll(RegExp(r'/+$'), '');
   }
 
-  // BUG-8: generate a random salt per request so the token is never the same,
-  // preventing the fixed-token equivalent-to-plaintext vulnerability.
+  // ---------------------------------------------------------------------------
+  // Auth helpers
+  // ---------------------------------------------------------------------------
+
   static final Random _random = Random.secure();
   static const _saltChars =
       'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789';
@@ -65,8 +90,9 @@ class SubsonicService {
     return digest.toString();
   }
 
+  /// Builds a URL with a **fresh** random salt — used for every API call
+  /// except cover-art image URLs (see [getCoverArtUrl]).
   String _buildUrl(String endpoint, [Map<String, String>? params]) {
-    // BUG-8: fresh random salt on every URL build
     final salt = _generateSalt();
     final token = _generateToken(salt);
 
@@ -83,6 +109,44 @@ class SubsonicService {
     final uri = Uri.parse('$serverUrl/$endpoint');
     return uri.replace(queryParameters: queryParams).toString();
   }
+
+  /// Builds a URL with the **stable** salt/token pair — used only for image
+  /// URLs so that CachedNetworkImage always sees the same string for the same
+  /// cover-art ID.
+  String _buildStableUrl(String endpoint, [Map<String, String>? params]) {
+    final queryParams = <String, String>{
+      'u': username,
+      't': _coverArtToken,
+      's': _coverArtSalt,
+      'v': Constants.apiVersion,
+      'c': Constants.defaultClient,
+      'f': 'json',
+    };
+    if (params != null) queryParams.addAll(params);
+
+    final uri = Uri.parse('$serverUrl/$endpoint');
+    return uri.replace(queryParameters: queryParams).toString();
+  }
+
+  // ---------------------------------------------------------------------------
+  // URL builders
+  // ---------------------------------------------------------------------------
+
+  /// Stream URL — fresh salt per call (correct: each stream request is unique).
+  String getStreamUrl(String songId) =>
+      _buildUrl('stream.view', {'id': songId});
+
+  /// Cover-art URL — **stable** salt so the URL never changes for a given ID.
+  /// This is what allows CachedNetworkImage to serve from disk/memory cache
+  /// instead of re-downloading on every widget rebuild or list scroll.
+  String getCoverArtUrl(String? coverArtId) {
+    if (coverArtId == null || coverArtId.isEmpty) return '';
+    return _buildStableUrl('getCoverArt.view', {'id': coverArtId});
+  }
+
+  // ---------------------------------------------------------------------------
+  // HTTP helper
+  // ---------------------------------------------------------------------------
 
   Future<dynamic> _get(String endpoint, [Map<String, String>? params]) async {
     final url = _buildUrl(endpoint, params);
@@ -116,25 +180,12 @@ class SubsonicService {
   }
 
   // ---------------------------------------------------------------------------
-  // URL builders
-  // ---------------------------------------------------------------------------
-
-  String getStreamUrl(String songId) =>
-      _buildUrl('stream.view', {'id': songId});
-
-  String getCoverArtUrl(String coverArtId) =>
-      _buildUrl('getCoverArt.view', {'id': coverArtId});
-
-  // ---------------------------------------------------------------------------
   // Song library
   // ---------------------------------------------------------------------------
 
   Future<List<Song>> getAllSongs({int size = 5000}) async {
-    // BUG FIX: Return cached result if available
-    if (_allSongsCache != null) {
-      return _allSongsCache!;
-    }
-    
+    if (_allSongsCache != null) return _allSongsCache!;
+
     try {
       final res = await _get('search3.view', {
         'query': '*',
@@ -152,7 +203,7 @@ class SubsonicService {
     } catch (e) {
       debugPrint('Wildcard search failed: $e');
     }
-    
+
     final result = await getRandomSongs(size: size);
     _allSongsCache = result;
     return result;
@@ -201,47 +252,36 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   Future<List<Album>> getRecentlyPlayedAlbums() async {
-    // BUG FIX: Return cached result if available
-    if (_recentlyPlayedAlbumsCache != null) {
-      return _recentlyPlayedAlbumsCache!;
-    }
-    
+    if (_recentlyPlayedAlbumsCache != null) return _recentlyPlayedAlbumsCache!;
+
     final res = await _get('getAlbumList2.view', {'type': 'recent'});
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    final result = albums
+    _recentlyPlayedAlbumsCache = albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
-    
-    _recentlyPlayedAlbumsCache = result;
-    return result;
+    return _recentlyPlayedAlbumsCache!;
   }
 
   Future<List<Album>> getFrequentAlbums() async {
-    // BUG FIX: Return cached result if available
-    if (_frequentAlbumsCache != null) {
-      return _frequentAlbumsCache!;
-    }
-    
+    if (_frequentAlbumsCache != null) return _frequentAlbumsCache!;
+
     final res = await _get('getAlbumList2.view', {'type': 'frequent'});
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    final result = albums
+    _frequentAlbumsCache = albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
-    
-    _frequentAlbumsCache = result;
-    return result;
+    return _frequentAlbumsCache!;
   }
 
   Future<List<Album>> getAlbums({int offset = 0, int size = 50}) async {
-    // BUG FIX: Cache only the first page (offset=0, size=1000)
     if (offset == 0 && size == 1000 && _albumsCache != null) {
       return _albumsCache!;
     }
-    
+
     final res = await _get('getAlbumList2.view', {
       'type': 'alphabeticalByArtist',
       'offset': offset.toString(),
@@ -250,14 +290,10 @@ class SubsonicService {
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    final result = albums
-        .map((e) => Album.fromJson(e as Map<String, dynamic>))
-        .toList();
-    
-    if (offset == 0 && size == 1000) {
-      _albumsCache = result;
-    }
-    
+    final result =
+        albums.map((e) => Album.fromJson(e as Map<String, dynamic>)).toList();
+
+    if (offset == 0 && size == 1000) _albumsCache = result;
     return result;
   }
 
@@ -281,9 +317,8 @@ class SubsonicService {
             [];
     final artists = <Map<String, dynamic>>[];
     for (final index in indexes) {
-      final artistList = (index as Map<String, dynamic>)['artist']
-              as List<dynamic>? ??
-          [];
+      final artistList =
+          (index as Map<String, dynamic>)['artist'] as List<dynamic>? ?? [];
       for (final artist in artistList) {
         artists.add(artist as Map<String, dynamic>);
       }
@@ -296,21 +331,16 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   Future<List<Playlist>> getPlaylists() async {
-    // BUG FIX: Return cached result if available
-    if (_playlistsCache != null) {
-      return _playlistsCache!;
-    }
-    
+    if (_playlistsCache != null) return _playlistsCache!;
+
     final res = await _get('getPlaylists.view');
     final playlists =
         (res['playlists'] as Map<String, dynamic>)['playlist'] as List<dynamic>? ??
             [];
-    final result = playlists
+    _playlistsCache = playlists
         .map((e) => Playlist.fromJson(e as Map<String, dynamic>))
         .toList();
-    
-    _playlistsCache = result;
-    return result;
+    return _playlistsCache!;
   }
 
   Future<List<Song>> getPlaylistSongs(String id) async {
@@ -325,10 +355,12 @@ class SubsonicService {
 
   Future<void> createPlaylist(String name) async {
     await _get('createPlaylist.view', {'name': name});
+    _playlistsCache = null; // invalidate so next fetch is fresh
   }
 
   Future<void> deletePlaylist(String id) async {
     await _get('deletePlaylist.view', {'id': id});
+    _playlistsCache = null; // invalidate
   }
 
   Future<void> updatePlaylist(
@@ -339,27 +371,23 @@ class SubsonicService {
     String? comment,
   }) async {
     final params = <String, String>{'playlistId': playlistId};
-    if (songIdToAdd != null) {
-      params['songIdToAdd'] = songIdToAdd;
-    }
+    if (songIdToAdd != null) params['songIdToAdd'] = songIdToAdd;
     if (songIndexToRemove != null) {
       params['songIndexToRemove'] = songIndexToRemove.toString();
     }
     if (name != null) params['name'] = name;
     if (comment != null) params['comment'] = comment;
     await _get('updatePlaylist.view', params);
+    _playlistsCache = null; // content changed — invalidate
   }
 
   Future<void> setPlaylistImage(String playlistId, File imageFile) async {
-    // If custom API is configured, use it
     if (customUploadUrl != null && customUploadUrl!.isNotEmpty) {
       final extension = imageFile.path.split('.').last.toLowerCase();
-      final targetName = 'playlist_$playlistId.$extension';
-      await _webDavUpload(imageFile, targetName);
+      await _webDavUpload(imageFile, 'playlist_$playlistId.$extension');
       return;
     }
 
-    // BUG-8: use a fresh random salt
     final salt = _generateSalt();
     final token = _generateToken(salt);
 
@@ -405,40 +433,25 @@ class SubsonicService {
   }
 
   // ---------------------------------------------------------------------------
-  // Starring (Favourites)
+  // Starring / Rating / Scrobbling
   // ---------------------------------------------------------------------------
 
-  /// Star a song (mark as favourite).
-  Future<void> star(String songId) async {
-    await _get('star.view', {'id': songId});
-  }
+  Future<void> star(String songId) async =>
+      _get('star.view', {'id': songId});
 
-  /// Remove a star from a song.
-  Future<void> unstar(String songId) async {
-    await _get('unstar.view', {'id': songId});
-  }
+  Future<void> unstar(String songId) async =>
+      _get('unstar.view', {'id': songId});
 
-  // ---------------------------------------------------------------------------
-  // Rating  (1 = worst … 5 = best, 0 = remove rating)
-  // ---------------------------------------------------------------------------
-
-  /// Set a user rating on a song. Pass 0 to clear the rating.
   Future<void> setRating(String songId, int rating) async {
-    assert(rating >= 0 && rating <= 5,
-        'Subsonic rating must be between 0 and 5');
+    assert(rating >= 0 && rating <= 5, 'Subsonic rating must be 0–5');
     await _get('setRating.view', {
       'id': songId,
       'rating': rating.toString(),
     });
   }
 
-  // ---------------------------------------------------------------------------
-  // Scrobbling
-  // ---------------------------------------------------------------------------
-
-  Future<void> scrobble(String songId) async {
-    await _get('scrobble.view', {'id': songId, 'submission': 'true'});
-  }
+  Future<void> scrobble(String songId) async =>
+      _get('scrobble.view', {'id': songId, 'submission': 'true'});
 
   // ---------------------------------------------------------------------------
   // File upload
@@ -451,7 +464,6 @@ class SubsonicService {
       return;
     }
 
-    // BUG-8: use a fresh random salt
     final salt = _generateSalt();
     final token = _generateToken(salt);
 
@@ -485,12 +497,13 @@ class SubsonicService {
 
   Future<void> _webDavUpload(File file, String targetFileName) async {
     final baseUrl = customUploadUrl!.trim().replaceAll(RegExp(r'/+$'), '');
-    final remoteDir = (customUploadDir == null || customUploadDir!.trim().isEmpty)
-        ? '/DATA/Media/Music'
-        : customUploadDir!.trim();
+    final remoteDir =
+        (customUploadDir == null || customUploadDir!.trim().isEmpty)
+            ? '/DATA/Media/Music'
+            : customUploadDir!.trim();
 
-    // Normalize remoteDir: ensure leading slash, remove trailing slash
-    final normalizedDir = remoteDir.startsWith('/') ? remoteDir : '/$remoteDir';
+    final normalizedDir =
+        remoteDir.startsWith('/') ? remoteDir : '/$remoteDir';
     final finalDir = normalizedDir.endsWith('/')
         ? normalizedDir.substring(0, normalizedDir.length - 1)
         : normalizedDir;
@@ -498,7 +511,6 @@ class SubsonicService {
     final uploadUrl = '$baseUrl$finalDir/$targetFileName';
     final uri = Uri.parse(uploadUrl);
 
-    // Use WebDAV credentials if provided, otherwise default to casaos:casaos
     final webdavUser = webdavUsername ?? 'casaos';
     final webdavPass = webdavPassword ?? 'casaos';
     final auth = base64Encode(utf8.encode('$webdavUser:$webdavPass'));
@@ -519,13 +531,36 @@ class SubsonicService {
 
     debugPrint('Upload(WebDAV): Response status: ${response.statusCode}');
 
-    if (response.statusCode != 200 && response.statusCode != 201 && response.statusCode != 204) {
+    if (response.statusCode != 200 &&
+        response.statusCode != 201 &&
+        response.statusCode != 204) {
       debugPrint('Upload(WebDAV): Response body: ${response.body}');
-      throw Exception('WebDAV upload failed (${response.statusCode}): ${response.body}');
+      throw Exception(
+          'WebDAV upload failed (${response.statusCode}): ${response.body}');
     }
   }
+
+  // ---------------------------------------------------------------------------
+  // Cache invalidation helpers (call after mutations if needed)
+  // ---------------------------------------------------------------------------
+
+  /// Clears all in-memory caches. Call this on logout or server change.
+  void clearCache() {
+    _recentlyPlayedAlbumsCache = null;
+    _frequentAlbumsCache = null;
+    _playlistsCache = null;
+    _allSongsCache = null;
+    _albumsCache = null;
+  }
+
+  /// Invalidates only the recently-played / frequent caches (call after
+  /// scrobble so the next fetch reflects the updated play counts).
+  void invalidatePlayHistory() {
+    _recentlyPlayedAlbumsCache = null;
+    _frequentAlbumsCache = null;
+  }
+
   // BUG-3: close the http.Client to release socket connections.
-  // Called by the Riverpod provider's onDispose callback.
   void dispose() {
     _client.close();
   }

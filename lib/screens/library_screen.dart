@@ -27,10 +27,11 @@ class LibraryScreen extends ConsumerWidget {
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            // Spotify Style Header
+            // Header
             SliverToBoxAdapter(
               child: Padding(
-                padding: EdgeInsets.fromLTRB(16, MediaQuery.of(context).padding.top + 16, 16, 8),
+                padding: EdgeInsets.fromLTRB(
+                    16, MediaQuery.of(context).padding.top + 16, 16, 8),
                 child: Row(
                   children: [
                     const Text(
@@ -46,14 +47,16 @@ class LibraryScreen extends ConsumerWidget {
                     IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      icon: const Icon(Icons.search_rounded, color: Colors.white, size: 24),
+                      icon: const Icon(Icons.search_rounded,
+                          color: Colors.white, size: 24),
                       onPressed: () {},
                     ),
                     const SizedBox(width: 16),
                     IconButton(
                       padding: EdgeInsets.zero,
                       constraints: const BoxConstraints(),
-                      icon: const Icon(Icons.add_rounded, color: Colors.white, size: 28),
+                      icon: const Icon(Icons.add_rounded,
+                          color: Colors.white, size: 28),
                       onPressed: () {
                         showDialog(
                           context: context,
@@ -66,35 +69,42 @@ class LibraryScreen extends ConsumerWidget {
               ),
             ),
 
-            // Spotify Pill Filters
+            // Filter chips
             SliverToBoxAdapter(
               child: SizedBox(
                 height: 56,
                 child: ListView(
                   scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
                   children: [
                     _SpotifyFilterChip(
                       label: 'All Songs',
                       isSelected: filter == LibraryFilter.allSongs,
-                      onTap: () => ref.read(libraryFilterProvider.notifier).state = LibraryFilter.allSongs,
+                      onTap: () => ref
+                          .read(libraryFilterProvider.notifier)
+                          .state = LibraryFilter.allSongs,
                     ),
                     _SpotifyFilterChip(
                       label: 'Playlists',
                       isSelected: filter == LibraryFilter.playlists,
-                      onTap: () => ref.read(libraryFilterProvider.notifier).state = LibraryFilter.playlists,
+                      onTap: () => ref
+                          .read(libraryFilterProvider.notifier)
+                          .state = LibraryFilter.playlists,
                     ),
                     _SpotifyFilterChip(
                       label: 'Albums',
                       isSelected: filter == LibraryFilter.albums,
-                      onTap: () => ref.read(libraryFilterProvider.notifier).state = LibraryFilter.albums,
+                      onTap: () => ref
+                          .read(libraryFilterProvider.notifier)
+                          .state = LibraryFilter.albums,
                     ),
                   ],
                 ),
               ),
             ),
 
-            // Library Content
+            // Content
             filteredContentAsync.when(
               data: (items) {
                 if (items.isEmpty) {
@@ -103,9 +113,12 @@ class LibraryScreen extends ConsumerWidget {
                       child: Column(
                         mainAxisAlignment: MainAxisAlignment.center,
                         children: [
-                          Icon(Icons.library_music_rounded, color: AppTheme.textSecondary, size: 64),
+                          Icon(Icons.library_music_rounded,
+                              color: AppTheme.textSecondary, size: 64),
                           SizedBox(height: 16),
-                          Text('Your library is empty', style: TextStyle(color: AppTheme.textSecondary, fontSize: 16)),
+                          Text('Your library is empty',
+                              style: TextStyle(
+                                  color: AppTheme.textSecondary, fontSize: 16)),
                         ],
                       ),
                     ),
@@ -119,7 +132,10 @@ class LibraryScreen extends ConsumerWidget {
                         final item = items[index];
                         return _buildLibraryItem(context, ref, filter, item)
                             .animate()
-                            .fadeIn(duration: 400.ms, delay: (index * 20).clamp(0, 300).ms);
+                            .fadeIn(
+                              duration: 400.ms,
+                              delay: (index * 20).clamp(0, 300).ms,
+                            );
                       },
                       childCount: items.length,
                     ),
@@ -127,10 +143,14 @@ class LibraryScreen extends ConsumerWidget {
                 );
               },
               loading: () => const SliverFillRemaining(
-                child: Center(child: CircularProgressIndicator(color: AppTheme.spotifyGreen)),
+                child: Center(
+                    child: CircularProgressIndicator(
+                        color: AppTheme.spotifyGreen)),
               ),
               error: (e, st) => SliverFillRemaining(
-                child: Center(child: Text('Error: $e', style: const TextStyle(color: Colors.red))),
+                child: Center(
+                    child: Text('Error: $e',
+                        style: const TextStyle(color: Colors.red))),
               ),
             ),
 
@@ -141,7 +161,8 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 
-  Widget _buildLibraryItem(BuildContext context, WidgetRef ref, LibraryFilter filter, dynamic item) {
+  Widget _buildLibraryItem(
+      BuildContext context, WidgetRef ref, LibraryFilter filter, dynamic item) {
     switch (filter) {
       case LibraryFilter.allSongs:
         return SongTile(
@@ -150,9 +171,11 @@ class LibraryScreen extends ConsumerWidget {
             ref.read(playerProvider.notifier).setQueue([item], 0);
           },
         );
+
       case LibraryFilter.playlists:
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           leading: Container(
             width: 52,
             height: 52,
@@ -160,25 +183,38 @@ class LibraryScreen extends ConsumerWidget {
               color: AppTheme.topLevel,
               borderRadius: BorderRadius.circular(6),
             ),
-            child: const Icon(Icons.music_note_rounded, color: AppTheme.spotifyGreen),
+            child:
+                const Icon(Icons.music_note_rounded, color: AppTheme.spotifyGreen),
           ),
-          title: Text(
-            item.name, 
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)
-          ),
-          subtitle: Text(
-            'Playlist • ${item.songCount} songs', 
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)
-          ),
+          title: Text(item.name,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14)),
+          subtitle: Text('Playlist • ${item.songCount} songs',
+              style: const TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 12)),
           onTap: () => Navigator.push(
             context,
-            MaterialPageRoute(builder: (_) => PlaylistDetailsScreen(playlist: item)),
+            MaterialPageRoute(
+                builder: (_) => PlaylistDetailsScreen(playlist: item)),
           ),
           onLongPress: () => _showPlaylistOptions(context, ref, item),
         );
+
       case LibraryFilter.albums:
+        // ---------------------------------------------------------------------------
+        // FIX — stable cacheKey on the inline album art in the list tile.
+        // ref.read is correct here because we only need the URL once; this builder
+        // is not a widget build() and doesn't watch anything.
+        // ---------------------------------------------------------------------------
+        final service = ref.read(subsonicServiceProvider);
+        final String coverUrl = service.getCoverArtUrl(item.coverArt);
+        final String coverCacheKey = 'cover_${item.coverArt ?? item.id}';
+
         return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+          contentPadding:
+              const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           leading: Container(
             width: 52,
             height: 52,
@@ -189,32 +225,35 @@ class LibraryScreen extends ConsumerWidget {
             child: ClipRRect(
               borderRadius: BorderRadius.circular(6),
               child: CachedNetworkImage(
-                imageUrl: ref.read(subsonicServiceProvider).getCoverArtUrl(item.coverArt),
+                imageUrl: coverUrl,
+                cacheKey: coverCacheKey, // ← stable cache key
                 fit: BoxFit.cover,
-                errorWidget: (_, __, ___) => const Icon(Icons.album_rounded, color: AppTheme.textMuted),
+                errorWidget: (_, __, ___) => const Icon(Icons.album_rounded,
+                    color: AppTheme.textMuted),
               ),
             ),
           ),
-          title: Text(
-            item.name, 
-            style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 14)
-          ),
-          subtitle: Text(
-            'Album • ${item.artist}', 
-            style: const TextStyle(color: AppTheme.textSecondary, fontSize: 12)
-          ),
+          title: Text(item.name,
+              style: const TextStyle(
+                  color: Colors.white,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 14)),
+          subtitle: Text('Album • ${item.artist}',
+              style: const TextStyle(
+                  color: AppTheme.textSecondary, fontSize: 12)),
           onTap: () async {
-            final service = ref.read(subsonicServiceProvider);
             final songs = await service.getAlbum(item.id);
             ref.read(playerProvider.notifier).setQueue(songs, 0);
           },
         );
+
       default:
-        return const SizedBox();
+        return const SizedBox.shrink();
     }
   }
 
-  void _showPlaylistOptions(BuildContext context, WidgetRef ref, dynamic playlist) {
+  void _showPlaylistOptions(
+      BuildContext context, WidgetRef ref, dynamic playlist) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceLevel,
@@ -237,7 +276,8 @@ class LibraryScreen extends ConsumerWidget {
             const SizedBox(height: 12),
             ListTile(
               leading: const Icon(Icons.edit_rounded, color: Colors.white),
-              title: const Text('Edit Playlist', style: TextStyle(color: Colors.white)),
+              title: const Text('Edit Playlist',
+                  style: TextStyle(color: Colors.white)),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
@@ -249,8 +289,10 @@ class LibraryScreen extends ConsumerWidget {
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline_rounded, color: Colors.redAccent),
-              title: const Text('Delete Playlist', style: TextStyle(color: Colors.redAccent)),
+              leading: const Icon(Icons.delete_outline_rounded,
+                  color: Colors.redAccent),
+              title: const Text('Delete Playlist',
+                  style: TextStyle(color: Colors.redAccent)),
               onTap: () {
                 Navigator.pop(context);
                 _confirmDelete(context, ref, playlist);
@@ -263,18 +305,24 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(BuildContext context, WidgetRef ref, dynamic playlist) {
+  void _confirmDelete(
+      BuildContext context, WidgetRef ref, dynamic playlist) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: AppTheme.surfaceLevel,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        title: const Text('Delete Playlist', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
-        content: Text('Are you sure you want to delete "${playlist.name}"?', style: const TextStyle(color: AppTheme.textSecondary)),
+        shape:
+            RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: const Text('Delete Playlist',
+            style: TextStyle(
+                color: Colors.white, fontWeight: FontWeight.bold)),
+        content: Text('Are you sure you want to delete "${playlist.name}"?',
+            style: const TextStyle(color: AppTheme.textSecondary)),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel', style: TextStyle(color: Colors.white)),
+            child:
+                const Text('Cancel', style: TextStyle(color: Colors.white)),
           ),
           TextButton(
             onPressed: () async {
@@ -296,7 +344,10 @@ class LibraryScreen extends ConsumerWidget {
                 }
               }
             },
-            child: const Text('Delete', style: TextStyle(color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: const Text('Delete',
+                style: TextStyle(
+                    color: Colors.redAccent,
+                    fontWeight: FontWeight.bold)),
           ),
         ],
       ),

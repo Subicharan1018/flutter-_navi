@@ -18,7 +18,7 @@ import '../widgets/options_menu.dart';
 import '../models/song.dart';
 
 // ---------------------------------------------------------------------------
-// Isolate-safe color extraction
+// Isolate-safe color extraction (unchanged)
 // ---------------------------------------------------------------------------
 Future<List<Color>> _extractMeshColors(String imageUrl) async {
   final palette = await PaletteGenerator.fromImageProvider(
@@ -35,7 +35,7 @@ Future<List<Color>> _extractMeshColors(String imageUrl) async {
 }
 
 // ---------------------------------------------------------------------------
-// Animated sound-bar widget (replaces the lyrics button)
+// Animated sound-bar widget (unchanged logic, const-safe)
 // ---------------------------------------------------------------------------
 class _SoundBar extends StatefulWidget {
   final bool isPlaying;
@@ -55,7 +55,6 @@ class _SoundBarState extends State<_SoundBar>
   @override
   void initState() {
     super.initState();
-    // Random phase offsets per bar so they don't all bounce in sync
     for (int i = 0; i < 4; i++) {
       _phases.add(_random.nextDouble() * math.pi * 2);
     }
@@ -83,7 +82,6 @@ class _SoundBarState extends State<_SoundBar>
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(4, (i) {
-              // When paused, bars shrink to a flat line
               final t = widget.isPlaying
                   ? (math.sin(_ctrl.value * math.pi * 2 + _phases[i]) + 1) / 2
                   : 0.15;
@@ -99,6 +97,53 @@ class _SoundBarState extends State<_SoundBar>
             }),
           );
         },
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Reusable bottom-bar action button — const-constructable for stable tree
+// ---------------------------------------------------------------------------
+class _BottomAction extends StatelessWidget {
+  final Widget icon;
+  final String label;
+  final Color labelColor;
+  final VoidCallback onTap;
+
+  const _BottomAction({
+    required this.icon,
+    required this.label,
+    required this.labelColor,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: SizedBox(
+        width: 56,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            icon,
+            const SizedBox(height: 5),
+            Text(
+              label,
+              style: TextStyle(
+                color: labelColor,
+                fontSize: 9,
+                letterSpacing: 0.4,
+                fontWeight: FontWeight.w500,
+              ),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -131,19 +176,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   bool _transitionListenerAttached = false;
   Timer? _transitionFallbackTimer;
 
-  // Sleep timer
   Timer? _sleepTimer;
   Timer? _sleepCountdownTimer;
   int? _sleepSecondsRemaining;
 
-  // -------------------------------------------------------------------------
-  // BUG-13 FIX: snapshot of last valid song for use during shuffle rebuild gap
-  //
-  // During the async gap while applyShuffleAlgorithm() rebuilds the audio
-  // source, playerState.queue may transiently appear empty (the source reset
-  // clears currentIndex).  Instead of showing the black Scaffold fallback we
-  // hold onto the last successfully rendered song and keep it visible.
-  // -------------------------------------------------------------------------
   Song? _lastKnownSong;
   String? _lastKnownImageUrl;
 
@@ -160,9 +196,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       setState(() => _transitionFinished = true);
       if (widget.initialImageUrl != null) {
         WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted) {
-            _loadPalette(widget.initialImageUrl!);
-          }
+          if (mounted) _loadPalette(widget.initialImageUrl!);
         });
       }
     }
@@ -194,7 +228,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   Future<void> _loadPalette(String imageUrl) async {
     if (_lastImageUrl == imageUrl) return;
     _lastImageUrl = imageUrl;
-
     try {
       final colors = await compute(_extractMeshColors, imageUrl);
       if (!mounted) return;
@@ -208,9 +241,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // Sleep timer
+  // Sleep timer (unchanged)
   // ---------------------------------------------------------------------------
-
   void _showSleepTimerDialog() {
     showModalBottomSheet(
       context: context,
@@ -231,8 +263,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
             ...[5, 10, 15, 30, 45, 60].map(
               (mins) => ListTile(
                 title: Text('$mins Minutes',
-                    style:
-                        const TextStyle(color: AppTheme.textPrimary)),
+                    style: const TextStyle(color: AppTheme.textPrimary)),
                 trailing: _sleepSecondsRemaining != null &&
                         (_sleepSecondsRemaining! / 60).round() == mins
                     ? const Icon(Icons.check_rounded,
@@ -261,20 +292,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   void _setSleepTimer(int? minutes) {
     _sleepTimer?.cancel();
     _sleepCountdownTimer?.cancel();
-
     if (minutes == null) {
       setState(() => _sleepSecondsRemaining = null);
       return;
     }
-
     setState(() => _sleepSecondsRemaining = minutes * 60);
-
-    // Tick every second so the label stays accurate
     _sleepCountdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) {
-        t.cancel();
-        return;
-      }
+      if (!mounted) { t.cancel(); return; }
       setState(() {
         if (_sleepSecondsRemaining != null && _sleepSecondsRemaining! > 0) {
           _sleepSecondsRemaining = _sleepSecondsRemaining! - 1;
@@ -284,7 +308,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         }
       });
     });
-
     _sleepTimer = Timer(Duration(minutes: minutes), () {
       ref.read(playerProvider.notifier).player.pause();
       _sleepCountdownTimer?.cancel();
@@ -296,8 +319,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     if (_sleepSecondsRemaining == null) return '';
     final mins = _sleepSecondsRemaining! ~/ 60;
     final secs = _sleepSecondsRemaining! % 60;
-    if (mins > 0) return '${mins}m';
-    return '${secs}s';
+    return mins > 0 ? '${mins}m' : '${secs}s';
   }
 
   void _showSmartShuffleDialog() {
@@ -345,7 +367,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     : null,
                 onTap: () {
                   ref.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
-                  // If shuffle is already on, re-apply the new algorithm immediately
                   if (ref.read(playerProvider).shuffleMode) {
                     ref.read(playerProvider.notifier).applyShuffleAlgorithm();
                   }
@@ -361,23 +382,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   }
 
   // ---------------------------------------------------------------------------
-  // Shuffle / Repeat mode label helper
-  // ---------------------------------------------------------------------------
-  String _shuffleModeLabel(ShuffleAlgorithm algo) {
-    switch (algo) {
-      case ShuffleAlgorithm.spotify:
-        return 'Balanced';
-      case ShuffleAlgorithm.youtube:
-        return 'Weighted';
-      case ShuffleAlgorithm.standard:
-        return 'Shuffle';
-    }
-  }
-
-  // ---------------------------------------------------------------------------
   // Build
   // ---------------------------------------------------------------------------
-
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
@@ -385,35 +391,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final settings = ref.watch(settingsProvider);
     final service = ref.watch(subsonicServiceProvider);
 
-    // -------------------------------------------------------------------------
-    // BUG-13 FIX: suppress black-screen flash during shuffle rebuild
-    //
-    // The async gap between setQueue() and the completion of
-    // applyShuffleAlgorithm() can produce a frame where queue.isEmpty is
-    // true even though music is playing and the screen is visible.  Instead of
-    // the pure-black fallback Scaffold we:
-    //   1. Keep a _lastKnownSong snapshot that is only updated when the queue
-    //      is genuinely populated.
-    //   2. During the shuffle gap (notifier.isShuffling == true) we keep
-    //      rendering the previous song rather than flashing to black.
-    // -------------------------------------------------------------------------
     final bool queueReady =
-        playerState.queue.isNotEmpty && playerState.currentIndex < playerState.queue.length;
+        playerState.queue.isNotEmpty &&
+        playerState.currentIndex < playerState.queue.length;
 
     if (queueReady) {
       _lastKnownSong = playerState.queue[playerState.currentIndex];
       _lastKnownImageUrl = service.getCoverArtUrl(_lastKnownSong!.coverArt);
     }
 
-    // True empty state — nothing has ever played, or the screen was opened
-    // with no queue at all.  Only show the black fallback when we have no
-    // snapshot to fall back to AND we are not in the middle of a shuffle rebuild.
     if (!queueReady && _lastKnownSong == null && !notifier.isShuffling) {
       return const Scaffold(
           backgroundColor: AppTheme.coreBackground, body: SizedBox());
     }
 
-    // Use the last known song/image during a transient empty-queue window.
     final song = queueReady
         ? playerState.queue[playerState.currentIndex]
         : _lastKnownSong!;
@@ -421,19 +412,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         ? service.getCoverArtUrl(song.coverArt)
         : _lastKnownImageUrl!;
 
-    // BUG FIX: Only trigger palette load if the image URL actually changed.
-    // Store _lastImageUrl BEFORE calling _loadPalette to avoid infinite loops
-    // where the check always returns true on every rebuild.
     if (imageUrl != _lastImageUrl) {
       _lastImageUrl = imageUrl;
       WidgetsBinding.instance
           .addPostFrameCallback((_) => _loadPalette(imageUrl));
     }
 
-    final shuffleAlgo = settings.shuffleAlgorithm;
     final isShuffleActive = playerState.shuffleMode;
     final isRepeatActive = playerState.repeatMode != LoopMode.off;
-    final shuffleRepeatActive = isShuffleActive || isRepeatActive;
 
     return GestureDetector(
       onVerticalDragUpdate: (d) => setState(() => _dragOffset =
@@ -453,11 +439,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           backgroundColor: Colors.transparent,
           body: Stack(
             children: [
-              // Base dark colour
-              const Positioned.fill(
-                  child: ColoredBox(color: Color(0xFF1C1C1E))),
+              // ── Base dark colour
+              const Positioned.fill(child: ColoredBox(color: Color(0xFF1C1C1E))),
 
-              // Mesh gradient (fades in after hero transition)
+              // ── Mesh gradient
               Positioned.fill(
                 child: AnimatedOpacity(
                   opacity: (_meshReady && _transitionFinished) ? 1.0 : 0.0,
@@ -466,22 +451,48 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ? AnimatedMeshGradient(
                           colors: _meshColors,
                           options: AnimatedMeshGradientOptions(
-                              speed: playerState.isPlaying ? 2 : 0.01, grain: 0.05))
+                              speed: playerState.isPlaying ? 2 : 0.01,
+                              grain: 0.05))
                       : const SizedBox.shrink(),
                 ),
               ),
 
-              // Scrim
+              // ── Scrim — slightly stronger at bottom for readability
               Positioned.fill(
-                  child: ColoredBox(color: Colors.black.withOpacity(0.28))),
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.black.withOpacity(0.18),
+                        Colors.black.withOpacity(0.42),
+                      ],
+                    ),
+                  ),
+                ),
+              ),
 
-              // Main content
+              // ── Main content
               SafeArea(
                 child: Column(
                   children: [
-                    // ── Top bar ────────────────────────────────────────────
+                    // ── Drag handle pill
+                    const SizedBox(height: 8),
+                    Center(
+                      child: Container(
+                        width: 36,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withOpacity(0.22),
+                          borderRadius: BorderRadius.circular(2),
+                        ),
+                      ),
+                    ),
+
+                    // ── Top bar
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(8, 8, 8, 0),
+                      padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
                       child: Row(
                         children: [
                           IconButton(
@@ -506,132 +517,172 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
-                    // ── Album art ──────────────────────────────────────────
+                    // ── Album art — AnimatedScale breathes gently when playing
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 32, vertical: 16),
-                      child: AspectRatio(
-                        aspectRatio: 1,
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(16),
-                          child: CachedNetworkImage(
-                            imageUrl: imageUrl,
-                            fit: BoxFit.cover,
-                            placeholder: (_, __) => Container(
-                                color: AppTheme.surfaceLevel,
-                                child: const Icon(Icons.music_note_rounded,
-                                    size: 80, color: AppTheme.textMuted)),
-                            errorWidget: (_, __, ___) => Container(
-                                color: AppTheme.surfaceLevel,
-                                child: const Icon(Icons.music_note_rounded,
-                                    size: 80, color: AppTheme.textMuted)),
+                          horizontal: 28, vertical: 12),
+                      child: AnimatedScale(
+                        scale: playerState.isPlaying ? 1.0 : 0.94,
+                        duration: const Duration(milliseconds: 400),
+                        curve: Curves.easeInOut,
+                        child: AspectRatio(
+                          aspectRatio: 1,
+                          child: Container(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(18),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withOpacity(0.55),
+                                  blurRadius: 40,
+                                  spreadRadius: 4,
+                                  offset: const Offset(0, 16),
+                                ),
+                                BoxShadow(
+                                  color: (_meshColors.isNotEmpty
+                                          ? _meshColors[1]
+                                          : Colors.black)
+                                      .withOpacity(0.30),
+                                  blurRadius: 56,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 8),
+                                ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(18),
+                              child: CachedNetworkImage(
+                                imageUrl: imageUrl,
+                                fit: BoxFit.cover,
+                                placeholder: (_, __) => Container(
+                                    color: AppTheme.surfaceLevel,
+                                    child: const Icon(Icons.music_note_rounded,
+                                        size: 80, color: AppTheme.textMuted)),
+                                errorWidget: (_, __, ___) => Container(
+                                    color: AppTheme.surfaceLevel,
+                                    child: const Icon(Icons.music_note_rounded,
+                                        size: 80, color: AppTheme.textMuted)),
+                              ),
+                            ),
                           ),
                         ),
                       ),
                     ),
 
-                    // ── Song info ──────────────────────────────────────────
+                    // ── Song info
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 32),
+                      padding: const EdgeInsets.fromLTRB(32, 4, 24, 0),
                       child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 SizedBox(
-                                  height: 28,
-                                  child: song.title.length > 28
+                                  height: 30,
+                                  child: song.title.length > 26
                                       ? Marquee(
                                           text: song.title,
                                           style: const TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white),
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                              letterSpacing: -0.3),
                                           scrollAxis: Axis.horizontal,
-                                          blankSpace: 48,
-                                          velocity: 30,
+                                          blankSpace: 52,
+                                          velocity: 28,
                                         )
                                       : Text(
                                           song.title,
                                           style: const TextStyle(
-                                              fontSize: 20,
-                                              fontWeight: FontWeight.bold,
-                                              color: Colors.white),
+                                              fontSize: 22,
+                                              fontWeight: FontWeight.w700,
+                                              color: Colors.white,
+                                              letterSpacing: -0.3),
                                           overflow: TextOverflow.ellipsis,
                                         ),
                                 ),
-                                const SizedBox(height: 2),
+                                const SizedBox(height: 3),
                                 Text(
                                   song.artist,
-                                  style: const TextStyle(
-                                      fontSize: 15, color: Colors.white60),
+                                  style: TextStyle(
+                                      fontSize: 15,
+                                      color: Colors.white.withOpacity(0.58),
+                                      fontWeight: FontWeight.w400),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
-                          IconButton(
-                            icon: Icon(
-                              playerState.starredIds.contains(song.id)
-                                  ? Icons.favorite_rounded
-                                  : Icons.favorite_border_rounded,
-                              color: playerState.starredIds.contains(song.id)
-                                  ? Colors.pinkAccent
-                                  : Colors.white54,
-                              size: 26,
+                          // Favourite button — slightly larger tap target
+                          SizedBox(
+                            width: 44,
+                            height: 44,
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 220),
+                                transitionBuilder: (child, anim) =>
+                                    ScaleTransition(scale: anim, child: child),
+                                child: Icon(
+                                  playerState.starredIds.contains(song.id)
+                                      ? Icons.favorite_rounded
+                                      : Icons.favorite_border_rounded,
+                                  key: ValueKey(
+                                      playerState.starredIds.contains(song.id)),
+                                  color: playerState.starredIds.contains(song.id)
+                                      ? Colors.pinkAccent
+                                      : Colors.white54,
+                                  size: 26,
+                                ),
+                              ),
+                              onPressed: () => ref
+                                  .read(playerProvider.notifier)
+                                  .toggleStar(song.id),
                             ),
-                            onPressed: () => ref
-                                .read(playerProvider.notifier)
-                                .toggleStar(song.id),
                           ),
                         ],
                       ),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 22),
 
-                    // ── Progress bar ───────────────────────────────────────
+                    // ── Progress bar
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 32),
                       child: StreamBuilder<Duration>(
-                        stream: ref
-                            .read(playerProvider.notifier)
-                            .player
-                            .positionStream,
+                        stream: notifier.player.positionStream,
                         builder: (context, snapshot) {
-                          final position =
-                              snapshot.data ?? Duration.zero;
+                          final position = snapshot.data ?? Duration.zero;
                           return ProgressBar(
                             progress: position,
-                            total:
-                                Duration(seconds: song.duration),
-                            onSeek: (d) => ref
-                                .read(playerProvider.notifier)
-                                .player
-                                .seek(d),
-                            baseBarColor:
-                                Colors.white.withOpacity(0.15),
+                            total: Duration(seconds: song.duration),
+                            onSeek: (d) => notifier.player.seek(d),
+                            baseBarColor: Colors.white.withOpacity(0.15),
                             progressBarColor: Colors.white,
                             thumbColor: Colors.white,
-                            thumbRadius: 5,
-                            barHeight: 3,
+                            thumbRadius: 6,
+                            barHeight: 4,
                             timeLabelTextStyle: const TextStyle(
-                                color: Colors.white60, fontSize: 12),
+                                color: Colors.white54,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.2),
                           );
                         },
                       ),
                     ),
 
-                    const SizedBox(height: 20),
+                    const SizedBox(height: 22),
 
-                    // ── Transport controls ─────────────────────────────────
+                    // ── Transport controls
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // ---- Shuffle ----
+                          // Shuffle
                           GestureDetector(
                             onLongPress: _showSmartShuffleDialog,
                             child: IconButton(
@@ -639,47 +690,62 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                   color: isShuffleActive
                                       ? AppTheme.spotifyGreen
                                       : Colors.white54,
-                                  size: 24),
+                                  size: 26),
                               onPressed: () =>
-                                  ref.read(playerProvider.notifier).toggleShuffle(),
+                                  notifier.toggleShuffle(),
                             ),
                           ),
+
+                          // Previous
                           IconButton(
                             icon: const Icon(Icons.skip_previous_rounded,
-                                size: 44, color: Colors.white),
-                            onPressed: () =>
-                                ref.read(playerProvider.notifier).playPrev(),
+                                size: 48, color: Colors.white),
+                            onPressed: () => notifier.playPrev(),
                           ),
+
+                          // Play / Pause
                           GestureDetector(
                             onTap: () => playerState.isPlaying
-                                ? ref
-                                    .read(playerProvider.notifier)
-                                    .player
-                                    .pause()
-                                : ref
-                                    .read(playerProvider.notifier)
-                                    .player
-                                    .play(),
+                                ? notifier.player.pause()
+                                : notifier.player.play(),
                             child: Container(
-                              width: 72,
-                              height: 72,
-                              decoration: const BoxDecoration(
-                                  color: Colors.white, shape: BoxShape.circle),
-                              child: Icon(
-                                playerState.isPlaying
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
-                                size: 40,
-                                color: Colors.black,
+                              width: 80,
+                              height: 80,
+                              decoration: BoxDecoration(
+                                color: Colors.white,
+                                shape: BoxShape.circle,
+                                boxShadow: [
+                                  BoxShadow(
+                                    color: Colors.white.withOpacity(0.20),
+                                    blurRadius: 28,
+                                    spreadRadius: 2,
+                                  ),
+                                ],
+                              ),
+                              child: AnimatedSwitcher(
+                                duration: const Duration(milliseconds: 180),
+                                transitionBuilder: (child, anim) =>
+                                    ScaleTransition(scale: anim, child: child),
+                                child: Icon(
+                                  playerState.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  key: ValueKey(playerState.isPlaying),
+                                  size: 42,
+                                  color: Colors.black,
+                                ),
                               ),
                             ),
                           ),
+
+                          // Next
                           IconButton(
                             icon: const Icon(Icons.skip_next_rounded,
-                                size: 44, color: Colors.white),
-                            onPressed: () =>
-                                ref.read(playerProvider.notifier).playNext(),
+                                size: 48, color: Colors.white),
+                            onPressed: () => notifier.playNext(),
                           ),
+
+                          // Repeat
                           IconButton(
                             icon: Icon(
                                 playerState.repeatMode == LoopMode.one
@@ -688,9 +754,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                 color: isRepeatActive
                                     ? AppTheme.spotifyGreen
                                     : Colors.white54,
-                                size: 24),
-                            onPressed: () =>
-                                ref.read(playerProvider.notifier).cycleRepeat(),
+                                size: 26),
+                            onPressed: () => notifier.cycleRepeat(),
                           ),
                         ],
                       ),
@@ -698,90 +763,65 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
                     const Spacer(),
 
-                    // ── Custom bottom bar ──────────────────────────────────
+                    // ── Bottom action bar
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(32, 0, 32, 24),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
-                          // ---- Sound bar ----
-                          Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _SoundBar(
-                                isPlaying: playerState.isPlaying,
-                                color: Colors.white54,
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                playerState.isPlaying ? 'Playing' : 'Paused',
-                                style: const TextStyle(
-                                    color: Colors.white38, fontSize: 9),
-                              ),
-                            ],
-                          ),
-
-                          // ---- Infinity (Autoplay) ----
-                          GestureDetector(
-                            onTap: () => ref.read(playerProvider.notifier).toggleAutoplay(),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.all_inclusive_rounded,
-                                  color: playerState.autoplayMode
-                                      ? AppTheme.electricBlue
-                                      : Colors.white54,
-                                  size: 24,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  'Infinity',
-                                  style: TextStyle(
-                                    color: playerState.autoplayMode
-                                        ? AppTheme.electricBlue
-                                        : Colors.white54,
-                                    fontSize: 9,
-                                  ),
-                                ),
-                              ],
+                          // Sound bar indicator
+                          _BottomAction(
+                            icon: _SoundBar(
+                              isPlaying: playerState.isPlaying,
+                              color: Colors.white54,
                             ),
+                            label: playerState.isPlaying ? 'Playing' : 'Paused',
+                            labelColor: Colors.white38,
+                            onTap: () {},
                           ),
 
-                          // ---- Sleep timer ----
-                          GestureDetector(
+                          // Infinity / Autoplay
+                          _BottomAction(
+                            icon: Icon(
+                              Icons.all_inclusive_rounded,
+                              color: playerState.autoplayMode
+                                  ? AppTheme.electricBlue
+                                  : Colors.white54,
+                              size: 24,
+                            ),
+                            label: 'Infinity',
+                            labelColor: playerState.autoplayMode
+                                ? AppTheme.electricBlue
+                                : Colors.white54,
+                            onTap: () =>
+                                notifier.toggleAutoplay(),
+                          ),
+
+                          // Sleep timer
+                          _BottomAction(
+                            icon: Icon(
+                              Icons.bedtime_outlined,
+                              color: _sleepSecondsRemaining != null
+                                  ? AppTheme.electricBlue
+                                  : Colors.white54,
+                              size: 22,
+                            ),
+                            label: _sleepSecondsRemaining != null
+                                ? _formatSleepLabel()
+                                : 'Sleep',
+                            labelColor: _sleepSecondsRemaining != null
+                                ? AppTheme.electricBlue
+                                : Colors.white54,
                             onTap: _showSleepTimerDialog,
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                Icon(
-                                  Icons.bedtime_outlined,
-                                  color: _sleepSecondsRemaining != null
-                                      ? AppTheme.electricBlue
-                                      : Colors.white54,
-                                  size: 22,
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _sleepSecondsRemaining != null
-                                      ? _formatSleepLabel()
-                                      : 'Sleep',
-                                  style: TextStyle(
-                                    color: _sleepSecondsRemaining != null
-                                        ? AppTheme.electricBlue
-                                        : Colors.white54,
-                                    fontSize: 9,
-                                  ),
-                                ),
-                              ],
-                            ),
                           ),
 
-                          // ---- Queue / History ----
-                          IconButton(
+                          // Queue
+                          _BottomAction(
                             icon: const Icon(Icons.queue_music_rounded,
                                 color: Colors.white54, size: 24),
-                            onPressed: () => showModalBottomSheet(
+                            label: 'Queue',
+                            labelColor: Colors.white54,
+                            onTap: () => showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,
                               backgroundColor: Colors.transparent,

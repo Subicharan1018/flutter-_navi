@@ -8,27 +8,36 @@ enum LibraryFilter { allSongs, playlists, albums, downloaded }
 
 final libraryFilterProvider = StateProvider<LibraryFilter>((ref) => LibraryFilter.allSongs);
 
+// ---------------------------------------------------------------------------
+// keepAlive() on every heavy network provider so Riverpod never discards the
+// fetched data when the widget tree disposes (e.g. tab switch, screen pop).
+// Without this the providers re-execute their HTTP request on every visit,
+// causing the "loads like a webpage" flash.
+// ---------------------------------------------------------------------------
+
 final recentlyPlayedAlbumsProvider = FutureProvider<List<Album>>((ref) async {
+  ref.keepAlive(); // ← retain data across widget disposal
   final service = ref.watch(subsonicServiceProvider);
-  // Caching is now handled at the SubsonicService level
   return await service.getRecentlyPlayedAlbums();
 });
 
 final frequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
+  ref.keepAlive();
   final service = ref.watch(subsonicServiceProvider);
   return await service.getFrequentAlbums();
 });
 
 final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
+  ref.keepAlive();
   final service = ref.watch(subsonicServiceProvider);
   return await service.getPlaylists();
 });
 
 final allSongsProvider = FutureProvider<List<Song>>((ref) async {
+  ref.keepAlive(); // 5 000-song list — must never re-fetch on tab switch
   final service = ref.watch(subsonicServiceProvider);
   final songs = await service.getAllSongs(size: 5000);
 
-  // Sort by created date descending (newest first)
   songs.sort((a, b) {
     if (a.created == null && b.created == null) return 0;
     if (a.created == null) return 1;
@@ -40,14 +49,15 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
 });
 
 final libraryAlbumsProvider = FutureProvider<List<Album>>((ref) async {
+  ref.keepAlive();
   final service = ref.watch(subsonicServiceProvider);
   return await service.getAlbums(size: 1000);
 });
 
-// Helper provider to get filtered content
+/// Derived provider — just reads already-cached async values, no keepAlive needed.
 final filteredLibraryProvider = Provider<AsyncValue<List<dynamic>>>((ref) {
   final filter = ref.watch(libraryFilterProvider);
-  
+
   switch (filter) {
     case LibraryFilter.allSongs:
       return ref.watch(allSongsProvider);
