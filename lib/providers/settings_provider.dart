@@ -155,18 +155,33 @@ final playlistCacheServiceProvider = Provider<PlaylistCacheService>((ref) {
   return service;
 });
 
+/// Narrow provider that surfaces only the three fields that control which
+/// [SubsonicService] instance we need.  By watching this instead of the full
+/// [settingsProvider], [subsonicServiceProvider] is NOT recreated when
+/// unrelated settings change (e.g. shuffleAlgorithm, uploadDirectory).
+/// Without this guard every settings mutation would destroy the service,
+/// nuke all in-memory caches, and close the http.Client mid-flight.
+final _credentialsProvider =
+    Provider<({String serverUrl, String username, String password})>((ref) {
+  final s = ref.watch(settingsProvider);
+  return (serverUrl: s.serverUrl, username: s.username, password: s.password);
+});
+
 final subsonicServiceProvider = Provider<SubsonicService>((ref) {
-  final settings = ref.watch(settingsProvider);
+  final creds = ref.watch(_credentialsProvider);
   final cache = ref.watch(playlistCacheServiceProvider);
+  // Use ref.read for the remaining fields — changing them does NOT require a
+  // new service instance and must not trigger a recreation.
+  final settings = ref.read(settingsProvider);
   final service = SubsonicService(
-    serverUrl: settings.serverUrl,
-    username: settings.username,
-    password: settings.password,
+    serverUrl: creds.serverUrl,
+    username: creds.username,
+    password: creds.password,
     cache: cache,
     customUploadUrl: settings.uploadApiUrl,
     customUploadDir: settings.uploadDirectory,
   );
-  
+
   ref.onDispose(service.dispose);
   return service;
 });

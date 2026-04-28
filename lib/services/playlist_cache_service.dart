@@ -105,7 +105,11 @@ class PlaylistCacheService {
       final isStale = DateTime.now().difference(cachedAt) > ttl;
 
       // Parse Song objects off the main thread when the list is large.
-      final songs = await compute(_decodeSongs, rows);
+      // sqflite returns UnmodifiableMapView rows that cannot be transferred
+      // across a SendPort on all platforms — convert to plain maps first.
+      final plainRows =
+          rows.map((r) => Map<String, Object?>.from(r)).toList();
+      final songs = await compute(_decodeSongs, plainRows);
 
       return CachedPlaylistResult(
         songs: songs,
@@ -128,6 +132,11 @@ class PlaylistCacheService {
       final db = await _open();
       final nowMs = DateTime.now().millisecondsSinceEpoch;
 
+      // Encode all Song objects to JSON strings on a background isolate.
+      // For 1000 songs this takes ~50–100 ms — doing it here prevents that
+      // work from blocking the main thread after the song list has rendered.
+      final encoded = await compute(_encodeSongs, songs);
+
       await db.transaction((txn) async {
         // Delete stale rows for this playlist first.
         await txn.delete(
@@ -135,13 +144,13 @@ class PlaylistCacheService {
           where: 'playlist_id = ?',
           whereArgs: [playlistId],
         );
-        // Batch-insert new rows.
+        // Batch-insert new rows with pre-encoded JSON strings.
         final batch = txn.batch();
-        for (var i = 0; i < songs.length; i++) {
+        for (var i = 0; i < encoded.length; i++) {
           batch.insert(_kTable, {
             'playlist_id': playlistId,
             'position': i,
-            'song_json': jsonEncode(songs[i].toMap()),
+            'song_json': encoded[i],
             'cached_at': nowMs,
           });
         }
@@ -189,8 +198,11 @@ class PlaylistCacheService {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level function so it can be passed to [compute] (must not be a closure)
+// Top-level functions so they can be passed to [compute]
+// (must not be closures — isolate SendPort requires top-level symbols)
 // ---------------------------------------------------------------------------
+
+/// Decodes SQLite rows back into [Song] objects.
 List<Song> _decodeSongs(List<Map<String, Object?>> rows) {
   final result = <Song>[];
   for (final row in rows) {
@@ -209,3 +221,9 @@ List<Song> _decodeSongs(List<Map<String, Object?>> rows) {
   }
   return result;
 }
+
+/// Encodes [Song] objects to JSON strings for SQLite storage.
+/// Running this in a background isolate via [compute] keeps the main thread
+/// free during writes of large playlists (500–1000+ songs).
+List<String> _encodeSongs(List<Song> songs) =>
+    songs.map((s) => jsonEncode(s.toMap())).toList();
