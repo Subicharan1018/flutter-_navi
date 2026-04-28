@@ -3,6 +3,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
 import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
+import '../services/listening_event_collector.dart';
 
 // ---------------------------------------------------------------------------
 // Shuffle Algorithm enum
@@ -40,6 +41,9 @@ class SettingsState {
   final String uploadApiUrl;
   final String uploadDirectory;
 
+  /// When false the [ListeningEventCollector] is a no-op — no rows written.
+  final bool dataCollectionEnabled;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
@@ -48,6 +52,7 @@ class SettingsState {
     this.shufflePreference = ShufflePreference.composer,
     this.uploadApiUrl = '',
     this.uploadDirectory = '/DATA/Media/Music',
+    this.dataCollectionEnabled = true,
   });
 
   SettingsState copyWith({
@@ -58,6 +63,7 @@ class SettingsState {
     ShufflePreference? shufflePreference,
     String? uploadApiUrl,
     String? uploadDirectory,
+    bool? dataCollectionEnabled,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -67,6 +73,8 @@ class SettingsState {
       shufflePreference: shufflePreference ?? this.shufflePreference,
       uploadApiUrl: uploadApiUrl ?? this.uploadApiUrl,
       uploadDirectory: uploadDirectory ?? this.uploadDirectory,
+      dataCollectionEnabled:
+          dataCollectionEnabled ?? this.dataCollectionEnabled,
     );
   }
 }
@@ -84,6 +92,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           shufflePreference: ShufflePreference.composer,
           uploadApiUrl: '',
           uploadDirectory: '/DATA/Media/Music',
+          dataCollectionEnabled: true,
         )) {
     _loadSettings();
   }
@@ -105,7 +114,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         orElse: () => ShufflePreference.composer,
       ),
       uploadApiUrl: prefs.getString('uploadApiUrl') ?? '',
-      uploadDirectory: prefs.getString('uploadDirectory') ?? '/DATA/Media/Music',
+      uploadDirectory:
+          prefs.getString('uploadDirectory') ?? '/DATA/Media/Music',
+      dataCollectionEnabled:
+          prefs.getBool('dataCollectionEnabled') ?? true,
     );
   }
 
@@ -136,6 +148,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setString('shufflePreference', pref.name);
     state = state.copyWith(shufflePreference: pref);
+  }
+
+  Future<void> setDataCollectionEnabled(bool enabled) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setBool('dataCollectionEnabled', enabled);
+    state = state.copyWith(dataCollectionEnabled: enabled);
   }
 }
 
@@ -184,4 +202,12 @@ final subsonicServiceProvider = Provider<SubsonicService>((ref) {
 
   ref.onDispose(service.dispose);
   return service;
+});
+
+/// Singleton [ListeningEventCollector] — one instance for the app's lifetime.
+/// Disposed automatically when the provider scope is destroyed.
+final listenerCollectorProvider = Provider<ListeningEventCollector>((ref) {
+  final collector = ListeningEventCollector();
+  ref.onDispose(collector.dispose);
+  return collector;
 });

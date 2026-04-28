@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import '../models/song.dart';
 import '../services/subsonic_service.dart';
+import '../services/listening_event_collector.dart';
 import 'settings_provider.dart';
 import '../services/audio_handler.dart';
 
@@ -96,6 +97,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
   final AudioHandler _audioHandler;
   final SubsonicService _subsonicService;
+  final ListeningEventCollector _collector;
   final Set<String> _scrobbledIds = {};
   final List<StreamSubscription> _subscriptions = [];
 
@@ -103,7 +105,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _isFetchingSimilar = false;
   final Set<String> _autoplayTriggeredFor = {};
 
-  PlayerNotifier(this._ref, this._audioHandler, this._subsonicService)
+  // ---------------------------------------------------------------------------
+  // Source / transition context tracking
+  //
+  // Set BEFORE each explicit navigation action so the currentIndexStream
+  // listener can record the correct context.  Reset to defaults after
+  // consumption (auto-advance keeps the default 'autoplay' / 'autoplay').
+  // ---------------------------------------------------------------------------
+  String _nextSourceContext = 'autoplay';
+  String _nextTransitionType = 'autoplay';
+
+  PlayerNotifier(this._ref, this._audioHandler, this._subsonicService, this._collector)
       : super(const PlayerState(
           queue: [],
           currentIndex: 0,
@@ -167,9 +179,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (index == null) return;
 
       // ── Shuffle guard ──────────────────────────────────────────────────────
-      // Ignore all events fired during the audio-source rebuild that happens
-      // inside shuffle algorithms. applyShuffleAlgorithm() will sync state
-      // with the real currentIndex once the rebuild is done.
       if (_isShuffling) {
         _lastKnownIndex = index;
         return;
@@ -177,6 +186,31 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       final prevIndex = _lastKnownIndex;
       _lastKnownIndex = index;
+
+      // ── Analytics: close the previous event and open a new one ─────────────
+      final settings = _ref.read(settingsProvider);
+      if (settings.dataCollectionEnabled && state.queue.isNotEmpty) {
+        final Song? prevSong =
+            prevIndex < state.queue.length ? state.queue[prevIndex] : null;
+        final Song? newSong =
+            index < state.queue.length ? state.queue[index] : null;
+
+        if (newSong != null) {
+          // Consume and reset context so auto-advance defaults to 'autoplay'.
+          final sourceCtx = _nextSourceContext;
+          final transCtx = _nextTransitionType;
+          _nextSourceContext = 'autoplay';
+          _nextTransitionType = 'autoplay';
+
+          _collector.onSongStarted(
+            song: newSong,
+            sourceContext: sourceCtx,
+            transitionType: transCtx,
+            prevSong: prevSong,
+            positionAtSwitch: _lastKnownPosition,
+          );
+        }
+      }
 
       // ── History push (2-second gate) ───────────────────────────────────────
       // _lastKnownPosition holds the position of the *previous* song at the
@@ -295,6 +329,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> setQueue(List<Song> songs, int startIndex) async {
     _clearHistory();
+    _nextSourceContext = 'user_queue';
+    _nextTransitionType = 'user_selected';
     state = state.copyWith(queue: songs, currentIndex: startIndex);
     await _audioHandler.setQueue(songs, startIndex);
     player.play();
@@ -305,6 +341,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> playPlaylist(List<Song> songs, {bool shuffle = false}) async {
     if (songs.isEmpty) return;
     _clearHistory();
+    _nextSourceContext = 'playlist';
+    _nextTransitionType = 'user_selected';
 
     if (!shuffle) {
       state = state.copyWith(shuffleMode: false);
@@ -349,6 +387,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _pushToHistory(state.queue[state.currentIndex]);
     }
     _suppressNextHistoryPush = true;
+    _nextTransitionType = 'manual_next';
+    _nextSourceContext = 'manual_next';
 
     try {
       if (player.hasNext) {
@@ -433,6 +473,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> jumpTo(int index) async {
+    _nextTransitionType = 'user_selected';
+    _nextSourceContext = 'user_selected';
     await _jumpToInternal(index, pushHistory: true);
   }
 
@@ -719,5 +761,6 @@ final playerProvider =
     StateNotifierProvider<PlayerNotifier, PlayerState>((ref) {
   final handler = ref.watch(audioHandlerProvider);
   final service = ref.watch(subsonicServiceProvider);
-  return PlayerNotifier(ref, handler, service);
+  final collector = ref.watch(listenerCollectorProvider);
+  return PlayerNotifier(ref, handler, service, collector);
 });

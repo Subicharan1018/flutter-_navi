@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
 import '../services/subsonic_service.dart';
+import '../services/listening_event_collector.dart';
 import '../core/theme.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -23,6 +24,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _uploadDirController;
   bool _obscurePass = true;
   bool _isUploading = false;
+  bool _isExporting = false;
+  AnalyticsStats? _analyticsStats;
 
   @override
   void initState() {
@@ -33,6 +36,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _passController = TextEditingController(text: settings.password);
     _uploadUrlController = TextEditingController(text: settings.uploadApiUrl);
     _uploadDirController = TextEditingController(text: settings.uploadDirectory);
+    // Load analytics row counts for the settings summary.
+    _loadStats();
+  }
+
+  Future<void> _loadStats() async {
+    final stats =
+        await ref.read(listenerCollectorProvider).getStats();
+    if (mounted) setState(() => _analyticsStats = stats);
   }
 
   @override
@@ -55,6 +66,31 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         );
     HapticFeedback.mediumImpact();
     Navigator.pop(context);
+  }
+
+  Future<void> _exportData() async {
+    setState(() => _isExporting = true);
+    try {
+      final paths =
+          await ref.read(listenerCollectorProvider).exportCsvToDownloads();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Exported ${paths.length} CSV file(s) to Downloads'),
+            backgroundColor: AppTheme.electricBlue,
+          ),
+        );
+        _loadStats(); // refresh counts
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Export failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isExporting = false);
+    }
   }
 
   Future<void> _upload() async {
@@ -276,6 +312,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     style: const TextStyle(
                         color: AppTheme.textMuted, fontSize: 12),
                   ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            // ----------------------------------------------------------------
+            // Listening Intelligence
+            // ----------------------------------------------------------------
+            _SettingsGroup(
+              title: 'LISTENING INTELLIGENCE',
+              children: [
+                _SettingsToggleRow(
+                  label: 'Collect listening data',
+                  value: settings.dataCollectionEnabled,
+                  onChanged: (v) {
+                    ref
+                        .read(settingsProvider.notifier)
+                        .setDataCollectionEnabled(v);
+                  },
+                ),
+                _SettingsDivider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 10),
+                  child: Text(
+                    _analyticsStats == null
+                        ? 'Loading stats…'
+                        : '${_analyticsStats!.playEvents} plays • '
+                            '${_analyticsStats!.uniqueSongs} songs • '
+                            '${_analyticsStats!.songPairs} pairs recorded',
+                    style: const TextStyle(
+                        color: AppTheme.textMuted, fontSize: 12),
+                  ),
+                ),
+                _SettingsDivider(),
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16),
+                  leading: const Icon(Icons.download_rounded,
+                      color: AppTheme.textMuted, size: 24),
+                  title: const Text('Export data as CSV',
+                      style: TextStyle(
+                          color: AppTheme.textPrimary, fontSize: 15)),
+                  subtitle: const Text(
+                    'Saves play_events, song_metadata, song_pairs to Downloads',
+                    style: TextStyle(
+                        color: AppTheme.textMuted, fontSize: 12),
+                  ),
+                  trailing: _isExporting
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.electricBlue))
+                      : const Icon(Icons.chevron_right_rounded,
+                          color: AppTheme.textMuted, size: 20),
+                  onTap: _isExporting ? null : _exportData,
                 ),
               ],
             ),
