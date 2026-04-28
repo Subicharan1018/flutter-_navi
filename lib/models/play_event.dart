@@ -92,13 +92,29 @@ class PlayEvent {
   // ---------------------------------------------------------------------------
   // Close the event when the song ends or is skipped.
   // [playedDuration]  — position at the moment of song change.
-  // [totalDurationSec] — full song length from Song.duration.
+  // [totalDurationSec] — full song length from Song.duration (may be 0 if
+  //                      not yet loaded — handled below).
   // ---------------------------------------------------------------------------
   void close(Duration playedDuration, int totalDurationSec) {
     timestampEnd = DateTime.now();
-    playDurationSec = playedDuration.inSeconds;
-    skipBeforeEnd = totalDurationSec > 0 &&
-        playedDuration.inSeconds < (totalDurationSec * 0.5).floor();
+
+    // Clamp playDurationSec so it never exceeds the song length.
+    // A stale positionStream read can slightly overshoot.
+    if (totalDurationSec > 0) {
+      playDurationSec = playedDuration.inSeconds.clamp(0, totalDurationSec);
+    } else {
+      playDurationSec = playedDuration.inSeconds;
+    }
+
+    if (totalDurationSec <= 0) {
+      // Duration unknown (not yet loaded from server).
+      // Fall back to a 30-second heuristic: if the user listened
+      // for at least 30 s we consider it a genuine listen.
+      skipBeforeEnd = playedDuration.inSeconds < 30;
+    } else {
+      skipBeforeEnd =
+          playedDuration.inSeconds < (totalDurationSec * 0.5).floor();
+    }
   }
 
   // ---------------------------------------------------------------------------

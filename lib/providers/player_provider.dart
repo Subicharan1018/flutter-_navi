@@ -695,6 +695,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _subsonicService.setRating(song.id, 1);
     }
 
+    // Record explicit preference signal to analytics (highest-quality data).
+    final settings = _ref.read(settingsProvider);
+    if (settings.dataCollectionEnabled) {
+      _collector.recordSuggestFeedback(song, isMore);
+    }
+
     // Update the in-memory dynamic weight for this queue session
     _audioHandler.updateSongWeight(song, isMore);
 

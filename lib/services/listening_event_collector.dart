@@ -28,7 +28,7 @@ const Duration _kSessionTimeout = Duration(minutes: 30);
 
 class ListeningEventCollector {
   static const _kDbName = 'navivibe_analytics.db';
-  static const _kVersion = 1;
+  static const _kVersion = 2; // v2: added user_feedback table
 
   Database? _db;
 
@@ -36,6 +36,12 @@ class ListeningEventCollector {
 
   /// The play_event row that has been opened but not yet closed.
   PlayEvent? _openEvent;
+
+  /// The Song object currently playing.
+  /// Kept so we can close an orphaned [_openEvent] even when the caller
+  /// does not pass a [prevSong] (e.g. first song after a setQueue call).
+  /// Also used in [dispose] to flush the last event before the DB closes.
+  Song? _currentSong;
 
   // ── Session tracking ───────────────────────────────────────────────────────
 
@@ -61,11 +67,26 @@ class ListeningEventCollector {
     Song? prevSong,
     Duration positionAtSwitch = Duration.zero,
   }) {
-    // Close any open event for the previous song first.
-    if (_openEvent != null && prevSong != null) {
-      debugPrint('[Analytics] ⏹ Song ending: "${prevSong.title}" '
+    // ── Guard: self-transition (same song index fired twice) ─────────────────
+    if (_currentSong?.id == song.id && _openEvent != null) {
+      debugPrint('[Analytics] ⚠ Self-transition detected for "${song.title}" — ignoring');
+      return;
+    }
+
+    // ── Close any open event ─────────────────────────────────────────────────
+    // Use prevSong if provided; fall back to _currentSong so an orphaned
+    // event is never abandoned (e.g. first song after setQueue with
+    // prevSong == null while an old event was already open).
+    PlayEvent? closedEvent;
+    final Song? effectivePrev = prevSong ?? _currentSong;
+    if (_openEvent != null && effectivePrev != null) {
+      debugPrint('[Analytics] ⏹ Song ending: "${effectivePrev.title}" '
           'at ${positionAtSwitch.inSeconds}s');
-      _closeEvent(prevSong, positionAtSwitch);
+      closedEvent = _closeEvent(effectivePrev, positionAtSwitch);
+    } else if (_openEvent != null) {
+      // No song reference at all — abandon event to avoid data corruption.
+      debugPrint('[Analytics] ⚠ Orphaned open event with no song reference — discarding');
+      _openEvent = null;
     }
 
     // ── Session management ─────────────────────────────────────────────────────
@@ -93,15 +114,25 @@ class ListeningEventCollector {
         'hour=${_openEvent!.hourOfDay} dow=${_openEvent!.dayOfWeek}');
 
     // ── Pair recording ──────────────────────────────────────────────────────────
-    if (prevSong != null) {
-      debugPrint('[Analytics] 🔀 Pair: "${prevSong.title}" → "${song.title}" '
-          'type=$transitionType');
-      _recordPair(
-        prevSongId: prevSong.id,
-        currentSongId: song.id,
-        transitionType: transitionType,
-      );
+    // A pair is only meaningful data if the previous song was actually
+    // listened to (past 50%). Skip events are noise, not preference signal.
+    if (effectivePrev != null && closedEvent != null) {
+      if (closedEvent.skipBeforeEnd) {
+        debugPrint('[Analytics] ⏭ Pair skipped: '
+            '"${effectivePrev.title}" was skipped before 50% — not recording pair');
+      } else {
+        debugPrint('[Analytics] 🔀 Pair: "${effectivePrev.title}" → "${song.title}" '
+            'type=$transitionType (prev played ${closedEvent.playDurationSec}s '
+            '/ ${effectivePrev.duration}s)');
+        _recordPair(
+          prevSongId: effectivePrev.id,
+          currentSongId: song.id,
+          transitionType: transitionType,
+        );
+      }
     }
+
+    _currentSong = song;
 
     // ── Metadata upsert (fire-and-forget) ───────────────────────────────────
     _upsertSongMetadata(song);
@@ -119,7 +150,36 @@ class ListeningEventCollector {
     }
     debugPrint('[Analytics] ⏹ onSongEnded: "${song.title}" '
         'at ${playedDuration.inSeconds}s');
+    // No next song — just close and write; no pair to record.
     _closeEvent(song, playedDuration);
+  }
+
+  /// Records an explicit Suggest More / Suggest Less action.
+  ///
+  /// This is the highest-quality signal in the system — the user is explicitly
+  /// telling the player their preference for a song.
+  ///
+  /// [song]    — the song the action was applied to.
+  /// [isMore]  — true = "Suggest More", false = "Suggest Less".
+  void recordSuggestFeedback(Song song, bool isMore) {
+    final label = isMore ? 'suggest_more' : 'suggest_less';
+    debugPrint('[Analytics] 👍 Feedback "$label" for "${song.title}"');
+    _open().then((db) => db.insert(
+      'user_feedback',
+      {
+        'song_id': song.id,
+        'feedback_type': label,
+        'ts': DateTime.now().millisecondsSinceEpoch,
+        'session_id': _sessionId,
+      },
+      // Each tap is a distinct event — use ignore so rapid double-taps
+      // don’t corrupt the table (UUID PK prevents true duplicates anyway).
+      conflictAlgorithm: ConflictAlgorithm.ignore,
+    )).then((_) {
+      debugPrint('[Analytics] ✅ user_feedback written for "${song.title}"');
+    }).catchError((e) {
+      debugPrint('[Analytics] ❌ recordSuggestFeedback error: $e');
+    });
   }
 
   /// Returns summary statistics for the Settings screen.
@@ -136,12 +196,19 @@ class ListeningEventCollector {
       final pairCount = Sqflite.firstIntValue(
               await db.rawQuery('SELECT COUNT(*) FROM song_pairs')) ??
           0;
+      final feedbackCount = Sqflite.firstIntValue(
+              await db.rawQuery('SELECT COUNT(*) FROM user_feedback')) ??
+          0;
+      debugPrint('[Analytics] 📊 Stats: plays=$playCount songs=$songCount '
+          'pairs=$pairCount feedback=$feedbackCount');
       return AnalyticsStats(
           playEvents: playCount,
           uniqueSongs: songCount,
-          songPairs: pairCount);
+          songPairs: pairCount,
+          feedbackActions: feedbackCount);
     } catch (_) {
-      return const AnalyticsStats(playEvents: 0, uniqueSongs: 0, songPairs: 0);
+      return const AnalyticsStats(
+          playEvents: 0, uniqueSongs: 0, songPairs: 0, feedbackActions: 0);
     }
   }
 
@@ -160,9 +227,12 @@ class ListeningEventCollector {
     result['song_metadata'] = _toCsv(meta);
 
     // song_pairs
-    final pairs =
-        await db.query('song_pairs', orderBy: 'play_count DESC');
+    final pairs = await db.query('song_pairs', orderBy: 'play_count DESC');
     result['song_pairs'] = _toCsv(pairs);
+
+    // user_feedback — most valuable explicit signal
+    final feedback = await db.query('user_feedback', orderBy: 'ts ASC');
+    result['user_feedback'] = _toCsv(feedback);
 
     return result;
   }
@@ -199,23 +269,37 @@ class ListeningEventCollector {
   }
 
   Future<void> dispose() async {
+    // Flush the open event before closing the database so the last
+    // played song is not silently dropped on app close / process kill.
+    if (_openEvent != null && _currentSong != null) {
+      debugPrint('[Analytics] 💾 Flushing open event on dispose '
+          'for "${_currentSong!.title}"');
+      _closeEvent(_currentSong!, Duration(seconds: _openEvent!.playDurationSec));
+    }
     await _db?.close();
     _db = null;
+    _currentSong = null;
   }
 
   // ---------------------------------------------------------------------------
   // Private helpers
   // ---------------------------------------------------------------------------
 
-  void _closeEvent(Song song, Duration playedDuration) {
+  /// Closes the open play event, writes it to SQLite, and returns it
+  /// so the caller can inspect [PlayEvent.skipBeforeEnd] before deciding
+  /// whether to record a song pair.
+  ///
+  /// Returns null if there is no open event to close.
+  PlayEvent? _closeEvent(Song song, Duration playedDuration) {
     final event = _openEvent;
-    if (event == null) return;
+    if (event == null) return null;
     event.close(playedDuration, song.duration);
     _openEvent = null;
     debugPrint('[Analytics] 💾 Closing play_event: "${song.title}" '
         'played=${event.playDurationSec}s / ${song.duration}s '
         'skipped=${event.skipBeforeEnd}');
     _writeEvent(event); // fire-and-forget
+    return event;
   }
 
   void _writeEvent(PlayEvent event) {
@@ -298,12 +382,35 @@ class ListeningEventCollector {
       dbPath,
       version: _kVersion,
       onCreate: _onCreate,
+      onUpgrade: _onUpgrade,
     );
     debugPrint('[Analytics] ✅ Analytics DB ready');
     return _db!;
   }
 
   Future<void> _onCreate(Database db, int version) async {
+    await _createAllTables(db);
+  }
+
+  Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // v1 → v2: add user_feedback table.
+    if (oldVersion < 2) {
+      debugPrint('[Analytics] ⬆ Migrating DB v$oldVersion → v$newVersion');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS user_feedback (
+          id          INTEGER PRIMARY KEY AUTOINCREMENT,
+          song_id     TEXT NOT NULL,
+          feedback_type TEXT NOT NULL,
+          ts          INTEGER NOT NULL,
+          session_id  TEXT NOT NULL
+        )
+      ''');
+      await db.execute(
+          'CREATE INDEX IF NOT EXISTS idx_feedback_song ON user_feedback (song_id)');
+    }
+  }
+
+  Future<void> _createAllTables(Database db) async {
     await db.execute('''
       CREATE TABLE play_events (
         play_id        TEXT PRIMARY KEY,
@@ -351,6 +458,17 @@ class ListeningEventCollector {
       )
     ''');
 
+    // Explicit Suggest More / Suggest Less signals.
+    await db.execute('''
+      CREATE TABLE user_feedback (
+        id            INTEGER PRIMARY KEY AUTOINCREMENT,
+        song_id       TEXT NOT NULL,
+        feedback_type TEXT NOT NULL,
+        ts            INTEGER NOT NULL,
+        session_id    TEXT NOT NULL
+      )
+    ''');
+
     // Indexes for the most common query patterns.
     await db.execute(
         'CREATE INDEX idx_events_song ON play_events (song_id)');
@@ -358,6 +476,8 @@ class ListeningEventCollector {
         'CREATE INDEX idx_events_session ON play_events (session_id)');
     await db.execute(
         'CREATE INDEX idx_pairs_prev ON song_pairs (prev_song_id)');
+    await db.execute(
+        'CREATE INDEX idx_feedback_song ON user_feedback (song_id)');
   }
 
   // ---------------------------------------------------------------------------
@@ -409,10 +529,12 @@ class AnalyticsStats {
   final int playEvents;
   final int uniqueSongs;
   final int songPairs;
+  final int feedbackActions;
 
   const AnalyticsStats({
     required this.playEvents,
     required this.uniqueSongs,
     required this.songPairs,
+    required this.feedbackActions,
   });
 }

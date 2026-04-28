@@ -341,7 +341,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         ? 'Loading stats…'
                         : '${_analyticsStats!.playEvents} plays • '
                             '${_analyticsStats!.uniqueSongs} songs • '
-                            '${_analyticsStats!.songPairs} pairs recorded',
+                            '${_analyticsStats!.songPairs} pairs • '
+                            '${_analyticsStats!.feedbackActions} feedback signals',
                     style: const TextStyle(
                         color: AppTheme.textMuted, fontSize: 12),
                   ),
@@ -356,7 +357,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       style: TextStyle(
                           color: AppTheme.textPrimary, fontSize: 15)),
                   subtitle: const Text(
-                    'Saves play_events, song_metadata, song_pairs to Downloads',
+                    'Saves play_events, song_metadata, song_pairs, user_feedback to Downloads',
                     style: TextStyle(
                         color: AppTheme.textMuted, fontSize: 12),
                   ),
