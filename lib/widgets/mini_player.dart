@@ -129,7 +129,10 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     if (_lastImageUrl == imageUrl) return;
     _lastImageUrl = imageUrl;
 
-    final color = await compute(_extractMiniPalette, imageUrl);
+    // CRIT-2: PaletteGenerator.fromImageProvider calls Flutter's image codec
+    // which requires the main-isolate Flutter engine. Background isolates
+    // (compute()) don't have this, causing a crash. Image is already cached.
+    final color = await _extractMiniPalette(imageUrl);
     if (mounted) {
       setState(() {
         _artworkColor = color;

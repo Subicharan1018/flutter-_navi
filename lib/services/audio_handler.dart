@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:just_audio_background/just_audio_background.dart';
 import '../models/song.dart';
 import 'subsonic_service.dart';
+import 'replay_gain_service.dart';
 import '../providers/settings_provider.dart';
 
 // ---------------------------------------------------------------------------
@@ -127,6 +128,7 @@ List<Song> _weightedShuffleIsolate(List<Song> pool) {
 class AudioHandler {
   final AudioPlayer player;
   final SubsonicService subsonicService;
+  final ReplayGainService _replayGainService;
   List<Song> _currentQueue = [];
   List<Song> _unshuffledQueue = [];
 
@@ -134,8 +136,9 @@ class AudioHandler {
   // (add / removeAt / move) instead of rebuilding the entire source.
   ConcatenatingAudioSource? _playlist;
 
-  AudioHandler(this.subsonicService, {AudioPlayer? player})
-      : player = player ?? AudioPlayer();
+  AudioHandler(this.subsonicService, {AudioPlayer? player, ReplayGainService? replayGainService})
+      : player = player ?? AudioPlayer(),
+        _replayGainService = replayGainService ?? ReplayGainService();
 
   @visibleForTesting
   set currentQueue(List<Song> songs) => _currentQueue = songs;
@@ -171,7 +174,21 @@ class AudioHandler {
     _currentQueue = List.from(songs);
     _unshuffledQueue = List.from(unshuffledSongs ?? songs);
     await _rebuildSource(startIndex);
+    _applyReplayGain();
   }
+
+  // ---------------------------------------------------------------------------
+  // Replay Gain — apply volume normalisation based on the current mode.
+  // Called after setQueue and can be called externally when the track changes.
+  // ---------------------------------------------------------------------------
+  void _applyReplayGain() {
+    final multiplier = _replayGainService.calculateVolumeMultiplier();
+    player.setVolume(multiplier);
+  }
+
+  /// Recalculate and apply replay gain volume — call when track changes
+  /// or when the user changes replay gain settings.
+  void refreshReplayGain() => _applyReplayGain();
 
   Future<void> _rebuildSource(int startIndex, {Duration? initialPosition}) async {
     if (_currentQueue.isEmpty) return;

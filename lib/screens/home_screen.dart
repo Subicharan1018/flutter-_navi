@@ -13,6 +13,8 @@ import '../widgets/album_card.dart';
 import '../core/navigation_transitions.dart';
 import 'settings_screen.dart';
 import 'playlist_details_screen.dart';
+import 'made_for_you_screen.dart';
+import 'new_releases_screen.dart';
 
 // ── Design tokens ─────────────────────────────────────────────────────────────
 class _DS {
@@ -219,6 +221,52 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                       error: (_, __) => const SizedBox(),
                     ),
                   ),
+
+                  // ── Discover section ─────────────────────────────────
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
+                  SliverToBoxAdapter(
+                    child: Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 18),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: _DiscoverCard(
+                              title: 'Made\nFor You',
+                              icon: Icons.auto_awesome_rounded,
+                              gradient: const [
+                                Color(0xFF3DE87C),
+                                Color(0xFF0D7A3E),
+                              ],
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const MadeForYouScreen()),
+                              ),
+                            ),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: _DiscoverCard(
+                              title: 'New\nReleases',
+                              icon: Icons.new_releases_rounded,
+                              gradient: const [
+                                Color(0xFF5C8DF6),
+                                Color(0xFF2744A6),
+                              ],
+                              onTap: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                    builder: (_) =>
+                                        const NewReleasesScreen()),
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
                   // Weekly Replay
                   const SliverToBoxAdapter(
@@ -924,6 +972,71 @@ class _ShimmerReel extends StatelessWidget {
             .fadeIn(duration: 700.ms)
             .then()
             .fadeOut(duration: 700.ms),
+      ),
+    );
+  }
+}
+
+// ── Discover cards ────────────────────────────────────────────────────────────
+class _DiscoverCard extends StatelessWidget {
+  final String title;
+  final IconData icon;
+  final List<Color> gradient;
+  final VoidCallback onTap;
+
+  const _DiscoverCard({
+    required this.title,
+    required this.icon,
+    required this.gradient,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Ink(
+          height: 100,
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              colors: gradient,
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+            ),
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Stack(
+            children: [
+              // Subtle icon in top-right
+              Positioned(
+                top: 10,
+                right: 12,
+                child: Icon(icon,
+                    size: 32, color: Colors.white.withValues(alpha: 0.35)),
+              ),
+              // Title
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 44, 14),
+                child: Align(
+                  alignment: Alignment.bottomLeft,
+                  child: Text(
+                    title,
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontSize: 16,
+                      fontWeight: FontWeight.w800,
+                      letterSpacing: -0.3,
+                      height: 1.2,
+                    ),
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
       ),
     );
   }

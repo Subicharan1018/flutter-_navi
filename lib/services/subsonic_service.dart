@@ -51,6 +51,9 @@ class SubsonicService {
   late final String _coverArtSalt;
   late final String _coverArtToken;
 
+  static const int _webDavMaxAttempts = 3;
+  static const int _webDavChunkSize = 64 * 1024;
+
   SubsonicService({
     required String serverUrl,
     required this.username,
@@ -189,10 +192,13 @@ class SubsonicService {
     } on SubsonicApiException {
       rethrow;
     } on dart_io.SocketException catch (e) {
+      debugPrint('[SubsonicService] SocketException: ${e.message}, host: ${e.address?.host}, port: ${e.port}');
       throw NetworkException('No internet connection: ${e.message}');
     } on dart_async.TimeoutException {
+      debugPrint('[SubsonicService] TimeoutException');
       throw const TimeoutException();
     } catch (e) {
+      debugPrint('[SubsonicService] Unexpected error: $e');
       // Wrap any other unexpected error so callers don't need to handle
       // raw platform exceptions.
       throw NetworkException(e.toString());
@@ -302,6 +308,25 @@ class SubsonicService {
     return albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
+  }
+
+  /// General-purpose album list — supports all Subsonic 'type' values:
+  /// newest, recent, frequent, highest, starred, random, alphabeticalByName,
+  /// alphabeticalByArtist, byYear, byGenre.
+  Future<List<Album>> getAlbumList({
+    String type = 'recent',
+    int size = 20,
+    int offset = 0,
+  }) async {
+    final res = await _get('getAlbumList2.view', {
+      'type': type,
+      'size': size.toString(),
+      'offset': offset.toString(),
+    });
+    final albums =
+        (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
+            [];
+    return albums.map((e) => Album.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<Album>> getAlbums({int offset = 0, int size = 50}) async {
@@ -596,62 +621,159 @@ class SubsonicService {
     }
   }
 
+  Future<void> uploadTextToWebDav({
+    required String remoteFileName,
+    required String contents,
+    String contentType = 'text/csv; charset=utf-8',
+  }) async {
+    if (customUploadUrl == null || customUploadUrl!.isEmpty) {
+      throw Exception('WebDAV upload URL is not configured');
+    }
+
+    await _webDavUploadText(remoteFileName, contents, contentType: contentType);
+  }
+
   // ---------------------------------------------------------------------------
   // WebDAV Upload
   // ---------------------------------------------------------------------------
 
-  Future<void> _webDavUpload(File file, String targetFileName) async {
-    final baseUrl = customUploadUrl!.trim().replaceAll(RegExp(r'/+$'), '');
+  Uri _buildWebDavUploadUri(String targetFileName) {
+    final baseUri = Uri.parse(
+      customUploadUrl!.trim().replaceAll(RegExp(r'/+$'), ''),
+    );
+
     final remoteDir =
         (customUploadDir == null || customUploadDir!.trim().isEmpty)
             ? '/DATA/Media/Music'
             : customUploadDir!.trim();
 
-    final normalizedDir =
-        remoteDir.startsWith('/') ? remoteDir : '/$remoteDir';
-    final finalDir = normalizedDir.endsWith('/')
-        ? normalizedDir.substring(0, normalizedDir.length - 1)
-        : normalizedDir;
+    final normalizedDir = remoteDir.startsWith('/') ? remoteDir : '/$remoteDir';
+    final dirSegments = normalizedDir
+        .split('/')
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
+    final fileSegments = targetFileName
+        .split('/')
+        .where((segment) => segment.isNotEmpty)
+        .toList(growable: false);
 
-    final uploadUrl = '$baseUrl$finalDir/$targetFileName';
-    final uri = Uri.parse(uploadUrl);
+    return baseUri.replace(
+      pathSegments: <String>[
+        ...baseUri.pathSegments.where((segment) => segment.isNotEmpty),
+        ...dirSegments,
+        ...fileSegments,
+      ],
+    );
+  }
+
+  bool _isRetryableWebDavStatus(int statusCode) {
+    return statusCode == 408 ||
+        statusCode == 425 ||
+        statusCode == 429 ||
+        statusCode >= 500;
+  }
+
+  Future<void> _webDavUploadText(
+    String targetFileName,
+    String contents, {
+    String contentType = 'text/csv; charset=utf-8',
+  }) async {
+    final bytes = utf8.encode(contents);
+    await _webDavUploadStream(
+      targetFileName: targetFileName,
+      bodyStreamFactory: () => Stream<List<int>>.value(bytes),
+      contentLength: bytes.length,
+      contentType: contentType,
+    );
+  }
+
+  Future<void> _webDavUploadStream({
+    required String targetFileName,
+    required Stream<List<int>> Function() bodyStreamFactory,
+    required int contentLength,
+    required String contentType,
+  }) async {
+    final uri = _buildWebDavUploadUri(targetFileName);
 
     final webdavUser = webdavUsername ?? 'casaos';
     final webdavPass = webdavPassword ?? 'casaos';
     final auth = base64Encode(utf8.encode('$webdavUser:$webdavPass'));
 
-    // OPT-2: Stream the file instead of loading it all into RAM.
-    // readAsBytes() on a 100 MB FLAC → 100 MB Dart heap allocation.
-    // StreamedRequest + openRead() pipes ~64 KB chunks from disk; heap
-    // usage stays near-zero regardless of file size.
-    final fileLength = await file.length();
-
-    debugPrint('Upload(WebDAV): PUT $uploadUrl');
+    debugPrint('Upload(WebDAV): PUT $uri');
     debugPrint('Upload(WebDAV): Using username: $webdavUser');
-    debugPrint('Upload(WebDAV): File size: $fileLength bytes');
+    debugPrint('Upload(WebDAV): File size: $contentLength bytes');
 
-    final request = http.StreamedRequest('PUT', uri)
-      ..headers.addAll({
-        'Authorization': 'Basic $auth',
-        'Content-Type': 'application/octet-stream',
-        'Content-Length': fileLength.toString(),
-      });
+    Object? lastError;
+    for (var attempt = 1; attempt <= _webDavMaxAttempts; attempt++) {
+      final request = http.StreamedRequest('PUT', uri)
+        ..headers.addAll({
+          'Authorization': 'Basic $auth',
+          'Content-Type': contentType,
+          'Content-Length': contentLength.toString(),
+        })
+        ..persistentConnection = true
+        ..followRedirects = false;
 
-    // Pipe file stream to the request sink without buffering the whole file.
-    file.openRead().pipe(request.sink);
+      try {
+        final responseFuture = _client.send(request);
 
-    final streamedResponse = await _client.send(request);
+        try {
+          await request.sink.addStream(bodyStreamFactory());
+        } finally {
+          await request.sink.close();
+        }
 
-    debugPrint('Upload(WebDAV): Response status: ${streamedResponse.statusCode}');
+        final streamedResponse = await responseFuture;
+        debugPrint(
+            'Upload(WebDAV): Response status: ${streamedResponse.statusCode}');
 
-    if (streamedResponse.statusCode != 200 &&
-        streamedResponse.statusCode != 201 &&
-        streamedResponse.statusCode != 204) {
-      final body = await streamedResponse.stream.bytesToString();
-      debugPrint('Upload(WebDAV): Response body: $body');
-      throw Exception(
-          'WebDAV upload failed (${streamedResponse.statusCode}): $body');
+        if (streamedResponse.statusCode == 200 ||
+            streamedResponse.statusCode == 201 ||
+            streamedResponse.statusCode == 204) {
+          return;
+        }
+
+        final body = await streamedResponse.stream.bytesToString();
+        debugPrint('Upload(WebDAV): Response body: $body');
+
+        if (_isRetryableWebDavStatus(streamedResponse.statusCode) &&
+            attempt < _webDavMaxAttempts) {
+          lastError = Exception(
+            'WebDAV upload failed (${streamedResponse.statusCode}): $body',
+          );
+        } else {
+          throw Exception(
+            'WebDAV upload failed (${streamedResponse.statusCode}): $body',
+          );
+        }
+      } on dart_io.SocketException catch (e) {
+        lastError = e;
+      } on dart_async.TimeoutException catch (e) {
+        lastError = e;
+      }
+
+      if (attempt < _webDavMaxAttempts) {
+        await dart_async.Future<void>.delayed(
+          Duration(milliseconds: 250 * attempt),
+        );
+      }
     }
+
+    throw Exception('WebDAV upload failed after $_webDavMaxAttempts attempts: '
+        '$lastError');
+  }
+
+  Future<void> _webDavUpload(File file, String targetFileName) async {
+    if (!await file.exists()) {
+      throw Exception('WebDAV upload failed: file does not exist');
+    }
+
+    await _webDavUploadStream(
+      targetFileName: targetFileName,
+      bodyStreamFactory: () => file.openRead(),
+      contentLength: await file.length(),
+      contentType: 'application/octet-stream',
+    );
   }
 
   // ---------------------------------------------------------------------------

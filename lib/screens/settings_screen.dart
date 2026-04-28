@@ -7,6 +7,10 @@ import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
 import '../services/subsonic_service.dart';
 import '../services/listening_event_collector.dart';
+import '../services/cache_settings_service.dart';
+import '../services/replay_gain_service.dart';
+import '../services/transcoding_service.dart';
+import '../services/recommendation_service.dart';
 import '../core/theme.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -25,7 +29,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _obscurePass = true;
   bool _isUploading = false;
   bool _isExporting = false;
+  bool _isSyncing = false;
   AnalyticsStats? _analyticsStats;
+
+  // ── New feature states ──
+  bool _imageCacheEnabled = true;
+  bool _musicCacheEnabled = true;
+  bool _bpmCacheEnabled = true;
+  bool _transcodingEnabled = false;
+  bool _smartSwitchEnabled = false;
+  int _wifiBitrate = TranscodeBitrate.original;
+  int _mobileBitrate = TranscodeBitrate.kbps192;
+  String _transcodeFormat = TranscodeFormat.mp3;
+  ReplayGainMode _replayGainMode = ReplayGainMode.off;
+  double _preampGain = 0.0;
+  bool _preventClipping = true;
+  double _fallbackGain = -6.0;
+  bool _recommendationsEnabled = true;
 
   @override
   void initState() {
@@ -38,6 +58,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _uploadDirController = TextEditingController(text: settings.uploadDirectory);
     // Load analytics row counts for the settings summary.
     _loadStats();
+    _loadNewFeatureSettings();
+  }
+
+  Future<void> _loadNewFeatureSettings() async {
+    final cache = ref.read(cacheSettingsProvider);
+    await cache.initialize();
+    final replay = ref.read(replayGainProvider);
+    await replay.initialize();
+    final transcoding = ref.read(transcodingProvider);
+    final rec = ref.read(recommendationProvider);
+
+    if (mounted) {
+      setState(() {
+        _imageCacheEnabled = cache.getImageCacheEnabled();
+        _musicCacheEnabled = cache.getMusicCacheEnabled();
+        _bpmCacheEnabled = cache.getBpmCacheEnabled();
+        _transcodingEnabled = transcoding.enabled;
+        _smartSwitchEnabled = transcoding.smartEnabled;
+        _wifiBitrate = transcoding.wifiBitrate;
+        _mobileBitrate = transcoding.mobileBitrate;
+        _transcodeFormat = transcoding.format;
+        _replayGainMode = replay.getMode();
+        _preampGain = replay.getPreampGain();
+        _preventClipping = replay.getPreventClipping();
+        _fallbackGain = replay.getFallbackGain();
+        _recommendationsEnabled = rec.enabled;
+      });
+    }
   }
 
   Future<void> _loadStats() async {
@@ -90,6 +138,64 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } finally {
       if (mounted) setState(() => _isExporting = false);
+    }
+  }
+
+  Future<void> _syncDataToServer() async {
+    final uploadUrl = _uploadUrlController.text.trim();
+    if (uploadUrl.isEmpty) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Set Custom API before syncing analytics to the server'),
+        ),
+      );
+      return;
+    }
+
+    setState(() => _isSyncing = true);
+    try {
+      final csvMap = await ref.read(listenerCollectorProvider).exportCsv();
+      final cache = ref.read(playlistCacheServiceProvider);
+      final service = SubsonicService(
+        serverUrl: _urlController.text.trim(),
+        username: _userController.text.trim(),
+        password: _passController.text,
+        cache: cache,
+        customUploadUrl: uploadUrl,
+        customUploadDir: _uploadDirController.text.trim().isEmpty
+            ? null
+            : _uploadDirController.text.trim(),
+      );
+
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .substring(0, 19);
+
+      for (final entry in csvMap.entries) {
+        await service.uploadTextToWebDav(
+          remoteFileName: 'navivibe_${entry.key}_$timestamp.csv',
+          contents: entry.value,
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Synced ${csvMap.length} CSV file(s) to server'),
+            backgroundColor: AppTheme.electricBlue,
+          ),
+        );
+        _loadStats();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Sync failed: $e')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _isSyncing = false);
     }
   }
 
@@ -372,6 +478,273 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           color: AppTheme.textMuted, size: 20),
                   onTap: _isExporting ? null : _exportData,
                 ),
+                _SettingsDivider(),
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16),
+                  leading: const Icon(Icons.cloud_sync_outlined,
+                      color: AppTheme.textMuted, size: 24),
+                  title: const Text('Sync data to server',
+                      style: TextStyle(
+                          color: AppTheme.textPrimary, fontSize: 15)),
+                  subtitle: const Text(
+                    'Streams play_events, song_metadata, song_pairs, user_feedback to your WebDAV target',
+                    style: TextStyle(
+                        color: AppTheme.textMuted, fontSize: 12),
+                  ),
+                  trailing: _isSyncing
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                              strokeWidth: 2,
+                              color: AppTheme.electricBlue))
+                      : const Icon(Icons.chevron_right_rounded,
+                          color: AppTheme.textMuted, size: 20),
+                  onTap: _isSyncing ? null : _syncDataToServer,
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            // ----------------------------------------------------------------
+            // Cache Management
+            // ----------------------------------------------------------------
+            _SettingsGroup(
+              title: 'CACHE MANAGEMENT',
+              children: [
+                _SettingsToggleRow(
+                  label: 'Image Cache',
+                  value: _imageCacheEnabled,
+                  onChanged: (v) {
+                    setState(() => _imageCacheEnabled = v);
+                    ref.read(cacheSettingsProvider).setImageCacheEnabled(v);
+                  },
+                ),
+                _SettingsDivider(),
+                _SettingsToggleRow(
+                  label: 'Music Cache',
+                  value: _musicCacheEnabled,
+                  onChanged: (v) {
+                    setState(() => _musicCacheEnabled = v);
+                    ref.read(cacheSettingsProvider).setMusicCacheEnabled(v);
+                  },
+                ),
+                _SettingsDivider(),
+                _SettingsToggleRow(
+                  label: 'BPM Cache',
+                  value: _bpmCacheEnabled,
+                  onChanged: (v) {
+                    setState(() => _bpmCacheEnabled = v);
+                    ref.read(cacheSettingsProvider).setBpmCacheEnabled(v);
+                  },
+                ),
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            // ----------------------------------------------------------------
+            // Audio Quality (Transcoding)
+            // ----------------------------------------------------------------
+            _SettingsGroup(
+              title: 'AUDIO QUALITY',
+              children: [
+                _SettingsToggleRow(
+                  label: 'Transcoding',
+                  value: _transcodingEnabled,
+                  onChanged: (v) {
+                    setState(() => _transcodingEnabled = v);
+                    ref.read(transcodingProvider).setEnabled(v);
+                  },
+                ),
+                if (_transcodingEnabled) ...[
+                  _SettingsDivider(),
+                  _SettingsNavRow(
+                    label: 'Wi-Fi Bitrate',
+                    value: TranscodeBitrate.getLabel(_wifiBitrate),
+                    onTap: () => _showBitrateSelector(
+                      title: 'Wi-Fi Bitrate',
+                      current: _wifiBitrate,
+                      onSelect: (v) {
+                        setState(() => _wifiBitrate = v);
+                        ref.read(transcodingProvider).setWifiBitrate(v);
+                      },
+                    ),
+                  ),
+                  _SettingsDivider(),
+                  _SettingsNavRow(
+                    label: 'Mobile Bitrate',
+                    value: TranscodeBitrate.getLabel(_mobileBitrate),
+                    onTap: () => _showBitrateSelector(
+                      title: 'Mobile Bitrate',
+                      current: _mobileBitrate,
+                      onSelect: (v) {
+                        setState(() => _mobileBitrate = v);
+                        ref.read(transcodingProvider).setMobileBitrate(v);
+                      },
+                    ),
+                  ),
+                  _SettingsDivider(),
+                  _SettingsNavRow(
+                    label: 'Format',
+                    value: TranscodeFormat.getLabel(_transcodeFormat),
+                    onTap: () => _showFormatSelector(),
+                  ),
+                  _SettingsDivider(),
+                  _SettingsToggleRow(
+                    label: 'Smart Switch',
+                    value: _smartSwitchEnabled,
+                    onChanged: (v) {
+                      setState(() => _smartSwitchEnabled = v);
+                      ref.read(transcodingProvider).setSmartEnabled(v);
+                    },
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            // ----------------------------------------------------------------
+            // Replay Gain
+            // ----------------------------------------------------------------
+            _SettingsGroup(
+              title: 'REPLAY GAIN',
+              children: [
+                _SettingsNavRow(
+                  label: 'Mode',
+                  value: _replayGainMode.name.toUpperCase(),
+                  onTap: () => _showReplayGainModeSelector(),
+                ),
+                if (_replayGainMode != ReplayGainMode.off) ...[
+                  _SettingsDivider(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Pre-amp',
+                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
+                        Text('${_preampGain.toStringAsFixed(1)} dB',
+                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+                      ],
+                    ),
+                  ),
+                  Slider(
+                    value: _preampGain,
+                    min: -15.0,
+                    max: 15.0,
+                    divisions: 60,
+                    activeColor: AppTheme.electricBlue,
+                    onChanged: (v) {
+                      setState(() => _preampGain = v);
+                      ref.read(replayGainProvider).setPreampGain(v);
+                    },
+                  ),
+                  _SettingsDivider(),
+                  _SettingsToggleRow(
+                    label: 'Prevent Clipping',
+                    value: _preventClipping,
+                    onChanged: (v) {
+                      setState(() => _preventClipping = v);
+                      ref.read(replayGainProvider).setPreventClipping(v);
+                    },
+                  ),
+                  _SettingsDivider(),
+                  Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        const Text('Fallback Gain',
+                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
+                        Text('${_fallbackGain.toStringAsFixed(1)} dB',
+                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+                      ],
+                    ),
+                  ),
+                  Slider(
+                    value: _fallbackGain,
+                    min: -15.0,
+                    max: 0.0,
+                    divisions: 30,
+                    activeColor: AppTheme.electricBlue,
+                    onChanged: (v) {
+                      setState(() => _fallbackGain = v);
+                      ref.read(replayGainProvider).setFallbackGain(v);
+                    },
+                  ),
+                ],
+              ],
+            ),
+            const SizedBox(height: 32),
+
+            // ----------------------------------------------------------------
+            // Recommendations
+            // ----------------------------------------------------------------
+            _SettingsGroup(
+              title: 'RECOMMENDATIONS',
+              children: [
+                _SettingsToggleRow(
+                  label: 'Enabled',
+                  value: _recommendationsEnabled,
+                  onChanged: (v) {
+                    setState(() => _recommendationsEnabled = v);
+                    ref.read(recommendationProvider).setEnabled(v);
+                  },
+                ),
+                _SettingsDivider(),
+                _SettingsNavRow(
+                  label: 'Listening Stats',
+                  value: '${ref.read(recommendationProvider).profiles.length} songs',
+                ),
+                _SettingsDivider(),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  child: SizedBox(
+                    width: double.infinity,
+                    child: CupertinoButton(
+                      color: Colors.redAccent.withValues(alpha: 0.15),
+                      padding: const EdgeInsets.symmetric(vertical: 10),
+                      onPressed: () async {
+                        final confirm = await showCupertinoDialog<bool>(
+                          context: context,
+                          builder: (ctx) => CupertinoAlertDialog(
+                            title: const Text('Clear Recommendation Data'),
+                            content: const Text(
+                                'This will delete all listening patterns and '  
+                                'personalisation data. This cannot be undone.'),
+                            actions: [
+                              CupertinoDialogAction(
+                                child: const Text('Cancel'),
+                                onPressed: () => Navigator.pop(ctx, false),
+                              ),
+                              CupertinoDialogAction(
+                                isDestructiveAction: true,
+                                child: const Text('Clear'),
+                                onPressed: () => Navigator.pop(ctx, true),
+                              ),
+                            ],
+                          ),
+                        );
+                        if (confirm == true) {
+                          await ref.read(recommendationProvider).clearData();
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              const SnackBar(
+                                content: Text('Recommendation data cleared'),
+                                backgroundColor: AppTheme.electricBlue,
+                              ),
+                            );
+                            setState(() {});
+                          }
+                        }
+                      },
+                      child: const Text('Clear Data',
+                          style: TextStyle(
+                              color: Colors.redAccent, fontSize: 14)),
+                    ),
+                  ),
+                ),
               ],
             ),
             const SizedBox(height: 32),
@@ -403,6 +776,93 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       case ShuffleAlgorithm.youtube:
         return 'Weighted Mix — songs you love (stars, high ratings, "Suggest More") appear more often. Use "Suggest More / Less" on any track to tune it.';
     }
+  }
+
+  void _showBitrateSelector({
+    required String title,
+    required int current,
+    required ValueChanged<int> onSelect,
+  }) {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: Text(title),
+        actions: TranscodeBitrate.options.map((b) {
+          return CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              onSelect(b);
+            },
+            child: Text(
+              TranscodeBitrate.getLabel(b),
+              style: TextStyle(
+                  fontWeight:
+                      b == current ? FontWeight.bold : FontWeight.normal),
+            ),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  void _showFormatSelector() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Audio Format'),
+        actions: TranscodeFormat.options.map((f) {
+          return CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() => _transcodeFormat = f);
+              ref.read(transcodingProvider).setFormat(f);
+            },
+            child: Text(
+              TranscodeFormat.getLabel(f),
+              style: TextStyle(
+                  fontWeight:
+                      f == _transcodeFormat ? FontWeight.bold : FontWeight.normal),
+            ),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
+  }
+
+  void _showReplayGainModeSelector() {
+    showCupertinoModalPopup(
+      context: context,
+      builder: (ctx) => CupertinoActionSheet(
+        title: const Text('Replay Gain Mode'),
+        actions: ReplayGainMode.values.map((m) {
+          return CupertinoActionSheetAction(
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() => _replayGainMode = m);
+              ref.read(replayGainProvider).setMode(m);
+            },
+            child: Text(
+              m.name.toUpperCase(),
+              style: TextStyle(
+                  fontWeight:
+                      m == _replayGainMode ? FontWeight.bold : FontWeight.normal),
+            ),
+          );
+        }).toList(),
+        cancelButton: CupertinoActionSheetAction(
+          onPressed: () => Navigator.pop(ctx),
+          child: const Text('Cancel'),
+        ),
+      ),
+    );
   }
 }
 
@@ -602,13 +1062,14 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
 class _SettingsNavRow extends StatelessWidget {
   final String label;
   final String? value;
+  final VoidCallback? onTap;
 
-  const _SettingsNavRow({required this.label, this.value});
+  const _SettingsNavRow({required this.label, this.value, this.onTap});
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
-      onTap: () {},
+      onTap: onTap ?? () {},
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
         child: Row(

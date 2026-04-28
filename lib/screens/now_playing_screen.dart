@@ -12,6 +12,7 @@ import 'package:just_audio/just_audio.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../core/theme.dart';
+import '../fluid_background.dart';
 import '../widgets/options_menu.dart';
 import '../models/song.dart';
 import 'package:flutter/foundation.dart';
@@ -28,277 +29,82 @@ import 'package:flutter/foundation.dart';
 
 Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
   try {
+    // Use the same cache pipeline as the UI to avoid a second raw network fetch.
     final palette = await PaletteGenerator.fromImageProvider(
-      NetworkImage(imageUrl),
+      CachedNetworkImageProvider(imageUrl),
       size: const Size(200, 200),
       maximumColorCount: 32,
     );
 
-    // Darken to ~40% lightness + boost saturation → Apple Music's rich look
-    Color process(Color? c, Color fallback) {
-      final base = c ?? fallback;
+    // Keep the background dark and cinematic while preserving hue identity.
+    Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
       final hsl  = HSLColor.fromColor(base);
       return hsl
-          .withSaturation((hsl.saturation * 1.4).clamp(0.0, 1.0))
-          .withLightness((hsl.lightness  * 0.50).clamp(0.05, 0.42))
+          .withSaturation((hsl.saturation * satMul).clamp(0.08, 1.0))
+          .withLightness((hsl.lightness * lightMul).clamp(0.04, 0.34))
           .toColor();
     }
 
+    Color firstNonNull(List<Color?> candidates, Color fallback) {
+      for (final c in candidates) {
+        if (c != null) return c;
+      }
+      return fallback;
+    }
+
+    final dominant = firstNonNull([
+      palette.dominantColor?.color,
+      palette.darkVibrantColor?.color,
+      palette.darkMutedColor?.color,
+      palette.vibrantColor?.color,
+      palette.mutedColor?.color,
+      palette.lightMutedColor?.color,
+    ], const Color(0xFF202022));
+
+    final dominantHsl = HSLColor.fromColor(dominant);
+    final derivedVibrant = dominantHsl
+        .withSaturation((dominantHsl.saturation + 0.25).clamp(0.20, 1.0))
+        .withLightness((dominantHsl.lightness * 0.95).clamp(0.08, 0.48))
+        .toColor();
+    final derivedAccent = dominantHsl
+        .withSaturation((dominantHsl.saturation + 0.12).clamp(0.14, 1.0))
+        .withLightness((dominantHsl.lightness * 1.18).clamp(0.12, 0.58))
+        .toColor();
+
+    final vibrant = firstNonNull([
+      palette.vibrantColor?.color,
+      palette.darkVibrantColor?.color,
+      palette.lightVibrantColor?.color,
+      palette.mutedColor?.color,
+    ], derivedVibrant);
+
+    final darkAccent = firstNonNull([
+      palette.darkMutedColor?.color,
+      palette.darkVibrantColor?.color,
+      palette.mutedColor?.color,
+      palette.dominantColor?.color,
+    ], dominant);
+
+    final lightAccent = firstNonNull([
+      palette.lightVibrantColor?.color,
+      palette.lightMutedColor?.color,
+      palette.vibrantColor?.color,
+      palette.mutedColor?.color,
+    ], derivedAccent);
+
     return [
-      process(palette.dominantColor?.color,                          const Color(0xFF1A1A2E)).value,
-      process(palette.vibrantColor?.color ?? palette.lightVibrantColor?.color, const Color(0xFF16213E)).value,
-      process(palette.darkMutedColor?.color ?? palette.mutedColor?.color,      const Color(0xFF0F3460)).value,
-      process(palette.lightVibrantColor?.color ?? palette.lightMutedColor?.color, const Color(0xFF533483)).value,
+      process(dominant, satMul: 1.10, lightMul: 0.44).value,
+      process(vibrant, satMul: 1.35, lightMul: 0.52).value,
+      process(darkAccent, satMul: 1.05, lightMul: 0.40).value,
+      process(lightAccent, satMul: 1.20, lightMul: 0.58).value,
     ];
   } catch (_) {
-    return [0xFF1A1A2E, 0xFF16213E, 0xFF0F3460, 0xFF533483];
+    // Neutral fallback keeps the UI cinematic without forcing blue/purple.
+    return [0xFF121212, 0xFF1D1D1D, 0xFF0B0B0B, 0xFF2A2A2A];
   }
 }
 
 List<Color> _intsToColors(List<int> v) => v.map((i) => Color(i)).toList();
-
-// =============================================================================
-// APPLE MUSIC BACKGROUND PAINTER
-//
-// The definitive fix — two previous attempts failed because:
-//   v1: Used flat circles + BackdropFilter. BackdropFilter blurs what's
-//       BEHIND the widget in the layer tree, NOT what the painter draws.
-//       So the circles stayed hard-edged ("lava lamp").
-//   v2: Used bilinear mesh + BackdropFilter. Same problem — blur was never
-//       actually applied to the mesh cells.
-//
-// Correct technique: canvas.saveLayer() with an ImageFilter paint.
-//   saveLayer creates an offscreen compositing buffer. Everything drawn
-//   between saveLayer and restore() is drawn into that buffer FIRST, then
-//   the imageFilter blur is applied to the entire buffer as it is composited
-//   back. This is the Flutter/Skia equivalent of CoreImage CIGaussianBlur
-//   on a CALayer — the blur acts on drawn content, not on what's behind.
-//
-// Inside the blur buffer we draw 5 radial-gradient blobs using BlendMode.plus
-// so colors ADD like light (overlapping red+blue = magenta, not mud).
-// The outer blur (σ=80) melts all edges into a continuous silk field.
-// =============================================================================
-
-class _AppleMusicPainter extends CustomPainter {
-  final double t;
-  final List<Color> colors;
-
-  const _AppleMusicPainter({required this.t, required this.colors});
-
-  // Normalised sin/cos helpers that return 0..1
-  double _s(double x) => (math.sin(x) + 1) / 2;
-  double _c(double x) => (math.cos(x) + 1) / 2;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    if (colors.length < 4) return;
-
-    final w   = size.width;
-    final h   = size.height;
-    final tau = math.pi * 2;
-
-    // ── 1. Base fill: very dark dominant color (not pure black) ────────────
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, w, h),
-      Paint()..color = Color.lerp(colors[0], Colors.black, 0.65)!,
-    );
-
-    // PERF-1: σ reduced 80→40. Perceptually identical at blob scale (blobs are
-    // hundreds of pixels wide) but 4× cheaper GPU kernel — eliminates the <30fps
-    // drop on mid-range devices caused by the full-screen saveLayer allocation.
-    final blurPaint = Paint()
-      ..imageFilter = ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40);
-
-    canvas.saveLayer(Rect.fromLTWH(0, 0, w, h), blurPaint);
-
-    // Inside the layer: 5 radial-gradient blobs, each with BlendMode.plus
-    // so colors add like projected light (no mud, no clipping).
-
-    // A: dominant, top-left drift
-    _blob(canvas, w, h,
-      cx: w * (0.10 + 0.40 * _s(t * tau * 0.37)),
-      cy: h * (0.05 + 0.38 * _c(t * tau * 0.29 + 0.8)),
-      r: w * 0.72,
-      color: colors[0].withOpacity(1.0),
-    );
-
-    // B: vibrant, top-right drift
-    _blob(canvas, w, h,
-      cx: w * (0.60 + 0.38 * _c(t * tau * 0.53 + 1.2)),
-      cy: h * (0.05 + 0.42 * _s(t * tau * 0.41 + 2.1)),
-      r: w * 0.68,
-      color: colors[1].withOpacity(0.95),
-    );
-
-    // C: dark-accent, bottom-left drift
-    _blob(canvas, w, h,
-      cx: w * (0.05 + 0.42 * _s(t * tau * 0.61 + 3.0)),
-      cy: h * (0.55 + 0.42 * _c(t * tau * 0.43 + 0.5)),
-      r: w * 0.78,
-      color: colors[2].withOpacity(0.90),
-    );
-
-    // D: light-accent, bottom-right drift
-    _blob(canvas, w, h,
-      cx: w * (0.58 + 0.38 * _c(t * tau * 0.31 + 1.7)),
-      cy: h * (0.58 + 0.38 * _s(t * tau * 0.57 + 2.8)),
-      r: w * 0.70,
-      color: colors[3].withOpacity(0.88),
-    );
-
-    // E: center roamer using color[1] — fills any dead zones
-    _blob(canvas, w, h,
-      cx: w * (0.38 + 0.28 * _s(t * tau * 0.23 + 0.3)),
-      cy: h * (0.32 + 0.32 * _c(t * tau * 0.47 + 1.4)),
-      r: w * 0.58,
-      color: colors[0].withOpacity(0.65),
-    );
-
-    canvas.restore(); // Apply σ=80 blur to everything drawn above
-
-    // ── 3. Sharp overlays (drawn outside the blur) ──────────────────────────
-
-    // Radial vignette: edges → center. Gives the "glowing center" look.
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, w, h),
-      Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(w * 0.5, h * 0.42),
-          w * 0.88,
-          [Colors.transparent, Colors.black.withOpacity(0.50)],
-          [0.30, 1.0],
-        ),
-    );
-
-    // Bottom scrim: top 50% transparent → bottom full 65% black
-    canvas.drawRect(
-      Rect.fromLTWH(0, h * 0.45, w, h * 0.55),
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset(0, h * 0.45),
-          Offset(0, h),
-          [Colors.transparent, Colors.black.withOpacity(0.68)],
-        ),
-    );
-
-    // Top scrim: very faint for status bar legibility
-    canvas.drawRect(
-      Rect.fromLTWH(0, 0, w, h * 0.18),
-      Paint()
-        ..shader = ui.Gradient.linear(
-          Offset.zero,
-          Offset(0, h * 0.18),
-          [Colors.black.withOpacity(0.22), Colors.transparent],
-        ),
-    );
-  }
-
-  /// Radial gradient blob with BlendMode.plus so overlapping regions
-  /// add together like light rather than painting opaque over each other.
-  void _blob(Canvas canvas, double w, double h, {
-    required double cx,
-    required double cy,
-    required double r,
-    required Color color,
-  }) {
-    canvas.drawCircle(
-      Offset(cx, cy),
-      r,
-      Paint()
-        ..shader = ui.Gradient.radial(
-          Offset(cx, cy),
-          r,
-          [color, color.withOpacity(0.45), Colors.transparent],
-          [0.0, 0.55, 1.0],
-        )
-        ..blendMode = BlendMode.plus,
-    );
-  }
-
-  @override
-  bool shouldRepaint(_AppleMusicPainter old) =>
-      old.t != t || old.colors != colors;
-}
-
-// =============================================================================
-// ANIMATED BACKGROUND WIDGET
-// =============================================================================
-
-class _AnimatedBackground extends StatefulWidget {
-  final List<Color> colors;
-  const _AnimatedBackground({required this.colors});
-
-  @override
-  State<_AnimatedBackground> createState() => _AnimatedBackgroundState();
-}
-
-class _AnimatedBackgroundState extends State<_AnimatedBackground>
-    with TickerProviderStateMixin {
-  late AnimationController _motionCtrl;
-  late AnimationController _colorCtrl;
-  late List<Color> _fromColors;
-  late List<Color> _toColors;
-
-  @override
-  void initState() {
-    super.initState();
-    _fromColors = List.of(widget.colors);
-    _toColors   = List.of(widget.colors);
-
-    _motionCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(seconds: 20),
-    )..repeat();
-
-    _colorCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1500),
-    );
-  }
-
-  @override
-  void didUpdateWidget(_AnimatedBackground old) {
-    super.didUpdateWidget(old);
-    if (widget.colors != old.colors) {
-      _fromColors = _lerpedColors;
-      _toColors   = List.of(widget.colors);
-      _colorCtrl.forward(from: 0);
-    }
-  }
-
-  @override
-  void dispose() {
-    _motionCtrl.dispose();
-    _colorCtrl.dispose();
-    super.dispose();
-  }
-
-  List<Color> get _lerpedColors {
-    final t = Curves.easeInOutCubic.transform(_colorCtrl.value);
-    return List.generate(
-      _fromColors.length,
-      (i) => Color.lerp(_fromColors[i], _toColors[i], t) ?? _fromColors[i],
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return RepaintBoundary(
-      child: AnimatedBuilder(
-        animation: Listenable.merge([_motionCtrl, _colorCtrl]),
-        builder: (_, __) => CustomPaint(
-          painter: _AppleMusicPainter(
-            t: _motionCtrl.value,
-            colors: _lerpedColors,
-          ),
-          size: Size.infinite,
-          isComplex: true,
-          willChange: true,
-        ),
-      ),
-    );
-  }
-}
 
 // =============================================================================
 // SOUND BAR WIDGET (Unchanged)
@@ -666,7 +472,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
             fit: StackFit.expand,
             children: [
               if (_transitionFinished)
-                _AnimatedBackground(colors: _blobColors)
+                FluidBackground(colors: _blobColors)
               else
                 const ColoredBox(color: Colors.black),
 

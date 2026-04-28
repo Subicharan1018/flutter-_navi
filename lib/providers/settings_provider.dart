@@ -4,6 +4,11 @@ import '../core/constants.dart';
 import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
+import '../services/cache_settings_service.dart';
+import '../services/bpm_analyzer_service.dart';
+import '../services/replay_gain_service.dart';
+import '../services/transcoding_service.dart';
+import '../services/recommendation_service.dart';
 
 // ---------------------------------------------------------------------------
 // Shuffle Algorithm enum
@@ -211,4 +216,45 @@ final listenerCollectorProvider = Provider<ListeningEventCollector>((ref) {
   // dispose() is async; wrap in a void closure so ref.onDispose type matches.
   ref.onDispose(() => collector.dispose());
   return collector;
+});
+
+// ---------------------------------------------------------------------------
+// New feature providers
+// ---------------------------------------------------------------------------
+
+/// Singleton [CacheSettingsService] — manages image/music/BPM cache toggles.
+final cacheSettingsProvider = Provider<CacheSettingsService>((ref) {
+  final service = CacheSettingsService();
+  return service;
+});
+
+/// Singleton [BpmAnalyzerService] — BPM estimation and caching.
+final bpmAnalyzerProvider = Provider<BpmAnalyzerService>((ref) {
+  final service = BpmAnalyzerService();
+  return service;
+});
+
+/// Singleton [ReplayGainService] — volume normalisation.
+final replayGainProvider = Provider<ReplayGainService>((ref) {
+  final service = ReplayGainService();
+  return service;
+});
+
+/// [TranscodingService] — network-aware bitrate/format management.
+/// Uses ChangeNotifierProvider so UI reactively updates when connection
+/// type or settings change.
+final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {
+  final service = TranscodingService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
+/// [RecommendationService] — play pattern tracking and personalised feeds.
+/// ChangeNotifierProvider so screens can react to new recommendation data.
+final recommendationProvider =
+    ChangeNotifierProvider<RecommendationService>((ref) {
+  final service = RecommendationService();
+  // Initialize asynchronously — listeners fire after data is loaded.
+  service.initialize();
+  return service;
 });

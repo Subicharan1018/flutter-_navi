@@ -221,6 +221,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             prevSong: prevSong,
             positionAtSwitch: _lastKnownPosition,
           );
+
+          // ── Recommendation tracking ────────────────────────────────
+          // Track the new song play alongside existing analytics.
+          _ref.read(recommendationProvider).trackSongPlay(
+            newSong,
+            durationPlayed: _lastKnownPosition.inSeconds,
+            completed: prevSong != null && _lastKnownPosition.inSeconds > (prevSong.duration * 0.8).toInt(),
+          );
+
+          // ── Replay Gain refresh ────────────────────────────────────
+          _audioHandler.refreshReplayGain();
         }
       }
 
@@ -396,7 +407,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> playNext() async {
     // Push current song to history before advancing
     if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
-      _pushToHistory(state.queue[state.currentIndex]);
+      final currentSong = state.queue[state.currentIndex];
+      _pushToHistory(currentSong);
+
+      // Track quick skip for recommendation engine (< 30s = skip)
+      if (_lastKnownPosition.inSeconds < 30) {
+        _ref.read(recommendationProvider).trackSkip(currentSong);
+      }
     }
     _suppressNextHistoryPush = true;
     _nextTransitionType = 'manual_next';
@@ -772,7 +789,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 // ---------------------------------------------------------------------------
 final audioHandlerProvider = Provider<AudioHandler>((ref) {
   final service = ref.watch(subsonicServiceProvider);
-  return AudioHandler(service);
+  final replayGain = ref.watch(replayGainProvider);
+  return AudioHandler(service, replayGainService: replayGain);
 });
 
 final playerProvider =
