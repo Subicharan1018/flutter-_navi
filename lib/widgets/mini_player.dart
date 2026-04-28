@@ -1,8 +1,10 @@
+import 'dart:async';
 import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:palette_generator/palette_generator.dart';
+import 'package:just_audio/just_audio.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/now_playing_screen.dart';
@@ -262,26 +264,15 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                 ),
               ),
 
-              // ── Neon progress bar at bottom ─────────────────────────────
+              // ── Neon progress bar at bottom ──────────────────────────────
+              // PERF-3: extracted into own StatefulWidget so the 60fps
+              // positionStream rebuilds are scoped to the 3px CustomPaint only.
               Padding(
                 padding: const EdgeInsets.fromLTRB(14, 0, 14, 10),
-                child: StreamBuilder<Duration>(
-                  stream: ref.read(playerProvider.notifier).player.positionStream,
-                  builder: (context, snapshot) {
-                    final position = snapshot.data ?? Duration.zero;
-                    final total    = Duration(seconds: song.duration);
-                    final progress = total.inMilliseconds > 0
-                        ? (position.inMilliseconds / total.inMilliseconds)
-                            .clamp(0.0, 1.0)
-                        : 0.0;
-                    return SizedBox(
-                      height: 3,
-                      child: CustomPaint(
-                        painter: _NeonProgressPainter(progress, themeColor),
-                        size: const Size(double.infinity, 3),
-                      ),
-                    );
-                  },
+                child: _MiniProgressBar(
+                  player: ref.read(playerProvider.notifier).player,
+                  durationSeconds: song.duration,
+                  themeColor: themeColor,
                 ),
               ),
             ],
@@ -448,6 +439,74 @@ class _MiniIconButton extends StatelessWidget {
         width: 38,
         height: 38,
         child: Center(child: Icon(icon, color: color, size: size)),
+      ),
+    );
+  }
+}
+
+// ── Isolated progress bar ───────────────────────────────────────────────────
+// Owns its own StreamSubscription so the 60fps positionStream rebuilds
+// are scoped exclusively to the 3px CustomPaint bar, not the entire
+// MiniPlayer widget tree.
+class _MiniProgressBar extends StatefulWidget {
+  final AudioPlayer player;
+  final int durationSeconds;
+  final Color themeColor;
+
+  const _MiniProgressBar({
+    required this.player,
+    required this.durationSeconds,
+    required this.themeColor,
+  });
+
+  @override
+  State<_MiniProgressBar> createState() => _MiniProgressBarState();
+}
+
+class _MiniProgressBarState extends State<_MiniProgressBar> {
+  StreamSubscription<Duration>? _sub;
+  double _progress = 0.0;
+
+  @override
+  void initState() {
+    super.initState();
+    _sub = widget.player.positionStream.listen(_onPosition);
+  }
+
+  void _onPosition(Duration position) {
+    final totalMs = widget.durationSeconds * 1000;
+    if (totalMs <= 0 || !mounted) return;
+    final p = (position.inMilliseconds / totalMs).clamp(0.0, 1.0);
+    if ((p - _progress).abs() > 0.001) {
+      setState(() => _progress = p);
+    }
+  }
+
+  @override
+  void didUpdateWidget(_MiniProgressBar old) {
+    super.didUpdateWidget(old);
+    if (old.player != widget.player) {
+      _sub?.cancel();
+      _sub = widget.player.positionStream.listen(_onPosition);
+    }
+    if (old.durationSeconds != widget.durationSeconds) {
+      setState(() => _progress = 0.0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _sub?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: 3,
+      child: CustomPaint(
+        painter: _NeonProgressPainter(_progress, widget.themeColor),
+        size: const Size(double.infinity, 3),
       ),
     );
   }

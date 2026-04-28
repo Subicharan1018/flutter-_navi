@@ -228,12 +228,13 @@ class SubsonicService {
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    final allSongs = <Song>[];
-    for (final album in albums) {
-      final songs = await getAlbum(album['id'] as String);
-      allSongs.addAll(songs);
-      if (allSongs.length >= size) break;
-    }
+    if (albums.isEmpty) return [];
+
+    // PERF-4: fetch all albums concurrently instead of sequentially.
+    // Clamp to 10 albums max to avoid flooding the server with requests.
+    final toFetch = albums.take(10).map((a) => a['id'] as String).toList();
+    final results = await Future.wait(toFetch.map(getAlbum));
+    final allSongs = results.expand((s) => s).toList();
     return allSongs.take(size).toList();
   }
 

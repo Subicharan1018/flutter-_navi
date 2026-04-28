@@ -207,7 +207,7 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   double get minExtent => 64;
   @override
-  bool shouldRebuild(covariant SliverPersistentHeaderDelegate oldDelegate) => true;
+  bool shouldRebuild(_SearchHeaderDelegate old) => old.child != child;
 }
 
 class _SearchResultsSliver extends ConsumerWidget {

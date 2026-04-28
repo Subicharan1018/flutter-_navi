@@ -188,8 +188,14 @@ class _PlaylistDetailsScreenState
       await service.invalidatePlaylist(widget.playlist.id);
       ref.invalidate(playlistsProvider);
     } catch (e) {
-      _loadSongs();
+      // Restore the optimistically-removed song without a full reload.
+      // Calling _loadSongs() here would set _isLoading=true and flash the
+      // skeleton loader, which is jarring and unnecessary.
       if (mounted) {
+        setState(() {
+          _songs.insert(originalIndex, song);
+          _filterSongs();
+        });
         ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('Failed to remove song: $e')));
       }
@@ -393,7 +399,10 @@ class _PlaylistDetailsScreenState
                         isScrollControlled: true,
                         backgroundColor: Colors.transparent,
                         builder: (_) => OptionsMenu(
-                            song: song, playlistId: widget.playlist.id),
+                          song: song,
+                          playlistId: widget.playlist.id,
+                          onRemoveFromPlaylist: () => _deleteSong(index),
+                        ),
                       ),
                     );
 

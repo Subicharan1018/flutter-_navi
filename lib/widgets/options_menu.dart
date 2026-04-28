@@ -8,8 +8,16 @@ import 'add_to_playlist_dialog.dart';
 class OptionsMenu extends ConsumerWidget {
   final Song song;
   final String? playlistId;
+  /// Called when the user confirms "Remove from Playlist".
+  /// Provide this when [playlistId] is non-null (e.g. from PlaylistDetailsScreen).
+  final VoidCallback? onRemoveFromPlaylist;
 
-  const OptionsMenu({super.key, required this.song, this.playlistId});
+  const OptionsMenu({
+    super.key,
+    required this.song,
+    this.playlistId,
+    this.onRemoveFromPlaylist,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -125,7 +133,28 @@ class OptionsMenu extends ConsumerWidget {
               },
             ),
 
-            // Remove from Playlist / Add to Playlist
+            // Add to Playlist — always visible so users can add the song
+            // to any other playlist regardless of context.
+            ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+              leading: const Icon(Icons.playlist_add_rounded,
+                  color: AppTheme.textPrimary, size: 24),
+              title: const Text('Add to Playlist',
+                  style: TextStyle(
+                      color: AppTheme.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500)),
+              onTap: () {
+                Navigator.pop(context);
+                showDialog(
+                  context: context,
+                  builder: (context) => AddToPlaylistDialog(song: song),
+                );
+              },
+            ),
+
+            // Remove from Playlist — only visible when inside a playlist.
             if (playlistId != null)
               ListTile(
                 contentPadding:
@@ -137,28 +166,9 @@ class OptionsMenu extends ConsumerWidget {
                         color: Colors.redAccent,
                         fontSize: 15,
                         fontWeight: FontWeight.w500)),
-                onTap: () async {
-                  Navigator.pop(context);
-                  // Caller should handle the actual removal with playlistId
-                },
-              )
-            else
-              ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                leading: const Icon(Icons.playlist_add_rounded,
-                    color: AppTheme.textPrimary, size: 24),
-                title: const Text('Add to Playlist',
-                    style: TextStyle(
-                        color: AppTheme.textPrimary,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500)),
                 onTap: () {
                   Navigator.pop(context);
-                  showDialog(
-                    context: context,
-                    builder: (context) => AddToPlaylistDialog(song: song),
-                  );
+                  onRemoveFromPlaylist?.call();
                 },
               ),
 

@@ -225,6 +225,21 @@ class AudioHandler {
     }
   }
 
+  /// Batch-adds all [songs] to the end of the queue in a single
+  /// ConcatenatingAudioSource.addAll() call. This is critical for autoplay:
+  /// sequential addToQueue() calls leave a gap where the player can stop
+  /// between the last song ending and the first new song being appended.
+  Future<void> addAllToQueue(List<Song> songs) async {
+    if (songs.isEmpty) return;
+    _currentQueue.addAll(songs);
+    _unshuffledQueue.addAll(songs);
+    if (_playlist != null) {
+      await _playlist!.addAll(songs.map(_toSource).toList());
+    } else {
+      await _rebuildSource(_currentQueue.length - songs.length);
+    }
+  }
+
   Future<void> removeFromQueue(int index) async {
     if (index < 0 || index >= _currentQueue.length) return;
     final song = _currentQueue.removeAt(index);

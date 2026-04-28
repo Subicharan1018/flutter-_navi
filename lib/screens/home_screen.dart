@@ -158,11 +158,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           items: items,
                           onTap: (pl) async {
                             final svc = ref.read(subsonicServiceProvider);
-                            final songs =
-                                await svc.getPlaylistSongs(pl.id);
-                            ref
-                                .read(playerProvider.notifier)
-                                .setQueue(songs, 0);
+                            try {
+                              final songs =
+                                  await svc.getPlaylistSongs(pl.id);
+                              if (context.mounted) {
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .setQueue(songs, 0);
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: Text(
+                                          'Could not play "${pl.name}": $e')),
+                                );
+                              }
+                            }
                           },
                         );
                       },
@@ -184,10 +196,22 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           albums: albums,
                           onTap: (a) async {
                             final svc = ref.read(subsonicServiceProvider);
-                            final songs = await svc.getAlbum(a.id);
-                            ref
-                                .read(playerProvider.notifier)
-                                .setQueue(songs, 0);
+                            try {
+                              final songs = await svc.getAlbum(a.id);
+                              if (context.mounted) {
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .setQueue(songs, 0);
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: Text(
+                                          'Could not play "${a.name}": $e')),
+                                );
+                              }
+                            }
                           }),
                       loading: () => const _ShimmerReel(),
                       error: (_, __) => const SizedBox(),
@@ -263,11 +287,23 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           onTap: () async {
                             final svc =
                                 ref.read(subsonicServiceProvider);
-                            final songs = await svc
-                                .getPlaylistSongs(playlists[i].id);
-                            ref
-                                .read(playerProvider.notifier)
-                                .setQueue(songs, 0);
+                            try {
+                              final songs = await svc
+                                  .getPlaylistSongs(playlists[i].id);
+                              if (context.mounted) {
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .setQueue(songs, 0);
+                              }
+                            } catch (e) {
+                              if (context.mounted) {
+                                ScaffoldMessenger.of(context).showSnackBar(
+                                  SnackBar(
+                                      content: Text(
+                                          'Could not play "${playlists[i].name}": $e')),
+                                );
+                              }
+                            }
                           },
                         ),
                         childCount: playlists.length,

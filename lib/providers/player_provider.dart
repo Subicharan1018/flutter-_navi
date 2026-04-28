@@ -670,9 +670,26 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       final similar = await _subsonicService.getSimilarSongs(lastSong.id);
       if (similar.isNotEmpty) {
-        debugPrint('♾️ [AUTOPLAY] Found ${similar.length} similar songs. Appending to queue.');
-        for (final song in similar) {
-          await addToQueue(song);
+        debugPrint('♾️ [AUTOPLAY] Appending ${similar.length} songs in one batch.');
+
+        // Update Riverpod state first so the queue length is correct before
+        // the audio source grows (prevents a brief "no next track" state).
+        final newQueue = [...state.queue, ...similar];
+        state = state.copyWith(queue: newQueue);
+
+        // Single batch call — avoids the timing gap where the player stops
+        // because the last song ended before the next one was appended.
+        await _audioHandler.addAllToQueue(similar);
+
+        // If the player reached the end and stopped while we were fetching,
+        // resume from the first newly appended song.
+        if (!player.playing && state.currentIndex >= state.queue.length - similar.length - 1) {
+          final nextIndex = state.currentIndex + 1;
+          if (nextIndex < state.queue.length) {
+            await player.seek(Duration.zero, index: nextIndex);
+            await player.play();
+            state = state.copyWith(currentIndex: nextIndex);
+          }
         }
       }
     } catch (e) {
