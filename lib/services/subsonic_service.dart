@@ -1,11 +1,14 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:io' as dart_io;
+import 'dart:async' as dart_async;
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../core/constants.dart';
+import '../core/app_exception.dart';
 import '../models/song.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
@@ -152,23 +155,47 @@ class SubsonicService {
 
   Future<dynamic> _get(String endpoint, [Map<String, String>? params]) async {
     final url = _buildUrl(endpoint, params);
-    final response = await _client.get(Uri.parse(url));
-    if (response.statusCode == 200) {
+    try {
+      final response = await _client
+          .get(Uri.parse(url))
+          .timeout(const Duration(seconds: 20));
+
+      if (response.statusCode == 401) throw const AuthException();
+      if (response.statusCode != 200) {
+        throw ServerException(response.statusCode);
+      }
+
       // BUG-29: parse JSON on a background isolate — response.body can be
       // 2–5 MB for large song libraries; doing this on the main thread
       // causes visible freezes of 300–800 ms.
-      final jsonResponse =
-          await compute(_decodeJsonBody, response.body);
+      final jsonResponse = await compute(_decodeJsonBody, response.body);
       final subsonicResponse =
           jsonResponse['subsonic-response'] as Map<String, dynamic>;
+
       if (subsonicResponse['status'] == 'ok') {
         return subsonicResponse;
       } else {
         final error = subsonicResponse['error'] as Map<String, dynamic>?;
-        throw Exception(error?['message'] ?? 'Subsonic API Error');
+        final code = error?['code'] as int? ?? 0;
+        final msg  = error?['message'] as String? ?? 'Subsonic API error';
+        // Subsonic error codes 40 (wrong creds) / 41 (token not supported)
+        if (code == 40 || code == 41) throw const AuthException();
+        throw SubsonicApiException(code, msg);
       }
-    } else {
-      throw Exception('HTTP Error: ${response.statusCode}');
+    } on AuthException {
+      rethrow;
+    } on ServerException {
+      rethrow;
+    } on SubsonicApiException {
+      rethrow;
+    } on dart_io.SocketException catch (e) {
+      throw NetworkException('No internet connection: ${e.message}');
+    } on dart_async.TimeoutException {
+      throw const TimeoutException();
+    } catch (e) {
+      // Wrap any other unexpected error so callers don't need to handle
+      // raw platform exceptions.
+      throw NetworkException(e.toString());
     }
   }
 

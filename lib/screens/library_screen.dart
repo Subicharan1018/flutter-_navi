@@ -13,13 +13,32 @@ import 'playlist_details_screen.dart';
 import 'edit_playlist_screen.dart';
 import 'search_screen.dart';
 
-class LibraryScreen extends ConsumerWidget {
+class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<LibraryScreen> createState() => _LibraryScreenState();
+}
+
+class _LibraryScreenState extends ConsumerState<LibraryScreen> {
+  // PERF-5: Track whether the initial fade-in animation has already played.
+  // Without this guard, every filter tap (and every Riverpod rebuild) calls
+  // .animate().fadeIn() on every item, re-creating an AnimationController for
+  // each of the 5,000 songs in the list.
+  bool _listAnimated = false;
+  LibraryFilter? _lastFilter;
+
+  @override
+  Widget build(BuildContext context) {
     final filter = ref.watch(libraryFilterProvider);
     final filteredContentAsync = ref.watch(filteredLibraryProvider);
+
+    // Reset animation guard whenever the active filter changes so the newly
+    // displayed items get their entrance animation exactly once.
+    if (_lastFilter != filter) {
+      _lastFilter = filter;
+      _listAnimated = false;
+    }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
@@ -135,13 +154,24 @@ class LibraryScreen extends ConsumerWidget {
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
                       (context, index) {
-                        final item = items[index];
-                        return _buildLibraryItem(context, ref, filter, item)
-                            .animate()
-                            .fadeIn(
-                              duration: 400.ms,
-                              delay: (index * 20).clamp(0, 300).ms,
-                            );
+                        Widget tile =
+                            _buildLibraryItem(context, filter, items[index]);
+
+                        // PERF-5: Only animate on the first render of each
+                        // filter view. Subsequent scrolls/rebuilds skip this
+                        // branch entirely, keeping animation controller count at 0.
+                        if (!_listAnimated) {
+                          tile = tile.animate().fadeIn(
+                                duration: 400.ms,
+                                delay: (index * 20).clamp(0, 300).ms,
+                              );
+                          if (index == items.length - 1) {
+                            WidgetsBinding.instance.addPostFrameCallback((_) {
+                              if (mounted) setState(() => _listAnimated = true);
+                            });
+                          }
+                        }
+                        return tile;
                       },
                       childCount: items.length,
                     ),
@@ -168,7 +198,7 @@ class LibraryScreen extends ConsumerWidget {
   }
 
   Widget _buildLibraryItem(
-      BuildContext context, WidgetRef ref, LibraryFilter filter, dynamic item) {
+      BuildContext context, LibraryFilter filter, dynamic item) {
     switch (filter) {
       case LibraryFilter.allSongs:
         return SongTile(
@@ -205,15 +235,10 @@ class LibraryScreen extends ConsumerWidget {
             MaterialPageRoute(
                 builder: (_) => PlaylistDetailsScreen(playlist: item)),
           ),
-          onLongPress: () => _showPlaylistOptions(context, ref, item),
+          onLongPress: () => _showPlaylistOptions(context, item),
         );
 
       case LibraryFilter.albums:
-        // ---------------------------------------------------------------------------
-        // FIX — stable cacheKey on the inline album art in the list tile.
-        // ref.read is correct here because we only need the URL once; this builder
-        // is not a widget build() and doesn't watch anything.
-        // ---------------------------------------------------------------------------
         final service = ref.read(subsonicServiceProvider);
         final String coverUrl = service.getCoverArtUrl(item.coverArt);
         final String coverCacheKey = 'cover_${item.coverArt ?? item.id}';
@@ -232,7 +257,7 @@ class LibraryScreen extends ConsumerWidget {
               borderRadius: BorderRadius.circular(6),
               child: CachedNetworkImage(
                 imageUrl: coverUrl,
-                cacheKey: coverCacheKey, // ← stable cache key
+                cacheKey: coverCacheKey,
                 fit: BoxFit.cover,
                 errorWidget: (_, __, ___) => const Icon(Icons.album_rounded,
                     color: AppTheme.textMuted),
@@ -248,8 +273,18 @@ class LibraryScreen extends ConsumerWidget {
               style: const TextStyle(
                   color: AppTheme.textSecondary, fontSize: 12)),
           onTap: () async {
-            final songs = await service.getAlbum(item.id);
-            ref.read(playerProvider.notifier).setQueue(songs, 0);
+            try {
+              final songs = await service.getAlbum(item.id);
+              if (context.mounted) {
+                ref.read(playerProvider.notifier).setQueue(songs, 0);
+              }
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not play album: $e')),
+                );
+              }
+            }
           },
         );
 
@@ -258,8 +293,7 @@ class LibraryScreen extends ConsumerWidget {
     }
   }
 
-  void _showPlaylistOptions(
-      BuildContext context, WidgetRef ref, dynamic playlist) {
+  void _showPlaylistOptions(BuildContext context, dynamic playlist) {
     showModalBottomSheet(
       context: context,
       backgroundColor: AppTheme.surfaceLevel,
@@ -301,7 +335,7 @@ class LibraryScreen extends ConsumerWidget {
                   style: TextStyle(color: Colors.redAccent)),
               onTap: () {
                 Navigator.pop(context);
-                _confirmDelete(context, ref, playlist);
+                _confirmDelete(context, playlist);
               },
             ),
             const SizedBox(height: 12),
@@ -311,8 +345,7 @@ class LibraryScreen extends ConsumerWidget {
     );
   }
 
-  void _confirmDelete(
-      BuildContext context, WidgetRef ref, dynamic playlist) {
+  void _confirmDelete(BuildContext context, dynamic playlist) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
