@@ -592,29 +592,38 @@ class SubsonicService {
     final webdavUser = webdavUsername ?? 'casaos';
     final webdavPass = webdavPassword ?? 'casaos';
     final auth = base64Encode(utf8.encode('$webdavUser:$webdavPass'));
-    final bytes = await file.readAsBytes();
+
+    // OPT-2: Stream the file instead of loading it all into RAM.
+    // readAsBytes() on a 100 MB FLAC → 100 MB Dart heap allocation.
+    // StreamedRequest + openRead() pipes ~64 KB chunks from disk; heap
+    // usage stays near-zero regardless of file size.
+    final fileLength = await file.length();
 
     debugPrint('Upload(WebDAV): PUT $uploadUrl');
     debugPrint('Upload(WebDAV): Using username: $webdavUser');
-    debugPrint('Upload(WebDAV): File size: ${bytes.length} bytes');
+    debugPrint('Upload(WebDAV): File size: $fileLength bytes');
 
-    final response = await _client.put(
-      uri,
-      headers: {
+    final request = http.StreamedRequest('PUT', uri)
+      ..headers.addAll({
         'Authorization': 'Basic $auth',
         'Content-Type': 'application/octet-stream',
-      },
-      body: bytes,
-    );
+        'Content-Length': fileLength.toString(),
+      });
 
-    debugPrint('Upload(WebDAV): Response status: ${response.statusCode}');
+    // Pipe file stream to the request sink without buffering the whole file.
+    file.openRead().pipe(request.sink);
 
-    if (response.statusCode != 200 &&
-        response.statusCode != 201 &&
-        response.statusCode != 204) {
-      debugPrint('Upload(WebDAV): Response body: ${response.body}');
+    final streamedResponse = await _client.send(request);
+
+    debugPrint('Upload(WebDAV): Response status: ${streamedResponse.statusCode}');
+
+    if (streamedResponse.statusCode != 200 &&
+        streamedResponse.statusCode != 201 &&
+        streamedResponse.statusCode != 204) {
+      final body = await streamedResponse.stream.bytesToString();
+      debugPrint('Upload(WebDAV): Response body: $body');
       throw Exception(
-          'WebDAV upload failed (${response.statusCode}): ${response.body}');
+          'WebDAV upload failed (${streamedResponse.statusCode}): $body');
     }
   }
 
