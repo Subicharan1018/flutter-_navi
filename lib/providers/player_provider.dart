@@ -189,18 +189,30 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       // ── Analytics: close the previous event and open a new one ─────────────
       final settings = _ref.read(settingsProvider);
-      if (settings.dataCollectionEnabled && state.queue.isNotEmpty) {
+      if (!settings.dataCollectionEnabled) {
+        debugPrint('[Analytics] ⏭ Collection disabled — skipping event');
+      } else if (state.queue.isEmpty) {
+        debugPrint('[Analytics] ⚠ Queue empty — cannot record event');
+      } else {
         final Song? prevSong =
             prevIndex < state.queue.length ? state.queue[prevIndex] : null;
         final Song? newSong =
             index < state.queue.length ? state.queue[index] : null;
 
-        if (newSong != null) {
+        if (newSong == null) {
+          debugPrint('[Analytics] ⚠ newSong is null at index=$index '
+              '(queue.length=${state.queue.length})');
+        } else {
           // Consume and reset context so auto-advance defaults to 'autoplay'.
           final sourceCtx = _nextSourceContext;
           final transCtx = _nextTransitionType;
           _nextSourceContext = 'autoplay';
           _nextTransitionType = 'autoplay';
+
+          debugPrint('[Analytics] 📡 Firing onSongStarted: '
+              '"${newSong.title}" source=$sourceCtx trans=$transCtx '
+              'prev=${prevSong?.title ?? "none"} '
+              'posAtSwitch=${_lastKnownPosition.inSeconds}s');
 
           _collector.onSongStarted(
             song: newSong,

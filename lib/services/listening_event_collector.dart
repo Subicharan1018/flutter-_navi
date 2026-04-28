@@ -63,26 +63,39 @@ class ListeningEventCollector {
   }) {
     // Close any open event for the previous song first.
     if (_openEvent != null && prevSong != null) {
+      debugPrint('[Analytics] ⏹ Song ending: "${prevSong.title}" '
+          'at ${positionAtSwitch.inSeconds}s');
       _closeEvent(prevSong, positionAtSwitch);
     }
 
-    // ── Session management ──────────────────────────────────────────────────
+    // ── Session management ─────────────────────────────────────────────────────
     final now = DateTime.now();
-    if (now.difference(_lastPlayTime) > _kSessionTimeout) {
+    final gap = now.difference(_lastPlayTime);
+    if (gap > _kSessionTimeout) {
       _sessionId = _generateUuid();
+      debugPrint('[Analytics] 🔑 New session started '
+          '(gap ${gap.inMinutes}min > 30min) → $_sessionId');
+    } else {
+      debugPrint('[Analytics] 🔗 Continuing session $_sessionId '
+          '(gap ${gap.inSeconds}s)');
     }
     _lastPlayTime = now;
 
-    // ── Open new event ──────────────────────────────────────────────────────
+    // ── Open new event ────────────────────────────────────────────────────────
     _openEvent = PlayEvent.open(
       playId: _generateUuid(),
       songId: song.id,
       sessionId: _sessionId,
       sourceContext: sourceContext,
     );
+    debugPrint('[Analytics] ▶ Opened play_event for "${song.title}" '
+        '(id=${song.id}) source=$sourceContext '
+        'hour=${_openEvent!.hourOfDay} dow=${_openEvent!.dayOfWeek}');
 
-    // ── Pair recording ──────────────────────────────────────────────────────
+    // ── Pair recording ──────────────────────────────────────────────────────────
     if (prevSong != null) {
+      debugPrint('[Analytics] 🔀 Pair: "${prevSong.title}" → "${song.title}" '
+          'type=$transitionType');
       _recordPair(
         prevSongId: prevSong.id,
         currentSongId: song.id,
@@ -99,7 +112,13 @@ class ListeningEventCollector {
   /// [song]          — the song that was playing.
   /// [playedDuration] — how far through the track playback reached.
   void onSongEnded(Song song, Duration playedDuration) {
-    if (_openEvent == null || _openEvent!.songId != song.id) return;
+    if (_openEvent == null || _openEvent!.songId != song.id) {
+      debugPrint('[Analytics] ⚠ onSongEnded called but no matching open event '
+          '(song=${song.id}, open=${_openEvent?.songId})');
+      return;
+    }
+    debugPrint('[Analytics] ⏹ onSongEnded: "${song.title}" '
+        'at ${playedDuration.inSeconds}s');
     _closeEvent(song, playedDuration);
   }
 
@@ -151,6 +170,7 @@ class ListeningEventCollector {
   /// Writes CSV files to the device's external storage Downloads folder.
   /// Returns the list of paths written.
   Future<List<String>> exportCsvToDownloads() async {
+    debugPrint('[Analytics] 📤 Starting CSV export...');
     final csvMap = await exportCsv();
     final paths = <String>[];
 
@@ -169,9 +189,12 @@ class ListeningEventCollector {
     for (final entry in csvMap.entries) {
       final path = p.join(baseDir, 'navivibe_${entry.key}_$timestamp.csv');
       await File(path).writeAsString(entry.value);
+      debugPrint('[Analytics] 📄 Exported ${entry.key}: $path '
+          '(${entry.value.split("\n").length - 1} rows)');
       paths.add(path);
     }
 
+    debugPrint('[Analytics] ✅ Export complete: ${paths.length} files');
     return paths;
   }
 
@@ -189,6 +212,9 @@ class ListeningEventCollector {
     if (event == null) return;
     event.close(playedDuration, song.duration);
     _openEvent = null;
+    debugPrint('[Analytics] 💾 Closing play_event: "${song.title}" '
+        'played=${event.playDurationSec}s / ${song.duration}s '
+        'skipped=${event.skipBeforeEnd}');
     _writeEvent(event); // fire-and-forget
   }
 
@@ -197,8 +223,12 @@ class ListeningEventCollector {
       'play_events',
       event.toMap(),
       conflictAlgorithm: ConflictAlgorithm.replace,
-    )).catchError((e) {
-      debugPrint('[Collector] writeEvent error: $e');
+    )).then((rowId) {
+      debugPrint('[Analytics] ✅ play_event written '
+          '(rowId=$rowId song=${event.songId} '
+          'dur=${event.playDurationSec}s skip=${event.skipBeforeEnd})');
+    }).catchError((e) {
+      debugPrint('[Analytics] ❌ writeEvent error: $e');
     });
   }
 
@@ -221,8 +251,12 @@ class ListeningEventCollector {
       },
       // Always update metadata so rating/starred/playCount stay current.
       conflictAlgorithm: ConflictAlgorithm.replace,
-    )).catchError((e) {
-      debugPrint('[Collector] upsertSongMetadata error: $e');
+    )).then((_) {
+      debugPrint('[Analytics] ✅ song_metadata upserted: "${song.title}" '
+          '(genre=${song.genre.isEmpty ? "none" : song.genre} '
+          'rating=${song.rating} starred=${song.starred})');
+    }).catchError((e) {
+      debugPrint('[Analytics] ❌ upsertSongMetadata error: $e');
     });
   }
 
@@ -231,24 +265,24 @@ class ListeningEventCollector {
     required String currentSongId,
     required String transitionType,
   }) {
-    _open().then((db) async {
-      // INSERT … ON CONFLICT → increment play_count.
-      await db.rawInsert('''
-        INSERT INTO song_pairs (prev_song_id, current_song_id, transition_type,
-                                play_count, last_seen)
-        VALUES (?, ?, ?, 1, ?)
-        ON CONFLICT(prev_song_id, current_song_id, transition_type)
-        DO UPDATE SET
-          play_count = play_count + 1,
-          last_seen  = excluded.last_seen
-      ''', [
-        prevSongId,
-        currentSongId,
-        transitionType,
-        DateTime.now().millisecondsSinceEpoch,
-      ]);
+    _open().then((db) => db.rawInsert('''
+      INSERT INTO song_pairs (prev_song_id, current_song_id, transition_type,
+                              play_count, last_seen)
+      VALUES (?, ?, ?, 1, ?)
+      ON CONFLICT(prev_song_id, current_song_id, transition_type)
+      DO UPDATE SET
+        play_count = play_count + 1,
+        last_seen  = excluded.last_seen
+    ''', [
+      prevSongId,
+      currentSongId,
+      transitionType,
+      DateTime.now().millisecondsSinceEpoch,
+    ])).then((rowId) {
+      debugPrint('[Analytics] 🔗 song_pairs updated/inserted '
+          '(prev=$prevSongId → cur=$currentSongId type=$transitionType)');
     }).catchError((e) {
-      debugPrint('[Collector] recordPair error: $e');
+      debugPrint('[Analytics] ❌ recordPair error: $e');
     });
   }
 
@@ -259,11 +293,13 @@ class ListeningEventCollector {
   Future<Database> _open() async {
     if (_db != null) return _db!;
     final dbPath = p.join(await getDatabasesPath(), _kDbName);
+    debugPrint('[Analytics] 📂 Opening analytics DB at: $dbPath');
     _db = await openDatabase(
       dbPath,
       version: _kVersion,
       onCreate: _onCreate,
     );
+    debugPrint('[Analytics] ✅ Analytics DB ready');
     return _db!;
   }
 
