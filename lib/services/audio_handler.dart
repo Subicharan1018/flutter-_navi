@@ -175,9 +175,15 @@ class AudioHandler {
 
   Future<void> _rebuildSource(int startIndex) async {
     if (_currentQueue.isEmpty) return;
+    // Save loop mode — setAudioSource resets it to LoopMode.off internally.
+    final savedLoopMode = player.loopMode;
     final sources = _currentQueue.map(_toSource).toList();
     _playlist = ConcatenatingAudioSource(children: sources);
     await player.setAudioSource(_playlist!, initialIndex: startIndex);
+    // Restore so Repeat survives every queue rebuild.
+    if (savedLoopMode != LoopMode.off) {
+      await player.setLoopMode(savedLoopMode);
+    }
   }
 
   /// Updates the Future part of the queue without interrupting the current song.

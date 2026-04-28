@@ -687,7 +687,8 @@ class _ExpandedHeader extends StatelessWidget {
         if (coverImageUrl.isNotEmpty)
           Positioned.fill(
             child: ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: 48, sigmaY: 48),
+              // PERF-4: reduced from σ48 to σ28 — decorative bg blur, imperceptible above σ20.
+              imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
               child: ColorFiltered(
                 colorFilter: ColorFilter.mode(
                     Colors.black.withOpacity(0.55), BlendMode.darken),

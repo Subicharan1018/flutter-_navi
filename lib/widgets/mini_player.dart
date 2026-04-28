@@ -146,11 +146,15 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final song     = playerState.queue[playerState.currentIndex];
     final imageUrl = service.getCoverArtUrl(song.coverArt);
 
-    // BUG FIX: Only trigger palette load if the image URL actually changed.
-    // Store _lastImageUrl BEFORE calling _loadPalette to avoid infinite loops.
+    // PERF-7: palette side-effect moved out of build() into addPostFrameCallback.
+    // Calling async work directly in build() can cascade rebuilds if setState fires
+    // before the current frame finishes. Deferring past the frame boundary is the
+    // same pattern used in NowPlayingScreen. _loadPalette owns its own guard
+    // (if (_lastImageUrl == imageUrl) return), so no assignment is needed here.
     if (imageUrl != _lastImageUrl) {
-      _lastImageUrl = imageUrl;
-      _loadPalette(imageUrl);
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _loadPalette(imageUrl);
+      });
     }
 
     final themeColor = _artworkColor ?? const Color(0xFF1DB954);

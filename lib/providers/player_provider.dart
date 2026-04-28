@@ -123,6 +123,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // _scrobbledIds so the same song can be scrobbled again in a new playthrough.
   String? _lastScrobbleSongId;
 
+  // Tracks the last playback position emitted by positionStream.
+  // currentIndexStream uses this to enforce the 2-second history gate:
+  // a song is only pushed onto history if it was audibly played for at
+  // least 2 seconds. Quick skips (< 2 s) are excluded from history.
+  Duration _lastKnownPosition = Duration.zero;
+
   // ---------------------------------------------------------------------------
   // BUG-13 FIX — isShuffling guard
   //
@@ -143,30 +149,47 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     // ---------------------------------------------------------------------------
     // History tracking
     //
-    // When currentIndex advances (song change detected via currentIndexStream)
-    // we push the *previous* song onto history before updating currentIndex in
-    // state.  We intentionally do NOT push when the user manually seeks
-    // backwards via playPrev() — that method handles its own history pop.
+    // When currentIndex advances we push the *previous* song onto history.
+    // We intentionally do NOT push when the user manually seeks backwards
+    // via playPrev() — that method handles its own history pop.
+    //
+    // 2-second rule: _lastKnownPosition (updated by positionStream) must be
+    // ≥ 2 s at the moment the index changes, otherwise the song was skipped
+    // too quickly to count as "played" and is excluded from history.
+    //
+    // Shuffle guard: while _isShuffling is true, just_audio emits spurious
+    // currentIndexStream events as the ConcatenatingAudioSource is rebuilt.
+    // We ignore those entirely; applyShuffleAlgorithm syncs state afterwards.
     // ---------------------------------------------------------------------------
     int _lastKnownIndex = 0;
 
     _subscriptions.add(player.currentIndexStream.listen((index) {
       if (index == null) return;
 
+      // ── Shuffle guard ──────────────────────────────────────────────────────
+      // Ignore all events fired during the audio-source rebuild that happens
+      // inside shuffle algorithms. applyShuffleAlgorithm() will sync state
+      // with the real currentIndex once the rebuild is done.
+      if (_isShuffling) {
+        _lastKnownIndex = index;
+        return;
+      }
+
       final prevIndex = _lastKnownIndex;
       _lastKnownIndex = index;
 
-      // Detect a *forward* track change (autoadvance or seekToNext).
-      // We recognise it by the index moving forward by exactly 1 step.
-      // Manual jumps (jumpTo / playNext for non-contiguous) are handled
-      // separately in those methods and do their own history push, so we
-      // skip double-pushing here by checking _suppressNextHistoryPush.
+      // ── History push (2-second gate) ───────────────────────────────────────
+      // _lastKnownPosition holds the position of the *previous* song at the
+      // instant positionStream last fired — i.e. just before the track changed.
+      // Only songs audibly played for ≥ 2 s are added to history.
       if (!_suppressNextHistoryPush &&
           index > prevIndex &&
-          prevIndex < state.queue.length) {
+          prevIndex < state.queue.length &&
+          _lastKnownPosition.inSeconds >= 2) {
         _pushToHistory(state.queue[prevIndex]);
       }
       _suppressNextHistoryPush = false;
+      _lastKnownPosition = Duration.zero; // reset for the incoming song
 
       state = state.copyWith(currentIndex: index);
 
@@ -201,6 +224,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }));
 
     _subscriptions.add(player.positionStream.listen((position) {
+      // Always track position so currentIndexStream can apply the 2-second
+      // history gate when the track changes.
+      _lastKnownPosition = position;
+
       if (state.queue.isEmpty || state.currentIndex >= state.queue.length) {
         return;
       }
@@ -556,10 +583,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           break;
       }
       // Sync state with the newly reordered queue AFTER the rebuild is complete.
-      // currentIndex is always 0 after a shuffle (current song moves to front).
+      //
+      // Use the audio player's ACTUAL current index, not a hardcoded 0.
+      // The shuffle algorithms keep every song up to and including the
+      // currently-playing song in place; only future songs are reshuffled.
+      // So player.currentIndex never changes during a shuffle — reading it
+      // here gives the correct position of the song that is still playing.
+      // Hardcoding 0 was the root cause of the race condition where the UI
+      // jumped back to song 1 and the queue appeared to play in order.
+      final realIndex = _audioHandler.player.currentIndex ?? state.currentIndex;
       state = state.copyWith(
         queue: _audioHandler.currentQueue,
-        currentIndex: 0,
+        currentIndex: realIndex,
       );
     } finally {
       _isShuffling = false;

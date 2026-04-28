@@ -73,7 +73,8 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   child: ClipRRect(
                     borderRadius: BorderRadius.circular(12),
                     child: BackdropFilter(
-                      filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+                      // PERF-4: reduced from σ16 to σ10 — saves one GPU pass, still frosted.
+                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
