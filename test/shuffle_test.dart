@@ -1,8 +1,12 @@
+import 'dart:async';
+
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navivibe/services/audio_handler.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/providers/settings_provider.dart';
+import 'package:navivibe/providers/player_provider.dart';
 import 'package:just_audio/just_audio.dart';
 
 class TestAudioHandler extends AudioHandler {
@@ -11,9 +15,56 @@ class TestAudioHandler extends AudioHandler {
   bool updateSourceCalled = false;
 
   @override
+  Future<void> setQueue(List<Song> songs, int startIndex, {List<Song>? unshuffledSongs}) async {
+    currentQueue = List<Song>.from(songs);
+  }
+
+  @override
   Future<void> _updatePlayerSource(int startIndex) async {
     updateSourceCalled = true;
   }
+}
+
+class ControlledAudioPlayer extends Fake implements AudioPlayer {
+  final StreamController<int?> _currentIndexController =
+      StreamController<int?>.broadcast(sync: true);
+  final StreamController<bool> _playingController =
+      StreamController<bool>.broadcast(sync: true);
+  final StreamController<LoopMode> _loopModeController =
+      StreamController<LoopMode>.broadcast(sync: true);
+  final StreamController<Duration> _positionController =
+      StreamController<Duration>.broadcast(sync: true);
+
+  int? _currentIndex = 0;
+
+  @override
+  Stream<int?> get currentIndexStream => _currentIndexController.stream;
+
+  @override
+  Stream<bool> get playingStream => _playingController.stream;
+
+  @override
+  Stream<LoopMode> get loopModeStream => _loopModeController.stream;
+
+  @override
+  Stream<Duration> get positionStream => _positionController.stream;
+
+  @override
+  int? get currentIndex => _currentIndex;
+
+  Future<void> emitCurrentIndex(int? index) async {
+    _currentIndex = index;
+    _currentIndexController.add(index);
+  }
+
+  @override
+  Future<void> play() async {}
+
+  @override
+  Future<void> stop() async {}
+
+  @override
+  Future<void> dispose() async {}
 }
 
 class MockSubsonicService extends SubsonicService {
@@ -92,5 +143,31 @@ void main() {
     };
     final song = Song.fromJson(json);
     expect(song.composer, 'Beethoven');
+  });
+
+  test('history does not duplicate the same song on repeated index events', () async {
+    final mockService = MockSubsonicService();
+    final mockPlayer = ControlledAudioPlayer();
+    final handler = TestAudioHandler(mockService, player: mockPlayer);
+
+    final container = ProviderContainer(
+      overrides: [
+        audioHandlerProvider.overrideWithValue(handler),
+        subsonicServiceProvider.overrideWithValue(mockService),
+      ],
+    );
+    addTearDown(container.dispose);
+
+    final notifier = container.read(playerProvider.notifier);
+    final songs = [
+      Song(id: '1', title: 'First', artist: 'Artist 1', album: 'A', composer: 'C', genre: 'G', coverArt: '', duration: 120, track: 1, year: 2024),
+      Song(id: '2', title: 'Second', artist: 'Artist 2', album: 'A', composer: 'C', genre: 'G', coverArt: '', duration: 120, track: 2, year: 2024),
+    ];
+
+    await notifier.setQueue(songs, 0);
+    await mockPlayer.emitCurrentIndex(1);
+    await mockPlayer.emitCurrentIndex(1);
+
+    expect(container.read(playerProvider).historySongs.map((song) => song.id), ['1']);
   });
 }

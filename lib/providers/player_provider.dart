@@ -226,6 +226,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   /// Push [song] onto history, capping at [PlayerState.maxHistoryLength].
   void _pushToHistory(Song song) {
+    if (state.history.isNotEmpty && state.history.last.id == song.id) {
+      return;
+    }
     final updated = [...state.history, song];
     if (updated.length > PlayerState.maxHistoryLength) {
       updated.removeRange(0, updated.length - PlayerState.maxHistoryLength);

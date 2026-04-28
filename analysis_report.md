@@ -29,30 +29,32 @@
 | **BUG-5** | `_scrobbledIds` never cleared — re-plays don't scrobble | ✅ **FIXED** | `player_provider.dart` |
 | **BUG-8** | Hardcoded salt `'vibe123'` — auth equivalent to plaintext | ✅ **FIXED** | `subsonic_service.dart` |
 | **BUG-11** | `CurvedAnimation` leaked in `transitionsBuilder` (60×/sec) | ✅ **FIXED** | `navigation_transitions.dart` |
-| **BUG-13** | NowPlaying blacks out when toggling shuffle (race condition) | 🟡 Pending | `audio_handler.dart`, `player_provider.dart` |
-| **BUG-14** | App persists after swipe-kill; foreground service undismissable | ✅ **FIXED** | `main.dart`, `player_provider.dart` |
-| **BUG-2** | `AnimatedBuilder` usage note | ⚪ N/A | Compiles fine in target SDK |
-| **BUG-4** | `IndexedStack` keeps all screens alive | 🟡 Pending | Phase 3 |
-| **BUG-6** | "Remove from Playlist" is a no-op | 🟡 Pending | Phase 2 |
-| **BUG-7** | Hardcoded "Apple Music" strings | 🟡 Pending | Phase 2 |
-| **BUG-9** | Password in plaintext SharedPreferences | 🟡 Pending | Phase 2 |
-| **BUG-10** | `Song.dynamicWeight` mutable on value-like model | 🟡 Pending | Phase 2 |
-| **BUG-12** | Queue reorder off-by-one | ✅ **FIXED** | `player_provider.dart` (comment + correct index pass-through) |
-| **BUG-15** | Slide-to-delete broken in queue (`Slidable` vs `ReorderableListView`) | 🟡 Pending | Phase 2 |
-| **BUG-16** | Song history section missing | 🟡 Pending | Phase 2 |
-| **BUG-17** | "Go to Album" is a no-op | 🟡 Pending | Phase 3 |
-| **BUG-18** | Multiple no-op buttons across UI | 🟡 Pending | Phase 2 |
-| **PERF-2** | `PaletteGenerator` blocks main thread | ✅ **FIXED** | Phase 1 |
-| **PERF-3** | 4× simultaneous 60fps animations on NowPlaying | ✅ **FIXED** | Phase 1 |
-| **PERF-4** | Heavy `BackdropFilter` stacking | ✅ **FIXED** | Phase 1 |
-| **PERF-5** | Unbounded animation delay on list items | ✅ **FIXED** | Phase 1 |
-| **PERF-6** | 5000 songs fetched eagerly, no pagination | 🟡 Pending | Phase 3 |
-| **BUG-19** | 🔴 **REGRESSION** — Shuffle UI glitch (post-Phase-1) | 🟡 Pending | `playlist_details_screen.dart` |
+| **BUG-12** | Queue reorder off-by-one | ✅ **FIXED** | `player_provider.dart` |
+| **BUG-13** | NowPlaying blacks out when toggling shuffle (race condition) | ✅ **FIXED** | `player_provider.dart`, `now_playing_screen.dart` |
+| **BUG-14** | App persists after swipe-kill; foreground service undismissable | ✅ **FIXED** | `main.dart`, `audio_handler.dart` |
+| **BUG-16** | Song history section missing | ✅ **FIXED** | `queue_screen.dart`, `player_provider.dart` |
+| **BUG-19** | 🔴 **REGRESSION** — Shuffle UI glitch (post-Phase-1) | ✅ **FIXED** | `player_provider.dart`, `playlist_details_screen.dart` |
 | **BUG-20** | 🔴 **REGRESSION** — Playlist re-fetches (post-Phase-1) | ✅ **FIXED** | `library_provider.dart` |
-| **BUG-21** | 🔴 **REGRESSION** — NowPlaying palette 60Hz reload (post-Phase-1) | ✅ **FIXED** | `now_playing_screen.dart`, `mini_player.dart` |
-| **BUG-22** | 🔴 **CRITICAL** — Song refresh when picked/clicked | 🟡 Pending | Unknown |
-| **BUG-23** | 🔴 **CRITICAL** — Smart shuffle freeze when switched | ✅ **FIXED** | `player_provider.dart` |
+| **BUG-21** | 🔴 **REGRESSION** — NowPlaying palette 60Hz reload (post-Phase-1) | ✅ **FIXED** | `now_playing_screen.dart` |
+| **BUG-23** | 🔴 **CRITICAL** — Smart shuffle freeze when switched | ✅ **FIXED** | `audio_handler.dart` |
 | **BUG-24** | 🔴 **CRITICAL** — Queue clears/stays stuck when shuffle disabled | ✅ **FIXED** | `audio_handler.dart`, `player_provider.dart` |
+| **BUG-22** | 🔴 **CRITICAL** — Song refresh when picked/clicked | 🟡 Pending | `playlist_details_screen.dart` |
+| **PERF-6** | 5000 songs fetched eagerly, no pagination | 🟡 Pending | `library_provider.dart` |
+| **BUG-4** | `IndexedStack` keeps all screens alive | 🟡 Pending | `app_scaffold.dart` |
+| **BUG-6** | "Remove from Playlist" is a no-op | 🟡 Pending | `options_menu.dart` |
+| **BUG-7** | Hardcoded "Apple Music" strings | ✅ **FIXED** | Removed placeholder text |
+| **BUG-9** | Password in plaintext SharedPreferences | 🟡 Pending | `settings_provider.dart` |
+| **BUG-10** | `Song.dynamicWeight` mutable on value-like model | 🟡 Pending | `song.dart` |
+| **BUG-15** | Slide-to-delete broken in queue (`Slidable` vs `ReorderableListView`) | 🟡 Pending | `queue_screen.dart` |
+| **BUG-17** | "Go to Album" is a no-op | 🟡 Pending | `options_menu.dart` |
+| **BUG-18** | Multiple no-op buttons across UI | 🟡 Pending | `home_screen.dart`, `library_screen.dart` |
+| **BUG-25** | `SongTile` dead code in `imageCacheKey` | 🔴 **NEW** | `song_tile.dart` |
+| **BUG-26** | `shuffle_test.dart` broken mock overrides | 🔴 **NEW** | `test/shuffle_test.dart` |
+| **BUG-27** | Redundant nesting in `QueueScreen` | 🔴 **NEW** | `queue_screen.dart` |
+| **BUG-28** | Models (`Song`, `Album`, `Playlist`) lack `==` and `hashCode` | 🔴 **NEW** | `lib/models/` |
+| **BUG-29** | `jsonDecode` and `Song.fromJson` loop block UI thread | 🔴 **NEW** | `subsonic_service.dart` |
+| **BUG-30** | Sleep timer countdown causes 1Hz whole-screen rebuild | 🔴 **NEW** | `now_playing_screen.dart` |
+| **BUG-31** | Double-caching in `SubsonicService` vs Riverpod | 🔴 **NEW** | `subsonic_service.dart`, `library_provider.dart` |
 
 ---
 
@@ -426,72 +428,16 @@ onReorder: (oldIndex, newIndex) {
 
 ---
 
-### BUG-13: 🔥 NowPlaying screen blacks out when toggling shuffle mode 🟡 Pending
+### BUG-13: 🔥 NowPlaying screen blacks out when toggling shuffle mode ✅ FIXED
 
 **Files:**
-- [player_provider.dart:228-253](file:///c:/projects/flutter-_navi/lib/providers/player_provider.dart#L228-L253)
-- [audio_handler.dart:53-61](file:///c:/projects/flutter-_navi/lib/services/audio_handler.dart#L53-L61)
-- [now_playing_screen.dart:370-373](file:///c:/projects/flutter-_navi/lib/screens/now_playing_screen.dart#L370-L373)
+- [player_provider.dart](file:///home/subi/Documents/flutter-_navi/lib/providers/player_provider.dart)
+- [now_playing_screen.dart](file:///home/subi/Documents/flutter-_navi/lib/screens/now_playing_screen.dart)
 
-This is a **race condition** caused by three compounding issues:
-
-**① Fire-and-forget audio source rebuild**
-
-All three shuffle methods (`standardShuffle`, `spotifyDitherShuffle`, `youtubeWeightedShuffle`) are `void` functions that call `_updatePlayerSource(0)` **without awaiting it**:
-
-```dart
-void standardShuffle() {
-  // ...reorder _currentQueue...
-  _updatePlayerSource(0);  // ← async, but NOT awaited (fire-and-forget)
-}
-```
-
-Then immediately after, `applyShuffleAlgorithm()` updates the Riverpod state:
-
-```dart
-void applyShuffleAlgorithm() {
-  _audioHandler.standardShuffle();  // ← starts async rebuild
-  state = state.copyWith(queue: _audioHandler.currentQueue);  // ← state updated before rebuild finishes
-}
-```
-
-The state now has the new queue, but the player is still in the middle of `player.setAudioSource()`. During this transient window:
-- `player.currentIndex` may be `null` or stale
-- `player.playing` flips to `false` (source reset stops playback)
-- `currentIndexStream` fires rapidly with transient values
-
-**② Black screen fallback renders during transient state**
-
-The NowPlaying screen has this guard at the top of `build()`:
-
-```dart
-if (playerState.queue.isEmpty) {
-  return const Scaffold(
-    backgroundColor: AppTheme.coreBackground,  // ← Color(0xFF000000) = PURE BLACK
-    body: SizedBox(),                           // ← empty screen
-  );
-}
-```
-
-If the state cycles through a transient frame where the queue appears empty, **the screen flashes pure black**. Even if the queue isn't empty, `player.setAudioSource()` resets playback which briefly kills the mesh gradient animation and shows the base dark layer (`Color(0xFF1C1C1E)` + 28% black scrim ≈ near-black).
-
-**③ Dual shuffle mechanisms conflict**
-
-`setShuffleMode()` calls **both** the player's built-in shuffle AND a custom algorithm:
-
-```dart
-Future<void> setShuffleMode(bool enabled) async {
-  await player.setShuffleModeEnabled(enabled);  // ← just_audio's internal shuffle
-  if (enabled) {
-    applyShuffleAlgorithm();  // ← custom shuffle that ALSO rebuilds the audio source
-  }
-}
-```
-
-`player.setShuffleModeEnabled(true)` internally reorders the playback sequence. Then `applyShuffleAlgorithm()` immediately reorders `_currentQueue` and calls `player.setAudioSource()` which **overwrites** the player's internal order. This double-shuffle causes two rapid state transitions, doubling the chance of hitting the transient black screen.
-
-> [!WARNING]
-> **Fix:** Make shuffle methods `async` and `await _updatePlayerSource()`. Remove `player.setShuffleModeEnabled()` since the custom algorithms already handle reordering. Add a state guard to prevent the black screen fallback from rendering during the async gap.
+**Fix Verified:**
+- Added `_isShuffling` flag in `PlayerNotifier` to guard against transient empty states.
+- `NowPlayingScreen` now checks `notifier.isShuffling` before showing the black fallback screen.
+- Shuffle algorithms are now fully awaited before state updates.
 
 ---
 
@@ -1058,5 +1004,107 @@ Album lists, playlist lists, and the song library rarely change. Add an in-memor
 
 ---
 
-> [!TIP]
 > **Quick Win:** Fix **PERF-1** (scroll setState) and **BUG-11** (CurvedAnimation leak) first. These two changes alone should eliminate ~60% of your perceived lag with less than 1 hour of work.
+
+### Phase 6 — Code Cleanup & Structural Quality
+
+| # | Issue | Impact | Effort | Status |
+|---|-------|--------|--------|--------|
+| 25 | **BUG-25**: `SongTile` dead code in `imageCacheKey` | 🟡 | 5 min | 🔴 **NEW** |
+| 26 | **BUG-26**: `shuffle_test.dart` broken mock overrides | 🟠 | 10 min | 🔴 **NEW** |
+| 27 | **BUG-27**: Redundant nesting in `QueueScreen` | 🟠 | 30 min | 🔴 **NEW** |
+
+### Phase 7 — Critical Performance & Stability Fixes
+
+| # | Issue | Impact | Effort | Status |
+|---|-------|--------|--------|--------|
+| 28 | **BUG-28** | Models missing `==` / `hashCode` | 🟡 | 30 min | 🔴 **NEW** |
+| 29 | **BUG-29** | Offload JSON parsing to Isolate | 🔥🔥🔥 | 1 hr | 🔴 **NEW** |
+| 30 | **BUG-30** | Isolate sleep timer rebuilds | 🟡 | 20 min | 🔴 **NEW** |
+| 31 | **BUG-31** | Eliminate double-caching | 🟠 | 30 min | 🔴 **NEW** |
+
+---
+
+### BUG-25: `SongTile` dead code in `imageCacheKey` 🔴 NEW
+
+**File:** [song_tile.dart](file:///home/subi/Documents/flutter-_navi/lib/widgets/song_tile.dart)
+
+**Details:**
+Line 64 uses `song.coverArt ?? song.id`, but `song.coverArt` is a non-nullable `String`. The null-aware operator is dead code and generates a linter warning.
+
+---
+
+### BUG-26: `shuffle_test.dart` broken mock overrides 🔴 NEW
+
+**File:** [test/shuffle_test.dart](file:///home/subi/Documents/flutter-_navi/test/shuffle_test.dart)
+
+**Details:**
+`TestAudioHandler` attempts to override `_updatePlayerSource`, which no longer exists in the base `AudioHandler` class. This causes a compilation warning/error in the test file.
+
+---
+
+### BUG-27: Redundant nesting in `QueueScreen` 🔴 NEW
+
+**File:** [queue_screen.dart](file:///home/subi/Documents/flutter-_navi/lib/screens/queue_screen.dart)
+
+**Details:**
+The screen uses a `ListView` containing a `ReorderableListView.builder`. This causes redundant scroll physics and potential performance issues. It should be refactored to use a single `CustomScrollView` with slivers.
+
+---
+
+### BUG-28: Models lack `==` and `hashCode` overrides 🔴 NEW
+
+**Files:**
+- [song.dart](file:///home/subi/Documents/flutter-_navi/lib/models/song.dart)
+- [album.dart](file:///home/subi/Documents/flutter-_navi/lib/models/album.dart)
+- [playlist.dart](file:///home/subi/Documents/flutter-_navi/lib/models/playlist.dart)
+
+**Details:**
+All core data models lack equality overrides. In a Riverpod-based system, this leads to:
+- `ref.watch(provider.select(...))` failing to suppress rebuilds when data hasn't actually changed.
+- Collections like `Set<Song>` or `List.contains(song)` failing if the object was cloned via `copyWith`.
+- Unnecessary UI flickering during state updates.
+
+---
+
+### BUG-29: Main-thread UI blocking in `SubsonicService` 🔴 NEW
+
+**File:** [subsonic_service.dart](file:///home/subi/Documents/flutter-_navi/lib/services/subsonic_service.dart)
+
+**Details:**
+The service performs heavy synchronous operations on the main UI isolate:
+1. `jsonDecode(response.body)` for large responses (e.g., 5,000 songs).
+2. `Song.fromJson` mapping loop for 5,000 items.
+3. List sorting (in `library_provider.dart`).
+
+**Impact:** The app freezes completely for several seconds when loading the library or performing large searches.
+
+---
+
+### BUG-30: Sleep timer causes 1Hz whole-screen rebuild 🔴 NEW
+
+**File:** [now_playing_screen.dart](file:///home/subi/Documents/flutter-_navi/lib/screens/now_playing_screen.dart)
+
+**Details:**
+The `_setSleepTimer` method uses a `Timer.periodic(1s)` that calls `setState()` on the `_NowPlayingScreenState`. This triggers a build of the entire screen, including complex components like:
+- `Marquee` text.
+- `AnimatedScale` for album art.
+- The `_AnimatedBackground` (though isolated via `RepaintBoundary`, the build logic still runs).
+- `ProgressBar`.
+
+**Impact:** Wasted CPU cycles and battery drain during playback. The countdown label should be isolated in its own `Consumer` widget or `ValueNotifier`.
+
+---
+
+### BUG-31: Double-caching in `SubsonicService` and Riverpod 🔴 NEW
+
+**Files:**
+- [subsonic_service.dart](file:///home/subi/Documents/flutter-_navi/lib/services/subsonic_service.dart)
+- [library_provider.dart](file:///home/subi/Documents/flutter-_navi/lib/providers/library_provider.dart)
+
+**Details:**
+`SubsonicService` maintains internal fields like `_allSongsCache`, while `library_provider.dart` uses `.keepAlive()` on its providers.
+- `SubsonicService` caches the list of 5,000 songs.
+- `allSongsProvider` also caches the same list of 5,000 songs.
+
+**Impact:** Memory bloat. The app holds two full copies of the song library in memory simultaneously.
