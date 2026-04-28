@@ -208,6 +208,7 @@ final subsonicServiceProvider = Provider<SubsonicService>((ref) {
 /// Disposed automatically when the provider scope is destroyed.
 final listenerCollectorProvider = Provider<ListeningEventCollector>((ref) {
   final collector = ListeningEventCollector();
-  ref.onDispose(collector.dispose);
+  // dispose() is async; wrap in a void closure so ref.onDispose type matches.
+  ref.onDispose(() => collector.dispose());
   return collector;
 });

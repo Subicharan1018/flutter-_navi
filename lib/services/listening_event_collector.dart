@@ -37,9 +37,6 @@ class ListeningEventCollector {
   /// The play_event row that has been opened but not yet closed.
   PlayEvent? _openEvent;
 
-  /// Song that is currently playing (used to pair on the next transition).
-  Song? _currentSong;
-
   // ── Session tracking ───────────────────────────────────────────────────────
 
   String _sessionId = _generateUuid();
@@ -92,8 +89,6 @@ class ListeningEventCollector {
         transitionType: transitionType,
       );
     }
-
-    _currentSong = song;
 
     // ── Metadata upsert (fire-and-forget) ───────────────────────────────────
     _upsertSongMetadata(song);
@@ -198,39 +193,35 @@ class ListeningEventCollector {
   }
 
   void _writeEvent(PlayEvent event) {
-    _open().then((db) {
-      db.insert(
-        'play_events',
-        event.toMap(),
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }).catchError((e) {
+    _open().then((db) => db.insert(
+      'play_events',
+      event.toMap(),
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    )).catchError((e) {
       debugPrint('[Collector] writeEvent error: $e');
     });
   }
 
   void _upsertSongMetadata(Song song) {
-    _open().then((db) {
-      db.insert(
-        'song_metadata',
-        {
-          'song_id': song.id,
-          'track_name': song.title,
-          'artist_name': song.artist,
-          'album_name': song.album,
-          'genre': song.genre.isEmpty ? null : song.genre,
-          'composer': song.composer.isEmpty ? null : song.composer,
-          'duration_sec': song.duration,
-          'year': song.year > 0 ? song.year : null,
-          'play_count': song.playCount,
-          'rating': song.rating,
-          'starred': song.starred ? 1 : 0,
-          'updated_at': DateTime.now().millisecondsSinceEpoch,
-        },
-        // Always update metadata so rating/starred/playCount stay current.
-        conflictAlgorithm: ConflictAlgorithm.replace,
-      );
-    }).catchError((e) {
+    _open().then((db) => db.insert(
+      'song_metadata',
+      {
+        'song_id': song.id,
+        'track_name': song.title,
+        'artist_name': song.artist,
+        'album_name': song.album,
+        'genre': song.genre.isEmpty ? null : song.genre,
+        'composer': song.composer.isEmpty ? null : song.composer,
+        'duration_sec': song.duration,
+        'year': song.year > 0 ? song.year : null,
+        'play_count': song.playCount,
+        'rating': song.rating,
+        'starred': song.starred ? 1 : 0,
+        'updated_at': DateTime.now().millisecondsSinceEpoch,
+      },
+      // Always update metadata so rating/starred/playCount stay current.
+      conflictAlgorithm: ConflictAlgorithm.replace,
+    )).catchError((e) {
       debugPrint('[Collector] upsertSongMetadata error: $e');
     });
   }
