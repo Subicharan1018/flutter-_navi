@@ -466,7 +466,7 @@ class SubsonicService {
     final token = _generateToken(salt);
 
     final uri = Uri.parse('$serverUrl/createPlaylist.view').replace(
-      queryParametersAll: {
+      queryParameters: {
         'u': [username],
         't': [token],
         's': [salt],
@@ -690,4 +690,4 @@ List<Song> _parseSongList(List<Map<String, dynamic>> entries) {
 /// isolate (BUG-29).  For large responses (e.g. 5,000 songs ≈ 2–5 MB) this
 /// prevents the 300–800 ms UI freeze caused by synchronous [jsonDecode].
 Map<String, dynamic> _decodeJsonBody(String body) =>
-    jsonDecode(body) as Map<String, dynamic>;
+    jsonDecode(body) as Map<String, dynamic>;
