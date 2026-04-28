@@ -66,18 +66,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (result != null && result.files.single.path != null) {
       setState(() => _isUploading = true);
       try {
-        debugPrint('Upload UI: file=${result.files.single.path!} server=${_urlController.text.trim()} customApi=${_uploadUrlController.text.trim().isNotEmpty}');
-        final service = SubsonicService(
-          serverUrl: _urlController.text.trim(),
-          username: _userController.text.trim(),
-          password: _passController.text,
-          customUploadUrl: _uploadUrlController.text.trim().isEmpty
-              ? null
-              : _uploadUrlController.text.trim(),
-          customUploadDir: _uploadDirController.text.trim().isEmpty
-              ? null
-              : _uploadDirController.text.trim(),
-        );
+      debugPrint('Upload UI: file=${result.files.single.path!} server=${_urlController.text.trim()} customApi=${_uploadUrlController.text.trim().isNotEmpty}');
+      final cache = ref.read(playlistCacheServiceProvider);
+      final service = SubsonicService(
+        serverUrl: _urlController.text.trim(),
+        username: _userController.text.trim(),
+        password: _passController.text,
+        cache: cache,
+        customUploadUrl: _uploadUrlController.text.trim().isEmpty
+          ? null
+          : _uploadUrlController.text.trim(),
+        customUploadDir: _uploadDirController.text.trim().isEmpty
+          ? null
+          : _uploadDirController.text.trim(),
+      );
         await service.uploadSong(File(result.files.single.path!));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(

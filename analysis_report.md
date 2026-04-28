@@ -2,8 +2,8 @@
 ### Custom Music Player App (Subsonic/Navidrome Client)
 
 > **Analysed:** 28 source files · ~6,000 LOC · Flutter 3.11 + Riverpod + just_audio
-> **Date:** 2026-04-27
-> **Last Fix Pass:** 2026-04-27 — 8 issues resolved (see [Fix Status Summary](#fix-status-summary))
+> **Date:** 2026-04-28
+> **Last Fix Pass:** 2026-04-28 — 13 issues resolved (see [Fix Status Summary](#fix-status-summary))
 
 ---
 
@@ -38,23 +38,23 @@
 | **BUG-21** | 🔴 **REGRESSION** — NowPlaying palette 60Hz reload (post-Phase-1) | ✅ **FIXED** | `now_playing_screen.dart` |
 | **BUG-23** | 🔴 **CRITICAL** — Smart shuffle freeze when switched | ✅ **FIXED** | `audio_handler.dart` |
 | **BUG-24** | 🔴 **CRITICAL** — Queue clears/stays stuck when shuffle disabled | ✅ **FIXED** | `audio_handler.dart`, `player_provider.dart` |
-| **BUG-22** | 🔴 **CRITICAL** — Song refresh when picked/clicked | 🟡 Pending | `playlist_details_screen.dart` |
+| **BUG-22** | 🔴 **CRITICAL** — Song refresh when picked/clicked | ✅ **FIXED** | `playlist_details_screen.dart` |
 | **PERF-6** | 5000 songs fetched eagerly, no pagination | 🟡 Pending | `library_provider.dart` |
 | **BUG-4** | `IndexedStack` keeps all screens alive | 🟡 Pending | `app_scaffold.dart` |
 | **BUG-6** | "Remove from Playlist" is a no-op | 🟡 Pending | `options_menu.dart` |
 | **BUG-7** | Hardcoded "Apple Music" strings | ✅ **FIXED** | Removed placeholder text |
 | **BUG-9** | Password in plaintext SharedPreferences | 🟡 Pending | `settings_provider.dart` |
-| **BUG-10** | `Song.dynamicWeight` mutable on value-like model | 🟡 Pending | `song.dart` |
+| **BUG-10** | `Song.dynamicWeight` mutable on value-like model | ✅ **FIXED** | `song.dart` |
 | **BUG-15** | Slide-to-delete broken in queue (`Slidable` vs `ReorderableListView`) | 🟡 Pending | `queue_screen.dart` |
 | **BUG-17** | "Go to Album" is a no-op | 🟡 Pending | `options_menu.dart` |
 | **BUG-18** | Multiple no-op buttons across UI | 🟡 Pending | `home_screen.dart`, `library_screen.dart` |
-| **BUG-25** | `SongTile` dead code in `imageCacheKey` | 🔴 **NEW** | `song_tile.dart` |
-| **BUG-26** | `shuffle_test.dart` broken mock overrides | 🔴 **NEW** | `test/shuffle_test.dart` |
-| **BUG-27** | Redundant nesting in `QueueScreen` | 🔴 **NEW** | `queue_screen.dart` |
-| **BUG-28** | Models (`Song`, `Album`, `Playlist`) lack `==` and `hashCode` | 🔴 **NEW** | `lib/models/` |
-| **BUG-29** | `jsonDecode` and `Song.fromJson` loop block UI thread | 🔴 **NEW** | `subsonic_service.dart` |
-| **BUG-30** | Sleep timer countdown causes 1Hz whole-screen rebuild | 🔴 **NEW** | `now_playing_screen.dart` |
-| **BUG-31** | Double-caching in `SubsonicService` vs Riverpod | 🔴 **NEW** | `subsonic_service.dart`, `library_provider.dart` |
+| **BUG-25** | `SongTile` dead code in `imageCacheKey` | ✅ **FIXED** | `song_tile.dart` |
+| **BUG-26** | `shuffle_test.dart` broken mock overrides | ✅ **FIXED** | `test/shuffle_test.dart` |
+| **BUG-27** | Redundant nesting in `QueueScreen` | ✅ **FIXED** | `queue_screen.dart` |
+| **BUG-28** | Models (`Song`, `Album`, `Playlist`) lack `==` and `hashCode` | 🟡 Pending | `lib/models/` |
+| **BUG-29** | `jsonDecode` and `Song.fromJson` loop block UI thread | 🟡 Pending | `subsonic_service.dart` |
+| **BUG-30** | Sleep timer countdown causes 1Hz whole-screen rebuild | 🟡 Pending | `now_playing_screen.dart` |
+| **BUG-31** | Double-caching in `SubsonicService` vs Riverpod | 🟡 Pending | `subsonic_service.dart`, `library_provider.dart` |
 
 ---
 
