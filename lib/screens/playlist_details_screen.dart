@@ -80,57 +80,61 @@ class _PlaylistDetailsScreenState
   // ---------------------------------------------------------------------------
 
   Future<void> _loadSongs() async {
-    // Only show the full loading spinner on first load.
-    // On refresh (e.g. after adding songs) keep existing songs visible while
-    // the new list fetches in the background.
-    if (!_isLoading) {
-      // silent background refresh — don't reset to loading state
-    }
+    final service = ref.read(subsonicServiceProvider);
 
     try {
-      final service = ref.read(subsonicServiceProvider);
+      // getPlaylistSongs() checks SQLite first (~5 ms on a cache hit).
+      // On a cache hit it returns immediately then fires a background refresh.
+      // On a cache miss it waits for the network, parses off-thread, caches.
       final songs = await service.getPlaylistSongs(widget.playlist.id);
-
-      // Determine cover art — prefer playlist-level art, fallback to first song
-      final String? coverArtId =
-          widget.playlist.coverArt ?? (songs.isNotEmpty ? songs.first.coverArt : null);
-
-      String imageUrl = '';
-      String cacheKey = '';
-      Color vibrant = AppTheme.surfaceLevel;
-
-      if (coverArtId != null && coverArtId.isNotEmpty) {
-        // getCoverArtUrl now returns a stable URL (subsonic_service fix)
-        imageUrl = service.getCoverArtUrl(coverArtId);
-        cacheKey = 'cover_$coverArtId';
-
-        // Only extract palette when cover art changes (e.g. after edit)
-        if (imageUrl != _coverImageUrl) {
-          final color = await compute(_extractPlaylistPalette, imageUrl);
-          vibrant = color ?? AppTheme.surfaceLevel;
-        } else {
-          vibrant = _vibrantColor; // reuse existing
-        }
-      }
 
       if (!mounted) return;
       setState(() {
         _songs = songs;
         _filteredSongs = List.of(songs);
-        _vibrantColor = vibrant;
-        _coverImageUrl = imageUrl;
-        _coverCacheKey = cacheKey;
         _isLoading = false;
         _hasError = false;
-        _listAnimated = false; // allow animation on fresh load
+        _listAnimated = false;
       });
+
+      // Determine cover art then load palette without blocking the list.
+      final coverArtId =
+          widget.playlist.coverArt ?? (songs.isNotEmpty ? songs.first.coverArt : null);
+      if (coverArtId != null && coverArtId.isNotEmpty) {
+        _loadCoverAndPalette(service, coverArtId);
+      }
     } catch (e) {
       if (!mounted) return;
       setState(() {
         _isLoading = false;
-        _hasError = true;
+        // Only show the hard error state when we have no songs to show.
+        _hasError = _songs.isEmpty;
       });
     }
+  }
+
+  /// Loads the cover image URL and extracts the vibrant palette colour.
+  /// Runs independently of [_loadSongs] so it never blocks the song list.
+  Future<void> _loadCoverAndPalette(
+    dynamic service,
+    String coverArtId,
+  ) async {
+    final imageUrl = service.getCoverArtUrl(coverArtId) as String;
+    final cacheKey = 'cover_$coverArtId';
+
+    // Only re-extract palette when the cover art actually changes.
+    Color vibrant = _vibrantColor;
+    if (imageUrl != _coverImageUrl) {
+      final color = await compute(_extractPlaylistPalette, imageUrl);
+      vibrant = color ?? AppTheme.surfaceLevel;
+    }
+
+    if (!mounted) return;
+    setState(() {
+      _coverImageUrl = imageUrl;
+      _coverCacheKey = cacheKey;
+      _vibrantColor = vibrant;
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -180,6 +184,8 @@ class _PlaylistDetailsScreenState
       final service = ref.read(subsonicServiceProvider);
       await service.updatePlaylist(
           widget.playlist.id, songIndexToRemove: originalIndex);
+      // Invalidate the SQLite cache so the next open fetches fresh data.
+      await service.invalidatePlaylist(widget.playlist.id);
       ref.invalidate(playlistsProvider);
     } catch (e) {
       _loadSongs();
@@ -252,6 +258,10 @@ class _PlaylistDetailsScreenState
                           ),
                         ),
                       );
+                      // Invalidate cache so the next open fetches fresh data.
+                      await ref
+                          .read(subsonicServiceProvider)
+                          .invalidatePlaylist(widget.playlist.id);
                       _loadSongs();
                     },
                   ),
@@ -299,6 +309,10 @@ class _PlaylistDetailsScreenState
                           ),
                         ),
                       );
+                      // Invalidate cache so the next open fetches fresh data.
+                      await ref
+                          .read(subsonicServiceProvider)
+                          .invalidatePlaylist(widget.playlist.id);
                       _loadSongs();
                     },
                   ),

@@ -28,6 +28,8 @@ dependencies:
   shared_preferences: ^2.3.1
   crypto: ^3.0.3
   file_picker: ^8.0.3
+  sqflite: ^2.3.3
+  path: ^1.9.0
 
   # UI
   cupertino_icons: ^1.0.8

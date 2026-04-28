@@ -58,6 +58,27 @@ class Song {
     );
   }
 
+  /// Serialise to a plain map for SQLite storage.
+  /// Uses the same field names as [Song.fromJson] so round-tripping is trivial.
+  Map<String, dynamic> toMap() {
+    return {
+      'id': id,
+      'title': title,
+      'artist': artist,
+      'album': album,
+      'genre': genre,
+      'composer': composer,
+      'coverArt': coverArt,
+      'duration': duration,
+      'track': track,
+      'year': year,
+      'starred': starred ? 1 : 0,
+      'playCount': playCount,
+      'userRating': rating,
+      'created': created?.toIso8601String(),
+    };
+  }
+
   Song copyWith({
     String? genre,
     String? composer,

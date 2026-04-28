@@ -9,6 +9,7 @@ import '../core/constants.dart';
 import '../models/song.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
+import 'playlist_cache_service.dart';
 
 class SubsonicService {
   final String serverUrl;
@@ -19,6 +20,9 @@ class SubsonicService {
   final String? webdavUsername;
   final String? webdavPassword;
   final http.Client _client = http.Client();
+
+  /// SQLite-backed persistent playlist cache (injected by the provider).
+  final PlaylistCacheService _cache;
 
   // ---------------------------------------------------------------------------
   // In-memory library cache (retained for the lifetime of this service instance)
@@ -52,11 +56,13 @@ class SubsonicService {
     required String serverUrl,
     required this.username,
     required this.password,
+    required PlaylistCacheService cache,
     this.customUploadUrl,
     this.customUploadDir,
     this.webdavUsername,
     this.webdavPassword,
-  }) : serverUrl = _normalizeServerUrl(serverUrl) {
+  })  : serverUrl = _normalizeServerUrl(serverUrl),
+        _cache = cache {
     // Initialise the stable cover-art credentials once.
     _coverArtSalt = _generateSalt();
     _coverArtToken = _generateToken(_coverArtSalt);
@@ -343,15 +349,69 @@ class SubsonicService {
     return _playlistsCache!;
   }
 
-  Future<List<Song>> getPlaylistSongs(String id) async {
+  // ---------------------------------------------------------------------------
+  // Playlist songs — stale-while-revalidate + SQLite cache
+  // ---------------------------------------------------------------------------
+
+  /// Returns songs for [playlistId].
+  ///
+  /// • If the SQLite cache has data (even stale) it is returned immediately
+  ///   so the UI can render without waiting for the network.
+  /// • A background refresh is fired whenever the cache is stale or
+  ///   [forceRefresh] is true.
+  /// • Pass [forceRefresh: true] only when you explicitly need fresh data
+  ///   (e.g. after a mutation) and are willing to wait for the result.
+  Future<List<Song>> getPlaylistSongs(
+    String id, {
+    bool forceRefresh = false,
+  }) async {
+    // ── 1. Check the persistent cache ──────────────────────────────────────
+    if (!forceRefresh) {
+      final cached = await _cache.getSongs(id);
+      if (cached != null) {
+        if (cached.isStale) {
+          // Return cached data now; refresh silently in the background.
+          _backgroundRefreshPlaylist(id);
+        }
+        return cached.songs;
+      }
+    }
+
+    // ── 2. Cache miss or forced refresh — fetch from network ────────────────
+    return _fetchAndCachePlaylist(id);
+  }
+
+  /// Fetches playlist songs from the Subsonic API, parses them off the main
+  /// thread, writes the result to SQLite, and returns the list.
+  Future<List<Song>> _fetchAndCachePlaylist(String id) async {
     final res = await _get('getPlaylist.view', {'id': id});
-    final songs =
+    final rawEntries =
         (res['playlist'] as Map<String, dynamic>)['entry'] as List<dynamic>? ??
             [];
-    return songs
-        .map((e) => Song.fromJson(e as Map<String, dynamic>))
-        .toList();
+
+    // Parse Song objects on a background isolate to keep the UI thread free.
+    final songs = await compute(
+      _parseSongList,
+      rawEntries.cast<Map<String, dynamic>>(),
+    );
+
+    // Persist to SQLite (fire-and-forget — don't block the caller).
+    _cache.putSongs(id, songs);
+
+    return songs;
   }
+
+  /// Fires a silent background refresh for [playlistId].
+  /// Errors are swallowed — the stale cached data remains usable.
+  void _backgroundRefreshPlaylist(String id) {
+    _fetchAndCachePlaylist(id).catchError((e) {
+      debugPrint('[SubsonicService] background refresh failed for $id: $e');
+    });
+  }
+
+  /// Removes the SQLite cache for [playlistId].
+  /// Call this after adding or removing songs so the next open re-fetches.
+  Future<void> invalidatePlaylist(String id) => _cache.invalidate(id);
 
   Future<void> createPlaylist(String name) async {
     await _get('createPlaylist.view', {'name': name});
@@ -544,13 +604,15 @@ class SubsonicService {
   // Cache invalidation helpers (call after mutations if needed)
   // ---------------------------------------------------------------------------
 
-  /// Clears all in-memory caches. Call this on logout or server change.
+  /// Clears all in-memory caches AND the SQLite playlist cache.
+  /// Call this on logout or server change.
   void clearCache() {
     _recentlyPlayedAlbumsCache = null;
     _frequentAlbumsCache = null;
     _playlistsCache = null;
     _allSongsCache = null;
     _albumsCache = null;
+    _cache.clearAll(); // wipe persisted playlist songs
   }
 
   /// Invalidates only the recently-played / frequent caches (call after
@@ -563,5 +625,13 @@ class SubsonicService {
   // BUG-3: close the http.Client to release socket connections.
   void dispose() {
     _client.close();
+    _cache.dispose();
   }
+}
+
+// ---------------------------------------------------------------------------
+// Top-level parse helper — must be top-level for compute() compatibility
+// ---------------------------------------------------------------------------
+List<Song> _parseSongList(List<Map<String, dynamic>> entries) {
+  return entries.map(Song.fromJson).toList();
 }

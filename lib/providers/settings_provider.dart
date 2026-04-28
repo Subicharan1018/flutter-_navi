@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
 import '../services/subsonic_service.dart';
+import '../services/playlist_cache_service.dart';
 
 // ---------------------------------------------------------------------------
 // Shuffle Algorithm enum
@@ -146,12 +147,22 @@ final settingsProvider =
   return SettingsNotifier();
 });
 
+/// Singleton [PlaylistCacheService] — created once, shared across the app.
+/// Disposing the provider (e.g. on logout) closes the underlying DB connection.
+final playlistCacheServiceProvider = Provider<PlaylistCacheService>((ref) {
+  final service = PlaylistCacheService();
+  ref.onDispose(service.dispose);
+  return service;
+});
+
 final subsonicServiceProvider = Provider<SubsonicService>((ref) {
   final settings = ref.watch(settingsProvider);
+  final cache = ref.watch(playlistCacheServiceProvider);
   final service = SubsonicService(
     serverUrl: settings.serverUrl,
     username: settings.username,
     password: settings.password,
+    cache: cache,
     customUploadUrl: settings.uploadApiUrl,
     customUploadDir: settings.uploadDirectory,
   );
