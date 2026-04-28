@@ -15,30 +15,26 @@ import '../core/theme.dart';
 import '../fluid_background.dart';
 import '../widgets/options_menu.dart';
 import '../models/song.dart';
+import '../services/transcoding_service.dart';
 import 'package:flutter/foundation.dart';
 
 // =============================================================================
-// COLOR EXTRACTION
-//
-// Key change from old version:
-//   • Larger sample size (200×200) → richer, more accurate palette
-//   • Colors are DARKENED + SATURATED before use so they look like Apple Music
-//     (rich, jewel-toned) rather than washed-out pastels
-//   • 4 semantically distinct slots: dominant, vibrant, dark-accent, light-accent
+// 1. COLOR EXTRACTION
+//    • Larger sample size (200×200) → richer, more accurate palette
+//    • Colors are DARKENED + SATURATED before use (Apple Music style)
+//    • 4 semantically distinct slots: dominant, vibrant, dark-accent, light-accent
 // =============================================================================
 
 Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
   try {
-    // Use the same cache pipeline as the UI to avoid a second raw network fetch.
     final palette = await PaletteGenerator.fromImageProvider(
       CachedNetworkImageProvider(imageUrl),
       size: const Size(200, 200),
       maximumColorCount: 32,
     );
 
-    // Keep the background dark and cinematic while preserving hue identity.
     Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
-      final hsl  = HSLColor.fromColor(base);
+      final hsl = HSLColor.fromColor(base);
       return hsl
           .withSaturation((hsl.saturation * satMul).clamp(0.08, 1.0))
           .withLightness((hsl.lightness * lightMul).clamp(0.04, 0.34))
@@ -99,7 +95,6 @@ Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
       process(lightAccent, satMul: 1.20, lightMul: 0.58).value,
     ];
   } catch (_) {
-    // Neutral fallback keeps the UI cinematic without forcing blue/purple.
     return [0xFF121212, 0xFF1D1D1D, 0xFF0B0B0B, 0xFF2A2A2A];
   }
 }
@@ -107,7 +102,9 @@ Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
 List<Color> _intsToColors(List<int> v) => v.map((i) => Color(i)).toList();
 
 // =============================================================================
-// SOUND BAR WIDGET (Unchanged)
+// 2. SMALL REUSABLE WIDGETS
+//    _SoundBar  –  animated equalizer bars
+//    _BottomAction  –  icon + label tap target used in the bottom row
 // =============================================================================
 
 class _SoundBar extends StatefulWidget {
@@ -136,13 +133,17 @@ class _SoundBarState extends State<_SoundBar>
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
     return RepaintBoundary(
       child: SizedBox(
-        width: 20, height: 20,
+        width: 20,
+        height: 20,
         child: AnimatedBuilder(
           animation: _ctrl,
           builder: (_, __) => Row(
@@ -167,10 +168,6 @@ class _SoundBarState extends State<_SoundBar>
     );
   }
 }
-
-// =============================================================================
-// BOTTOM ACTION BUTTON (Unchanged)
-// =============================================================================
 
 class _BottomAction extends StatelessWidget {
   final Widget icon;
@@ -197,10 +194,13 @@ class _BottomAction extends StatelessWidget {
           children: [
             icon,
             const SizedBox(height: 5),
-            Text(label,
+            Text(
+              label,
               style: TextStyle(
-                color: labelColor, fontSize: 9,
-                letterSpacing: 0.4, fontWeight: FontWeight.w500,
+                color: labelColor,
+                fontSize: 9,
+                letterSpacing: 0.4,
+                fontWeight: FontWeight.w500,
               ),
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
@@ -214,7 +214,121 @@ class _BottomAction extends StatelessWidget {
 }
 
 // =============================================================================
-// NOW PLAYING SCREEN (UI Unchanged)
+// 3. AUDIO QUALITY STRIP
+//    Shows source format/bitrate and active transcoding override.
+// =============================================================================
+
+class _AudioQualityStrip extends ConsumerWidget {
+  final Song song;
+  const _AudioQualityStrip({required this.song});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final transcoding = ref.watch(transcodingProvider);
+
+    final sourceSuffix  = song.suffix.toUpperCase();
+    final sourceBitrate = song.bitRate;
+
+    final activeBitrate = transcoding.getCurrentBitrate();
+    final activeFormat  = transcoding.getCurrentFormat();
+    final isTranscoding = transcoding.enabled &&
+        (activeBitrate != null || activeFormat != null);
+    final isWifi =
+        transcoding.currentConnectionType == ConnectionType.wifi;
+
+    if (sourceSuffix.isEmpty && sourceBitrate == 0 && !isTranscoding) {
+      return const SizedBox.shrink();
+    }
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 2),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          if (sourceSuffix.isNotEmpty || sourceBitrate > 0)
+            _QualityPill(
+              icon: Icons.audio_file_outlined,
+              label: [
+                if (sourceSuffix.isNotEmpty) sourceSuffix,
+                if (sourceBitrate > 0) '${sourceBitrate} kbps',
+              ].join(' · '),
+              color: Colors.white38,
+            ),
+          if ((sourceSuffix.isNotEmpty || sourceBitrate > 0) && isTranscoding)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8),
+              child: Icon(Icons.arrow_forward_rounded,
+                  color: Colors.white24, size: 12),
+            ),
+          if (isTranscoding)
+            _QualityPill(
+              icon: isWifi
+                  ? Icons.wifi_rounded
+                  : Icons.signal_cellular_alt_rounded,
+              label: [
+                if (activeFormat != null)
+                  TranscodeFormat.getLabel(activeFormat),
+                if (activeBitrate != null) '$activeBitrate kbps',
+              ].join(' · '),
+              color: AppTheme.electricBlue.withValues(alpha: 0.85),
+              highlighted: true,
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _QualityPill extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+  final bool highlighted;
+
+  const _QualityPill({
+    required this.icon,
+    required this.label,
+    required this.color,
+    this.highlighted = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
+      decoration: BoxDecoration(
+        color: highlighted
+            ? AppTheme.electricBlue.withValues(alpha: 0.12)
+            : Colors.white.withValues(alpha: 0.06),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: color.withValues(alpha: 0.3),
+          width: 0.5,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 11, color: color),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: TextStyle(
+              color: color,
+              fontSize: 10.5,
+              fontWeight:
+                  highlighted ? FontWeight.w600 : FontWeight.w400,
+              letterSpacing: 0.3,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// 4. NOW PLAYING SCREEN
 // =============================================================================
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
@@ -227,25 +341,32 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     with SingleTickerProviderStateMixin {
+  // ── Drag-to-dismiss state ────────────────────────────────────────────────
   double _dragOffset = 0;
+
+  // ── Route-transition tracking ────────────────────────────────────────────
   bool _transitionFinished = false;
   bool _transitionListenerAttached = false;
   Timer? _transitionFallbackTimer;
 
+  // ── Sleep timer ──────────────────────────────────────────────────────────
   Timer? _sleepTimer;
   Timer? _sleepCountdownTimer;
-  // BUG-30: replaced bare int? with ValueNotifier so the 1Hz tick only
-  // rebuilds the sleep label widget, not the entire NowPlaying screen tree.
+  // BUG-30: ValueNotifier so 1 Hz tick only rebuilds the sleep-label widget.
   final ValueNotifier<int?> _sleepSeconds = ValueNotifier(null);
 
-  Song? _lastKnownSong;
+  // ── Last-known song cache (keeps UI alive while queue swaps) ─────────────
+  Song?   _lastKnownSong;
   String? _lastKnownImageUrl;
 
+  // ── Palette / blob colors ────────────────────────────────────────────────
   List<Color> _blobColors = const [
     Color(0xFF1A1A2E), Color(0xFF16213E),
     Color(0xFF0F3460), Color(0xFF533483),
   ];
   String? _lastPaletteSongId;
+
+  // ── Lifecycle ────────────────────────────────────────────────────────────
 
   @override
   void didChangeDependencies() {
@@ -258,6 +379,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       if (!mounted || _transitionFinished) return;
       setState(() => _transitionFinished = true);
     }
+
     void handler(AnimationStatus status) {
       if (status == AnimationStatus.completed) {
         route.animation?.removeStatusListener(handler);
@@ -265,6 +387,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         completeTransition();
       }
     }
+
     _transitionListenerAttached = true;
     route.animation?.addStatusListener(handler);
     _transitionFallbackTimer = Timer(const Duration(milliseconds: 460), () {
@@ -282,19 +405,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     super.dispose();
   }
 
+  // ── Palette extraction ───────────────────────────────────────────────────
+
   void _triggerPaletteExtraction(String songId, String imageUrl) {
     if (_lastPaletteSongId == songId) return;
     _lastPaletteSongId = songId;
-    // CRIT-2: Do NOT use compute() here. PaletteGenerator.fromImageProvider
-    // calls Flutter's image codec which requires the main-isolate Flutter engine.
-    // compute() spawns a bare Dart isolate — no Flutter engine — so it hangs or
-    // crashes. Direct call is fast: the image is already in CachedNetworkImage's
-    // disk cache by the time we arrive here.
+    // CRIT-2: Do NOT use compute() — PaletteGenerator needs the main isolate's
+    // Flutter engine. Direct call is fast; image is already in disk cache.
     _extractPaletteIsolate(imageUrl).then((ints) {
       if (!mounted || _lastPaletteSongId != songId) return;
       setState(() => _blobColors = _intsToColors(ints));
     }).catchError((_) {});
   }
+
+  // ── Sleep timer ──────────────────────────────────────────────────────────
 
   void _showSleepTimerDialog() {
     showModalBottomSheet(
@@ -308,8 +432,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           children: [
             const SizedBox(height: 12),
             const Text('Stop Audio In',
-                style: TextStyle(color: AppTheme.textPrimary,
-                    fontSize: 18, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             ...[5, 10, 15, 30, 45, 60].map((mins) => ListTile(
                   title: Text('$mins Minutes',
@@ -319,11 +445,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ? const Icon(Icons.check_rounded,
                           color: AppTheme.electricBlue, size: 18)
                       : null,
-                  onTap: () { _setSleepTimer(mins); Navigator.pop(ctx); },
+                  onTap: () {
+                    _setSleepTimer(mins);
+                    Navigator.pop(ctx);
+                  },
                 )),
             ListTile(
-              title: const Text('Off', style: TextStyle(color: Colors.redAccent)),
-              onTap: () { _setSleepTimer(null); Navigator.pop(ctx); },
+              title: const Text('Off',
+                  style: TextStyle(color: Colors.redAccent)),
+              onTap: () {
+                _setSleepTimer(null);
+                Navigator.pop(ctx);
+              },
             ),
             const SizedBox(height: 8),
           ],
@@ -335,15 +468,20 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   void _setSleepTimer(int? minutes) {
     _sleepTimer?.cancel();
     _sleepCountdownTimer?.cancel();
-    // BUG-30: mutate the ValueNotifier — no setState, so the whole screen
-    // does not rebuild. Only the ValueListenableBuilder around the label does.
-    if (minutes == null) { _sleepSeconds.value = null; return; }
+    if (minutes == null) {
+      _sleepSeconds.value = null;
+      return;
+    }
     _sleepSeconds.value = minutes * 60;
-    _sleepCountdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
-      if (!mounted) { t.cancel(); return; }
+    _sleepCountdownTimer =
+        Timer.periodic(const Duration(seconds: 1), (t) {
+      if (!mounted) {
+        t.cancel();
+        return;
+      }
       final remaining = _sleepSeconds.value;
       if (remaining != null && remaining > 0) {
-        _sleepSeconds.value = remaining - 1; // notifier update — no setState
+        _sleepSeconds.value = remaining - 1;
       } else {
         t.cancel();
         _sleepSeconds.value = null;
@@ -352,17 +490,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     _sleepTimer = Timer(Duration(minutes: minutes), () {
       ref.read(playerProvider.notifier).player.pause();
       _sleepCountdownTimer?.cancel();
-      _sleepSeconds.value = null; // no setState
+      _sleepSeconds.value = null;
     });
   }
 
-  // BUG-30: takes the current value as a parameter so it can be called from
-  // inside a ValueListenableBuilder without touching setState.
+  // BUG-30: called from ValueListenableBuilder — no setState needed.
   String _formatSleepLabel(int remaining) {
     final mins = remaining ~/ 60;
     final secs = remaining % 60;
     return mins > 0 ? '${mins}m' : '${secs}s';
   }
+
+  // ── Smart-shuffle dialog ─────────────────────────────────────────────────
 
   void _showSmartShuffleDialog() {
     showModalBottomSheet(
@@ -376,36 +515,49 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           children: [
             const SizedBox(height: 12),
             const Text('Smart Shuffle Mode',
-                style: TextStyle(color: AppTheme.textPrimary,
-                    fontSize: 18, fontWeight: FontWeight.bold)),
+                style: TextStyle(
+                    color: AppTheme.textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold)),
             const SizedBox(height: 12),
             ...ShuffleAlgorithm.values.map((algo) {
-              final isSelected = ref.read(settingsProvider).shuffleAlgorithm == algo;
+              final isSelected =
+                  ref.read(settingsProvider).shuffleAlgorithm == algo;
               return ListTile(
                 leading: Icon(
-                  algo == ShuffleAlgorithm.standard ? Icons.shuffle_rounded
-                      : algo == ShuffleAlgorithm.spotify ? Icons.auto_awesome_rounded
-                      : Icons.trending_up_rounded,
-                  color: isSelected ? AppTheme.spotifyGreen : Colors.white54,
+                  algo == ShuffleAlgorithm.standard
+                      ? Icons.shuffle_rounded
+                      : algo == ShuffleAlgorithm.spotify
+                          ? Icons.auto_awesome_rounded
+                          : Icons.trending_up_rounded,
+                  color: isSelected
+                      ? AppTheme.spotifyGreen
+                      : Colors.white54,
                 ),
                 title: Text(algo.name.toUpperCase(),
-                    style: const TextStyle(color: AppTheme.textPrimary)),
+                    style:
+                        const TextStyle(color: AppTheme.textPrimary)),
                 subtitle: Text(
                   algo == ShuffleAlgorithm.spotify
                       ? 'Balanced dithering (Artist spacing)'
                       : algo == ShuffleAlgorithm.youtube
                           ? 'Weighted lottery (Stars & Playcount)'
                           : 'Standard Fisher-Yates',
-                  style: const TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                  style: const TextStyle(
+                      color: AppTheme.textMuted, fontSize: 12),
                 ),
                 trailing: isSelected
                     ? const Icon(Icons.check_rounded,
                         color: AppTheme.spotifyGreen, size: 18)
                     : null,
                 onTap: () {
-                  ref.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
+                  ref
+                      .read(settingsProvider.notifier)
+                      .setShuffleAlgorithm(algo);
                   if (ref.read(playerProvider).shuffleMode) {
-                    ref.read(playerProvider.notifier).applyShuffleAlgorithm();
+                    ref
+                        .read(playerProvider.notifier)
+                        .applyShuffleAlgorithm();
                   }
                   Navigator.pop(ctx);
                 },
@@ -418,14 +570,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     );
   }
 
+  // ── Build ────────────────────────────────────────────────────────────────
+
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
     final notifier    = ref.read(playerProvider.notifier);
     final service     = ref.read(subsonicServiceProvider);
 
-    final bool queueReady =
-        playerState.queue.isNotEmpty &&
+    final bool queueReady = playerState.queue.isNotEmpty &&
         playerState.currentIndex < playerState.queue.length;
 
     if (queueReady) {
@@ -438,10 +591,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           backgroundColor: AppTheme.coreBackground, body: SizedBox());
     }
 
-    final song     = queueReady
-        ? playerState.queue[playerState.currentIndex] : _lastKnownSong!;
+    final song = queueReady
+        ? playerState.queue[playerState.currentIndex]
+        : _lastKnownSong!;
     final imageUrl = queueReady
-        ? service.getCoverArtUrl(song.coverArt) : _lastKnownImageUrl!;
+        ? service.getCoverArtUrl(song.coverArt)
+        : _lastKnownImageUrl!;
     final cacheKey = 'cover_${song.coverArt ?? song.id}';
 
     if (_transitionFinished) {
@@ -456,14 +611,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     return GestureDetector(
       onVerticalDragUpdate: (d) => setState(() => _dragOffset =
           (d.primaryDelta! > 0 || _dragOffset > 0)
-              ? (_dragOffset + d.primaryDelta!).clamp(0, double.infinity) : 0),
+              ? (_dragOffset + d.primaryDelta!).clamp(0, double.infinity)
+              : 0),
       onVerticalDragEnd: (d) =>
           (_dragOffset > 150 || (d.primaryVelocity ?? 0) > 1000)
               ? Navigator.pop(context)
               : setState(() => _dragOffset = 0),
       child: AnimatedContainer(
         duration: _dragOffset == 0
-            ? const Duration(milliseconds: 250) : Duration.zero,
+            ? const Duration(milliseconds: 250)
+            : Duration.zero,
         curve: Curves.easeOutCubic,
         transform: Matrix4.translationValues(0, _dragOffset, 0),
         child: Scaffold(
@@ -471,11 +628,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           body: Stack(
             fit: StackFit.expand,
             children: [
+              // ── Background ──────────────────────────────────────────────
               if (_transitionFinished)
                 FluidBackground(colors: _blobColors)
               else
                 const ColoredBox(color: Colors.black),
 
+              // ── Foreground ──────────────────────────────────────────────
               SafeArea(
                 child: Column(
                   children: [
@@ -484,7 +643,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     // Pull handle
                     Center(
                       child: Container(
-                        width: 36, height: 4,
+                        width: 36,
+                        height: 4,
                         decoration: BoxDecoration(
                           color: Colors.white.withOpacity(0.28),
                           borderRadius: BorderRadius.circular(2),
@@ -492,14 +652,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
-                    // Top bar
+                    // ── Top bar: back + overflow ────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
                       child: Row(
                         children: [
                           IconButton(
-                            icon: const Icon(Icons.keyboard_arrow_down_rounded,
-                                color: Colors.white, size: 32),
+                            icon: const Icon(
+                                Icons.keyboard_arrow_down_rounded,
+                                color: Colors.white,
+                                size: 32),
                             onPressed: () => Navigator.pop(context),
                           ),
                           const Spacer(),
@@ -517,7 +679,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
-                    // Album art
+                    // ── Album art ───────────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 28, vertical: 10),
@@ -533,12 +695,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                               boxShadow: [
                                 BoxShadow(
                                   color: Colors.black.withOpacity(0.70),
-                                  blurRadius: 44, spreadRadius: 4,
+                                  blurRadius: 44,
+                                  spreadRadius: 4,
                                   offset: const Offset(0, 18),
                                 ),
                                 if (_blobColors.length > 1)
                                   BoxShadow(
-                                    color: _blobColors[1].withOpacity(0.35),
+                                    color: _blobColors[1]
+                                        .withOpacity(0.35),
                                     blurRadius: 60,
                                     offset: const Offset(0, 10),
                                   ),
@@ -547,16 +711,21 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             child: ClipRRect(
                               borderRadius: BorderRadius.circular(18),
                               child: CachedNetworkImage(
-                                imageUrl: imageUrl, cacheKey: cacheKey,
+                                imageUrl: imageUrl,
+                                cacheKey: cacheKey,
                                 fit: BoxFit.cover,
                                 placeholder: (_, __) => Container(
                                     color: AppTheme.surfaceLevel,
-                                    child: const Icon(Icons.music_note_rounded,
-                                        size: 80, color: AppTheme.textMuted)),
+                                    child: const Icon(
+                                        Icons.music_note_rounded,
+                                        size: 80,
+                                        color: AppTheme.textMuted)),
                                 errorWidget: (_, __, ___) => Container(
                                     color: AppTheme.surfaceLevel,
-                                    child: const Icon(Icons.music_note_rounded,
-                                        size: 80, color: AppTheme.textMuted)),
+                                    child: const Icon(
+                                        Icons.music_note_rounded,
+                                        size: 80,
+                                        color: AppTheme.textMuted)),
                               ),
                             ),
                           ),
@@ -564,7 +733,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
-                    // Song info + favourite
+                    // ── Song info + favourite ───────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(32, 12, 24, 0),
                       child: Row(
@@ -572,7 +741,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         children: [
                           Expanded(
                             child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment:
+                                  CrossAxisAlignment.start,
                               children: [
                                 SizedBox(
                                   height: 30,
@@ -581,47 +751,62 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                           text: song.title,
                                           style: const TextStyle(
                                               fontSize: 22,
-                                              fontWeight: FontWeight.w700,
+                                              fontWeight:
+                                                  FontWeight.w700,
                                               color: Colors.white,
                                               letterSpacing: -0.3),
                                           scrollAxis: Axis.horizontal,
-                                          blankSpace: 52, velocity: 28,
+                                          blankSpace: 52,
+                                          velocity: 28,
                                         )
-                                      : Text(song.title,
+                                      : Text(
+                                          song.title,
                                           style: const TextStyle(
                                               fontSize: 22,
-                                              fontWeight: FontWeight.w700,
+                                              fontWeight:
+                                                  FontWeight.w700,
                                               color: Colors.white,
                                               letterSpacing: -0.3),
-                                          overflow: TextOverflow.ellipsis),
+                                          overflow:
+                                              TextOverflow.ellipsis,
+                                        ),
                                 ),
                                 const SizedBox(height: 3),
-                                Text(song.artist,
+                                Text(
+                                  song.artist,
                                   style: TextStyle(
                                       fontSize: 16,
-                                      color: Colors.white.withOpacity(0.65),
+                                      color: Colors.white
+                                          .withOpacity(0.65),
                                       fontWeight: FontWeight.w400),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
                             ),
                           ),
+                          // Favourite button
                           SizedBox(
-                            width: 44, height: 44,
+                            width: 44,
+                            height: 44,
                             child: IconButton(
                               padding: EdgeInsets.zero,
                               icon: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 220),
+                                duration:
+                                    const Duration(milliseconds: 220),
                                 transitionBuilder: (child, anim) =>
-                                    ScaleTransition(scale: anim, child: child),
+                                    ScaleTransition(
+                                        scale: anim, child: child),
                                 child: Icon(
-                                  playerState.starredIds.contains(song.id)
+                                  playerState.starredIds
+                                          .contains(song.id)
                                       ? Icons.favorite_rounded
                                       : Icons.favorite_border_rounded,
-                                  key: ValueKey(
-                                      playerState.starredIds.contains(song.id)),
-                                  color: playerState.starredIds.contains(song.id)
-                                      ? Colors.pinkAccent : Colors.white54,
+                                  key: ValueKey(playerState.starredIds
+                                      .contains(song.id)),
+                                  color: playerState.starredIds
+                                          .contains(song.id)
+                                      ? Colors.pinkAccent
+                                      : Colors.white54,
                                   size: 26,
                                 ),
                               ),
@@ -636,97 +821,127 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
                     const SizedBox(height: 22),
 
-                    // Progress bar
+                    // ── Progress bar ────────────────────────────────────
                     RepaintBoundary(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(horizontal: 32),
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 32),
                         child: StreamBuilder<Duration>(
                           stream: notifier.player.positionStream,
                           builder: (context, snapshot) {
-                            final position = snapshot.data ?? Duration.zero;
+                            final position =
+                                snapshot.data ?? Duration.zero;
                             return ProgressBar(
                               progress: position,
                               total: Duration(seconds: song.duration),
-                              onSeek: (d) => notifier.player.seek(d),
-                              baseBarColor: Colors.white.withOpacity(0.18),
+                              onSeek: (d) =>
+                                  notifier.player.seek(d),
+                              baseBarColor:
+                                  Colors.white.withOpacity(0.18),
                               progressBarColor: Colors.white,
                               thumbColor: Colors.white,
-                              thumbRadius: 6, barHeight: 4,
+                              thumbRadius: 6,
+                              barHeight: 4,
                               timeLabelTextStyle: const TextStyle(
-                                  color: Colors.white54, fontSize: 11,
-                                  fontWeight: FontWeight.w500, letterSpacing: 0.2),
+                                  color: Colors.white54,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w500,
+                                  letterSpacing: 0.2),
                             );
                           },
                         ),
                       ),
                     ),
 
-                    const SizedBox(height: 18),
+                    const SizedBox(height: 12),
 
-                    // Transport controls
+                    // ── Audio quality strip ─────────────────────────────
+                    _AudioQualityStrip(song: song),
+
+                    const SizedBox(height: 36),
+
+                    // ── Transport controls ──────────────────────────────
                     Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 20),
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 20),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceEvenly,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
+                          // Shuffle (long-press → smart-shuffle dialog)
                           GestureDetector(
                             onLongPress: _showSmartShuffleDialog,
                             child: IconButton(
                               icon: Icon(Icons.shuffle_rounded,
                                   color: isShuffleActive
-                                      ? AppTheme.spotifyGreen : Colors.white54,
+                                      ? AppTheme.spotifyGreen
+                                      : Colors.white54,
                                   size: 26),
-                              onPressed: () => notifier.toggleShuffle(),
+                              onPressed: () =>
+                                  notifier.toggleShuffle(),
                             ),
                           ),
+                          // Previous
                           IconButton(
-                            icon: const Icon(Icons.skip_previous_rounded,
-                                size: 48, color: Colors.white),
+                            icon: const Icon(
+                                Icons.skip_previous_rounded,
+                                size: 48,
+                                color: Colors.white),
                             onPressed: () => notifier.playPrev(),
                           ),
+                          // Play / Pause
                           GestureDetector(
                             onTap: () => playerState.isPlaying
                                 ? notifier.player.pause()
                                 : notifier.player.play(),
                             child: Container(
-                              width: 78, height: 78,
+                              width: 78,
+                              height: 78,
                               decoration: BoxDecoration(
                                 color: Colors.white,
                                 shape: BoxShape.circle,
                                 boxShadow: [
                                   BoxShadow(
-                                    color: Colors.white.withOpacity(0.22),
-                                    blurRadius: 28, spreadRadius: 2,
+                                    color:
+                                        Colors.white.withOpacity(0.22),
+                                    blurRadius: 28,
+                                    spreadRadius: 2,
                                   ),
                                 ],
                               ),
                               child: AnimatedSwitcher(
-                                duration: const Duration(milliseconds: 180),
+                                duration:
+                                    const Duration(milliseconds: 180),
                                 transitionBuilder: (child, anim) =>
-                                    ScaleTransition(scale: anim, child: child),
+                                    ScaleTransition(
+                                        scale: anim, child: child),
                                 child: Icon(
                                   playerState.isPlaying
                                       ? Icons.pause_rounded
                                       : Icons.play_arrow_rounded,
                                   key: ValueKey(playerState.isPlaying),
-                                  size: 42, color: Colors.black,
+                                  size: 42,
+                                  color: Colors.black,
                                 ),
                               ),
                             ),
                           ),
+                          // Next
                           IconButton(
                             icon: const Icon(Icons.skip_next_rounded,
                                 size: 48, color: Colors.white),
                             onPressed: () => notifier.playNext(),
                           ),
+                          // Repeat
                           IconButton(
                             icon: Icon(
                                 playerState.repeatMode == LoopMode.one
                                     ? Icons.repeat_one_rounded
                                     : Icons.repeat_rounded,
                                 color: isRepeatActive
-                                    ? AppTheme.spotifyGreen : Colors.white54,
+                                    ? AppTheme.spotifyGreen
+                                    : Colors.white54,
                                 size: 26),
                             onPressed: () => notifier.cycleRepeat(),
                           ),
@@ -736,43 +951,50 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
                     const Spacer(),
 
-                    // Bottom actions
+                    // ── Bottom actions ──────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 28),
                       child: Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment:
+                            MainAxisAlignment.spaceEvenly,
                         children: [
                           _BottomAction(
                             icon: _SoundBar(
                                 isPlaying: playerState.isPlaying,
                                 color: Colors.white70),
-                            label: playerState.isPlaying ? 'Playing' : 'Paused',
+                            label: playerState.isPlaying
+                                ? 'Playing'
+                                : 'Paused',
                             labelColor: Colors.white38,
                             onTap: () {},
                           ),
                           _BottomAction(
                             icon: Icon(Icons.all_inclusive_rounded,
                                 color: playerState.autoplayMode
-                                    ? AppTheme.electricBlue : Colors.white70,
+                                    ? AppTheme.electricBlue
+                                    : Colors.white70,
                                 size: 24),
                             label: 'Autoplay',
                             labelColor: playerState.autoplayMode
-                                ? AppTheme.electricBlue : Colors.white54,
+                                ? AppTheme.electricBlue
+                                : Colors.white54,
                             onTap: () => notifier.toggleAutoplay(),
                           ),
-                          // BUG-30: ValueListenableBuilder scopes the 1Hz
-                          // rebuild to just this label widget.
+                          // BUG-30: scopes 1 Hz rebuild to just this label.
                           ValueListenableBuilder<int?>(
                             valueListenable: _sleepSeconds,
                             builder: (_, remaining, __) => _BottomAction(
                               icon: Icon(Icons.bedtime_outlined,
                                   color: remaining != null
-                                      ? AppTheme.electricBlue : Colors.white70,
+                                      ? AppTheme.electricBlue
+                                      : Colors.white70,
                                   size: 24),
                               label: remaining != null
-                                  ? _formatSleepLabel(remaining) : 'Sleep',
+                                  ? _formatSleepLabel(remaining)
+                                  : 'Sleep',
                               labelColor: remaining != null
-                                  ? AppTheme.electricBlue : Colors.white54,
+                                  ? AppTheme.electricBlue
+                                  : Colors.white54,
                               onTap: _showSleepTimerDialog,
                             ),
                           ),
@@ -791,6 +1013,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         ],
                       ),
                     ),
+
+                    const SizedBox(height: 8),
                   ],
                 ),
               ),
@@ -803,7 +1027,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 }
 
 // =============================================================================
-// QUEUE SCREEN (Unchanged)
+// 5. QUEUE SCREEN
 // =============================================================================
 
 class QueueScreen extends ConsumerStatefulWidget {
@@ -824,7 +1048,10 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
   }
 
   @override
-  void dispose() { _tabs.dispose(); super.dispose(); }
+  void dispose() {
+    _tabs.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -844,17 +1071,20 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
         return Container(
           decoration: BoxDecoration(
             color: AppTheme.surfaceLevel,
-            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius:
+                const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
+              // ── Header ──────────────────────────────────────────────
               Padding(
                 padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
                 child: Column(
                   children: [
                     Center(
                       child: Container(
-                        width: 36, height: 4,
+                        width: 36,
+                        height: 4,
                         decoration: BoxDecoration(
                           color: Colors.white24,
                           borderRadius: BorderRadius.circular(2),
@@ -865,8 +1095,11 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                     Row(
                       children: [
                         const Text('Queue',
-                            style: TextStyle(color: Colors.white, fontSize: 20,
-                                fontWeight: FontWeight.bold, letterSpacing: -0.3)),
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 20,
+                                fontWeight: FontWeight.bold,
+                                letterSpacing: -0.3)),
                         const Spacer(),
                         AnimatedBuilder(
                           animation: _tabs,
@@ -875,16 +1108,19 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                               return const SizedBox.shrink();
                             }
                             return TextButton(
-                              onPressed: () => notifier.clearHistory(),
+                              onPressed: () =>
+                                  notifier.clearHistory(),
                               child: const Text('Clear',
                                   style: TextStyle(
-                                      color: Colors.redAccent, fontSize: 13)),
+                                      color: Colors.redAccent,
+                                      fontSize: 13)),
                             );
                           },
                         ),
                       ],
                     ),
                     const SizedBox(height: 8),
+                    // Tab bar
                     Container(
                       height: 38,
                       decoration: BoxDecoration(
@@ -902,13 +1138,17 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                         labelColor: Colors.white,
                         unselectedLabelColor: Colors.white38,
                         labelStyle: const TextStyle(
-                            fontSize: 13, fontWeight: FontWeight.w600),
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600),
                         tabs: [
                           Tab(
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.queue_music_rounded, size: 14),
+                                const Icon(
+                                    Icons.queue_music_rounded,
+                                    size: 14),
                                 const SizedBox(width: 5),
                                 Text('Up Next (${upNext.length})'),
                               ],
@@ -916,11 +1156,14 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                           ),
                           Tab(
                             child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
+                              mainAxisAlignment:
+                                  MainAxisAlignment.center,
                               children: [
-                                const Icon(Icons.history_rounded, size: 14),
+                                const Icon(Icons.history_rounded,
+                                    size: 14),
                                 const SizedBox(width: 5),
-                                Text('History (${history.length})'),
+                                Text(
+                                    'History (${history.length})'),
                               ],
                             ),
                           ),
@@ -932,67 +1175,86 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                 ),
               ),
 
+              // ── Now-playing strip ────────────────────────────────────
               if (currentSong != null) ...[
                 _NowPlayingStrip(song: currentSong, service: service),
                 const Divider(color: Colors.white10, height: 1),
               ],
 
+              // ── Tab content ──────────────────────────────────────────
               Expanded(
                 child: TabBarView(
                   controller: _tabs,
                   children: [
+                    // Up Next
                     upNext.isEmpty
                         ? const _EmptyTab(
                             icon: Icons.queue_music_rounded,
                             label: 'Nothing up next')
                         : ReorderableListView.builder(
                             scrollController: scrollController,
-                            padding: const EdgeInsets.only(bottom: 120),
+                            padding:
+                                const EdgeInsets.only(bottom: 120),
                             itemCount: upNext.length,
                             onReorder: (oldIdx, newIdx) {
-                              final qOld = playerState.currentIndex + 1 + oldIdx;
-                              final qNew = playerState.currentIndex + 1 + newIdx;
+                              final qOld = playerState.currentIndex +
+                                  1 +
+                                  oldIdx;
+                              final qNew = playerState.currentIndex +
+                                  1 +
+                                  newIdx;
                               notifier.reorderQueue(qOld, qNew);
                             },
                             itemBuilder: (context, i) {
                               final s    = upNext[i];
-                              final qIdx = playerState.currentIndex + 1 + i;
+                              final qIdx =
+                                  playerState.currentIndex + 1 + i;
                               return _QueueTile(
                                 key: ValueKey('nxt_${s.id}_$i'),
-                                song: s, service: service,
+                                song: s,
+                                service: service,
                                 onTap: () {
                                   notifier.jumpTo(qIdx);
                                   Navigator.pop(context);
                                 },
-                                onRemove: () => notifier.removeFromQueue(qIdx),
-                                dragHandle: ReorderableDragStartListener(
+                                onRemove: () =>
+                                    notifier.removeFromQueue(qIdx),
+                                dragHandle:
+                                    ReorderableDragStartListener(
                                   index: i,
                                   child: const Padding(
                                     padding: EdgeInsets.all(12),
-                                    child: Icon(Icons.drag_handle_rounded,
-                                        color: Colors.white30, size: 20),
+                                    child: Icon(
+                                        Icons.drag_handle_rounded,
+                                        color: Colors.white30,
+                                        size: 20),
                                   ),
                                 ),
                               );
                             },
                           ),
 
+                    // History
                     history.isEmpty
                         ? const _EmptyTab(
                             icon: Icons.history_rounded,
                             label: 'No songs played yet')
                         : ListView.builder(
-                            padding: const EdgeInsets.only(bottom: 120),
+                            padding:
+                                const EdgeInsets.only(bottom: 120),
                             itemCount: history.length,
                             itemBuilder: (context, i) {
-                              final song = history[history.length - 1 - i];
+                              final song =
+                                  history[history.length - 1 - i];
                               return _HistoryTile(
                                 key: ValueKey('hist_${song.id}_$i'),
-                                song: song, service: service,
+                                song: song,
+                                service: service,
                                 isNewest: i == 0,
                                 onTap: () {
                                   final qIdx = playerState.queue
-                                      .lastIndexWhere((s) => s.id == song.id);
+                                      .lastIndexWhere(
+                                          (s) => s.id == song.id);
                                   if (qIdx >= 0) {
                                     notifier.jumpTo(qIdx);
                                   } else {
@@ -1014,6 +1276,15 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
   }
 }
 
+// =============================================================================
+// 6. QUEUE SCREEN SUB-WIDGETS
+//    _NowPlayingStrip  –  currently-playing row inside the queue sheet
+//    _MiniSoundBars    –  small animated equalizer for the strip
+//    _QueueTile        –  draggable / dismissible "up next" row
+//    _HistoryTile      –  history row with "last played" badge
+//    _EmptyTab         –  placeholder shown when a tab list is empty
+// =============================================================================
+
 class _NowPlayingStrip extends StatelessWidget {
   final Song song;
   final dynamic service;
@@ -1031,10 +1302,15 @@ class _NowPlayingStrip extends StatelessWidget {
           ClipRRect(
             borderRadius: BorderRadius.circular(6),
             child: CachedNetworkImage(
-              imageUrl: url, cacheKey: key,
-              width: 44, height: 44, fit: BoxFit.cover,
+              imageUrl: url,
+              cacheKey: key,
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
-                  width: 44, height: 44, color: AppTheme.surfaceLevel,
+                  width: 44,
+                  height: 44,
+                  color: AppTheme.surfaceLevel,
                   child: const Icon(Icons.music_note_rounded,
                       color: AppTheme.textMuted, size: 20)),
             ),
@@ -1045,13 +1321,18 @@ class _NowPlayingStrip extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(song.title,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white,
-                        fontSize: 14, fontWeight: FontWeight.w600)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600)),
                 const SizedBox(height: 2),
                 Text(song.artist,
-                    maxLines: 1, overflow: TextOverflow.ellipsis,
-                    style: const TextStyle(color: Colors.white54, fontSize: 12)),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: const TextStyle(
+                        color: Colors.white54, fontSize: 12)),
               ],
             ),
           ),
@@ -1064,6 +1345,7 @@ class _NowPlayingStrip extends StatelessWidget {
 
 class _MiniSoundBars extends StatefulWidget {
   const _MiniSoundBars();
+
   @override
   State<_MiniSoundBars> createState() => _MiniSoundBarsState();
 }
@@ -1079,12 +1361,16 @@ class _MiniSoundBarsState extends State<_MiniSoundBars>
     super.initState();
     for (int i = 0; i < 3; i++) _phases.add(_rng.nextDouble() * math.pi * 2);
     _ctrl = AnimationController(
-      vsync: this, duration: const Duration(milliseconds: 700),
+      vsync: this,
+      duration: const Duration(milliseconds: 700),
     )..repeat();
   }
 
   @override
-  void dispose() { _ctrl.dispose(); super.dispose(); }
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -1092,12 +1378,15 @@ class _MiniSoundBarsState extends State<_MiniSoundBars>
       child: AnimatedBuilder(
         animation: _ctrl,
         builder: (_, __) => SizedBox(
-          width: 18, height: 16,
+          width: 18,
+          height: 16,
           child: Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(3, (i) {
-              final t = (math.sin(_ctrl.value * math.pi * 2 + _phases[i]) + 1) / 2;
+              final t =
+                  (math.sin(_ctrl.value * math.pi * 2 + _phases[i]) + 1) /
+                      2;
               return Container(
                 width: 2.5,
                 height: (3 + t * 11).toDouble(),
@@ -1123,8 +1412,11 @@ class _QueueTile extends StatelessWidget {
 
   const _QueueTile({
     super.key,
-    required this.song, required this.service,
-    required this.onTap, required this.onRemove, required this.dragHandle,
+    required this.song,
+    required this.service,
+    required this.onTap,
+    required this.onRemove,
+    required this.dragHandle,
   });
 
   @override
@@ -1139,7 +1431,8 @@ class _QueueTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
           gradient: LinearGradient(colors: [
-            Colors.transparent, Colors.redAccent.withOpacity(0.80),
+            Colors.transparent,
+            Colors.redAccent.withOpacity(0.80),
           ]),
         ),
         child: const Icon(Icons.remove_circle_outline_rounded,
@@ -1148,22 +1441,34 @@ class _QueueTile extends StatelessWidget {
       onDismissed: (_) => onRemove(),
       child: ListTile(
         onTap: onTap,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(5),
           child: CachedNetworkImage(
-            imageUrl: url, cacheKey: key,
-            width: 44, height: 44, fit: BoxFit.cover,
+            imageUrl: url,
+            cacheKey: key,
+            width: 44,
+            height: 44,
+            fit: BoxFit.cover,
             errorWidget: (_, __, ___) => Container(
-                width: 44, height: 44, color: AppTheme.surfaceLevel,
+                width: 44,
+                height: 44,
+                color: AppTheme.surfaceLevel,
                 child: const Icon(Icons.music_note_rounded,
                     color: AppTheme.textMuted, size: 20)),
           ),
         ),
-        title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis,
-            style: const TextStyle(color: Colors.white,
-                fontSize: 14, fontWeight: FontWeight.w500)),
-        subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis,
+        title: Text(song.title,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(
+                color: Colors.white,
+                fontSize: 14,
+                fontWeight: FontWeight.w500)),
+        subtitle: Text(song.artist,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
             style: const TextStyle(color: Colors.white54, fontSize: 12)),
         trailing: dragHandle,
       ),
@@ -1179,8 +1484,10 @@ class _HistoryTile extends StatelessWidget {
 
   const _HistoryTile({
     super.key,
-    required this.song, required this.service,
-    required this.isNewest, required this.onTap,
+    required this.song,
+    required this.service,
+    required this.isNewest,
+    required this.onTap,
   });
 
   @override
@@ -1189,24 +1496,32 @@ class _HistoryTile extends StatelessWidget {
     final key = 'cover_${song.coverArt ?? song.id}';
     return ListTile(
       onTap: onTap,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      contentPadding:
+          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: Stack(
         children: [
           ClipRRect(
             borderRadius: BorderRadius.circular(5),
             child: CachedNetworkImage(
-              imageUrl: url, cacheKey: key,
-              width: 44, height: 44, fit: BoxFit.cover,
+              imageUrl: url,
+              cacheKey: key,
+              width: 44,
+              height: 44,
+              fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
-                  width: 44, height: 44, color: AppTheme.surfaceLevel,
+                  width: 44,
+                  height: 44,
+                  color: AppTheme.surfaceLevel,
                   child: const Icon(Icons.music_note_rounded,
                       color: AppTheme.textMuted, size: 20)),
             ),
           ),
           Positioned(
-            right: 0, bottom: 0,
+            right: 0,
+            bottom: 0,
             child: Container(
-              width: 16, height: 16,
+              width: 16,
+              height: 16,
               decoration: BoxDecoration(
                 color: Colors.black.withOpacity(0.65),
                 borderRadius: const BorderRadius.only(
@@ -1219,14 +1534,23 @@ class _HistoryTile extends StatelessWidget {
           ),
         ],
       ),
-      title: Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis,
+      title: Text(song.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              color: isNewest ? Colors.white : Colors.white.withOpacity(0.72),
+              color: isNewest
+                  ? Colors.white
+                  : Colors.white.withOpacity(0.72),
               fontSize: 14,
-              fontWeight: isNewest ? FontWeight.w600 : FontWeight.w400)),
-      subtitle: Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis,
+              fontWeight:
+                  isNewest ? FontWeight.w600 : FontWeight.w400)),
+      subtitle: Text(song.artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
-              color: isNewest ? Colors.white60 : Colors.white.withOpacity(0.36),
+              color: isNewest
+                  ? Colors.white60
+                  : Colors.white.withOpacity(0.36),
               fontSize: 12)),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
@@ -1238,7 +1562,8 @@ class _HistoryTile extends StatelessWidget {
             const Padding(
               padding: EdgeInsets.only(top: 2),
               child: Text('Last played',
-                  style: TextStyle(color: Colors.white38, fontSize: 9)),
+                  style: TextStyle(
+                      color: Colors.white38, fontSize: 9)),
             ),
         ],
       ),
@@ -1257,9 +1582,12 @@ class _EmptyTab extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: Colors.white.withOpacity(0.15), size: 54),
+          Icon(icon,
+              color: Colors.white.withOpacity(0.15), size: 54),
           const SizedBox(height: 14),
-          Text(label, style: const TextStyle(color: Colors.white38, fontSize: 15)),
+          Text(label,
+              style: const TextStyle(
+                  color: Colors.white38, fontSize: 15)),
         ],
       ),
     );

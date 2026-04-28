@@ -66,7 +66,7 @@ class PlaylistCacheService {
     final dbPath = p.join(await getDatabasesPath(), _kDbName);
     _db = await openDatabase(
       dbPath,
-      version: 1,
+      version: 2,
       onCreate: (db, _) => db.execute('''
         CREATE TABLE $_kTable (
           playlist_id TEXT NOT NULL,
@@ -76,6 +76,12 @@ class PlaylistCacheService {
           PRIMARY KEY (playlist_id, position)
         )
       '''),
+      onUpgrade: (db, oldVersion, newVersion) async {
+        if (oldVersion < 2) {
+          // Force refresh of all cached data to pick up new Song model fields.
+          await db.execute('DELETE FROM $_kTable');
+        }
+      },
     );
     return _db!;
   }

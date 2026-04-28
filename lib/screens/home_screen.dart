@@ -997,44 +997,105 @@ class _DiscoverCard extends StatelessWidget {
       color: Colors.transparent,
       child: InkWell(
         onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
+        borderRadius: BorderRadius.circular(16),
         child: Ink(
-          height: 100,
+          height: 110,
           decoration: BoxDecoration(
             gradient: LinearGradient(
               colors: gradient,
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
             ),
-            borderRadius: BorderRadius.circular(14),
-          ),
-          child: Stack(
-            children: [
-              // Subtle icon in top-right
-              Positioned(
-                top: 10,
-                right: 12,
-                child: Icon(icon,
-                    size: 32, color: Colors.white.withValues(alpha: 0.35)),
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: gradient.last.withOpacity(0.4),
+                blurRadius: 12,
+                offset: const Offset(0, 6),
               ),
-              // Title
-              Padding(
-                padding: const EdgeInsets.fromLTRB(14, 14, 44, 14),
-                child: Align(
-                  alignment: Alignment.bottomLeft,
-                  child: Text(
-                    title,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 16,
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: -0.3,
-                      height: 1.2,
+            ],
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(16),
+            child: Stack(
+              children: [
+                // Organic background shapes to make it look premium
+                Positioned(
+                  top: -30,
+                  right: -20,
+                  child: Container(
+                    width: 100,
+                    height: 100,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withOpacity(0.12),
                     ),
                   ),
                 ),
-              ),
-            ],
+                Positioned(
+                  bottom: -40,
+                  left: -20,
+                  child: Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.15),
+                    ),
+                  ),
+                ),
+                Positioned.fill(
+                  child: BackdropFilter(
+                    filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
+                    child: const SizedBox(),
+                  ),
+                ),
+                // Icon
+                Positioned(
+                  top: -10,
+                  right: -10,
+                  child: Transform.rotate(
+                    angle: 0.2,
+                    child: Icon(icon,
+                        size: 72, color: Colors.white.withOpacity(0.15)),
+                  ),
+                ),
+                // Play button overlay
+                Positioned(
+                  bottom: 12,
+                  right: 12,
+                  child: Container(
+                    width: 28,
+                    height: 28,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.black.withOpacity(0.2),
+                    ),
+                    child: const Icon(Icons.play_arrow_rounded, color: Colors.white, size: 16),
+                  ),
+                ),
+                // Title
+                Padding(
+                  padding: const EdgeInsets.all(16.0),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.end,
+                    children: [
+                      Text(
+                        title,
+                        style: const TextStyle(
+                          color: Colors.white,
+                          fontSize: 18,
+                          fontWeight: FontWeight.w800,
+                          letterSpacing: -0.5,
+                          height: 1.1,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),

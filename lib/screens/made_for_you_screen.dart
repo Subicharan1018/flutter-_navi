@@ -5,6 +5,7 @@ import '../providers/settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../core/theme.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/mini_player.dart';
 
 class MadeForYouScreen extends ConsumerStatefulWidget {
   const MadeForYouScreen({super.key});
@@ -59,8 +60,10 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.coreBackground,
-      body: CustomScrollView(
-        slivers: [
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
           // ── App Bar ──
           SliverAppBar(
             pinned: true,
@@ -142,7 +145,13 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
                           ? () {
                               ref
                                   .read(playerProvider.notifier)
-                                  .setQueue(_songs, 0);
+                                  .playPlaylist(_songs, shuffle: true);
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                const SnackBar(
+                                  content: Text('Playing Personalised Mix'),
+                                  duration: Duration(seconds: 2),
+                                ),
+                              );
                             }
                           : null,
                     ),
@@ -193,6 +202,12 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
                       ref
                           .read(playerProvider.notifier)
                           .setQueue(_songs, index);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text('Playing Personalised Mix'),
+                          duration: Duration(seconds: 2),
+                        ),
+                      );
                     },
                   );
                 },
@@ -203,6 +218,15 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
           // Bottom padding for mini player
           const SliverToBoxAdapter(
             child: SizedBox(height: 120),
+          ),
+        ],
+      ),
+          // ── Mini player ────────────────────────────────────────────────
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(top: false, child: MiniPlayer()),
           ),
         ],
       ),

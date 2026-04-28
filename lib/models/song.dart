@@ -14,6 +14,11 @@ class Song {
   final int rating;
   final DateTime? created;
 
+  // Audio quality metadata — reported directly by the Subsonic server.
+  final int bitRate;        // kbps, 0 = unknown
+  final String contentType; // e.g. 'audio/flac', 'audio/mpeg'
+  final String suffix;      // e.g. 'flac', 'mp3', 'opus'
+
   // Local weight for smart shuffle algorithms — immutable, updated via copyWith.
   final double dynamicWeight;
 
@@ -32,6 +37,9 @@ class Song {
     this.playCount = 0,
     this.rating = 0,
     this.created,
+    this.bitRate = 0,
+    this.contentType = '',
+    this.suffix = '',
     this.dynamicWeight = 1.0,
   });
 
@@ -55,6 +63,9 @@ class Song {
       created: json['created'] != null
           ? DateTime.tryParse(json['created'] as String)
           : null,
+      bitRate: json['bitRate'] as int? ?? 0,
+      contentType: json['contentType'] as String? ?? '',
+      suffix: json['suffix'] as String? ?? '',
     );
   }
 
@@ -76,6 +87,9 @@ class Song {
       'playCount': playCount,
       'userRating': rating,
       'created': created?.toIso8601String(),
+      'bitRate': bitRate,
+      'contentType': contentType,
+      'suffix': suffix,
     };
   }
 
@@ -86,6 +100,9 @@ class Song {
     int? playCount,
     int? rating,
     DateTime? created,
+    int? bitRate,
+    String? contentType,
+    String? suffix,
     double? dynamicWeight,
   }) {
     return Song(
@@ -103,6 +120,9 @@ class Song {
       playCount: playCount ?? this.playCount,
       rating: rating ?? this.rating,
       created: created ?? this.created,
+      bitRate: bitRate ?? this.bitRate,
+      contentType: contentType ?? this.contentType,
+      suffix: suffix ?? this.suffix,
       dynamicWeight: dynamicWeight ?? this.dynamicWeight,
     );
   }
@@ -132,11 +152,14 @@ class Song {
           starred == other.starred &&
           playCount == other.playCount &&
           rating == other.rating &&
-          created == other.created;
+          created == other.created &&
+          bitRate == other.bitRate &&
+          contentType == other.contentType &&
+          suffix == other.suffix;
 
   @override
   int get hashCode => Object.hash(
       id, title, artist, album, genre, composer,
       coverArt, duration, track, year, starred,
-      playCount, rating, created);
+      playCount, rating, created, bitRate, contentType, suffix);
 }

@@ -5,6 +5,7 @@ import '../models/album.dart';
 import '../providers/settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../core/theme.dart';
+import '../widgets/mini_player.dart';
 
 class NewReleasesScreen extends ConsumerStatefulWidget {
   const NewReleasesScreen({super.key});
@@ -65,8 +66,10 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppTheme.coreBackground,
-      body: CustomScrollView(
-        slivers: [
+      body: Stack(
+        children: [
+          CustomScrollView(
+            slivers: [
           // ── App Bar ──
           SliverAppBar(
             pinned: true,
@@ -152,6 +155,15 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
           // Bottom padding for mini player
           const SliverToBoxAdapter(
             child: SizedBox(height: 120),
+          ),
+        ],
+      ),
+          // ── Mini player ────────────────────────────────────────────────
+          const Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: SafeArea(top: false, child: MiniPlayer()),
           ),
         ],
       ),
