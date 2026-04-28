@@ -14,7 +14,6 @@ import '../widgets/song_tile.dart';
 import '../widgets/options_menu.dart';
 import '../core/theme.dart';
 import 'song_picker_screen.dart';
-import 'package:flutter/foundation.dart';
 import 'edit_playlist_screen.dart';
 
 // ---------------------------------------------------------------------------
@@ -124,8 +123,12 @@ class _PlaylistDetailsScreenState
 
     // Only re-extract palette when the cover art actually changes.
     Color vibrant = _vibrantColor;
+    // CRIT-2: Do NOT use compute() here. PaletteGenerator.fromImageProvider
+    // calls Flutter's image codec which requires the main-isolate Flutter engine.
+    // compute() spawns a bare Dart isolate (no Flutter engine) → hangs or crashes.
+    // Direct call is safe: the image is already cached by CachedNetworkImage.
     if (imageUrl != _coverImageUrl) {
-      final color = await compute(_extractPlaylistPalette, imageUrl);
+      final color = await _extractPlaylistPalette(imageUrl);
       vibrant = color ?? AppTheme.surfaceLevel;
     }
 
@@ -200,6 +203,58 @@ class _PlaylistDetailsScreenState
             SnackBar(content: Text('Failed to remove song: $e')));
       }
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Delete entire playlist (BUG-5)
+  // ---------------------------------------------------------------------------
+
+  void _confirmDeletePlaylist() {
+    showDialog(
+      context: context,
+      builder: (_) => AlertDialog(
+        backgroundColor: AppTheme.surfaceLevel,
+        shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+            side: const BorderSide(color: AppTheme.outlineColor)),
+        title: const Text('Delete Playlist',
+            style: TextStyle(
+                color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+        content: Text(
+          'Delete "${widget.playlist.name}"? This cannot be undone.',
+          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel',
+                style: TextStyle(color: AppTheme.textPrimary)),
+          ),
+          TextButton(
+            onPressed: () async {
+              Navigator.pop(context); // close dialog
+              try {
+                await ref
+                    .read(subsonicServiceProvider)
+                    .deletePlaylist(widget.playlist.id);
+                ref.invalidate(playlistsProvider);
+                if (mounted) Navigator.pop(context); // return to previous screen
+              } catch (e) {
+                if (mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(
+                        content: Text('Failed to delete playlist: $e')),
+                  );
+                }
+              }
+            },
+            child: const Text('Delete',
+                style: TextStyle(
+                    color: Colors.redAccent, fontWeight: FontWeight.bold)),
+          ),
+        ],
+      ),
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -367,11 +422,36 @@ class _PlaylistDetailsScreenState
                 SliverReorderableList(
                   itemCount: _filteredSongs.length,
                   onReorder: (oldIndex, newIndex) {
+                    // CRIT-4: Reorder is disabled when search is active because
+                    // _filteredSongs indices don't map 1:1 to _songs, so
+                    // oldIndex/newIndex would remove the wrong server entry.
+                    if (_searchController.text.isNotEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                            content: Text(
+                                'Clear search to reorder songs')),
+                      );
+                      return;
+                    }
                     if (newIndex > oldIndex) newIndex -= 1;
                     setState(() {
                       final item = _songs.removeAt(oldIndex);
                       _songs.insert(newIndex, item);
                       _filterSongs();
+                    });
+                    // Sync new order to server (fire-and-forget).
+                    final songIds = _songs.map((s) => s.id).toList();
+                    ref
+                        .read(subsonicServiceProvider)
+                        .setPlaylistSongs(widget.playlist.id, songIds)
+                        .catchError((e) {
+                      if (mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                              content:
+                                  Text('Failed to save order: $e')),
+                        );
+                      }
                     });
                   },
                   itemBuilder: (context, index) {
@@ -504,7 +584,10 @@ class _PlaylistDetailsScreenState
                   color: Colors.redAccent),
               title: const Text('Delete Playlist',
                   style: TextStyle(color: Colors.redAccent, fontSize: 15)),
-              onTap: () => Navigator.pop(ctx),
+              onTap: () {
+                Navigator.pop(ctx);
+                _confirmDeletePlaylist();
+              },
             ),
             const SizedBox(height: 8),
           ],

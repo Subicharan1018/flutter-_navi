@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../models/album.dart';
+import '../models/playlist.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -447,8 +449,8 @@ class _Header extends StatelessWidget {
 
 // ── Quick-play 2-col grid ─────────────────────────────────────────────────────
 class _QuickPlayGrid extends StatelessWidget {
-  final List<dynamic> items;
-  final void Function(dynamic) onTap;
+  final List<Playlist> items;
+  final void Function(Playlist) onTap;
   const _QuickPlayGrid({required this.items, required this.onTap});
 
   @override
@@ -492,7 +494,7 @@ class _QuickPlayGrid extends StatelessWidget {
 
 // ── Quick tile ────────────────────────────────────────────────────────────────
 class _QuickTile extends ConsumerWidget {
-  final dynamic playlist;
+  final Playlist playlist;
   final int index;
   final VoidCallback onTap;
   const _QuickTile(
@@ -569,8 +571,8 @@ class _QuickTile extends ConsumerWidget {
 
 // ── Album reel ────────────────────────────────────────────────────────────────
 class _AlbumReel extends StatelessWidget {
-  final List<dynamic> albums;
-  final void Function(dynamic) onTap;
+  final List<Album> albums;
+  final void Function(Album) onTap;
   const _AlbumReel({required this.albums, required this.onTap});
 
   @override
@@ -593,7 +595,7 @@ class _AlbumReel extends StatelessWidget {
 
 // ── Playlist card ─────────────────────────────────────────────────────────────
 class _PlaylistCard extends ConsumerWidget {
-  final dynamic playlist;
+  final Playlist playlist;
   final int index;
   final VoidCallback onTap;
   const _PlaylistCard(
@@ -681,7 +683,7 @@ class _PlaylistCard extends ConsumerWidget {
 
 // ── Playlist row ──────────────────────────────────────────────────────────────
 class _PlaylistRow extends ConsumerWidget {
-  final dynamic playlist;
+  final Playlist playlist;
   final int index;
   final VoidCallback onTap;
   const _PlaylistRow(
@@ -786,7 +788,8 @@ class _PlaylistRow extends ConsumerWidget {
 // ── Section header ────────────────────────────────────────────────────────────
 class _SectionHeader extends StatelessWidget {
   final String title;
-  const _SectionHeader({required this.title});
+  final VoidCallback? onSeeAll;
+  const _SectionHeader({required this.title, this.onSeeAll});
 
   @override
   Widget build(BuildContext context) {
@@ -798,9 +801,17 @@ class _SectionHeader extends StatelessWidget {
         textBaseline: TextBaseline.alphabetic,
         children: [
           Text(title, style: _DS.headline(20)),
-          Text('See all',
-              style: _DS.label(12,
-                  c: _DS.accents[0], w: FontWeight.w600)),
+          if (onSeeAll != null)
+            GestureDetector(
+              onTap: onSeeAll,
+              child: Text('See all',
+                  style: _DS.label(12,
+                      c: _DS.accents[0], w: FontWeight.w600)),
+            )
+          else
+            Text('See all',
+                style: _DS.label(12,
+                    c: _DS.textSec.withOpacity(0.4), w: FontWeight.w600)),
         ],
       ),
     );

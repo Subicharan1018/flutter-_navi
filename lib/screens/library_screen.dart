@@ -11,6 +11,7 @@ import '../widgets/create_playlist_dialog.dart';
 import '../core/theme.dart';
 import 'playlist_details_screen.dart';
 import 'edit_playlist_screen.dart';
+import 'search_screen.dart';
 
 class LibraryScreen extends ConsumerWidget {
   const LibraryScreen({super.key});
@@ -49,7 +50,12 @@ class LibraryScreen extends ConsumerWidget {
                       constraints: const BoxConstraints(),
                       icon: const Icon(Icons.search_rounded,
                           color: Colors.white, size: 24),
-                      onPressed: () {},
+                      onPressed: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const SearchScreen(),
+                        ),
+                      ),
                     ),
                     const SizedBox(width: 16),
                     IconButton(

@@ -103,12 +103,11 @@ class _AppleMusicPainter extends CustomPainter {
       Paint()..color = Color.lerp(colors[0], Colors.black, 0.65)!,
     );
 
-    // ── 2. Open a blurred offscreen layer ──────────────────────────────────
-    // EVERYTHING between saveLayer and restore() goes into an offscreen
-    // bitmap, then sigma=80 blur is applied to that entire bitmap before
-    // compositing back. This is the correct way to blur drawn content.
+    // PERF-1: σ reduced 80→40. Perceptually identical at blob scale (blobs are
+    // hundreds of pixels wide) but 4× cheaper GPU kernel — eliminates the <30fps
+    // drop on mid-range devices caused by the full-screen saveLayer allocation.
     final blurPaint = Paint()
-      ..imageFilter = ui.ImageFilter.blur(sigmaX: 80, sigmaY: 80);
+      ..imageFilter = ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40);
 
     canvas.saveLayer(Rect.fromLTWH(0, 0, w, h), blurPaint);
 
@@ -480,7 +479,12 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   void _triggerPaletteExtraction(String songId, String imageUrl) {
     if (_lastPaletteSongId == songId) return;
     _lastPaletteSongId = songId;
-    compute(_extractPaletteIsolate, imageUrl).then((ints) {
+    // CRIT-2: Do NOT use compute() here. PaletteGenerator.fromImageProvider
+    // calls Flutter's image codec which requires the main-isolate Flutter engine.
+    // compute() spawns a bare Dart isolate — no Flutter engine — so it hangs or
+    // crashes. Direct call is fast: the image is already in CachedNetworkImage's
+    // disk cache by the time we arrive here.
+    _extractPaletteIsolate(imageUrl).then((ints) {
       if (!mounted || _lastPaletteSongId != songId) return;
       setState(() => _blobColors = _intsToColors(ints));
     }).catchError((_) {});

@@ -19,24 +19,32 @@ final libraryFilterProvider = StateProvider<LibraryFilter>((ref) => LibraryFilte
 
 final recentlyPlayedAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   ref.keepAlive(); // ← retain data across widget disposal
+  final settings = ref.watch(settingsProvider);
+  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
   final service = ref.watch(subsonicServiceProvider);
-  return await service.getRecentlyPlayedAlbums();
+  return service.getRecentlyPlayedAlbums();
 });
 
 final frequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   ref.keepAlive();
+  final settings = ref.watch(settingsProvider);
+  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
   final service = ref.watch(subsonicServiceProvider);
-  return await service.getFrequentAlbums();
+  return service.getFrequentAlbums();
 });
 
 final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
   ref.keepAlive();
+  final settings = ref.watch(settingsProvider);
+  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
   final service = ref.watch(subsonicServiceProvider);
-  return await service.getPlaylists();
+  return service.getPlaylists();
 });
 
 final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   ref.keepAlive(); // 5 000-song list — must never re-fetch on tab switch
+  final settings = ref.watch(settingsProvider);
+  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
   final service = ref.watch(subsonicServiceProvider);
   final songs = await service.getAllSongs(size: 5000);
 
@@ -46,8 +54,10 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
 
 final libraryAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   ref.keepAlive();
+  final settings = ref.watch(settingsProvider);
+  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
   final service = ref.watch(subsonicServiceProvider);
-  return await service.getAlbums(size: 1000);
+  return service.getAlbums(size: 1000);
 });
 
 /// Derived provider — just reads already-cached async values, no keepAlive needed.

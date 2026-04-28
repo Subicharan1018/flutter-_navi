@@ -424,6 +424,41 @@ class SubsonicService {
     await _get('updatePlaylist.view', params);
   }
 
+  /// CRIT-4: Replaces the server-side song list for [playlistId] with [songIds]
+  /// in the given order.
+  ///
+  /// Subsonic's `createPlaylist.view?playlistId=X&songId=a&songId=b...` replaces
+  /// the existing playlist content — it does NOT create a new playlist when
+  /// `playlistId` is provided.
+  ///
+  /// `Map<String, String>` cannot express repeated keys so we build the URI
+  /// manually using [Uri.queryParametersAll] which accepts `Map<String, List<String>>`.
+  Future<void> setPlaylistSongs(
+      String playlistId, List<String> songIds) async {
+    final salt = _generateSalt();
+    final token = _generateToken(salt);
+
+    final uri = Uri.parse('$serverUrl/createPlaylist.view').replace(
+      queryParametersAll: {
+        'u': [username],
+        't': [token],
+        's': [salt],
+        'v': [Constants.apiVersion],
+        'c': [Constants.defaultClient],
+        'f': ['json'],
+        'playlistId': [playlistId],
+        'songId': songIds, // repeated key — sets the full ordered song list
+      },
+    );
+
+    final response = await _client.get(uri);
+    if (response.statusCode != 200) {
+      throw Exception('setPlaylistSongs HTTP ${response.statusCode}');
+    }
+    // Invalidate cache so the next open reflects the new order.
+    await invalidatePlaylist(playlistId);
+  }
+
   Future<void> setPlaylistImage(String playlistId, File imageFile) async {
     if (customUploadUrl != null && customUploadUrl!.isNotEmpty) {
       final extension = imageFile.path.split('.').last.toLowerCase();
