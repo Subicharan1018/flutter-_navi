@@ -1,8 +1,10 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 import 'settings_provider.dart';
+
 
 enum LibraryFilter { allSongs, playlists, albums, downloaded }
 
@@ -38,14 +40,8 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   final service = ref.watch(subsonicServiceProvider);
   final songs = await service.getAllSongs(size: 5000);
 
-  songs.sort((a, b) {
-    if (a.created == null && b.created == null) return 0;
-    if (a.created == null) return 1;
-    if (b.created == null) return -1;
-    return b.created!.compareTo(a.created!);
-  });
-
-  return songs;
+  // BUG-29: sort 5 000 items on a background isolate instead of the main thread.
+  return compute(_sortSongsByCreated, songs);
 });
 
 final libraryAlbumsProvider = FutureProvider<List<Album>>((ref) async {
@@ -69,3 +65,18 @@ final filteredLibraryProvider = Provider<AsyncValue<List<dynamic>>>((ref) {
       return const AsyncValue.data([]);
   }
 });
+
+// ---------------------------------------------------------------------------
+// Top-level helper — must be top-level for compute() compatibility
+// ---------------------------------------------------------------------------
+
+/// Sorts [songs] by [Song.created] descending on a background isolate (BUG-29).
+List<Song> _sortSongsByCreated(List<Song> songs) {
+  songs.sort((a, b) {
+    if (a.created == null && b.created == null) return 0;
+    if (a.created == null) return 1;
+    if (b.created == null) return -1;
+    return b.created!.compareTo(a.created!);
+  });
+  return songs;
+}

@@ -51,10 +51,10 @@
 | **BUG-25** | `SongTile` dead code in `imageCacheKey` | ✅ **FIXED** | `song_tile.dart` |
 | **BUG-26** | `shuffle_test.dart` broken mock overrides | ✅ **FIXED** | `test/shuffle_test.dart` |
 | **BUG-27** | Redundant nesting in `QueueScreen` | ✅ **FIXED** | `queue_screen.dart` |
-| **BUG-28** | Models (`Song`, `Album`, `Playlist`) lack `==` and `hashCode` | 🟡 Pending | `lib/models/` |
-| **BUG-29** | `jsonDecode` and `Song.fromJson` loop block UI thread | 🟡 Pending | `subsonic_service.dart` |
-| **BUG-30** | Sleep timer countdown causes 1Hz whole-screen rebuild | 🟡 Pending | `now_playing_screen.dart` |
-| **BUG-31** | Double-caching in `SubsonicService` vs Riverpod | 🟡 Pending | `subsonic_service.dart`, `library_provider.dart` |
+| **BUG-28** | Models (`Song`, `Album`, `Playlist`) lack `==` and `hashCode` | ✅ **FIXED** | `lib/models/` |
+| **BUG-29** | `jsonDecode` and `Song.fromJson` loop block UI thread | ✅ **FIXED** | `subsonic_service.dart`, `library_provider.dart` |
+| **BUG-30** | Sleep timer countdown causes 1Hz whole-screen rebuild | ✅ **FIXED** | `now_playing_screen.dart` |
+| **BUG-31** | Double-caching in `SubsonicService` vs Riverpod | ✅ **FIXED** | `subsonic_service.dart`, `library_provider.dart` |
 
 ---
 
@@ -1018,10 +1018,10 @@ Album lists, playlist lists, and the song library rarely change. Add an in-memor
 
 | # | Issue | Impact | Effort | Status |
 |---|-------|--------|--------|--------|
-| 28 | **BUG-28** | Models missing `==` / `hashCode` | 🟡 | 30 min | 🔴 **NEW** |
-| 29 | **BUG-29** | Offload JSON parsing to Isolate | 🔥🔥🔥 | 1 hr | 🔴 **NEW** |
-| 30 | **BUG-30** | Isolate sleep timer rebuilds | 🟡 | 20 min | 🔴 **NEW** |
-| 31 | **BUG-31** | Eliminate double-caching | 🟠 | 30 min | 🔴 **NEW** |
+| 28 | **BUG-28** | Models missing `==` / `hashCode` | 🟡 | 30 min | ✅ **FIXED** |
+| 29 | **BUG-29** | Offload JSON parsing to Isolate | 🔥🔥🔥 | 1 hr | ✅ **FIXED** |
+| 30 | **BUG-30** | Isolate sleep timer rebuilds | 🟡 | 20 min | ✅ **FIXED** |
+| 31 | **BUG-31** | Eliminate double-caching | 🟠 | 30 min | ✅ **FIXED** |
 
 ---
 

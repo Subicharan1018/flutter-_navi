@@ -429,7 +429,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
   Timer? _sleepTimer;
   Timer? _sleepCountdownTimer;
-  int? _sleepSecondsRemaining;
+  // BUG-30: replaced bare int? with ValueNotifier so the 1Hz tick only
+  // rebuilds the sleep label widget, not the entire NowPlaying screen tree.
+  final ValueNotifier<int?> _sleepSeconds = ValueNotifier(null);
 
   Song? _lastKnownSong;
   String? _lastKnownImageUrl;
@@ -471,6 +473,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     _transitionFallbackTimer?.cancel();
     _sleepTimer?.cancel();
     _sleepCountdownTimer?.cancel();
+    _sleepSeconds.dispose(); // BUG-30
     super.dispose();
   }
 
@@ -501,8 +504,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
             ...[5, 10, 15, 30, 45, 60].map((mins) => ListTile(
                   title: Text('$mins Minutes',
                       style: const TextStyle(color: AppTheme.textPrimary)),
-                  trailing: _sleepSecondsRemaining != null &&
-                          (_sleepSecondsRemaining! / 60).round() == mins
+                  trailing: _sleepSeconds.value != null &&
+                          (_sleepSeconds.value! / 60).round() == mins
                       ? const Icon(Icons.check_rounded,
                           color: AppTheme.electricBlue, size: 18)
                       : null,
@@ -522,27 +525,32 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   void _setSleepTimer(int? minutes) {
     _sleepTimer?.cancel();
     _sleepCountdownTimer?.cancel();
-    if (minutes == null) { setState(() => _sleepSecondsRemaining = null); return; }
-    setState(() => _sleepSecondsRemaining = minutes * 60);
+    // BUG-30: mutate the ValueNotifier — no setState, so the whole screen
+    // does not rebuild. Only the ValueListenableBuilder around the label does.
+    if (minutes == null) { _sleepSeconds.value = null; return; }
+    _sleepSeconds.value = minutes * 60;
     _sleepCountdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) { t.cancel(); return; }
-      setState(() {
-        if (_sleepSecondsRemaining != null && _sleepSecondsRemaining! > 0) {
-          _sleepSecondsRemaining = _sleepSecondsRemaining! - 1;
-        } else { t.cancel(); _sleepSecondsRemaining = null; }
-      });
+      final remaining = _sleepSeconds.value;
+      if (remaining != null && remaining > 0) {
+        _sleepSeconds.value = remaining - 1; // notifier update — no setState
+      } else {
+        t.cancel();
+        _sleepSeconds.value = null;
+      }
     });
     _sleepTimer = Timer(Duration(minutes: minutes), () {
       ref.read(playerProvider.notifier).player.pause();
       _sleepCountdownTimer?.cancel();
-      if (mounted) setState(() => _sleepSecondsRemaining = null);
+      _sleepSeconds.value = null; // no setState
     });
   }
 
-  String _formatSleepLabel() {
-    if (_sleepSecondsRemaining == null) return '';
-    final mins = _sleepSecondsRemaining! ~/ 60;
-    final secs = _sleepSecondsRemaining! % 60;
+  // BUG-30: takes the current value as a parameter so it can be called from
+  // inside a ValueListenableBuilder without touching setState.
+  String _formatSleepLabel(int remaining) {
+    final mins = remaining ~/ 60;
+    final secs = remaining % 60;
     return mins > 0 ? '${mins}m' : '${secs}s';
   }
 
@@ -942,16 +950,21 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                 ? AppTheme.electricBlue : Colors.white54,
                             onTap: () => notifier.toggleAutoplay(),
                           ),
-                          _BottomAction(
-                            icon: Icon(Icons.bedtime_outlined,
-                                color: _sleepSecondsRemaining != null
-                                    ? AppTheme.electricBlue : Colors.white70,
-                                size: 24),
-                            label: _sleepSecondsRemaining != null
-                                ? _formatSleepLabel() : 'Sleep',
-                            labelColor: _sleepSecondsRemaining != null
-                                ? AppTheme.electricBlue : Colors.white54,
-                            onTap: _showSleepTimerDialog,
+                          // BUG-30: ValueListenableBuilder scopes the 1Hz
+                          // rebuild to just this label widget.
+                          ValueListenableBuilder<int?>(
+                            valueListenable: _sleepSeconds,
+                            builder: (_, remaining, __) => _BottomAction(
+                              icon: Icon(Icons.bedtime_outlined,
+                                  color: remaining != null
+                                      ? AppTheme.electricBlue : Colors.white70,
+                                  size: 24),
+                              label: remaining != null
+                                  ? _formatSleepLabel(remaining) : 'Sleep',
+                              labelColor: remaining != null
+                                  ? AppTheme.electricBlue : Colors.white54,
+                              onTap: _showSleepTimerDialog,
+                            ),
                           ),
                           _BottomAction(
                             icon: const Icon(Icons.queue_music_rounded,

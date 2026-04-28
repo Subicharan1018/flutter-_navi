@@ -25,4 +25,21 @@ class Album {
       duration: json['duration'] as int? ?? 0,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Album &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          artist == other.artist &&
+          coverArt == other.coverArt &&
+          songCount == other.songCount &&
+          duration == other.duration;
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, artist, coverArt, songCount, duration);
 }
+

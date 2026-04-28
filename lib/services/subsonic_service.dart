@@ -24,14 +24,10 @@ class SubsonicService {
   /// SQLite-backed persistent playlist cache (injected by the provider).
   final PlaylistCacheService _cache;
 
-  // ---------------------------------------------------------------------------
-  // In-memory library cache (retained for the lifetime of this service instance)
-  // ---------------------------------------------------------------------------
-  List<Album>? _recentlyPlayedAlbumsCache;
-  List<Album>? _frequentAlbumsCache;
-  List<Playlist>? _playlistsCache;
-  List<Song>? _allSongsCache;
-  List<Album>? _albumsCache;
+  // In-memory library caches have been removed (BUG-31).
+  // Riverpod providers with .keepAlive() are the single source of truth.
+  // Holding the same data here caused ~1.5 MB of double-allocation and
+  // made cache invalidation impossible without recreating the service.
 
   // ---------------------------------------------------------------------------
   // COVER ART URL FIX
@@ -158,7 +154,11 @@ class SubsonicService {
     final url = _buildUrl(endpoint, params);
     final response = await _client.get(Uri.parse(url));
     if (response.statusCode == 200) {
-      final jsonResponse = jsonDecode(response.body) as Map<String, dynamic>;
+      // BUG-29: parse JSON on a background isolate — response.body can be
+      // 2–5 MB for large song libraries; doing this on the main thread
+      // causes visible freezes of 300–800 ms.
+      final jsonResponse =
+          await compute(_decodeJsonBody, response.body);
       final subsonicResponse =
           jsonResponse['subsonic-response'] as Map<String, dynamic>;
       if (subsonicResponse['status'] == 'ok') {
@@ -190,8 +190,9 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   Future<List<Song>> getAllSongs({int size = 5000}) async {
-    if (_allSongsCache != null) return _allSongsCache!;
-
+    // BUG-29: Song.fromJson mapping moved to background isolate.
+    // BUG-31: in-memory cache removed — Riverpod allSongsProvider.keepAlive()
+    //         is the authoritative cache.
     try {
       final res = await _get('search3.view', {
         'query': '*',
@@ -199,20 +200,16 @@ class SubsonicService {
       });
       final searchResult =
           res['searchResult3'] as Map<String, dynamic>? ?? {};
-      final songs = (searchResult['song'] as List<dynamic>? ?? [])
-          .map((e) => Song.fromJson(e as Map<String, dynamic>))
-          .toList();
-      if (songs.length > 10) {
-        _allSongsCache = songs;
-        return songs;
-      }
+      final rawList = (searchResult['song'] as List<dynamic>? ?? [])
+          .cast<Map<String, dynamic>>();
+      // Parse 5000 Song objects on a background isolate.
+      final songs = await compute(_parseSongList, rawList);
+      if (songs.length > 10) return songs;
     } catch (e) {
       debugPrint('Wildcard search failed: $e');
     }
 
-    final result = await getRandomSongs(size: size);
-    _allSongsCache = result;
-    return result;
+    return getRandomSongs(size: size);
   }
 
   Future<List<Song>> getRandomSongs({int size = 50}) async {
@@ -258,36 +255,29 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   Future<List<Album>> getRecentlyPlayedAlbums() async {
-    if (_recentlyPlayedAlbumsCache != null) return _recentlyPlayedAlbumsCache!;
-
+    // BUG-31: cache removed — recentlyPlayedAlbumsProvider.keepAlive() owns it.
     final res = await _get('getAlbumList2.view', {'type': 'recent'});
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    _recentlyPlayedAlbumsCache = albums
+    return albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
-    return _recentlyPlayedAlbumsCache!;
   }
 
   Future<List<Album>> getFrequentAlbums() async {
-    if (_frequentAlbumsCache != null) return _frequentAlbumsCache!;
-
+    // BUG-31: cache removed — frequentAlbumsProvider.keepAlive() owns it.
     final res = await _get('getAlbumList2.view', {'type': 'frequent'});
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    _frequentAlbumsCache = albums
+    return albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
-    return _frequentAlbumsCache!;
   }
 
   Future<List<Album>> getAlbums({int offset = 0, int size = 50}) async {
-    if (offset == 0 && size == 1000 && _albumsCache != null) {
-      return _albumsCache!;
-    }
-
+    // BUG-31: _albumsCache removed — libraryAlbumsProvider.keepAlive() owns it.
     final res = await _get('getAlbumList2.view', {
       'type': 'alphabeticalByArtist',
       'offset': offset.toString(),
@@ -296,11 +286,7 @@ class SubsonicService {
     final albums =
         (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
             [];
-    final result =
-        albums.map((e) => Album.fromJson(e as Map<String, dynamic>)).toList();
-
-    if (offset == 0 && size == 1000) _albumsCache = result;
-    return result;
+    return albums.map((e) => Album.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<List<Song>> getAlbum(String id) async {
@@ -337,16 +323,14 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   Future<List<Playlist>> getPlaylists() async {
-    if (_playlistsCache != null) return _playlistsCache!;
-
+    // BUG-31: _playlistsCache removed — playlistsProvider.keepAlive() owns it.
     final res = await _get('getPlaylists.view');
     final playlists =
         (res['playlists'] as Map<String, dynamic>)['playlist'] as List<dynamic>? ??
             [];
-    _playlistsCache = playlists
+    return playlists
         .map((e) => Playlist.fromJson(e as Map<String, dynamic>))
         .toList();
-    return _playlistsCache!;
   }
 
   // ---------------------------------------------------------------------------
@@ -415,12 +399,11 @@ class SubsonicService {
 
   Future<void> createPlaylist(String name) async {
     await _get('createPlaylist.view', {'name': name});
-    _playlistsCache = null; // invalidate so next fetch is fresh
+    // Playlist list is owned by playlistsProvider — callers invalidate via ref.invalidate(playlistsProvider).
   }
 
   Future<void> deletePlaylist(String id) async {
     await _get('deletePlaylist.view', {'id': id});
-    _playlistsCache = null; // invalidate
   }
 
   Future<void> updatePlaylist(
@@ -438,7 +421,6 @@ class SubsonicService {
     if (name != null) params['name'] = name;
     if (comment != null) params['comment'] = comment;
     await _get('updatePlaylist.view', params);
-    _playlistsCache = null; // content changed — invalidate
   }
 
   Future<void> setPlaylistImage(String playlistId, File imageFile) async {
@@ -604,23 +586,17 @@ class SubsonicService {
   // Cache invalidation helpers (call after mutations if needed)
   // ---------------------------------------------------------------------------
 
-  /// Clears all in-memory caches AND the SQLite playlist cache.
-  /// Call this on logout or server change.
+  /// Wipes the SQLite playlist song cache.
+  /// Call this on logout or server change, then use ref.invalidate() on
+  /// Riverpod providers to trigger fresh network fetches.
   void clearCache() {
-    _recentlyPlayedAlbumsCache = null;
-    _frequentAlbumsCache = null;
-    _playlistsCache = null;
-    _allSongsCache = null;
-    _albumsCache = null;
-    _cache.clearAll(); // wipe persisted playlist songs
+    _cache.clearAll(); // wipe persisted SQLite playlist songs
   }
 
-  /// Invalidates only the recently-played / frequent caches (call after
-  /// scrobble so the next fetch reflects the updated play counts).
-  void invalidatePlayHistory() {
-    _recentlyPlayedAlbumsCache = null;
-    _frequentAlbumsCache = null;
-  }
+  /// No-op — retained for API compatibility.
+  /// Play history cache is owned by recentlyPlayedAlbumsProvider.keepAlive();
+  /// call ref.invalidate(recentlyPlayedAlbumsProvider) to force a refresh.
+  void invalidatePlayHistory() {}
 
   // BUG-3: close the http.Client to release socket connections.
   void dispose() {
@@ -630,8 +606,16 @@ class SubsonicService {
 }
 
 // ---------------------------------------------------------------------------
-// Top-level parse helper — must be top-level for compute() compatibility
+// Top-level parse helpers — must be top-level for compute() compatibility
 // ---------------------------------------------------------------------------
+
+/// Parses raw song JSON entries into [Song] objects on a background isolate.
 List<Song> _parseSongList(List<Map<String, dynamic>> entries) {
   return entries.map(Song.fromJson).toList();
 }
+
+/// Decodes a raw HTTP response body string into a JSON map on a background
+/// isolate (BUG-29).  For large responses (e.g. 5,000 songs ≈ 2–5 MB) this
+/// prevents the 300–800 ms UI freeze caused by synchronous [jsonDecode].
+Map<String, dynamic> _decodeJsonBody(String body) =>
+    jsonDecode(body) as Map<String, dynamic>;

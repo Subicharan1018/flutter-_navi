@@ -25,4 +25,21 @@ class Playlist {
       coverArt: json['coverArt'] as String?,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Playlist &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          name == other.name &&
+          comment == other.comment &&
+          songCount == other.songCount &&
+          duration == other.duration &&
+          coverArt == other.coverArt;
+
+  @override
+  int get hashCode =>
+      Object.hash(id, name, comment, songCount, duration, coverArt);
 }
+

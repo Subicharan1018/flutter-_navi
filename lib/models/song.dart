@@ -106,4 +106,37 @@ class Song {
       dynamicWeight: dynamicWeight ?? this.dynamicWeight,
     );
   }
-}
+
+  // ---------------------------------------------------------------------------
+  // Equality — based on all value fields except [dynamicWeight], which is a
+  // local mutable shuffle weight and not part of the song's data identity.
+  // Correct equality lets Riverpod select() suppress unnecessary rebuilds and
+  // makes Set<Song> / List.contains() work after copyWith.
+  // ---------------------------------------------------------------------------
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is Song &&
+          runtimeType == other.runtimeType &&
+          id == other.id &&
+          title == other.title &&
+          artist == other.artist &&
+          album == other.album &&
+          genre == other.genre &&
+          composer == other.composer &&
+          coverArt == other.coverArt &&
+          duration == other.duration &&
+          track == other.track &&
+          year == other.year &&
+          starred == other.starred &&
+          playCount == other.playCount &&
+          rating == other.rating &&
+          created == other.created;
+
+  @override
+  int get hashCode => Object.hash(
+      id, title, artist, album, genre, composer,
+      coverArt, duration, track, year, starred,
+      playCount, rating, created);
+}
