@@ -173,19 +173,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     // currentIndexStream events as the ConcatenatingAudioSource is rebuilt.
     // We ignore those entirely; applyShuffleAlgorithm syncs state afterwards.
     // ---------------------------------------------------------------------------
-    int _lastKnownIndex = 0;
+    int lastKnownIndex = 0;
 
     _subscriptions.add(player.currentIndexStream.listen((index) {
       if (index == null) return;
 
       // ── Shuffle guard ──────────────────────────────────────────────────────
       if (_isShuffling) {
-        _lastKnownIndex = index;
+        lastKnownIndex = index;
         return;
       }
 
-      final prevIndex = _lastKnownIndex;
-      _lastKnownIndex = index;
+      final prevIndex = lastKnownIndex;
+      lastKnownIndex = index;
 
       // ── Analytics: close the previous event and open a new one ─────────────
       final settings = _ref.read(settingsProvider);
@@ -220,6 +220,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             transitionType: transCtx,
             prevSong: prevSong,
             positionAtSwitch: _lastKnownPosition,
+            queuePosition: index,
+            shuffleActive: state.shuffleMode,
           );
 
           // ── Recommendation tracking ────────────────────────────────
@@ -280,16 +282,30 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       state = state.copyWith(repeatMode: loopMode);
     }));
 
+    // Track repeat loops (LoopMode.one): when the position resets near zero
+    // while the same song is still current, the track looped.
+    Duration prevPosition = Duration.zero;
     _subscriptions.add(player.positionStream.listen((position) {
       // Always track position so currentIndexStream can apply the 2-second
       // history gate when the track changes.
       _lastKnownPosition = position;
 
       if (state.queue.isEmpty || state.currentIndex >= state.queue.length) {
+        prevPosition = position;
         return;
       }
       final currentSong = state.queue[state.currentIndex];
       final duration = currentSong.duration;
+
+      // Detect LoopMode.one repeat: position jumps back to ~0 from > 50%.
+      if (state.repeatMode == LoopMode.one &&
+          prevPosition.inSeconds > (duration * 0.5) &&
+          position.inSeconds < 2) {
+        _collector.onSongRepeated();
+        debugPrint('[Analytics] 🔁 LoopMode.one repeat detected for "${currentSong.title}"');
+      }
+      prevPosition = position;
+
       if (duration > 0 && position.inSeconds > (duration * 0.5)) {
         if (!_scrobbledIds.contains(currentSong.id)) {
           _scrobbledIds.add(currentSong.id);
@@ -718,10 +734,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _collector.recordSuggestFeedback(song, isMore);
     }
 
-    // Update the in-memory dynamic weight for this queue session
+    // Update the in-memory dynamic weight for this queue session.
     _audioHandler.updateSongWeight(song, isMore);
 
-    // Sync state so the UI can reflect any queue/weight changes
+    // Persist the new weight to SQLite so it survives app restarts.
+    final updatedSong = _audioHandler.currentQueue
+        .where((s) => s.id == song.id)
+        .firstOrNull;
+    if (updatedSong != null) {
+      _collector.persistWeight(updatedSong.id, updatedSong.dynamicWeight);
+    }
+
+    // Sync state so the UI can reflect any queue/weight changes.
     state = state.copyWith(queue: _audioHandler.currentQueue);
   }
 
