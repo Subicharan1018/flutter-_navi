@@ -173,36 +173,40 @@ class AudioHandler {
     await _rebuildSource(startIndex);
   }
 
-  Future<void> _rebuildSource(int startIndex) async {
+  Future<void> _rebuildSource(int startIndex, {Duration? initialPosition}) async {
     if (_currentQueue.isEmpty) return;
     // Save loop mode — setAudioSource resets it to LoopMode.off internally.
     final savedLoopMode = player.loopMode;
     final sources = _currentQueue.map(_toSource).toList();
     _playlist = ConcatenatingAudioSource(children: sources);
-    await player.setAudioSource(_playlist!, initialIndex: startIndex);
+    await player.setAudioSource(
+      _playlist!,
+      initialIndex: startIndex,
+      initialPosition: initialPosition,
+    );
     // Restore so Repeat survives every queue rebuild.
     if (savedLoopMode != LoopMode.off) {
       await player.setLoopMode(savedLoopMode);
     }
   }
 
-  /// Updates the Future part of the queue without interrupting the current song.
+  /// Rebuilds the full audio source after a shuffle, preserving the current
+  /// song and playback position so audio never restarts from the beginning.
+  ///
+  /// The previous incremental approach (removeRange + addAll on
+  /// ConcatenatingAudioSource) was unreliable: just_audio sometimes buffered
+  /// the next song in the original order before the mutation completed, causing
+  /// playback to continue in playlist order even after a shuffle.
+  ///
+  /// Full rebuild guarantees the audio source reflects the new order exactly.
+  /// The position is saved and restored so the user hears no interruption
+  /// (just_audio seeks the streaming URL to the saved offset).
   Future<void> _updateQueueAfterAnchor(int anchorIndex) async {
-    if (_playlist == null) {
-      await _rebuildSource(anchorIndex);
-      return;
-    }
-
-    // Remove everything after the current song
-    if (_playlist!.length > anchorIndex + 1) {
-      await _playlist!.removeRange(anchorIndex + 1, _playlist!.length);
-    }
-
-    // Append the new Future
-    final newFuture = _currentQueue.sublist(anchorIndex + 1);
-    if (newFuture.isNotEmpty) {
-      await _playlist!.addAll(newFuture.map(_toSource).toList());
-    }
+    // Save position BEFORE rebuilding so we can restore it afterwards.
+    final savedPosition = player.position;
+    await _rebuildSource(anchorIndex, initialPosition: savedPosition);
+    // If the player was playing before, keep it playing after the rebuild.
+    if (player.playing) player.play();
   }
 
   // ---------------------------------------------------------------------------
@@ -391,9 +395,11 @@ class AudioHandler {
     for (int i = 0; i < _currentQueue.length; i++) {
       if (_currentQueue[i].id == song.id) {
         final current = _currentQueue[i].dynamicWeight;
-        _currentQueue[i].dynamicWeight = suggestMore
+        final newWeight = suggestMore
             ? (current * 1.5).clamp(0.1, 10.0)
             : (current * 0.5).clamp(0.1, 10.0);
+        // Use copyWith so Song stays immutable and Riverpod equality works.
+        _currentQueue[i] = _currentQueue[i].copyWith(dynamicWeight: newWeight);
         break;
       }
     }

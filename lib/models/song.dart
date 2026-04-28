@@ -14,8 +14,8 @@ class Song {
   final int rating;
   final DateTime? created;
 
-  // Local mutable weight for smart shuffle algorithms
-  double dynamicWeight;
+  // Local weight for smart shuffle algorithms — immutable, updated via copyWith.
+  final double dynamicWeight;
 
   Song({
     required this.id,

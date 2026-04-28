@@ -569,6 +569,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       // Yield to event loop to allow UI animations to complete smoothly
       await Future.delayed(const Duration(milliseconds: 50));
+
+      // ── Capture currentIndex BEFORE any audio-source manipulation ──────────
+      // Reading player.currentIndex AFTER _updateQueueAfterAnchor is unreliable:
+      // just_audio can shift the internal index during removeRange / addAll on
+      // ConcatenatingAudioSource, returning 0 even though nothing moved.
+      // Saving here (after the 50 ms yield but before the algorithm runs) gives
+      // us the stable, correct position of the song that is playing.
+      final savedIndex = _audioHandler.player.currentIndex ?? state.currentIndex;
+
       final settings = _ref.read(settingsProvider);
       final algorithm = settings.shuffleAlgorithm;
       switch (algorithm) {
@@ -582,19 +591,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           await _audioHandler.standardShuffle();
           break;
       }
-      // Sync state with the newly reordered queue AFTER the rebuild is complete.
-      //
-      // Use the audio player's ACTUAL current index, not a hardcoded 0.
-      // The shuffle algorithms keep every song up to and including the
-      // currently-playing song in place; only future songs are reshuffled.
-      // So player.currentIndex never changes during a shuffle — reading it
-      // here gives the correct position of the song that is still playing.
-      // Hardcoding 0 was the root cause of the race condition where the UI
-      // jumped back to song 1 and the queue appeared to play in order.
-      final realIndex = _audioHandler.player.currentIndex ?? state.currentIndex;
+      // Sync state using the SAVED index — not whatever the player reports
+      // after the source rebuild (which can be 0 due to the just_audio bug).
       state = state.copyWith(
         queue: _audioHandler.currentQueue,
-        currentIndex: realIndex,
+        currentIndex: savedIndex,
       );
     } finally {
       _isShuffling = false;
