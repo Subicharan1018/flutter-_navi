@@ -45,24 +45,24 @@ class AppTheme {
   static TextStyle get technicalXs => GoogleFonts.inter(
         fontSize: 12, fontWeight: FontWeight.w400, color: textMuted);
 
-  static TextStyle headingLg => GoogleFonts.inter(
+  static TextStyle get headingLg => GoogleFonts.inter(
         fontSize: 28, fontWeight: FontWeight.w700,
         color: textPrimary, letterSpacing: -0.5);
 
-  static TextStyle headingMd => GoogleFonts.inter(
+  static TextStyle get headingMd => GoogleFonts.inter(
         fontSize: 22, fontWeight: FontWeight.w700,
         color: textPrimary, letterSpacing: -0.3);
 
-  static TextStyle headingSm => GoogleFonts.inter(
+  static TextStyle get headingSm => GoogleFonts.inter(
         fontSize: 16, fontWeight: FontWeight.w700, color: textPrimary);
 
-  static TextStyle bodyMd => GoogleFonts.inter(
+  static TextStyle get bodyMd => GoogleFonts.inter(
         fontSize: 14, fontWeight: FontWeight.w400, color: textPrimary);
 
-  static TextStyle bodySm => GoogleFonts.inter(
+  static TextStyle get bodySm => GoogleFonts.inter(
         fontSize: 12, fontWeight: FontWeight.w400, color: textSecondary);
 
-  static TextStyle labelMd => GoogleFonts.inter(
+  static TextStyle get labelMd => GoogleFonts.inter(
         fontSize: 11, fontWeight: FontWeight.w600,
         color: textSecondary, letterSpacing: 1.2);
 
