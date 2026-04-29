@@ -351,6 +351,21 @@ class SubsonicService {
         .toList();
   }
 
+  Future<({List<Song> songs, List<Album> albums})> getStarred() async {
+    final res = await _get('getStarred.view');
+    final starred = res['starred'] as Map<String, dynamic>? ?? {};
+
+    final songs = (starred['song'] as List<dynamic>? ?? [])
+        .map((e) => Song.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    final albums = (starred['album'] as List<dynamic>? ?? [])
+        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+        .toList();
+
+    return (songs: songs, albums: albums);
+  }
+
   // ---------------------------------------------------------------------------
   // Artists
   // ---------------------------------------------------------------------------

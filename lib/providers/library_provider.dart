@@ -41,6 +41,14 @@ final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
   return service.getPlaylists();
 });
 
+final favoritesProvider = FutureProvider<({List<Song> songs, List<Album> albums})>((ref) async {
+  ref.keepAlive();
+  final settings = ref.watch(settingsProvider);
+  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return (songs: <Song>[], albums: <Album>[]);
+  final service = ref.watch(subsonicServiceProvider);
+  return service.getStarred();
+});
+
 final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   ref.keepAlive(); // 5 000-song list — must never re-fetch on tab switch
   final settings = ref.watch(settingsProvider);
@@ -89,4 +97,4 @@ List<Song> _sortSongsByCreated(List<Song> songs) {
     return b.created!.compareTo(a.created!);
   });
   return songs;
-}
+}

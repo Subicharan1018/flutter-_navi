@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../screens/home_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/library_screen.dart';
+import '../screens/favorites_screen.dart';
 import '../core/theme.dart';
 import 'mini_player.dart';
 
@@ -19,6 +20,7 @@ class _AppScaffoldState extends State<AppScaffold> {
   final List<Widget> _screens = [
     const HomeScreen(),
     const SearchScreen(),
+    const FavoritesScreen(),
     const LibraryScreen(),
   ];
 
@@ -69,6 +71,13 @@ class _AppScaffoldState extends State<AppScaffold> {
                         child: Icon(Icons.search_rounded, size: 24),
                       ),
                       label: 'Search',
+                    ),
+                    BottomNavigationBarItem(
+                      icon: Padding(
+                        padding: EdgeInsets.only(bottom: 4),
+                        child: Icon(Icons.favorite_rounded, size: 24),
+                      ),
+                      label: 'Favorites',
                     ),
                     BottomNavigationBarItem(
                       icon: Padding(
