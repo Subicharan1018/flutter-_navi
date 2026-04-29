@@ -1,10 +1,12 @@
 import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../screens/home_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/favorites_screen.dart';
+import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
 import 'mini_player.dart';
 
@@ -13,15 +15,24 @@ import 'mini_player.dart';
 // Spotify-accurate bottom navigation + glassmorphism mini-player slot.
 // =============================================================================
 
-class AppScaffold extends StatefulWidget {
+class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key});
 
   @override
-  State<AppScaffold> createState() => _AppScaffoldState();
+  ConsumerState<AppScaffold> createState() => _AppScaffoldState();
 }
 
-class _AppScaffoldState extends State<AppScaffold> {
+class _AppScaffoldState extends ConsumerState<AppScaffold> {
   int _currentIndex = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    // Schedule background analytics upload on startup if needed
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      ref.read(replayUploadServiceProvider).performUploadIfNeeded();
+    });
+  }
 
   static const List<_NavItem> _items = [
     _NavItem(icon: Icons.home_outlined,   activeIcon: Icons.home_rounded,          label: 'Home'),

@@ -11,6 +11,7 @@ import '../services/cache_settings_service.dart';
 import '../services/replay_gain_service.dart';
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
+import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -154,35 +155,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     setState(() => _isSyncing = true);
     try {
-      final csvMap = await ref.read(listenerCollectorProvider).exportCsv();
-      final cache = ref.read(playlistCacheServiceProvider);
-      final service = SubsonicService(
-        serverUrl: _urlController.text.trim(),
-        username: _userController.text.trim(),
-        password: _passController.text,
-        cache: cache,
-        customUploadUrl: uploadUrl,
-        customUploadDir: _uploadDirController.text.trim().isEmpty
-            ? null
-            : _uploadDirController.text.trim(),
-      );
-
-      final timestamp = DateTime.now()
-          .toIso8601String()
-          .replaceAll(':', '-')
-          .substring(0, 19);
-
-      for (final entry in csvMap.entries) {
-        await service.uploadTextToWebDav(
-          remoteFileName: 'navivibe_${entry.key}_$timestamp.csv',
-          contents: entry.value,
-        );
-      }
+      final uploadService = ref.read(replayUploadServiceProvider);
+      await uploadService.uploadData('manual');
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Synced ${csvMap.length} CSV file(s) to server'),
+          const SnackBar(
+            content: Text('Synced analytics and recommendations to server'),
             backgroundColor: AppTheme.electricBlue,
           ),
         );
@@ -502,6 +481,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       : const Icon(Icons.chevron_right_rounded,
                           color: AppTheme.textMuted, size: 20),
                   onTap: _isSyncing ? null : _syncDataToServer,
+                ),
+                _SettingsDivider(),
+                _SettingsDropdownRow<String>(
+                  label: 'Auto-Upload Schedule',
+                  value: settings.analyticsUploadSchedule,
+                  items: const ['none', 'weekly', 'monthly'],
+                  onChanged: (v) {
+                    if (v != null) {
+                      ref.read(settingsProvider.notifier).setAnalyticsUploadSchedule(v);
+                    }
+                  },
                 ),
               ],
             ),
@@ -1042,6 +1032,11 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
                   ShufflePreference.composer => 'By Composer',
                   ShufflePreference.genre => 'By Genre',
                 };
+              } else if (item is String) {
+                if (item == 'none') name = 'Disabled';
+                else if (item == 'weekly') name = 'Weekly';
+                else if (item == 'monthly') name = 'Monthly';
+                else name = item;
               } else {
                 name = item.toString();
               }

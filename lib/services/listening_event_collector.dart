@@ -247,6 +247,26 @@ class ListeningEventCollector {
     };
   }
 
+  Future<Map<String, List<Map<String, dynamic>>>> exportJson() async {
+    final db = await _open();
+    return {
+      'play_events': await db.query('play_events', orderBy: 'ts_start ASC'),
+      'song_metadata': await db.query('song_metadata', orderBy: 'track_name ASC'),
+      'song_pairs': await db.query('song_pairs', orderBy: 'play_count DESC'),
+      'user_feedback': await db.query('user_feedback', orderBy: 'ts ASC'),
+      'song_weights': await db.query('song_weights', orderBy: 'weight DESC'),
+    };
+  }
+
+  Future<void> deleteDataOlderThan(DateTime threshold) async {
+    final db = await _open();
+    final ts = threshold.millisecondsSinceEpoch;
+    await db.delete('play_events', where: 'ts_start < ?', whereArgs: [ts]);
+    // Optional: could delete old song_pairs or user_feedback if desired, 
+    // but play_events is the main storage hog.
+    debugPrint('[Analytics] 🧹 Deleted play_events older than $threshold');
+  }
+
   Future<List<String>> exportCsvToDownloads() async {
     debugPrint('[Analytics] 📤 Starting CSV export...');
     final csvMap = await exportCsv();

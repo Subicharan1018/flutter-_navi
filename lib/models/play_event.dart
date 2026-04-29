@@ -118,7 +118,9 @@ class PlayEvent {
     if (totalDurationSec > 0) {
       playDurationSec = playedDuration.inSeconds.clamp(0, totalDurationSec);
       final pct = playedDuration.inSeconds / totalDurationSec;
-      if (pct < 0.5) {
+      // A song that was looped (repeats > 0) is NEVER a skip — looping is
+      // the strongest positive engagement signal available.
+      if (pct < 0.5 && repeats == 0) {
         skipBeforeEnd = true;
         skipPositionPct = pct.clamp(0.0, 1.0);
       } else {
@@ -126,9 +128,13 @@ class PlayEvent {
         skipPositionPct = null;
       }
     } else {
-      // Duration unknown — fall back to 30-second heuristic.
-      playDurationSec = playedDuration.inSeconds;
-      skipBeforeEnd = playedDuration.inSeconds < 30;
+      // Duration unknown — cap at wall-clock elapsed time to prevent
+      // inflation from pause/resume cycles inflating the raw position.
+      final elapsedSec =
+          timestampEnd!.difference(timestampStart).inSeconds.abs();
+      playDurationSec = playedDuration.inSeconds
+          .clamp(0, elapsedSec > 0 ? elapsedSec : 86400);
+      skipBeforeEnd = playedDuration.inSeconds < 30 && repeats == 0;
       skipPositionPct = null;
     }
   }

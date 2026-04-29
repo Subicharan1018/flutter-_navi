@@ -66,7 +66,13 @@ class ReplayStats {
 class ReplayData {
   final List<ReplaySong> songs;
   final ReplayStats stats;
-  const ReplayData({required this.songs, required this.stats});
+  /// Per-day listening seconds: key = ISO weekday (1=Mon … 7=Sun).
+  final Map<int, int> dailyListening;
+  const ReplayData({
+    required this.songs,
+    required this.stats,
+    this.dailyListening = const {},
+  });
   bool get isEmpty => songs.isEmpty;
 }
 
@@ -84,32 +90,71 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
   try {
     db = await _openAnalyticsDb();
 
-    // Top 10 songs by total play duration in the given window.
-    // Joins play_events → song_metadata on song_id.
+    // ── Effective listening time formula ──────────────────────────────────
+    // play_dur_sec stores the position at the moment of stop (clamped to
+    // song duration). For LoopMode.one repeats, each completed loop played
+    // the FULL track, so effective time = repeat_count × duration + partial.
+    //
+    // COALESCE guards against missing song_metadata rows.
+    //
+    // score = effective_sec × (1 + completion_rate) × skip_penalty
+    //   completion_rate = effective_sec / expected_sec
+    //   skip_penalty    = MAX(0.3, 1.0 - skip_count × 0.1)
+    // ─────────────────────────────────────────────────────────────────────
+
+    // Top 10 songs by recommendation-weighted score in the given window.
     final rows = await db.rawQuery('''
+      WITH song_stats AS (
+        SELECT
+          pe.song_id,
+          sm.track_name,
+          sm.artist_name,
+          sm.album_name,
+          sm.genre,
+          COUNT(pe.play_id) AS play_count,
+          SUM(
+            pe.repeat_count * COALESCE(sm.duration_sec, pe.play_dur_sec)
+            + pe.play_dur_sec
+          ) AS effective_sec,
+          SUM(
+            (1 + pe.repeat_count) * COALESCE(sm.duration_sec, pe.play_dur_sec)
+          ) AS expected_sec,
+          SUM(pe.skip_before_50) AS skip_count
+        FROM play_events pe
+        LEFT JOIN song_metadata sm ON sm.song_id = pe.song_id
+        WHERE pe.ts_start >= ? AND pe.ts_start < ?
+          AND pe.play_dur_sec > 0
+        GROUP BY pe.song_id
+      )
       SELECT
-        pe.song_id,
-        sm.track_name,
-        sm.artist_name,
-        sm.album_name,
-        sm.genre,
-        COUNT(pe.play_id)      AS play_count,
-        SUM(pe.play_dur_sec)   AS total_sec
-      FROM play_events pe
-      LEFT JOIN song_metadata sm ON sm.song_id = pe.song_id
-      WHERE pe.ts_start >= ? AND pe.ts_start < ?
-        AND pe.play_dur_sec > 0
-      GROUP BY pe.song_id
-      ORDER BY total_sec DESC
+        song_id,
+        track_name,
+        artist_name,
+        album_name,
+        genre,
+        play_count,
+        effective_sec AS total_sec,
+        CAST(effective_sec AS REAL) / MAX(expected_sec, 1) AS completion_rate,
+        skip_count,
+        (
+          effective_sec
+          * (1.0 + CAST(effective_sec AS REAL) / MAX(expected_sec, 1))
+          * MAX(0.3, 1.0 - (skip_count * 0.1))
+        ) AS score
+      FROM song_stats
+      ORDER BY score DESC
       LIMIT 10
     ''', [fromMs, toMs]);
 
     // Stats summary
     final statsRows = await db.rawQuery('''
       SELECT
-        SUM(pe.play_dur_sec)                AS total_sec,
-        COUNT(DISTINCT sm.artist_name)      AS unique_artists,
-        COUNT(DISTINCT pe.song_id)          AS unique_songs
+        SUM(
+          pe.repeat_count * COALESCE(sm.duration_sec, pe.play_dur_sec)
+          + pe.play_dur_sec
+        ) AS total_sec,
+        COUNT(DISTINCT sm.artist_name) AS unique_artists,
+        COUNT(DISTINCT pe.song_id)     AS unique_songs
       FROM play_events pe
       LEFT JOIN song_metadata sm ON sm.song_id = pe.song_id
       WHERE pe.ts_start >= ? AND pe.ts_start < ?
@@ -118,7 +163,11 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
 
     // Top genre
     final genreRows = await db.rawQuery('''
-      SELECT sm.genre, SUM(pe.play_dur_sec) AS total_sec
+      SELECT sm.genre,
+        SUM(
+          pe.repeat_count * COALESCE(sm.duration_sec, pe.play_dur_sec)
+          + pe.play_dur_sec
+        ) AS total_sec
       FROM play_events pe
       LEFT JOIN song_metadata sm ON sm.song_id = pe.song_id
       WHERE pe.ts_start >= ? AND pe.ts_start < ?
@@ -128,6 +177,30 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
       ORDER BY total_sec DESC
       LIMIT 1
     ''', [fromMs, toMs]);
+
+    // Per-day-of-week listening breakdown.
+    // SQLite strftime('%w') returns 0=Sun,1=Mon…6=Sat.
+    // Convert to ISO weekday: 1=Mon…7=Sun.
+    final dailyRows = await db.rawQuery('''
+      SELECT
+        CAST(strftime('%w', pe.ts_start / 1000, 'unixepoch', 'localtime') AS INTEGER) AS dow,
+        SUM(
+          pe.repeat_count * COALESCE(sm.duration_sec, pe.play_dur_sec)
+          + pe.play_dur_sec
+        ) AS total_sec
+      FROM play_events pe
+      LEFT JOIN song_metadata sm ON sm.song_id = pe.song_id
+      WHERE pe.ts_start >= ? AND pe.ts_start < ?
+        AND pe.play_dur_sec > 0
+      GROUP BY dow
+    ''', [fromMs, toMs]);
+
+    final Map<int, int> dailyListening = {};
+    for (final r in dailyRows) {
+      final sqliteDow = (r['dow'] as int?) ?? 0; // 0=Sun,1=Mon…6=Sat
+      final isoDow = sqliteDow == 0 ? 7 : sqliteDow; // → 1=Mon…7=Sun
+      dailyListening[isoDow] = (r['total_sec'] as int?) ?? 0;
+    }
 
     final statsRow = statsRows.isNotEmpty ? statsRows.first : {};
     final stats = ReplayStats(
@@ -147,7 +220,7 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
       coverArtId: r['song_id'] as String, // Subsonic getCoverArt accepts song IDs
     )).toList();
 
-    return ReplayData(songs: songs, stats: stats);
+    return ReplayData(songs: songs, stats: stats, dailyListening: dailyListening);
   } catch (_) {
     return const ReplayData(
       songs: [],

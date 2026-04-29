@@ -80,7 +80,6 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
                 ),
 
                 // ── Tab views ─────────────────────────────────────────────
-                // Expanded prevents "Vertical viewport unbounded height".
                 Expanded(
                   child: TabBarView(
                     controller: _tabController,
@@ -89,11 +88,13 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
                         provider: monthlyReplayProvider,
                         periodLabel: _monthLabel(),
                         emptyLabel: 'Listen more this month to\nbuild your Monthly Replay',
+                        showDailyChart: false,
                       ),
                       _ReplayTabContent(
                         provider: weeklyReplayProvider,
                         periodLabel: _weekLabel(),
                         emptyLabel: 'Listen more this week to\nbuild your Weekly Replay',
+                        showDailyChart: true,
                       ),
                     ],
                   ),
@@ -116,7 +117,7 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
 }
 
 // =============================================================================
-// Header with tab bar
+// Header — clean, no waveform decoration
 // =============================================================================
 
 class _ReplayHeader extends StatelessWidget {
@@ -141,7 +142,6 @@ class _ReplayHeader extends StatelessWidget {
       child: Column(
         children: [
           SizedBox(height: topPad + 8),
-          // Back button row
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Row(
@@ -158,18 +158,11 @@ class _ReplayHeader extends StatelessWidget {
                 const Spacer(),
                 Text('Replay', style: AppTheme.headingSm),
                 const Spacer(),
-                const SizedBox(width: 48), // balance
+                const SizedBox(width: 48),
               ],
             ),
           ),
-          const SizedBox(height: 4),
-          // Animated waveform
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 24),
-            child: _WaveformDecoration(),
-          ),
-          const SizedBox(height: 16),
-          // Tab bar
+          const SizedBox(height: 8),
           TabBar(
             controller: tabController,
             labelColor: AppTheme.textPrimary,
@@ -177,9 +170,9 @@ class _ReplayHeader extends StatelessWidget {
             indicatorColor: AppTheme.spotifyGreen,
             indicatorWeight: 2,
             labelStyle: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w600),
+                fontSize: 14, fontWeight: FontWeight.w600),
             unselectedLabelStyle: const TextStyle(
-              fontSize: 14, fontWeight: FontWeight.w400),
+                fontSize: 14, fontWeight: FontWeight.w400),
             tabs: [
               Tab(text: monthLabel),
               const Tab(text: 'This Week'),
@@ -192,109 +185,20 @@ class _ReplayHeader extends StatelessWidget {
 }
 
 // =============================================================================
-// Animated waveform — syncs to the listening distribution
-// =============================================================================
-
-class _WaveformDecoration extends StatelessWidget {
-  @override
-  Widget build(BuildContext context) {
-    // Simulated listening intensity bars — alternating heights for visual rhythm
-    final heights = [
-      8.0, 16.0, 24.0, 14.0, 32.0, 20.0, 28.0, 12.0,
-      36.0, 18.0, 30.0, 10.0, 22.0, 34.0, 16.0, 26.0,
-      8.0, 20.0, 38.0, 14.0, 28.0, 12.0, 32.0, 18.0,
-    ];
-
-    return SizedBox(
-      height: 42,
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: List.generate(heights.length, (i) {
-          return Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 1.5),
-            child: _AnimatedBar(
-              height: heights[i],
-              delay: i * 35,
-              color: HSLColor.fromAHSL(
-                1.0,
-                140 + (i * 2.5), // hue shift green → teal
-                0.65,
-                (0.30 + (heights[i] / 80)).clamp(0.0, 1.0),
-              ).toColor(),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _AnimatedBar extends StatefulWidget {
-  final double height;
-  final int delay;
-  final Color color;
-  const _AnimatedBar({required this.height, required this.delay, required this.color});
-
-  @override
-  State<_AnimatedBar> createState() => _AnimatedBarState();
-}
-
-class _AnimatedBarState extends State<_AnimatedBar>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _animation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: Duration(milliseconds: 1200 + widget.delay),
-    );
-    _animation = Tween<double>(begin: 0.0, end: widget.height).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.elasticOut),
-    );
-    Future.delayed(Duration(milliseconds: widget.delay), () {
-      if (mounted) _controller.forward();
-    });
-  }
-
-  @override
-  void dispose() {
-    _controller.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return AnimatedBuilder(
-      animation: _animation,
-      builder: (_, __) => Container(
-        width: 3.5,
-        height: _animation.value,
-        decoration: BoxDecoration(
-          color: widget.color,
-          borderRadius: BorderRadius.circular(2),
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// Tab content — stats card + song list
+// Tab content — showDailyChart gates the daily activity section
 // =============================================================================
 
 class _ReplayTabContent extends ConsumerWidget {
   final ProviderBase<AsyncValue<ReplayData>> provider;
   final String periodLabel;
   final String emptyLabel;
+  final bool showDailyChart;
 
   const _ReplayTabContent({
     required this.provider,
     required this.periodLabel,
     required this.emptyLabel,
+    required this.showDailyChart,
   });
 
   @override
@@ -303,16 +207,16 @@ class _ReplayTabContent extends ConsumerWidget {
 
     return asyncData.when(
       data: (data) {
-        if (data.isEmpty) {
-          return _EmptyReplay(label: emptyLabel);
-        }
-        return _ReplayList(data: data, periodLabel: periodLabel);
+        if (data.isEmpty) return _EmptyReplay(label: emptyLabel);
+        return _ReplayList(
+          data: data,
+          periodLabel: periodLabel,
+          showDailyChart: showDailyChart,
+        );
       },
       loading: () => const Center(
         child: CircularProgressIndicator(
-          color: AppTheme.spotifyGreen,
-          strokeWidth: 2,
-        ),
+            color: AppTheme.spotifyGreen, strokeWidth: 2),
       ),
       error: (e, _) => const Center(
         child: Text('Could not load replay data',
@@ -329,23 +233,23 @@ class _ReplayTabContent extends ConsumerWidget {
 class _ReplayList extends ConsumerWidget {
   final ReplayData data;
   final String periodLabel;
+  final bool showDailyChart;
 
   const _ReplayList({
     required this.data,
     required this.periodLabel,
+    required this.showDailyChart,
   });
 
   Future<void> _playSong(BuildContext context, WidgetRef ref, ReplaySong song) async {
     try {
       final svc = ref.read(subsonicServiceProvider);
-      // Search for the song on the server to get the full Song object
       final searchResult = await svc.search(song.title);
       final results = searchResult['songs'] as List<Song>? ?? [];
       final match = results.where((s) => s.id == song.songId).firstOrNull;
       if (match != null && context.mounted) {
         ref.read(playerProvider.notifier).setQueue([match], 0);
       } else if (results.isNotEmpty && context.mounted) {
-        // Fallback — play best title match
         ref.read(playerProvider.notifier).setQueue([results.first], 0);
       }
     } catch (e) {
@@ -359,11 +263,6 @@ class _ReplayList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    // Calculate max listening time for the bar chart proportions
-    final maxSec = data.songs.isNotEmpty
-        ? data.songs.first.totalMinutesSec.toDouble()
-        : 1.0;
-
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
@@ -375,13 +274,14 @@ class _ReplayList extends ConsumerWidget {
           ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.05, end: 0),
         ),
 
-        // ── Listening time distribution chart ──────────────────────────
-        SliverToBoxAdapter(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
-            child: _ListeningChart(songs: data.songs, maxSec: maxSec),
-          ).animate(delay: 100.ms).fadeIn(duration: 400.ms),
-        ),
+        // ── Daily chart — weekly tab only ─────────────────────────────
+        if (showDailyChart)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+              child: _DailyListeningChart(dailyListening: data.dailyListening),
+            ).animate(delay: 100.ms).fadeIn(duration: 400.ms),
+          ),
 
         // ── "Play All" button ──────────────────────────────────────────
         SliverToBoxAdapter(
@@ -403,10 +303,9 @@ class _ReplayList extends ConsumerWidget {
                   label: const Text('Play All',
                       style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                   onPressed: () async {
-                    // Play all replay songs in order
                     for (final song in data.songs) {
                       await _playSong(context, ref, song);
-                      break; // Play first one; rest can be queued later
+                      break;
                     }
                   },
                 ),
@@ -438,7 +337,6 @@ class _ReplayList extends ConsumerWidget {
           ),
         ),
 
-        // Bottom spacing for mini player
         const SliverToBoxAdapter(child: SizedBox(height: 160)),
       ],
     );
@@ -446,20 +344,35 @@ class _ReplayList extends ConsumerWidget {
 }
 
 // =============================================================================
-// Listening time distribution chart — horizontal bars for each song
+// Daily listening chart (weekly tab only)
 // =============================================================================
 
-class _ListeningChart extends StatelessWidget {
-  final List<ReplaySong> songs;
-  final double maxSec;
-  const _ListeningChart({required this.songs, required this.maxSec});
+class _DailyListeningChart extends StatelessWidget {
+  final Map<int, int> dailyListening;
+  const _DailyListeningChart({required this.dailyListening});
+
+  static const _dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+  static const double _maxBarHeight = 180.0;
+
+  String _timeLabel(int sec) {
+    if (sec <= 0) return '—';
+    final h = sec ~/ 3600;
+    final m = (sec % 3600) ~/ 60;
+    if (h > 0 && m > 0) return '${h}h${m}m';
+    if (h > 0) return '${h}h';
+    return '${m}m';
+  }
 
   @override
   Widget build(BuildContext context) {
-    if (songs.isEmpty) return const SizedBox();
+    final values = List.generate(7, (i) => dailyListening[i + 1] ?? 0);
+    final maxVal = values.reduce((a, b) => a > b ? a : b).toDouble();
+    final hasData = maxVal > 0;
+    final avgSec = hasData ? values.reduce((a, b) => a + b) / 7 : 0.0;
+    final today = DateTime.now().weekday;
 
     return Container(
-      padding: const EdgeInsets.all(16),
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 12),
       decoration: BoxDecoration(
         color: AppTheme.cardSurface,
         borderRadius: BorderRadius.circular(14),
@@ -468,98 +381,187 @@ class _ListeningChart extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('LISTENING TIME',
-              style: TextStyle(
-                fontSize: 10, fontWeight: FontWeight.w600,
-                color: AppTheme.textMuted, letterSpacing: 1.2)),
-          const SizedBox(height: 14),
-          ...songs.take(5).toList().asMap().entries.map((entry) {
-            final i = entry.key;
-            final song = entry.value;
-            final fraction = maxSec > 0
-                ? (song.totalMinutesSec / maxSec).clamp(0.0, 1.0)
-                : 0.0;
-
-            // Green gradient from bright to dark based on rank
-            final barColor = HSLColor.fromAHSL(
-              1.0,
-              142, // Spotify green hue
-              0.7 - (i * 0.08),
-              0.45 - (i * 0.04),
-            ).toColor();
-
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 10),
-              child: Row(
-                children: [
-                  SizedBox(
-                    width: 80,
-                    child: Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: i == 0 ? FontWeight.w600 : FontWeight.w400,
-                        color: i == 0 ? AppTheme.textPrimary : AppTheme.textSecondary,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: LayoutBuilder(
-                      builder: (context, constraints) {
-                        return Stack(
-                          children: [
-                            // Track
-                            Container(
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: AppTheme.topLevel,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                            // Fill
-                            AnimatedContainer(
-                              duration: Duration(milliseconds: 600 + i * 100),
-                              curve: Curves.easeOutCubic,
-                              width: constraints.maxWidth * fraction,
-                              height: 16,
-                              decoration: BoxDecoration(
-                                color: barColor,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  SizedBox(
-                    width: 42,
-                    child: Text(
-                      song.listeningLabel,
-                      textAlign: TextAlign.right,
-                      style: TextStyle(
-                        fontSize: 10,
-                        fontWeight: FontWeight.w600,
-                        color: i == 0 ? AppTheme.spotifyGreen : AppTheme.textMuted,
-                      ),
-                    ),
-                  ),
-                ],
+          Row(
+            children: [
+              const Text('DAILY ACTIVITY',
+                  style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w600,
+                      color: AppTheme.textMuted, letterSpacing: 1.2)),
+              const Spacer(),
+              if (hasData) ...[
+                Container(
+                  width: 8, height: 8,
+                  decoration: BoxDecoration(
+                      color: AppTheme.spotifyGreen.withOpacity(0.5),
+                      shape: BoxShape.circle),
+                ),
+                const SizedBox(width: 4),
+                Text('avg ${_timeLabel(avgSec.round())}/day',
+                    style: const TextStyle(
+                        fontSize: 11, color: AppTheme.textMuted,
+                        fontWeight: FontWeight.w500)),
+              ],
+            ],
+          ),
+          const SizedBox(height: 20),
+          if (!hasData)
+            SizedBox(
+              height: _maxBarHeight + 40,
+              child: Center(
+                child: Text('No daily data yet — keep listening!',
+                    style: TextStyle(
+                        fontSize: 13,
+                        color: AppTheme.textMuted.withOpacity(0.6))),
               ),
-            );
-          }),
+            )
+          else
+            SizedBox(
+              height: _maxBarHeight + 60,
+              child: LayoutBuilder(builder: (context, constraints) {
+                final avgFraction =
+                    maxVal > 0 ? (avgSec / maxVal).clamp(0.0, 1.0) : 0.0;
+                final avgY = _maxBarHeight * (1 - avgFraction);
+
+                return Stack(children: [
+                  Positioned(
+                    top: 20 + avgY,
+                    left: 0,
+                    right: 0,
+                    child: _DashedLine(
+                        color: AppTheme.spotifyGreen.withOpacity(0.3)),
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: List.generate(7, (i) {
+                      final sec = values[i];
+                      final fraction = maxVal > 0
+                          ? (sec / maxVal).clamp(0.05, 1.0)
+                          : 0.05;
+                      final isToday = (i + 1) == today;
+                      final barGradient = isToday
+                          ? [
+                              AppTheme.spotifyGreen,
+                              AppTheme.spotifyGreen.withOpacity(0.7),
+                            ]
+                          : [
+                              HSLColor.fromAHSL(
+                                      1.0, 160 + i * 4.0, 0.55, 0.38)
+                                  .toColor(),
+                              HSLColor.fromAHSL(
+                                      1.0, 160 + i * 4.0, 0.45, 0.25)
+                                  .toColor(),
+                            ];
+
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(
+                              left: i == 0 ? 0 : 5,
+                              right: i == 6 ? 0 : 5),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              Text(
+                                _timeLabel(sec),
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w700,
+                                  color: isToday
+                                      ? AppTheme.spotifyGreen
+                                      : AppTheme.textMuted,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              TweenAnimationBuilder<double>(
+                                tween: Tween(
+                                    begin: 0.0,
+                                    end: _maxBarHeight * fraction),
+                                duration: Duration(
+                                    milliseconds: 600 + i * 80),
+                                curve: Curves.easeOutCubic,
+                                builder: (context, height, _) {
+                                  return Container(
+                                    height: height,
+                                    decoration: BoxDecoration(
+                                      borderRadius:
+                                          BorderRadius.circular(6),
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: barGradient,
+                                      ),
+                                      boxShadow: isToday
+                                          ? [
+                                              BoxShadow(
+                                                color: AppTheme
+                                                    .spotifyGreen
+                                                    .withOpacity(0.3),
+                                                blurRadius: 10,
+                                                spreadRadius: 1,
+                                              ),
+                                            ]
+                                          : null,
+                                    ),
+                                  );
+                                },
+                              ),
+                              const SizedBox(height: 8),
+                              Text(
+                                _dayLabels[i],
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: isToday
+                                      ? FontWeight.w700
+                                      : FontWeight.w500,
+                                  color: isToday
+                                      ? AppTheme.spotifyGreen
+                                      : AppTheme.textSecondary,
+                                ),
+                              ),
+                              if (isToday)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 3),
+                                  width: 4,
+                                  height: 4,
+                                  decoration: const BoxDecoration(
+                                      color: AppTheme.spotifyGreen,
+                                      shape: BoxShape.circle),
+                                )
+                              else
+                                const SizedBox(height: 7),
+                            ],
+                          ),
+                        ),
+                      );
+                    }),
+                  ),
+                ]);
+              }),
+            ),
         ],
       ),
     );
   }
 }
 
+class _DashedLine extends StatelessWidget {
+  final Color color;
+  const _DashedLine({required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return LayoutBuilder(builder: (context, constraints) {
+      final dashCount = (constraints.maxWidth / 8).floor();
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: List.generate(
+            dashCount, (_) => Container(width: 4, height: 1, color: color)),
+      );
+    });
+  }
+}
+
 // =============================================================================
-// Stats summary card
+// Stats card — hero listening time + side counts + genre pill
 // =============================================================================
 
 class _StatsCard extends StatelessWidget {
@@ -579,50 +581,96 @@ class _StatsCard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('YOUR REPLAY',
-              style: TextStyle(
-                  fontSize: 10, fontWeight: FontWeight.w600,
-                  color: AppTheme.spotifyGreen, letterSpacing: 1.5)),
-          const SizedBox(height: 6),
-          Text(periodLabel, style: AppTheme.headingMd),
-          const SizedBox(height: 20),
-          // Stat chips row — wrap in a Row with Expanded to prevent overflow
+          // Top row: label + genre pill
           Row(
             children: [
-              Expanded(
-                child: _StatChip(
-                  icon: Icons.timer_outlined,
-                  value: stats.totalTimeLabel,
-                  label: 'Listened',
-                  highlight: true,
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatChip(
-                  icon: Icons.music_note_rounded,
-                  value: '${stats.uniqueSongs}',
-                  label: 'Songs',
-                ),
-              ),
-              const SizedBox(width: 8),
-              Expanded(
-                child: _StatChip(
-                  icon: Icons.person_outline_rounded,
-                  value: '${stats.uniqueArtists}',
-                  label: 'Artists',
-                ),
-              ),
-              if (stats.topGenre != null) ...[
-                const SizedBox(width: 8),
-                Expanded(
-                  child: _StatChip(
-                    icon: Icons.category_outlined,
-                    value: stats.topGenre!,
-                    label: 'Top Genre',
+              const Text('YOUR REPLAY',
+                  style: TextStyle(
+                      fontSize: 10, fontWeight: FontWeight.w600,
+                      color: AppTheme.spotifyGreen, letterSpacing: 1.5)),
+              const Spacer(),
+              if (stats.topGenre != null)
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppTheme.spotifyGreen.withOpacity(0.12),
+                    borderRadius: BorderRadius.circular(20),
+                    border: Border.all(
+                        color: AppTheme.spotifyGreen.withOpacity(0.25),
+                        width: 0.7),
+                  ),
+                  child: Text(
+                    stats.topGenre!,
+                    style: const TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.w600,
+                        color: AppTheme.spotifyGreen),
                   ),
                 ),
-              ],
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(periodLabel, style: AppTheme.headingMd),
+          const SizedBox(height: 20),
+
+          // Hero row: big time | divider | stacked counts
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              // Large listening time
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      stats.totalTimeLabel,
+                      style: const TextStyle(
+                        fontSize: 40,
+                        fontWeight: FontWeight.w900,
+                        color: AppTheme.textPrimary,
+                        letterSpacing: -1.5,
+                        height: 1.0,
+                      ),
+                    ),
+                    const SizedBox(height: 5),
+                    const Text(
+                      'time listened',
+                      style: TextStyle(
+                          fontSize: 12,
+                          color: AppTheme.textMuted,
+                          fontWeight: FontWeight.w400),
+                    ),
+                  ],
+                ),
+              ),
+
+              // Thin divider
+              Container(
+                width: 0.7,
+                height: 52,
+                margin: const EdgeInsets.only(right: 16),
+                color: AppTheme.outlineColor,
+              ),
+
+              // Songs + artists stacked
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  _InlineStatRow(
+                    icon: Icons.music_note_rounded,
+                    value: '${stats.uniqueSongs}',
+                    label: 'songs',
+                  ),
+                  const SizedBox(height: 10),
+                  _InlineStatRow(
+                    icon: Icons.person_outline_rounded,
+                    value: '${stats.uniqueArtists}',
+                    label: 'artists',
+                  ),
+                ],
+              ),
             ],
           ),
         ],
@@ -631,70 +679,50 @@ class _StatsCard extends StatelessWidget {
   }
 }
 
-class _StatChip extends StatelessWidget {
+class _InlineStatRow extends StatelessWidget {
   final IconData icon;
   final String value;
   final String label;
-  final bool highlight;
-  const _StatChip({
-    required this.icon,
-    required this.value,
-    required this.label,
-    this.highlight = false,
-  });
+
+  const _InlineStatRow(
+      {required this.icon, required this.value, required this.label});
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 12),
-      decoration: BoxDecoration(
-        color: highlight
-            ? AppTheme.spotifyGreen.withOpacity(0.12)
-            : AppTheme.topLevel,
-        borderRadius: BorderRadius.circular(12),
-        border: highlight
-            ? Border.all(color: AppTheme.spotifyGreen.withOpacity(0.3), width: 0.7)
-            : null,
-      ),
-      child: Column(
-        children: [
-          Icon(icon,
-              color: highlight ? AppTheme.spotifyGreen : AppTheme.textMuted,
-              size: 18),
-          const SizedBox(height: 6),
-          Text(value,
-              textAlign: TextAlign.center,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                  fontSize: 14, fontWeight: FontWeight.w700,
-                  color: highlight ? AppTheme.spotifyGreen : AppTheme.textPrimary)),
-          const SizedBox(height: 2),
-          Text(label,
-              style: const TextStyle(
-                  fontSize: 9, color: AppTheme.textMuted)),
-        ],
-      ),
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, size: 13, color: AppTheme.textMuted),
+        const SizedBox(width: 5),
+        Text(value,
+            style: const TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w800,
+                color: AppTheme.textPrimary)),
+        const SizedBox(width: 3),
+        Text(label,
+            style: const TextStyle(fontSize: 12, color: AppTheme.textMuted)),
+      ],
     );
   }
 }
 
 // =============================================================================
-// Ranked song row — tappable, with real artwork
+// Ranked song row
 // =============================================================================
 
 class _ReplaySongRow extends ConsumerWidget {
   final ReplaySong song;
   final int rank;
   final VoidCallback onTap;
-  const _ReplaySongRow({required this.song, required this.rank, required this.onTap});
+  const _ReplaySongRow(
+      {required this.song, required this.rank, required this.onTap});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final svc = ref.watch(subsonicServiceProvider);
-    final coverUrl = song.coverArtId != null
-        ? svc.getCoverArtUrl(song.coverArtId!)
-        : null;
+    final coverUrl =
+        song.coverArtId != null ? svc.getCoverArtUrl(song.coverArtId!) : null;
 
     return Semantics(
       button: true,
@@ -707,12 +735,11 @@ class _ReplaySongRow extends ConsumerWidget {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: Colors.white.withOpacity(0.04), width: 0.5),
+                  color: Colors.white.withOpacity(0.04), width: 0.5),
             ),
           ),
           child: Row(
             children: [
-              // Rank number
               SizedBox(
                 width: 28,
                 child: Text(
@@ -721,22 +748,19 @@ class _ReplaySongRow extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: rank <= 3 ? 20 : 15,
                     fontWeight: FontWeight.w900,
-                    color: rank <= 3
-                        ? AppTheme.spotifyGreen
-                        : AppTheme.textMuted,
+                    color:
+                        rank <= 3 ? AppTheme.spotifyGreen : AppTheme.textMuted,
                     letterSpacing: -0.3,
                   ),
                 ),
               ),
               const SizedBox(width: 12),
-              // Album art — real cover from Subsonic
               Container(
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                  borderRadius: BorderRadius.circular(6),
-                  color: AppTheme.topLevel,
-                ),
+                    borderRadius: BorderRadius.circular(6),
+                    color: AppTheme.topLevel),
                 clipBehavior: Clip.hardEdge,
                 child: coverUrl != null
                     ? CachedNetworkImage(
@@ -749,7 +773,6 @@ class _ReplaySongRow extends ConsumerWidget {
                     : _artPlaceholder(),
               ),
               const SizedBox(width: 12),
-              // Song info — Expanded to prevent overflow
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -769,14 +792,11 @@ class _ReplaySongRow extends ConsumerWidget {
                         maxLines: 1,
                         overflow: TextOverflow.ellipsis,
                         style: const TextStyle(
-                          fontSize: 12,
-                          color: AppTheme.textSecondary,
-                        )),
+                            fontSize: 12, color: AppTheme.textSecondary)),
                   ],
                 ),
               ),
               const SizedBox(width: 8),
-              // Right side stats
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -791,17 +811,12 @@ class _ReplaySongRow extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(height: 2),
-                  Text(
-                    '${song.playCount} plays',
-                    style: const TextStyle(
-                      fontSize: 10,
-                      color: AppTheme.textMuted,
-                    ),
-                  ),
+                  Text('${song.playCount} plays',
+                      style: const TextStyle(
+                          fontSize: 10, color: AppTheme.textMuted)),
                 ],
               ),
               const SizedBox(width: 4),
-              // Play indicator
               Icon(Icons.play_circle_outline_rounded,
                   color: AppTheme.textMuted.withOpacity(0.5), size: 20),
             ],
@@ -811,13 +826,11 @@ class _ReplaySongRow extends ConsumerWidget {
     );
   }
 
-  Widget _artPlaceholder() {
-    return Container(
-      color: AppTheme.topLevel,
-      child: const Icon(Icons.music_note_rounded,
-          color: AppTheme.textMuted, size: 20),
-    );
-  }
+  Widget _artPlaceholder() => Container(
+        color: AppTheme.topLevel,
+        child: const Icon(Icons.music_note_rounded,
+            color: AppTheme.textMuted, size: 20),
+      );
 }
 
 // =============================================================================
@@ -835,7 +848,8 @@ class _EmptyReplay extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
           Container(
-            width: 80, height: 80,
+            width: 80,
+            height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: AppTheme.spotifyGreen.withOpacity(0.12),
@@ -850,9 +864,10 @@ class _EmptyReplay extends StatelessWidget {
                   color: AppTheme.textSecondary, fontSize: 15, height: 1.5)),
         ],
       )
-      .animate()
-      .fadeIn(duration: 500.ms)
-      .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+          .animate()
+          .fadeIn(duration: 500.ms)
+          .scale(
+              begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
     );
   }
 }

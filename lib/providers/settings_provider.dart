@@ -48,6 +48,8 @@ class SettingsState {
 
   /// When false the [ListeningEventCollector] is a no-op — no rows written.
   final bool dataCollectionEnabled;
+  final String analyticsUploadSchedule; // 'none', 'weekly', 'monthly'
+  final String? analyticsLastUpload;
 
   const SettingsState({
     required this.serverUrl,
@@ -58,6 +60,8 @@ class SettingsState {
     this.uploadApiUrl = '',
     this.uploadDirectory = '/DATA/Media/Music',
     this.dataCollectionEnabled = true,
+    this.analyticsUploadSchedule = 'none',
+    this.analyticsLastUpload,
   });
 
   SettingsState copyWith({
@@ -69,6 +73,8 @@ class SettingsState {
     String? uploadApiUrl,
     String? uploadDirectory,
     bool? dataCollectionEnabled,
+    String? analyticsUploadSchedule,
+    String? analyticsLastUpload,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -80,6 +86,8 @@ class SettingsState {
       uploadDirectory: uploadDirectory ?? this.uploadDirectory,
       dataCollectionEnabled:
           dataCollectionEnabled ?? this.dataCollectionEnabled,
+      analyticsUploadSchedule: analyticsUploadSchedule ?? this.analyticsUploadSchedule,
+      analyticsLastUpload: analyticsLastUpload ?? this.analyticsLastUpload,
     );
   }
 }
@@ -98,6 +106,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           uploadApiUrl: '',
           uploadDirectory: '/DATA/Media/Music',
           dataCollectionEnabled: true,
+          analyticsUploadSchedule: 'none',
+          analyticsLastUpload: null,
         )) {
     _loadSettings();
   }
@@ -123,6 +133,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           prefs.getString('uploadDirectory') ?? '/DATA/Media/Music',
       dataCollectionEnabled:
           prefs.getBool('dataCollectionEnabled') ?? true,
+      analyticsUploadSchedule: prefs.getString('analytics_upload_schedule') ?? 'none',
+      analyticsLastUpload: prefs.getString('analytics_last_upload'),
     );
   }
 
@@ -159,6 +171,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool('dataCollectionEnabled', enabled);
     state = state.copyWith(dataCollectionEnabled: enabled);
+  }
+
+  Future<void> setAnalyticsUploadSchedule(String schedule) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('analytics_upload_schedule', schedule);
+    state = state.copyWith(analyticsUploadSchedule: schedule);
+  }
+
+  Future<void> setAnalyticsLastUpload(String timestamp) async {
+    final prefs = await SharedPreferences.getInstance();
+    await prefs.setString('analytics_last_upload', timestamp);
+    state = state.copyWith(analyticsLastUpload: timestamp);
   }
 }
 
