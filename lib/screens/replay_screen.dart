@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
+import '../models/song.dart';
 import '../providers/replay_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -338,7 +339,8 @@ class _ReplayList extends ConsumerWidget {
     try {
       final svc = ref.read(subsonicServiceProvider);
       // Search for the song on the server to get the full Song object
-      final results = await svc.search(song.title, count: 5);
+      final searchResult = await svc.search(song.title);
+      final results = searchResult['songs'] as List<Song>? ?? [];
       final match = results.where((s) => s.id == song.songId).firstOrNull;
       if (match != null && context.mounted) {
         ref.read(playerProvider.notifier).setQueue([match], 0);

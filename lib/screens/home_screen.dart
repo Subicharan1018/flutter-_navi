@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../models/song.dart';
 import '../models/playlist.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
@@ -551,7 +552,8 @@ class _ReplaySongReel extends ConsumerWidget {
   Future<void> _playSong(BuildContext context, WidgetRef ref, ReplaySong song) async {
     try {
       final svc = ref.read(subsonicServiceProvider);
-      final results = await svc.search(song.title, count: 5);
+      final searchResult = await svc.search(song.title);
+      final results = searchResult['songs'] as List<Song>? ?? [];
       final match = results.where((s) => s.id == song.songId).firstOrNull;
       if (match != null && context.mounted) {
         ref.read(playerProvider.notifier).setQueue([match], 0);
