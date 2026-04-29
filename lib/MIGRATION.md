@@ -186,3 +186,77 @@ To warp the actual album artwork instead of synthetic blobs:
       `FluidBackground(colors: _blobColors)` in `build()`
 - [ ] (Optional) `FluidShaderLoader.instance.load()` called in `main()`
 - [ ] `flutter pub get` + hot restart (shader changes require full restart)
+
+
+
+lib/core/theme.dart:48:20: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+  static TextStyle headingLg => GoogleFonts.inter(
+                   ^^^^^^^^^
+lib/core/theme.dart:52:20: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+  static TextStyle headingMd => GoogleFonts.inter(
+                   ^^^^^^^^^
+lib/core/theme.dart:56:20: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+  static TextStyle headingSm => GoogleFonts.inter(
+                   ^^^^^^^^^
+lib/core/theme.dart:59:20: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+  static TextStyle bodyMd => GoogleFonts.inter(
+                   ^^^^^^
+lib/core/theme.dart:62:20: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+  static TextStyle bodySm => GoogleFonts.inter(
+                   ^^^^^^
+lib/core/theme.dart:65:20: Error: A method declaration needs an explicit list of parameters.
+Try adding a parameter list to the method declaration.
+  static TextStyle labelMd => GoogleFonts.inter(
+                   ^^^^^^^
+lib/screens/home_screen.dart:251:60: Error: The argument type 'TextStyle Function()' can't be assigned to the parameter type 'TextStyle?'.
+ - 'TextStyle' is from 'package:flutter/src/painting/text_style.dart' ('../../development/flutter/packages/flutter/lib/src/painting/text_style.dart').
+                              Text('Home', style: AppTheme.headingSm),
+                                                           ^
+lib/screens/home_screen.dart:298:35: Error: The argument type 'TextStyle Function()' can't be assigned to the parameter type 'TextStyle?'.
+ - 'TextStyle' is from 'package:flutter/src/painting/text_style.dart' ('../../development/flutter/packages/flutter/lib/src/painting/text_style.dart').
+                  style: AppTheme.labelMd,
+                                  ^
+lib/screens/home_screen.dart:301:46: Error: The argument type 'TextStyle Function()' can't be assigned to the parameter type 'TextStyle?'.
+ - 'TextStyle' is from 'package:flutter/src/painting/text_style.dart' ('../../development/flutter/packages/flutter/lib/src/painting/text_style.dart').
+                Text('Home', style: AppTheme.headingLg),
+                                             ^
+lib/screens/home_screen.dart:735:55: Error: The argument type 'TextStyle Function()' can't be assigned to the parameter type 'TextStyle?'.
+ - 'TextStyle' is from 'package:flutter/src/painting/text_style.dart' ('../../development/flutter/packages/flutter/lib/src/painting/text_style.dart').
+          Expanded(child: Text(title, style: AppTheme.headingSm)),
+                                                      ^
+lib/screens/library_screen.dart:37:28: Error: 'SystemUiOverlayStyle' isn't a type.
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+                           ^^^^^^^^^^^^^^^^^^^^
+lib/screens/library_screen.dart:38:14: Error: The getter 'SystemUiOverlayStyle' isn't defined for the type '_LibraryScreenState'.
+ - '_LibraryScreenState' is from 'package:navivibe/screens/library_screen.dart' ('lib/screens/library_screen.dart').
+Try correcting the name to the name of an existing getter, or defining a getter or field named 'SystemUiOverlayStyle'.
+      value: SystemUiOverlayStyle.light,
+             ^^^^^^^^^^^^^^^^^^^^
+lib/screens/library_screen.dart:52:58: Error: The argument type 'TextStyle Function()' can't be assigned to the parameter type 'TextStyle?'.
+ - 'TextStyle' is from 'package:flutter/src/painting/text_style.dart' ('../../development/flutter/packages/flutter/lib/src/painting/text_style.dart').
+                    Text('Your Library', style: AppTheme.headingMd),
+                                                         ^
+lib/screens/replay_screen.dart:141:48: Error: The argument type 'TextStyle Function()' can't be assigned to the parameter type 'TextStyle?'.
+ - 'TextStyle' is from 'package:flutter/src/painting/text_style.dart' ('../../development/flutter/packages/flutter/lib/src/painting/text_style.dart').
+                Text('Replay', style: AppTheme.headingSm),
+                                               ^
+lib/screens/replay_screen.dart:318:54: Error: The argument type 'TextStyle Function()' can't be assigned to the parameter type 'TextStyle?'.
+ - 'TextStyle' is from 'package:flutter/src/painting/text_style.dart' ('../../development/flutter/packages/flutter/lib/src/painting/text_style.dart').
+            child: Text('Top Songs', style: AppTheme.headingSm),
+                                                     ^
+lib/screens/replay_screen.dart:368:45: Error: The argument type 'TextStyle Function()' can't be assigned to the parameter type 'TextStyle?'.
+ - 'TextStyle' is from 'package:flutter/src/painting/text_style.dart' ('../../development/flutter/packages/flutter/lib/src/painting/text_style.dart').
+          Text(periodLabel, style: AppTheme.headingMd),
+                                            ^
+Target kernel_snapshot_program failed: Exception
+
+
+> Task :app:compileFlutterBuildDebug FAILED
+Execution failed for task ':app:compileFlutterBuildDebug'.
+> Process 'command '/home/subi/development/flutter/bin/flutter'' finished with non-zero exit value 1
+
