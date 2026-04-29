@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/hive_boxes.dart';
 
 class TranscodeBitrate {
   static const int original = 0;
@@ -53,13 +53,6 @@ class TranscodeFormat {
 enum ConnectionType { wifi, mobile }
 
 class TranscodingService extends ChangeNotifier {
-  static const String _wifiBitrateKey = 'transcoding_wifi_bitrate';
-  static const String _mobileBitrateKey = 'transcoding_mobile_bitrate';
-  static const String _formatKey = 'transcoding_format';
-  static const String _enabledKey = 'transcoding_enabled';
-  static const String _connectionTypeKey = 'transcoding_connection_type';
-  static const String _smartEnabledKey = 'transcoding_smart_enabled';
-
   int _wifiBitrate = TranscodeBitrate.original;
   int _mobileBitrate = TranscodeBitrate.kbps192;
   String _format = TranscodeFormat.mp3;
@@ -77,22 +70,21 @@ class TranscodingService extends ChangeNotifier {
   ConnectionType get currentConnectionType => _currentConnectionType;
 
   TranscodingService() {
-    _loadSettings();
+    _loadFromHive();
   }
 
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    _wifiBitrate = prefs.getInt(_wifiBitrateKey) ?? TranscodeBitrate.original;
-    _mobileBitrate =
-        prefs.getInt(_mobileBitrateKey) ?? TranscodeBitrate.kbps192;
-    _format = prefs.getString(_formatKey) ?? TranscodeFormat.mp3;
-    _enabled = prefs.getBool(_enabledKey) ?? false;
-    _smartEnabled = prefs.getBool(_smartEnabledKey) ?? false;
-    final connectionIndex = prefs.getInt(_connectionTypeKey) ?? 0;
+  void _loadFromHive() {
+    final box = HiveBoxes.audio;
+    _wifiBitrate = box.get(HiveBoxes.kWifiBitrate, defaultValue: TranscodeBitrate.original) as int;
+    _mobileBitrate = box.get(HiveBoxes.kMobileBitrate, defaultValue: TranscodeBitrate.kbps192) as int;
+    _format = box.get(HiveBoxes.kTranscodeFormat, defaultValue: TranscodeFormat.mp3) as String;
+    _enabled = box.get(HiveBoxes.kTranscodingEnabled, defaultValue: false) as bool;
+    _smartEnabled = box.get(HiveBoxes.kSmartSwitchEnabled, defaultValue: false) as bool;
+    final connectionIndex = box.get(HiveBoxes.kConnectionType, defaultValue: 0) as int;
     _currentConnectionType = ConnectionType.values[connectionIndex];
 
     if (_smartEnabled) {
-      await _initConnectivityWatcher();
+      _initConnectivityWatcher();
     }
 
     notifyListeners();
@@ -130,15 +122,13 @@ class TranscodingService extends ChangeNotifier {
 
   Future<void> setEnabled(bool value) async {
     _enabled = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_enabledKey, value);
+    await HiveBoxes.audio.put(HiveBoxes.kTranscodingEnabled, value);
     notifyListeners();
   }
 
   Future<void> setSmartEnabled(bool value) async {
     _smartEnabled = value;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(_smartEnabledKey, value);
+    await HiveBoxes.audio.put(HiveBoxes.kSmartSwitchEnabled, value);
     if (value) {
       await _initConnectivityWatcher();
     } else {
@@ -149,29 +139,25 @@ class TranscodingService extends ChangeNotifier {
 
   Future<void> setWifiBitrate(int bitrate) async {
     _wifiBitrate = bitrate;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_wifiBitrateKey, bitrate);
+    await HiveBoxes.audio.put(HiveBoxes.kWifiBitrate, bitrate);
     notifyListeners();
   }
 
   Future<void> setMobileBitrate(int bitrate) async {
     _mobileBitrate = bitrate;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_mobileBitrateKey, bitrate);
+    await HiveBoxes.audio.put(HiveBoxes.kMobileBitrate, bitrate);
     notifyListeners();
   }
 
   Future<void> setFormat(String format) async {
     _format = format;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString(_formatKey, format);
+    await HiveBoxes.audio.put(HiveBoxes.kTranscodeFormat, format);
     notifyListeners();
   }
 
   Future<void> setConnectionType(ConnectionType type) async {
     _currentConnectionType = type;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(_connectionTypeKey, type.index);
+    await HiveBoxes.audio.put(HiveBoxes.kConnectionType, type.index);
     notifyListeners();
   }
 

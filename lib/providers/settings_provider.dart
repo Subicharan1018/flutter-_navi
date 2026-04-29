@@ -1,6 +1,6 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
 import '../core/constants.dart';
+import '../core/hive_boxes.dart';
 import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
@@ -93,33 +93,30 @@ class SettingsState {
 }
 
 // ---------------------------------------------------------------------------
-// Settings notifier
+// Settings notifier — now uses Hive for instant sync reads
 // ---------------------------------------------------------------------------
 class SettingsNotifier extends StateNotifier<SettingsState> {
   SettingsNotifier()
       : super(const SettingsState(
-          serverUrl: Constants.defaultServerUrl,
-          username: Constants.defaultUsername,
+          serverUrl: '',
+          username: '',
           password: '',
-          shuffleAlgorithm: ShuffleAlgorithm.standard,
-          shufflePreference: ShufflePreference.composer,
-          uploadApiUrl: '',
-          uploadDirectory: '/DATA/Media/Music',
-          dataCollectionEnabled: true,
-          analyticsUploadSchedule: 'none',
-          analyticsLastUpload: null,
         )) {
-    _loadSettings();
+    // Hive boxes are already open — read is synchronous, no async gap.
+    _loadFromHive();
   }
 
-  Future<void> _loadSettings() async {
-    final prefs = await SharedPreferences.getInstance();
-    final algoName = prefs.getString('shuffleAlgorithm') ?? 'standard';
-    final prefName = prefs.getString('shufflePreference') ?? 'composer';
+  void _loadFromHive() {
+    final auth = HiveBoxes.auth;
+    final p = HiveBoxes.prefs;
+
+    final algoName = p.get(HiveBoxes.kShuffleAlgorithm, defaultValue: 'standard') as String;
+    final prefName = p.get(HiveBoxes.kShufflePreference, defaultValue: 'composer') as String;
+
     state = SettingsState(
-      serverUrl: prefs.getString('serverUrl') ?? Constants.defaultServerUrl,
-      username: prefs.getString('username') ?? Constants.defaultUsername,
-      password: prefs.getString('password') ?? '',
+      serverUrl: auth.get(HiveBoxes.kServerUrl, defaultValue: Constants.defaultServerUrl) as String,
+      username: auth.get(HiveBoxes.kUsername, defaultValue: Constants.defaultUsername) as String,
+      password: auth.get(HiveBoxes.kPassword, defaultValue: '') as String,
       shuffleAlgorithm: ShuffleAlgorithm.values.firstWhere(
         (e) => e.name == algoName,
         orElse: () => ShuffleAlgorithm.standard,
@@ -128,23 +125,23 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         (e) => e.name == prefName,
         orElse: () => ShufflePreference.composer,
       ),
-      uploadApiUrl: prefs.getString('uploadApiUrl') ?? '',
-      uploadDirectory:
-          prefs.getString('uploadDirectory') ?? '/DATA/Media/Music',
-      dataCollectionEnabled:
-          prefs.getBool('dataCollectionEnabled') ?? true,
-      analyticsUploadSchedule: prefs.getString('analytics_upload_schedule') ?? 'none',
-      analyticsLastUpload: prefs.getString('analytics_last_upload'),
+      uploadApiUrl: p.get(HiveBoxes.kUploadApiUrl, defaultValue: '') as String,
+      uploadDirectory: p.get(HiveBoxes.kUploadDirectory, defaultValue: '/DATA/Media/Music') as String,
+      dataCollectionEnabled: p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) as bool,
+      analyticsUploadSchedule: p.get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none') as String,
+      analyticsLastUpload: p.get(HiveBoxes.kAnalyticsLastUpload) as String?,
     );
   }
 
   Future<void> saveSettings(String url, String user, String pass, {String? uploadUrl, String? uploadDir}) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('serverUrl', url);
-    await prefs.setString('username', user);
-    await prefs.setString('password', pass);
-    if (uploadUrl != null) await prefs.setString('uploadApiUrl', uploadUrl);
-    if (uploadDir != null) await prefs.setString('uploadDirectory', uploadDir);
+    final auth = HiveBoxes.auth;
+    final p = HiveBoxes.prefs;
+
+    await auth.put(HiveBoxes.kServerUrl, url);
+    await auth.put(HiveBoxes.kUsername, user);
+    await auth.put(HiveBoxes.kPassword, pass);
+    if (uploadUrl != null) await p.put(HiveBoxes.kUploadApiUrl, uploadUrl);
+    if (uploadDir != null) await p.put(HiveBoxes.kUploadDirectory, uploadDir);
 
     state = state.copyWith(
       serverUrl: url,
@@ -156,32 +153,27 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   }
 
   Future<void> setShuffleAlgorithm(ShuffleAlgorithm algo) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('shuffleAlgorithm', algo.name);
+    await HiveBoxes.prefs.put(HiveBoxes.kShuffleAlgorithm, algo.name);
     state = state.copyWith(shuffleAlgorithm: algo);
   }
 
   Future<void> setShufflePreference(ShufflePreference pref) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('shufflePreference', pref.name);
+    await HiveBoxes.prefs.put(HiveBoxes.kShufflePreference, pref.name);
     state = state.copyWith(shufflePreference: pref);
   }
 
   Future<void> setDataCollectionEnabled(bool enabled) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setBool('dataCollectionEnabled', enabled);
+    await HiveBoxes.prefs.put(HiveBoxes.kDataCollectionEnabled, enabled);
     state = state.copyWith(dataCollectionEnabled: enabled);
   }
 
   Future<void> setAnalyticsUploadSchedule(String schedule) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('analytics_upload_schedule', schedule);
+    await HiveBoxes.prefs.put(HiveBoxes.kAnalyticsUploadSchedule, schedule);
     state = state.copyWith(analyticsUploadSchedule: schedule);
   }
 
   Future<void> setAnalyticsLastUpload(String timestamp) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setString('analytics_last_upload', timestamp);
+    await HiveBoxes.prefs.put(HiveBoxes.kAnalyticsLastUpload, timestamp);
     state = state.copyWith(analyticsLastUpload: timestamp);
   }
 }

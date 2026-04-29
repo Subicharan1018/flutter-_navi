@@ -1,5 +1,5 @@
 import 'dart:math';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/hive_boxes.dart';
 
 enum ReplayGainMode {
   off,
@@ -8,23 +8,15 @@ enum ReplayGainMode {
 }
 
 class ReplayGainService {
-  static const String _keyReplayGainMode = 'replay_gain_mode';
-  static const String _keyPreampGain = 'replay_gain_preamp';
-  static const String _keyPreventClipping = 'replay_gain_prevent_clipping';
-  static const String _keyFallbackGain = 'replay_gain_fallback';
-
   static final ReplayGainService _instance = ReplayGainService._internal();
   factory ReplayGainService() => _instance;
   ReplayGainService._internal();
 
-  SharedPreferences? _prefs;
-
-  Future<void> initialize() async {
-    _prefs ??= await SharedPreferences.getInstance();
-  }
+  /// No-op — Hive boxes are already open from main(). Kept for API compat.
+  Future<void> initialize() async {}
 
   ReplayGainMode getMode() {
-    final modeIndex = _prefs?.getInt(_keyReplayGainMode) ?? 0;
+    final modeIndex = HiveBoxes.audio.get(HiveBoxes.kReplayGainMode, defaultValue: 0) as int;
     return ReplayGainMode.values[modeIndex.clamp(
       0,
       ReplayGainMode.values.length - 1,
@@ -32,35 +24,31 @@ class ReplayGainService {
   }
 
   Future<void> setMode(ReplayGainMode mode) async {
-    await initialize();
-    await _prefs!.setInt(_keyReplayGainMode, mode.index);
+    await HiveBoxes.audio.put(HiveBoxes.kReplayGainMode, mode.index);
   }
 
   double getPreampGain() {
-    return _prefs?.getDouble(_keyPreampGain) ?? 0.0;
+    return HiveBoxes.audio.get(HiveBoxes.kPreampGain, defaultValue: 0.0) as double;
   }
 
   Future<void> setPreampGain(double gain) async {
-    await initialize();
-    await _prefs!.setDouble(_keyPreampGain, gain.clamp(-15.0, 15.0));
+    await HiveBoxes.audio.put(HiveBoxes.kPreampGain, gain.clamp(-15.0, 15.0));
   }
 
   bool getPreventClipping() {
-    return _prefs?.getBool(_keyPreventClipping) ?? true;
+    return HiveBoxes.audio.get(HiveBoxes.kPreventClipping, defaultValue: true) as bool;
   }
 
   Future<void> setPreventClipping(bool prevent) async {
-    await initialize();
-    await _prefs!.setBool(_keyPreventClipping, prevent);
+    await HiveBoxes.audio.put(HiveBoxes.kPreventClipping, prevent);
   }
 
   double getFallbackGain() {
-    return _prefs?.getDouble(_keyFallbackGain) ?? -6.0;
+    return HiveBoxes.audio.get(HiveBoxes.kFallbackGain, defaultValue: -6.0) as double;
   }
 
   Future<void> setFallbackGain(double gain) async {
-    await initialize();
-    await _prefs!.setDouble(_keyFallbackGain, gain.clamp(-15.0, 0.0));
+    await HiveBoxes.audio.put(HiveBoxes.kFallbackGain, gain.clamp(-15.0, 0.0));
   }
 
   double calculateVolumeMultiplier({

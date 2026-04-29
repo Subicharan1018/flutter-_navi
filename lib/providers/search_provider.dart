@@ -1,5 +1,5 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/hive_boxes.dart';
 import 'settings_provider.dart';
 
 final searchProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, query) async {
@@ -13,11 +13,11 @@ class SearchHistoryNotifier extends StateNotifier<List<String>> {
     _loadHistory();
   }
 
-  static const _key = 'search_history';
-
-  Future<void> _loadHistory() async {
-    final prefs = await SharedPreferences.getInstance();
-    state = prefs.getStringList(_key) ?? [];
+  void _loadHistory() {
+    final stored = HiveBoxes.prefs.get(HiveBoxes.kSearchHistory);
+    if (stored != null) {
+      state = List<String>.from(stored as List);
+    }
   }
 
   Future<void> addQuery(String query) async {
@@ -29,21 +29,18 @@ class SearchHistoryNotifier extends StateNotifier<List<String>> {
     ].take(10).toList();
 
     state = newHistory;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_key, newHistory);
+    await HiveBoxes.prefs.put(HiveBoxes.kSearchHistory, newHistory);
   }
 
   Future<void> removeQuery(String query) async {
     final newHistory = state.where((q) => q != query).toList();
     state = newHistory;
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setStringList(_key, newHistory);
+    await HiveBoxes.prefs.put(HiveBoxes.kSearchHistory, newHistory);
   }
 
   Future<void> clearHistory() async {
     state = [];
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.remove(_key);
+    await HiveBoxes.prefs.delete(HiveBoxes.kSearchHistory);
   }
 }
 

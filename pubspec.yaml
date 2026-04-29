@@ -25,11 +25,13 @@ dependencies:
   # HTTP & storage
   http: ^1.2.0
   http_parser: ^4.0.0
-  shared_preferences: ^2.3.1
+  shared_preferences: ^2.3.1   # Legacy — being migrated to Hive CE
   crypto: ^3.0.3
   file_picker: ^8.0.3
-  sqflite: ^2.3.3
+  sqflite: ^2.3.3              # Legacy — being migrated to Drift
   path: ^1.9.0
+  hive_ce: ^2.6.0              # Fast key-value store (community edition)
+  hive_ce_flutter: ^2.1.0      # Flutter init + path resolution
 
   # UI
   cupertino_icons: ^1.0.8
@@ -42,6 +44,9 @@ dependencies:
   marquee: ^2.3.0
   audio_video_progress_bar: ^2.0.3
   connectivity_plus: ^7.1.1
+  drift: ^2.22.1
+  drift_flutter: ^0.1.0
+  path_provider: ^2.1.5
   # mesh_gradient removed (ARCH-2): declared but never imported anywhere
 
 dev_dependencies:

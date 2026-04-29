@@ -1,46 +1,36 @@
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/hive_boxes.dart';
 
 class CacheSettingsService {
-  static const String _keyImageCacheEnabled = 'cache_images_enabled';
-  static const String _keyMusicCacheEnabled = 'cache_music_enabled';
-  static const String _keyBpmCacheEnabled = 'cache_bpm_enabled';
-
   static final CacheSettingsService _instance =
       CacheSettingsService._internal();
   factory CacheSettingsService() => _instance;
   CacheSettingsService._internal();
 
-  SharedPreferences? _prefs;
-
-  Future<void> initialize() async {
-    _prefs ??= await SharedPreferences.getInstance();
-  }
+  /// No-op — Hive boxes are already open from main(). Kept for API compat.
+  Future<void> initialize() async {}
 
   Future<void> setImageCacheEnabled(bool enabled) async {
-    await initialize();
-    await _prefs!.setBool(_keyImageCacheEnabled, enabled);
+    await HiveBoxes.prefs.put(HiveBoxes.kImageCacheEnabled, enabled);
   }
 
   bool getImageCacheEnabled() {
-    return _prefs?.getBool(_keyImageCacheEnabled) ?? true;
+    return HiveBoxes.prefs.get(HiveBoxes.kImageCacheEnabled, defaultValue: true) as bool;
   }
 
   Future<void> setMusicCacheEnabled(bool enabled) async {
-    await initialize();
-    await _prefs!.setBool(_keyMusicCacheEnabled, enabled);
+    await HiveBoxes.prefs.put(HiveBoxes.kMusicCacheEnabled, enabled);
   }
 
   bool getMusicCacheEnabled() {
-    return _prefs?.getBool(_keyMusicCacheEnabled) ?? true;
+    return HiveBoxes.prefs.get(HiveBoxes.kMusicCacheEnabled, defaultValue: true) as bool;
   }
 
   Future<void> setBpmCacheEnabled(bool enabled) async {
-    await initialize();
-    await _prefs!.setBool(_keyBpmCacheEnabled, enabled);
+    await HiveBoxes.prefs.put(HiveBoxes.kBpmCacheEnabled, enabled);
   }
 
   bool getBpmCacheEnabled() {
-    return _prefs?.getBool(_keyBpmCacheEnabled) ?? true;
+    return HiveBoxes.prefs.get(HiveBoxes.kBpmCacheEnabled, defaultValue: true) as bool;
   }
 
   Future<void> disableAllCaches() async {

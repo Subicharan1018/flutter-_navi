@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart';
-import 'package:shared_preferences/shared_preferences.dart';
+import '../core/hive_boxes.dart';
 import '../models/song.dart';
 import 'cache_settings_service.dart';
 
@@ -9,14 +9,12 @@ class BpmAnalyzerService {
   BpmAnalyzerService._internal();
 
   bool _isInitialized = false;
-  SharedPreferences? _prefs;
   final _cacheSettings = CacheSettingsService();
 
   Future<void> initialize() async {
     if (_isInitialized) return;
 
     try {
-      _prefs = await SharedPreferences.getInstance();
       await _cacheSettings.initialize();
       _isInitialized = true;
     } catch (e) {
@@ -46,11 +44,11 @@ class BpmAnalyzerService {
   }
 
   int? _getCachedBPM(String songId) {
-    return _prefs?.getInt('bpm_$songId');
+    return HiveBoxes.audio.get('bpm_$songId') as int?;
   }
 
   Future<void> _cacheBPM(String songId, int bpm) async {
-    await _prefs?.setInt('bpm_$songId', bpm);
+    await HiveBoxes.audio.put('bpm_$songId', bpm);
   }
 
   int _estimateBPMFromGenre(Song song) {
@@ -94,11 +92,10 @@ class BpmAnalyzerService {
   }
 
   Future<void> clearCache() async {
-    final keys = _prefs?.getKeys() ?? <String>{};
-    for (final key in keys) {
-      if (key.startsWith('bpm_')) {
-        await _prefs?.remove(key);
-      }
+    final box = HiveBoxes.audio;
+    final bpmKeys = box.keys.where((k) => k.toString().startsWith('bpm_')).toList();
+    for (final key in bpmKeys) {
+      await box.delete(key);
     }
   }
 
@@ -132,8 +129,7 @@ class BpmAnalyzerService {
   }
 
   int getCachedCount() {
-    final keys = _prefs?.getKeys() ?? <String>{};
-    return keys.where((key) => key.startsWith('bpm_')).length;
+    return HiveBoxes.audio.keys.where((k) => k.toString().startsWith('bpm_')).length;
   }
 
   bool isCached(String songId) {
