@@ -219,7 +219,7 @@ class _WaveformDecoration extends StatelessWidget {
                 1.0,
                 140 + (i * 2.5), // hue shift green → teal
                 0.65,
-                0.35 + (heights[i] / 50),
+                (0.30 + (heights[i] / 80)).clamp(0.0, 1.0),
               ).toColor(),
             ),
           );
