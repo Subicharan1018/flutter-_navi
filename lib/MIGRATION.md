@@ -260,3 +260,25 @@ Target kernel_snapshot_program failed: Exception
 Execution failed for task ':app:compileFlutterBuildDebug'.
 > Process 'command '/home/subi/development/flutter/bin/flutter'' finished with non-zero exit value 1
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+lib/screens/home_screen.dart:555:53: Error: 'Song' isn't a type.
+      final results = searchResult['songs'] as List<Song>? ?? [];
+                                                    ^^^^
+Target kernel_snapshot_program failed: Exception
