@@ -680,52 +680,56 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     ),
 
                     // ── Album art ───────────────────────────────────────
+                    // RepaintBoundary isolates the AnimatedScale compositor
+                    // layer — play/pause animation no longer re-rasters the
+                    // full screen (FluidBackground + song info). Fixes lag.
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 28, vertical: 10),
-                      child: AnimatedScale(
-                        scale: playerState.isPlaying ? 1.0 : 0.93,
-                        duration: const Duration(milliseconds: 450),
-                        curve: Curves.easeInOutCubic,
-                        child: AspectRatio(
-                          aspectRatio: 1,
-                          child: Container(
-                            decoration: BoxDecoration(
-                              borderRadius: BorderRadius.circular(18),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withOpacity(0.70),
-                                  blurRadius: 44,
-                                  spreadRadius: 4,
-                                  offset: const Offset(0, 18),
-                                ),
-                                if (_blobColors.length > 1)
+                      child: RepaintBoundary(
+                        child: AnimatedScale(
+                          scale: playerState.isPlaying ? 1.0 : 0.93,
+                          duration: const Duration(milliseconds: 450),
+                          curve: Curves.easeInOutCubic,
+                          child: AspectRatio(
+                            aspectRatio: 1,
+                            child: Container(
+                              decoration: BoxDecoration(
+                                borderRadius: BorderRadius.circular(18),
+                                boxShadow: [
                                   BoxShadow(
-                                    color: _blobColors[1]
-                                        .withOpacity(0.35),
-                                    blurRadius: 60,
-                                    offset: const Offset(0, 10),
+                                    color: Colors.black.withOpacity(0.70),
+                                    blurRadius: 44,
+                                    spreadRadius: 4,
+                                    offset: const Offset(0, 18),
                                   ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(18),
-                              child: CachedNetworkImage(
-                                imageUrl: imageUrl,
-                                cacheKey: cacheKey,
-                                fit: BoxFit.cover,
-                                placeholder: (_, __) => Container(
-                                    color: AppTheme.surfaceLevel,
-                                    child: const Icon(
-                                        Icons.music_note_rounded,
-                                        size: 80,
-                                        color: AppTheme.textMuted)),
-                                errorWidget: (_, __, ___) => Container(
-                                    color: AppTheme.surfaceLevel,
-                                    child: const Icon(
-                                        Icons.music_note_rounded,
-                                        size: 80,
-                                        color: AppTheme.textMuted)),
+                                  if (_blobColors.length > 1)
+                                    BoxShadow(
+                                      color: _blobColors[1].withOpacity(0.35),
+                                      blurRadius: 60,
+                                      offset: const Offset(0, 10),
+                                    ),
+                                ],
+                              ),
+                              child: ClipRRect(
+                                borderRadius: BorderRadius.circular(18),
+                                child: CachedNetworkImage(
+                                  imageUrl: imageUrl,
+                                  cacheKey: cacheKey,
+                                  fit: BoxFit.cover,
+                                  placeholder: (_, __) => Container(
+                                      color: AppTheme.surfaceLevel,
+                                      child: const Icon(
+                                          Icons.music_note_rounded,
+                                          size: 80,
+                                          color: AppTheme.textMuted)),
+                                  errorWidget: (_, __, ___) => Container(
+                                      color: AppTheme.surfaceLevel,
+                                      child: const Icon(
+                                          Icons.music_note_rounded,
+                                          size: 80,
+                                          color: AppTheme.textMuted)),
+                                ),
                               ),
                             ),
                           ),
