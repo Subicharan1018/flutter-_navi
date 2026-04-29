@@ -109,8 +109,8 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
             child: TextButton(
               onPressed: _isSaving ? null : _save,
               child: _isSaving 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.electricBlue))
-                : const Text('Done', style: TextStyle(color: AppTheme.electricBlue, fontWeight: FontWeight.bold, fontSize: 15)),
+                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.spotifyGreen))
+                : const Text('Done', style: TextStyle(color: AppTheme.spotifyGreen, fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
         ],
@@ -149,7 +149,7 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
             const SizedBox(height: 12),
             TextButton(
               onPressed: _pickImage,
-              child: const Text('Change Photo', style: TextStyle(color: AppTheme.electricBlue, fontWeight: FontWeight.w600)),
+              child: const Text('Change Photo', style: TextStyle(color: AppTheme.spotifyGreen, fontWeight: FontWeight.w600)),
             ),
             const SizedBox(height: 36),
             
@@ -163,7 +163,7 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
               child: TextField(
                 controller: _nameController,
                 style: const TextStyle(color: AppTheme.textPrimary, fontSize: 17),
-                cursorColor: AppTheme.electricBlue,
+                cursorColor: AppTheme.spotifyGreen,
                 decoration: const InputDecoration(
                   labelText: 'Name',
                   labelStyle: TextStyle(color: AppTheme.textMuted, fontSize: 14),
@@ -184,7 +184,7 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
                 controller: _descController,
                 style: const TextStyle(color: AppTheme.textPrimary, fontSize: 17),
                 maxLines: 3,
-                cursorColor: AppTheme.electricBlue,
+                cursorColor: AppTheme.spotifyGreen,
                 decoration: const InputDecoration(
                   labelText: 'Description',
                   labelStyle: TextStyle(color: AppTheme.textMuted, fontSize: 14),

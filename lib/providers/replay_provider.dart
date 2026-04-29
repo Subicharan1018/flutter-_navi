@@ -144,6 +144,7 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
       albumName: (r['album_name'] as String?) ?? '',
       playCount: (r['play_count'] as int?) ?? 0,
       totalMinutesSec: (r['total_sec'] as int?) ?? 0,
+      coverArtId: r['song_id'] as String, // Subsonic getCoverArt accepts song IDs
     )).toList();
 
     return ReplayData(songs: songs, stats: stats);

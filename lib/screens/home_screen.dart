@@ -543,16 +543,34 @@ class _QuickTile extends ConsumerWidget {
 // Replay Song Reel — horizontal cards for Monthly / Weekly Replay
 // =============================================================================
 
-class _ReplaySongReel extends StatelessWidget {
+class _ReplaySongReel extends ConsumerWidget {
   final ReplayData data;
   final VoidCallback onSeeAll;
   const _ReplaySongReel({required this.data, required this.onSeeAll});
 
+  Future<void> _playSong(BuildContext context, WidgetRef ref, ReplaySong song) async {
+    try {
+      final svc = ref.read(subsonicServiceProvider);
+      final results = await svc.search(song.title, count: 5);
+      final match = results.where((s) => s.id == song.songId).firstOrNull;
+      if (match != null && context.mounted) {
+        ref.read(playerProvider.notifier).setQueue([match], 0);
+      } else if (results.isNotEmpty && context.mounted) {
+        ref.read(playerProvider.notifier).setQueue([results.first], 0);
+      }
+    } catch (e) {
+      if (context.mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not play "${song.title}": $e')),
+        );
+      }
+    }
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return SizedBox(
-      height: 170,
-      // Layout fix: SizedBox constrains the horizontal ListView height.
+      height: 180,
       child: ListView.builder(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -561,7 +579,11 @@ class _ReplaySongReel extends StatelessWidget {
           final song = data.songs[i];
           return Padding(
             padding: const EdgeInsets.only(right: 12),
-            child: _ReplayCard(song: song, rank: i + 1),
+            child: _ReplayCard(
+              song: song,
+              rank: i + 1,
+              onTap: () => _playSong(context, ref, song),
+            ),
           );
         },
       ),
@@ -569,105 +591,133 @@ class _ReplaySongReel extends StatelessWidget {
   }
 }
 
-class _ReplayCard extends StatelessWidget {
+class _ReplayCard extends ConsumerWidget {
   final ReplaySong song;
   final int rank;
-  const _ReplayCard({required this.song, required this.rank});
+  final VoidCallback onTap;
+  const _ReplayCard({required this.song, required this.rank, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final svc = ref.watch(subsonicServiceProvider);
+    final coverUrl = song.coverArtId != null
+        ? svc.getCoverArtUrl(song.coverArtId!)
+        : null;
+
     return Semantics(
-      label: 'Rank $rank: ${song.title} by ${song.artist}, ${song.listeningLabel}',
-      child: Container(
-        width: 120,
-        decoration: BoxDecoration(
-          color: AppTheme.cardSurface,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.outlineColor, width: 0.7),
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // Art placeholder (no cover art ID in replay data — show green gradient)
-            Container(
-              height: 90,
-              decoration: BoxDecoration(
-                borderRadius: const BorderRadius.vertical(top: Radius.circular(12)),
-                gradient: LinearGradient(
-                  begin: Alignment.topLeft,
-                  end: Alignment.bottomRight,
-                  colors: [
-                    AppTheme.spotifyGreen.withOpacity(0.7),
-                    AppTheme.spotifyGreen.withOpacity(0.2),
-                  ],
-                ),
-              ),
-              child: Stack(
-                children: [
-                  Center(
-                    child: Icon(Icons.music_note_rounded,
-                        color: Colors.white.withOpacity(0.4), size: 32),
-                  ),
-                  Positioned(
-                    top: 8, left: 10,
-                    child: Text(
-                      '#$rank',
-                      style: const TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w900,
-                        color: Colors.white,
-                        letterSpacing: -0.5,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-            // Info
-            Expanded(
-              child: Padding(
-                padding: const EdgeInsets.fromLTRB(10, 8, 10, 8),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+      button: true,
+      label: 'Play rank $rank: ${song.title} by ${song.artist}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Container(
+          width: 130,
+          decoration: BoxDecoration(
+            color: AppTheme.cardSurface,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: AppTheme.outlineColor, width: 0.7),
+          ),
+          clipBehavior: Clip.hardEdge,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Album art — real cover from Subsonic
+              SizedBox(
+                height: 100,
+                width: double.infinity,
+                child: Stack(
+                  fit: StackFit.expand,
                   children: [
-                    Text(song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 12,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.textPrimary,
-                        )),
-                    const SizedBox(height: 2),
-                    Text(song.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: const TextStyle(
-                          fontSize: 11,
-                          color: AppTheme.textSecondary,
-                        )),
-                    const Spacer(),
-                    // Listening time badge
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: AppTheme.spotifyGreen.withOpacity(0.15),
-                        borderRadius: BorderRadius.circular(20),
-                      ),
-                      child: Text(
-                        song.listeningLabel,
-                        style: const TextStyle(
-                          fontSize: 10,
-                          fontWeight: FontWeight.w600,
-                          color: AppTheme.spotifyGreen,
+                    if (coverUrl != null)
+                      CachedNetworkImage(
+                        imageUrl: coverUrl,
+                        cacheKey: 'replay_${song.songId}',
+                        fit: BoxFit.cover,
+                        placeholder: (_, __) => _artGradient(),
+                        errorWidget: (_, __, ___) => _artGradient(),
+                      )
+                    else
+                      _artGradient(),
+                    // Rank badge
+                    Positioned(
+                      top: 6, left: 8,
+                      child: Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: Colors.black.withOpacity(0.6),
+                          borderRadius: BorderRadius.circular(4),
+                        ),
+                        child: Text(
+                          '#$rank',
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w900,
+                            color: Colors.white,
+                          ),
                         ),
                       ),
                     ),
+                    // Play overlay
+                    Positioned(
+                      bottom: 6, right: 6,
+                      child: Container(
+                        width: 28, height: 28,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: AppTheme.spotifyGreen.withOpacity(0.9),
+                        ),
+                        child: const Icon(Icons.play_arrow_rounded,
+                            color: Colors.black, size: 16),
+                      ),
+                    ),
                   ],
                 ),
               ),
-            ),
-          ],
+              // Song info
+              Expanded(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.textPrimary,
+                          )),
+                      const SizedBox(height: 2),
+                      Text(song.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: const TextStyle(
+                            fontSize: 11,
+                            color: AppTheme.textSecondary,
+                          )),
+                      const Spacer(),
+                      // Listening time badge
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.spotifyGreen.withOpacity(0.15),
+                          borderRadius: BorderRadius.circular(20),
+                        ),
+                        child: Text(
+                          song.listeningLabel,
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w600,
+                            color: AppTheme.spotifyGreen,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
       ),
     )
@@ -675,7 +725,27 @@ class _ReplayCard extends StatelessWidget {
     .fadeIn(duration: 350.ms)
     .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
   }
+
+  Widget _artGradient() {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [
+            AppTheme.spotifyGreen.withOpacity(0.6),
+            AppTheme.spotifyGreen.withOpacity(0.15),
+          ],
+        ),
+      ),
+      child: const Center(
+        child: Icon(Icons.music_note_rounded,
+            color: Colors.white38, size: 28),
+      ),
+    );
+  }
 }
+
 
 // =============================================================================
 // Empty state for replay sections

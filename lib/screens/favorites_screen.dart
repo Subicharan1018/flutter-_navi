@@ -1,57 +1,20 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import '../models/song.dart';
 import '../models/album.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/song_tile.dart';
-import '../widgets/album_card.dart';
-import '../widgets/mini_player.dart';
+import '../core/theme.dart';
 
-// ── INK & SIGNAL Design System ────────────────────────────────────────────────
-class _DS {
-  static const bg  = Color(0xFF0E0C09);
-  static const s1  = Color(0xFF171410);
-  static const s2  = Color(0xFF1F1C17);
-  static const s3  = Color(0xFF2A2620);
-  static const amber = Color(0xFFE8A020);
-  static const blue  = Color(0xFF3B82F6);
-  static const cream = Color(0xFFF5F0E8);
-  static const muted = Color(0xFF7A7268);
-
-  static TextStyle display(double sz, {bool italic = false}) => TextStyle(
-    fontFamily: 'PlayfairDisplay',
-    fontSize: sz,
-    fontWeight: FontWeight.w900,
-    fontStyle: italic ? FontStyle.italic : FontStyle.normal,
-    color: cream,
-    letterSpacing: sz > 28 ? -1.5 : -0.6,
-    height: 0.95,
-  );
-
-  static TextStyle mono(double sz, {Color? c, FontWeight w = FontWeight.w400}) =>
-      TextStyle(
-        fontFamily: 'DMMonoPro',
-        fontSize: sz,
-        fontWeight: w,
-        color: c ?? muted,
-        letterSpacing: sz < 11 ? 2.0 : 0.3,
-        height: 1.3,
-      );
-
-  static TextStyle serif(double sz, {Color? c, FontWeight w = FontWeight.w600}) =>
-      TextStyle(
-        fontFamily: 'Literata',
-        fontSize: sz,
-        fontWeight: w,
-        color: c ?? cream,
-        letterSpacing: -0.2,
-        height: 1.3,
-      );
-}
+// =============================================================================
+// FavoritesScreen — Spotify dark theme
+// NO own MiniPlayer — AppScaffold provides it for all tabs.
+// =============================================================================
 
 class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key});
@@ -68,141 +31,73 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     final favoritesAsync = ref.watch(favoritesProvider);
     final topPad = MediaQuery.of(context).padding.top;
 
-    return Scaffold(
-      backgroundColor: _DS.bg,
-      body: Stack(
-        children: [
-          // ── Background Accents ──
-          Positioned(
-            top: -90, left: -70,
-            child: _LightLeak(color: _DS.amber, size: 340, opacity: 0.05),
-          ),
-          Positioned(
-            top: 200, right: -100,
-            child: _LightLeak(color: _DS.blue, size: 260, opacity: 0.03),
-          ),
-
-          // ── Main Content ──
-          RefreshIndicator(
-            color: _DS.amber,
-            backgroundColor: _DS.s2,
-            displacement: topPad + 56,
-            onRefresh: () async {
-              ref.invalidate(favoritesProvider);
-            },
-            child: CustomScrollView(
-              physics: const BouncingScrollPhysics(),
-              slivers: [
-                // ── Header ──
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: EdgeInsets.fromLTRB(20, topPad + 20, 20, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Container(
-                              width: 6, height: 6,
-                              decoration: const BoxDecoration(
-                                color: _DS.amber,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
-                            const SizedBox(width: 8),
-                            Text(
-                              'COLLECTION',
-                              style: _DS.mono(9, w: FontWeight.w500)
-                                  .copyWith(letterSpacing: 2.5),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        RichText(
-                          text: TextSpan(
-                            style: _DS.display(42),
-                            children: [
-                              const TextSpan(text: 'Favor'),
-                              TextSpan(
-                                text: 'ites.',
-                                style: _DS.display(42, italic: true)
-                                    .copyWith(color: _DS.amber),
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(height: 28),
-                        // Tab Switcher
-                        Row(
-                          children: [
-                            _TabButton(
-                              title: 'Songs',
-                              isSelected: _selectedTab == 0,
-                              onTap: () => setState(() => _selectedTab = 0),
-                            ),
-                            const SizedBox(width: 10),
-                            _TabButton(
-                              title: 'Albums',
-                              isSelected: _selectedTab == 1,
-                              onTap: () => setState(() => _selectedTab = 1),
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.03, end: 0),
+    return AnnotatedRegion<SystemUiOverlayStyle>(
+      value: SystemUiOverlayStyle.light,
+      child: Scaffold(
+        backgroundColor: AppTheme.coreBackground,
+        body: RefreshIndicator(
+          color: AppTheme.spotifyGreen,
+          backgroundColor: AppTheme.surfaceLevel,
+          displacement: topPad + 56,
+          onRefresh: () async {
+            ref.invalidate(favoritesProvider);
+          },
+          child: CustomScrollView(
+            physics: const BouncingScrollPhysics(),
+            slivers: [
+              // ── Header ──────────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: _FavoritesHeader(
+                  topPad: topPad,
+                  selectedTab: _selectedTab,
+                  onTabChanged: (t) => setState(() => _selectedTab = t),
+                  favoritesAsync: favoritesAsync,
                 ),
+              ),
 
-                const SliverToBoxAdapter(child: SizedBox(height: 10)),
+              const SliverToBoxAdapter(child: SizedBox(height: 8)),
 
-                // ── List/Grid content ──
-                favoritesAsync.when(
-                  data: (data) {
-                    if (_selectedTab == 0) {
-                      return _buildSongsList(data.songs);
-                    } else {
-                      return _buildAlbumsList(data.albums);
-                    }
-                  },
-                  loading: () => const SliverFillRemaining(
-                    child: Center(child: _Loader()),
-                  ),
-                  error: (e, _) => SliverFillRemaining(
-                    child: Center(
-                      child: Text('Could not load favorites',
-                          style: _DS.mono(13, c: _DS.muted)),
+              // ── Content ─────────────────────────────────────────────────
+              favoritesAsync.when(
+                data: (data) {
+                  if (_selectedTab == 0) {
+                    return _buildSongsList(data.songs);
+                  } else {
+                    return _buildAlbumsGrid(data.albums);
+                  }
+                },
+                loading: () => const SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: AppTheme.spotifyGreen,
+                      strokeWidth: 2,
                     ),
                   ),
                 ),
+                error: (e, _) => const SliverFillRemaining(
+                  child: Center(
+                    child: Text('Could not load favorites',
+                        style: TextStyle(color: AppTheme.textMuted, fontSize: 14)),
+                  ),
+                ),
+              ),
 
-                const SliverToBoxAdapter(child: SizedBox(height: 150)),
-              ],
-            ),
+              // Bottom spacing for mini player
+              const SliverToBoxAdapter(child: SizedBox(height: 160)),
+            ],
           ),
-
-          // ── Mini Player ──
-          const Positioned(
-            left: 0, right: 0, bottom: 0,
-            child: SafeArea(top: false, child: MiniPlayer()),
-          ),
-        ],
+        ),
       ),
     );
   }
 
   Widget _buildSongsList(List<Song> songs) {
     if (songs.isEmpty) {
-      return SliverFillRemaining(
+      return const SliverFillRemaining(
         hasScrollBody: false,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.favorite_border_rounded, color: _DS.muted, size: 40),
-              const SizedBox(height: 16),
-              Text('No favorite songs yet', style: _DS.mono(13)),
-            ],
-          ),
+        child: _EmptyState(
+          icon: Icons.favorite_border_rounded,
+          message: 'No favorite songs yet',
         ),
       );
     }
@@ -216,48 +111,60 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             onTap: () {
               ref.read(playerProvider.notifier).setQueue(songs, index);
             },
-          ).animate(delay: (index * 20).clamp(0, 300).ms).fadeIn(duration: 400.ms).slideX(begin: 0.02, end: 0);
+          )
+          .animate(delay: (index * 18).clamp(0, 280).ms)
+          .fadeIn(duration: 350.ms)
+          .slideX(begin: 0.03, end: 0, curve: Curves.easeOutCubic);
         },
         childCount: songs.length,
       ),
     );
   }
 
-  Widget _buildAlbumsList(List<Album> albums) {
+  Widget _buildAlbumsGrid(List<Album> albums) {
     if (albums.isEmpty) {
-      return SliverFillRemaining(
+      return const SliverFillRemaining(
         hasScrollBody: false,
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Icon(Icons.album_outlined, color: _DS.muted, size: 40),
-              const SizedBox(height: 16),
-              Text('No favorite albums yet', style: _DS.mono(13)),
-            ],
-          ),
+        child: _EmptyState(
+          icon: Icons.album_outlined,
+          message: 'No favorite albums yet',
         ),
       );
     }
 
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16),
       sliver: SliverGrid(
         gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
           crossAxisCount: 2,
-          mainAxisSpacing: 18,
-          crossAxisSpacing: 18,
-          childAspectRatio: 0.76,
+          mainAxisSpacing: 14,
+          crossAxisSpacing: 14,
+          childAspectRatio: 0.78,
         ),
         delegate: SliverChildBuilderDelegate(
           (context, index) {
             final album = albums[index];
-            return AlbumCard(
+            return _AlbumCard(
               album: album,
-              onTap: () {
-                // Navigate to album details
+              onTap: () async {
+                try {
+                  final svc = ref.read(subsonicServiceProvider);
+                  final songs = await svc.getAlbum(album.id);
+                  if (context.mounted) {
+                    ref.read(playerProvider.notifier).setQueue(songs, 0);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not play album: $e')),
+                    );
+                  }
+                }
               },
-            ).animate(delay: (index * 40).clamp(0, 400).ms).fadeIn(duration: 500.ms).scale(begin: const Offset(0.96, 0.96));
+            )
+            .animate(delay: (index * 40).clamp(0, 320).ms)
+            .fadeIn(duration: 400.ms)
+            .scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1));
           },
           childCount: albums.length,
         ),
@@ -266,41 +173,122 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
   }
 }
 
-class _TabButton extends StatelessWidget {
-  final String title;
-  final bool isSelected;
-  final VoidCallback onTap;
+// =============================================================================
+// Header — Spotify-styled with green accent, count badge, filter pills
+// =============================================================================
 
-  const _TabButton({
-    required this.title,
-    required this.isSelected,
-    required this.onTap,
+class _FavoritesHeader extends StatelessWidget {
+  final double topPad;
+  final int selectedTab;
+  final ValueChanged<int> onTabChanged;
+  final AsyncValue<({List<Song> songs, List<Album> albums})> favoritesAsync;
+
+  const _FavoritesHeader({
+    required this.topPad,
+    required this.selectedTab,
+    required this.onTabChanged,
+    required this.favoritesAsync,
   });
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: onTap,
-      child: AnimatedContainer(
-        duration: 250.ms,
-        curve: Curves.easeOutCubic,
-        padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-        decoration: BoxDecoration(
-          color: isSelected ? _DS.amber : _DS.s1,
-          borderRadius: BorderRadius.circular(100),
-          border: Border.all(
-            color: isSelected ? _DS.amber : Colors.white.withOpacity(0.08),
-            width: 1,
+    final songCount = favoritesAsync.valueOrNull?.songs.length ?? 0;
+    final albumCount = favoritesAsync.valueOrNull?.albums.length ?? 0;
+
+    return Padding(
+      padding: EdgeInsets.fromLTRB(20, topPad + 20, 20, 8),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Subtitle label
+          Row(
+            children: [
+              Container(
+                width: 6, height: 6,
+                decoration: const BoxDecoration(
+                  color: AppTheme.spotifyGreen,
+                  shape: BoxShape.circle,
+                ),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                'COLLECTION',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.spotifyGreen,
+                  letterSpacing: 2.0,
+                ),
+              ),
+            ],
           ),
-          boxShadow: isSelected ? [
-            BoxShadow(color: _DS.amber.withOpacity(0.15), blurRadius: 12, offset: const Offset(0, 4))
-          ] : [],
-        ),
-        child: Text(
-          title,
-          style: _DS.mono(11, 
-            c: isSelected ? Colors.black : _DS.cream,
-            w: isSelected ? FontWeight.w700 : FontWeight.w400,
+          const SizedBox(height: 8),
+          // Title
+          Text('Favorites', style: AppTheme.headingLg),
+          const SizedBox(height: 6),
+          // Count
+          Text(
+            '${songCount} songs • ${albumCount} albums',
+            style: const TextStyle(
+              fontSize: 13,
+              color: AppTheme.textSecondary,
+            ),
+          ),
+          const SizedBox(height: 20),
+          // Filter pills
+          Row(
+            children: [
+              _FilterPill(
+                title: 'Songs',
+                isSelected: selectedTab == 0,
+                onTap: () => onTabChanged(0),
+              ),
+              const SizedBox(width: 8),
+              _FilterPill(
+                title: 'Albums',
+                isSelected: selectedTab == 1,
+                onTap: () => onTabChanged(1),
+              ),
+            ],
+          ),
+        ],
+      ),
+    ).animate().fadeIn(duration: 400.ms).slideY(begin: 0.03, end: 0);
+  }
+}
+
+// =============================================================================
+// Filter pill — Spotify green when selected
+// =============================================================================
+
+class _FilterPill extends StatelessWidget {
+  final String title;
+  final bool isSelected;
+  final VoidCallback onTap;
+  const _FilterPill({required this.title, required this.isSelected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      button: true,
+      label: '$title filter${isSelected ? ", selected" : ""}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: AnimatedContainer(
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOutCubic,
+          padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
+          decoration: BoxDecoration(
+            color: isSelected ? AppTheme.spotifyGreen : AppTheme.topLevel,
+            borderRadius: BorderRadius.circular(20),
+          ),
+          child: Text(
+            title,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isSelected ? Colors.black : AppTheme.textPrimary,
+            ),
           ),
         ),
       ),
@@ -308,35 +296,110 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-class _LightLeak extends StatelessWidget {
-  final Color color;
-  final double size;
-  final double opacity;
-  const _LightLeak({required this.color, required this.size, required this.opacity});
+// =============================================================================
+// Album card — Spotify grid style with cached artwork
+// =============================================================================
+
+class _AlbumCard extends ConsumerWidget {
+  final Album album;
+  final VoidCallback onTap;
+  const _AlbumCard({required this.album, required this.onTap});
 
   @override
-  Widget build(BuildContext context) {
-    return Container(
-      width: size, height: size,
-      decoration: BoxDecoration(
-        shape: BoxShape.circle,
-        gradient: RadialGradient(
-          colors: [color.withOpacity(opacity), color.withOpacity(0)],
+  Widget build(BuildContext context, WidgetRef ref) {
+    final svc = ref.watch(subsonicServiceProvider);
+    final coverUrl = album.coverArt.isNotEmpty
+        ? svc.getCoverArtUrl(album.coverArt)
+        : null;
+
+    return Semantics(
+      button: true,
+      label: 'Play album: ${album.name} by ${album.artist}',
+      child: GestureDetector(
+        onTap: onTap,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Cover art
+            Expanded(
+              child: Container(
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(10),
+                  color: AppTheme.topLevel,
+                ),
+                clipBehavior: Clip.hardEdge,
+                child: coverUrl != null
+                    ? CachedNetworkImage(
+                        imageUrl: coverUrl,
+                        cacheKey: 'fav_album_${album.coverArt.isNotEmpty ? album.coverArt : album.id}',
+                        fit: BoxFit.cover,
+                        width: double.infinity,
+                        placeholder: (_, __) => Container(
+                          color: AppTheme.topLevel,
+                          child: const Center(
+                            child: Icon(Icons.album_rounded,
+                                color: AppTheme.textMuted, size: 40),
+                          ),
+                        ),
+                        errorWidget: (_, __, ___) => Container(
+                          color: AppTheme.topLevel,
+                          child: const Center(
+                            child: Icon(Icons.album_rounded,
+                                color: AppTheme.textMuted, size: 40),
+                          ),
+                        ),
+                      )
+                    : const Center(
+                        child: Icon(Icons.album_rounded,
+                            color: AppTheme.textMuted, size: 40),
+                      ),
+              ),
+            ),
+            const SizedBox(height: 8),
+            // Title
+            Text(album.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: AppTheme.textPrimary,
+                )),
+            const SizedBox(height: 2),
+            Text(album.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: const TextStyle(
+                  fontSize: 11,
+                  color: AppTheme.textSecondary,
+                )),
+          ],
         ),
       ),
     );
   }
 }
 
-class _Loader extends StatelessWidget {
-  const _Loader();
+// =============================================================================
+// Empty state
+// =============================================================================
+
+class _EmptyState extends StatelessWidget {
+  final IconData icon;
+  final String message;
+  const _EmptyState({required this.icon, required this.message});
+
   @override
   Widget build(BuildContext context) {
-    return const SizedBox(
-      width: 20, height: 20,
-      child: CircularProgressIndicator(
-        strokeWidth: 2,
-        color: _DS.amber,
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(icon, color: AppTheme.textMuted, size: 48),
+          const SizedBox(height: 16),
+          Text(message,
+              style: const TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+        ],
       ),
     );
   }
