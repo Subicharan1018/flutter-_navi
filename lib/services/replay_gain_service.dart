@@ -16,7 +16,8 @@ class ReplayGainService {
   Future<void> initialize() async {}
 
   ReplayGainMode getMode() {
-    final modeIndex = HiveBoxes.audio.get(HiveBoxes.kReplayGainMode, defaultValue: 0) as int;
+    final modeIndexVal = HiveBoxes.audio.get(HiveBoxes.kReplayGainMode, defaultValue: 0);
+    final modeIndex = modeIndexVal is int ? modeIndexVal : 0;
     return ReplayGainMode.values[modeIndex.clamp(
       0,
       ReplayGainMode.values.length - 1,
@@ -28,7 +29,8 @@ class ReplayGainService {
   }
 
   double getPreampGain() {
-    return HiveBoxes.audio.get(HiveBoxes.kPreampGain, defaultValue: 0.0) as double;
+    final val = HiveBoxes.audio.get(HiveBoxes.kPreampGain, defaultValue: 0.0);
+    return val is double ? val : (val is num ? val.toDouble() : 0.0);
   }
 
   Future<void> setPreampGain(double gain) async {
@@ -36,7 +38,8 @@ class ReplayGainService {
   }
 
   bool getPreventClipping() {
-    return HiveBoxes.audio.get(HiveBoxes.kPreventClipping, defaultValue: true) as bool;
+    final val = HiveBoxes.audio.get(HiveBoxes.kPreventClipping, defaultValue: true);
+    return val is bool ? val : true;
   }
 
   Future<void> setPreventClipping(bool prevent) async {
@@ -44,7 +47,8 @@ class ReplayGainService {
   }
 
   double getFallbackGain() {
-    return HiveBoxes.audio.get(HiveBoxes.kFallbackGain, defaultValue: -6.0) as double;
+    final val = HiveBoxes.audio.get(HiveBoxes.kFallbackGain, defaultValue: -6.0);
+    return val is double ? val : (val is num ? val.toDouble() : -6.0);
   }
 
   Future<void> setFallbackGain(double gain) async {

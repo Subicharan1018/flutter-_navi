@@ -1,6 +1,5 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
-import 'package:flutter/foundation.dart';
 
 import 'tables/analytics_tables.dart';
 import 'tables/playlist_cache_table.dart';
@@ -25,7 +24,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'navivibe_drift'));
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
 
   @override
   MigrationStrategy get migration {
@@ -34,7 +33,13 @@ class AppDatabase extends _$AppDatabase {
         await m.createAll();
       },
       onUpgrade: (Migrator m, int from, int to) async {
-        // Handle migrations here when schemaVersion increments
+        if (from < 2) {
+          try {
+            await m.addColumn(playEvents, playEvents.skipBefore50);
+          } catch (e) {
+            // Ignore if column already exists
+          }
+        }
       },
     );
   }

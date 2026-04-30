@@ -17,12 +17,12 @@ class Playlist {
 
   factory Playlist.fromJson(Map<String, dynamic> json) {
     return Playlist(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? 'Unknown Playlist',
-      comment: json['comment'] as String? ?? '',
-      songCount: json['songCount'] as int? ?? 0,
-      duration: json['duration'] as int? ?? 0,
-      coverArt: json['coverArt'] as String?,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? 'Unknown Playlist',
+      comment: json['comment']?.toString() ?? '',
+      songCount: json['songCount'] is int ? json['songCount'] : int.tryParse(json['songCount']?.toString() ?? '') ?? 0,
+      duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
+      coverArt: json['coverArt']?.toString(),
     );
   }
 

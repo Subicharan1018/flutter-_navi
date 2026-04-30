@@ -9,6 +9,8 @@ import '../services/bpm_analyzer_service.dart';
 import '../services/replay_gain_service.dart';
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
+import '../services/search_history_service.dart';
+import '../database/app_database.dart';
 
 // ---------------------------------------------------------------------------
 // Shuffle Algorithm enum
@@ -110,13 +112,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final auth = HiveBoxes.auth;
     final p = HiveBoxes.prefs;
 
-    final algoName = p.get(HiveBoxes.kShuffleAlgorithm, defaultValue: 'standard') as String;
-    final prefName = p.get(HiveBoxes.kShufflePreference, defaultValue: 'composer') as String;
+    final algoName = p.get(HiveBoxes.kShuffleAlgorithm, defaultValue: 'standard')?.toString() ?? 'standard';
+    final prefName = p.get(HiveBoxes.kShufflePreference, defaultValue: 'composer')?.toString() ?? 'composer';
+
+    String getString(dynamic box, String key, String defaultValue) {
+      final val = box.get(key)?.toString() ?? '';
+      return val.isEmpty ? defaultValue : val;
+    }
 
     state = SettingsState(
-      serverUrl: auth.get(HiveBoxes.kServerUrl, defaultValue: Constants.defaultServerUrl) as String,
-      username: auth.get(HiveBoxes.kUsername, defaultValue: Constants.defaultUsername) as String,
-      password: auth.get(HiveBoxes.kPassword, defaultValue: '') as String,
+      serverUrl: getString(auth, HiveBoxes.kServerUrl, Constants.defaultServerUrl),
+      username: getString(auth, HiveBoxes.kUsername, Constants.defaultUsername),
+      password: auth.get(HiveBoxes.kPassword)?.toString() ?? '',
       shuffleAlgorithm: ShuffleAlgorithm.values.firstWhere(
         (e) => e.name == algoName,
         orElse: () => ShuffleAlgorithm.standard,
@@ -125,11 +132,13 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         (e) => e.name == prefName,
         orElse: () => ShufflePreference.composer,
       ),
-      uploadApiUrl: p.get(HiveBoxes.kUploadApiUrl, defaultValue: '') as String,
-      uploadDirectory: p.get(HiveBoxes.kUploadDirectory, defaultValue: '/DATA/Media/Music') as String,
-      dataCollectionEnabled: p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) as bool,
-      analyticsUploadSchedule: p.get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none') as String,
-      analyticsLastUpload: p.get(HiveBoxes.kAnalyticsLastUpload) as String?,
+      uploadApiUrl: p.get(HiveBoxes.kUploadApiUrl)?.toString() ?? '',
+      uploadDirectory: getString(p, HiveBoxes.kUploadDirectory, '/DATA/Media/Music'),
+      dataCollectionEnabled: p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool 
+          ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) as bool 
+          : true,
+      analyticsUploadSchedule: p.get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none')?.toString() ?? 'none',
+      analyticsLastUpload: p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
     );
   }
 
@@ -186,20 +195,21 @@ final settingsProvider =
   return SettingsNotifier();
 });
 
+/// Singleton [AppDatabase] — central Drift instance for the app.
+final appDatabaseProvider = Provider<AppDatabase>((ref) {
+  final db = AppDatabase();
+  ref.onDispose(db.close);
+  return db;
+});
+
 /// Singleton [PlaylistCacheService] — created once, shared across the app.
-/// Disposing the provider (e.g. on logout) closes the underlying DB connection.
 final playlistCacheServiceProvider = Provider<PlaylistCacheService>((ref) {
-  final service = PlaylistCacheService();
-  ref.onDispose(service.dispose);
-  return service;
+  final db = ref.watch(appDatabaseProvider);
+  return PlaylistCacheService(db);
 });
 
 /// Narrow provider that surfaces only the three fields that control which
-/// [SubsonicService] instance we need.  By watching this instead of the full
-/// [settingsProvider], [subsonicServiceProvider] is NOT recreated when
-/// unrelated settings change (e.g. shuffleAlgorithm, uploadDirectory).
-/// Without this guard every settings mutation would destroy the service,
-/// nuke all in-memory caches, and close the http.Client mid-flight.
+/// [SubsonicService] instance we need.
 final _credentialsProvider =
     Provider<({String serverUrl, String username, String password})>((ref) {
   final s = ref.watch(settingsProvider);
@@ -209,8 +219,6 @@ final _credentialsProvider =
 final subsonicServiceProvider = Provider<SubsonicService>((ref) {
   final creds = ref.watch(_credentialsProvider);
   final cache = ref.watch(playlistCacheServiceProvider);
-  // Use ref.read for the remaining fields — changing them does NOT require a
-  // new service instance and must not trigger a recreation.
   final settings = ref.read(settingsProvider);
   final service = SubsonicService(
     serverUrl: creds.serverUrl,
@@ -226,10 +234,9 @@ final subsonicServiceProvider = Provider<SubsonicService>((ref) {
 });
 
 /// Singleton [ListeningEventCollector] — one instance for the app's lifetime.
-/// Disposed automatically when the provider scope is destroyed.
 final listenerCollectorProvider = Provider<ListeningEventCollector>((ref) {
-  final collector = ListeningEventCollector();
-  // dispose() is async; wrap in a void closure so ref.onDispose type matches.
+  final db = ref.watch(appDatabaseProvider);
+  final collector = ListeningEventCollector(db);
   ref.onDispose(() => collector.dispose());
   return collector;
 });
@@ -240,25 +247,20 @@ final listenerCollectorProvider = Provider<ListeningEventCollector>((ref) {
 
 /// Singleton [CacheSettingsService] — manages image/music/BPM cache toggles.
 final cacheSettingsProvider = Provider<CacheSettingsService>((ref) {
-  final service = CacheSettingsService();
-  return service;
+  return CacheSettingsService();
 });
 
 /// Singleton [BpmAnalyzerService] — BPM estimation and caching.
 final bpmAnalyzerProvider = Provider<BpmAnalyzerService>((ref) {
-  final service = BpmAnalyzerService();
-  return service;
+  return BpmAnalyzerService();
 });
 
 /// Singleton [ReplayGainService] — volume normalisation.
 final replayGainProvider = Provider<ReplayGainService>((ref) {
-  final service = ReplayGainService();
-  return service;
+  return ReplayGainService();
 });
 
 /// [TranscodingService] — network-aware bitrate/format management.
-/// Uses ChangeNotifierProvider so UI reactively updates when connection
-/// type or settings change.
 final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {
   final service = TranscodingService();
   ref.onDispose(service.dispose);
@@ -266,11 +268,15 @@ final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {
 });
 
 /// [RecommendationService] — play pattern tracking and personalised feeds.
-/// ChangeNotifierProvider so screens can react to new recommendation data.
 final recommendationProvider =
     ChangeNotifierProvider<RecommendationService>((ref) {
   final service = RecommendationService();
-  // Initialize asynchronously — listeners fire after data is loaded.
   service.initialize();
   return service;
+});
+
+/// Singleton [SearchHistoryService].
+final searchHistoryServiceProvider = Provider<SearchHistoryService>((ref) {
+  final db = ref.watch(appDatabaseProvider);
+  return SearchHistoryService(db);
 });

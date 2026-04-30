@@ -13,7 +13,7 @@ import '../widgets/mini_player.dart';
 // =============================================================================
 // Replay Screen — Apple Music-style listening analytics
 // Two tabs: Monthly Replay | This Week
-// Data sourced from navivibe_analytics.db (real SQLite listening events)
+// Data sourced from the Drift database (real SQLite listening events)
 // =============================================================================
 
 class ReplayScreen extends ConsumerStatefulWidget {

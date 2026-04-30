@@ -10,7 +10,7 @@ class SearchHistoryService {
   Future<List<String>> getRecentSearches({int limit = 10}) async {
     try {
       final query = _db.select(_db.searchHistory)
-        ..orderBy([(t) => OrderingTerm(expression: t.lastSearched, mode: OrderingMode.desc)])
+        ..orderBy([(t) => OrderingTerm(expression: t.lastSearchedAt, mode: OrderingMode.desc)])
         ..limit(limit);
 
       final rows = await query.get();
@@ -27,7 +27,7 @@ class SearchHistoryService {
     try {
       await _db.into(_db.searchHistory).insertOnConflictUpdate(SearchHistoryCompanion.insert(
         query: query.trim(),
-        lastSearched: DateTime.now().millisecondsSinceEpoch,
+        lastSearchedAt: DateTime.now().millisecondsSinceEpoch,
       ));
     } catch (e) {
       debugPrint('[SearchHistory] addSearch error: $e');

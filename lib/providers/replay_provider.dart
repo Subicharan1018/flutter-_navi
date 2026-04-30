@@ -1,11 +1,13 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:sqflite/sqflite.dart';
-import 'package:path/path.dart' as p;
+import 'package:drift/drift.dart';
+import '../database/app_database.dart';
+import 'settings_provider.dart';
 
 // =============================================================================
 // ReplayProvider
 //
-// Queries the local navivibe_analytics.db (play_events + song_metadata) to
+// Queries the local Drift database (play_events + song_metadata) to
 // compute real listening statistics for "Monthly Replay" and "Weekly Replay".
 //
 // Returns top songs ranked by total listening time in the period.
@@ -80,16 +82,8 @@ class ReplayData {
 // Internal DB helper
 // ---------------------------------------------------------------------------
 
-Future<Database> _openAnalyticsDb() async {
-  final dbPath = p.join(await getDatabasesPath(), 'navivibe_analytics.db');
-  return openDatabase(dbPath, readOnly: true);
-}
-
-Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
-  Database? db;
+Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
   try {
-    db = await _openAnalyticsDb();
-
     // ── Effective listening time formula ──────────────────────────────────
     // play_dur_sec stores the position at the moment of stop (clamped to
     // song duration). For LoopMode.one repeats, each completed loop played
@@ -103,7 +97,7 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
     // ─────────────────────────────────────────────────────────────────────
 
     // Top 10 songs by recommendation-weighted score in the given window.
-    final rows = await db.rawQuery('''
+    final rows = await db.customSelect('''
       WITH song_stats AS (
         SELECT
           pe.song_id,
@@ -119,7 +113,7 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
           SUM(
             (1 + pe.repeat_count) * COALESCE(sm.duration_sec, pe.play_dur_sec)
           ) AS expected_sec,
-          SUM(pe.skip_before_50) AS skip_count
+          SUM(pe.skip_before50) AS skip_count
         FROM play_events pe
         LEFT JOIN song_metadata sm ON sm.song_id = pe.song_id
         WHERE pe.ts_start >= ? AND pe.ts_start < ?
@@ -144,10 +138,10 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
       FROM song_stats
       ORDER BY score DESC
       LIMIT 10
-    ''', [fromMs, toMs]);
+    ''', variables: [Variable.withInt(fromMs), Variable.withInt(toMs)]).get();
 
     // Stats summary
-    final statsRows = await db.rawQuery('''
+    final statsRows = await db.customSelect('''
       SELECT
         SUM(
           pe.repeat_count * COALESCE(sm.duration_sec, pe.play_dur_sec)
@@ -159,10 +153,10 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
       LEFT JOIN song_metadata sm ON sm.song_id = pe.song_id
       WHERE pe.ts_start >= ? AND pe.ts_start < ?
         AND pe.play_dur_sec > 0
-    ''', [fromMs, toMs]);
+    ''', variables: [Variable.withInt(fromMs), Variable.withInt(toMs)]).get();
 
     // Top genre
-    final genreRows = await db.rawQuery('''
+    final genreRows = await db.customSelect('''
       SELECT sm.genre,
         SUM(
           pe.repeat_count * COALESCE(sm.duration_sec, pe.play_dur_sec)
@@ -176,12 +170,12 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
       GROUP BY sm.genre
       ORDER BY total_sec DESC
       LIMIT 1
-    ''', [fromMs, toMs]);
+    ''', variables: [Variable.withInt(fromMs), Variable.withInt(toMs)]).get();
 
     // Per-day-of-week listening breakdown.
     // SQLite strftime('%w') returns 0=Sun,1=Mon…6=Sat.
     // Convert to ISO weekday: 1=Mon…7=Sun.
-    final dailyRows = await db.rawQuery('''
+    final dailyRows = await db.customSelect('''
       SELECT
         CAST(strftime('%w', pe.ts_start / 1000, 'unixepoch', 'localtime') AS INTEGER) AS dow,
         SUM(
@@ -193,41 +187,40 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
       WHERE pe.ts_start >= ? AND pe.ts_start < ?
         AND pe.play_dur_sec > 0
       GROUP BY dow
-    ''', [fromMs, toMs]);
+    ''', variables: [Variable.withInt(fromMs), Variable.withInt(toMs)]).get();
 
     final Map<int, int> dailyListening = {};
     for (final r in dailyRows) {
-      final sqliteDow = (r['dow'] as int?) ?? 0; // 0=Sun,1=Mon…6=Sat
+      final sqliteDow = r.read<int?>('dow') ?? 0; // 0=Sun,1=Mon…6=Sat
       final isoDow = sqliteDow == 0 ? 7 : sqliteDow; // → 1=Mon…7=Sun
-      dailyListening[isoDow] = (r['total_sec'] as int?) ?? 0;
+      dailyListening[isoDow] = r.read<int?>('total_sec') ?? 0;
     }
 
-    final statsRow = statsRows.isNotEmpty ? statsRows.first : {};
+    final statsRow = statsRows.isNotEmpty ? statsRows.first : null;
     final stats = ReplayStats(
-      totalSec: (statsRow['total_sec'] as int?) ?? 0,
-      uniqueArtists: (statsRow['unique_artists'] as int?) ?? 0,
-      uniqueSongs: (statsRow['unique_songs'] as int?) ?? 0,
-      topGenre: genreRows.isNotEmpty ? genreRows.first['genre'] as String? : null,
+      totalSec: statsRow?.read<int?>('total_sec') ?? 0,
+      uniqueArtists: statsRow?.read<int?>('unique_artists') ?? 0,
+      uniqueSongs: statsRow?.read<int?>('unique_songs') ?? 0,
+      topGenre: genreRows.isNotEmpty ? genreRows.first.read<String?>('genre') : null,
     );
 
     final songs = rows.map((r) => ReplaySong(
-      songId: r['song_id'] as String,
-      title: (r['track_name'] as String?) ?? 'Unknown',
-      artist: (r['artist_name'] as String?) ?? 'Unknown',
-      albumName: (r['album_name'] as String?) ?? '',
-      playCount: (r['play_count'] as int?) ?? 0,
-      totalMinutesSec: (r['total_sec'] as int?) ?? 0,
-      coverArtId: r['song_id'] as String, // Subsonic getCoverArt accepts song IDs
+      songId: r.read<String>('song_id'),
+      title: r.read<String?>('track_name') ?? 'Unknown',
+      artist: r.read<String?>('artist_name') ?? 'Unknown',
+      albumName: r.read<String?>('album_name') ?? '',
+      playCount: r.read<int?>('play_count') ?? 0,
+      totalMinutesSec: r.read<int?>('total_sec') ?? 0,
+      coverArtId: r.read<String>('song_id'), // Subsonic getCoverArt accepts song IDs
     )).toList();
 
     return ReplayData(songs: songs, stats: stats, dailyListening: dailyListening);
-  } catch (_) {
+  } catch (e) {
+    debugPrint('[ReplayProvider] query error: $e');
     return const ReplayData(
       songs: [],
       stats: ReplayStats(totalSec: 0, uniqueArtists: 0, uniqueSongs: 0),
     );
-  } finally {
-    await db?.close();
   }
 }
 
@@ -258,12 +251,14 @@ Future<ReplayData> _queryReplay(int fromMs, int toMs) async {
 
 final monthlyReplayProvider = FutureProvider<ReplayData>((ref) async {
   ref.keepAlive();
+  final db = ref.watch(appDatabaseProvider);
   final (from, to) = _thisMonthWindow();
-  return _queryReplay(from, to);
+  return _queryReplay(db, from, to);
 });
 
 final weeklyReplayProvider = FutureProvider<ReplayData>((ref) async {
   ref.keepAlive();
+  final db = ref.watch(appDatabaseProvider);
   final (from, to) = _thisWeekWindow();
-  return _queryReplay(from, to);
+  return _queryReplay(db, from, to);
 });

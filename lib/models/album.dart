@@ -17,12 +17,12 @@ class Album {
 
   factory Album.fromJson(Map<String, dynamic> json) {
     return Album(
-      id: json['id'] as String? ?? '',
-      name: json['name'] as String? ?? json['title'] as String? ?? 'Unknown Album',
-      artist: json['artist'] as String? ?? 'Unknown Artist',
-      coverArt: json['coverArt'] as String? ?? '',
-      songCount: json['songCount'] as int? ?? 0,
-      duration: json['duration'] as int? ?? 0,
+      id: json['id']?.toString() ?? '',
+      name: json['name']?.toString() ?? json['title']?.toString() ?? 'Unknown Album',
+      artist: json['artist']?.toString() ?? 'Unknown Artist',
+      coverArt: json['coverArt']?.toString() ?? '',
+      songCount: json['songCount'] is int ? json['songCount'] : int.tryParse(json['songCount']?.toString() ?? '') ?? 0,
+      duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
     );
   }
 

@@ -24,8 +24,9 @@ class AlbumCard extends ConsumerWidget {
     // FIX 2 — Static cacheKey so the Subsonic salt/token rotation in the URL
     // doesn't bust the image cache on every rebuild/scroll.
     // ---------------------------------------------------------------------------
-    final String imageUrl = service.getCoverArtUrl(album.coverArt);
-    final String imageCacheKey = 'cover_${album.coverArt ?? album.id}';
+    final String coverId = album.coverArt.isNotEmpty ? album.coverArt : album.id;
+    final String imageUrl = service.getCoverArtUrl(coverId);
+    final String imageCacheKey = 'cover_$coverId';
 
     return CupertinoClickable(
       onTap: onTap,
@@ -42,6 +43,8 @@ class AlbumCard extends ConsumerWidget {
                 width: 160,
                 height: 160,
                 fit: BoxFit.cover,
+                memCacheWidth: 400,
+                memCacheHeight: 400,
                 placeholder: (context, url) => const _AlbumPlaceholder(),
                 errorWidget: (context, url, error) => const _AlbumPlaceholder(),
               ),

@@ -1,6 +1,8 @@
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
+import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'dart:convert';
 
 // =============================================================================
 // HiveBoxes — Central Hive initialization
@@ -27,13 +29,28 @@ class HiveBoxes {
   /// Initialize Hive and open all boxes. Must be called before runApp().
   static Future<void> init() async {
     await Hive.initFlutter();
-    auth    = await Hive.openBox(_authBox);
+
+    // Secure encryption for sensitive data (credentials)
+    final encryptionKey = await _getEncryptionKey();
+
+    auth    = await Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(encryptionKey));
     session = await Hive.openBox(_sessionBox);
     prefs   = await Hive.openBox(_prefsBox);
     audio   = await Hive.openBox(_audioBox);
 
     // One-time migration from SharedPreferences → Hive
     await _migrateFromSharedPreferences();
+  }
+
+  static Future<List<int>> _getEncryptionKey() async {
+    const storage = FlutterSecureStorage();
+    final encodedKey = await storage.read(key: 'hive_encryption_key');
+    if (encodedKey == null) {
+      final key = Hive.generateSecureKey();
+      await storage.write(key: 'hive_encryption_key', value: base64UrlEncode(key));
+      return key;
+    }
+    return base64Url.decode(encodedKey);
   }
 
   // ---------------------------------------------------------------------------

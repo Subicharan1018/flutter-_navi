@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navivibe/services/audio_handler.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/services/subsonic_service.dart';
+import 'package:navivibe/services/playlist_cache_service.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/providers/player_provider.dart';
 import 'package:just_audio/just_audio.dart';
@@ -68,8 +69,10 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
 }
 
 class MockSubsonicService extends SubsonicService {
-  MockSubsonicService() : super(serverUrl: '', username: '', password: '');
+  MockSubsonicService(PlaylistCacheService cache) : super(serverUrl: '', username: '', password: '', cache: cache);
 }
+
+class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
 
 class MockAudioPlayer extends Fake implements AudioPlayer {
   @override
@@ -94,7 +97,8 @@ void main() {
     late Song s1, s2, s3, s4;
 
     setUp(() {
-      final mockService = MockSubsonicService();
+      final mockCache = MockPlaylistCacheService();
+      final mockService = MockSubsonicService(mockCache);
       final mockPlayer = MockAudioPlayer();
       handler = TestAudioHandler(mockService, player: mockPlayer);
 
@@ -146,7 +150,8 @@ void main() {
   });
 
   test('history does not duplicate the same song on repeated index events', () async {
-    final mockService = MockSubsonicService();
+    final mockCache = MockPlaylistCacheService();
+    final mockService = MockSubsonicService(mockCache);
     final mockPlayer = ControlledAudioPlayer();
     final handler = TestAudioHandler(mockService, player: mockPlayer);
 

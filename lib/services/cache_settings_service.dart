@@ -14,7 +14,8 @@ class CacheSettingsService {
   }
 
   bool getImageCacheEnabled() {
-    return HiveBoxes.prefs.get(HiveBoxes.kImageCacheEnabled, defaultValue: true) as bool;
+    final val = HiveBoxes.prefs.get(HiveBoxes.kImageCacheEnabled, defaultValue: true);
+    return val is bool ? val : true;
   }
 
   Future<void> setMusicCacheEnabled(bool enabled) async {
@@ -22,7 +23,8 @@ class CacheSettingsService {
   }
 
   bool getMusicCacheEnabled() {
-    return HiveBoxes.prefs.get(HiveBoxes.kMusicCacheEnabled, defaultValue: true) as bool;
+    final val = HiveBoxes.prefs.get(HiveBoxes.kMusicCacheEnabled, defaultValue: true);
+    return val is bool ? val : true;
   }
 
   Future<void> setBpmCacheEnabled(bool enabled) async {
@@ -30,7 +32,8 @@ class CacheSettingsService {
   }
 
   bool getBpmCacheEnabled() {
-    return HiveBoxes.prefs.get(HiveBoxes.kBpmCacheEnabled, defaultValue: true) as bool;
+    final val = HiveBoxes.prefs.get(HiveBoxes.kBpmCacheEnabled, defaultValue: true);
+    return val is bool ? val : true;
   }
 
   Future<void> disableAllCaches() async {

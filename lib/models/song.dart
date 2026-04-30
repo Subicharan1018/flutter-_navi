@@ -45,27 +45,27 @@ class Song {
 
   factory Song.fromJson(Map<String, dynamic> json) {
     return Song(
-      id: json['id'] as String? ?? '',
-      title: json['title'] as String? ?? 'Unknown Title',
-      artist: json['artist'] as String? ?? 'Unknown Artist',
-      album: json['album'] as String? ?? 'Unknown Album',
-      genre: json['genre'] as String? ?? '',
-      composer: (json['displayComposer'] as String?) ?? (json['composer'] as String?) ?? '',
-      coverArt: json['coverArt'] as String? ?? '',
-      duration: json['duration'] as int? ?? 0,
-      track: json['track'] as int? ?? 0,
-      year: json['year'] as int? ?? 0,
+      id: json['id']?.toString() ?? '',
+      title: json['title']?.toString() ?? 'Unknown Title',
+      artist: json['artist']?.toString() ?? 'Unknown Artist',
+      album: json['album']?.toString() ?? 'Unknown Album',
+      genre: json['genre']?.toString() ?? '',
+      composer: json['displayComposer']?.toString() ?? json['composer']?.toString() ?? '',
+      coverArt: json['coverArt']?.toString() ?? '',
+      duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
+      track: json['track'] is int ? json['track'] : int.tryParse(json['track']?.toString() ?? '') ?? 0,
+      year: json['year'] is int ? json['year'] : int.tryParse(json['year']?.toString() ?? '') ?? 0,
       // 'starred' in Subsonic JSON is a timestamp string when starred, absent when not
       starred: json['starred'] != null,
-      playCount: json['playCount'] as int? ?? 0,
+      playCount: json['playCount'] is int ? json['playCount'] : int.tryParse(json['playCount']?.toString() ?? '') ?? 0,
       // Subsonic 'userRating' field (1–5)
-      rating: (json['userRating'] as int?) ?? (json['rating'] as int?) ?? 0,
+      rating: json['userRating'] is int ? json['userRating'] : (json['rating'] is int ? json['rating'] : 0),
       created: json['created'] != null
-          ? DateTime.tryParse(json['created'] as String)
+          ? DateTime.tryParse(json['created'].toString())
           : null,
-      bitRate: json['bitRate'] as int? ?? 0,
-      contentType: json['contentType'] as String? ?? '',
-      suffix: json['suffix'] as String? ?? '',
+      bitRate: json['bitRate'] is int ? json['bitRate'] : int.tryParse(json['bitRate']?.toString() ?? '') ?? 0,
+      contentType: json['contentType']?.toString() ?? '',
+      suffix: json['suffix']?.toString() ?? '',
     );
   }
 

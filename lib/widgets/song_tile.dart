@@ -60,8 +60,9 @@ class SongTile extends ConsumerWidget {
     // Pinning cacheKey to the song ID means the cache lookup uses a stable string
     // regardless of what the authentication parameters look like.
     // ---------------------------------------------------------------------------
-    final String imageUrl = service.getCoverArtUrl(song.coverArt);
-    final String imageCacheKey = 'cover_${song.coverArt ?? song.id}';
+    final String coverId = song.coverArt.isNotEmpty ? song.coverArt : song.id;
+    final String imageUrl = service.getCoverArtUrl(coverId);
+    final String imageCacheKey = 'cover_$coverId';
 
     return CupertinoClickable(
       onTap: onTap,
@@ -80,6 +81,8 @@ class SongTile extends ConsumerWidget {
                   width: 48,
                   height: 48,
                   fit: BoxFit.cover,
+                  memCacheWidth: 150,
+                  memCacheHeight: 150,
                   placeholder: (context, url) => const _ArtPlaceholder(size: 48),
                   errorWidget: (context, url, error) => const _ArtPlaceholder(size: 48),
                 ),

@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import 'package:http_parser/http_parser.dart';
 import '../core/constants.dart';
 import '../core/app_exception.dart';
+import '../core/hive_boxes.dart';
 import '../models/song.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
@@ -65,13 +66,28 @@ class SubsonicService {
     this.webdavPassword,
   })  : serverUrl = _normalizeServerUrl(serverUrl),
         _cache = cache {
-    // Initialise the stable cover-art credentials once.
-    _coverArtSalt = _generateSalt();
+    // BUG-8: Restore or generate a stable salt for cover-art URLs.
+    // We compute the token dynamically so it updates if the password changes.
+    // Changed key to coverArtSalt_v2 to permanently bust the corrupted CachedNetworkImage cache.
+    final box = HiveBoxes.auth;
+    final savedSalt = box.get('coverArtSalt_v2')?.toString();
+
+    if (savedSalt != null && savedSalt.isNotEmpty) {
+      _coverArtSalt = savedSalt;
+    } else {
+      _coverArtSalt = _generateSalt();
+      box.put('coverArtSalt_v2', _coverArtSalt);
+    }
+    
+    // Always generate token from current password so it never goes stale
     _coverArtToken = _generateToken(_coverArtSalt);
   }
 
   static String _normalizeServerUrl(String url) {
-    final uri = Uri.parse(url.trim());
+    final trimmed = url.trim();
+    if (trimmed.isEmpty) return Constants.defaultServerUrl;
+    
+    final uri = Uri.parse(trimmed);
     if (uri.path.isEmpty || uri.path == '/') {
       return uri.replace(path: '/rest').toString();
     }
@@ -180,7 +196,7 @@ class SubsonicService {
       } else {
         final error = subsonicResponse['error'] as Map<String, dynamic>?;
         final code = error?['code'] as int? ?? 0;
-        final msg  = error?['message'] as String? ?? 'Subsonic API error';
+        final msg  = error?['message']?.toString() ?? 'Subsonic API error';
         // Subsonic error codes 40 (wrong creds) / 41 (token not supported)
         if (code == 40 || code == 41) throw const AuthException();
         throw SubsonicApiException(code, msg);
@@ -265,7 +281,7 @@ class SubsonicService {
 
     // PERF-4: fetch all albums concurrently instead of sequentially.
     // Clamp to 10 albums max to avoid flooding the server with requests.
-    final toFetch = albums.take(10).map((a) => a['id'] as String).toList();
+    final toFetch = albums.take(10).map((a) => a['id']?.toString() ?? '').toList();
     final results = await Future.wait(toFetch.map(getAlbum));
     final allSongs = results.expand((s) => s).toList();
     return allSongs.take(size).toList();
@@ -458,6 +474,7 @@ class SubsonicService {
   void _backgroundRefreshPlaylist(String id) {
     _fetchAndCachePlaylist(id).catchError((e) {
       debugPrint('[SubsonicService] background refresh failed for $id: $e');
+      return <Song>[];
     });
   }
 
@@ -572,7 +589,7 @@ class SubsonicService {
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
     final artists = (searchResult['artist'] as List<dynamic>? ?? [])
-        .map((e) => (e as Map<String, dynamic>)['name'] as String)
+        .map((e) => (e as Map<String, dynamic>)['name']?.toString() ?? '')
         .toList();
     return {'songs': songs, 'albums': albums, 'artists': artists};
   }

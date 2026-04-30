@@ -150,7 +150,7 @@ class PlayEvent {
         'ts_start': timestampStart.millisecondsSinceEpoch,
         'ts_end': timestampEnd?.millisecondsSinceEpoch,
         'play_dur_sec': playDurationSec,
-        'skip_before_50': skipBeforeEnd ? 1 : 0,
+        'skip_before50': skipBeforeEnd ? 1 : 0,
         'skip_position_pct': skipPositionPct,
         'repeat_count': repeatCount,
         'queue_position': queuePosition,
