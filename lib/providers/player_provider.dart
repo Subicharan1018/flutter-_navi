@@ -132,21 +132,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   AudioPlayer get player => _audioHandler.player;
   String? _lastScrobbleSongId;
   Duration _lastKnownPosition = Duration.zero;
+  int _lastKnownIndex = 0;
   bool _isShuffling = false;
   bool get isShuffling => _isShuffling;
 
   void _init() {
-    int lastKnownIndex = 0;
+    _lastKnownIndex = player.currentIndex ?? 0;
 
     _subscriptions.add(player.currentIndexStream.listen((index) {
       if (index == null) return;
-      if (_isShuffling) {
-        lastKnownIndex = index;
-        return;
-      }
 
-      final prevIndex = lastKnownIndex;
-      lastKnownIndex = index;
+      final prevIndex = _lastKnownIndex;
+      _lastKnownIndex = index;
 
       final settings = _ref.read(settingsProvider);
       if (!settings.dataCollectionEnabled) {
@@ -221,9 +218,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       state = state.copyWith(repeatMode: loopMode);
     }));
 
+    _subscriptions.add(player.processingStateStream.listen((processingState) {
+      if (processingState == ProcessingState.completed) {
+        // Queue ended or single song finished
+        if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
+          final song = state.queue[state.currentIndex];
+          _collector.onSongEnded(song, player.position);
+        }
+      }
+    }));
+
     Duration prevPosition = Duration.zero;
     _subscriptions.add(player.positionStream.listen((position) {
-      _lastKnownPosition = position;
+      if (player.currentIndex == _lastKnownIndex) {
+        _lastKnownPosition = position;
+      }
       if (position.inSeconds % 5 == 0) {
         _persistState();
       }

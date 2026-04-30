@@ -46,7 +46,7 @@ Future<List<Song>> _getCachedSongs(AppDatabase db) async {
     duration: r.durationSec,
     genre: r.genre ?? '',
     composer: r.composer ?? '',
-    coverArt: '',
+    coverArt: r.songId, // Use songId as fallback for artwork
     track: 0,
     year: r.year ?? 0,
     playCount: r.playCount,

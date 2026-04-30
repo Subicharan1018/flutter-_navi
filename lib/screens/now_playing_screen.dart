@@ -12,6 +12,7 @@ import 'package:just_audio/just_audio.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../core/theme.dart';
+import '../core/palette_cache.dart';           // ← NEW
 import '../fluid_background.dart';
 import '../widgets/options_menu.dart';
 import '../models/song.dart';
@@ -344,78 +345,56 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   // ── Drag-to-dismiss state ────────────────────────────────────────────────
   double _dragOffset = 0;
 
-  // ── Route-transition tracking ────────────────────────────────────────────
-  bool _transitionFinished = false;
-  bool _transitionListenerAttached = false;
-  Timer? _transitionFallbackTimer;
-
   // ── Sleep timer ──────────────────────────────────────────────────────────
   Timer? _sleepTimer;
   Timer? _sleepCountdownTimer;
-  // BUG-30: ValueNotifier so 1 Hz tick only rebuilds the sleep-label widget.
   final ValueNotifier<int?> _sleepSeconds = ValueNotifier(null);
 
   // ── Last-known song cache (keeps UI alive while queue swaps) ─────────────
   Song?   _lastKnownSong;
   String? _lastKnownImageUrl;
 
-  // ── Palette / blob colors ────────────────────────────────────────────────
-  List<Color> _blobColors = const [
-    Color(0xFF1A1A2E), Color(0xFF16213E),
-    Color(0xFF0F3460), Color(0xFF533483),
-  ];
-  String? _lastPaletteSongId;
+  // ── Palette / blob colors ─────────────────────────────────────────────────
+  // Initialised directly from PaletteCache so frame-1 already has the right
+  // colours — no fallback flash when navigating back to the same song.
+  List<Color> _blobColors = PaletteCache.instance.colors;
+  String? _inflightSongId; // guards against stale async completions
 
   // ── Lifecycle ────────────────────────────────────────────────────────────
 
   @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    if (_transitionFinished || _transitionListenerAttached) return;
-    final route = ModalRoute.of(context);
-    if (route == null) return;
-
-    void completeTransition() {
-      if (!mounted || _transitionFinished) return;
-      setState(() => _transitionFinished = true);
-    }
-
-    void handler(AnimationStatus status) {
-      if (status == AnimationStatus.completed) {
-        route.animation?.removeStatusListener(handler);
-        _transitionFallbackTimer?.cancel();
-        completeTransition();
-      }
-    }
-
-    _transitionListenerAttached = true;
-    route.animation?.addStatusListener(handler);
-    _transitionFallbackTimer = Timer(const Duration(milliseconds: 460), () {
-      route.animation?.removeStatusListener(handler);
-      completeTransition();
-    });
-  }
-
-  @override
   void dispose() {
-    _transitionFallbackTimer?.cancel();
     _sleepTimer?.cancel();
     _sleepCountdownTimer?.cancel();
-    _sleepSeconds.dispose(); // BUG-30
+    _sleepSeconds.dispose();
     super.dispose();
   }
 
   // ── Palette extraction ───────────────────────────────────────────────────
 
   void _triggerPaletteExtraction(String songId, String imageUrl) {
-    if (_lastPaletteSongId == songId) return;
-    _lastPaletteSongId = songId;
+    // Cache hit — just sync local state if it somehow drifted
+    if (PaletteCache.instance.hasColorsFor(songId)) {
+      if (_blobColors != PaletteCache.instance.colors) {
+        setState(() => _blobColors = PaletteCache.instance.colors);
+      }
+      return;
+    }
+
+    // Already extracting for this song — don't launch a second future
+    if (_inflightSongId == songId) return;
+    _inflightSongId = songId;
+
     // CRIT-2: Do NOT use compute() — PaletteGenerator needs the main isolate's
     // Flutter engine. Direct call is fast; image is already in disk cache.
     _extractPaletteIsolate(imageUrl).then((ints) {
-      if (!mounted || _lastPaletteSongId != songId) return;
-      setState(() => _blobColors = _intsToColors(ints));
-    }).catchError((_) {});
+      if (!mounted || _inflightSongId != songId) return;
+      final colors = _intsToColors(ints);
+      PaletteCache.instance.update(songId, colors); // persist across navigations
+      setState(() => _blobColors = colors);
+    }).catchError((_) {
+      _inflightSongId = null;
+    });
   }
 
   // ── Sleep timer ──────────────────────────────────────────────────────────
@@ -494,7 +473,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     });
   }
 
-  // BUG-30: called from ValueListenableBuilder — no setState needed.
   String _formatSleepLabel(int remaining) {
     final mins = remaining ~/ 60;
     final secs = remaining % 60;
@@ -599,11 +577,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         : _lastKnownImageUrl!;
     final cacheKey = 'cover_${song.coverArt ?? song.id}';
 
-    if (_transitionFinished) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _triggerPaletteExtraction(song.id, imageUrl);
-      });
-    }
+    // Always trigger — PaletteCache guards against redundant extraction.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _triggerPaletteExtraction(song.id, imageUrl);
+    });
 
     final isShuffleActive = playerState.shuffleMode;
     final isRepeatActive  = playerState.repeatMode != LoopMode.off;
@@ -628,11 +605,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           body: Stack(
             fit: StackFit.expand,
             children: [
-              // ── Background ──────────────────────────────────────────────
-              if (_transitionFinished)
-                FluidBackground(colors: _blobColors)
-              else
-                const ColoredBox(color: Colors.black),
+              // ── Background — always FluidBackground, cache gives correct
+              //    colors on frame 1 so there is no fallback flash. ──────────
+              FluidBackground(colors: _blobColors),
 
               // ── Foreground ──────────────────────────────────────────────
               SafeArea(
@@ -680,9 +655,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     ),
 
                     // ── Album art ───────────────────────────────────────
-                    // RepaintBoundary isolates the AnimatedScale compositor
-                    // layer — play/pause animation no longer re-rasters the
-                    // full screen (FluidBackground + song info). Fixes lag.
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 28, vertical: 10),
@@ -984,7 +956,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                 : Colors.white54,
                             onTap: () => notifier.toggleAutoplay(),
                           ),
-                          // BUG-30: scopes 1 Hz rebuild to just this label.
                           ValueListenableBuilder<int?>(
                             valueListenable: _sleepSeconds,
                             builder: (_, remaining, __) => _BottomAction(

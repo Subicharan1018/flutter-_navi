@@ -16,11 +16,14 @@ class Album {
   });
 
   factory Album.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id']?.toString() ?? '';
+    final rawCover = json['coverArt']?.toString() ?? '';
+
     return Album(
-      id: json['id']?.toString() ?? '',
+      id: rawId,
       name: json['name']?.toString() ?? json['title']?.toString() ?? 'Unknown Album',
       artist: json['artist']?.toString() ?? 'Unknown Artist',
-      coverArt: json['coverArt']?.toString() ?? '',
+      coverArt: rawCover.isNotEmpty ? rawCover : rawId,
       songCount: json['songCount'] is int ? json['songCount'] : int.tryParse(json['songCount']?.toString() ?? '') ?? 0,
       duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
     );

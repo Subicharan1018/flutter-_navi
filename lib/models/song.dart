@@ -44,14 +44,17 @@ class Song {
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
+    final rawId = json['id']?.toString() ?? '';
+    final rawCover = json['coverArt']?.toString() ?? '';
+    
     return Song(
-      id: json['id']?.toString() ?? '',
+      id: rawId,
       title: json['title']?.toString() ?? 'Unknown Title',
       artist: json['artist']?.toString() ?? 'Unknown Artist',
       album: json['album']?.toString() ?? 'Unknown Album',
       genre: json['genre']?.toString() ?? '',
       composer: json['displayComposer']?.toString() ?? json['composer']?.toString() ?? '',
-      coverArt: json['coverArt']?.toString() ?? '',
+      coverArt: rawCover.isNotEmpty ? rawCover : rawId,
       duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
       track: json['track'] is int ? json['track'] : int.tryParse(json['track']?.toString() ?? '') ?? 0,
       year: json['year'] is int ? json['year'] : int.tryParse(json['year']?.toString() ?? '') ?? 0,
