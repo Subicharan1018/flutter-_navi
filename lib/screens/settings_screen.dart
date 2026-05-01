@@ -210,6 +210,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         customUploadDir: _uploadDirController.text.trim().isEmpty
           ? null
           : _uploadDirController.text.trim(),
+        webdavUsername: _webdavUserController.text.trim(),
+        webdavPassword: _webdavPassController.text,
       );
         await service.uploadSong(File(result.files.single.path!));
         if (mounted) {
@@ -395,21 +397,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _SettingsGroup(
               title: 'PREFERENCES',
               children: [
-                _SettingsToggleRow(
-                  label: 'High Quality Audio',
-                  value: true,
-                  onChanged: (v) {}, // TODO: wire up when implemented
-                ),
-                _SettingsDivider(),
-                _SettingsToggleRow(
-                  label: 'Mesh Gradient Background',
-                  value: settings.meshGradientEnabled,
-                  onChanged: (v) {
-                    ref.read(settingsProvider.notifier).setMeshGradientEnabled(v);
-                  },
-                ),
-                _SettingsDivider(),
-
                 // Smart Shuffle Algorithm
                 _SettingsDropdownRow<ShuffleAlgorithm>(
                   label: 'Shuffle Algorithm',
