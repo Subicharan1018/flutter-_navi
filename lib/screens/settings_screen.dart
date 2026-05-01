@@ -377,7 +377,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 _SettingsDivider(),
 
-                if (settings.shuffleAlgorithm == ShuffleAlgorithm.spotify) ...[
+                if (settings.shuffleAlgorithm == ShuffleAlgorithm.spotify ||
+                    settings.shuffleAlgorithm == ShuffleAlgorithm.mergeShuffle) ...[
                   _SettingsDropdownRow<ShufflePreference>(
                     label: 'Balanced Grouping',
                     value: settings.shufflePreference,
@@ -770,6 +771,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return 'Balanced Dithering — tracks are spaced evenly based on your preference (Composer or Genre) so the same category never plays back-to-back.';
       case ShuffleAlgorithm.youtube:
         return 'Weighted Mix — songs you love (stars, high ratings, "Suggest More") appear more often. Use "Suggest More / Less" on any track to tune it.';
+      case ShuffleAlgorithm.albumAware:
+        return 'Album-Aware — shuffles albums as atomic units. Keeps the track order within each album intact.';
+      case ShuffleAlgorithm.mergeShuffle:
+        return 'Mathematical Optimum — interleaves categories (Composer/Genre) perfectly using the Merge-Shuffle algorithm (2023).';
+      case ShuffleAlgorithm.recencyDampened:
+        return 'Recency-Dampened — weighted mix that penalizes songs played recently in this session to ensure variety.';
     }
   }
 
@@ -1035,6 +1042,9 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
                   ShuffleAlgorithm.standard => 'Standard',
                   ShuffleAlgorithm.spotify => 'Balanced',
                   ShuffleAlgorithm.youtube => 'Weighted',
+                  ShuffleAlgorithm.albumAware => 'Album-Aware',
+                  ShuffleAlgorithm.mergeShuffle => 'Optimum',
+                  ShuffleAlgorithm.recencyDampened => 'Variety-Weighted',
                 };
               } else if (item is ShufflePreference) {
                 name = switch (item) {

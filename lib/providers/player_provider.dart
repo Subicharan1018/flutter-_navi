@@ -668,6 +668,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         case ShuffleAlgorithm.standard:
           await _audioHandler.standardShuffle();
           break;
+        case ShuffleAlgorithm.albumAware:
+          await _audioHandler.albumAwareShuffle();
+          break;
+        case ShuffleAlgorithm.mergeShuffle:
+          await _audioHandler.mergeShuffle(settings.shufflePreference);
+          break;
+        case ShuffleAlgorithm.recencyDampened:
+          await _audioHandler.recencyDampenedWeightedShuffle();
+          break;
       }
       state = state.copyWith(
           queue: _audioHandler.currentQueue, currentIndex: savedIndex);
