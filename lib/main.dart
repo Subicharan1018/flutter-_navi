@@ -4,7 +4,8 @@ import 'package:just_audio_background/just_audio_background.dart';
 import 'core/hive_boxes.dart';
 import 'core/theme.dart';
 import 'widgets/app_scaffold.dart';
-
+import 'fluid_background.dart';
+import 'dart:async';
 import 'providers/settings_provider.dart';
 
 Future<void> main() async {
@@ -13,11 +14,16 @@ Future<void> main() async {
   await JustAudioBackground.init(
     androidNotificationChannelId: 'com.mymusicplayer.audio',
     androidNotificationChannelName: 'My Music Player',
-    // BUG-14: false allows the user to dismiss the notification, which
-    // kills the foreground service so the app doesn't persist after swipe-kill.
+    // FIX BUG-1: true keeps the foreground service alive after the user
+    // swipes away the notification, preventing background playback from dying.
     androidNotificationOngoing: false,
-    androidStopForegroundOnPause: true,
+    androidStopForegroundOnPause: false,
   );
+
+  // PERF-15: Pre-load the fluid background shader so NowPlayingScreen
+  // background is ready on first frame (prevents theme-switch flicker).
+  unawaited(FluidShaderLoader.instance.load());
+
   runApp(const ProviderScope(child: MyMusicPlayerApp()));
 }
 
@@ -26,7 +32,7 @@ class MyMusicPlayerApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(themeModeProvider);
+    final mode   = ref.watch(themeModeProvider);
     final tokens = ThemeVariants.of(mode);
 
     return ThemeTokens(

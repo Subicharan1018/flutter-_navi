@@ -1,38 +1,10 @@
-// =============================================================================
-// fluid_background.dart
-//
-// Drop-in replacement for _AnimatedBackground / _AppleMusicPainter.
-//
-// Key differences vs. the old saveLayer approach
-// ───────────────────────────────────────────────
-//  OLD                               NEW
-//  ───────────────────────────────── ──────────────────────────────────
-//  Canvas.saveLayer + ImageFilter    FragmentShader (GPU only)
-//  Full-screen offscreen buffer      No extra VRAM allocation
-//  5 × RadialGradient on CPU         5 blobs computed per-pixel on GPU
-//  σ=40 Gaussian convolution         FBM domain-warp (one texture tap)
-//  ~3 ms CPU + heavy GPU kernel      ~0.05 ms CPU, cheap GPU fragment
-//
-// Usage – exact same API as the old _AnimatedBackground:
-//
-//   FluidBackground(colors: _blobColors)   // replaces _AnimatedBackground
-//
-// pubspec.yaml must declare the shader:
-//
-//   flutter:
-//     shaders:
-//       - shaders/fluid_background.frag
-// =============================================================================
-
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
+import 'package:flutter/foundation.dart';
 
 // ── Shader loader ─────────────────────────────────────────────────────────────
 
-/// Singleton that loads the fragment program once and caches it.
-/// Call [FluidShaderLoader.instance.load()] once at app start
-/// (e.g. in main() after WidgetsFlutterBinding.ensureInitialized()).
 class FluidShaderLoader {
   FluidShaderLoader._();
   static final FluidShaderLoader instance = FluidShaderLoader._();
@@ -40,33 +12,29 @@ class FluidShaderLoader {
   ui.FragmentProgram? _program;
   Future<ui.FragmentProgram>? _future;
 
-  /// Returns a [Future] that resolves to the compiled [FragmentProgram].
-  /// Safe to call multiple times – compilation happens only once.
   Future<ui.FragmentProgram> load() {
     _future ??= ui.FragmentProgram.fromAsset('shaders/fluid_background.frag')
-        .then((p) { _program = p; return p; });
+        .then((p) {
+      _program = p;
+      return p;
+    });
     return _future!;
   }
 
-  /// Synchronous accessor – null until [load()] has resolved.
   ui.FragmentProgram? get program => _program;
 }
 
 // ── Custom painter ────────────────────────────────────────────────────────────
 
 class _FluidPainter extends CustomPainter {
+  // FIX BUG-7: The shader instance is passed in from state and reused across
+  // frames. Creating a new FragmentShader every build causes GPU resource
+  // churn — the program is compiled once, but each shader() call allocates
+  // a new uniform buffer on the GPU.
   final ui.FragmentShader shader;
-
-  /// Monotonic seconds, wraps at 1 000 to stay inside float precision.
   final double time;
-
-  /// Four jewel-tone colours extracted from the album artwork.
   final List<Color> colors;
-
-  /// Previous album palette (cross-fade source).
   final List<Color> prevColors;
-
-  /// Cross-fade progress 0 → previous palette, 1 → current palette.
   final double tColor;
 
   _FluidPainter({
@@ -79,31 +47,31 @@ class _FluidPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    // ── Set uniforms ──────────────────────────────────────────────────────────
+    // Uniform layout — must match fluid_background.frag exactly.
     //
-    // Uniform layout (must match fluid_background.frag exactly):
+    // FIX BUG-8: Flutter's runtime_effect.glsl does NOT support array
+    // uniforms (uniform vec4 u_colors[4]). Each element must be a separate
+    // uniform. The frag file must be updated to match this flat layout:
     //
-    //   0  u_resolution.x   float
-    //   1  u_resolution.y   float
-    //   2  u_time           float
-    //   3  u_colors[0].r    float  \
-    //   4  u_colors[0].g    float   |  4 colours × 4 components = 16 floats
-    //   5  u_colors[0].b    float   |
-    //   6  u_colors[0].a    float  /
-    //   … (indices 7-18 for colors[1..3])
-    //   19 u_colorsPrev[0].r …      16 floats (indices 19-34)
-    //   35 u_tColor          float
+    //   0  u_resolution.x
+    //   1  u_resolution.y
+    //   2  u_time
+    //   3..6   u_color0  (rgba floats)
+    //   7..10  u_color1
+    //   11..14 u_color2
+    //   15..18 u_color3
+    //   19..22 u_colorPrev0
+    //   23..26 u_colorPrev1
+    //   27..30 u_colorPrev2
+    //   31..34 u_colorPrev3
+    //   35 u_tColor
 
     int idx = 0;
 
-    // u_resolution
     shader.setFloat(idx++, size.width);
     shader.setFloat(idx++, size.height);
-
-    // u_time
     shader.setFloat(idx++, time % 1000.0);
 
-    // u_colors[0..3]
     for (int i = 0; i < 4; i++) {
       final c = i < colors.length ? colors[i] : const Color(0xFF1A1A2E);
       shader.setFloat(idx++, c.red   / 255.0);
@@ -112,7 +80,6 @@ class _FluidPainter extends CustomPainter {
       shader.setFloat(idx++, c.alpha / 255.0);
     }
 
-    // u_colorsPrev[0..3]
     for (int i = 0; i < 4; i++) {
       final c = i < prevColors.length ? prevColors[i] : const Color(0xFF1A1A2E);
       shader.setFloat(idx++, c.red   / 255.0);
@@ -121,10 +88,8 @@ class _FluidPainter extends CustomPainter {
       shader.setFloat(idx++, c.alpha / 255.0);
     }
 
-    // u_tColor
     shader.setFloat(idx++, tColor);
 
-    // ── Draw full-screen rect with the shader ─────────────────────────────────
     canvas.drawRect(
       Rect.fromLTWH(0, 0, size.width, size.height),
       Paint()..shader = shader,
@@ -135,22 +100,14 @@ class _FluidPainter extends CustomPainter {
   bool shouldRepaint(_FluidPainter old) =>
       old.time != time ||
       old.tColor != tColor ||
-      old.colors != colors ||
-      old.prevColors != prevColors;
+      !listEquals(old.colors, colors) ||
+      !listEquals(old.prevColors, prevColors);
 }
 
 // ── Animated widget ───────────────────────────────────────────────────────────
 
-/// Drop-in replacement for the old `_AnimatedBackground` widget.
-///
-/// Renders the fluid Apple Music background via a GPU fragment shader.
-/// Falls back to a simple dark gradient while the shader is loading
-/// (typically < 1 frame on a warm AssetBundle cache).
 class FluidBackground extends StatefulWidget {
-  /// Four jewel-tone colours extracted from the current album artwork.
-  /// Must have exactly 4 elements; supply fallbacks if fewer are available.
   final List<Color> colors;
-
   const FluidBackground({super.key, required this.colors});
 
   @override
@@ -159,11 +116,9 @@ class FluidBackground extends StatefulWidget {
 
 class _FluidBackgroundState extends State<FluidBackground>
     with SingleTickerProviderStateMixin {
-  // ── Ticker: drives u_time ─────────────────────────────────────────────────
   late final Ticker _ticker;
-  double _elapsed = 0;   // seconds
+  double _elapsed = 0;
 
-  // ── Cross-fade state ──────────────────────────────────────────────────────
   List<Color> _currentColors = const [
     Color(0xFF1A1A2E), Color(0xFF16213E),
     Color(0xFF0F3460), Color(0xFF533483),
@@ -173,16 +128,16 @@ class _FluidBackgroundState extends State<FluidBackground>
     Color(0xFF0F3460), Color(0xFF533483),
   ];
 
-  // t=0 means show _prevColors, t=1 means show _currentColors
   double _tColor = 1.0;
-
-  // Simple manual lerp: runs for _kFadeDuration seconds
-  static const double _kFadeDuration = 1.5; // seconds
+  static const double _kFadeDuration = 1.5;
   double _fadeStartElapsed = 0;
   bool   _fading = false;
 
-  // ── Shader ────────────────────────────────────────────────────────────────
   ui.FragmentProgram? _program;
+
+  // FIX BUG-7: One shader instance, allocated once when the program is ready
+  // and reused every frame. Destroyed in dispose().
+  ui.FragmentShader? _shader;
 
   @override
   void initState() {
@@ -192,12 +147,17 @@ class _FluidBackgroundState extends State<FluidBackground>
 
     _ticker = createTicker(_onTick)..start();
 
-    // If the shader is already compiled (warm cache), use it immediately.
-    // Otherwise kick off the load and rebuild when it resolves.
     _program = FluidShaderLoader.instance.program;
-    if (_program == null) {
+    if (_program != null) {
+      _shader = _program!.fragmentShader();
+    } else {
       FluidShaderLoader.instance.load().then((p) {
-        if (mounted) setState(() => _program = p);
+        if (mounted) {
+          setState(() {
+            _program = p;
+            _shader  = p.fragmentShader();
+          });
+        }
       });
     }
   }
@@ -205,9 +165,8 @@ class _FluidBackgroundState extends State<FluidBackground>
   @override
   void didUpdateWidget(FluidBackground old) {
     super.didUpdateWidget(old);
-    if (widget.colors != old.colors) {
-      // Start a colour cross-fade
-      _prevColors       = _lerpedColors;  // snapshot mid-fade colours
+    if (!listEquals(widget.colors, old.colors)) {
+      _prevColors       = _lerpedColors;
       _currentColors    = List.of(widget.colors);
       _fadeStartElapsed = _elapsed;
       _fading           = true;
@@ -218,6 +177,8 @@ class _FluidBackgroundState extends State<FluidBackground>
   @override
   void dispose() {
     _ticker.dispose();
+    // FIX BUG-7: Release the GPU uniform buffer when the widget is destroyed.
+    _shader?.dispose();
     super.dispose();
   }
 
@@ -231,7 +192,6 @@ class _FluidBackgroundState extends State<FluidBackground>
         _tColor = 1.0;
         _fading = false;
       } else {
-        // ease-in-out cubic
         final t = progress < 0.5
             ? 4 * progress * progress * progress
             : 1 - (-2 * progress + 2) * (-2 * progress + 2) * (-2 * progress + 2) / 2;
@@ -239,10 +199,9 @@ class _FluidBackgroundState extends State<FluidBackground>
       }
     }
 
-    setState(() {}); // rebuild each frame (CustomPaint will skip if unchanged)
+    setState(() {});
   }
 
-  /// Returns the colours as they look right now (mid-fade interpolation).
   List<Color> get _lerpedColors => List.generate(
     _currentColors.length,
     (i) => Color.lerp(_prevColors[i], _currentColors[i], _tColor)!,
@@ -250,8 +209,7 @@ class _FluidBackgroundState extends State<FluidBackground>
 
   @override
   Widget build(BuildContext context) {
-    // ── Fallback while shader is loading ──────────────────────────────────────
-    if (_program == null) {
+    if (_shader == null) {
       return DecoratedBox(
         decoration: BoxDecoration(
           gradient: LinearGradient(
@@ -266,20 +224,19 @@ class _FluidBackgroundState extends State<FluidBackground>
       );
     }
 
-    // ── Shader path ───────────────────────────────────────────────────────────
-    final shader = _program!.fragmentShader();
-
     return RepaintBoundary(
       child: CustomPaint(
+        // FIX BUG-7: Pass the cached _shader — not _program!.fragmentShader()
+        // which would allocate a new GPU buffer on every build call.
         painter: _FluidPainter(
-          shader:     shader,
+          shader:     _shader!,
           time:       _elapsed,
           colors:     _currentColors,
           prevColors: _prevColors,
           tColor:     _tColor,
         ),
         size: Size.infinite,
-        isComplex: false,   // shader is cheap; skip raster-cache hint
+        isComplex: false,
         willChange: true,
       ),
     );

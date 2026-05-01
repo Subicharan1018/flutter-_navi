@@ -13,6 +13,7 @@ import '../core/theme.dart';
 import 'playlist_details_screen.dart';
 import 'edit_playlist_screen.dart';
 import 'search_screen.dart';
+import '../services/subsonic_service.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});

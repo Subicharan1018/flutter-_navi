@@ -179,6 +179,7 @@ List<Song> _sortSongsByCreated(List<Song> songs) {
     if (a.created == null && b.created == null) return 0;
     if (a.created == null) return 1;
     if (b.created == null) return -1;
+    return b.created!.compareTo(a.created!);
   });
   return songs;
 }

@@ -43,12 +43,8 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
         setState(() => _isCreating = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: ThemeTokens.of(context).accent,
-            content: Text(
-              'Created and added to $name',
-              style: TextStyle(
-                  color: Colors.black, fontWeight: FontWeight.bold),
-            ),
+            content: Text('Created and added to $name'),
+            behavior: SnackBarBehavior.floating,
           ),
         );
       }
@@ -107,12 +103,8 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: ThemeTokens.of(context).accent,
-            content: Text(
-              'Updated $successCount playlist${successCount == 1 ? '' : 's'}',
-              style: TextStyle(
-                  color: Colors.black, fontWeight: FontWeight.bold),
-            ),
+            content: Text('Updated $successCount playlist${successCount == 1 ? '' : 's'}'),
+            behavior: SnackBarBehavior.floating,
           ),
         );
         Navigator.pop(context);
@@ -320,9 +312,38 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                           color: ThemeTokens.of(context).accent),
                     ),
                   ),
-                  error: (e, st) => Center(
-                    child: Text('Error loading playlists',
-                        style: ThemeTokens.of(context).technicalSm),
+                  error: (e, st) => Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.cloud_off_rounded,
+                          size: 36,
+                          color: Theme.of(context).colorScheme.error,
+                        ),
+                        const SizedBox(height: 12),
+                        Text(
+                          'Could not load playlists',
+                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                            color: ThemeTokens.of(context).textPrimary,
+                          ),
+                        ),
+                        const SizedBox(height: 4),
+                        Text(
+                          'Check your connection and try again.',
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: ThemeTokens.of(context).textSecondary,
+                              ),
+                          textAlign: TextAlign.center,
+                        ),
+                        const SizedBox(height: 16),
+                        FilledButton.tonal(
+                          onPressed: () => ref.invalidate(playlistsProvider),
+                          child: const Text('Retry'),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
               ),

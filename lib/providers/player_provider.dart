@@ -9,6 +9,7 @@ import '../services/listening_event_collector.dart';
 import 'settings_provider.dart';
 import '../services/audio_handler.dart';
 import '../core/hive_boxes.dart';
+import '../core/app_constants.dart';
 
 // ---------------------------------------------------------------------------
 // Player state
@@ -23,7 +24,8 @@ class PlayerState {
   final List<String> starredIds;
   final List<Song> history;
 
-  static const int maxHistoryLength = 50;
+  // FIX: Magic number extracted to AppConstants.playerHistoryMaxLength.
+  static const int maxHistoryLength = AppConstants.playerHistoryMaxLength;
 
   const PlayerState({
     required this.queue,
@@ -286,9 +288,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // currentIndexStream won't fire again (no new index), so this is the
       // only place that can rescue a completed queue.
       _triggerAutoplayIfNeeded();
-
-      // If a fetch was already in progress, wait briefly and then try to play.
-      // _fetchAndAppendSimilar will call player.play() itself when done.
     }));
 
     Duration prevPosition = Duration.zero;
@@ -363,7 +362,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   // RC-12/RC-15 FIX: Serialized queue operation with deferred seek support.
   Future<void> setQueue(List<Song> songs, int startIndex) async {
-    // Wait for any in-flight queue/shuffle operation to finish first.
     await _queueOpLock?.future;
     final completer = Completer<void>();
     _queueOpLock = completer;
@@ -396,7 +394,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // setQueue or other shuffle operations.
   Future<void> playPlaylist(List<Song> songs, {bool shuffle = false}) async {
     if (songs.isEmpty) return;
-    // Wait for any in-flight queue/shuffle operation.
     await _queueOpLock?.future;
     final completer = Completer<void>();
     _queueOpLock = completer;
@@ -423,8 +420,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final settings = _ref.read(settingsProvider);
         final shuffled = await _audioHandler.computeShuffle(
             pool, settings.shuffleAlgorithm, settings.shufflePreference);
-        // RC-12: After long compute, check if another setQueue already ran.
-        if (_queueOpLock != completer) return; // superseded — bail out
+        if (_queueOpLock != completer) return;
         final finalQueue = [currentSong, ...shuffled];
         _suppressStreamEvents = true;
         state = state.copyWith(queue: finalQueue, currentIndex: 0);
@@ -541,8 +537,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _audioHandler.addToQueue(song);
   }
 
-  // RC-3 FIX: Suppress stream events during structural queue mutations
-  // to prevent the index listener from seeing a stale queue.
+  // RC-3 FIX: Suppress stream events during structural queue mutations.
   Future<void> removeFromQueue(int index) async {
     _suppressStreamEvents = true;
     try {
@@ -586,7 +581,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   // RC-4 FIX: Guard against concurrent toggleStar calls for the same songId.
   Future<void> toggleStar(String songId) async {
-    if (_starTogglingIds.contains(songId)) return; // already in flight
+    if (_starTogglingIds.contains(songId)) return;
     _starTogglingIds.add(songId);
     try {
       final currentlyStarred = state.starredIds.contains(songId);
@@ -621,7 +616,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   // RC-1 FIX: Serialize shuffle operations with _queueOpLock.
   Future<void> setShuffleMode(bool enabled) async {
-    // Wait for any in-flight queue/shuffle operation.
     await _queueOpLock?.future;
     state = state.copyWith(shuffleMode: enabled);
     if (enabled) {
@@ -631,8 +625,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  // RC-1 FIX: Serialized unshuffle. Removed artificial 50ms delay that
-  // caused UI lag. _suppressStreamEvents prevents ghost index events.
+  // RC-1 FIX: Serialized unshuffle.
   Future<void> unshuffleQueue() async {
     final completer = Completer<void>();
     _queueOpLock = completer;
@@ -651,7 +644,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  // RC-1 FIX: Serialized shuffle. Removed artificial 50ms delay.
+  // RC-1 FIX: Serialized shuffle.
   Future<void> applyShuffleAlgorithm() async {
     final completer = Completer<void>();
     _queueOpLock = completer;
@@ -738,8 +731,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final newMode = !state.autoplayMode;
     state = state.copyWith(autoplayMode: newMode);
     if (newMode && state.queue.isNotEmpty) {
-      // If the queue already finished before autoplay was toggled on,
-      // processingState will be completed — kick off a fetch immediately.
       _triggerAutoplayIfNeeded();
     }
   }
@@ -753,10 +744,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       return;
     }
 
-    // FIX (Autoplay-1): Use the *current* last song in the queue as seed.
-    // After _fetchAndAppendSimilar appends songs, state.queue.last changes,
-    // so the next trigger (when those songs run out) uses a different seed
-    // and the Set guard correctly allows a new fetch.
     final lastSong = state.queue.last;
     if (_autoplayTriggeredFor.contains(lastSong.id)) return;
 
@@ -764,14 +751,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _fetchAndAppendSimilar(lastSong);
   }
 
-  // RC-13 FIX: Snapshot currentIndex BEFORE the network call. After the await,
-  // re-check if the user is still at the end before seeking.
+  // RC-13 FIX: Snapshot currentIndex BEFORE the network call.
   Future<void> _fetchAndAppendSimilar(Song seedSong) async {
     _isFetchingSimilar = true;
     try {
       debugPrint('[AUTOPLAY] Fetching similar songs for: ${seedSong.title}');
 
-      // RC-13: Snapshot state before the network call.
       final indexBeforeFetch = state.currentIndex;
       final queueLenBeforeFetch = state.queue.length;
 
@@ -783,7 +768,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
 
-      // Filter out songs already in the queue to avoid duplicates.
       final existingIds = state.queue.map((s) => s.id).toSet();
       final fresh = similar.where((s) => !existingIds.contains(s.id)).toList();
 
@@ -799,11 +783,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       debugPrint(
           '[AUTOPLAY] Appended ${fresh.length} songs. Queue now ${newQueue.length}');
 
-      // RC-13: Re-read currentIndex AFTER the await. Only auto-resume if:
-      // 1. The user is still at or past where they were before the fetch
-      // 2. The user is actually at the end of the *original* queue
-      // 3. Playback has stopped
-      // This prevents hijacking if the user navigated away during the fetch.
       final currentIndexNow = state.currentIndex;
       final wasAtEnd = currentIndexNow >= queueLenBeforeFetch - 1;
       final userNavigatedAway = currentIndexNow < indexBeforeFetch;
@@ -812,7 +791,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           !userNavigatedAway &&
           (player.processingState == ProcessingState.completed ||
               !player.playing)) {
-        final nextIndex = queueLenBeforeFetch; // first fresh song
+        final nextIndex = queueLenBeforeFetch;
         if (nextIndex < state.queue.length) {
           await player.seek(Duration.zero, index: nextIndex);
           await player.play();
