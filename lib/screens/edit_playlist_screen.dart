@@ -168,7 +168,7 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
                 controller: _nameController,
                 style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 17),
                 cursorColor: ThemeTokens.of(context).accent,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Name',
                   labelStyle: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14),
                   border: InputBorder.none,
@@ -189,7 +189,7 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
                 style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 17),
                 maxLines: 3,
                 cursorColor: ThemeTokens.of(context).accent,
-                decoration: const InputDecoration(
+                decoration: InputDecoration(
                   labelText: 'Description',
                   labelStyle: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14),
                   border: InputBorder.none,

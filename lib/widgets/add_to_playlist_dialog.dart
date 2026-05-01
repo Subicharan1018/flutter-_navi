@@ -260,7 +260,7 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                     return ListView.separated(
                       shrinkWrap: true,
                       itemCount: playlists.length,
-                      separatorBuilder: (_, __) => const Divider(
+                      separatorBuilder: (_, __) => Divider(
                           color: ThemeTokens.of(context).outline, height: 1),
                       itemBuilder: (context, index) {
                         final pl = playlists[index];

@@ -130,7 +130,7 @@ class _SearchHistorySliver extends ConsumerWidget {
     final history = ref.watch(searchHistoryProvider);
 
     if (history.isEmpty) {
-      return const SliverFillRemaining(
+      return SliverFillRemaining(
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -222,7 +222,7 @@ class _SearchResultsSliver extends ConsumerWidget {
       data: (results) {
         final songs = results['songs'] as List<dynamic>? ?? [];
         if (songs.isEmpty) {
-          return const SliverFillRemaining(
+          return SliverFillRemaining(
             child: Center(
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
@@ -251,7 +251,7 @@ class _SearchResultsSliver extends ConsumerWidget {
           ),
         );
       },
-      loading: () => const SliverFillRemaining(
+      loading: () => SliverFillRemaining(
         child: Center(child: CircularProgressIndicator(color: ThemeTokens.of(context).accent)),
       ),
       error: (e, st) => SliverFillRemaining(

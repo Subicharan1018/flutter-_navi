@@ -718,7 +718,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     }
 
     if (!queueReady && _lastKnownSong == null && !notifier.isShuffling) {
-      return const Scaffold(
+      return Scaffold(
           backgroundColor: ThemeTokens.of(context).bgBase, body: SizedBox());
     }
 

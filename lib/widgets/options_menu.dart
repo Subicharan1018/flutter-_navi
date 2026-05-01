@@ -76,7 +76,7 @@ class OptionsMenu extends ConsumerWidget {
               ),
             ),
 
-            const Divider(
+            Divider(
                 color: ThemeTokens.of(context).outline, indent: 24, endIndent: 24),
 
             // Play Next
@@ -189,7 +189,7 @@ class OptionsMenu extends ConsumerWidget {
               },
             ),
 
-            const Divider(
+            Divider(
                 color: ThemeTokens.of(context).outline, indent: 24, endIndent: 24),
 
             // ----------------------------------------------------------------

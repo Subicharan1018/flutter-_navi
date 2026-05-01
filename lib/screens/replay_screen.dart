@@ -779,10 +779,10 @@ class _ReplaySongRow extends ConsumerWidget {
                         imageUrl: coverUrl,
                         cacheKey: 'replay_${song.songId}',
                         fit: BoxFit.cover,
-                        placeholder: (_, __) => _artPlaceholder(),
-                        errorWidget: (_, __, ___) => _artPlaceholder(),
+                        placeholder: (_, __) => _artPlaceholder(context),
+                        errorWidget: (_, __, ___) => _artPlaceholder(context),
                       )
-                    : _artPlaceholder(),
+                    : _artPlaceholder(context),
               ),
               SizedBox(width: 12),
               Expanded(
@@ -838,7 +838,7 @@ class _ReplaySongRow extends ConsumerWidget {
     );
   }
 
-  Widget _artPlaceholder() => Container(
+  Widget _artPlaceholder(BuildContext context) => Container(
         color: ThemeTokens.of(context).bgElevated,
         child: Icon(Icons.music_note_rounded,
             color: ThemeTokens.of(context).textMuted, size: 20),

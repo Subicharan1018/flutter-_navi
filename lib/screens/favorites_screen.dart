@@ -66,7 +66,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     return _buildAlbumsGrid(data.albums);
                   }
                 },
-                loading: () => const SliverFillRemaining(
+                loading: () => SliverFillRemaining(
                   child: Center(
                     child: CircularProgressIndicator(
                       color: ThemeTokens.of(context).accent,
@@ -74,7 +74,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                     ),
                   ),
                 ),
-                error: (e, _) => const SliverFillRemaining(
+                error: (e, _) => SliverFillRemaining(
                   child: Center(
                     child: Text('Could not load favorites',
                         style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14)),

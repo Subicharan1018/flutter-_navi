@@ -163,7 +163,7 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
 
           // ── Loading / Error / Song list ──
           if (_isLoading)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               child: Center(
                 child: CircularProgressIndicator(
                     color: ThemeTokens.of(context).accent, strokeWidth: 2.5),

@@ -100,7 +100,7 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
 
           // ── Loading / Error / Album grid ──
           if (_isLoading)
-            const SliverFillRemaining(
+            SliverFillRemaining(
               child: Center(
                 child: CircularProgressIndicator(
                     color: ThemeTokens.of(context).accent, strokeWidth: 2.5),

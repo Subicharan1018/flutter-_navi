@@ -166,7 +166,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ),
                 );
               },
-              loading: () => const SliverFillRemaining(
+              loading: () => SliverFillRemaining(
                 child: Center(
                   child: CircularProgressIndicator(
                       color: ThemeTokens.of(context).accent, strokeWidth: 2),

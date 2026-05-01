@@ -106,7 +106,7 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
               clipBehavior: Clip.hardEdge,
               child: _selectedImage != null
                   ? Image.file(_selectedImage!, fit: BoxFit.cover)
-                  : const Column(
+                  : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.add_photo_alternate_outlined,
@@ -130,7 +130,7 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
               hintText: 'Playlist name',
               hintStyle: TextStyle(
                   color: ThemeTokens.of(context).textMuted.withOpacity(0.5), fontSize: 15),
-              focusedBorder: const UnderlineInputBorder(
+              focusedBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: ThemeTokens.of(context).accent)),
               enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(

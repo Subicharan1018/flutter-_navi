@@ -161,7 +161,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
+          SnackBar(
             content: Text('Synced analytics and recommendations to server'),
             backgroundColor: ThemeTokens.of(context).accent,
           ),
@@ -726,7 +726,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           await ref.read(recommendationProvider).clearData();
                           if (mounted) {
                             ScaffoldMessenger.of(context).showSnackBar(
-                              const SnackBar(
+                              SnackBar(
                                 content: Text('Recommendation data cleared'),
                                 backgroundColor: ThemeTokens.of(context).accent,
                               ),

@@ -14,7 +14,7 @@ import '../core/theme.dart';
 // ---------------------------------------------------------------------------
 // Isolate-safe colour extraction — runs on main isolate (required by Flutter)
 // ---------------------------------------------------------------------------
-Future<Color?> _extractMiniPalette(String imageUrl) async {
+Future<Color?> _extractMiniPalette(String imageUrl, BuildContext context) async {
   try {
     final palette = await PaletteGenerator.fromImageProvider(
       CachedNetworkImageProvider(imageUrl),
@@ -45,8 +45,14 @@ class MiniPlayer extends ConsumerStatefulWidget {
 }
 
 class _MiniPlayerState extends ConsumerState<MiniPlayer> {
-  Color _themeColor = ThemeTokens.of(context).accent;
+  late Color _themeColor;
   String? _lastImageUrl;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _themeColor = ThemeTokens.of(context).accent;
+  }
 
   void _openNowPlaying(String imageUrl) {
     Navigator.of(context).push(
@@ -59,7 +65,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
   Future<void> _loadPalette(String imageUrl) async {
     if (_lastImageUrl == imageUrl) return;
     _lastImageUrl = imageUrl;
-    final color = await _extractMiniPalette(imageUrl);
+    final color = await _extractMiniPalette(imageUrl, context);
     if (mounted && color != null) {
       setState(() => _themeColor = color);
     }
