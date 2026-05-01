@@ -116,7 +116,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   MaterialPageRoute(builder: (_) => const MadeForYouScreen())),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Expanded(
                             child: _ExploreCard(
                               key: const Key('explore_favorites'),
@@ -129,7 +129,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                   MaterialPageRoute(builder: (_) => const FavoritesScreen())),
                             ),
                           ),
-                          const SizedBox(width: 8),
+                          SizedBox(width: 8),
                           Expanded(
                             child: _ExploreCard(
                               key: const Key('explore_new_releases'),
@@ -156,7 +156,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   SliverToBoxAdapter(
                     child: playlistsAsync.when(
                       data: (playlists) {
-                        if (playlists.isEmpty) return const SizedBox();
+                        if (playlists.isEmpty) return SizedBox();
                         return _QuickPlayGrid(
                           items: playlists.take(6).toList(),
                           onTap: (pl) async {
@@ -177,7 +177,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         ).animate(delay: 100.ms).fadeIn(duration: 400.ms);
                       },
                       loading: () => const _ShimmerGrid(),
-                      error: (_, __) => const SizedBox(),
+                      error: (_, __) => SizedBox(),
                     ),
                   ),
 
@@ -300,7 +300,7 @@ class _HomeHeader extends StatelessWidget {
                   greeting.toUpperCase(),
                   style: tokens.labelMd,
                 ),
-                const SizedBox(height: 6),
+                SizedBox(height: 6),
                 Text('Home', style: tokens.headingLg),
               ],
             ),
@@ -312,8 +312,8 @@ class _HomeHeader extends StatelessWidget {
               width: 48,
               height: 48,
               child: IconButton(
-                icon: const Icon(Icons.settings_outlined,
-                    color: AppTheme.textSecondary, size: 22),
+                icon: Icon(Icons.settings_outlined,
+                    color: ThemeTokens.of(context).textSecondary, size: 22),
                 onPressed: onSettings,
               ),
             ),
@@ -382,7 +382,7 @@ class _ExploreCard extends StatelessWidget {
                           color: color,
                           letterSpacing: 1.5,
                         )),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(title,
                         style: TextStyle(
                           fontSize: 18,
@@ -424,7 +424,7 @@ class _QuickPlayGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    if (items.isEmpty) return const SizedBox();
+    if (items.isEmpty) return SizedBox();
 
     // Build 2-column grid rows of equal-height tiles
     return Padding(
@@ -438,7 +438,7 @@ class _QuickPlayGrid extends StatelessWidget {
                 children: [
                   for (int c = 0; c < 2; c++) Builder(builder: (_) {
                     final i = r * 2 + c;
-                    if (i >= items.length) return const Expanded(child: SizedBox());
+                    if (i >= items.length) return Expanded(child: SizedBox());
                     return Expanded(
                       child: Padding(
                         padding: EdgeInsets.only(left: c == 1 ? 8 : 0),
@@ -509,7 +509,7 @@ class _QuickTile extends ConsumerWidget {
                             color: Colors.white.withOpacity(0.7), size: 22),
                       ),
               ),
-              const SizedBox(width: 10),
+              SizedBox(width: 10),
               // Title — Expanded prevents overflow
               Expanded(
                 child: Text(
@@ -656,7 +656,7 @@ class _ReplayCard extends ConsumerWidget {
                         ),
                         child: Text(
                           '#$rank',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w900,
                             color: Colors.white,
@@ -695,7 +695,7 @@ class _ReplayCard extends ConsumerWidget {
                             fontWeight: FontWeight.w600,
                             color: tokens.textPrimary,
                           )),
-                      const SizedBox(height: 2),
+                      SizedBox(height: 2),
                       Text(song.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -746,7 +746,7 @@ class _ReplayCard extends ConsumerWidget {
           ],
         ),
       ),
-      child: const Center(
+      child: Center(
         child: Icon(Icons.music_note_rounded,
             color: Colors.white38, size: 28),
       ),
@@ -778,7 +778,7 @@ class _EmptyReplayHint extends StatelessWidget {
           children: [
             Icon(Icons.bar_chart_rounded,
                 color: tokens.accent, size: 28),
-            const SizedBox(width: 12),
+            SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Start listening to build your Replay',

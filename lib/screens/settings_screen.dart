@@ -127,7 +127,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text('Exported ${paths.length} CSV file(s) to Downloads'),
-            backgroundColor: AppTheme.electricBlue,
+            backgroundColor: ThemeTokens.of(context).accent,
           ),
         );
         _loadStats(); // refresh counts
@@ -163,7 +163,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text('Synced analytics and recommendations to server'),
-            backgroundColor: AppTheme.electricBlue,
+            backgroundColor: ThemeTokens.of(context).accent,
           ),
         );
         _loadStats();
@@ -267,7 +267,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: const EdgeInsets.symmetric(vertical: 16),
           children: [
             ThemeSelector(),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Server connection
@@ -297,7 +297,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Cloud actions
@@ -308,25 +308,25 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16),
-                  leading: const Icon(Icons.cloud_upload_outlined,
-                      color: AppTheme.textMuted, size: 24),
-                  title: const Text('Upload Song',
+                  leading: Icon(Icons.cloud_upload_outlined,
+                      color: ThemeTokens.of(context).textMuted, size: 24),
+                  title: Text('Upload Song',
                       style: TextStyle(
-                          color: AppTheme.textPrimary, fontSize: 15)),
+                          color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
                   trailing: _isUploading
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: AppTheme.electricBlue))
-                      : const Icon(Icons.chevron_right_rounded,
-                          color: AppTheme.textMuted, size: 20),
+                              color: ThemeTokens.of(context).accent))
+                      : Icon(Icons.chevron_right_rounded,
+                          color: ThemeTokens.of(context).textMuted, size: 20),
                   onTap: _isUploading ? null : _upload,
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Advanced Upload
@@ -347,7 +347,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Preferences (includes Smart Shuffle algorithm picker)
@@ -400,13 +400,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       horizontal: 16, vertical: 10),
                   child: Text(
                     _shuffleAlgorithmDescription(settings.shuffleAlgorithm),
-                    style: const TextStyle(
-                        color: AppTheme.textMuted, fontSize: 12),
+                    style: TextStyle(
+                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
                   ),
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Listening Intelligence
@@ -434,58 +434,58 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             '${_analyticsStats!.uniqueSongs} songs • '
                             '${_analyticsStats!.songPairs} pairs • '
                             '${_analyticsStats!.feedbackActions} feedback signals',
-                    style: const TextStyle(
-                        color: AppTheme.textMuted, fontSize: 12),
+                    style: TextStyle(
+                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
                   ),
                 ),
                 _SettingsDivider(),
                 ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16),
-                  leading: const Icon(Icons.download_rounded,
-                      color: AppTheme.textMuted, size: 24),
-                  title: const Text('Export data as CSV',
+                  leading: Icon(Icons.download_rounded,
+                      color: ThemeTokens.of(context).textMuted, size: 24),
+                  title: Text('Export data as CSV',
                       style: TextStyle(
-                          color: AppTheme.textPrimary, fontSize: 15)),
-                  subtitle: const Text(
+                          color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
+                  subtitle: Text(
                     'Saves play_events, song_metadata, song_pairs, user_feedback to Downloads',
                     style: TextStyle(
-                        color: AppTheme.textMuted, fontSize: 12),
+                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
                   ),
                   trailing: _isExporting
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: AppTheme.electricBlue))
-                      : const Icon(Icons.chevron_right_rounded,
-                          color: AppTheme.textMuted, size: 20),
+                              color: ThemeTokens.of(context).accent))
+                      : Icon(Icons.chevron_right_rounded,
+                          color: ThemeTokens.of(context).textMuted, size: 20),
                   onTap: _isExporting ? null : _exportData,
                 ),
                 _SettingsDivider(),
                 ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16),
-                  leading: const Icon(Icons.cloud_sync_outlined,
-                      color: AppTheme.textMuted, size: 24),
-                  title: const Text('Sync data to server',
+                  leading: Icon(Icons.cloud_sync_outlined,
+                      color: ThemeTokens.of(context).textMuted, size: 24),
+                  title: Text('Sync data to server',
                       style: TextStyle(
-                          color: AppTheme.textPrimary, fontSize: 15)),
-                  subtitle: const Text(
+                          color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
+                  subtitle: Text(
                     'Streams play_events, song_metadata, song_pairs, user_feedback to your WebDAV target',
                     style: TextStyle(
-                        color: AppTheme.textMuted, fontSize: 12),
+                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
                   ),
                   trailing: _isSyncing
-                      ? const SizedBox(
+                      ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
                               strokeWidth: 2,
-                              color: AppTheme.electricBlue))
-                      : const Icon(Icons.chevron_right_rounded,
-                          color: AppTheme.textMuted, size: 20),
+                              color: ThemeTokens.of(context).accent))
+                      : Icon(Icons.chevron_right_rounded,
+                          color: ThemeTokens.of(context).textMuted, size: 20),
                   onTap: _isSyncing ? null : _syncDataToServer,
                 ),
                 _SettingsDivider(),
@@ -501,7 +501,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Cache Management
@@ -537,7 +537,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Audio Quality (Transcoding)
@@ -598,7 +598,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Replay Gain
@@ -618,10 +618,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Pre-amp',
-                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
+                        Text('Pre-amp',
+                            style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
                         Text('${_preampGain.toStringAsFixed(1)} dB',
-                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+                            style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
                       ],
                     ),
                   ),
@@ -630,7 +630,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     min: -15.0,
                     max: 15.0,
                     divisions: 60,
-                    activeColor: AppTheme.electricBlue,
+                    activeColor: ThemeTokens.of(context).accent,
                     onChanged: (v) {
                       setState(() => _preampGain = v);
                       ref.read(replayGainProvider).setPreampGain(v);
@@ -651,10 +651,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text('Fallback Gain',
-                            style: TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
+                        Text('Fallback Gain',
+                            style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
                         Text('${_fallbackGain.toStringAsFixed(1)} dB',
-                            style: const TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+                            style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
                       ],
                     ),
                   ),
@@ -663,7 +663,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     min: -15.0,
                     max: 0.0,
                     divisions: 30,
-                    activeColor: AppTheme.electricBlue,
+                    activeColor: ThemeTokens.of(context).accent,
                     onChanged: (v) {
                       setState(() => _fallbackGain = v);
                       ref.read(replayGainProvider).setFallbackGain(v);
@@ -672,7 +672,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ],
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // Recommendations
@@ -705,18 +705,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         final confirm = await showCupertinoDialog<bool>(
                           context: context,
                           builder: (ctx) => CupertinoAlertDialog(
-                            title: const Text('Clear Recommendation Data'),
-                            content: const Text(
+                            title: Text('Clear Recommendation Data'),
+                            content: Text(
                                 'This will delete all listening patterns and '  
                                 'personalisation data. This cannot be undone.'),
                             actions: [
                               CupertinoDialogAction(
-                                child: const Text('Cancel'),
+                                child: Text('Cancel'),
                                 onPressed: () => Navigator.pop(ctx, false),
                               ),
                               CupertinoDialogAction(
                                 isDestructiveAction: true,
-                                child: const Text('Clear'),
+                                child: Text('Clear'),
                                 onPressed: () => Navigator.pop(ctx, true),
                               ),
                             ],
@@ -728,14 +728,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                             ScaffoldMessenger.of(context).showSnackBar(
                               const SnackBar(
                                 content: Text('Recommendation data cleared'),
-                                backgroundColor: AppTheme.electricBlue,
+                                backgroundColor: ThemeTokens.of(context).accent,
                               ),
                             );
                             setState(() {});
                           }
                         }
                       },
-                      child: const Text('Clear Data',
+                      child: Text('Clear Data',
                           style: TextStyle(
                               color: Colors.redAccent, fontSize: 14)),
                     ),
@@ -743,7 +743,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               ],
             ),
-            const SizedBox(height: 32),
+            SizedBox(height: 32),
 
             // ----------------------------------------------------------------
             // About
@@ -756,7 +756,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsNavRow(label: 'Terms of Service'),
               ],
             ),
-            const SizedBox(height: 120),
+            SizedBox(height: 120),
           ],
         ),
       ),
@@ -805,7 +805,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }).toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel'),
+          child: Text('Cancel'),
         ),
       ),
     );
@@ -815,7 +815,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: const Text('Audio Format'),
+        title: Text('Audio Format'),
         actions: TranscodeFormat.options.map((f) {
           return CupertinoActionSheetAction(
             onPressed: () {
@@ -833,7 +833,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }).toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel'),
+          child: Text('Cancel'),
         ),
       ),
     );
@@ -843,7 +843,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: const Text('Replay Gain Mode'),
+        title: Text('Replay Gain Mode'),
         actions: ReplayGainMode.values.map((m) {
           return CupertinoActionSheetAction(
             onPressed: () {
@@ -861,7 +861,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         }).toList(),
         cancelButton: CupertinoActionSheetAction(
           onPressed: () => Navigator.pop(ctx),
-          child: const Text('Cancel'),
+          child: Text('Cancel'),
         ),
       ),
     );
@@ -1033,7 +1033,7 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
           DropdownButton<T>(
             value: value,
             dropdownColor: tokens.bgSurface,
-            underline: const SizedBox(),
+            underline: SizedBox(),
             onChanged: onChanged,
             items: items.map((item) {
               final String name;
@@ -1099,7 +1099,7 @@ class _SettingsNavRow extends StatelessWidget {
                   Text(value!,
                       style: TextStyle(
                           color: tokens.textMuted, fontSize: 15)),
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 Icon(Icons.chevron_right_rounded,
                     color: tokens.textMuted, size: 20),
               ],

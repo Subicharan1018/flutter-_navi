@@ -80,17 +80,17 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
     final service = ref.watch(subsonicServiceProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.coreBackground,
+      backgroundColor: ThemeTokens.of(context).bgBase,
       appBar: AppBar(
-        backgroundColor: AppTheme.coreBackground,
+        backgroundColor: ThemeTokens.of(context).bgBase,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Text('Add to ${widget.playlistName}', style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text('Add to ${widget.playlistName}', style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
         leading: SizedBox(
           width: 48,
           height: 48,
           child: IconButton(
-            icon: const Icon(Icons.close_rounded, color: AppTheme.textPrimary, size: 24),
+            icon: Icon(Icons.close_rounded, color: ThemeTokens.of(context).textPrimary, size: 24),
             onPressed: () => Navigator.pop(context),
           ),
         ),
@@ -98,21 +98,21 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
       // UX FIX: Floating Save button appears when songs are selected.
       floatingActionButton: _selectedSongIds.isNotEmpty
           ? FloatingActionButton.extended(
-              backgroundColor: AppTheme.electricBlue,
+              backgroundColor: ThemeTokens.of(context).accent,
               onPressed: _isSaving ? null : _save,
               icon: _isSaving
-                  ? const SizedBox(
+                  ? SizedBox(
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
                           strokeWidth: 2, color: Colors.white),
                     )
-                  : const Icon(Icons.save_rounded, color: Colors.white),
+                  : Icon(Icons.save_rounded, color: Colors.white),
               label: Text(
                 _isSaving
                     ? 'Saving...'
                     : 'Save (${_selectedSongIds.length})',
-                style: const TextStyle(
+                style: TextStyle(
                     color: Colors.white, fontWeight: FontWeight.bold),
               ),
             )
@@ -124,19 +124,19 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
             child: Container(
               height: 48,
               decoration: BoxDecoration(
-                color: AppTheme.surfaceLevel,
+                color: ThemeTokens.of(context).bgSurface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.outlineColor),
+                border: Border.all(color: ThemeTokens.of(context).outline),
               ),
               child: TextField(
                 controller: _searchController,
                 onChanged: (v) => setState(() => _searchQuery = v),
-                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
-                cursorColor: AppTheme.electricBlue,
+                style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15),
+                cursorColor: ThemeTokens.of(context).accent,
                 decoration: InputDecoration(
                   hintText: 'Search for songs...',
-                  hintStyle: TextStyle(color: AppTheme.textMuted.withOpacity(0.5), fontSize: 15),
-                  prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textMuted, size: 22),
+                  hintStyle: TextStyle(color: ThemeTokens.of(context).textMuted.withOpacity(0.5), fontSize: 15),
+                  prefixIcon: Icon(Icons.search_rounded, color: ThemeTokens.of(context).textMuted, size: 22),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -151,13 +151,13 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                     s.artist.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
 
                 if (filteredSongs.isEmpty) {
-                  return const Center(
+                  return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off_rounded, color: AppTheme.textMuted, size: 48),
+                        Icon(Icons.search_off_rounded, color: ThemeTokens.of(context).textMuted, size: 48),
                         SizedBox(height: 16),
-                        Text('No songs found', style: TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+                        Text('No songs found', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
                       ],
                     ),
                   );
@@ -174,7 +174,7 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                       leading: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.outlineColor),
+                          border: Border.all(color: ThemeTokens.of(context).outline),
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(7),
@@ -183,16 +183,16 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                             width: 44,
                             height: 44,
                             fit: BoxFit.cover,
-                            placeholder: (_, __) => Container(color: AppTheme.surfaceLevel),
+                            placeholder: (_, __) => Container(color: ThemeTokens.of(context).bgSurface),
                             errorWidget: (_, __, ___) => Container(
-                              color: AppTheme.surfaceLevel,
-                              child: const Icon(Icons.music_note_rounded, color: AppTheme.textMuted, size: 24),
+                              color: ThemeTokens.of(context).bgSurface,
+                              child: Icon(Icons.music_note_rounded, color: ThemeTokens.of(context).textMuted, size: 24),
                             ),
                           ),
                         ),
                       ),
-                      title: Text(song.title, style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
-                      subtitle: Text(song.artist, style: const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+                      title: Text(song.title, style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
+                      subtitle: Text(song.artist, style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 13)),
                       trailing: SizedBox(
                         width: 48,
                         height: 48,
@@ -202,7 +202,7 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                             isSelected
                               ? Icons.check_circle_rounded
                               : Icons.add_circle_outline_rounded,
-                            color: isSelected ? AppTheme.electricBlue : AppTheme.textMuted,
+                            color: isSelected ? ThemeTokens.of(context).accent : ThemeTokens.of(context).textMuted,
                             size: 24,
                           ),
                           // UX FIX: Toggle local selection — no network call.
@@ -213,14 +213,14 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                   },
                 );
               },
-              loading: () => const Center(child: CircularProgressIndicator(color: AppTheme.electricBlue)),
+              loading: () => Center(child: CircularProgressIndicator(color: ThemeTokens.of(context).accent)),
               error: (e, st) => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
-                    const SizedBox(height: 12),
-                    Text('Error: $e', style: const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+                    Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+                    SizedBox(height: 12),
+                    Text('Error: $e', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 13)),
                   ],
                 ),
               ),

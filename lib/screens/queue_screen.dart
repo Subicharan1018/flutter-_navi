@@ -20,17 +20,17 @@ class QueueScreen extends ConsumerWidget {
     if (playerState.queue.isEmpty) {
       return Container(
         height: MediaQuery.of(context).size.height * 0.82,
-        decoration: const BoxDecoration(
-          color: AppTheme.surfaceLevel,
+        decoration: BoxDecoration(
+          color: ThemeTokens.of(context).bgSurface,
           borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
         ),
-        child: const Center(
+        child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.playlist_remove_rounded, color: AppTheme.textMuted, size: 48),
-              const SizedBox(height: 16),
-              Text('Queue is empty', style: TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+              Icon(Icons.playlist_remove_rounded, color: ThemeTokens.of(context).textMuted, size: 48),
+              SizedBox(height: 16),
+              Text('Queue is empty', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
             ],
           ),
         ),
@@ -41,22 +41,22 @@ class QueueScreen extends ConsumerWidget {
 
     return Container(
       height: MediaQuery.of(context).size.height * 0.82,
-      decoration: const BoxDecoration(
-        color: AppTheme.surfaceLevel,
+      decoration: BoxDecoration(
+        color: ThemeTokens.of(context).bgSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: Column(
         children: [
-          const SizedBox(height: 12),
+          SizedBox(height: 12),
           Container(
             width: 36,
             height: 5,
             decoration: BoxDecoration(
-              color: AppTheme.textPrimary.withOpacity(0.2),
+              color: ThemeTokens.of(context).textPrimary.withOpacity(0.2),
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const SizedBox(height: 24),
+          SizedBox(height: 24),
 
           Expanded(
             child: ListView(
@@ -69,17 +69,17 @@ class QueueScreen extends ConsumerWidget {
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        const Text(
+                        Text(
                           'History',
                           style: TextStyle(
-                            color: AppTheme.textPrimary,
+                            color: ThemeTokens.of(context).textPrimary,
                             fontSize: 18,
                             fontWeight: FontWeight.bold,
                           ),
                         ),
                         TextButton(
                           onPressed: () => ref.read(playerProvider.notifier).clearHistory(),
-                          child: const Text('Clear', style: TextStyle(color: AppTheme.electricBlue, fontSize: 13)),
+                          child: Text('Clear', style: TextStyle(color: ThemeTokens.of(context).accent, fontSize: 13)),
                         ),
                       ],
                     ),
@@ -96,9 +96,9 @@ class QueueScreen extends ConsumerWidget {
                       onRemove: () {},
                     );
                   }),
-                  const Padding(
+                  Padding(
                     padding: EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                    child: Divider(color: AppTheme.outlineColor, thickness: 1),
+                    child: Divider(color: ThemeTokens.of(context).outline, thickness: 1),
                   ),
                 ],
 
@@ -107,36 +107,36 @@ class QueueScreen extends ConsumerWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   child: Row(
                     children: [
-                      const Text(
+                      Text(
                         'Now Playing',
                         style: TextStyle(
-                          color: AppTheme.textPrimary,
+                          color: ThemeTokens.of(context).textPrimary,
                           fontSize: 22,
                           fontWeight: FontWeight.bold,
                         ),
                       ),
-                      const SizedBox(width: 8),
-                      const Icon(Icons.equalizer_rounded, color: AppTheme.electricBlue, size: 20)
+                      SizedBox(width: 8),
+                      Icon(Icons.equalizer_rounded, color: ThemeTokens.of(context).accent, size: 20)
                           .animate(onPlay: (c) => c.repeat())
-                          .shimmer(duration: 1200.ms, color: AppTheme.textPrimary.withOpacity(0.5)),
+                          .shimmer(duration: 1200.ms, color: ThemeTokens.of(context).textPrimary.withOpacity(0.5)),
                     ],
                   ),
                 ),
-                const SizedBox(height: 12),
+                SizedBox(height: 12),
                 Container(
                   margin: const EdgeInsets.symmetric(horizontal: 16),
                   padding: const EdgeInsets.all(12),
                   decoration: BoxDecoration(
-                    color: AppTheme.textPrimary.withOpacity(0.05),
+                    color: ThemeTokens.of(context).textPrimary.withOpacity(0.05),
                     borderRadius: BorderRadius.circular(12),
-                    border: Border.all(color: AppTheme.outlineColor),
+                    border: Border.all(color: ThemeTokens.of(context).outline),
                   ),
                   child: Row(
                     children: [
                       Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: AppTheme.outlineColor),
+                          border: Border.all(color: ThemeTokens.of(context).outline),
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(7),
@@ -148,21 +148,21 @@ class QueueScreen extends ConsumerWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 12),
+                      SizedBox(width: 12),
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text(
                               currentSong.title,
-                              style: const TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
+                              style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.bold, fontSize: 15),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 4),
+                            SizedBox(height: 4),
                             Text(
                               currentSong.artist,
-                              style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                              style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 13),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -173,24 +173,24 @@ class QueueScreen extends ConsumerWidget {
                   ),
                 ),
 
-                const SizedBox(height: 32),
+                SizedBox(height: 32),
 
                 // --- UP NEXT SECTION ---
-                const Padding(
+                Padding(
                   padding: EdgeInsets.symmetric(horizontal: 16),
                   child: Align(
                     alignment: Alignment.centerLeft,
                     child: Text(
                       'Up Next',
                       style: TextStyle(
-                        color: AppTheme.textPrimary,
+                        color: ThemeTokens.of(context).textPrimary,
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
                       ),
                     ),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
 
                 ReorderableListView.builder(
                   shrinkWrap: true,
@@ -259,7 +259,7 @@ class _QueueTile extends StatelessWidget {
               Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(6),
-                  border: Border.all(color: AppTheme.outlineColor),
+                  border: Border.all(color: ThemeTokens.of(context).outline),
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(5),
@@ -271,7 +271,7 @@ class _QueueTile extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,17 +279,17 @@ class _QueueTile extends StatelessWidget {
                     Text(
                       song.title,
                       style: TextStyle(
-                        color: isHistory ? AppTheme.textMuted : AppTheme.textPrimary,
+                        color: isHistory ? ThemeTokens.of(context).textMuted : ThemeTokens.of(context).textPrimary,
                         fontSize: 15,
                         fontWeight: FontWeight.w500,
                       ),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       song.artist,
-                      style: const TextStyle(color: AppTheme.textMuted, fontSize: 13),
+                      style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 13),
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                     ),
@@ -297,15 +297,15 @@ class _QueueTile extends StatelessWidget {
                 ),
               ),
               if (!isHistory) ...[
-                const SizedBox(width: 8),
+                SizedBox(width: 8),
                 SizedBox(
                   width: 48,
                   height: 48,
                   child: ReorderableDragStartListener(
                     index: index,
-                    child: const Icon(
+                    child: Icon(
                       Icons.menu_rounded,
-                      color: AppTheme.textMuted,
+                      color: ThemeTokens.of(context).textMuted,
                       size: 24,
                     ),
                   ),

@@ -65,7 +65,7 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.coreBackground,
+      backgroundColor: ThemeTokens.of(context).bgBase,
       body: Stack(
         children: [
           CustomScrollView(
@@ -73,14 +73,14 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
           // ── App Bar ──
           SliverAppBar(
             pinned: true,
-            backgroundColor: AppTheme.coreBackground,
+            backgroundColor: ThemeTokens.of(context).bgBase,
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              icon: Icon(Icons.arrow_back_ios_new_rounded,
                   color: Colors.white, size: 20),
               onPressed: () => Navigator.pop(context),
             ),
-            title: const Text(
+            title: Text(
               'New Releases',
               style: TextStyle(
                 color: Colors.white,
@@ -91,7 +91,7 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.refresh_rounded,
+                icon: Icon(Icons.refresh_rounded,
                     color: Colors.white60, size: 24),
                 onPressed: _loadAlbums,
               ),
@@ -103,7 +103,7 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
             const SliverFillRemaining(
               child: Center(
                 child: CircularProgressIndicator(
-                    color: AppTheme.electricBlue, strokeWidth: 2.5),
+                    color: ThemeTokens.of(context).accent, strokeWidth: 2.5),
               ),
             )
           else if (_errorMessage.isNotEmpty)
@@ -112,16 +112,16 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline_rounded,
-                        color: AppTheme.textMuted, size: 48),
-                    const SizedBox(height: 12),
+                    Icon(Icons.error_outline_rounded,
+                        color: ThemeTokens.of(context).textMuted, size: 48),
+                    SizedBox(height: 12),
                     Text(_errorMessage,
-                        style: const TextStyle(
-                            color: AppTheme.textMuted, fontSize: 14)),
-                    const SizedBox(height: 16),
+                        style: TextStyle(
+                            color: ThemeTokens.of(context).textMuted, fontSize: 14)),
+                    SizedBox(height: 16),
                     TextButton(
                       onPressed: _loadAlbums,
-                      child: const Text('Retry'),
+                      child: Text('Retry'),
                     ),
                   ],
                 ),
@@ -201,41 +201,41 @@ class _NewReleaseCard extends StatelessWidget {
                 fit: BoxFit.cover,
                 width: double.infinity,
                 placeholder: (_, __) => Container(
-                  color: AppTheme.topLevel,
-                  child: const Center(
+                  color: ThemeTokens.of(context).bgElevated,
+                  child: Center(
                     child: Icon(Icons.album_rounded,
-                        size: 48, color: AppTheme.textMuted),
+                        size: 48, color: ThemeTokens.of(context).textMuted),
                   ),
                 ),
                 errorWidget: (_, __, ___) => Container(
-                  color: AppTheme.topLevel,
-                  child: const Center(
+                  color: ThemeTokens.of(context).bgElevated,
+                  child: Center(
                     child: Icon(Icons.album_rounded,
-                        size: 48, color: AppTheme.textMuted),
+                        size: 48, color: ThemeTokens.of(context).textMuted),
                   ),
                 ),
               ),
             ),
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           Text(
             album.name,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 13,
               color: Colors.white,
             ),
           ),
-          const SizedBox(height: 2),
+          SizedBox(height: 2),
           Text(
             album.artist,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 12,
-              color: AppTheme.textSecondary,
+              color: ThemeTokens.of(context).textSecondary,
             ),
           ),
         ],

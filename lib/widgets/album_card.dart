@@ -49,25 +49,25 @@ class AlbumCard extends ConsumerWidget {
                 errorWidget: (context, url, error) => const _AlbumPlaceholder(),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             Text(
               album.name,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
                 color: Colors.white,
               ),
             ),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text(
               album.artist,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: const TextStyle(
+              style: TextStyle(
                 fontSize: 12,
-                color: AppTheme.textSecondary,
+                color: ThemeTokens.of(context).textSecondary,
               ),
             ),
           ],
@@ -86,9 +86,9 @@ class _AlbumPlaceholder extends StatelessWidget {
     return Container(
       width: 160,
       height: 160,
-      color: AppTheme.topLevel,
-      child: const Center(
-        child: Icon(Icons.album_rounded, size: 48, color: AppTheme.textMuted),
+      color: ThemeTokens.of(context).bgElevated,
+      child: Center(
+        child: Icon(Icons.album_rounded, size: 48, color: ThemeTokens.of(context).textMuted),
       ),
     );
   }

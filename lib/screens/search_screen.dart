@@ -42,22 +42,22 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: AppTheme.coreBackground,
+        backgroundColor: ThemeTokens.of(context).bgBase,
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
             SliverAppBar(
               expandedHeight: 120,
-              backgroundColor: AppTheme.coreBackground,
+              backgroundColor: ThemeTokens.of(context).bgBase,
               elevation: 0,
               pinned: true,
               flexibleSpace: FlexibleSpaceBar(
                 titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
                 centerTitle: false,
-                title: const Text(
+                title: Text(
                   'Search',
                   style: TextStyle(
-                    color: AppTheme.textPrimary,
+                    color: ThemeTokens.of(context).textPrimary,
                     fontSize: 28,
                     fontWeight: FontWeight.bold,
                   ),
@@ -78,19 +78,19 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: AppTheme.surfaceLevel.withOpacity(0.8),
+                          color: ThemeTokens.of(context).bgSurface.withOpacity(0.8),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: AppTheme.outlineColor),
+                          border: Border.all(color: ThemeTokens.of(context).outline),
                         ),
                         child: TextField(
                           controller: _controller,
                           onChanged: _onSearchChanged,
-                          style: const TextStyle(color: AppTheme.textPrimary, fontSize: 17),
-                          cursorColor: AppTheme.electricBlue,
+                          style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 17),
+                          cursorColor: ThemeTokens.of(context).accent,
                           decoration: InputDecoration(
                             hintText: 'Artists, Songs, Lyrics and More',
-                            hintStyle: TextStyle(color: AppTheme.textMuted.withOpacity(0.6), fontSize: 15),
-                            prefixIcon: const Icon(Icons.search_rounded, color: AppTheme.textMuted, size: 24),
+                            hintStyle: TextStyle(color: ThemeTokens.of(context).textMuted.withOpacity(0.6), fontSize: 15),
+                            prefixIcon: Icon(Icons.search_rounded, color: ThemeTokens.of(context).textMuted, size: 24),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(vertical: 12),
                           ),
@@ -135,9 +135,9 @@ class _SearchHistorySliver extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.search_rounded, color: AppTheme.textMuted, size: 64),
+              Icon(Icons.search_rounded, color: ThemeTokens.of(context).textMuted, size: 64),
               SizedBox(height: 16),
-              Text('Search for music', style: TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+              Text('Search for music', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
             ],
           ),
         ),
@@ -153,17 +153,17 @@ class _SearchHistorySliver extends ConsumerWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  const Text(
+                  Text(
                     'Recent Searches',
                     style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: ThemeTokens.of(context).textPrimary,
                       fontSize: 18,
                       fontWeight: FontWeight.bold,
                     ),
                   ),
                   TextButton(
                     onPressed: () => ref.read(searchHistoryProvider.notifier).clearHistory(),
-                    child: const Text('Clear All', style: TextStyle(color: AppTheme.electricBlue, fontSize: 13)),
+                    child: Text('Clear All', style: TextStyle(color: ThemeTokens.of(context).accent, fontSize: 13)),
                   ),
                 ],
               ),
@@ -173,10 +173,10 @@ class _SearchHistorySliver extends ConsumerWidget {
           final query = history[index - 1];
           return ListTile(
             contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            leading: const Icon(Icons.history_rounded, color: AppTheme.textMuted, size: 22),
-            title: Text(query, style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
+            leading: Icon(Icons.history_rounded, color: ThemeTokens.of(context).textMuted, size: 22),
+            title: Text(query, style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
             trailing: IconButton(
-              icon: const Icon(Icons.close_rounded, color: AppTheme.textMuted, size: 18),
+              icon: Icon(Icons.close_rounded, color: ThemeTokens.of(context).textMuted, size: 18),
               onPressed: () => ref.read(searchHistoryProvider.notifier).removeQuery(query),
             ),
             onTap: () {
@@ -197,7 +197,7 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      color: AppTheme.coreBackground.withOpacity(shrinkOffset > 0 ? 0.9 : 0.0),
+      color: ThemeTokens.of(context).bgBase.withOpacity(shrinkOffset > 0 ? 0.9 : 0.0),
       child: child,
     );
   }
@@ -227,9 +227,9 @@ class _SearchResultsSliver extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.sentiment_dissatisfied_rounded, color: AppTheme.textMuted, size: 48),
+                  Icon(Icons.sentiment_dissatisfied_rounded, color: ThemeTokens.of(context).textMuted, size: 48),
                   SizedBox(height: 12),
-                  Text('No results found', style: TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+                  Text('No results found', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
                 ],
               ),
             ),
@@ -252,16 +252,16 @@ class _SearchResultsSliver extends ConsumerWidget {
         );
       },
       loading: () => const SliverFillRemaining(
-        child: Center(child: CircularProgressIndicator(color: AppTheme.electricBlue)),
+        child: Center(child: CircularProgressIndicator(color: ThemeTokens.of(context).accent)),
       ),
       error: (e, st) => SliverFillRemaining(
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              const Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
-              const SizedBox(height: 12),
-              Text('Error: $e', style: const TextStyle(color: AppTheme.textMuted, fontSize: 13)),
+              Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+              SizedBox(height: 12),
+              Text('Error: $e', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 13)),
             ],
           ),
         ),

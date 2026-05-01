@@ -96,25 +96,25 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
     final service = ref.watch(subsonicServiceProvider);
 
     return Scaffold(
-      backgroundColor: AppTheme.coreBackground,
+      backgroundColor: ThemeTokens.of(context).bgBase,
       appBar: AppBar(
-        backgroundColor: AppTheme.coreBackground,
+        backgroundColor: ThemeTokens.of(context).bgBase,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
         leading: TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel', style: TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
+          child: Text('Cancel', style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
         ),
         leadingWidth: 80,
-        title: const Text('Edit Playlist', style: TextStyle(color: AppTheme.textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text('Edit Playlist', style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton(
               onPressed: _isSaving ? null : _save,
               child: _isSaving 
-                ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: AppTheme.spotifyGreen))
-                : const Text('Done', style: TextStyle(color: AppTheme.spotifyGreen, fontWeight: FontWeight.bold, fontSize: 15)),
+                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: ThemeTokens.of(context).accent))
+                : Text('Done', style: TextStyle(color: ThemeTokens.of(context).accent, fontWeight: FontWeight.bold, fontSize: 15)),
             ),
           ),
         ],
@@ -123,16 +123,16 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
         padding: const EdgeInsets.all(16),
         child: Column(
           children: [
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             GestureDetector(
               onTap: _pickImage,
               child: Container(
                 width: 160,
                 height: 160,
                 decoration: BoxDecoration(
-                  color: AppTheme.surfaceLevel,
+                  color: ThemeTokens.of(context).bgSurface,
                   borderRadius: BorderRadius.circular(16),
-                  border: Border.all(color: AppTheme.outlineColor),
+                  border: Border.all(color: ThemeTokens.of(context).outline),
                   boxShadow: [
                     BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 32),
                   ],
@@ -146,52 +146,52 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
                               imageUrl: service.getCoverArtUrl(widget.playlist.coverArt!),
                               fit: BoxFit.cover,
                             )
-                          : const Icon(Icons.music_note_rounded, size: 64, color: AppTheme.textMuted)),
+                          : Icon(Icons.music_note_rounded, size: 64, color: ThemeTokens.of(context).textMuted)),
                 ),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             TextButton(
               onPressed: _pickImage,
-              child: const Text('Change Photo', style: TextStyle(color: AppTheme.spotifyGreen, fontWeight: FontWeight.w600)),
+              child: Text('Change Photo', style: TextStyle(color: ThemeTokens.of(context).accent, fontWeight: FontWeight.w600)),
             ),
-            const SizedBox(height: 36),
+            SizedBox(height: 36),
             
             Container(
               decoration: BoxDecoration(
-                color: AppTheme.surfaceLevel,
+                color: ThemeTokens.of(context).bgSurface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.outlineColor),
+                border: Border.all(color: ThemeTokens.of(context).outline),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: TextField(
                 controller: _nameController,
-                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 17),
-                cursorColor: AppTheme.spotifyGreen,
+                style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 17),
+                cursorColor: ThemeTokens.of(context).accent,
                 decoration: const InputDecoration(
                   labelText: 'Name',
-                  labelStyle: TextStyle(color: AppTheme.textMuted, fontSize: 14),
+                  labelStyle: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14),
                   border: InputBorder.none,
                 ),
               ),
             ),
-            const SizedBox(height: 16),
+            SizedBox(height: 16),
             
             Container(
               decoration: BoxDecoration(
-                color: AppTheme.surfaceLevel,
+                color: ThemeTokens.of(context).bgSurface,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.outlineColor),
+                border: Border.all(color: ThemeTokens.of(context).outline),
               ),
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: TextField(
                 controller: _descController,
-                style: const TextStyle(color: AppTheme.textPrimary, fontSize: 17),
+                style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 17),
                 maxLines: 3,
-                cursorColor: AppTheme.spotifyGreen,
+                cursorColor: ThemeTokens.of(context).accent,
                 decoration: const InputDecoration(
                   labelText: 'Description',
-                  labelStyle: TextStyle(color: AppTheme.textMuted, fontSize: 14),
+                  labelStyle: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14),
                   border: InputBorder.none,
                 ),
               ),

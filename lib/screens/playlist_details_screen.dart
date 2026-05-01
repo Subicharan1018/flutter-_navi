@@ -212,22 +212,22 @@ class _PlaylistDetailsScreenState
     showDialog(
       context: context,
       builder: (_) => AlertDialog(
-        backgroundColor: AppTheme.surfaceLevel,
+        backgroundColor: ThemeTokens.of(context).bgSurface,
         shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(16),
-            side: const BorderSide(color: AppTheme.outlineColor)),
-        title: const Text('Delete Playlist',
+            side: BorderSide(color: ThemeTokens.of(context).outline)),
+        title: Text('Delete Playlist',
             style: TextStyle(
-                color: AppTheme.textPrimary, fontWeight: FontWeight.bold)),
+                color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.bold)),
         content: Text(
           'Delete "${widget.playlist.name}"? This cannot be undone.',
-          style: const TextStyle(color: AppTheme.textSecondary, fontSize: 14),
+          style: TextStyle(color: ThemeTokens.of(context).textSecondary, fontSize: 14),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel',
-                style: TextStyle(color: AppTheme.textPrimary)),
+            child: Text('Cancel',
+                style: TextStyle(color: ThemeTokens.of(context).textPrimary)),
           ),
           TextButton(
             onPressed: () async {
@@ -247,7 +247,7 @@ class _PlaylistDetailsScreenState
                 }
               }
             },
-            child: const Text('Delete',
+            child: Text('Delete',
                 style: TextStyle(
                     color: Colors.redAccent, fontWeight: FontWeight.bold)),
           ),
@@ -328,12 +328,12 @@ class _PlaylistDetailsScreenState
                       _loadSongs();
                     },
                   ),
-                  const SizedBox(width: 4),
+                  SizedBox(width: 4),
                   _CircleIconButton(
                     icon: Icons.more_horiz_rounded,
                     onTap: () => _showPlaylistMenu(),
                   ),
-                  const SizedBox(width: 8),
+                  SizedBox(width: 8),
                 ],
               ),
 
@@ -350,7 +350,7 @@ class _PlaylistDetailsScreenState
                           style: TextStyle(
                               color: tokens.textMuted, fontSize: 13),
                         ).animate().fadeIn(duration: 300.ms),
-                      const SizedBox(height: 12),
+                      SizedBox(height: 12),
                       _SearchField(controller: _searchController),
                     ],
                   ),
@@ -395,10 +395,10 @@ class _PlaylistDetailsScreenState
                       children: [
                         Icon(Icons.wifi_off_rounded,
                             color: tokens.textMuted, size: 48),
-                        const SizedBox(height: 12),
+                        SizedBox(height: 12),
                         Text('Could not load songs',
                             style: TextStyle(color: tokens.textSecondary)),
-                        const SizedBox(height: 16),
+                        SizedBox(height: 16),
                         TextButton(
                           onPressed: () {
                             setState(() => _isLoading = true);
@@ -557,7 +557,7 @@ class _PlaylistDetailsScreenState
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
               width: 36,
               height: 4,
@@ -565,7 +565,7 @@ class _PlaylistDetailsScreenState
                   color: tokens.outline,
                   borderRadius: BorderRadius.circular(2)),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             ListTile(
               leading: Icon(Icons.edit_rounded, color: tokens.textPrimary),
               title: Text('Edit Playlist',
@@ -583,16 +583,16 @@ class _PlaylistDetailsScreenState
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline_rounded,
+              leading: Icon(Icons.delete_outline_rounded,
                   color: Colors.redAccent),
-              title: const Text('Delete Playlist',
+              title: Text('Delete Playlist',
                   style: TextStyle(color: Colors.redAccent, fontSize: 15)),
               onTap: () {
                 Navigator.pop(ctx);
                 _confirmDeletePlaylist();
               },
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
           ],
         ),
       ),
@@ -669,7 +669,7 @@ class _SkeletonTile extends StatelessWidget {
               borderRadius: BorderRadius.circular(4),
             ),
           ),
-          const SizedBox(width: 12),
+          SizedBox(width: 12),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -682,7 +682,7 @@ class _SkeletonTile extends StatelessWidget {
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
-                const SizedBox(height: 8),
+                SizedBox(height: 8),
                 Container(
                   height: 11,
                   width: 120,
@@ -729,7 +729,7 @@ class _LoadingHeader extends StatelessWidget {
                 .fadeIn(duration: 600.ms)
                 .then()
                 .fadeOut(duration: 600.ms),
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
             Container(
               width: 160,
               height: 20,
@@ -871,7 +871,7 @@ class _ExpandedHeader extends StatelessWidget {
                               size: 72, color: tokens.textMuted)),
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Playlist name
               Padding(
@@ -890,7 +890,7 @@ class _ExpandedHeader extends StatelessWidget {
                   ),
                 ),
               ),
-              const SizedBox(height: 4),
+              SizedBox(height: 4),
 
               // Subtitle — song count + duration (real data, no hardcoded strings)
               Text(
@@ -901,7 +901,7 @@ class _ExpandedHeader extends StatelessWidget {
                   fontWeight: FontWeight.w400,
                 ),
               ),
-              const SizedBox(height: 20),
+              SizedBox(height: 20),
 
               // Play / Shuffle buttons
               Row(
@@ -915,17 +915,17 @@ class _ExpandedHeader extends StatelessWidget {
                     child: Icon(Icons.shuffle_rounded,
                         color: tokens.textPrimary, size: 22),
                   ),
-                  const SizedBox(width: 20),
+                  SizedBox(width: 20),
 
                   // Play (larger, accent filled)
                   _HeaderButton(
                     size: 64,
                     onTap: onPlayAll,
                     filled: true,
-                    child: const Icon(Icons.play_arrow_rounded,
+                    child: Icon(Icons.play_arrow_rounded,
                         color: Colors.white, size: 36),
                   ),
-                  const SizedBox(width: 20),
+                  SizedBox(width: 20),
 
                   // Queue
                   _HeaderButton(
@@ -1018,7 +1018,7 @@ class _DismissBackground extends StatelessWidget {
           ],
         ),
       ),
-      child: const Icon(Icons.delete_outline_rounded,
+      child: Icon(Icons.delete_outline_rounded,
           color: Colors.white, size: 24),
     );
   }
@@ -1106,9 +1106,9 @@ class _AddSongsRow extends StatelessWidget {
               border: Border.all(
                   color: Colors.green.withOpacity(0.45), width: 1.5),
             ),
-            child: const Icon(Icons.add_rounded, color: Colors.green, size: 24),
+            child: Icon(Icons.add_rounded, color: Colors.green, size: 24),
           ),
-          const SizedBox(width: 14),
+          SizedBox(width: 14),
           Text(
             'Add Songs',
             style: TextStyle(

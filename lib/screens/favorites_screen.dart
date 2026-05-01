@@ -34,10 +34,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: AppTheme.coreBackground,
+        backgroundColor: ThemeTokens.of(context).bgBase,
         body: RefreshIndicator(
-          color: AppTheme.spotifyGreen,
-          backgroundColor: AppTheme.surfaceLevel,
+          color: ThemeTokens.of(context).accent,
+          backgroundColor: ThemeTokens.of(context).bgSurface,
           displacement: topPad + 56,
           onRefresh: () async {
             ref.invalidate(favoritesProvider);
@@ -69,7 +69,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 loading: () => const SliverFillRemaining(
                   child: Center(
                     child: CircularProgressIndicator(
-                      color: AppTheme.spotifyGreen,
+                      color: ThemeTokens.of(context).accent,
                       strokeWidth: 2,
                     ),
                   ),
@@ -77,7 +77,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 error: (e, _) => const SliverFillRemaining(
                   child: Center(
                     child: Text('Could not load favorites',
-                        style: TextStyle(color: AppTheme.textMuted, fontSize: 14)),
+                        style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14)),
                   ),
                 ),
               ),
@@ -205,36 +205,36 @@ class _FavoritesHeader extends StatelessWidget {
             children: [
               Container(
                 width: 6, height: 6,
-                decoration: const BoxDecoration(
-                  color: AppTheme.spotifyGreen,
+                decoration: BoxDecoration(
+                  color: ThemeTokens.of(context).accent,
                   shape: BoxShape.circle,
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               Text(
                 'COLLECTION',
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.spotifyGreen,
+                  color: ThemeTokens.of(context).accent,
                   letterSpacing: 2.0,
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
+          SizedBox(height: 8),
           // Title
-          Text('Favorites', style: AppTheme.headingLg),
-          const SizedBox(height: 6),
+          Text('Favorites', style: ThemeTokens.of(context).headingLg),
+          SizedBox(height: 6),
           // Count
           Text(
             '${songCount} songs • ${albumCount} albums',
-            style: const TextStyle(
+            style: TextStyle(
               fontSize: 13,
-              color: AppTheme.textSecondary,
+              color: ThemeTokens.of(context).textSecondary,
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           // Filter pills
           Row(
             children: [
@@ -243,7 +243,7 @@ class _FavoritesHeader extends StatelessWidget {
                 isSelected: selectedTab == 0,
                 onTap: () => onTabChanged(0),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
               _FilterPill(
                 title: 'Albums',
                 isSelected: selectedTab == 1,
@@ -279,7 +279,7 @@ class _FilterPill extends StatelessWidget {
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
           decoration: BoxDecoration(
-            color: isSelected ? AppTheme.spotifyGreen : AppTheme.topLevel,
+            color: isSelected ? ThemeTokens.of(context).accent : ThemeTokens.of(context).bgElevated,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
@@ -287,7 +287,7 @@ class _FilterPill extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.black : AppTheme.textPrimary,
+              color: isSelected ? Colors.black : ThemeTokens.of(context).textPrimary,
             ),
           ),
         ),
@@ -325,7 +325,7 @@ class _AlbumCard extends ConsumerWidget {
               child: Container(
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(10),
-                  color: AppTheme.topLevel,
+                  color: ThemeTokens.of(context).bgElevated,
                 ),
                 clipBehavior: Clip.hardEdge,
                 child: coverUrl != null
@@ -335,43 +335,43 @@ class _AlbumCard extends ConsumerWidget {
                         fit: BoxFit.cover,
                         width: double.infinity,
                         placeholder: (_, __) => Container(
-                          color: AppTheme.topLevel,
-                          child: const Center(
+                          color: ThemeTokens.of(context).bgElevated,
+                          child: Center(
                             child: Icon(Icons.album_rounded,
-                                color: AppTheme.textMuted, size: 40),
+                                color: ThemeTokens.of(context).textMuted, size: 40),
                           ),
                         ),
                         errorWidget: (_, __, ___) => Container(
-                          color: AppTheme.topLevel,
-                          child: const Center(
+                          color: ThemeTokens.of(context).bgElevated,
+                          child: Center(
                             child: Icon(Icons.album_rounded,
-                                color: AppTheme.textMuted, size: 40),
+                                color: ThemeTokens.of(context).textMuted, size: 40),
                           ),
                         ),
                       )
-                    : const Center(
+                    : Center(
                         child: Icon(Icons.album_rounded,
-                            color: AppTheme.textMuted, size: 40),
+                            color: ThemeTokens.of(context).textMuted, size: 40),
                       ),
               ),
             ),
-            const SizedBox(height: 8),
+            SizedBox(height: 8),
             // Title
             Text(album.name,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
                   fontWeight: FontWeight.w600,
-                  color: AppTheme.textPrimary,
+                  color: ThemeTokens.of(context).textPrimary,
                 )),
-            const SizedBox(height: 2),
+            SizedBox(height: 2),
             Text(album.artist,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 11,
-                  color: AppTheme.textSecondary,
+                  color: ThemeTokens.of(context).textSecondary,
                 )),
           ],
         ),
@@ -395,10 +395,10 @@ class _EmptyState extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon, color: AppTheme.textMuted, size: 48),
-          const SizedBox(height: 16),
+          Icon(icon, color: ThemeTokens.of(context).textMuted, size: 48),
+          SizedBox(height: 16),
           Text(message,
-              style: const TextStyle(color: AppTheme.textMuted, fontSize: 15)),
+              style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
         ],
       ),
     );

@@ -59,7 +59,7 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: AppTheme.coreBackground,
+      backgroundColor: ThemeTokens.of(context).bgBase,
       body: Stack(
         children: [
           CustomScrollView(
@@ -67,14 +67,14 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
           // ── App Bar ──
           SliverAppBar(
             pinned: true,
-            backgroundColor: AppTheme.coreBackground,
+            backgroundColor: ThemeTokens.of(context).bgBase,
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
-              icon: const Icon(Icons.arrow_back_ios_new_rounded,
+              icon: Icon(Icons.arrow_back_ios_new_rounded,
                   color: Colors.white, size: 20),
               onPressed: () => Navigator.pop(context),
             ),
-            title: const Text(
+            title: Text(
               'Made For You',
               style: TextStyle(
                 color: Colors.white,
@@ -85,7 +85,7 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
             ),
             actions: [
               IconButton(
-                icon: const Icon(Icons.refresh_rounded,
+                icon: Icon(Icons.refresh_rounded,
                     color: Colors.white60, size: 24),
                 onPressed: _loadSongs,
               ),
@@ -107,7 +107,7 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
               ),
               child: Row(
                 children: [
-                  const Expanded(
+                  Expanded(
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
@@ -130,7 +130,7 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(width: 12),
+                  SizedBox(width: 12),
                   Container(
                     width: 48,
                     height: 48,
@@ -139,7 +139,7 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
                       shape: BoxShape.circle,
                     ),
                     child: IconButton(
-                      icon: const Icon(Icons.play_arrow_rounded,
+                      icon: Icon(Icons.play_arrow_rounded,
                           color: Colors.white, size: 28),
                       onPressed: _songs.isNotEmpty
                           ? () {
@@ -166,7 +166,7 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
             const SliverFillRemaining(
               child: Center(
                 child: CircularProgressIndicator(
-                    color: AppTheme.electricBlue, strokeWidth: 2.5),
+                    color: ThemeTokens.of(context).accent, strokeWidth: 2.5),
               ),
             )
           else if (_errorMessage.isNotEmpty)
@@ -175,16 +175,16 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    const Icon(Icons.error_outline_rounded,
-                        color: AppTheme.textMuted, size: 48),
-                    const SizedBox(height: 12),
+                    Icon(Icons.error_outline_rounded,
+                        color: ThemeTokens.of(context).textMuted, size: 48),
+                    SizedBox(height: 12),
                     Text(_errorMessage,
-                        style: const TextStyle(
-                            color: AppTheme.textMuted, fontSize: 14)),
-                    const SizedBox(height: 16),
+                        style: TextStyle(
+                            color: ThemeTokens.of(context).textMuted, fontSize: 14)),
+                    SizedBox(height: 16),
                     TextButton(
                       onPressed: _loadSongs,
-                      child: const Text('Retry'),
+                      child: Text('Retry'),
                     ),
                   ],
                 ),

@@ -87,7 +87,7 @@ class SongTile extends ConsumerWidget {
                   errorWidget: (context, url, error) => const _ArtPlaceholder(size: 48),
                 ),
               ),
-              const SizedBox(width: 12),
+              SizedBox(width: 12),
 
               // Title + artist
               Expanded(
@@ -106,28 +106,28 @@ class SongTile extends ConsumerWidget {
                         color: isActive ? ThemeTokens.of(context).accent : Colors.white,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    SizedBox(height: 4),
                     Text(
                       song.artist,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: const TextStyle(
+                      style: TextStyle(
                         fontSize: 12,
-                        color: AppTheme.textSecondary,
+                        color: ThemeTokens.of(context).textSecondary,
                       ),
                     ),
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
+              SizedBox(width: 8),
 
               // Options
               IconButton(
                 padding: EdgeInsets.zero,
                 constraints: const BoxConstraints(),
-                icon: const Icon(
+                icon: Icon(
                   Icons.more_horiz_rounded,
-                  color: AppTheme.textSecondary,
+                  color: ThemeTokens.of(context).textSecondary,
                   size: 20,
                 ),
                 onPressed: () {
@@ -161,10 +161,10 @@ class _ArtPlaceholder extends StatelessWidget {
     return Container(
       width: size,
       height: size,
-      color: AppTheme.topLevel,
-      child: const Icon(
+      color: ThemeTokens.of(context).bgElevated,
+      child: Icon(
         Icons.music_note_rounded,
-        color: AppTheme.textMuted,
+        color: ThemeTokens.of(context).textMuted,
         size: 24,
       ),
     );

@@ -77,15 +77,15 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
   @override
   Widget build(BuildContext context) {
     return AlertDialog(
-      backgroundColor: AppTheme.surfaceLevel,
+      backgroundColor: ThemeTokens.of(context).bgSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(16),
-        side: const BorderSide(color: AppTheme.outlineColor),
+        side: BorderSide(color: ThemeTokens.of(context).outline),
       ),
-      title: const Text(
+      title: Text(
         'New Playlist',
         style: TextStyle(
-            color: AppTheme.textPrimary,
+            color: ThemeTokens.of(context).textPrimary,
             fontWeight: FontWeight.bold,
             fontSize: 18),
       ),
@@ -99,9 +99,9 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
               width: 100,
               height: 100,
               decoration: BoxDecoration(
-                color: AppTheme.topLevel,
+                color: ThemeTokens.of(context).bgElevated,
                 borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: AppTheme.outlineColor),
+                border: Border.all(color: ThemeTokens.of(context).outline),
               ),
               clipBehavior: Clip.hardEdge,
               child: _selectedImage != null
@@ -110,31 +110,31 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         Icon(Icons.add_photo_alternate_outlined,
-                            color: AppTheme.spotifyGreen, size: 28),
+                            color: ThemeTokens.of(context).accent, size: 28),
                         SizedBox(height: 4),
                         Text('Add Photo',
                             style: TextStyle(
-                                color: AppTheme.textMuted, fontSize: 10)),
+                                color: ThemeTokens.of(context).textMuted, fontSize: 10)),
                       ],
                     ),
             ),
           ),
-          const SizedBox(height: 20),
+          SizedBox(height: 20),
           // Name field
           TextField(
             controller: _nameController,
             autofocus: true,
-            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
-            cursorColor: AppTheme.spotifyGreen,
+            style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15),
+            cursorColor: ThemeTokens.of(context).accent,
             decoration: InputDecoration(
               hintText: 'Playlist name',
               hintStyle: TextStyle(
-                  color: AppTheme.textMuted.withOpacity(0.5), fontSize: 15),
+                  color: ThemeTokens.of(context).textMuted.withOpacity(0.5), fontSize: 15),
               focusedBorder: const UnderlineInputBorder(
-                  borderSide: BorderSide(color: AppTheme.spotifyGreen)),
+                  borderSide: BorderSide(color: ThemeTokens.of(context).accent)),
               enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(
-                      color: AppTheme.textMuted.withOpacity(0.3))),
+                      color: ThemeTokens.of(context).textMuted.withOpacity(0.3))),
             ),
             onSubmitted: (_) => _create(),
           ),
@@ -143,20 +143,20 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: const Text('Cancel',
-              style: TextStyle(color: AppTheme.textPrimary, fontSize: 14)),
+          child: Text('Cancel',
+              style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 14)),
         ),
         TextButton(
           onPressed: _isCreating ? null : _create,
           child: _isCreating
-              ? const SizedBox(
+              ? SizedBox(
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: AppTheme.spotifyGreen))
-              : const Text('Create',
+                      strokeWidth: 2, color: ThemeTokens.of(context).accent))
+              : Text('Create',
                   style: TextStyle(
-                      color: AppTheme.spotifyGreen,
+                      color: ThemeTokens.of(context).accent,
                       fontWeight: FontWeight.bold,
                       fontSize: 14)),
         ),

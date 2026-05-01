@@ -23,9 +23,9 @@ Future<Color?> _extractMiniPalette(String imageUrl) async {
     );
     return palette.vibrantColor?.color ??
            palette.dominantColor?.color ??
-           AppTheme.spotifyGreen;
+           ThemeTokens.of(context).accent;
   } catch (_) {
-    return AppTheme.spotifyGreen;
+    return ThemeTokens.of(context).accent;
   }
 }
 
@@ -45,7 +45,7 @@ class MiniPlayer extends ConsumerStatefulWidget {
 }
 
 class _MiniPlayerState extends ConsumerState<MiniPlayer> {
-  Color _themeColor = AppTheme.spotifyGreen;
+  Color _themeColor = ThemeTokens.of(context).accent;
   String? _lastImageUrl;
 
   void _openNowPlaying(String imageUrl) {
@@ -70,7 +70,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final playerState = ref.watch(playerProvider);
     final service     = ref.watch(subsonicServiceProvider);
 
-    if (playerState.queue.isEmpty) return const SizedBox.shrink();
+    if (playerState.queue.isEmpty) return SizedBox.shrink();
 
     final song     = playerState.queue[playerState.currentIndex];
     final imageUrl = service.getCoverArtUrl(song.coverArt);
@@ -108,7 +108,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                       children: [
                         // Album art thumbnail
                         _AlbumThumb(imageUrl: imageUrl, themeColor: _themeColor),
-                        const SizedBox(width: 12),
+                        SizedBox(width: 12),
 
                         // Song info — constrained to avoid overflow
                         Expanded(
@@ -120,22 +120,22 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                 song.title,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 14,
                                   fontWeight: FontWeight.w700,
-                                  color: AppTheme.textPrimary,
+                                  color: ThemeTokens.of(context).textPrimary,
                                   letterSpacing: -0.2,
                                   height: 1.2,
                                 ),
                               ),
-                              const SizedBox(height: 3),
+                              SizedBox(height: 3),
                               Text(
                                 song.artist,
                                 maxLines: 1,
                                 overflow: TextOverflow.ellipsis,
-                                style: const TextStyle(
+                                style: TextStyle(
                                   fontSize: 12,
-                                  color: AppTheme.textSecondary,
+                                  color: ThemeTokens.of(context).textSecondary,
                                   letterSpacing: 0.1,
                                 ),
                               ),
@@ -143,7 +143,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                           ),
                         ),
 
-                        const SizedBox(width: 4),
+                        SizedBox(width: 4),
 
                         // Favourite — 48dp tap target
                         Semantics(
@@ -194,7 +194,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             height: 48,
                             child: IconButton(
                               padding: EdgeInsets.zero,
-                              icon: const Icon(Icons.skip_next_rounded,
+                              icon: Icon(Icons.skip_next_rounded,
                                   color: Colors.white70, size: 24),
                               onPressed: () =>
                                   ref.read(playerProvider.notifier).playNext(),
@@ -240,7 +240,7 @@ class _TopHighlightStreak extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
       child: Container(
         height: 1,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
             colors: [
               Colors.transparent,
@@ -448,8 +448,8 @@ class _AlbumThumb extends StatelessWidget {
               height: 46,
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(
-                color: AppTheme.topLevel,
-                child: const Icon(Icons.music_note_rounded,
+                color: ThemeTokens.of(context).bgElevated,
+                child: Icon(Icons.music_note_rounded,
                     color: Colors.white24, size: 20),
               ),
             ),

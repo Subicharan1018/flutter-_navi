@@ -57,10 +57,10 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
         setState(() => _isCreating = false);
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: AppTheme.spotifyGreen,
+            backgroundColor: ThemeTokens.of(context).accent,
             content: Text(
               'Created and added to $name',
-              style: const TextStyle(
+              style: TextStyle(
                   color: Colors.black, fontWeight: FontWeight.bold),
             ),
           ),
@@ -134,10 +134,10 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            backgroundColor: AppTheme.spotifyGreen,
+            backgroundColor: ThemeTokens.of(context).accent,
             content: Text(
               'Updated $successCount playlist${successCount == 1 ? '' : 's'}',
-              style: const TextStyle(
+              style: TextStyle(
                   color: Colors.black, fontWeight: FontWeight.bold),
             ),
           ),
@@ -158,10 +158,10 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
     final playlistsAsync = ref.watch(playlistsProvider);
 
     return Dialog(
-      backgroundColor: AppTheme.surfaceLevel,
+      backgroundColor: ThemeTokens.of(context).bgSurface,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(24),
-        side: const BorderSide(color: AppTheme.outlineColor, width: 1),
+        side: BorderSide(color: ThemeTokens.of(context).outline, width: 1),
       ),
       child: ConstrainedBox(
         constraints:
@@ -176,22 +176,22 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Add to Playlist', style: AppTheme.headingMd),
+                  Text('Add to Playlist', style: ThemeTokens.of(context).headingMd),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: const Icon(Icons.close,
-                        color: AppTheme.textSecondary),
+                    icon: Icon(Icons.close,
+                        color: ThemeTokens.of(context).textSecondary),
                   ),
                 ],
               ),
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
 
               // ── New playlist creation ──────────────────────────────────
               Container(
                 decoration: BoxDecoration(
-                  color: AppTheme.cardSurface,
+                  color: ThemeTokens.of(context).bgSurface,
                   borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: AppTheme.outlineColor),
+                  border: Border.all(color: ThemeTokens.of(context).outline),
                 ),
                 padding: const EdgeInsets.symmetric(
                     horizontal: 12, vertical: 4),
@@ -200,12 +200,12 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                     Expanded(
                       child: TextField(
                         controller: _nameController,
-                        style: AppTheme.bodyMd,
-                        cursorColor: AppTheme.spotifyGreen,
+                        style: ThemeTokens.of(context).bodyMd,
+                        cursorColor: ThemeTokens.of(context).accent,
                         decoration: InputDecoration(
                           hintText: 'Create new playlist...',
-                          hintStyle: AppTheme.technicalSm
-                              .copyWith(color: AppTheme.textMuted),
+                          hintStyle: ThemeTokens.of(context).technicalSm
+                              .copyWith(color: ThemeTokens.of(context).textMuted),
                           border: InputBorder.none,
                           isDense: true,
                         ),
@@ -213,16 +213,16 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                       ),
                     ),
                     _isCreating
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 24,
                             height: 24,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppTheme.spotifyGreen),
+                                color: ThemeTokens.of(context).accent),
                           )
                         : IconButton(
-                            icon: const Icon(Icons.add_circle,
-                                color: AppTheme.spotifyGreen,
+                            icon: Icon(Icons.add_circle,
+                                color: ThemeTokens.of(context).accent,
                                 size: 28),
                             onPressed: _createAndAdd,
                           ),
@@ -230,9 +230,9 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                 ),
               ),
 
-              const SizedBox(height: 20),
-              Text('Your Playlists', style: AppTheme.labelMd),
-              const SizedBox(height: 8),
+              SizedBox(height: 20),
+              Text('Your Playlists', style: ThemeTokens.of(context).labelMd),
+              SizedBox(height: 8),
 
               // ── Playlist list ──────────────────────────────────────────
               Flexible(
@@ -245,12 +245,12 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                         child: Center(
                           child: Column(
                             children: [
-                              const Icon(Icons.playlist_add,
+                              Icon(Icons.playlist_add,
                                   size: 48,
-                                  color: AppTheme.textMuted),
-                              const SizedBox(height: 12),
+                                  color: ThemeTokens.of(context).textMuted),
+                              SizedBox(height: 12),
                               Text('No playlists yet',
-                                  style: AppTheme.technicalSm),
+                                  style: ThemeTokens.of(context).technicalSm),
                             ],
                           ),
                         ),
@@ -261,7 +261,7 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                       shrinkWrap: true,
                       itemCount: playlists.length,
                       separatorBuilder: (_, __) => const Divider(
-                          color: AppTheme.outlineColor, height: 1),
+                          color: ThemeTokens.of(context).outline, height: 1),
                       itemBuilder: (context, index) {
                         final pl = playlists[index];
 
@@ -285,29 +285,29 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                                     width: 40,
                                     height: 40,
                                     decoration: BoxDecoration(
-                                      color: AppTheme.topLevel,
+                                      color: ThemeTokens.of(context).bgElevated,
                                       borderRadius:
                                           BorderRadius.circular(4),
                                     ),
-                                    child: const Icon(
+                                    child: Icon(
                                         Icons.music_note,
                                         color:
-                                            AppTheme.textSecondary),
+                                            ThemeTokens.of(context).textSecondary),
                                   ),
                                   title: Text(pl.name,
-                                      style: AppTheme.bodyMd.copyWith(
+                                      style: ThemeTokens.of(context).bodyMd.copyWith(
                                           fontWeight:
                                               FontWeight.w600)),
                                   subtitle: Text(
                                       '${pl.songCount} songs',
-                                      style: AppTheme.technicalXs),
+                                      style: ThemeTokens.of(context).technicalXs),
                                   trailing: Icon(
                                     checked
                                         ? Icons.check_circle
                                         : Icons.add_circle_outline,
                                     color: checked
-                                        ? AppTheme.spotifyGreen
-                                        : AppTheme.textMuted,
+                                        ? ThemeTokens.of(context).accent
+                                        : ThemeTokens.of(context).textMuted,
                                   ),
                                   // UX FIX: Toggle local state only — no network call.
                                   onTap: () => _toggleEntry(pl.id, originallyIn),
@@ -318,19 +318,19 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                                     const EdgeInsets.symmetric(
                                         horizontal: 4),
                                 title: Text(pl.name,
-                                    style: AppTheme.bodyMd),
-                                trailing: const SizedBox(
+                                    style: ThemeTokens.of(context).bodyMd),
+                                trailing: SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
                                       strokeWidth: 2,
-                                      color: AppTheme.textMuted),
+                                      color: ThemeTokens.of(context).textMuted),
                                 ),
                               ),
                               error: (_, __) => ListTile(
                                 title: Text(pl.name,
-                                    style: AppTheme.bodyMd),
-                                trailing: const Icon(
+                                    style: ThemeTokens.of(context).bodyMd),
+                                trailing: Icon(
                                     Icons.error_outline,
                                     color: Colors.red),
                               ),
@@ -340,21 +340,21 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                       },
                     );
                   },
-                  loading: () => const Center(
+                  loading: () => Center(
                     child: Padding(
                       padding: EdgeInsets.all(32),
                       child: CircularProgressIndicator(
-                          color: AppTheme.spotifyGreen),
+                          color: ThemeTokens.of(context).accent),
                     ),
                   ),
                   error: (e, st) => Center(
                     child: Text('Error loading playlists',
-                        style: AppTheme.technicalSm),
+                        style: ThemeTokens.of(context).technicalSm),
                   ),
                 ),
               ),
 
-              const SizedBox(height: 16),
+              SizedBox(height: 16),
               // UX FIX: Save button replaces the old Done button.
               // Commits all pending add/remove operations in one batch.
               Align(
@@ -366,25 +366,25 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                       onPressed: () => Navigator.pop(context),
                       child: Text(
                         'Cancel',
-                        style: AppTheme.bodyMd.copyWith(
-                            color: AppTheme.textMuted),
+                        style: ThemeTokens.of(context).bodyMd.copyWith(
+                            color: ThemeTokens.of(context).textMuted),
                       ),
                     ),
-                    const SizedBox(width: 8),
+                    SizedBox(width: 8),
                     _isSaving
-                        ? const SizedBox(
+                        ? SizedBox(
                             width: 24,
                             height: 24,
                             child: CircularProgressIndicator(
                                 strokeWidth: 2,
-                                color: AppTheme.spotifyGreen),
+                                color: ThemeTokens.of(context).accent),
                           )
                         : TextButton(
                             onPressed: _save,
                             child: Text(
                               _hasChanges() ? 'Save' : 'Done',
-                              style: AppTheme.bodyMd.copyWith(
-                                  color: AppTheme.spotifyGreen,
+                              style: ThemeTokens.of(context).bodyMd.copyWith(
+                                  color: ThemeTokens.of(context).accent,
                                   fontWeight: FontWeight.bold),
                             ),
                           ),

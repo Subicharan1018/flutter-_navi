@@ -22,8 +22,8 @@ class OptionsMenu extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     return Container(
-      decoration: const BoxDecoration(
-        color: AppTheme.surfaceLevel,
+      decoration: BoxDecoration(
+        color: ThemeTokens.of(context).bgSurface,
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
       child: SafeArea(
@@ -31,16 +31,16 @@ class OptionsMenu extends ConsumerWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             // Handle
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
             Container(
               width: 36,
               height: 5,
               decoration: BoxDecoration(
-                color: AppTheme.textPrimary.withOpacity(0.2),
+                color: ThemeTokens.of(context).textPrimary.withOpacity(0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
-            const SizedBox(height: 12),
+            SizedBox(height: 12),
 
             // Song info header
             Padding(
@@ -54,18 +54,18 @@ class OptionsMenu extends ConsumerWidget {
                       children: [
                         Text(
                           song.title,
-                          style: const TextStyle(
-                              color: AppTheme.textPrimary,
+                          style: TextStyle(
+                              color: ThemeTokens.of(context).textPrimary,
                               fontSize: 15,
                               fontWeight: FontWeight.bold),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
-                        const SizedBox(height: 2),
+                        SizedBox(height: 2),
                         Text(
                           song.artist,
-                          style: const TextStyle(
-                              color: AppTheme.textMuted, fontSize: 13),
+                          style: TextStyle(
+                              color: ThemeTokens.of(context).textMuted, fontSize: 13),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -77,17 +77,17 @@ class OptionsMenu extends ConsumerWidget {
             ),
 
             const Divider(
-                color: AppTheme.outlineColor, indent: 24, endIndent: 24),
+                color: ThemeTokens.of(context).outline, indent: 24, endIndent: 24),
 
             // Play Next
             ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: const Icon(Icons.playlist_play_rounded,
-                  color: AppTheme.textPrimary, size: 24),
-              title: const Text('Play Next',
+              leading: Icon(Icons.playlist_play_rounded,
+                  color: ThemeTokens.of(context).textPrimary, size: 24),
+              title: Text('Play Next',
                   style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: ThemeTokens.of(context).textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500)),
               onTap: () {
@@ -117,11 +117,11 @@ class OptionsMenu extends ConsumerWidget {
             ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: const Icon(Icons.queue_music_rounded,
-                  color: AppTheme.textPrimary, size: 24),
-              title: const Text('Add to Queue',
+              leading: Icon(Icons.queue_music_rounded,
+                  color: ThemeTokens.of(context).textPrimary, size: 24),
+              title: Text('Add to Queue',
                   style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: ThemeTokens.of(context).textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500)),
               onTap: () {
@@ -138,11 +138,11 @@ class OptionsMenu extends ConsumerWidget {
             ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: const Icon(Icons.playlist_add_rounded,
-                  color: AppTheme.textPrimary, size: 24),
-              title: const Text('Add to Playlist',
+              leading: Icon(Icons.playlist_add_rounded,
+                  color: ThemeTokens.of(context).textPrimary, size: 24),
+              title: Text('Add to Playlist',
                   style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: ThemeTokens.of(context).textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500)),
               onTap: () {
@@ -159,9 +159,9 @@ class OptionsMenu extends ConsumerWidget {
               ListTile(
                 contentPadding:
                     const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                leading: const Icon(Icons.delete_outline_rounded,
+                leading: Icon(Icons.delete_outline_rounded,
                     color: Colors.redAccent, size: 24),
-                title: const Text('Remove from Playlist',
+                title: Text('Remove from Playlist',
                     style: TextStyle(
                         color: Colors.redAccent,
                         fontSize: 15,
@@ -176,11 +176,11 @@ class OptionsMenu extends ConsumerWidget {
             ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: const Icon(Icons.album_rounded,
-                  color: AppTheme.textPrimary, size: 24),
-              title: const Text('Go to Album',
+              leading: Icon(Icons.album_rounded,
+                  color: ThemeTokens.of(context).textPrimary, size: 24),
+              title: Text('Go to Album',
                   style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: ThemeTokens.of(context).textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500)),
               onTap: () {
@@ -190,7 +190,7 @@ class OptionsMenu extends ConsumerWidget {
             ),
 
             const Divider(
-                color: AppTheme.outlineColor, indent: 24, endIndent: 24),
+                color: ThemeTokens.of(context).outline, indent: 24, endIndent: 24),
 
             // ----------------------------------------------------------------
             // Smart Shuffle feedback: Suggest More / Suggest Less
@@ -200,16 +200,16 @@ class OptionsMenu extends ConsumerWidget {
             ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: const Icon(Icons.thumb_up_alt_outlined,
-                  color: AppTheme.textPrimary, size: 24),
-              title: const Text('Suggest More',
+              leading: Icon(Icons.thumb_up_alt_outlined,
+                  color: ThemeTokens.of(context).textPrimary, size: 24),
+              title: Text('Suggest More',
                   style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: ThemeTokens.of(context).textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500)),
-              subtitle: const Text(
+              subtitle: Text(
                 'Boost this song in Smart Shuffle',
-                style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 12),
               ),
               onTap: () {
                 ref
@@ -228,16 +228,16 @@ class OptionsMenu extends ConsumerWidget {
             ListTile(
               contentPadding:
                   const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: const Icon(Icons.thumb_down_alt_outlined,
-                  color: AppTheme.textMuted, size: 24),
-              title: const Text('Suggest Less',
+              leading: Icon(Icons.thumb_down_alt_outlined,
+                  color: ThemeTokens.of(context).textMuted, size: 24),
+              title: Text('Suggest Less',
                   style: TextStyle(
-                      color: AppTheme.textPrimary,
+                      color: ThemeTokens.of(context).textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500)),
-              subtitle: const Text(
+              subtitle: Text(
                 'Reduce this song in Smart Shuffle',
-                style: TextStyle(color: AppTheme.textMuted, fontSize: 12),
+                style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 12),
               ),
               onTap: () {
                 ref
@@ -253,7 +253,7 @@ class OptionsMenu extends ConsumerWidget {
               },
             ),
 
-            const SizedBox(height: 24),
+            SizedBox(height: 24),
           ],
         ),
       ),
