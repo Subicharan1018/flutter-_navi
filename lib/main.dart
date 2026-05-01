@@ -5,6 +5,8 @@ import 'core/hive_boxes.dart';
 import 'core/theme.dart';
 import 'widgets/app_scaffold.dart';
 
+import 'providers/settings_provider.dart';
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await HiveBoxes.init();
@@ -19,16 +21,22 @@ Future<void> main() async {
   runApp(const ProviderScope(child: MyMusicPlayerApp()));
 }
 
-class MyMusicPlayerApp extends StatelessWidget {
+class MyMusicPlayerApp extends ConsumerWidget {
   const MyMusicPlayerApp({super.key});
 
   @override
-  Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'My Music Player',
-      theme: AppTheme.darkTheme,
-      home: const AppScaffold(),
-      debugShowCheckedModeBanner: false,
+  Widget build(BuildContext context, WidgetRef ref) {
+    final mode = ref.watch(themeModeProvider);
+    final tokens = ThemeVariants.of(mode);
+
+    return ThemeTokens(
+      tokens: tokens,
+      child: MaterialApp(
+        title: 'NaviVibe',
+        theme: AppTheme.buildTheme(mode),
+        home: const AppScaffold(),
+        debugShowCheckedModeBanner: false,
+      ),
     );
   }
 }

@@ -13,6 +13,7 @@ import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
 import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
+import '../widgets/theme_selector.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -222,28 +223,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final settings = ref.watch(settingsProvider);
+    final tokens = ThemeTokens.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: tokens.isLight ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: AppTheme.coreBackground,
+        backgroundColor: tokens.bgBase,
         appBar: AppBar(
-          backgroundColor: AppTheme.coreBackground,
+          backgroundColor: tokens.bgBase,
           surfaceTintColor: Colors.transparent,
           elevation: 0,
           leading: SizedBox(
             width: 48,
             height: 48,
             child: IconButton(
-              icon: const Icon(Icons.close_rounded,
-                  color: AppTheme.textPrimary, size: 24),
+              icon: Icon(Icons.close_rounded,
+                  color: tokens.textPrimary, size: 24),
               onPressed: () => Navigator.pop(context),
             ),
           ),
-          title: const Text(
+          title: Text(
             'Settings',
             style: TextStyle(
-                color: AppTheme.textPrimary,
+                color: tokens.textPrimary,
                 fontWeight: FontWeight.bold,
                 fontSize: 18),
           ),
@@ -252,9 +254,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               padding: const EdgeInsets.only(right: 8),
               child: TextButton(
                 onPressed: _save,
-                child: const Text('Save',
+                child: Text('Save',
                     style: TextStyle(
-                        color: AppTheme.electricBlue,
+                        color: tokens.accent,
                         fontWeight: FontWeight.bold,
                         fontSize: 15)),
               ),
@@ -262,8 +264,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ],
         ),
         body: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.symmetric(vertical: 16),
           children: [
+            ThemeSelector(),
+            const SizedBox(height: 32),
+
             // ----------------------------------------------------------------
             // Server connection
             // ----------------------------------------------------------------
@@ -867,6 +872,7 @@ class _SettingsGroup extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -874,8 +880,8 @@ class _SettingsGroup extends StatelessWidget {
           padding: const EdgeInsets.only(left: 12, bottom: 8),
           child: Text(
             title,
-            style: const TextStyle(
-                color: AppTheme.textMuted,
+            style: TextStyle(
+                color: tokens.textMuted,
                 fontSize: 12,
                 fontWeight: FontWeight.bold,
                 letterSpacing: 0.5),
@@ -883,9 +889,9 @@ class _SettingsGroup extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: AppTheme.surfaceLevel,
+            color: tokens.bgSurface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.outlineColor),
+            border: Border.all(color: tokens.outline),
           ),
           child: Column(children: children),
         ),
@@ -911,6 +917,7 @@ class _SettingsInputRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
@@ -918,21 +925,21 @@ class _SettingsInputRow extends StatelessWidget {
           SizedBox(
             width: 100,
             child: Text(label,
-                style: const TextStyle(
-                    color: AppTheme.textPrimary, fontSize: 15)),
+                style: TextStyle(
+                    color: tokens.textPrimary, fontSize: 15)),
           ),
           Expanded(
             child: TextField(
               controller: controller,
               obscureText: obscure,
               textAlign: TextAlign.right,
-              style: const TextStyle(
-                  color: AppTheme.textMuted, fontSize: 15),
-              cursorColor: AppTheme.electricBlue,
+              style: TextStyle(
+                  color: tokens.textMuted, fontSize: 15),
+              cursorColor: tokens.accent,
               decoration: InputDecoration(
                 hintText: hint,
                 hintStyle: TextStyle(
-                    color: AppTheme.textMuted.withOpacity(0.3)),
+                    color: tokens.textMuted.withOpacity(0.3)),
                 border: InputBorder.none,
                 contentPadding:
                     const EdgeInsets.symmetric(vertical: 12),
@@ -950,7 +957,7 @@ class _SettingsInputRow extends StatelessWidget {
                         ? Icons.visibility_outlined
                         : Icons.visibility_off_outlined,
                     size: 20,
-                    color: AppTheme.textMuted),
+                    color: tokens.textMuted),
                 onPressed: onToggleObscure,
               ),
             ),
@@ -972,17 +979,18 @@ class _SettingsToggleRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: const TextStyle(
-                  color: AppTheme.textPrimary, fontSize: 15)),
+              style: TextStyle(
+                  color: tokens.textPrimary, fontSize: 15)),
           CupertinoSwitch(
             value: value,
-            activeColor: AppTheme.electricBlue,
+            activeColor: tokens.accent,
             onChanged: onChanged,
           ),
         ],
@@ -1006,17 +1014,18 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(label,
-              style: const TextStyle(
-                  color: AppTheme.textPrimary, fontSize: 15)),
+              style: TextStyle(
+                  color: tokens.textPrimary, fontSize: 15)),
           DropdownButton<T>(
             value: value,
-            dropdownColor: AppTheme.surfaceLevel,
+            dropdownColor: tokens.bgSurface,
             underline: const SizedBox(),
             onChanged: onChanged,
             items: items.map((item) {
@@ -1043,8 +1052,8 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
               return DropdownMenuItem(
                 value: item,
                 child: Text(name,
-                    style: const TextStyle(
-                        color: AppTheme.textPrimary, fontSize: 14)),
+                    style: TextStyle(
+                        color: tokens.textPrimary, fontSize: 14)),
               );
             }).toList(),
           ),
@@ -1063,6 +1072,7 @@ class _SettingsNavRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return InkWell(
       onTap: onTap ?? () {},
       child: Padding(
@@ -1071,17 +1081,17 @@ class _SettingsNavRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(label,
-                style: const TextStyle(
-                    color: AppTheme.textPrimary, fontSize: 15)),
+                style: TextStyle(
+                    color: tokens.textPrimary, fontSize: 15)),
             Row(
               children: [
                 if (value != null)
                   Text(value!,
-                      style: const TextStyle(
-                          color: AppTheme.textMuted, fontSize: 15)),
+                      style: TextStyle(
+                          color: tokens.textMuted, fontSize: 15)),
                 const SizedBox(width: 8),
-                const Icon(Icons.chevron_right_rounded,
-                    color: AppTheme.textMuted, size: 20),
+                Icon(Icons.chevron_right_rounded,
+                    color: tokens.textMuted, size: 20),
               ],
             ),
           ],
@@ -1094,6 +1104,7 @@ class _SettingsNavRow extends StatelessWidget {
 class _SettingsDivider extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
-    return const Divider(height: 1, indent: 16, color: AppTheme.outlineColor);
+    final tokens = ThemeTokens.of(context);
+    return Divider(height: 1, indent: 16, color: tokens.outline);
   }
 }

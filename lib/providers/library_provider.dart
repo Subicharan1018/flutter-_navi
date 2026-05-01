@@ -46,7 +46,7 @@ Future<List<Song>> _getCachedSongs(AppDatabase db) async {
     duration: r.durationSec,
     genre: r.genre ?? '',
     composer: r.composer ?? '',
-    coverArt: r.songId, // Use songId as fallback for artwork
+    coverArt: r.songId,
     track: 0,
     year: r.year ?? 0,
     playCount: r.playCount,
@@ -57,7 +57,8 @@ Future<List<Song>> _getCachedSongs(AppDatabase db) async {
 
 enum LibraryFilter { allSongs, playlists, albums, downloaded }
 
-final libraryFilterProvider = StateProvider<LibraryFilter>((ref) => LibraryFilter.allSongs);
+final libraryFilterProvider =
+    StateProvider<LibraryFilter>((ref) => LibraryFilter.allSongs);
 
 final recentlyPlayedAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   ref.keepAlive();
@@ -83,10 +84,37 @@ final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
   return service.getPlaylists();
 });
 
-final favoritesProvider = FutureProvider<({List<Song> songs, List<Album> albums})>((ref) async {
+// ---------------------------------------------------------------------------
+// FIX (Bug 1 + Bug 3):
+//
+// Previously: FutureProvider.family (kept alive forever, no forceRefresh)
+//   → After ref.invalidate(), getPlaylistSongs() hit the SQLite stale-while-
+//     revalidate path and returned the old cached list immediately, so the
+//     checkmark never changed.
+//
+// Now: autoDispose.family + forceRefresh: true
+//   → autoDispose drops the provider when the dialog closes, so reopening
+//     always gets a fresh fetch. forceRefresh: true skips the SQLite cache
+//     entirely so the network result is always authoritative.
+//   → The dialog's Consumer widgets see a real loading → data transition after
+//     each toggle, giving correct checkmarks.
+// ---------------------------------------------------------------------------
+final songsInPlaylistProvider =
+    FutureProvider.autoDispose.family<List<Song>, String>((ref, playlistId) async {
+  final service = ref.watch(subsonicServiceProvider);
+  // Always fetch from network — stale cache must never win here because this
+  // provider is the source of truth for the "is this song already added?"
+  // membership check in AddToPlaylistDialog.
+  return service.getPlaylistSongs(playlistId, forceRefresh: true);
+});
+
+final favoritesProvider =
+    FutureProvider<({List<Song> songs, List<Album> albums})>((ref) async {
   ref.keepAlive();
   final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return (songs: <Song>[], albums: <Album>[]);
+  if (settings.serverUrl.isEmpty || settings.password.isEmpty) {
+    return (songs: <Song>[], albums: <Album>[]);
+  }
   final service = ref.watch(subsonicServiceProvider);
   return service.getStarred();
 });
@@ -122,7 +150,8 @@ final libraryAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   return service.getAlbums(size: 1000);
 });
 
-final filteredLibraryProvider = Provider<AsyncValue<List<dynamic>>>((ref) {
+final filteredLibraryProvider =
+    Provider<AsyncValue<List<dynamic>>>((ref) {
   final filter = ref.watch(libraryFilterProvider);
 
   switch (filter) {

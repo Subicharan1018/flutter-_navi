@@ -244,13 +244,22 @@ class _ReplayList extends ConsumerWidget {
   Future<void> _playSong(BuildContext context, WidgetRef ref, ReplaySong song) async {
     try {
       final svc = ref.read(subsonicServiceProvider);
-      final searchResult = await svc.search(song.title);
-      final results = searchResult['songs'] as List<Song>? ?? [];
-      final match = results.where((s) => s.id == song.songId).firstOrNull;
-      if (match != null && context.mounted) {
-        ref.read(playerProvider.notifier).setQueue([match], 0);
-      } else if (results.isNotEmpty && context.mounted) {
-        ref.read(playerProvider.notifier).setQueue([results.first], 0);
+      
+      // If we are in the ranked list, we probably want to play the whole list 
+      // starting from this song.
+      final songIds = data.songs.map((s) => s.songId).toList();
+      final startIndex = data.songs.indexOf(song);
+      
+      // Fetch full song objects for the queue
+      final songs = await svc.getSongs(songIds);
+      
+      if (context.mounted && songs.isNotEmpty) {
+        // Adjust index in case some songs failed to fetch
+        int adjustedIndex = 0;
+        final match = songs.indexWhere((s) => s.id == song.songId);
+        if (match != -1) adjustedIndex = match;
+        
+        ref.read(playerProvider.notifier).setQueue(songs, adjustedIndex);
       }
     } catch (e) {
       if (context.mounted) {
@@ -303,9 +312,12 @@ class _ReplayList extends ConsumerWidget {
                   label: const Text('Play All',
                       style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
                   onPressed: () async {
-                    for (final song in data.songs) {
-                      await _playSong(context, ref, song);
-                      break;
+                    if (data.songs.isEmpty) return;
+                    final svc = ref.read(subsonicServiceProvider);
+                    final songIds = data.songs.map((s) => s.songId).toList();
+                    final songs = await svc.getSongs(songIds);
+                    if (context.mounted && songs.isNotEmpty) {
+                      ref.read(playerProvider.notifier).setQueue(songs, 0);
                     }
                   },
                 ),

@@ -1,0 +1,57 @@
+[
+{
+  "message": "Start JSON generation. Platform version: 24 min SDK version: arm64-v8a",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "rebuilding JSON /home/subi/Documents/flutter-_navi/android/app/.cxx/debug/5f5r4717/arm64-v8a/android_gradle_build.json due to:",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "- no fingerprint file, will remove stale configuration folder",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "removing stale contents from \u0027/home/subi/Documents/flutter-_navi/android/app/.cxx/debug/5f5r4717/arm64-v8a\u0027",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "created folder \u0027/home/subi/Documents/flutter-_navi/android/app/.cxx/debug/5f5r4717/arm64-v8a\u0027",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "executing cmake /home/subi/Android/Sdk/cmake/3.22.1/bin/cmake \\\n  -H/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts \\\n  -DCMAKE_SYSTEM_NAME\u003dAndroid \\\n  -DCMAKE_EXPORT_COMPILE_COMMANDS\u003dON \\\n  -DCMAKE_SYSTEM_VERSION\u003d24 \\\n  -DANDROID_PLATFORM\u003dandroid-24 \\\n  -DANDROID_ABI\u003darm64-v8a \\\n  -DCMAKE_ANDROID_ARCH_ABI\u003darm64-v8a \\\n  -DANDROID_NDK\u003d/home/subi/Android/Sdk/ndk/28.2.13676358 \\\n  -DCMAKE_ANDROID_NDK\u003d/home/subi/Android/Sdk/ndk/28.2.13676358 \\\n  -DCMAKE_TOOLCHAIN_FILE\u003d/home/subi/Android/Sdk/ndk/28.2.13676358/build/cmake/android.toolchain.cmake \\\n  -DCMAKE_MAKE_PROGRAM\u003d/home/subi/Android/Sdk/cmake/3.22.1/bin/ninja \\\n  -DCMAKE_LIBRARY_OUTPUT_DIRECTORY\u003d/home/subi/Documents/flutter-_navi/android/app/build/intermediates/cxx/debug/5f5r4717/obj/arm64-v8a \\\n  -DCMAKE_RUNTIME_OUTPUT_DIRECTORY\u003d/home/subi/Documents/flutter-_navi/android/app/build/intermediates/cxx/debug/5f5r4717/obj/arm64-v8a \\\n  -B/home/subi/Documents/flutter-_navi/android/app/.cxx/debug/5f5r4717/arm64-v8a \\\n  -GNinja \\\n  -Wno-dev \\\n  --no-warn-unused-cli \\\n  -DCMAKE_BUILD_TYPE\u003ddebug\n",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "/home/subi/Android/Sdk/cmake/3.22.1/bin/cmake \\\n  -H/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts \\\n  -DCMAKE_SYSTEM_NAME\u003dAndroid \\\n  -DCMAKE_EXPORT_COMPILE_COMMANDS\u003dON \\\n  -DCMAKE_SYSTEM_VERSION\u003d24 \\\n  -DANDROID_PLATFORM\u003dandroid-24 \\\n  -DANDROID_ABI\u003darm64-v8a \\\n  -DCMAKE_ANDROID_ARCH_ABI\u003darm64-v8a \\\n  -DANDROID_NDK\u003d/home/subi/Android/Sdk/ndk/28.2.13676358 \\\n  -DCMAKE_ANDROID_NDK\u003d/home/subi/Android/Sdk/ndk/28.2.13676358 \\\n  -DCMAKE_TOOLCHAIN_FILE\u003d/home/subi/Android/Sdk/ndk/28.2.13676358/build/cmake/android.toolchain.cmake \\\n  -DCMAKE_MAKE_PROGRAM\u003d/home/subi/Android/Sdk/cmake/3.22.1/bin/ninja \\\n  -DCMAKE_LIBRARY_OUTPUT_DIRECTORY\u003d/home/subi/Documents/flutter-_navi/android/app/build/intermediates/cxx/debug/5f5r4717/obj/arm64-v8a \\\n  -DCMAKE_RUNTIME_OUTPUT_DIRECTORY\u003d/home/subi/Documents/flutter-_navi/android/app/build/intermediates/cxx/debug/5f5r4717/obj/arm64-v8a \\\n  -B/home/subi/Documents/flutter-_navi/android/app/.cxx/debug/5f5r4717/arm64-v8a \\\n  -GNinja \\\n  -Wno-dev \\\n  --no-warn-unused-cli \\\n  -DCMAKE_BUILD_TYPE\u003ddebug\n",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "Received process result: 0",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "/home/subi/Documents/flutter-_navi/android/app/.cxx/debug/5f5r4717/arm64-v8a/compile_commands.json.bin existed but not /home/subi/Documents/flutter-_navi/android/app/.cxx/debug/5f5r4717/arm64-v8a/compile_commands.json",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "done executing cmake",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+},
+{
+  "message": "JSON generation completed without problems",
+  "file": "/home/subi/development/flutter/packages/flutter_tools/gradle/src/main/scripts/CMakeLists.txt",
+  "tag": "debug|arm64-v8a"
+}
+]

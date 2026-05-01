@@ -367,6 +367,22 @@ class SubsonicService {
         .toList();
   }
 
+  Future<Song> getSong(String id) async {
+    final res = await _get('getSong.view', {'id': id});
+    final song = res['song'] as Map<String, dynamic>;
+    return Song.fromJson(song);
+  }
+
+  Future<List<Song>> getSongs(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    // Fetch all concurrently. Subsonic doesn't have a batch getSong.
+    final results = await Future.wait(ids.map((id) => getSong(id).catchError((e) {
+      debugPrint('Failed to fetch song $id: $e');
+      return null;
+    })));
+    return results.whereType<Song>().toList();
+  }
+
   Future<({List<Song> songs, List<Album> albums})> getStarred() async {
     final res = await _get('getStarred.view');
     final starred = res['starred'] as Map<String, dynamic>? ?? {};
@@ -506,6 +522,9 @@ class SubsonicService {
     if (name != null) params['name'] = name;
     if (comment != null) params['comment'] = comment;
     await _get('updatePlaylist.view', params);
+    
+    // Invalidate cache so the next getPlaylistSongs call re-fetches fresh data
+    await invalidatePlaylist(playlistId);
   }
 
   /// CRIT-4: Replaces the server-side song list for [playlistId] with [songIds]

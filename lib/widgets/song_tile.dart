@@ -103,7 +103,7 @@ class SongTile extends ConsumerWidget {
                         fontWeight: FontWeight.w500,
                         // AnimatedDefaultTextStyle would also work here but
                         // a plain conditional is cheaper for a list this large.
-                        color: isActive ? AppTheme.spotifyGreen : Colors.white,
+                        color: isActive ? ThemeTokens.of(context).accent : Colors.white,
                       ),
                     ),
                     const SizedBox(height: 4),

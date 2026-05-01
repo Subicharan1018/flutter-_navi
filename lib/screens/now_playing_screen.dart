@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:palette_generator/palette_generator.dart';
@@ -12,7 +13,7 @@ import 'package:just_audio/just_audio.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../core/theme.dart';
-import '../core/palette_cache.dart';           // ← NEW
+import '../core/palette_cache.dart';
 import '../fluid_background.dart';
 import '../widgets/options_menu.dart';
 import '../models/song.dart';
@@ -21,9 +22,6 @@ import 'package:flutter/foundation.dart';
 
 // =============================================================================
 // 1. COLOR EXTRACTION
-//    • Larger sample size (200×200) → richer, more accurate palette
-//    • Colors are DARKENED + SATURATED before use (Apple Music style)
-//    • 4 semantically distinct slots: dominant, vibrant, dark-accent, light-accent
 // =============================================================================
 
 Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
@@ -104,8 +102,6 @@ List<Color> _intsToColors(List<int> v) => v.map((i) => Color(i)).toList();
 
 // =============================================================================
 // 2. SMALL REUSABLE WIDGETS
-//    _SoundBar  –  animated equalizer bars
-//    _BottomAction  –  icon + label tap target used in the bottom row
 // =============================================================================
 
 class _SoundBar extends StatefulWidget {
@@ -216,7 +212,6 @@ class _BottomAction extends StatelessWidget {
 
 // =============================================================================
 // 3. AUDIO QUALITY STRIP
-//    Shows source format/bitrate and active transcoding override.
 // =============================================================================
 
 class _AudioQualityStrip extends ConsumerWidget {
@@ -317,8 +312,7 @@ class _QualityPill extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: 10.5,
-              fontWeight:
-                  highlighted ? FontWeight.w600 : FontWeight.w400,
+              fontWeight: highlighted ? FontWeight.w600 : FontWeight.w400,
               letterSpacing: 0.3,
             ),
           ),
@@ -329,7 +323,177 @@ class _QualityPill extends StatelessWidget {
 }
 
 // =============================================================================
-// 4. NOW PLAYING SCREEN
+// 4. VOLUME SLIDER  — Apple Music style
+//    • Speaker icon on left, full-volume icon on right
+//    • Frosted capsule track with white fill
+//    • Haptic tick at 0%, 50%, 100%
+//    • Reads & writes volume via just_audio AudioPlayer
+// =============================================================================
+
+class _VolumeSlider extends StatefulWidget {
+  final AudioPlayer player;
+  const _VolumeSlider({required this.player});
+
+  @override
+  State<_VolumeSlider> createState() => _VolumeSliderState();
+}
+
+class _VolumeSliderState extends State<_VolumeSlider> {
+  double _volume = 1.0;
+  // Tracks last value that triggered haptics — avoid rapid-fire feedback
+  double _lastHapticVolume = -1;
+
+  @override
+  void initState() {
+    super.initState();
+    _volume = widget.player.volume;
+  }
+
+  void _onChanged(double v) {
+    setState(() => _volume = v);
+    widget.player.setVolume(v);
+
+    // Haptic tick at 0 %, 50 %, 100 %
+    final snaps = [0.0, 0.5, 1.0];
+    for (final snap in snaps) {
+      if ((_lastHapticVolume - snap).abs() > 0.01 &&
+          (v - snap).abs() < 0.015) {
+        HapticFeedback.selectionClick();
+        _lastHapticVolume = snap;
+        break;
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 32),
+      child: Row(
+        children: [
+          // Muted / low-volume icon
+          Icon(
+            _volume < 0.02
+                ? Icons.volume_off_rounded
+                : Icons.volume_down_rounded,
+            color: Colors.white.withOpacity(0.55),
+            size: 20,
+          ),
+
+          const SizedBox(width: 10),
+
+          // Track + thumb
+          Expanded(
+            child: SizedBox(
+              height: 36,
+              child: SliderTheme(
+                data: SliderThemeData(
+                  // ── Track ────────────────────────────────────────────
+                  trackHeight: 4,
+                  activeTrackColor: Colors.white,
+                  inactiveTrackColor: Colors.white.withOpacity(0.20),
+
+                  // ── Thumb: invisible — we paint our own via overlay ──
+                  thumbColor: Colors.transparent,
+                  thumbShape: _AppleMusicThumb(),
+                  overlayColor: Colors.transparent,
+                  overlayShape:
+                      const RoundSliderOverlayShape(overlayRadius: 0),
+
+                  // ── Track shape: rounded capsule ─────────────────────
+                  trackShape: _RoundedTrackShape(),
+                ),
+                child: Slider(
+                  value: _volume,
+                  min: 0.0,
+                  max: 1.0,
+                  onChanged: _onChanged,
+                ),
+              ),
+            ),
+          ),
+
+          const SizedBox(width: 10),
+
+          // Full-volume icon
+          Icon(
+            Icons.volume_up_rounded,
+            color: Colors.white.withOpacity(0.55),
+            size: 20,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Rounded capsule track — matches Apple Music's pill-shaped track.
+class _RoundedTrackShape extends RoundedRectSliderTrackShape {
+  @override
+  Rect getPreferredRect({
+    required RenderBox parentBox,
+    Offset offset = Offset.zero,
+    required SliderThemeData sliderTheme,
+    bool isEnabled = false,
+    bool isDiscrete = false,
+  }) {
+    final trackHeight = sliderTheme.trackHeight ?? 4;
+    final trackLeft   = offset.dx;
+    final trackTop    = offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final trackWidth  = parentBox.size.width;
+    return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
+  }
+}
+
+/// Apple Music-style thumb: a small bright white pill with a faint drop shadow.
+/// No default circle — we draw a slightly taller capsule that pops off the track.
+class _AppleMusicThumb extends SliderComponentShape {
+  @override
+  Size getPreferredSize(bool isEnabled, bool isInteractive) =>
+      const Size(4, 22);
+
+  @override
+  void paint(
+    PaintingContext context,
+    Offset center, {
+    required Animation<double> activationAnimation,
+    required Animation<double> enableAnimation,
+    required bool isDiscrete,
+    required TextPainter labelPainter,
+    required RenderBox parentBox,
+    required SliderThemeData sliderTheme,
+    required TextDirection textDirection,
+    required double value,
+    required double textScaleFactor,
+    required Size sizeWithOverflow,
+  }) {
+    final canvas = context.canvas;
+
+    const w = 4.0;
+    const h = 22.0;
+    final rect = RRect.fromRectAndRadius(
+      Rect.fromCenter(center: center, width: w, height: h),
+      const Radius.circular(2),
+    );
+
+    // Drop shadow
+    canvas.drawRRect(
+      rect.shift(const Offset(0, 1.5)),
+      Paint()
+        ..color = Colors.black.withOpacity(0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+
+    // White pill
+    canvas.drawRRect(
+      rect,
+      Paint()..color = Colors.white,
+    );
+  }
+}
+
+// =============================================================================
+// 5. NOW PLAYING SCREEN
 // =============================================================================
 
 class NowPlayingScreen extends ConsumerStatefulWidget {
@@ -342,7 +506,7 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     with SingleTickerProviderStateMixin {
-  // ── Drag-to-dismiss state ────────────────────────────────────────────────
+  // ── Drag-to-dismiss ──────────────────────────────────────────────────────
   double _dragOffset = 0;
 
   // ── Sleep timer ──────────────────────────────────────────────────────────
@@ -350,17 +514,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   Timer? _sleepCountdownTimer;
   final ValueNotifier<int?> _sleepSeconds = ValueNotifier(null);
 
-  // ── Last-known song cache (keeps UI alive while queue swaps) ─────────────
+  // ── Last-known song cache ─────────────────────────────────────────────────
   Song?   _lastKnownSong;
   String? _lastKnownImageUrl;
 
-  // ── Palette / blob colors ─────────────────────────────────────────────────
-  // Initialised directly from PaletteCache so frame-1 already has the right
-  // colours — no fallback flash when navigating back to the same song.
+  // ── Palette ───────────────────────────────────────────────────────────────
   List<Color> _blobColors = PaletteCache.instance.colors;
-  String? _inflightSongId; // guards against stale async completions
-
-  // ── Lifecycle ────────────────────────────────────────────────────────────
+  String? _inflightSongId;
 
   @override
   void dispose() {
@@ -373,24 +533,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   // ── Palette extraction ───────────────────────────────────────────────────
 
   void _triggerPaletteExtraction(String songId, String imageUrl) {
-    // Cache hit — just sync local state if it somehow drifted
     if (PaletteCache.instance.hasColorsFor(songId)) {
       if (_blobColors != PaletteCache.instance.colors) {
         setState(() => _blobColors = PaletteCache.instance.colors);
       }
       return;
     }
-
-    // Already extracting for this song — don't launch a second future
     if (_inflightSongId == songId) return;
     _inflightSongId = songId;
-
-    // CRIT-2: Do NOT use compute() — PaletteGenerator needs the main isolate's
-    // Flutter engine. Direct call is fast; image is already in disk cache.
     _extractPaletteIsolate(imageUrl).then((ints) {
       if (!mounted || _inflightSongId != songId) return;
       final colors = _intsToColors(ints);
-      PaletteCache.instance.update(songId, colors); // persist across navigations
+      PaletteCache.instance.update(songId, colors);
       setState(() => _blobColors = colors);
     }).catchError((_) {
       _inflightSongId = null;
@@ -513,8 +667,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       : Colors.white54,
                 ),
                 title: Text(algo.name.toUpperCase(),
-                    style:
-                        const TextStyle(color: AppTheme.textPrimary)),
+                    style: const TextStyle(color: AppTheme.textPrimary)),
                 subtitle: Text(
                   algo == ShuffleAlgorithm.spotify
                       ? 'Balanced dithering (Artist spacing)'
@@ -577,7 +730,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         : _lastKnownImageUrl!;
     final cacheKey = 'cover_${song.coverArt ?? song.id}';
 
-    // Always trigger — PaletteCache guards against redundant extraction.
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) _triggerPaletteExtraction(song.id, imageUrl);
     });
@@ -605,11 +757,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           body: Stack(
             fit: StackFit.expand,
             children: [
-              // ── Background — always FluidBackground, cache gives correct
-              //    colors on frame 1 so there is no fallback flash. ──────────
+              // ── Background ────────────────────────────────────────────
               FluidBackground(colors: _blobColors),
 
-              // ── Foreground ──────────────────────────────────────────────
+              // ── Foreground ───────────────────────────────────────────
               SafeArea(
                 child: Column(
                   children: [
@@ -627,7 +778,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
-                    // ── Top bar: back + overflow ────────────────────────
+                    // ── Top bar ─────────────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(4, 4, 4, 0),
                       child: Row(
@@ -654,7 +805,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
-                    // ── Album art ───────────────────────────────────────
+                    // ── Album art ────────────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.symmetric(
                           horizontal: 28, vertical: 10),
@@ -677,7 +828,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                   ),
                                   if (_blobColors.length > 1)
                                     BoxShadow(
-                                      color: _blobColors[1].withOpacity(0.35),
+                                      color:
+                                          _blobColors[1].withOpacity(0.35),
                                       blurRadius: 60,
                                       offset: const Offset(0, 10),
                                     ),
@@ -709,7 +861,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
-                    // ── Song info + favourite ───────────────────────────
+                    // ── Song info + favourite ────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(32, 12, 24, 0),
                       child: Row(
@@ -727,8 +879,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                           text: song.title,
                                           style: const TextStyle(
                                               fontSize: 22,
-                                              fontWeight:
-                                                  FontWeight.w700,
+                                              fontWeight: FontWeight.w700,
                                               color: Colors.white,
                                               letterSpacing: -0.3),
                                           scrollAxis: Axis.horizontal,
@@ -739,8 +890,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                           song.title,
                                           style: const TextStyle(
                                               fontSize: 22,
-                                              fontWeight:
-                                                  FontWeight.w700,
+                                              fontWeight: FontWeight.w700,
                                               color: Colors.white,
                                               letterSpacing: -0.3),
                                           overflow:
@@ -797,7 +947,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
                     const SizedBox(height: 22),
 
-                    // ── Progress bar ────────────────────────────────────
+                    // ── Progress bar ─────────────────────────────────────
                     RepaintBoundary(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
@@ -831,21 +981,19 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
                     const SizedBox(height: 12),
 
-                    // ── Audio quality strip ─────────────────────────────
+                    // ── Audio quality strip ──────────────────────────────
                     _AudioQualityStrip(song: song),
 
                     const SizedBox(height: 36),
 
-                    // ── Transport controls ──────────────────────────────
+                    // ── Transport controls ───────────────────────────────
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
-                          // Shuffle (long-press → smart-shuffle dialog)
+                          // Shuffle
                           GestureDetector(
                             onLongPress: _showSmartShuffleDialog,
                             child: IconButton(
@@ -854,8 +1002,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                       ? AppTheme.spotifyGreen
                                       : Colors.white54,
                                   size: 26),
-                              onPressed: () =>
-                                  notifier.toggleShuffle(),
+                              onPressed: () => notifier.toggleShuffle(),
                             ),
                           ),
                           // Previous
@@ -925,14 +1072,19 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
 
+                    // ── Volume slider ────────────────────────────────────
+                    // Sits between transport controls and bottom action row,
+                    // exactly like Apple Music's layout.
+                    const SizedBox(height: 28),
+                    _VolumeSlider(player: notifier.player),
+
                     const Spacer(),
 
-                    // ── Bottom actions ──────────────────────────────────
+                    // ── Bottom actions ───────────────────────────────────
                     Padding(
                       padding: const EdgeInsets.fromLTRB(12, 0, 12, 28),
                       child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _BottomAction(
                             icon: _SoundBar(
@@ -958,7 +1110,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           ),
                           ValueListenableBuilder<int?>(
                             valueListenable: _sleepSeconds,
-                            builder: (_, remaining, __) => _BottomAction(
+                            builder: (_, remaining, __) =>
+                                _BottomAction(
                               icon: Icon(Icons.bedtime_outlined,
                                   color: remaining != null
                                       ? AppTheme.electricBlue
@@ -1002,7 +1155,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 }
 
 // =============================================================================
-// 5. QUEUE SCREEN
+// 6. QUEUE SCREEN
 // =============================================================================
 
 class QueueScreen extends ConsumerStatefulWidget {
@@ -1083,8 +1236,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                               return const SizedBox.shrink();
                             }
                             return TextButton(
-                              onPressed: () =>
-                                  notifier.clearHistory(),
+                              onPressed: () => notifier.clearHistory(),
                               child: const Text('Clear',
                                   style: TextStyle(
                                       color: Colors.redAccent,
@@ -1095,7 +1247,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                       ],
                     ),
                     const SizedBox(height: 8),
-                    // Tab bar
                     Container(
                       height: 38,
                       decoration: BoxDecoration(
@@ -1113,8 +1264,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                         labelColor: Colors.white,
                         unselectedLabelColor: Colors.white38,
                         labelStyle: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600),
+                            fontSize: 13, fontWeight: FontWeight.w600),
                         tabs: [
                           Tab(
                             child: Row(
@@ -1137,8 +1287,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                                 const Icon(Icons.history_rounded,
                                     size: 14),
                                 const SizedBox(width: 5),
-                                Text(
-                                    'History (${history.length})'),
+                                Text('History (${history.length})'),
                               ],
                             ),
                           ),
@@ -1150,18 +1299,15 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                 ),
               ),
 
-              // ── Now-playing strip ────────────────────────────────────
               if (currentSong != null) ...[
                 _NowPlayingStrip(song: currentSong, service: service),
                 const Divider(color: Colors.white10, height: 1),
               ],
 
-              // ── Tab content ──────────────────────────────────────────
               Expanded(
                 child: TabBarView(
                   controller: _tabs,
                   children: [
-                    // Up Next
                     upNext.isEmpty
                         ? const _EmptyTab(
                             icon: Icons.queue_music_rounded,
@@ -1208,8 +1354,6 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                               );
                             },
                           ),
-
-                    // History
                     history.isEmpty
                         ? const _EmptyTab(
                             icon: Icons.history_rounded,
@@ -1252,12 +1396,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
 }
 
 // =============================================================================
-// 6. QUEUE SCREEN SUB-WIDGETS
-//    _NowPlayingStrip  –  currently-playing row inside the queue sheet
-//    _MiniSoundBars    –  small animated equalizer for the strip
-//    _QueueTile        –  draggable / dismissible "up next" row
-//    _HistoryTile      –  history row with "last played" badge
-//    _EmptyTab         –  placeholder shown when a tab list is empty
+// 7. QUEUE SCREEN SUB-WIDGETS
 // =============================================================================
 
 class _NowPlayingStrip extends StatelessWidget {
@@ -1360,8 +1499,7 @@ class _MiniSoundBarsState extends State<_MiniSoundBars>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(3, (i) {
               final t =
-                  (math.sin(_ctrl.value * math.pi * 2 + _phases[i]) + 1) /
-                      2;
+                  (math.sin(_ctrl.value * math.pi * 2 + _phases[i]) + 1) / 2;
               return Container(
                 width: 2.5,
                 height: (3 + t * 11).toDouble(),
@@ -1517,8 +1655,7 @@ class _HistoryTile extends StatelessWidget {
                   ? Colors.white
                   : Colors.white.withOpacity(0.72),
               fontSize: 14,
-              fontWeight:
-                  isNewest ? FontWeight.w600 : FontWeight.w400)),
+              fontWeight: isNewest ? FontWeight.w600 : FontWeight.w400)),
       subtitle: Text(song.artist,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,

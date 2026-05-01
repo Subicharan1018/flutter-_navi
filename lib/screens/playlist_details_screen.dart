@@ -22,7 +22,7 @@ import 'edit_playlist_screen.dart';
 Future<Color?> _extractPlaylistPalette(String imageUrl) async {
   try {
     final palette = await PaletteGenerator.fromImageProvider(
-      NetworkImage(imageUrl),
+      CachedNetworkImageProvider(imageUrl),
       size: const Size(100, 100),
     );
     return palette.vibrantColor?.color ?? palette.dominantColor?.color;
@@ -49,7 +49,7 @@ class _PlaylistDetailsScreenState
   List<Song> _filteredSongs = [];
   bool _isLoading = true;
   bool _hasError = false;
-  Color _vibrantColor = AppTheme.surfaceLevel;
+  Color? _vibrantColorOverride;
   String _coverImageUrl = '';
   String _coverCacheKey = '';
 
@@ -122,21 +122,20 @@ class _PlaylistDetailsScreenState
     final cacheKey = 'cover_$coverArtId';
 
     // Only re-extract palette when the cover art actually changes.
-    Color vibrant = _vibrantColor;
+    Color? vibrant = _vibrantColorOverride;
     // CRIT-2: Do NOT use compute() here. PaletteGenerator.fromImageProvider
     // calls Flutter's image codec which requires the main-isolate Flutter engine.
     // compute() spawns a bare Dart isolate (no Flutter engine) → hangs or crashes.
     // Direct call is safe: the image is already cached by CachedNetworkImage.
     if (imageUrl != _coverImageUrl) {
-      final color = await _extractPlaylistPalette(imageUrl);
-      vibrant = color ?? AppTheme.surfaceLevel;
+      vibrant = await _extractPlaylistPalette(imageUrl);
     }
 
     if (!mounted) return;
     setState(() {
       _coverImageUrl = imageUrl;
       _coverCacheKey = cacheKey;
-      _vibrantColor = vibrant;
+      _vibrantColorOverride = vibrant;
     });
   }
 
@@ -263,8 +262,11 @@ class _PlaylistDetailsScreenState
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    final vibrantColor = _vibrantColorOverride ?? tokens.bgSurface;
+
     return Scaffold(
-      backgroundColor: AppTheme.coreBackground,
+      backgroundColor: tokens.bgBase,
       body: Stack(
         children: [
           CustomScrollView(
@@ -276,7 +278,7 @@ class _PlaylistDetailsScreenState
                 expandedHeight: 460,
                 pinned: true,
                 stretch: true,
-                backgroundColor: AppTheme.coreBackground,
+                backgroundColor: tokens.bgBase,
                 surfaceTintColor: Colors.transparent,
                 elevation: 0,
                 leading: Padding(
@@ -298,7 +300,7 @@ class _PlaylistDetailsScreenState
                           playlist: widget.playlist,
                           coverImageUrl: _coverImageUrl,
                           coverCacheKey: _coverCacheKey,
-                          vibrantColor: _vibrantColor,
+                          vibrantColor: vibrantColor,
                           songCount: _songs.length,
                           totalDuration: _formatDuration(_totalDurationSeconds),
                           onPlayAll: () => _playAll(),
@@ -345,8 +347,8 @@ class _PlaylistDetailsScreenState
                       if (!_isLoading)
                         Text(
                           '${_songs.length} songs • ${_formatDuration(_totalDurationSeconds)}',
-                          style: const TextStyle(
-                              color: AppTheme.textMuted, fontSize: 13),
+                          style: TextStyle(
+                              color: tokens.textMuted, fontSize: 13),
                         ).animate().fadeIn(duration: 300.ms),
                       const SizedBox(height: 12),
                       _SearchField(controller: _searchController),
@@ -391,20 +393,20 @@ class _PlaylistDetailsScreenState
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        const Icon(Icons.wifi_off_rounded,
-                            color: AppTheme.textMuted, size: 48),
+                        Icon(Icons.wifi_off_rounded,
+                            color: tokens.textMuted, size: 48),
                         const SizedBox(height: 12),
-                        const Text('Could not load songs',
-                            style: TextStyle(color: AppTheme.textSecondary)),
+                        Text('Could not load songs',
+                            style: TextStyle(color: tokens.textSecondary)),
                         const SizedBox(height: 16),
                         TextButton(
                           onPressed: () {
                             setState(() => _isLoading = true);
                             _loadSongs();
                           },
-                          child: const Text('Retry',
+                          child: Text('Retry',
                               style:
-                                  TextStyle(color: AppTheme.electricBlue)),
+                                  TextStyle(color: tokens.accent)),
                         ),
                       ],
                     ),
@@ -412,10 +414,10 @@ class _PlaylistDetailsScreenState
                 )
               else if (_filteredSongs.isEmpty &&
                   _searchController.text.isNotEmpty)
-                const SliverFillRemaining(
+                SliverFillRemaining(
                   child: Center(
                     child: Text('No songs match your search',
-                        style: TextStyle(color: AppTheme.textMuted)),
+                        style: TextStyle(color: tokens.textMuted)),
                   ),
                 )
               else
@@ -545,9 +547,10 @@ class _PlaylistDetailsScreenState
   // Playlist options bottom sheet
   // ---------------------------------------------------------------------------
   void _showPlaylistMenu() {
+    final tokens = ThemeTokens.of(context);
     showModalBottomSheet(
       context: context,
-      backgroundColor: AppTheme.surfaceLevel,
+      backgroundColor: tokens.bgSurface,
       shape: const RoundedRectangleBorder(
           borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (ctx) => SafeArea(
@@ -559,14 +562,14 @@ class _PlaylistDetailsScreenState
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                  color: AppTheme.outlineColor,
+                  color: tokens.outline,
                   borderRadius: BorderRadius.circular(2)),
             ),
             const SizedBox(height: 8),
             ListTile(
-              leading: const Icon(Icons.edit_rounded, color: AppTheme.textPrimary),
-              title: const Text('Edit Playlist',
-                  style: TextStyle(color: AppTheme.textPrimary, fontSize: 15)),
+              leading: Icon(Icons.edit_rounded, color: tokens.textPrimary),
+              title: Text('Edit Playlist',
+                  style: TextStyle(color: tokens.textPrimary, fontSize: 15)),
               onTap: () async {
                 Navigator.pop(ctx);
                 final changed = await Navigator.push(
@@ -610,14 +613,15 @@ class _CollapsedTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     // FlexibleSpaceBar handles the opacity transition internally when pinned.
     // We just supply the styled text; no manual LayoutBuilder math needed.
     return Text(
       title,
       maxLines: 1,
       overflow: TextOverflow.ellipsis,
-      style: const TextStyle(
-        color: AppTheme.textPrimary,
+      style: TextStyle(
+        color: tokens.textPrimary,
         fontSize: 16,
         fontWeight: FontWeight.w600,
         letterSpacing: -0.2,
@@ -652,6 +656,7 @@ class _SongListSkeleton extends StatelessWidget {
 class _SkeletonTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
@@ -660,7 +665,7 @@ class _SkeletonTile extends StatelessWidget {
             width: 48,
             height: 48,
             decoration: BoxDecoration(
-              color: AppTheme.surfaceLevel,
+              color: tokens.bgSurface,
               borderRadius: BorderRadius.circular(4),
             ),
           ),
@@ -673,7 +678,7 @@ class _SkeletonTile extends StatelessWidget {
                   height: 13,
                   width: double.infinity,
                   decoration: BoxDecoration(
-                    color: AppTheme.surfaceLevel,
+                    color: tokens.bgSurface,
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -682,7 +687,7 @@ class _SkeletonTile extends StatelessWidget {
                   height: 11,
                   width: 120,
                   decoration: BoxDecoration(
-                    color: AppTheme.surfaceLevel.withOpacity(0.6),
+                    color: tokens.bgSurface.withOpacity(0.6),
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -704,8 +709,9 @@ class _LoadingHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Container(
-      decoration: const BoxDecoration(color: AppTheme.coreBackground),
+      decoration: BoxDecoration(color: tokens.bgBase),
       child: SafeArea(
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -715,7 +721,7 @@ class _LoadingHeader extends StatelessWidget {
               width: 180,
               height: 180,
               decoration: BoxDecoration(
-                color: AppTheme.surfaceLevel,
+                color: tokens.bgSurface,
                 borderRadius: BorderRadius.circular(16),
               ),
             )
@@ -728,7 +734,7 @@ class _LoadingHeader extends StatelessWidget {
               width: 160,
               height: 20,
               decoration: BoxDecoration(
-                color: AppTheme.surfaceLevel,
+                color: tokens.bgSurface,
                 borderRadius: BorderRadius.circular(8),
               ),
             )
@@ -771,6 +777,7 @@ class _ExpandedHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final double topPadding =
         MediaQuery.of(context).padding.top + kToolbarHeight;
+    final tokens = ThemeTokens.of(context);
 
     return Stack(
       fit: StackFit.expand,
@@ -795,7 +802,7 @@ class _ExpandedHeader extends StatelessWidget {
             ),
           ),
 
-        // ── Gradient scrim (top tint → transparent → coreBackground)
+        // ── Gradient scrim (top tint → transparent → bgBase)
         Positioned.fill(
           child: DecoratedBox(
             decoration: BoxDecoration(
@@ -806,8 +813,8 @@ class _ExpandedHeader extends StatelessWidget {
                 colors: [
                   vibrantColor.withOpacity(0.55),
                   vibrantColor.withOpacity(0.08),
-                  AppTheme.coreBackground.withOpacity(0.8),
-                  AppTheme.coreBackground,
+                  tokens.bgBase.withOpacity(0.8),
+                  tokens.bgBase,
                 ],
               ),
             ),
@@ -834,7 +841,7 @@ class _ExpandedHeader extends StatelessWidget {
                       spreadRadius: 2,
                       offset: const Offset(0, 12),
                     ),
-                    if (vibrantColor != AppTheme.surfaceLevel)
+                    if (vibrantColor != tokens.bgSurface)
                       BoxShadow(
                         color: vibrantColor.withOpacity(0.28),
                         blurRadius: 48,
@@ -850,18 +857,18 @@ class _ExpandedHeader extends StatelessWidget {
                           cacheKey: coverCacheKey, // ← stable key
                           fit: BoxFit.cover,
                           placeholder: (_, __) => Container(
-                              color: AppTheme.surfaceLevel,
-                              child: const Icon(Icons.music_note_rounded,
-                                  size: 72, color: AppTheme.textMuted)),
+                              color: tokens.bgSurface,
+                              child: Icon(Icons.music_note_rounded,
+                                  size: 72, color: tokens.textMuted)),
                           errorWidget: (_, __, ___) => Container(
-                              color: AppTheme.surfaceLevel,
-                              child: const Icon(Icons.music_note_rounded,
-                                  size: 72, color: AppTheme.textMuted)),
+                              color: tokens.bgSurface,
+                              child: Icon(Icons.music_note_rounded,
+                                  size: 72, color: tokens.textMuted)),
                         )
                       : Container(
-                          color: AppTheme.surfaceLevel,
-                          child: const Icon(Icons.music_note_rounded,
-                              size: 72, color: AppTheme.textMuted)),
+                          color: tokens.bgSurface,
+                          child: Icon(Icons.music_note_rounded,
+                              size: 72, color: tokens.textMuted)),
                 ),
               ),
               const SizedBox(height: 20),
@@ -874,10 +881,10 @@ class _ExpandedHeader extends StatelessWidget {
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 26,
                     fontWeight: FontWeight.bold,
-                    color: AppTheme.textPrimary,
+                    color: tokens.textPrimary,
                     letterSpacing: -0.5,
                     height: 1.15,
                   ),
@@ -888,9 +895,9 @@ class _ExpandedHeader extends StatelessWidget {
               // Subtitle — song count + duration (real data, no hardcoded strings)
               Text(
                 '$songCount songs • $totalDuration',
-                style: const TextStyle(
+                style: TextStyle(
                   fontSize: 13,
-                  color: AppTheme.textSecondary,
+                  color: tokens.textSecondary,
                   fontWeight: FontWeight.w400,
                 ),
               ),
@@ -905,8 +912,8 @@ class _ExpandedHeader extends StatelessWidget {
                     size: 52,
                     onTap: onShuffleAll,
                     filled: false,
-                    child: const Icon(Icons.shuffle_rounded,
-                        color: AppTheme.textPrimary, size: 22),
+                    child: Icon(Icons.shuffle_rounded,
+                        color: tokens.textPrimary, size: 22),
                   ),
                   const SizedBox(width: 20),
 
@@ -925,8 +932,8 @@ class _ExpandedHeader extends StatelessWidget {
                     size: 52,
                     onTap: () {},
                     filled: false,
-                    child: const Icon(Icons.queue_music_rounded,
-                        color: AppTheme.textPrimary, size: 22),
+                    child: Icon(Icons.queue_music_rounded,
+                        color: tokens.textPrimary, size: 22),
                   ),
                 ],
               ),
@@ -956,6 +963,7 @@ class _HeaderButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -974,7 +982,7 @@ class _HeaderButton extends StatelessWidget {
           border: filled
               ? null
               : Border.all(
-                  color: AppTheme.textPrimary.withOpacity(0.55),
+                  color: tokens.textPrimary.withOpacity(0.55),
                   width: 1.5,
                 ),
           boxShadow: filled
@@ -1025,6 +1033,7 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return ValueListenableBuilder<TextEditingValue>(
       valueListenable: controller,
       builder: (context, value, _) {
@@ -1032,37 +1041,37 @@ class _SearchField extends StatelessWidget {
           borderRadius: BorderRadius.circular(12),
           child: TextField(
             controller: controller,
-            style: const TextStyle(color: AppTheme.textPrimary, fontSize: 15),
-            cursorColor: AppTheme.electricBlue,
+            style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+            cursorColor: tokens.accent,
             decoration: InputDecoration(
               hintText: 'Search in playlist',
               hintStyle: TextStyle(
-                  color: AppTheme.textMuted.withOpacity(0.6), fontSize: 15),
-              prefixIcon: const Icon(Icons.search_rounded,
-                  color: AppTheme.textMuted, size: 18),
+                  color: tokens.textMuted.withOpacity(0.6), fontSize: 15),
+              prefixIcon: Icon(Icons.search_rounded,
+                  color: tokens.textMuted, size: 18),
               suffixIcon: value.text.isNotEmpty
                   ? GestureDetector(
                       onTap: () => controller.clear(),
-                      child: const Icon(Icons.cancel_rounded,
-                          color: AppTheme.textMuted, size: 18),
+                      child: Icon(Icons.cancel_rounded,
+                          color: tokens.textMuted, size: 18),
                     )
                   : null,
               filled: true,
-              fillColor: AppTheme.surfaceLevel.withOpacity(0.55),
+              fillColor: tokens.bgSurface.withOpacity(0.55),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: AppTheme.outlineColor.withOpacity(0.25), width: 0.5),
+                    color: tokens.outline.withOpacity(0.25), width: 0.5),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: AppTheme.outlineColor.withOpacity(0.25), width: 0.5),
+                    color: tokens.outline.withOpacity(0.25), width: 0.5),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: AppTheme.electricBlue.withOpacity(0.55), width: 1),
+                    color: tokens.accent.withOpacity(0.55), width: 1),
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
@@ -1082,6 +1091,7 @@ class _AddSongsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return GestureDetector(
       onTap: onTap,
       behavior: HitTestBehavior.opaque,
@@ -1099,10 +1109,10 @@ class _AddSongsRow extends StatelessWidget {
             child: const Icon(Icons.add_rounded, color: Colors.green, size: 24),
           ),
           const SizedBox(width: 14),
-          const Text(
+          Text(
             'Add Songs',
             style: TextStyle(
-              color: AppTheme.textPrimary,
+              color: tokens.textPrimary,
               fontSize: 15,
               fontWeight: FontWeight.w500,
             ),
@@ -1129,6 +1139,7 @@ class _CircleIconButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return GestureDetector(
       onTap: onTap,
       child: Container(
@@ -1136,9 +1147,9 @@ class _CircleIconButton extends StatelessWidget {
         height: 36,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: AppTheme.surfaceLevel.withOpacity(0.55),
+          color: tokens.bgSurface.withOpacity(0.55),
         ),
-        child: Icon(icon, color: AppTheme.textPrimary, size: size),
+        child: Icon(icon, color: tokens.textPrimary, size: size),
       ),
     );
   }

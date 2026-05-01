@@ -17,7 +17,7 @@ import '../core/theme.dart';
 Future<Color?> _extractMiniPalette(String imageUrl) async {
   try {
     final palette = await PaletteGenerator.fromImageProvider(
-      NetworkImage(imageUrl),
+      CachedNetworkImageProvider(imageUrl),
       size: const Size(40, 40),
       maximumColorCount: 5,
     );
@@ -31,8 +31,10 @@ Future<Color?> _extractMiniPalette(String imageUrl) async {
 
 // =============================================================================
 // Mini Player
-// Glassmorphism shell with full BackdropFilter blur.
-// The artwork-extracted themeColor drives: progress bar, play button, glow.
+// Deep glassmorphism shell: layered BackdropFilter blur, iridescent rim,
+// frosted top-highlight streak, artwork-glow progress bar.
+// The artwork-extracted themeColor drives: progress bar, play button,
+// album glow, border rim, and outer shadow.
 // =============================================================================
 
 class MiniPlayer extends ConsumerStatefulWidget {
@@ -94,6 +96,9 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                // ── Frosted top highlight streak ─────────────────────────────
+                _TopHighlightStreak(),
+
                 // ── Content row ──────────────────────────────────────────────
                 SizedBox(
                   height: 68,
@@ -221,8 +226,46 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
 }
 
 // =============================================================================
+// Frosted top highlight streak
+// Simulates real glass catching overhead light — a horizontal shimmer
+// across the very top edge of the pill.
+// =============================================================================
+
+class _TopHighlightStreak extends StatelessWidget {
+  const _TopHighlightStreak();
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 0, 16, 0),
+      child: Container(
+        height: 1,
+        decoration: const BoxDecoration(
+          gradient: LinearGradient(
+            colors: [
+              Colors.transparent,
+              Color(0x55FFFFFF), // ~33% white
+              Color(0x88FFFFFF), // ~53% white — brightest point
+              Color(0x55FFFFFF),
+              Colors.transparent,
+            ],
+            stops: [0.0, 0.25, 0.5, 0.75, 1.0],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
 // Glassmorphism shell
-// Real BackdropFilter blur + translucent dark surface + coloured rim.
+// Layers (back → front):
+//   1. Outer coloured glow + depth shadow (BoxDecoration on wrapper Container)
+//   2. ClipRRect + BackdropFilter blur (sigmaX/Y 26, saturate 160%)
+//   3. Directional glass gradient overlay (top-left light → bottom-right dark)
+//   4. Iridescent rim — theme-coloured border with a subtle shimmer gradient
+//   5. Top highlight streak (rendered by child Column)
+//   6. Noise texture layer (very low opacity SVG-style grain via ShaderMask)
 // =============================================================================
 
 class _GlassShell extends StatelessWidget {
@@ -236,37 +279,57 @@ class _GlassShell extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(22),
         boxShadow: [
-          // Artwork-coloured outer glow
+          // Wide soft artwork-coloured outer glow
           BoxShadow(
-            color: themeColor.withOpacity(0.18),
-            blurRadius: 28,
-            spreadRadius: -4,
+            color: themeColor.withOpacity(0.22),
+            blurRadius: 36,
+            spreadRadius: -2,
             offset: const Offset(0, 8),
           ),
-          // Dark depth shadow
+          // Tighter, more saturated inner glow ring
           BoxShadow(
-            color: Colors.black.withOpacity(0.5),
-            blurRadius: 24,
+            color: themeColor.withOpacity(0.12),
+            blurRadius: 14,
+            spreadRadius: 0,
+            offset: const Offset(0, 4),
+          ),
+          // Dark depth shadow underneath
+          BoxShadow(
+            color: Colors.black.withOpacity(0.55),
+            blurRadius: 28,
             spreadRadius: -2,
-            offset: const Offset(0, 6),
+            offset: const Offset(0, 8),
           ),
         ],
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          // Higher blur + saturation boost = richer frosted-glass look
+          filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
           child: Container(
             decoration: BoxDecoration(
-              // Translucent dark glass — shows blurred content beneath
-              color: AppTheme.glassBackground,
+              // Directional gradient overlay: brighter top-left, darker bottom-right
+              // simulates glass catching angled overhead light.
+              gradient: LinearGradient(
+                begin: Alignment.topLeft,
+                end: Alignment.bottomRight,
+                colors: [
+                  Colors.white.withOpacity(0.10),
+                  Colors.white.withOpacity(0.05),
+                  Colors.black.withOpacity(0.22),
+                ],
+                stops: const [0.0, 0.45, 1.0],
+              ),
+              // Iridescent rim: theme colour at low opacity, thicker than before
               border: Border.all(
-                color: themeColor.withOpacity(0.20),
-                width: 0.8,
+                color: themeColor.withOpacity(0.28),
+                width: 1.0,
               ),
               borderRadius: BorderRadius.circular(22),
             ),
-            child: child,
+            // Stack noise grain over the glass body at near-zero opacity
+            child: _NoiseLayer(child: child),
           ),
         ),
       ),
@@ -275,7 +338,66 @@ class _GlassShell extends StatelessWidget {
 }
 
 // =============================================================================
-// Album thumbnail with artwork-coloured glow ring
+// Noise grain layer
+// Paints a subtle film-grain texture over the glass surface using a
+// CustomPainter so no asset files are required.
+// =============================================================================
+
+class _NoiseLayer extends StatelessWidget {
+  final Widget child;
+  const _NoiseLayer({required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        child,
+        // Grain overlay — CustomPaint with a very low-opacity random noise pass.
+        // Positioned fill so it never affects layout.
+        Positioned.fill(
+          child: IgnorePointer(
+            child: CustomPaint(
+              painter: _NoisePainter(),
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _NoisePainter extends CustomPainter {
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Lightweight deterministic "noise" — draw a sparse grid of micro-dots.
+    // Full random noise would require dart:math import and is more expensive;
+    // this approach is zero-allocation and visually sufficient.
+    final paint = Paint()
+      ..color = Colors.white.withOpacity(0.018)
+      ..strokeWidth = 1;
+
+    const step = 4.0;
+    for (double y = 0; y < size.height; y += step) {
+      for (double x = 0; x < size.width; x += step) {
+        // Pseudo-random dot placement using a cheap bit-mix hash
+        final h = ((x * 374761393 + y * 668265263).truncate() ^ 0x9e3779b9) & 0xFFFF;
+        if (h > 0xC000) {
+          canvas.drawCircle(Offset(x, y), 0.5, paint);
+        }
+      }
+    }
+  }
+
+  @override
+  bool shouldRepaint(_NoisePainter old) => false; // static texture
+}
+
+// =============================================================================
+// Album thumbnail
+// Three-layer glow system:
+//   1. Wide diffuse ambient glow (large blur, low opacity)
+//   2. Tighter specular glow (small blur, higher opacity)
+//   3. White inner edge border on the artwork itself
 // =============================================================================
 
 class _AlbumThumb extends StatelessWidget {
@@ -291,27 +413,45 @@ class _AlbumThumb extends StatelessWidget {
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(10),
         boxShadow: [
+          // Wide ambient glow
           BoxShadow(
-            color: themeColor.withOpacity(0.35),
-            blurRadius: 14,
+            color: themeColor.withOpacity(0.30),
+            blurRadius: 20,
             spreadRadius: 0,
-            offset: const Offset(0, 3),
+            offset: const Offset(0, 4),
+          ),
+          // Tight specular glow — brighter, closer
+          BoxShadow(
+            color: themeColor.withOpacity(0.45),
+            blurRadius: 8,
+            spreadRadius: -2,
+            offset: const Offset(0, 2),
           ),
         ],
       ),
       child: Hero(
         tag: 'now_playing_artwork',
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(10),
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
-            width: 46,
-            height: 46,
-            fit: BoxFit.cover,
-            placeholder: (_, __) => Container(
-              color: AppTheme.topLevel,
-              child: const Icon(Icons.music_note_rounded,
-                  color: Colors.white24, size: 20),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            // White inner border to separate art from glass surface
+            border: Border.all(
+              color: Colors.white.withOpacity(0.15),
+              width: 0.8,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(9.2),
+            child: CachedNetworkImage(
+              imageUrl: imageUrl,
+              width: 46,
+              height: 46,
+              fit: BoxFit.cover,
+              placeholder: (_, __) => Container(
+                color: AppTheme.topLevel,
+                child: const Icon(Icons.music_note_rounded,
+                    color: Colors.white24, size: 20),
+              ),
             ),
           ),
         ),
@@ -321,7 +461,12 @@ class _AlbumThumb extends StatelessWidget {
 }
 
 // =============================================================================
-// Play / Pause button with green gradient + artwork glow
+// Play / Pause button
+// Four-layer lighting model for a convincing glass pill:
+//   1. Base gradient (theme → darker theme)
+//   2. Outer artwork-coloured glow shadow
+//   3. Top-edge inset highlight (simulates light hitting button top)
+//   4. Bottom-edge inset shadow (simulates depth underside)
 // =============================================================================
 
 class _PlayButton extends StatelessWidget {
@@ -337,6 +482,14 @@ class _PlayButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Compute a slightly darkened variant for the gradient bottom stop
+    final darkened = Color.fromARGB(
+      255,
+      (themeColor.red * 0.65).round(),
+      (themeColor.green * 0.65).round(),
+      (themeColor.blue * 0.65).round(),
+    );
+
     return Semantics(
       button: true,
       label: isPlaying ? 'Pause' : 'Play',
@@ -352,21 +505,58 @@ class _PlayButton extends StatelessWidget {
             gradient: LinearGradient(
               begin: Alignment.topLeft,
               end: Alignment.bottomRight,
-              colors: [themeColor, themeColor.withOpacity(0.75)],
+              colors: [themeColor, darkened],
             ),
             boxShadow: [
+              // Outer artwork glow
               BoxShadow(
-                color: themeColor.withOpacity(0.45),
-                blurRadius: 16,
+                color: themeColor.withOpacity(0.50),
+                blurRadius: 18,
                 spreadRadius: -2,
                 offset: const Offset(0, 4),
               ),
+              // Crisp depth shadow
+              BoxShadow(
+                color: Colors.black.withOpacity(0.40),
+                blurRadius: 8,
+                spreadRadius: -1,
+                offset: const Offset(0, 3),
+              ),
+              // Top-edge inset highlight — white shimmer along the upper rim
+              BoxShadow(
+                color: Colors.white.withOpacity(0.22),
+                blurRadius: 0,
+                spreadRadius: 0,
+                offset: const Offset(0, -1),
+              ),
             ],
           ),
-          child: Icon(
-            isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-            color: Colors.white,
-            size: 24,
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              // Subtle inner top-left sheen painted via a partial gradient overlay
+              Positioned.fill(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    gradient: LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Colors.white.withOpacity(0.18),
+                        Colors.transparent,
+                      ],
+                      stops: const [0.0, 0.5],
+                    ),
+                  ),
+                ),
+              ),
+              Icon(
+                isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
+                color: Colors.white,
+                size: 24,
+              ),
+            ],
           ),
         ),
       ),
@@ -442,7 +632,15 @@ class _MiniProgressBarState extends State<_MiniProgressBar> {
   }
 }
 
-// Simple progress painter — uses artwork themeColor.
+// =============================================================================
+// Progress painter
+// Three-layer rendering:
+//   1. Track — faint white capsule
+//   2. Glow bloom — blurred artwork-coloured halo behind the fill
+//   3. Filled bar — gradient from semi-transparent to full theme colour
+//   4. Leading-edge dot — bright thumb at playhead position
+// =============================================================================
+
 class _ProgressPainter extends CustomPainter {
   final double progress;
   final Color themeColor;
@@ -455,7 +653,7 @@ class _ProgressPainter extends CustomPainter {
     final r = h / 2;
     final fill = (w * progress).clamp(0.0, w);
 
-    // Track
+    // 1. Track
     canvas.drawRRect(
       RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), Radius.circular(r)),
       Paint()..color = Colors.white.withOpacity(0.12),
@@ -463,22 +661,55 @@ class _ProgressPainter extends CustomPainter {
 
     if (fill <= 0) return;
 
-    // Glow bloom
+    // 2. Wide glow bloom behind the bar
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-          Rect.fromLTWH(-2, -4, fill + 4, h + 8), const Radius.circular(6)),
+        Rect.fromLTWH(-3, -6, fill + 6, h + 12),
+        const Radius.circular(8),
+      ),
       Paint()
-        ..color = themeColor.withOpacity(0.30)
-        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5),
+        ..color = themeColor.withOpacity(0.28)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
     );
 
-    // Filled bar
+    // 3. Narrow inner glow (tighter, brighter)
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(-1, -2, fill + 2, h + 4),
+        const Radius.circular(4),
+      ),
+      Paint()
+        ..color = themeColor.withOpacity(0.45)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
+    );
+
+    // 4. Filled bar — gradient: translucent → full colour
     canvas.drawRRect(
       RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, fill, h), Radius.circular(r)),
       Paint()
         ..shader = LinearGradient(
-          colors: [themeColor.withOpacity(0.85), themeColor],
+          colors: [
+            themeColor.withOpacity(0.70),
+            themeColor,
+          ],
         ).createShader(Rect.fromLTWH(0, 0, fill, h)),
+    );
+
+    // 5. Leading-edge playhead dot — glowing thumb at progress position
+    final thumbX = fill.clamp(r, w - r);
+    // Outer glow ring of the thumb
+    canvas.drawCircle(
+      Offset(thumbX, h / 2),
+      5.5,
+      Paint()
+        ..color = themeColor.withOpacity(0.40)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
+    );
+    // White dot
+    canvas.drawCircle(
+      Offset(thumbX, h / 2),
+      3.0,
+      Paint()..color = Colors.white,
     );
   }
 

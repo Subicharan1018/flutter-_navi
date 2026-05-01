@@ -59,17 +59,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final monthlyAsync      = ref.watch(monthlyReplayProvider);
     final weeklyAsync       = ref.watch(weeklyReplayProvider);
     final topPad            = MediaQuery.of(context).padding.top;
+    final tokens            = ThemeTokens.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: tokens.isLight ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
       child: Scaffold(
-        backgroundColor: AppTheme.coreBackground,
+        backgroundColor: tokens.bgBase,
         body: Stack(
           children: [
             // ── Main scroll ───────────────────────────────────────────────────
             RefreshIndicator(
-              color: AppTheme.spotifyGreen,
-              backgroundColor: AppTheme.surfaceLevel,
+              color: tokens.accent,
+              backgroundColor: tokens.bgSurface,
               displacement: topPad + 56,
               onRefresh: () async {
                 ref.invalidate(playlistsProvider);
@@ -245,11 +246,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                         child: Container(
                           height: topPad + 50,
-                          color: AppTheme.coreBackground.withOpacity(0.90),
+                          color: tokens.bgBase.withOpacity(0.90),
                           padding: EdgeInsets.fromLTRB(20, topPad + 10, 20, 0),
                           child: Row(
                             children: [
-                              Text('Home', style: AppTheme.headingSm),
+                              Text('Home', style: tokens.headingSm),
                               const Spacer(),
                               _TopBarIcon(
                                 icon: Icons.settings_outlined,
@@ -285,6 +286,7 @@ class _HomeHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Padding(
       padding: EdgeInsets.fromLTRB(20, topPad + 20, 20, 8),
       child: Row(
@@ -296,10 +298,10 @@ class _HomeHeader extends StatelessWidget {
               children: [
                 Text(
                   greeting.toUpperCase(),
-                  style: AppTheme.labelMd,
+                  style: tokens.labelMd,
                 ),
                 const SizedBox(height: 6),
-                Text('Home', style: AppTheme.headingLg),
+                Text('Home', style: tokens.headingLg),
               ],
             ),
           ),
@@ -346,6 +348,7 @@ class _ExploreCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Semantics(
       button: true,
       label: title.replaceAll('\n', ' '),
@@ -381,10 +384,10 @@ class _ExploreCard extends StatelessWidget {
                         )),
                     const SizedBox(height: 4),
                     Text(title,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 18,
                           fontWeight: FontWeight.w700,
-                          color: AppTheme.textPrimary,
+                          color: tokens.textPrimary,
                           height: 1.15,
                         )),
                   ],
@@ -471,6 +474,7 @@ class _QuickTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final svc = ref.watch(subsonicServiceProvider);
+    final tokens = ThemeTokens.of(context);
 
     return Semantics(
       button: true,
@@ -480,7 +484,7 @@ class _QuickTile extends ConsumerWidget {
         child: Container(
           height: 56,
           decoration: BoxDecoration(
-            color: AppTheme.cardSurface,
+            color: tokens.bgSurface,
             borderRadius: BorderRadius.circular(10),
             border: Border.all(color: _ac.withOpacity(0.12), width: 0.7),
           ),
@@ -512,10 +516,10 @@ class _QuickTile extends ConsumerWidget {
                   playlist.name,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style: const TextStyle(
+                  style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w600,
-                    color: AppTheme.textPrimary,
+                    color: tokens.textPrimary,
                   ),
                 ),
               ),
@@ -552,13 +556,14 @@ class _ReplaySongReel extends ConsumerWidget {
   Future<void> _playSong(BuildContext context, WidgetRef ref, ReplaySong song) async {
     try {
       final svc = ref.read(subsonicServiceProvider);
-      final searchResult = await svc.search(song.title);
-      final results = searchResult['songs'] as List<Song>? ?? [];
-      final match = results.where((s) => s.id == song.songId).firstOrNull;
-      if (match != null && context.mounted) {
-        ref.read(playerProvider.notifier).setQueue([match], 0);
-      } else if (results.isNotEmpty && context.mounted) {
-        ref.read(playerProvider.notifier).setQueue([results.first], 0);
+      final songIds = data.songs.map((s) => s.songId).toList();
+      final songs = await svc.getSongs(songIds);
+      
+      if (context.mounted && songs.isNotEmpty) {
+        int adjustedIndex = 0;
+        final match = songs.indexWhere((s) => s.id == song.songId);
+        if (match != -1) adjustedIndex = match;
+        ref.read(playerProvider.notifier).setQueue(songs, adjustedIndex);
       }
     } catch (e) {
       if (context.mounted) {
@@ -602,6 +607,7 @@ class _ReplayCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final svc = ref.watch(subsonicServiceProvider);
+    final tokens = ThemeTokens.of(context);
     final coverUrl = song.coverArtId != null
         ? svc.getCoverArtUrl(song.coverArtId!)
         : null;
@@ -614,9 +620,9 @@ class _ReplayCard extends ConsumerWidget {
         child: Container(
           width: 130,
           decoration: BoxDecoration(
-            color: AppTheme.cardSurface,
+            color: tokens.bgSurface,
             borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: AppTheme.outlineColor, width: 0.7),
+            border: Border.all(color: tokens.outline, width: 0.7),
           ),
           clipBehavior: Clip.hardEdge,
           child: Column(
@@ -634,11 +640,11 @@ class _ReplayCard extends ConsumerWidget {
                         imageUrl: coverUrl,
                         cacheKey: 'replay_${song.songId}',
                         fit: BoxFit.cover,
-                        placeholder: (_, __) => _artGradient(),
-                        errorWidget: (_, __, ___) => _artGradient(),
+                        placeholder: (_, __) => _artGradient(tokens),
+                        errorWidget: (_, __, ___) => _artGradient(tokens),
                       )
                     else
-                      _artGradient(),
+                      _artGradient(tokens),
                     // Rank badge
                     Positioned(
                       top: 6, left: 8,
@@ -665,10 +671,10 @@ class _ReplayCard extends ConsumerWidget {
                         width: 28, height: 28,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: AppTheme.spotifyGreen.withOpacity(0.9),
+                          color: tokens.accent.withOpacity(0.9),
                         ),
-                        child: const Icon(Icons.play_arrow_rounded,
-                            color: Colors.black, size: 16),
+                        child: Icon(Icons.play_arrow_rounded,
+                            color: tokens.isLight ? Colors.white : Colors.black, size: 16),
                       ),
                     ),
                   ],
@@ -684,33 +690,33 @@ class _ReplayCard extends ConsumerWidget {
                       Text(song.title,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 12,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.textPrimary,
+                            color: tokens.textPrimary,
                           )),
                       const SizedBox(height: 2),
                       Text(song.artist,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: AppTheme.textSecondary,
+                            color: tokens.textSecondary,
                           )),
                       const Spacer(),
                       // Listening time badge
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: AppTheme.spotifyGreen.withOpacity(0.15),
+                          color: tokens.accent.withOpacity(0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           song.listeningLabel,
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 10,
                             fontWeight: FontWeight.w600,
-                            color: AppTheme.spotifyGreen,
+                            color: tokens.accent,
                           ),
                         ),
                       ),
@@ -728,15 +734,15 @@ class _ReplayCard extends ConsumerWidget {
     .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
   }
 
-  Widget _artGradient() {
+  Widget _artGradient(AppThemeTokens tokens) {
     return Container(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            AppTheme.spotifyGreen.withOpacity(0.6),
-            AppTheme.spotifyGreen.withOpacity(0.15),
+            tokens.accent.withOpacity(0.6),
+            tokens.accent.withOpacity(0.15),
           ],
         ),
       ),
@@ -758,26 +764,27 @@ class _EmptyReplayHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Container(
         padding: const EdgeInsets.all(16),
         decoration: BoxDecoration(
-          color: AppTheme.cardSurface,
+          color: tokens.bgSurface,
           borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: AppTheme.outlineColor, width: 0.7),
+          border: Border.all(color: tokens.outline, width: 0.7),
         ),
         child: Row(
           children: [
-            const Icon(Icons.bar_chart_rounded,
-                color: AppTheme.spotifyGreen, size: 28),
+            Icon(Icons.bar_chart_rounded,
+                color: tokens.accent, size: 28),
             const SizedBox(width: 12),
-            const Expanded(
+            Expanded(
               child: Text(
                 'Start listening to build your Replay',
                 style: TextStyle(
                   fontSize: 13,
-                  color: AppTheme.textSecondary,
+                  color: tokens.textSecondary,
                 ),
               ),
             ),
@@ -799,24 +806,25 @@ class _SectionLabel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Expanded(child: Text(title, style: AppTheme.headingSm)),
+          Expanded(child: Text(title, style: tokens.headingSm)),
           if (onSeeAll != null)
             Semantics(
               button: true,
               label: 'See all $title',
               child: GestureDetector(
                 onTap: onSeeAll,
-                child: const Text(
+                child: Text(
                   'See all',
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w500,
-                    color: AppTheme.spotifyGreen,
+                    color: tokens.accent,
                   ),
                 ),
               ),
@@ -839,6 +847,7 @@ class _TopBarIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Semantics(
       button: true,
       label: label,
@@ -846,7 +855,7 @@ class _TopBarIcon extends StatelessWidget {
         width: 48,
         height: 48,
         child: IconButton(
-          icon: Icon(icon, color: AppTheme.textSecondary, size: 22),
+          icon: Icon(icon, color: tokens.textSecondary, size: 22),
           onPressed: onTap,
         ),
       ),
@@ -863,6 +872,7 @@ class _ShimmerGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Column(
@@ -875,7 +885,7 @@ class _ShimmerGrid extends StatelessWidget {
                 child: Container(
                   height: 56,
                   decoration: BoxDecoration(
-                    color: AppTheme.cardSurface,
+                    color: tokens.bgSurface,
                     borderRadius: BorderRadius.circular(10),
                   ),
                 ),
@@ -897,6 +907,7 @@ class _ShimmerReel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
     return SizedBox(
       height: 170,
       child: ListView.builder(
@@ -908,7 +919,7 @@ class _ShimmerReel extends StatelessWidget {
           child: Container(
             width: 120,
             decoration: BoxDecoration(
-              color: AppTheme.cardSurface,
+              color: tokens.bgSurface,
               borderRadius: BorderRadius.circular(12),
             ),
           ),

@@ -1,6 +1,7 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/constants.dart';
 import '../core/hive_boxes.dart';
+import '../core/theme.dart';
 import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
@@ -53,6 +54,9 @@ class SettingsState {
   final String analyticsUploadSchedule; // 'none', 'weekly', 'monthly'
   final String? analyticsLastUpload;
 
+  /// Active UI theme.  Defaults to the classic Spotify dark look.
+  final AppThemeMode themeMode;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
@@ -64,6 +68,7 @@ class SettingsState {
     this.dataCollectionEnabled = true,
     this.analyticsUploadSchedule = 'none',
     this.analyticsLastUpload,
+    this.themeMode = AppThemeMode.spotify,
   });
 
   SettingsState copyWith({
@@ -77,6 +82,7 @@ class SettingsState {
     bool? dataCollectionEnabled,
     String? analyticsUploadSchedule,
     String? analyticsLastUpload,
+    AppThemeMode? themeMode,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -88,8 +94,10 @@ class SettingsState {
       uploadDirectory: uploadDirectory ?? this.uploadDirectory,
       dataCollectionEnabled:
           dataCollectionEnabled ?? this.dataCollectionEnabled,
-      analyticsUploadSchedule: analyticsUploadSchedule ?? this.analyticsUploadSchedule,
+      analyticsUploadSchedule:
+          analyticsUploadSchedule ?? this.analyticsUploadSchedule,
       analyticsLastUpload: analyticsLastUpload ?? this.analyticsLastUpload,
+      themeMode: themeMode ?? this.themeMode,
     );
   }
 }
@@ -104,7 +112,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           username: '',
           password: '',
         )) {
-    // Hive boxes are already open — read is synchronous, no async gap.
     _loadFromHive();
   }
 
@@ -112,8 +119,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final auth = HiveBoxes.auth;
     final p = HiveBoxes.prefs;
 
-    final algoName = p.get(HiveBoxes.kShuffleAlgorithm, defaultValue: 'standard')?.toString() ?? 'standard';
-    final prefName = p.get(HiveBoxes.kShufflePreference, defaultValue: 'composer')?.toString() ?? 'composer';
+    final algoName = p
+            .get(HiveBoxes.kShuffleAlgorithm, defaultValue: 'standard')
+            ?.toString() ??
+        'standard';
+    final prefName = p
+            .get(HiveBoxes.kShufflePreference, defaultValue: 'composer')
+            ?.toString() ??
+        'composer';
+    final themeName = p
+            .get(HiveBoxes.kThemeMode, defaultValue: 'spotify')
+            ?.toString() ??
+        'spotify';
 
     String getString(dynamic box, String key, String defaultValue) {
       final val = box.get(key)?.toString() ?? '';
@@ -121,8 +138,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     }
 
     state = SettingsState(
-      serverUrl: getString(auth, HiveBoxes.kServerUrl, Constants.defaultServerUrl),
-      username: getString(auth, HiveBoxes.kUsername, Constants.defaultUsername),
+      serverUrl: getString(
+          auth, HiveBoxes.kServerUrl, Constants.defaultServerUrl),
+      username: getString(
+          auth, HiveBoxes.kUsername, Constants.defaultUsername),
       password: auth.get(HiveBoxes.kPassword)?.toString() ?? '',
       shuffleAlgorithm: ShuffleAlgorithm.values.firstWhere(
         (e) => e.name == algoName,
@@ -133,16 +152,33 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         orElse: () => ShufflePreference.composer,
       ),
       uploadApiUrl: p.get(HiveBoxes.kUploadApiUrl)?.toString() ?? '',
-      uploadDirectory: getString(p, HiveBoxes.kUploadDirectory, '/DATA/Media/Music'),
-      dataCollectionEnabled: p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool 
-          ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) as bool 
-          : true,
-      analyticsUploadSchedule: p.get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none')?.toString() ?? 'none',
-      analyticsLastUpload: p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
+      uploadDirectory: getString(
+          p, HiveBoxes.kUploadDirectory, '/DATA/Media/Music'),
+      dataCollectionEnabled:
+          p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool
+              ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true)
+                  as bool
+              : true,
+      analyticsUploadSchedule:
+          p.get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none')
+                  ?.toString() ??
+              'none',
+      analyticsLastUpload:
+          p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
+      themeMode: AppThemeMode.values.firstWhere(
+        (e) => e.name == themeName,
+        orElse: () => AppThemeMode.spotify,
+      ),
     );
   }
 
-  Future<void> saveSettings(String url, String user, String pass, {String? uploadUrl, String? uploadDir}) async {
+  Future<void> saveSettings(
+    String url,
+    String user,
+    String pass, {
+    String? uploadUrl,
+    String? uploadDir,
+  }) async {
     final auth = HiveBoxes.auth;
     final p = HiveBoxes.prefs;
 
@@ -185,6 +221,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await HiveBoxes.prefs.put(HiveBoxes.kAnalyticsLastUpload, timestamp);
     state = state.copyWith(analyticsLastUpload: timestamp);
   }
+
+  /// Persists and applies a new [AppThemeMode].
+  Future<void> setThemeMode(AppThemeMode mode) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kThemeMode, mode.name);
+    state = state.copyWith(themeMode: mode);
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -193,6 +235,16 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 final settingsProvider =
     StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
   return SettingsNotifier();
+});
+
+/// Convenience provider — just the active [AppThemeMode].
+final themeModeProvider = Provider<AppThemeMode>((ref) {
+  return ref.watch(settingsProvider).themeMode;
+});
+
+/// Convenience provider — the [AppThemeTokens] for the active theme.
+final themeTokensProvider = Provider<AppThemeTokens>((ref) {
+  return ThemeVariants.of(ref.watch(themeModeProvider));
 });
 
 /// Singleton [AppDatabase] — central Drift instance for the app.
@@ -213,7 +265,11 @@ final playlistCacheServiceProvider = Provider<PlaylistCacheService>((ref) {
 final _credentialsProvider =
     Provider<({String serverUrl, String username, String password})>((ref) {
   final s = ref.watch(settingsProvider);
-  return (serverUrl: s.serverUrl, username: s.username, password: s.password);
+  return (
+    serverUrl: s.serverUrl,
+    username: s.username,
+    password: s.password,
+  );
 });
 
 final subsonicServiceProvider = Provider<SubsonicService>((ref) {

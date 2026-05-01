@@ -77,6 +77,7 @@ class HiveBoxes {
   static const kDataCollectionEnabled = 'dataCollectionEnabled';
   static const kAnalyticsUploadSchedule = 'analytics_upload_schedule';
   static const kAnalyticsLastUpload = 'analytics_last_upload';
+  static const kThemeMode = 'theme_mode';
   static const kImageCacheEnabled = 'cache_images_enabled';
   static const kMusicCacheEnabled = 'cache_music_enabled';
   static const kBpmCacheEnabled = 'cache_bpm_enabled';

@@ -14,10 +14,22 @@ subprojects {
 }
 
 subprojects {
+    afterEvaluate {
+        if (project.extensions.findByName("android") != null) {
+            project.extensions.configure<com.android.build.gradle.BaseExtension>("android") {
+                compileSdkVersion(37)
+            }
+        }
+    }
+}
+
+/*
+subprojects {
     if (project.path != ":app") {
         evaluationDependsOn(":app")
     }
 }
+*/
 
 tasks.register<Delete>("clean") {
     delete(rootProject.layout.buildDirectory)

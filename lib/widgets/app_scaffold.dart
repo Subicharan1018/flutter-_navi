@@ -51,10 +51,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   @override
   Widget build(BuildContext context) {
     final bottomPad = MediaQuery.of(context).padding.bottom;
+    final tokens = ThemeTokens.of(context);
 
     return Scaffold(
       extendBody: true,
-      backgroundColor: AppTheme.coreBackground,
+      backgroundColor: tokens.bgBase,
       body: IndexedStack(index: _currentIndex, children: _screens),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
@@ -67,7 +68,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
             child: BackdropFilter(
               filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
               child: Container(
-                color: AppTheme.coreBackground.withOpacity(0.92),
+                color: tokens.bgBase.withOpacity(0.92),
                 child: SafeArea(
                   top: false,
                   child: SizedBox(
@@ -95,8 +96,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                                         active ? item.activeIcon : item.icon,
                                         key: ValueKey(active),
                                         color: active
-                                            ? AppTheme.spotifyGreen
-                                            : AppTheme.textMuted,
+                                            ? tokens.accent
+                                            : tokens.textMuted,
                                         size: 24,
                                       ),
                                     ),
@@ -109,8 +110,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
                                             ? FontWeight.w600
                                             : FontWeight.w400,
                                         color: active
-                                            ? AppTheme.spotifyGreen
-                                            : AppTheme.textMuted,
+                                            ? tokens.accent
+                                            : tokens.textMuted,
                                       ),
                                     ),
                                   ],
