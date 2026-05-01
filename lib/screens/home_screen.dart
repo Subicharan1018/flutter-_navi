@@ -506,7 +506,7 @@ class _QuickTile extends ConsumerWidget {
                           ),
                         ),
                         child: Icon(Icons.queue_music_rounded,
-                            color: Colors.white.withOpacity(0.7), size: 22),
+                            color: tokens.textPrimary.withOpacity(0.7), size: 22),
                       ),
               ),
               SizedBox(width: 10),

@@ -71,13 +71,13 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
               icon: Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white, size: 20),
+                  color: ThemeTokens.of(context).textPrimary, size: 20),
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
               'Made For You',
               style: TextStyle(
-                color: Colors.white,
+                color: ThemeTokens.of(context).textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.3,
@@ -86,7 +86,7 @@ class _MadeForYouScreenState extends ConsumerState<MadeForYouScreen> {
             actions: [
               IconButton(
                 icon: Icon(Icons.refresh_rounded,
-                    color: Colors.white60, size: 24),
+                    color: ThemeTokens.of(context).textSecondary, size: 24),
                 onPressed: _loadSongs,
               ),
             ],

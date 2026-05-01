@@ -77,13 +77,13 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
             surfaceTintColor: Colors.transparent,
             leading: IconButton(
               icon: Icon(Icons.arrow_back_ios_new_rounded,
-                  color: Colors.white, size: 20),
+                  color: ThemeTokens.of(context).textPrimary, size: 20),
               onPressed: () => Navigator.pop(context),
             ),
             title: Text(
               'New Releases',
               style: TextStyle(
-                color: Colors.white,
+                color: ThemeTokens.of(context).textPrimary,
                 fontSize: 18,
                 fontWeight: FontWeight.w700,
                 letterSpacing: -0.3,
@@ -92,7 +92,7 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
             actions: [
               IconButton(
                 icon: Icon(Icons.refresh_rounded,
-                    color: Colors.white60, size: 24),
+                    color: ThemeTokens.of(context).textSecondary, size: 24),
                 onPressed: _loadAlbums,
               ),
             ],
@@ -225,7 +225,7 @@ class _NewReleaseCard extends StatelessWidget {
             style: TextStyle(
               fontWeight: FontWeight.w600,
               fontSize: 13,
-              color: Colors.white,
+              color: ThemeTokens.of(context).textPrimary,
             ),
           ),
           SizedBox(height: 2),

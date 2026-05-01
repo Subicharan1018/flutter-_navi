@@ -328,7 +328,7 @@ class _QueueTile extends StatelessWidget {
           SlidableAction(
             onPressed: (_) => onRemove(),
             backgroundColor: Colors.redAccent,
-            foregroundColor: Colors.white,
+            foregroundColor: ThemeTokens.of(context).textPrimary,
             icon: Icons.delete_outline_rounded,
             borderRadius: BorderRadius.circular(12),
           ),

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
@@ -5,7 +6,6 @@ import '../offline_service.dart';
 import '../providers/player_provider.dart';
 import '../core/theme.dart';
 import '../widgets/song_tile.dart';
-import '../widgets/app_scaffold.dart';
 
 class OfflineScreen extends ConsumerStatefulWidget {
   const OfflineScreen({super.key});
@@ -48,14 +48,48 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
   void _playAll({bool shuffle = false}) {
     if (_songs.isEmpty) return;
     final notifier = ref.read(playerProvider.notifier);
-    
-    // Create a mutable copy and optionally shuffle
     final queue = List<Song>.from(_songs);
-    if (shuffle) {
-      queue.shuffle();
-    }
-    
+    if (shuffle) queue.shuffle();
     notifier.setQueue(queue, 0);
+  }
+
+  Future<void> _clearAllDownloads() async {
+    final confirmed = await showCupertinoDialog<bool>(
+      context: context,
+      builder: (ctx) => CupertinoAlertDialog(
+        title: const Text('Clear All Downloads'),
+        content: Text(
+          'This will permanently delete all ${_songs.length} downloaded '  
+          '${_songs.length == 1 ? 'song' : 'songs'} ($_storageUsed) '  
+          'from this device. This cannot be undone.',
+        ),
+        actions: [
+          CupertinoDialogAction(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: const Text('Cancel'),
+          ),
+          CupertinoDialogAction(
+            isDestructiveAction: true,
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete All'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmed != true || !mounted) return;
+
+    await OfflineService().deleteAllDownloads();
+    if (mounted) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: const Text('All downloads cleared'),
+          backgroundColor: ThemeTokens.of(context).bgSurface,
+          behavior: SnackBarBehavior.floating,
+        ),
+      );
+      _loadOfflineData();
+    }
   }
 
   @override
@@ -117,18 +151,46 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
+                  // Song count + storage used
                   Text(
-                    '${_songs.length} ${_songs.length == 1 ? 'song' : 'songs'}',
+                    '${_songs.length} ${_songs.length == 1 ? 'song' : 'songs'}  •  $_storageUsed',
                     style: TextStyle(
                       fontSize: 14,
                       color: ThemeTokens.of(context).textSecondary,
                     ),
                   ),
-                  Text(
-                    _storageUsed,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: ThemeTokens.of(context).textSecondary,
+
+                  // Clear All button
+                  GestureDetector(
+                    onTap: _clearAllDownloads,
+                    child: Container(
+                      padding: const EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
+                      decoration: BoxDecoration(
+                        color: Colors.redAccent.withValues(alpha: 0.10),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.redAccent.withValues(alpha: 0.35),
+                          width: 1,
+                        ),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(Icons.delete_sweep_rounded,
+                              color: Colors.redAccent, size: 15),
+                          const SizedBox(width: 5),
+                          const Text(
+                            'Clear All',
+                            style: TextStyle(
+                              color: Colors.redAccent,
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              letterSpacing: 0.2,
+                            ),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
                 ],
@@ -139,14 +201,17 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _playAll(shuffle: false),
-                      icon: const Icon(Icons.play_arrow_rounded, color: Colors.black),
-                      label: const Text(
+                      icon: Icon(Icons.play_arrow_rounded,
+                          color: ThemeTokens.of(context).bgBase),
+                      label: Text(
                         'Play All',
-                        style: TextStyle(color: Colors.black, fontWeight: FontWeight.w600),
+                        style: TextStyle(
+                            color: ThemeTokens.of(context).bgBase,
+                            fontWeight: FontWeight.w600),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: ThemeTokens.of(context).textPrimary,
-                        foregroundColor: Colors.black,
+                        foregroundColor: ThemeTokens.of(context).bgBase,
                         padding: const EdgeInsets.symmetric(vertical: 12),
                         shape: RoundedRectangleBorder(
                           borderRadius: BorderRadius.circular(8),
