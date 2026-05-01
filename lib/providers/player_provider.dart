@@ -88,6 +88,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // stopping after the first batch.
   final Set<String> _autoplayTriggeredFor = {};
 
+  // RC-1/RC-9/RC-12: Serialization lock for queue/shuffle operations.
+  // Ensures only one setQueue/shuffle/unshuffle runs at a time.
+  Completer<void>? _queueOpLock;
+
+  // RC-9: Suppresses stream listener processing during audio source rebuilds.
+  bool _suppressStreamEvents = false;
+
+  // RC-4: Prevents concurrent toggleStar calls for the same song ID.
+  final Set<String> _starTogglingIds = {};
+
+  // RC-10: Debounce timer for _persistState to avoid Hive write races.
+  Timer? _persistTimer;
+
   String _nextSourceContext = 'autoplay';
   String _nextTransitionType = 'autoplay';
 
@@ -107,11 +120,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _loadPersistedState();
   }
 
+  // RC-15 FIX: Only restore persisted preferences here. The seek is deferred
+  // to after setQueue() is called, because seeking on a player with no audio
+  // source throws on some Android versions.
+  int _pendingSeekMs = 0;
+
   void _loadPersistedState() {
     final s = HiveBoxes.session;
     final p = HiveBoxes.prefs;
 
-    final lastPosMs =
+    _pendingSeekMs =
         s.get(HiveBoxes.kLastPositionMs, defaultValue: 0) as int;
     final shuffle =
         p.get(HiveBoxes.kShufflePreference, defaultValue: false) as bool;
@@ -122,23 +140,25 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       repeatMode: LoopMode.values[
           repeatIdx.clamp(0, LoopMode.values.length - 1)],
     );
-
-    if (lastPosMs > 0) {
-      player.seek(Duration(milliseconds: lastPosMs));
-    }
+    // Seek deferred — applied in setQueue() when audio source is ready.
   }
 
+  // RC-10 FIX: Debounced persist — avoids Hive write races from rapid
+  // position stream events. All fields written together for atomicity.
   void _persistState() {
-    final s = HiveBoxes.session;
-    final p = HiveBoxes.prefs;
+    _persistTimer?.cancel();
+    _persistTimer = Timer(const Duration(seconds: 2), () {
+      final s = HiveBoxes.session;
+      final p = HiveBoxes.prefs;
 
-    if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
-      final currentSong = state.queue[state.currentIndex];
-      s.put(HiveBoxes.kCurrentTrackId, currentSong.id);
-    }
-    s.put(HiveBoxes.kLastPositionMs, player.position.inMilliseconds);
-    p.put(HiveBoxes.kShufflePreference, state.shuffleMode);
-    p.put('repeatMode', state.repeatMode.index);
+      if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
+        final currentSong = state.queue[state.currentIndex];
+        s.put(HiveBoxes.kCurrentTrackId, currentSong.id);
+      }
+      s.put(HiveBoxes.kLastPositionMs, player.position.inMilliseconds);
+      p.put(HiveBoxes.kShufflePreference, state.shuffleMode);
+      p.put('repeatMode', state.repeatMode.index);
+    });
   }
 
   AudioPlayer get player => _audioHandler.player;
@@ -153,6 +173,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     _subscriptions.add(player.currentIndexStream.listen((index) {
       if (index == null) return;
+      // RC-3/RC-9: Skip processing during source rebuilds to avoid ghost events.
+      if (_suppressStreamEvents) return;
 
       final prevIndex = _lastKnownIndex;
       _lastKnownIndex = index;
@@ -228,6 +250,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }));
 
     _subscriptions.add(player.playingStream.listen((playing) {
+      // RC-9: Skip during source rebuilds (setAudioSource emits playing=false).
+      if (_suppressStreamEvents) return;
       state = state.copyWith(isPlaying: playing);
     }));
 
@@ -244,6 +268,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     // toggled on AFTER the queue finished) and try to resume playback.
     _subscriptions.add(player.processingStateStream.listen((ps) async {
       if (ps != ProcessingState.completed) return;
+      // RC-9: Skip during source rebuilds.
+      if (_suppressStreamEvents) return;
 
       if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
         final song = state.queue[state.currentIndex];
@@ -323,6 +349,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   @override
   void dispose() {
+    _persistTimer?.cancel();
     for (final sub in _subscriptions) {
       sub.cancel();
     }
@@ -334,43 +361,83 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // Queue management
   // ---------------------------------------------------------------------------
 
+  // RC-12/RC-15 FIX: Serialized queue operation with deferred seek support.
   Future<void> setQueue(List<Song> songs, int startIndex) async {
-    _clearHistory();
-    _nextSourceContext = 'user_queue';
-    _nextTransitionType = 'user_selected';
-    state = state.copyWith(queue: songs, currentIndex: startIndex);
-    await _audioHandler.setQueue(songs, startIndex);
-    player.play();
-  }
-
-  Future<void> playPlaylist(List<Song> songs, {bool shuffle = false}) async {
-    if (songs.isEmpty) return;
-    _clearHistory();
-    _nextSourceContext = 'playlist';
-    _nextTransitionType = 'user_selected';
-
-    if (!shuffle) {
-      state = state.copyWith(shuffleMode: false, queue: songs, currentIndex: 0);
-      await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
-      player.play();
-      return;
-    }
-
-    state = state.copyWith(shuffleMode: true);
-    _isShuffling = true;
+    // Wait for any in-flight queue/shuffle operation to finish first.
+    await _queueOpLock?.future;
+    final completer = Completer<void>();
+    _queueOpLock = completer;
     try {
-      final startIndex = Random().nextInt(songs.length);
-      final currentSong = songs[startIndex];
-      final pool = List<Song>.from(songs)..removeAt(startIndex);
-      final settings = _ref.read(settingsProvider);
-      final shuffled = await _audioHandler.computeShuffle(
-          pool, settings.shuffleAlgorithm, settings.shufflePreference);
-      final finalQueue = [currentSong, ...shuffled];
-      state = state.copyWith(queue: finalQueue, currentIndex: 0);
-      await _audioHandler.setQueue(finalQueue, 0, unshuffledSongs: songs);
+      _clearHistory();
+      _nextSourceContext = 'user_queue';
+      _nextTransitionType = 'user_selected';
+      _suppressStreamEvents = true;
+      state = state.copyWith(queue: songs, currentIndex: startIndex);
+      await _audioHandler.setQueue(songs, startIndex);
+      _suppressStreamEvents = false;
+      // RC-15: Apply deferred seek from cold start if present.
+      if (_pendingSeekMs > 0) {
+        try {
+          await player.seek(Duration(milliseconds: _pendingSeekMs));
+        } catch (_) {
+          // Seek may fail if source is not ready — ignore.
+        }
+        _pendingSeekMs = 0;
+      }
       player.play();
     } finally {
-      _isShuffling = false;
+      _suppressStreamEvents = false;
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
+    }
+  }
+
+  // RC-12 FIX: Serialized with _queueOpLock to prevent interleaving with
+  // setQueue or other shuffle operations.
+  Future<void> playPlaylist(List<Song> songs, {bool shuffle = false}) async {
+    if (songs.isEmpty) return;
+    // Wait for any in-flight queue/shuffle operation.
+    await _queueOpLock?.future;
+    final completer = Completer<void>();
+    _queueOpLock = completer;
+    try {
+      _clearHistory();
+      _nextSourceContext = 'playlist';
+      _nextTransitionType = 'user_selected';
+
+      if (!shuffle) {
+        _suppressStreamEvents = true;
+        state = state.copyWith(shuffleMode: false, queue: songs, currentIndex: 0);
+        await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
+        _suppressStreamEvents = false;
+        player.play();
+        return;
+      }
+
+      state = state.copyWith(shuffleMode: true);
+      _isShuffling = true;
+      try {
+        final startIndex = Random().nextInt(songs.length);
+        final currentSong = songs[startIndex];
+        final pool = List<Song>.from(songs)..removeAt(startIndex);
+        final settings = _ref.read(settingsProvider);
+        final shuffled = await _audioHandler.computeShuffle(
+            pool, settings.shuffleAlgorithm, settings.shufflePreference);
+        // RC-12: After long compute, check if another setQueue already ran.
+        if (_queueOpLock != completer) return; // superseded — bail out
+        final finalQueue = [currentSong, ...shuffled];
+        _suppressStreamEvents = true;
+        state = state.copyWith(queue: finalQueue, currentIndex: 0);
+        await _audioHandler.setQueue(finalQueue, 0, unshuffledSongs: songs);
+        _suppressStreamEvents = false;
+        player.play();
+      } finally {
+        _isShuffling = false;
+      }
+    } finally {
+      _suppressStreamEvents = false;
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
     }
   }
 
@@ -470,57 +537,77 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _audioHandler.addToQueue(song);
   }
 
+  // RC-3 FIX: Suppress stream events during structural queue mutations
+  // to prevent the index listener from seeing a stale queue.
   Future<void> removeFromQueue(int index) async {
-    final currentQueue = List<Song>.from(state.queue)..removeAt(index);
-    int newIndex = state.currentIndex;
-    if (index < state.currentIndex) {
-      newIndex--;
-    } else if (index == state.currentIndex && currentQueue.isNotEmpty) {
-      if (newIndex >= currentQueue.length) newIndex = 0;
+    _suppressStreamEvents = true;
+    try {
+      final currentQueue = List<Song>.from(state.queue)..removeAt(index);
+      int newIndex = state.currentIndex;
+      if (index < state.currentIndex) {
+        newIndex--;
+      } else if (index == state.currentIndex && currentQueue.isNotEmpty) {
+        if (newIndex >= currentQueue.length) newIndex = 0;
+      }
+      state = state.copyWith(queue: currentQueue, currentIndex: newIndex);
+      await _audioHandler.removeFromQueue(index);
+    } finally {
+      _suppressStreamEvents = false;
     }
-    state = state.copyWith(queue: currentQueue, currentIndex: newIndex);
-    await _audioHandler.removeFromQueue(index);
   }
 
+  // RC-3 FIX: Suppress stream events during reorder.
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
-    final currentQueue = List<Song>.from(state.queue);
-    final item = currentQueue.removeAt(oldIndex);
-    currentQueue.insert(newIndex, item);
-    int currentIndex = state.currentIndex;
-    if (oldIndex == currentIndex) {
-      currentIndex = newIndex;
-    } else if (oldIndex < currentIndex && newIndex >= currentIndex) {
-      currentIndex--;
-    } else if (oldIndex > currentIndex && newIndex <= currentIndex) {
-      currentIndex++;
+    _suppressStreamEvents = true;
+    try {
+      final currentQueue = List<Song>.from(state.queue);
+      final item = currentQueue.removeAt(oldIndex);
+      currentQueue.insert(newIndex, item);
+      int currentIndex = state.currentIndex;
+      if (oldIndex == currentIndex) {
+        currentIndex = newIndex;
+      } else if (oldIndex < currentIndex && newIndex >= currentIndex) {
+        currentIndex--;
+      } else if (oldIndex > currentIndex && newIndex <= currentIndex) {
+        currentIndex++;
+      }
+      state =
+          state.copyWith(queue: currentQueue, currentIndex: currentIndex);
+      await _audioHandler.reorderQueue(oldIndex, newIndex,
+          isShuffleMode: state.shuffleMode);
+    } finally {
+      _suppressStreamEvents = false;
     }
-    state =
-        state.copyWith(queue: currentQueue, currentIndex: currentIndex);
-    await _audioHandler.reorderQueue(oldIndex, newIndex,
-        isShuffleMode: state.shuffleMode);
   }
 
+  // RC-4 FIX: Guard against concurrent toggleStar calls for the same songId.
   Future<void> toggleStar(String songId) async {
-    final currentlyStarred = state.starredIds.contains(songId);
-    if (currentlyStarred) {
-      await _subsonicService.unstar(songId);
-      state = state.copyWith(
-        starredIds:
-            state.starredIds.where((id) => id != songId).toList(),
-        queue: state.queue
-            .map((s) =>
-                s.id == songId ? s.copyWith(starred: false) : s)
-            .toList(),
-      );
-    } else {
-      await _subsonicService.star(songId);
-      state = state.copyWith(
-        starredIds: [...state.starredIds, songId],
-        queue: state.queue
-            .map((s) =>
-                s.id == songId ? s.copyWith(starred: true) : s)
-            .toList(),
-      );
+    if (_starTogglingIds.contains(songId)) return; // already in flight
+    _starTogglingIds.add(songId);
+    try {
+      final currentlyStarred = state.starredIds.contains(songId);
+      if (currentlyStarred) {
+        await _subsonicService.unstar(songId);
+        state = state.copyWith(
+          starredIds:
+              state.starredIds.where((id) => id != songId).toList(),
+          queue: state.queue
+              .map((s) =>
+                  s.id == songId ? s.copyWith(starred: false) : s)
+              .toList(),
+        );
+      } else {
+        await _subsonicService.star(songId);
+        state = state.copyWith(
+          starredIds: [...state.starredIds, songId],
+          queue: state.queue
+              .map((s) =>
+                  s.id == songId ? s.copyWith(starred: true) : s)
+              .toList(),
+        );
+      }
+    } finally {
+      _starTogglingIds.remove(songId);
     }
   }
 
@@ -528,7 +615,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await setShuffleMode(!state.shuffleMode);
   }
 
+  // RC-1 FIX: Serialize shuffle operations with _queueOpLock.
   Future<void> setShuffleMode(bool enabled) async {
+    // Wait for any in-flight queue/shuffle operation.
+    await _queueOpLock?.future;
     state = state.copyWith(shuffleMode: enabled);
     if (enabled) {
       await applyShuffleAlgorithm();
@@ -537,23 +627,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  // RC-1 FIX: Serialized unshuffle. Removed artificial 50ms delay that
+  // caused UI lag. _suppressStreamEvents prevents ghost index events.
   Future<void> unshuffleQueue() async {
+    final completer = Completer<void>();
+    _queueOpLock = completer;
     _isShuffling = true;
+    _suppressStreamEvents = true;
     try {
-      await Future.delayed(const Duration(milliseconds: 50));
       await _audioHandler.unshuffle();
       state = state.copyWith(
           queue: _audioHandler.currentQueue,
           currentIndex: _audioHandler.player.currentIndex ?? 0);
     } finally {
       _isShuffling = false;
+      _suppressStreamEvents = false;
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
     }
   }
 
+  // RC-1 FIX: Serialized shuffle. Removed artificial 50ms delay.
   Future<void> applyShuffleAlgorithm() async {
+    final completer = Completer<void>();
+    _queueOpLock = completer;
     _isShuffling = true;
+    _suppressStreamEvents = true;
     try {
-      await Future.delayed(const Duration(milliseconds: 50));
       final savedIndex =
           _audioHandler.player.currentIndex ?? state.currentIndex;
       final settings = _ref.read(settingsProvider);
@@ -573,6 +673,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           queue: _audioHandler.currentQueue, currentIndex: savedIndex);
     } finally {
       _isShuffling = false;
+      _suppressStreamEvents = false;
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
     }
   }
 
@@ -648,10 +751,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _fetchAndAppendSimilar(lastSong);
   }
 
+  // RC-13 FIX: Snapshot currentIndex BEFORE the network call. After the await,
+  // re-check if the user is still at the end before seeking.
   Future<void> _fetchAndAppendSimilar(Song seedSong) async {
     _isFetchingSimilar = true;
     try {
       debugPrint('[AUTOPLAY] Fetching similar songs for: ${seedSong.title}');
+
+      // RC-13: Snapshot state before the network call.
+      final indexBeforeFetch = state.currentIndex;
+      final queueLenBeforeFetch = state.queue.length;
+
       final similar =
           await _subsonicService.getSimilarSongs(seedSong.id, count: 10);
 
@@ -669,13 +779,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
 
-      // Snapshot queue length BEFORE mutation so isAtEnd math is correct.
-      // FIX (Autoplay-3): Previously isAtEnd was computed AFTER state update,
-      // making the index calculation wrong.
-      final queueLengthBeforeAppend = state.queue.length;
-      final wasAtEnd =
-          state.currentIndex >= queueLengthBeforeAppend - 1;
-
       final newQueue = [...state.queue, ...fresh];
       state = state.copyWith(queue: newQueue);
       await _audioHandler.addAllToQueue(fresh);
@@ -683,12 +786,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       debugPrint(
           '[AUTOPLAY] Appended ${fresh.length} songs. Queue now ${newQueue.length}');
 
-      // If playback had stopped because we were at the end, resume from
-      // the first newly-appended song.
+      // RC-13: Re-read currentIndex AFTER the await. Only auto-resume if:
+      // 1. The user is still at or past where they were before the fetch
+      // 2. The user is actually at the end of the *original* queue
+      // 3. Playback has stopped
+      // This prevents hijacking if the user navigated away during the fetch.
+      final currentIndexNow = state.currentIndex;
+      final wasAtEnd = currentIndexNow >= queueLenBeforeFetch - 1;
+      final userNavigatedAway = currentIndexNow < indexBeforeFetch;
+
       if (wasAtEnd &&
+          !userNavigatedAway &&
           (player.processingState == ProcessingState.completed ||
               !player.playing)) {
-        final nextIndex = queueLengthBeforeAppend; // first fresh song
+        final nextIndex = queueLenBeforeFetch; // first fresh song
         if (nextIndex < state.queue.length) {
           await player.seek(Duration.zero, index: nextIndex);
           await player.play();

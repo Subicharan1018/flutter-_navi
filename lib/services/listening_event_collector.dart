@@ -17,6 +17,11 @@ class ListeningEventCollector {
   String _sessionId = _generateUuid();
   DateTime _lastPlayTime = DateTime(1970);
 
+  // RC-7 FIX: Re-entrancy guard to prevent orphaned PlayEvent rows
+  // when rapid track changes call onSongStarted before the previous
+  // call finishes processing.
+  bool _isProcessing = false;
+
   ListeningEventCollector(this._db);
 
   void onSongStarted({
@@ -28,6 +33,10 @@ class ListeningEventCollector {
     int queuePosition = 0,
     bool shuffleActive = false,
   }) {
+    // RC-7: Skip if already processing a song transition.
+    if (_isProcessing) return;
+    _isProcessing = true;
+    try {
     if (_currentSong?.id == song.id && _openEvent != null) {
       debugPrint('[Analytics] ⚠ Self-transition for "${song.title}" — ignoring');
       return;
@@ -69,6 +78,9 @@ class ListeningEventCollector {
 
     _currentSong = song;
     _upsertSongMetadata(song);
+    } finally {
+      _isProcessing = false;
+    }
   }
 
   void onSongEnded(Song song, Duration playedDuration) {

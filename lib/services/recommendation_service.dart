@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
@@ -17,6 +18,9 @@ class RecommendationService extends ChangeNotifier {
   Map<String, int> _skipCounts = {};
   Map<int, Map<String, double>> _timePatterns = {};
   List<String> _recentlyPlayed = [];
+
+  // RC-8 FIX: Debounce timer to prevent concurrent SharedPreferences writes.
+  Timer? _saveTimer;
 
   bool get enabled => _enabled;
   Map<String, SongProfile> get profiles => _profiles;
@@ -368,24 +372,30 @@ class RecommendationService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // RC-8 FIX: Debounced save — prevents concurrent SharedPreferences writes
+  // when multiple rapid trackSongPlay calls fire in quick succession.
+  // Mutations accumulate in memory maps, but disk write is deferred.
   Future<void> _saveData() async {
-    try {
-      final prefs = await SharedPreferences.getInstance();
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(seconds: 3), () async {
+      try {
+        final prefs = await SharedPreferences.getInstance();
 
-      final data = {
-        'profiles': _profiles.map((k, v) => MapEntry(k, v.toJson())),
-        'artists': _artistAffinity,
-        'genres': _genreAffinity,
-        'recent': _recentlyPlayed,
-      };
-      await prefs.setString(_dataKey, json.encode(data));
-      await prefs.setString(_skipKey, json.encode(_skipCounts));
+        final data = {
+          'profiles': _profiles.map((k, v) => MapEntry(k, v.toJson())),
+          'artists': _artistAffinity,
+          'genres': _genreAffinity,
+          'recent': _recentlyPlayed,
+        };
+        await prefs.setString(_dataKey, json.encode(data));
+        await prefs.setString(_skipKey, json.encode(_skipCounts));
 
-      final timeData = _timePatterns.map((k, v) => MapEntry(k.toString(), v));
-      await prefs.setString(_timeKey, json.encode(timeData));
-    } catch (e) {
-      debugPrint('Error saving recommendation data: $e');
-    }
+        final timeData = _timePatterns.map((k, v) => MapEntry(k.toString(), v));
+        await prefs.setString(_timeKey, json.encode(timeData));
+      } catch (e) {
+        debugPrint('Error saving recommendation data: $e');
+      }
+    });
   }
 }
 

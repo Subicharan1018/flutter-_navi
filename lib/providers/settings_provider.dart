@@ -20,13 +20,29 @@ enum ShuffleAlgorithm {
   /// Basic Fisher-Yates random shuffle.
   standard,
 
-  /// Balanced Shuffle: spaces composers or genres evenly across
-  /// the queue so the same category never plays consecutively.
+  /// Dithered Position Shuffle: assigns each song a floating-point position
+  /// score (evenly spaced per group + random offset + small dither), then
+  /// sorts globally. Guarantees same-category songs are maximally spread with
+  /// no back-to-back leak — replaces the old round-robin balanced shuffle.
   spotify,
 
   /// YouTube-style weighted lottery: songs with higher play-counts, ratings,
   /// stars, or positive "Suggest More" feedback appear more often.
+  /// Uses Efraimidis-Spirakis key trick — O(n log n), not O(n²).
   youtube,
+
+  /// Album-Aware Shuffle: shuffles albums as atomic units so the internal
+  /// track order of each album is preserved, but albums play in random order.
+  albumAware,
+
+  /// Merge-Shuffle: proven-optimal interleaving (Ruud van Asseldonk, 2023).
+  /// Guarantees same-category songs are never consecutive when avoidable.
+  mergeShuffle,
+
+  /// Recency-Dampened Weighted Shuffle: like youtube but songs played
+  /// recently in this session receive a 10× weight penalty, preventing
+  /// repeats during long listening sessions.
+  recencyDampened,
 }
 
 // ---------------------------------------------------------------------------
@@ -103,7 +119,7 @@ class SettingsState {
 }
 
 // ---------------------------------------------------------------------------
-// Settings notifier — now uses Hive for instant sync reads
+// Settings notifier — uses Hive for instant sync reads
 // ---------------------------------------------------------------------------
 class SettingsNotifier extends StateNotifier<SettingsState> {
   SettingsNotifier()
@@ -143,6 +159,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       username: getString(
           auth, HiveBoxes.kUsername, Constants.defaultUsername),
       password: auth.get(HiveBoxes.kPassword)?.toString() ?? '',
+      // firstWhere with orElse means unknown stored names (e.g. old enum
+      // values removed in a future refactor) fall back to standard safely.
       shuffleAlgorithm: ShuffleAlgorithm.values.firstWhere(
         (e) => e.name == algoName,
         orElse: () => ShuffleAlgorithm.standard,

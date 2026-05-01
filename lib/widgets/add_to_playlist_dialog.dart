@@ -4,7 +4,6 @@ import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
 import '../core/theme.dart';
-import '../screens/library_screen.dart' show SwipeToDismissSongTile;
 
 class AddToPlaylistDialog extends ConsumerStatefulWidget {
   final Song song;
@@ -20,9 +19,10 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
   final TextEditingController _nameController = TextEditingController();
   bool _isCreating = false;
 
-  // Tracks which playlist IDs are currently mid-toggle so we can show a
-  // per-row spinner and block double-taps independently per row.
-  final Set<String> _togglingIds = {};
+  // UX FIX: Pending changes tracked locally, committed on Save.
+  final Set<String> _pendingAdds = {};
+  final Set<String> _pendingRemoves = {};
+  bool _isSaving = false;
 
   @override
   void dispose() {
@@ -50,7 +50,6 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
       await service.updatePlaylist(newPlaylist.id,
           songIdToAdd: widget.song.id);
 
-      // Invalidate after network call succeeds.
       ref.invalidate(songsInPlaylistProvider(newPlaylist.id));
 
       if (mounted) {
@@ -76,120 +75,80 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
     }
   }
 
-  Future<void> _toggleEntry(
-    String playlistId,
-    String playlistName,
-    List<Song>? currentSongs,
-  ) async {
-    if (currentSongs == null) return;
-    if (_togglingIds.contains(playlistId)) return;
-
-    final service = ref.read(subsonicServiceProvider);
-    final songId = widget.song.id;
-    final isAdded = currentSongs.any((s) => s.id == songId);
-
-    setState(() => _togglingIds.add(playlistId));
-
-    try {
-      if (isAdded) {
-        // Fetch the authoritative server list before computing remove index.
-        final freshSongs = await service.getPlaylistSongs(playlistId,
-            forceRefresh: true);
-        final serverIndex =
-            freshSongs.indexWhere((s) => s.id == songId);
-
-        if (serverIndex == -1) {
-          ref.invalidate(songsInPlaylistProvider(playlistId));
-          if (mounted) setState(() => _togglingIds.remove(playlistId));
-          return;
+  // UX FIX: Toggle is purely local — no network call. Committed in _save().
+  void _toggleEntry(String playlistId, bool currentlyInPlaylist) {
+    setState(() {
+      if (currentlyInPlaylist) {
+        if (_pendingRemoves.contains(playlistId)) {
+          _pendingRemoves.remove(playlistId);
+        } else {
+          _pendingRemoves.add(playlistId);
+          _pendingAdds.remove(playlistId);
         }
-
-        await service.updatePlaylist(playlistId,
-            songIndexToRemove: serverIndex);
       } else {
-        await service.updatePlaylist(playlistId, songIdToAdd: songId);
+        if (_pendingAdds.contains(playlistId)) {
+          _pendingAdds.remove(playlistId);
+        } else {
+          _pendingAdds.add(playlistId);
+          _pendingRemoves.remove(playlistId);
+        }
       }
-
-      // Invalidate AFTER the network call succeeds — prevents flicker.
-      ref.invalidate(songsInPlaylistProvider(playlistId));
-
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            duration: const Duration(seconds: 1),
-            backgroundColor:
-                isAdded ? AppTheme.topLevel : AppTheme.spotifyGreen,
-            content: Text(
-              isAdded
-                  ? 'Removed from $playlistName'
-                  : 'Added to $playlistName',
-              style: TextStyle(
-                color: isAdded ? AppTheme.textPrimary : Colors.black,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-        );
-      }
-    } catch (e) {
-      ref.invalidate(songsInPlaylistProvider(playlistId));
-      if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text('Action failed: $e')));
-      }
-    } finally {
-      if (mounted) setState(() => _togglingIds.remove(playlistId));
-    }
+    });
   }
 
-  // ---------------------------------------------------------------------------
-  // Remove song from playlist — called by SwipeToDismissSongTile.
-  // Includes a 4-second undo snackbar.
-  // ---------------------------------------------------------------------------
-  Future<void> _removeSongFromPlaylist(
-    String playlistId,
-    String playlistName,
-  ) async {
+  bool _hasChanges() => _pendingAdds.isNotEmpty || _pendingRemoves.isNotEmpty;
+
+  bool _isChecked(String playlistId, bool originallyIn) {
+    if (_pendingAdds.contains(playlistId)) return true;
+    if (_pendingRemoves.contains(playlistId)) return false;
+    return originallyIn;
+  }
+
+  // UX FIX: Batch-save all pending changes.
+  Future<void> _save() async {
+    if (!_hasChanges()) {
+      Navigator.pop(context);
+      return;
+    }
+    setState(() => _isSaving = true);
     final service = ref.read(subsonicServiceProvider);
     final songId = widget.song.id;
-
+    int successCount = 0;
     try {
-      final freshSongs = await service.getPlaylistSongs(playlistId,
-          forceRefresh: true);
-      final serverIndex = freshSongs.indexWhere((s) => s.id == songId);
-      if (serverIndex == -1) {
+      for (final playlistId in _pendingAdds) {
+        await service.updatePlaylist(playlistId, songIdToAdd: songId);
         ref.invalidate(songsInPlaylistProvider(playlistId));
-        return;
+        successCount++;
       }
-
-      await service.updatePlaylist(playlistId,
-          songIndexToRemove: serverIndex);
-      ref.invalidate(songsInPlaylistProvider(playlistId));
-
+      for (final playlistId in _pendingRemoves) {
+        final freshSongs = await service.getPlaylistSongs(playlistId,
+            forceRefresh: true);
+        final serverIndex = freshSongs.indexWhere((s) => s.id == songId);
+        if (serverIndex >= 0) {
+          await service.updatePlaylist(playlistId,
+              songIndexToRemove: serverIndex);
+        }
+        ref.invalidate(songsInPlaylistProvider(playlistId));
+        successCount++;
+      }
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            duration: const Duration(seconds: 4),
-            backgroundColor: AppTheme.topLevel,
-            content: Text('Removed from $playlistName',
-                style:
-                    const TextStyle(color: AppTheme.textPrimary)),
-            action: SnackBarAction(
-              label: 'Undo',
-              textColor: AppTheme.spotifyGreen,
-              onPressed: () async {
-                await service.updatePlaylist(playlistId,
-                    songIdToAdd: songId);
-                ref.invalidate(songsInPlaylistProvider(playlistId));
-              },
+            backgroundColor: AppTheme.spotifyGreen,
+            content: Text(
+              'Updated $successCount playlist${successCount == 1 ? '' : 's'}',
+              style: const TextStyle(
+                  color: Colors.black, fontWeight: FontWeight.bold),
             ),
           ),
         );
+        Navigator.pop(context);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to remove: $e')));
+            SnackBar(content: Text('Save failed: $e')));
+        setState(() => _isSaving = false);
       }
     }
   }
@@ -310,15 +269,15 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                           builder: (context, ref, child) {
                             final songsAsync = ref.watch(
                                 songsInPlaylistProvider(pl.id));
-                            final isToggling =
-                                _togglingIds.contains(pl.id);
 
                             return songsAsync.when(
                               data: (songs) {
-                                final isAdded = songs.any(
+                                final originallyIn = songs.any(
                                     (s) => s.id == widget.song.id);
+                                // UX FIX: Use local pending state for display.
+                                final checked = _isChecked(pl.id, originallyIn);
 
-                                final tile = ListTile(
+                                return ListTile(
                                   contentPadding:
                                       const EdgeInsets.symmetric(
                                           horizontal: 4),
@@ -342,45 +301,17 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                                   subtitle: Text(
                                       '${pl.songCount} songs',
                                       style: AppTheme.technicalXs),
-                                  trailing: isToggling
-                                      ? const SizedBox(
-                                          width: 20,
-                                          height: 20,
-                                          child:
-                                              CircularProgressIndicator(
-                                                  strokeWidth: 2,
-                                                  color: AppTheme
-                                                      .spotifyGreen),
-                                        )
-                                      : Icon(
-                                          isAdded
-                                              ? Icons.check_circle
-                                              : Icons
-                                                  .add_circle_outline,
-                                          color: isAdded
-                                              ? AppTheme.spotifyGreen
-                                              : AppTheme.textMuted,
-                                        ),
-                                  onTap: isToggling
-                                      ? null
-                                      : () => _toggleEntry(
-                                          pl.id, pl.name, songs),
+                                  trailing: Icon(
+                                    checked
+                                        ? Icons.check_circle
+                                        : Icons.add_circle_outline,
+                                    color: checked
+                                        ? AppTheme.spotifyGreen
+                                        : AppTheme.textMuted,
+                                  ),
+                                  // UX FIX: Toggle local state only — no network call.
+                                  onTap: () => _toggleEntry(pl.id, originallyIn),
                                 );
-
-                                // Wrap rows where the song is already added
-                                // with swipe-to-remove (confirmation dialog
-                                // prevents accidental deletions).
-                                if (isAdded) {
-                                  return SwipeToDismissSongTile(
-                                    dismissKey:
-                                        'dialog_${pl.id}_${widget.song.id}',
-                                    onDelete: () =>
-                                        _removeSongFromPlaylist(
-                                            pl.id, pl.name),
-                                    child: tile,
-                                  );
-                                }
-                                return tile;
                               },
                               loading: () => ListTile(
                                 contentPadding:
@@ -424,16 +355,40 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
               ),
 
               const SizedBox(height: 16),
+              // UX FIX: Save button replaces the old Done button.
+              // Commits all pending add/remove operations in one batch.
               Align(
                 alignment: Alignment.centerRight,
-                child: TextButton(
-                  onPressed: () => Navigator.pop(context),
-                  child: Text(
-                    'Done',
-                    style: AppTheme.bodyMd.copyWith(
-                        color: AppTheme.spotifyGreen,
-                        fontWeight: FontWeight.bold),
-                  ),
+                child: Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: Text(
+                        'Cancel',
+                        style: AppTheme.bodyMd.copyWith(
+                            color: AppTheme.textMuted),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    _isSaving
+                        ? const SizedBox(
+                            width: 24,
+                            height: 24,
+                            child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: AppTheme.spotifyGreen),
+                          )
+                        : TextButton(
+                            onPressed: _save,
+                            child: Text(
+                              _hasChanges() ? 'Save' : 'Done',
+                              style: AppTheme.bodyMd.copyWith(
+                                  color: AppTheme.spotifyGreen,
+                                  fontWeight: FontWeight.bold),
+                            ),
+                          ),
+                  ],
                 ),
               ),
             ],

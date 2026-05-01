@@ -22,12 +22,56 @@ class SongPickerScreen extends ConsumerStatefulWidget {
 class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-  final Set<String> _addedSongIds = {};
+
+  // UX FIX: Local selection set — no network call until Save.
+  final Set<String> _selectedSongIds = {};
+  bool _isSaving = false;
 
   @override
   void dispose() {
     _searchController.dispose();
     super.dispose();
+  }
+
+  // UX FIX: Toggle song selection locally.
+  void _toggleSong(String songId) {
+    setState(() {
+      if (_selectedSongIds.contains(songId)) {
+        _selectedSongIds.remove(songId);
+      } else {
+        _selectedSongIds.add(songId);
+      }
+    });
+  }
+
+  // UX FIX: Batch-save all selected songs.
+  Future<void> _save() async {
+    if (_selectedSongIds.isEmpty) return;
+    setState(() => _isSaving = true);
+    final service = ref.read(subsonicServiceProvider);
+    int added = 0;
+    try {
+      for (final songId in _selectedSongIds) {
+        await service.updatePlaylist(widget.playlistId, songIdToAdd: songId);
+        added++;
+      }
+      ref.invalidate(songsInPlaylistProvider(widget.playlistId));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Added $added song${added == 1 ? '' : 's'} to ${widget.playlistName}'),
+          ),
+        );
+        Navigator.pop(context, true);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error adding songs: $e')),
+        );
+        setState(() => _isSaving = false);
+      }
+    }
   }
 
   @override
@@ -51,6 +95,28 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
           ),
         ),
       ),
+      // UX FIX: Floating Save button appears when songs are selected.
+      floatingActionButton: _selectedSongIds.isNotEmpty
+          ? FloatingActionButton.extended(
+              backgroundColor: AppTheme.electricBlue,
+              onPressed: _isSaving ? null : _save,
+              icon: _isSaving
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                          strokeWidth: 2, color: Colors.white),
+                    )
+                  : const Icon(Icons.save_rounded, color: Colors.white),
+              label: Text(
+                _isSaving
+                    ? 'Saving...'
+                    : 'Save (${_selectedSongIds.length})',
+                style: const TextStyle(
+                    color: Colors.white, fontWeight: FontWeight.bold),
+              ),
+            )
+          : null,
       body: Column(
         children: [
           Padding(
@@ -98,10 +164,11 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                 }
 
                 return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 32),
+                  padding: const EdgeInsets.only(bottom: 80), // space for FAB
                   itemCount: filteredSongs.length,
                   itemBuilder: (context, index) {
                     final song = filteredSongs[index];
+                    final isSelected = _selectedSongIds.contains(song.id);
                     return ListTile(
                       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
                       leading: Container(
@@ -132,31 +199,14 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                         child: IconButton(
                           padding: EdgeInsets.zero,
                           icon: Icon(
-                            _addedSongIds.contains(song.id) 
-                              ? Icons.check_circle_rounded 
-                              : Icons.add_circle_outline_rounded, 
-                            color: _addedSongIds.contains(song.id) ? AppTheme.electricBlue : AppTheme.textMuted,
+                            isSelected
+                              ? Icons.check_circle_rounded
+                              : Icons.add_circle_outline_rounded,
+                            color: isSelected ? AppTheme.electricBlue : AppTheme.textMuted,
                             size: 24,
                           ),
-                          onPressed: () async {
-                            try {
-                              await service.updatePlaylist(widget.playlistId, songIdToAdd: song.id);
-                              setState(() {
-                                _addedSongIds.add(song.id);
-                              });
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Added ${song.title} to ${widget.playlistName}')),
-                                );
-                              }
-                            } catch (e) {
-                              if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Error adding song: $e')),
-                                );
-                              }
-                            }
-                          },
+                          // UX FIX: Toggle local selection — no network call.
+                          onPressed: () => _toggleSong(song.id),
                         ),
                       ),
                     );

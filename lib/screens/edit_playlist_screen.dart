@@ -71,6 +71,10 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
       }
 
       ref.invalidate(playlistsProvider);
+      // RC-18 FIX: Wait a frame for the provider to start re-fetching
+      // before navigating back. This prevents the parent screen from
+      // building with stale playlist data.
+      await Future<void>.delayed(const Duration(milliseconds: 100));
       
       if (mounted) {
         HapticFeedback.mediumImpact();

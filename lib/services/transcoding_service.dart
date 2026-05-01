@@ -62,6 +62,9 @@ class TranscodingService extends ChangeNotifier {
 
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
 
+  // RC-17 FIX: Guard against double-init of connectivity watcher.
+  bool _isInitializingConnectivity = false;
+
   int get wifiBitrate => _wifiBitrate;
   int get mobileBitrate => _mobileBitrate;
   String get format => _format;
@@ -101,14 +104,22 @@ class TranscodingService extends ChangeNotifier {
     notifyListeners();
   }
 
+  // RC-17 FIX: Guard with _isInitializingConnectivity to prevent
+  // duplicate listener registration.
   Future<void> _initConnectivityWatcher() async {
-    final result = await Connectivity().checkConnectivity();
-    _updateConnectionType(result);
+    if (_isInitializingConnectivity) return;
+    _isInitializingConnectivity = true;
+    try {
+      final result = await Connectivity().checkConnectivity();
+      _updateConnectionType(result);
 
-    _connectivitySub?.cancel();
-    _connectivitySub = Connectivity()
-        .onConnectivityChanged
-        .listen(_updateConnectionType);
+      _connectivitySub?.cancel();
+      _connectivitySub = Connectivity()
+          .onConnectivityChanged
+          .listen(_updateConnectionType);
+    } finally {
+      _isInitializingConnectivity = false;
+    }
   }
 
   void _updateConnectionType(List<ConnectivityResult> results) {
