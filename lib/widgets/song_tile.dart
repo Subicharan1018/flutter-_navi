@@ -64,8 +64,12 @@ class SongTile extends ConsumerWidget {
     final String imageUrl = service.getCoverArtUrl(coverId);
     final String imageCacheKey = 'cover_$coverId';
 
-    return CupertinoClickable(
-      onTap: onTap,
+    return Semantics(
+      button: true,
+      label: '${song.title} by ${song.artist}',
+      onLongPressHint: 'Show options menu',
+      child: CupertinoClickable(
+        onTap: onTap,
       child: GestureDetector(
         onLongPress: onLongPress,
         child: Container(
@@ -103,7 +107,7 @@ class SongTile extends ConsumerWidget {
                         fontWeight: FontWeight.w500,
                         // AnimatedDefaultTextStyle would also work here but
                         // a plain conditional is cheaper for a list this large.
-                        color: isActive ? ThemeTokens.of(context).accent : Colors.white,
+                        color: isActive ? ThemeTokens.of(context).accent : ThemeTokens.of(context).textPrimary,
                       ),
                     ),
                     SizedBox(height: 4),
@@ -144,7 +148,7 @@ class SongTile extends ConsumerWidget {
           ),
         ),
       ),
-    );
+    ));
   }
 }
 

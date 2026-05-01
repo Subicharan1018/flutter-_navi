@@ -287,7 +287,7 @@ class _FilterPill extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isSelected ? Colors.black : ThemeTokens.of(context).textPrimary,
+              color: isSelected ? (ThemeTokens.of(context).isLight ? Colors.white : Colors.black) : ThemeTokens.of(context).textPrimary,
             ),
           ),
         ),

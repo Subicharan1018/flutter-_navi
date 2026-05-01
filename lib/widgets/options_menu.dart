@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
 import '../core/theme.dart';
+import '../offline_service.dart';
+import '../providers/settings_provider.dart';
 import 'add_to_playlist_dialog.dart';
 
 class OptionsMenu extends ConsumerWidget {
@@ -129,6 +131,55 @@ class OptionsMenu extends ConsumerWidget {
                 Navigator.pop(context);
                 ScaffoldMessenger.of(context).showSnackBar(
                   const SnackBar(content: Text('Added to queue')),
+                );
+              },
+            ),
+
+            // ----------------------------------------------------------------
+            // Download for Offline Playback
+            // ----------------------------------------------------------------
+            StatefulBuilder(
+              builder: (context, setState) {
+                final isDownloaded = OfflineService().isSongDownloaded(song.id);
+                return ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                  leading: Icon(
+                      isDownloaded
+                          ? Icons.download_done_rounded
+                          : Icons.download_rounded,
+                      color: ThemeTokens.of(context).textPrimary,
+                      size: 24),
+                  title: Text(isDownloaded ? 'Remove Download' : 'Download',
+                      style: TextStyle(
+                          color: ThemeTokens.of(context).textPrimary,
+                          fontSize: 15,
+                          fontWeight: FontWeight.w500)),
+                  onTap: () async {
+                    if (isDownloaded) {
+                      await OfflineService().deleteSong(song.id);
+                      setState(() {});
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Removed download')),
+                        );
+                      }
+                    } else {
+                      final service = ref.read(subsonicServiceProvider);
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Downloading "${song.title}"...')),
+                      );
+                      final success = await OfflineService().downloadSong(song, service);
+                      setState(() {});
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(
+                            content: Text(success ? 'Downloaded successfully' : 'Download failed'),
+                          ),
+                        );
+                      }
+                    }
+                  },
                 );
               },
             ),

@@ -168,7 +168,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                     : Icons.favorite_border_rounded,
                                 color: playerState.starredIds.contains(song.id)
                                     ? _themeColor
-                                    : Colors.white38,
+                                    : ThemeTokens.of(context).textMuted,
                                 size: 20,
                               ),
                               onPressed: () =>
@@ -201,7 +201,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             child: IconButton(
                               padding: EdgeInsets.zero,
                               icon: Icon(Icons.skip_next_rounded,
-                                  color: Colors.white70, size: 24),
+                                  color: ThemeTokens.of(context).textSecondary, size: 24),
                               onPressed: () =>
                                   ref.read(playerProvider.notifier).playNext(),
                             ),
@@ -456,7 +456,7 @@ class _AlbumThumb extends StatelessWidget {
               placeholder: (_, __) => Container(
                 color: ThemeTokens.of(context).bgElevated,
                 child: Icon(Icons.music_note_rounded,
-                    color: Colors.white24, size: 20),
+                    color: ThemeTokens.of(context).textMuted, size: 20),
               ),
             ),
           ),
@@ -559,7 +559,7 @@ class _PlayButton extends StatelessWidget {
               ),
               Icon(
                 isPlaying ? Icons.pause_rounded : Icons.play_arrow_rounded,
-                color: Colors.white,
+                color: ThemeTokens.of(context).textPrimary,
                 size: 24,
               ),
             ],
@@ -711,7 +711,8 @@ class _ProgressPainter extends CustomPainter {
         ..color = themeColor.withOpacity(0.40)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
-    // White dot
+    // Playhead dot — uses white for strong contrast on the coloured track
+    // (intentional: this is a specular highlight on the fill bar, not text)
     canvas.drawCircle(
       Offset(thumbX, h / 2),
       3.0,

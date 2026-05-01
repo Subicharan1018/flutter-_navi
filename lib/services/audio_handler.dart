@@ -6,6 +6,7 @@ import '../models/song.dart';
 import 'subsonic_service.dart';
 import 'replay_gain_service.dart';
 import '../providers/settings_provider.dart';
+import '../offline_service.dart';
 
 // ---------------------------------------------------------------------------
 // ISOLATE RULES (apply to every top-level worker below)
@@ -388,8 +389,16 @@ class AudioHandler {
   // ---------------------------------------------------------------------------
 
   AudioSource _toSource(Song song) {
+    // FIX (Offline-1): Prioritise local file when song has been downloaded.
+    // OfflineService.getLocalPath() returns the on-disk path synchronously
+    // (it just calls File.existsSync), so this is safe on the UI thread.
+    final localPath = OfflineService().getLocalPath(song.id);
+    final streamUri = localPath != null
+        ? Uri.parse('file://$localPath')
+        : Uri.parse(subsonicService.getStreamUrl(song.id));
+
     return AudioSource.uri(
-      Uri.parse(subsonicService.getStreamUrl(song.id)),
+      streamUri,
       tag: MediaItem(
         id: song.id,
         title: song.title,
@@ -398,7 +407,7 @@ class AudioHandler {
         genre: song.genre,
         artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
         duration: Duration(seconds: song.duration),
-        extras: {'composer': song.composer},
+        extras: {'composer': song.composer, 'isLocal': localPath != null},
       ),
     );
   }
@@ -444,11 +453,71 @@ class AudioHandler {
     }
   }
 
-  /// Rebuilds the full audio source after a shuffle, preserving the current
-  /// song and playback position so audio never restarts from the beginning.
+  /// Reorders the ConcatenatingAudioSource in-place after a shuffle so that
+  /// audio continues without a gap.
+  ///
+  /// v2 FIX (Shuffle-Gap): The old approach called setAudioSource() which
+  /// tears down and rebuilds the entire decoding pipeline, causing a ~1 second
+  /// silence. The new approach uses ConcatenatingAudioSource.move() to reorder
+  /// existing AudioSource children — the decoder keeps running and the
+  /// currently-playing track is never interrupted.
+  ///
+  /// Uses a selection-sort pass over the live playlist, moving one source per
+  /// iteration until it matches _currentQueue. Only seeks if the anchor index
+  /// changed (avoids an unnecessary mute).
+  ///
+  /// Falls back to a full rebuild only on cold start (when _playlist is null).
   Future<void> _updateQueueAfterAnchor(int anchorIndex) async {
-    final savedPosition = player.position;
-    await _rebuildSource(anchorIndex, initialPosition: savedPosition);
+    if (_playlist == null) {
+      // Cold-start fallback: no existing source to reuse.
+      final savedPosition = player.position;
+      await _rebuildSource(anchorIndex, initialPosition: savedPosition);
+      if (player.playing) player.play();
+      return;
+    }
+
+    // The _currentQueue already holds the desired final order (set by the
+    // caller before invoking this method). We need to reorder _playlist's
+    // children to match _currentQueue using incremental moves.
+    //
+    // We track the "live" positions of each source via a mutable index list
+    // that gets updated after every move.
+    final int n = _currentQueue.length;
+
+
+    // ── O(n²) selection-sort on the live playlist ────────────────────────
+    final List<String> liveIds = List.generate(
+      n,
+      (i) => (_playlist!.children[i] as UriAudioSource)
+          .tag is MediaItem
+          ? ((_playlist!.children[i] as UriAudioSource).tag as MediaItem).id
+          : '',
+    );
+
+    for (int targetIdx = 0; targetIdx < n; targetIdx++) {
+      final wantedId = _currentQueue[targetIdx].id;
+      if (liveIds[targetIdx] == wantedId) continue; // already in place
+
+      // Find the live position of the song we want.
+      final fromIdx = liveIds.indexOf(wantedId, targetIdx + 1);
+      if (fromIdx == -1) continue; // safety: not found
+
+      // Move in the real ConcatenatingAudioSource.
+      await _playlist!.move(fromIdx, targetIdx);
+
+      // Update our tracking list to reflect the move.
+      final moved = liveIds.removeAt(fromIdx);
+      liveIds.insert(targetIdx, moved);
+    }
+
+    // Seek to ensure the anchor song is current (it should already be).
+    // Only seek if the player is not already at the anchor — avoids
+    // an unnecessary seek that would briefly mute the audio.
+    final currentLiveIndex = player.currentIndex ?? 0;
+    if (currentLiveIndex != anchorIndex) {
+      await player.seek(player.position, index: anchorIndex);
+    }
+
     if (player.playing) player.play();
   }
 

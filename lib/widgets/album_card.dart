@@ -28,8 +28,11 @@ class AlbumCard extends ConsumerWidget {
     final String imageUrl = service.getCoverArtUrl(coverId);
     final String imageCacheKey = 'cover_$coverId';
 
-    return CupertinoClickable(
-      onTap: onTap,
+    return Semantics(
+      button: true,
+      label: 'Album: ${album.name} by ${album.artist}',
+      child: CupertinoClickable(
+        onTap: onTap,
       child: SizedBox(
         width: 160,
         child: Column(
@@ -57,7 +60,7 @@ class AlbumCard extends ConsumerWidget {
               style: TextStyle(
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
-                color: Colors.white,
+                color: ThemeTokens.of(context).textPrimary,
               ),
             ),
             SizedBox(height: 2),
@@ -73,7 +76,7 @@ class AlbumCard extends ConsumerWidget {
           ],
         ),
       ),
-    );
+    ));
   }
 }
 

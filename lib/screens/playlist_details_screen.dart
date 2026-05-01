@@ -647,7 +647,7 @@ class _SongListSkeleton extends StatelessWidget {
           .shimmer(
             duration: 1200.ms,
             delay: (i * 60).ms,
-            color: Colors.white.withOpacity(0.06),
+            color: ThemeTokens.of(context).textPrimary.withOpacity(0.06),
           ),
     );
   }
@@ -923,7 +923,7 @@ class _ExpandedHeader extends StatelessWidget {
                     onTap: onPlayAll,
                     filled: true,
                     child: Icon(Icons.play_arrow_rounded,
-                        color: Colors.white, size: 36),
+                        color: ThemeTokens.of(context).textPrimary, size: 36),
                   ),
                   SizedBox(width: 20),
 
@@ -978,7 +978,7 @@ class _HeaderButton extends StatelessWidget {
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: filled ? null : Colors.white.withOpacity(0.10),
+          color: filled ? null : ThemeTokens.of(context).textPrimary.withOpacity(0.10),
           border: filled
               ? null
               : Border.all(
@@ -1019,7 +1019,7 @@ class _DismissBackground extends StatelessWidget {
         ),
       ),
       child: Icon(Icons.delete_outline_rounded,
-          color: Colors.white, size: 24),
+          color: ThemeTokens.of(context).textPrimary, size: 24),
     );
   }
 }

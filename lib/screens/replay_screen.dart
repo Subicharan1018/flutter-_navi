@@ -304,7 +304,7 @@ class _ReplayList extends ConsumerWidget {
                 child: ElevatedButton.icon(
                   style: ElevatedButton.styleFrom(
                     backgroundColor: ThemeTokens.of(context).accent,
-                    foregroundColor: Colors.black,
+                    foregroundColor: ThemeTokens.of(context).bgBase,
                     shape: const StadiumBorder(),
                     elevation: 0,
                   ),

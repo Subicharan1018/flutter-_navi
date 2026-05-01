@@ -24,6 +24,7 @@ dependencies:
 
   # HTTP & storage
   http: ^1.2.0
+  dio: ^5.7.0
   http_parser: ^4.0.0
   shared_preferences: ^2.3.1   # Legacy — being migrated to Hive CE
   flutter_secure_storage: ^9.2.2

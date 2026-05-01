@@ -105,15 +105,15 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: Colors.white),
+                          strokeWidth: 2, color: ThemeTokens.of(context).bgBase),
                     )
-                  : Icon(Icons.save_rounded, color: Colors.white),
+                  : Icon(Icons.save_rounded, color: ThemeTokens.of(context).bgBase),
               label: Text(
                 _isSaving
                     ? 'Saving...'
                     : 'Save (${_selectedSongIds.length})',
                 style: TextStyle(
-                    color: Colors.white, fontWeight: FontWeight.bold),
+                    color: ThemeTokens.of(context).bgBase, fontWeight: FontWeight.bold),
               ),
             )
           : null,

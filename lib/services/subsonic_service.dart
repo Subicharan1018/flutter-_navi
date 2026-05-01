@@ -165,9 +165,11 @@ class SubsonicService {
   /// Cover-art URL — **stable** salt so the URL never changes for a given ID.
   /// This is what allows CachedNetworkImage to serve from disk/memory cache
   /// instead of re-downloading on every widget rebuild or list scroll.
-  String getCoverArtUrl(String? coverArtId) {
+  String getCoverArtUrl(String? coverArtId, {int? size}) {
     if (coverArtId == null || coverArtId.isEmpty) return '';
-    return _buildStableUrl('getCoverArt.view', {'id': coverArtId});
+    final params = {'id': coverArtId};
+    if (size != null) params['size'] = size.toString();
+    return _buildStableUrl('getCoverArt.view', params);
   }
 
   // ---------------------------------------------------------------------------
@@ -633,8 +635,37 @@ class SubsonicService {
     });
   }
 
-  Future<void> scrobble(String songId) async =>
-      _get('scrobble.view', {'id': songId, 'submission': 'true'});
+  Future<void> scrobble(String songId, {bool submission = true}) async =>
+      _get('scrobble.view', {'id': songId, 'submission': submission.toString()});
+
+  // ---------------------------------------------------------------------------
+  // Lyrics
+  // ---------------------------------------------------------------------------
+
+  Future<List<Map<String, dynamic>>?> getLyricsBySongId(String songId) async {
+    try {
+      final res = await _get('getLyrics.view', {'id': songId});
+      final lyrics = res['lyrics'] as List<dynamic>?;
+      if (lyrics == null) return null;
+      return lyrics.map((e) => e as Map<String, dynamic>).toList();
+    } catch (e) {
+      debugPrint('Error fetching lyrics by song ID: $e');
+      return null;
+    }
+  }
+
+  Future<String?> getLyrics({String? artist, String? title}) async {
+    try {
+      final params = <String, String>{};
+      if (artist != null) params['artist'] = artist;
+      if (title != null) params['title'] = title;
+      final res = await _get('getLyrics.view', params);
+      return (res['lyrics'] as Map<String, dynamic>?)?['value']?.toString();
+    } catch (e) {
+      debugPrint('Error fetching lyrics: $e');
+      return null;
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // File upload

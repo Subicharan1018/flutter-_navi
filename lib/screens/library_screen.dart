@@ -13,6 +13,7 @@ import '../core/theme.dart';
 import 'playlist_details_screen.dart';
 import 'edit_playlist_screen.dart';
 import 'search_screen.dart';
+import 'offline_screen.dart';
 import '../services/subsonic_service.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
@@ -122,6 +123,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       onTap: () =>
                           ref.read(libraryFilterProvider.notifier).state =
                               LibraryFilter.albums,
+                    ),
+                    _FilterChip(
+                      label: 'Offline',
+                      isSelected: false,
+                      onTap: () {
+                        Navigator.push(
+                          context,
+                          MaterialPageRoute(builder: (_) => const OfflineScreen()),
+                        );
+                      },
                     ),
                   ],
                 ),
@@ -532,7 +543,7 @@ class _FilterChip extends StatelessWidget {
               label,
               style: TextStyle(
                 color:
-                    isSelected ? Colors.black : ThemeTokens.of(context).textPrimary,
+                    isSelected ? (ThemeTokens.of(context).isLight ? Colors.white : Colors.black) : ThemeTokens.of(context).textPrimary,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
