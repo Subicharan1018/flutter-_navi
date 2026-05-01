@@ -59,6 +59,8 @@ class HiveBoxes {
   static const kServerUrl = 'serverUrl';
   static const kUsername = 'username';
   static const kPassword = 'password';
+  static const kWebdavUsername = 'webdavUsername';
+  static const kWebdavPassword = 'webdavPassword';
 
   // ---------------------------------------------------------------------------
   // Session keys
@@ -78,6 +80,7 @@ class HiveBoxes {
   static const kAnalyticsUploadSchedule = 'analytics_upload_schedule';
   static const kAnalyticsLastUpload = 'analytics_last_upload';
   static const kThemeMode = 'theme_mode';
+  static const kMeshGradientEnabled = 'mesh_gradient_enabled';
   static const kImageCacheEnabled = 'cache_images_enabled';
   static const kMusicCacheEnabled = 'cache_music_enabled';
   static const kBpmCacheEnabled = 'cache_bpm_enabled';

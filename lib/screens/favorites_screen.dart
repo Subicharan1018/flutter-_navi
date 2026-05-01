@@ -32,7 +32,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     final topPad = MediaQuery.of(context).padding.top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
+      value: ThemeTokens.of(context).isLight 
+          ? SystemUiOverlayStyle.dark 
+          : SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: ThemeTokens.of(context).bgBase,
         body: RefreshIndicator(

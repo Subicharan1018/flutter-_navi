@@ -60,6 +60,8 @@ class SettingsState {
   final String serverUrl;
   final String username;
   final String password;
+  final String webdavUsername;
+  final String webdavPassword;
   final ShuffleAlgorithm shuffleAlgorithm;
   final ShufflePreference shufflePreference;
   final String uploadApiUrl;
@@ -73,24 +75,32 @@ class SettingsState {
   /// Active UI theme.  Defaults to the classic Spotify dark look.
   final AppThemeMode themeMode;
 
+  /// When true a live mesh-gradient shader renders behind the main scaffold.
+  final bool meshGradientEnabled;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
     required this.password,
+    this.webdavUsername = '',
+    this.webdavPassword = '',
     this.shuffleAlgorithm = ShuffleAlgorithm.standard,
     this.shufflePreference = ShufflePreference.composer,
     this.uploadApiUrl = '',
-    this.uploadDirectory = '/DATA/Media/Music',
+    this.uploadDirectory = '',
     this.dataCollectionEnabled = true,
     this.analyticsUploadSchedule = 'none',
     this.analyticsLastUpload,
     this.themeMode = AppThemeMode.spotify,
+    this.meshGradientEnabled = false,
   });
 
   SettingsState copyWith({
     String? serverUrl,
     String? username,
     String? password,
+    String? webdavUsername,
+    String? webdavPassword,
     ShuffleAlgorithm? shuffleAlgorithm,
     ShufflePreference? shufflePreference,
     String? uploadApiUrl,
@@ -99,11 +109,14 @@ class SettingsState {
     String? analyticsUploadSchedule,
     String? analyticsLastUpload,
     AppThemeMode? themeMode,
+    bool? meshGradientEnabled,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
       username: username ?? this.username,
       password: password ?? this.password,
+      webdavUsername: webdavUsername ?? this.webdavUsername,
+      webdavPassword: webdavPassword ?? this.webdavPassword,
       shuffleAlgorithm: shuffleAlgorithm ?? this.shuffleAlgorithm,
       shufflePreference: shufflePreference ?? this.shufflePreference,
       uploadApiUrl: uploadApiUrl ?? this.uploadApiUrl,
@@ -114,6 +127,7 @@ class SettingsState {
           analyticsUploadSchedule ?? this.analyticsUploadSchedule,
       analyticsLastUpload: analyticsLastUpload ?? this.analyticsLastUpload,
       themeMode: themeMode ?? this.themeMode,
+      meshGradientEnabled: meshGradientEnabled ?? this.meshGradientEnabled,
     );
   }
 }
@@ -159,6 +173,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       username: getString(
           auth, HiveBoxes.kUsername, Constants.defaultUsername),
       password: auth.get(HiveBoxes.kPassword)?.toString() ?? '',
+      webdavUsername: auth.get(HiveBoxes.kWebdavUsername)?.toString() ?? '',
+      webdavPassword: auth.get(HiveBoxes.kWebdavPassword)?.toString() ?? '',
       // firstWhere with orElse means unknown stored names (e.g. old enum
       // values removed in a future refactor) fall back to standard safely.
       shuffleAlgorithm: ShuffleAlgorithm.values.firstWhere(
@@ -170,8 +186,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         orElse: () => ShufflePreference.composer,
       ),
       uploadApiUrl: p.get(HiveBoxes.kUploadApiUrl)?.toString() ?? '',
-      uploadDirectory: getString(
-          p, HiveBoxes.kUploadDirectory, '/DATA/Media/Music'),
+      uploadDirectory: p.get(HiveBoxes.kUploadDirectory)?.toString() ?? '',
       dataCollectionEnabled:
           p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool
               ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true)
@@ -187,6 +202,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         (e) => e.name == themeName,
         orElse: () => AppThemeMode.spotify,
       ),
+      meshGradientEnabled:
+          p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false) is bool
+              ? p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false)
+                  as bool
+              : false,
     );
   }
 
@@ -196,6 +216,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     String pass, {
     String? uploadUrl,
     String? uploadDir,
+    String? webdavUser,
+    String? webdavPass,
   }) async {
     final auth = HiveBoxes.auth;
     final p = HiveBoxes.prefs;
@@ -203,6 +225,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await auth.put(HiveBoxes.kServerUrl, url);
     await auth.put(HiveBoxes.kUsername, user);
     await auth.put(HiveBoxes.kPassword, pass);
+    if (webdavUser != null) await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
+    if (webdavPass != null) await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
     if (uploadUrl != null) await p.put(HiveBoxes.kUploadApiUrl, uploadUrl);
     if (uploadDir != null) await p.put(HiveBoxes.kUploadDirectory, uploadDir);
 
@@ -210,6 +234,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       serverUrl: url,
       username: user,
       password: pass,
+      webdavUsername: webdavUser,
+      webdavPassword: webdavPass,
       uploadApiUrl: uploadUrl,
       uploadDirectory: uploadDir,
     );
@@ -244,6 +270,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setThemeMode(AppThemeMode mode) async {
     await HiveBoxes.prefs.put(HiveBoxes.kThemeMode, mode.name);
     state = state.copyWith(themeMode: mode);
+  }
+
+  /// Persists and applies the mesh-gradient background toggle.
+  Future<void> setMeshGradientEnabled(bool enabled) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kMeshGradientEnabled, enabled);
+    state = state.copyWith(meshGradientEnabled: enabled);
   }
 }
 
@@ -299,8 +331,10 @@ final subsonicServiceProvider = Provider<SubsonicService>((ref) {
     username: creds.username,
     password: creds.password,
     cache: cache,
-    customUploadUrl: settings.uploadApiUrl,
-    customUploadDir: settings.uploadDirectory,
+    customUploadUrl: settings.uploadApiUrl.isEmpty ? null : settings.uploadApiUrl,
+    customUploadDir: settings.uploadDirectory.isEmpty ? null : settings.uploadDirectory,
+    webdavUsername: settings.webdavUsername.isEmpty ? null : settings.webdavUsername,
+    webdavPassword: settings.webdavPassword.isEmpty ? null : settings.webdavPassword,
   );
 
   ref.onDispose(service.dispose);

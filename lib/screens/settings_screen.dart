@@ -28,7 +28,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _passController;
   late TextEditingController _uploadUrlController;
   late TextEditingController _uploadDirController;
+  late TextEditingController _webdavUserController;
+  late TextEditingController _webdavPassController;
   bool _obscurePass = true;
+  bool _obscureWebdavPass = true;
   bool _isUploading = false;
   bool _isExporting = false;
   bool _isSyncing = false;
@@ -53,11 +56,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     final settings = ref.read(settingsProvider);
-    _urlController = TextEditingController(text: settings.serverUrl);
-    _userController = TextEditingController(text: settings.username);
-    _passController = TextEditingController(text: settings.password);
-    _uploadUrlController = TextEditingController(text: settings.uploadApiUrl);
-    _uploadDirController = TextEditingController(text: settings.uploadDirectory);
+    _urlController        = TextEditingController(text: settings.serverUrl);
+    _userController       = TextEditingController(text: settings.username);
+    _passController       = TextEditingController(text: settings.password);
+    _uploadUrlController  = TextEditingController(text: settings.uploadApiUrl);
+    _uploadDirController  = TextEditingController(text: settings.uploadDirectory);
+    _webdavUserController = TextEditingController(text: settings.webdavUsername);
+    _webdavPassController = TextEditingController(text: settings.webdavPassword);
     // Load analytics row counts for the settings summary.
     _loadStats();
     _loadNewFeatureSettings();
@@ -103,6 +108,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _passController.dispose();
     _uploadUrlController.dispose();
     _uploadDirController.dispose();
+    _webdavUserController.dispose();
+    _webdavPassController.dispose();
     super.dispose();
   }
 
@@ -113,6 +120,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _passController.text,
           uploadUrl: _uploadUrlController.text.trim(),
           uploadDir: _uploadDirController.text.trim(),
+          webdavUser: _webdavUserController.text.trim(),
+          webdavPass: _webdavPassController.text,
         );
     HapticFeedback.mediumImpact();
     Navigator.pop(context);
@@ -350,8 +359,39 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             SizedBox(height: 32),
 
             // ----------------------------------------------------------------
-            // Preferences (includes Smart Shuffle algorithm picker)
+            // WebDAV Credentials
             // ----------------------------------------------------------------
+            _SettingsGroup(
+              title: 'WEBDAV CREDENTIALS',
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
+                  child: Text(
+                    'Required only if using the WebDAV sync/upload features. '
+                    'Stored in encrypted local storage.',
+                    style: TextStyle(
+                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                  ),
+                ),
+                _SettingsDivider(),
+                _SettingsInputRow(
+                  label: 'WD Username',
+                  controller: _webdavUserController,
+                  hint: 'webdav-user',
+                ),
+                _SettingsDivider(),
+                _SettingsInputRow(
+                  label: 'WD Password',
+                  controller: _webdavPassController,
+                  hint: '••••••••',
+                  obscure: _obscureWebdavPass,
+                  onToggleObscure: () =>
+                      setState(() => _obscureWebdavPass = !_obscureWebdavPass),
+                ),
+              ],
+            ),
+            SizedBox(height: 32),
+
             _SettingsGroup(
               title: 'PREFERENCES',
               children: [
@@ -359,6 +399,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   label: 'High Quality Audio',
                   value: true,
                   onChanged: (v) {}, // TODO: wire up when implemented
+                ),
+                _SettingsDivider(),
+                _SettingsToggleRow(
+                  label: 'Mesh Gradient Background',
+                  value: settings.meshGradientEnabled,
+                  onChanged: (v) {
+                    ref.read(settingsProvider.notifier).setMeshGradientEnabled(v);
+                  },
                 ),
                 _SettingsDivider(),
 
@@ -896,7 +944,7 @@ class _SettingsGroup extends StatelessWidget {
         ),
         Container(
           decoration: BoxDecoration(
-            color: tokens.bgSurface,
+            color: tokens.bgSurfaceOpaque,
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: tokens.outline),
           ),
@@ -1032,7 +1080,10 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
                   color: tokens.textPrimary, fontSize: 15)),
           DropdownButton<T>(
             value: value,
-            dropdownColor: tokens.bgSurface,
+            // bgSurfaceOpaque composites a translucent surface over bgBase,
+            // ensuring the Frost theme's glass-white surface doesn't bleed
+            // through the dropdown menu making text unreadable.
+            dropdownColor: tokens.bgSurfaceOpaque,
             underline: SizedBox(),
             onChanged: onChanged,
             items: items.map((item) {

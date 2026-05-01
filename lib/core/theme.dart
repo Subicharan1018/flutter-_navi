@@ -127,6 +127,11 @@ class AppThemeTokens {
 
   /// Whether this theme uses a light background
   bool get isLight => ThemeVariants._isLight(mode);
+
+  /// Guaranteed opaque surface colour — safe for dropdowns, dialogs,
+  /// and other overlays where a translucent [bgSurface] would leak the
+  /// backdrop through (e.g. the Frost theme's 30% white glass surface).
+  Color get bgSurfaceOpaque => Color.alphaBlend(bgSurface, bgBase);
 }
 
 // =============================================================================
@@ -268,8 +273,9 @@ class ThemeVariants {
     glassBorder:   const Color(0x22000000),
     neuLight:      const Color(0xFFFFFFFF),
     neuDark:       const Color(0xFFCCCCCC),
+    // Scale clamped to 1.08× (was 1.15×) to prevent card text overflow.
     textStyle: (size, weight, color) => GoogleFonts.cormorantGaramond(
-      fontSize: size * 1.15, fontWeight: weight, color: color,
+      fontSize: size * 1.08, fontWeight: weight, color: color,
       letterSpacing: weight == FontWeight.w700 ? -0.5 : 0.2),
   );
 

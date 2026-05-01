@@ -102,48 +102,73 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: _ExploreCard(
-                              key: const Key('explore_made_for_you'),
-                              label: 'CURATED',
-                              title: 'Made\nFor You',
-                              icon: Icons.auto_awesome_rounded,
-                              color: const Color(0xFF1DB954),
-                              bgColor: const Color(0xFF0A1F12),
-                              onTap: () => Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => const MadeForYouScreen())),
+                      child: Builder(builder: (context) {
+                        // Compute theme-aware accent/bg combinations so that
+                        // every theme (Neumorphic, Zen, Analog, Frost, etc.)
+                        // renders the Explore cards with proper contrast instead
+                        // of the hardcoded dark green/red/blue that look black
+                        // on all non-Spotify dark themes.
+                        final t = ThemeTokens.of(context);
+
+                        // Spotify brand green; other themes use accent.
+                        final greenAccent  = t.mode == AppThemeMode.spotify
+                            ? const Color(0xFF1DB954) : t.accent;
+                        final roseAccent   = t.mode == AppThemeMode.spotify
+                            ? const Color(0xFFF43F5E)
+                            : Color.lerp(t.accent, const Color(0xFFF43F5E), 0.55)!;
+                        final blueAccent   = t.mode == AppThemeMode.spotify
+                            ? const Color(0xFF3B82F6)
+                            : Color.lerp(t.accent, const Color(0xFF3B82F6), 0.55)!;
+
+                        // bgColor: 14% accent overlaid on bgBase (dark themes)
+                        // or 8% accent overlaid on bgSurface (light themes).
+                        Color cardBg(Color accent) => t.isLight
+                            ? Color.alphaBlend(accent.withOpacity(0.10), t.bgSurface)
+                            : Color.alphaBlend(accent.withOpacity(0.16), t.bgBase);
+
+                        return Row(
+                          children: [
+                            Expanded(
+                              child: _ExploreCard(
+                                key: const Key('explore_made_for_you'),
+                                label: 'CURATED',
+                                title: 'Made\nFor You',
+                                icon: Icons.auto_awesome_rounded,
+                                color: greenAccent,
+                                bgColor: cardBg(greenAccent),
+                                onTap: () => Navigator.push(context,
+                                    MaterialPageRoute(builder: (_) => const MadeForYouScreen())),
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: _ExploreCard(
-                              key: const Key('explore_favorites'),
-                              label: 'SAVED',
-                              title: 'Your\nFavorites',
-                              icon: Icons.favorite_rounded,
-                              color: const Color(0xFFF43F5E),
-                              bgColor: const Color(0xFF1F0A0E),
-                              onTap: () => Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => const FavoritesScreen())),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: _ExploreCard(
+                                key: const Key('explore_favorites'),
+                                label: 'SAVED',
+                                title: 'Your\nFavorites',
+                                icon: Icons.favorite_rounded,
+                                color: roseAccent,
+                                bgColor: cardBg(roseAccent),
+                                onTap: () => Navigator.push(context,
+                                    MaterialPageRoute(builder: (_) => const FavoritesScreen())),
+                              ),
                             ),
-                          ),
-                          SizedBox(width: 8),
-                          Expanded(
-                            child: _ExploreCard(
-                              key: const Key('explore_new_releases'),
-                              label: 'FRESH',
-                              title: 'New\nReleases',
-                              icon: Icons.new_releases_rounded,
-                              color: const Color(0xFF3B82F6),
-                              bgColor: const Color(0xFF08101A),
-                              onTap: () => Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => const NewReleasesScreen())),
+                            SizedBox(width: 8),
+                            Expanded(
+                              child: _ExploreCard(
+                                key: const Key('explore_new_releases'),
+                                label: 'FRESH',
+                                title: 'New\nReleases',
+                                icon: Icons.new_releases_rounded,
+                                color: blueAccent,
+                                bgColor: cardBg(blueAccent),
+                                onTap: () => Navigator.push(context,
+                                    MaterialPageRoute(builder: (_) => const NewReleasesScreen())),
+                              ),
                             ),
-                          ),
-                        ],
-                      ),
+                          ],
+                        );
+                      }),
                     ).animate(delay: 80.ms).fadeIn(duration: 400.ms),
                   ),
 
@@ -376,6 +401,8 @@ class _ExploreCard extends StatelessWidget {
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
                     Text(label,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
                         style: TextStyle(
                           fontSize: 9,
                           fontWeight: FontWeight.w600,
@@ -384,12 +411,13 @@ class _ExploreCard extends StatelessWidget {
                         )),
                     SizedBox(height: 4),
                     Text(title,
-                        style: TextStyle(
-                          fontSize: 18,
-                          fontWeight: FontWeight.w700,
-                          color: tokens.textPrimary,
-                          height: 1.15,
-                        )),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: tokens.textStyle(
+                          16,
+                          FontWeight.w700,
+                          tokens.textPrimary,
+                        ).copyWith(height: 1.15)),
                   ],
                 ),
               ),

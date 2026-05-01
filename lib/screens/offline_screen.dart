@@ -101,6 +101,19 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
         backgroundColor: ThemeTokens.of(context).bgSurface,
         foregroundColor: ThemeTokens.of(context).textPrimary,
         elevation: 0,
+        actions: [
+          if (_songs.isNotEmpty)
+            Semantics(
+              button: true,
+              label: 'Clear all downloads',
+              child: IconButton(
+                icon: const Icon(Icons.delete_sweep_rounded,
+                    color: Colors.redAccent),
+                tooltip: 'Clear all downloads',
+                onPressed: _clearAllDownloads,
+              ),
+            ),
+        ],
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
