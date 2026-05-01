@@ -30,6 +30,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   Widget build(BuildContext context) {
     final filter = ref.watch(libraryFilterProvider);
     final filteredContentAsync = ref.watch(filteredLibraryProvider);
+    final service = ref.watch(subsonicServiceProvider);
 
     if (_lastFilter != filter) {
       _lastFilter = filter;
@@ -143,21 +144,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         // instead of items.indexOf(item) which is O(n) and
                         // breaks when two songs have identical field values.
                         Widget tile = _buildItem(
-                            context, filter, items, items[index], index);
+                            context, filter, items, items[index], index, service);
                         if (!_listAnimated) {
-                          tile = tile.animate().fadeIn(
-                                duration: 400.ms,
-                                delay:
-                                    (index * 18).clamp(0, 280).ms,
-                              );
-                          if (index == items.length - 1) {
-                            WidgetsBinding.instance
-                                .addPostFrameCallback((_) {
-                              if (mounted) {
-                                setState(() => _listAnimated = true);
-                              }
-                            });
-                          }
+                          tile = RepaintBoundary(
+                            child: tile.animate().fadeIn(
+                                  duration: 400.ms,
+                                  delay:
+                                      (index * 18).clamp(0, 280).ms,
+                                ),
+                          );
                         }
                         return tile;
                       },
@@ -193,7 +188,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // had identical data but different instances the wrong index was returned,
   // and the call was also O(n²) across the whole list build.
   Widget _buildItem(BuildContext context, LibraryFilter filter,
-      List items, dynamic item, int index) {
+      List items, dynamic item, int index, SubsonicService service) {
     switch (filter) {
       case LibraryFilter.allSongs:
         return SongTile(
@@ -239,7 +234,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
         );
 
       case LibraryFilter.albums:
-        final service = ref.read(subsonicServiceProvider);
         final coverUrl = service.getCoverArtUrl(item.coverArt);
 
         return Semantics(

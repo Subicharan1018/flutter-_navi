@@ -23,7 +23,7 @@ class SubsonicService {
   final String? customUploadDir;
   final String? webdavUsername;
   final String? webdavPassword;
-  final http.Client _client = http.Client();
+  final http.Client _client;
 
   /// SQLite-backed persistent playlist cache (injected by the provider).
   final PlaylistCacheService _cache;
@@ -60,12 +60,14 @@ class SubsonicService {
     required this.username,
     required this.password,
     required PlaylistCacheService cache,
+    http.Client? client,
     this.customUploadUrl,
     this.customUploadDir,
     this.webdavUsername,
     this.webdavPassword,
   })  : serverUrl = _normalizeServerUrl(serverUrl),
-        _cache = cache {
+        _cache = cache,
+        _client = client ?? http.Client() {
     // BUG-8: Restore or generate a stable salt for cover-art URLs.
     // We compute the token dynamically so it updates if the password changes.
     // Changed key to coverArtSalt_v2 to permanently bust the corrupted CachedNetworkImage cache.
@@ -746,13 +748,14 @@ class SubsonicService {
   }) async {
     final uri = _buildWebDavUploadUri(targetFileName);
 
-    final webdavUser = webdavUsername ?? 'casaos';
-    final webdavPass = webdavPassword ?? 'casaos';
-    final auth = base64Encode(utf8.encode('$webdavUser:$webdavPass'));
+    if (webdavUsername == null || webdavUsername!.isEmpty ||
+        webdavPassword == null || webdavPassword!.isEmpty) {
+      throw const AuthException();
+    }
 
-    debugPrint('Upload(WebDAV): PUT $uri');
-    debugPrint('Upload(WebDAV): Using username: $webdavUser');
-    debugPrint('Upload(WebDAV): File size: $contentLength bytes');
+    final webdavUser = webdavUsername!;
+    final webdavPass = webdavPassword!;
+    final auth = base64Encode(utf8.encode('$webdavUser:$webdavPass'));
 
     Object? lastError;
     for (var attempt = 1; attempt <= _webDavMaxAttempts; attempt++) {

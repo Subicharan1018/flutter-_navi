@@ -179,7 +179,57 @@ List<Song> _sortSongsByCreated(List<Song> songs) {
     if (a.created == null && b.created == null) return 0;
     if (a.created == null) return 1;
     if (b.created == null) return -1;
-    return b.created!.compareTo(a.created!);
   });
   return songs;
 }
+
+// ---------------------------------------------------------------------------
+// Playlist Actions Controller
+// ---------------------------------------------------------------------------
+class PlaylistController {
+  final Ref ref;
+  PlaylistController(this.ref);
+
+  Future<void> createAndAdd(String name, String songId) async {
+    final service = ref.read(subsonicServiceProvider);
+    await service.createPlaylist(name);
+
+    ref.invalidate(playlistsProvider);
+    final playlists = await ref.read(playlistsProvider.future);
+
+    final newPlaylist = playlists.firstWhere(
+      (p) => p.name == name,
+      orElse: () => throw Exception('Playlist not found after creation'),
+    );
+    await service.updatePlaylist(newPlaylist.id, songIdToAdd: songId);
+
+    ref.invalidate(songsInPlaylistProvider(newPlaylist.id));
+  }
+
+  Future<int> batchUpdate({
+    required String songId,
+    required Set<String> adds,
+    required Set<String> removes,
+  }) async {
+    final service = ref.read(subsonicServiceProvider);
+    int successCount = 0;
+
+    for (final playlistId in adds) {
+      await service.updatePlaylist(playlistId, songIdToAdd: songId);
+      ref.invalidate(songsInPlaylistProvider(playlistId));
+      successCount++;
+    }
+    for (final playlistId in removes) {
+      final freshSongs = await service.getPlaylistSongs(playlistId, forceRefresh: true);
+      final serverIndex = freshSongs.indexWhere((s) => s.id == songId);
+      if (serverIndex >= 0) {
+        await service.updatePlaylist(playlistId, songIndexToRemove: serverIndex);
+      }
+      ref.invalidate(songsInPlaylistProvider(playlistId));
+      successCount++;
+    }
+    return successCount;
+  }
+}
+
+final playlistControllerProvider = Provider((ref) => PlaylistController(ref));

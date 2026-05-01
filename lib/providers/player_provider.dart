@@ -442,6 +442,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> playNext() async {
+    await _queueOpLock?.future;
     if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
       final currentSong = state.queue[state.currentIndex];
       _pushToHistory(currentSong);
@@ -463,7 +464,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
                 : 0,
             pushHistory: false);
       }
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('playNext failed: $e\n$stack');
       await _jumpToInternal(
           state.currentIndex < state.queue.length - 1
               ? state.currentIndex + 1
@@ -473,6 +475,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> playPrev() async {
+    await _queueOpLock?.future;
     try {
       if (player.position.inSeconds > 3) {
         await player.seek(Duration.zero);
@@ -505,7 +508,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             state.currentIndex > 0 ? state.currentIndex - 1 : 0,
             pushHistory: false);
       }
-    } catch (_) {
+    } catch (e, stack) {
+      debugPrint('playPrev failed: $e\n$stack');
       _suppressNextHistoryPush = true;
       await _jumpToInternal(
           state.currentIndex > 0 ? state.currentIndex - 1 : 0,

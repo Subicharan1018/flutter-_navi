@@ -25,77 +25,79 @@ import 'package:flutter/foundation.dart';
 // =============================================================================
 
 Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
-  try {
-    final palette = await PaletteGenerator.fromImageProvider(
-      CachedNetworkImageProvider(imageUrl),
-      size: const Size(200, 200),
-      maximumColorCount: 32,
-    );
+  return await Isolate.run(() async {
+    try {
+      final palette = await PaletteGenerator.fromImageProvider(
+        NetworkImage(imageUrl),
+        size: const Size(100, 100),
+        maximumColorCount: 32,
+      );
 
-    Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
-      final hsl = HSLColor.fromColor(base);
-      return hsl
-          .withSaturation((hsl.saturation * satMul).clamp(0.08, 1.0))
-          .withLightness((hsl.lightness * lightMul).clamp(0.04, 0.34))
-          .toColor();
-    }
-
-    Color firstNonNull(List<Color?> candidates, Color fallback) {
-      for (final c in candidates) {
-        if (c != null) return c;
+      Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
+        final hsl = HSLColor.fromColor(base);
+        return hsl
+            .withSaturation((hsl.saturation * satMul).clamp(0.08, 1.0))
+            .withLightness((hsl.lightness * lightMul).clamp(0.04, 0.34))
+            .toColor();
       }
-      return fallback;
+
+      Color firstNonNull(List<Color?> candidates, Color fallback) {
+        for (final c in candidates) {
+          if (c != null) return c;
+        }
+        return fallback;
+      }
+
+      final dominant = firstNonNull([
+        palette.dominantColor?.color,
+        palette.darkVibrantColor?.color,
+        palette.darkMutedColor?.color,
+        palette.vibrantColor?.color,
+        palette.mutedColor?.color,
+        palette.lightMutedColor?.color,
+      ], const Color(0xFF202022));
+
+      final dominantHsl = HSLColor.fromColor(dominant);
+      final derivedVibrant = dominantHsl
+          .withSaturation((dominantHsl.saturation + 0.25).clamp(0.20, 1.0))
+          .withLightness((dominantHsl.lightness * 0.95).clamp(0.08, 0.48))
+          .toColor();
+      final derivedAccent = dominantHsl
+          .withSaturation((dominantHsl.saturation + 0.12).clamp(0.14, 1.0))
+          .withLightness((dominantHsl.lightness * 1.18).clamp(0.12, 0.58))
+          .toColor();
+
+      final vibrant = firstNonNull([
+        palette.vibrantColor?.color,
+        palette.darkVibrantColor?.color,
+        palette.lightVibrantColor?.color,
+        palette.mutedColor?.color,
+      ], derivedVibrant);
+
+      final darkAccent = firstNonNull([
+        palette.darkMutedColor?.color,
+        palette.darkVibrantColor?.color,
+        palette.mutedColor?.color,
+        palette.dominantColor?.color,
+      ], dominant);
+
+      final lightAccent = firstNonNull([
+        palette.lightVibrantColor?.color,
+        palette.lightMutedColor?.color,
+        palette.vibrantColor?.color,
+        palette.mutedColor?.color,
+      ], derivedAccent);
+
+      return [
+        process(dominant, satMul: 1.10, lightMul: 0.44).value,
+        process(vibrant, satMul: 1.35, lightMul: 0.52).value,
+        process(darkAccent, satMul: 1.05, lightMul: 0.40).value,
+        process(lightAccent, satMul: 1.20, lightMul: 0.58).value,
+      ];
+    } catch (_) {
+      return [0xFF121212, 0xFF1D1D1D, 0xFF0B0B0B, 0xFF2A2A2A];
     }
-
-    final dominant = firstNonNull([
-      palette.dominantColor?.color,
-      palette.darkVibrantColor?.color,
-      palette.darkMutedColor?.color,
-      palette.vibrantColor?.color,
-      palette.mutedColor?.color,
-      palette.lightMutedColor?.color,
-    ], const Color(0xFF202022));
-
-    final dominantHsl = HSLColor.fromColor(dominant);
-    final derivedVibrant = dominantHsl
-        .withSaturation((dominantHsl.saturation + 0.25).clamp(0.20, 1.0))
-        .withLightness((dominantHsl.lightness * 0.95).clamp(0.08, 0.48))
-        .toColor();
-    final derivedAccent = dominantHsl
-        .withSaturation((dominantHsl.saturation + 0.12).clamp(0.14, 1.0))
-        .withLightness((dominantHsl.lightness * 1.18).clamp(0.12, 0.58))
-        .toColor();
-
-    final vibrant = firstNonNull([
-      palette.vibrantColor?.color,
-      palette.darkVibrantColor?.color,
-      palette.lightVibrantColor?.color,
-      palette.mutedColor?.color,
-    ], derivedVibrant);
-
-    final darkAccent = firstNonNull([
-      palette.darkMutedColor?.color,
-      palette.darkVibrantColor?.color,
-      palette.mutedColor?.color,
-      palette.dominantColor?.color,
-    ], dominant);
-
-    final lightAccent = firstNonNull([
-      palette.lightVibrantColor?.color,
-      palette.lightMutedColor?.color,
-      palette.vibrantColor?.color,
-      palette.mutedColor?.color,
-    ], derivedAccent);
-
-    return [
-      process(dominant, satMul: 1.10, lightMul: 0.44).value,
-      process(vibrant, satMul: 1.35, lightMul: 0.52).value,
-      process(darkAccent, satMul: 1.05, lightMul: 0.40).value,
-      process(lightAccent, satMul: 1.20, lightMul: 0.58).value,
-    ];
-  } catch (_) {
-    return [0xFF121212, 0xFF1D1D1D, 0xFF0B0B0B, 0xFF2A2A2A];
-  }
+  });
 }
 
 List<Color> _intsToColors(List<int> v) => v.map((i) => Color(i)).toList();

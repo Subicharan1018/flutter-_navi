@@ -36,21 +36,7 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
 
     setState(() => _isCreating = true);
     try {
-      final service = ref.read(subsonicServiceProvider);
-      await service.createPlaylist(name);
-
-      ref.invalidate(playlistsProvider);
-      final playlists = await ref.read(playlistsProvider.future);
-
-      final newPlaylist = playlists.firstWhere(
-        (p) => p.name == name,
-        orElse: () =>
-            throw Exception('Playlist not found after creation'),
-      );
-      await service.updatePlaylist(newPlaylist.id,
-          songIdToAdd: widget.song.id);
-
-      ref.invalidate(songsInPlaylistProvider(newPlaylist.id));
+      await ref.read(playlistControllerProvider).createAndAdd(name, widget.song.id);
 
       if (mounted) {
         _nameController.clear();
@@ -111,26 +97,13 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
       return;
     }
     setState(() => _isSaving = true);
-    final service = ref.read(subsonicServiceProvider);
     final songId = widget.song.id;
-    int successCount = 0;
     try {
-      for (final playlistId in _pendingAdds) {
-        await service.updatePlaylist(playlistId, songIdToAdd: songId);
-        ref.invalidate(songsInPlaylistProvider(playlistId));
-        successCount++;
-      }
-      for (final playlistId in _pendingRemoves) {
-        final freshSongs = await service.getPlaylistSongs(playlistId,
-            forceRefresh: true);
-        final serverIndex = freshSongs.indexWhere((s) => s.id == songId);
-        if (serverIndex >= 0) {
-          await service.updatePlaylist(playlistId,
-              songIndexToRemove: serverIndex);
-        }
-        ref.invalidate(songsInPlaylistProvider(playlistId));
-        successCount++;
-      }
+      final successCount = await ref.read(playlistControllerProvider).batchUpdate(
+        songId: songId,
+        adds: _pendingAdds,
+        removes: _pendingRemoves,
+      );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
