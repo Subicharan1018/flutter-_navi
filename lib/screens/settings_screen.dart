@@ -524,6 +524,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onTap: _isSyncing ? null : _syncDataToServer,
                 ),
                 _SettingsDivider(),
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Icon(Icons.cleaning_services_rounded,
+                      color: ThemeTokens.of(context).textMuted, size: 24),
+                  title: Text('Clean up junk data',
+                      style: TextStyle(
+                          color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
+                  subtitle: Text(
+                    'Purges redundant 0-second play events from the local database',
+                    style: TextStyle(
+                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                  ),
+                  onTap: () async {
+                    final purgedCount = await ref
+                        .read(listenerCollectorProvider)
+                        .purgeNoiseEvents();
+                    if (mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(
+                          content: Text('Purged $purgedCount junk events'),
+                          backgroundColor: ThemeTokens.of(context).accent,
+                        ),
+                      );
+                      _loadStats(); // refresh counts
+                    }
+                  },
+                ),
+                _SettingsDivider(),
                 _SettingsDropdownRow<String>(
                   label: 'Auto-Upload Schedule',
                   value: settings.analyticsUploadSchedule,
