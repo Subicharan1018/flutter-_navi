@@ -74,8 +74,7 @@ void main() {
     });
 
     test('starred is false when JSON value is null', () {
-      final json = Map<String, dynamic>.from(fullJson)
-        ..['starred'] = null;
+      final json = Map<String, dynamic>.from(fullJson)..['starred'] = null;
       expect(Song.fromJson(json).starred, isFalse);
     });
 
@@ -98,12 +97,18 @@ void main() {
 
     setUp(() => s = Song.fromJson(const {'id': 'x'}));
 
-    test('title defaults to Unknown Title', () =>
-        expect(s.title, 'Unknown Title'));
-    test('artist defaults to Unknown Artist', () =>
-        expect(s.artist, 'Unknown Artist'));
-    test('album defaults to Unknown Album', () =>
-        expect(s.album, 'Unknown Album'));
+    test(
+      'title defaults to Unknown Title',
+      () => expect(s.title, 'Unknown Title'),
+    );
+    test(
+      'artist defaults to Unknown Artist',
+      () => expect(s.artist, 'Unknown Artist'),
+    );
+    test(
+      'album defaults to Unknown Album',
+      () => expect(s.album, 'Unknown Album'),
+    );
     test('genre defaults to empty string', () => expect(s.genre, ''));
     test('composer defaults to empty string', () => expect(s.composer, ''));
     test('coverArt defaults to empty string', () => expect(s.coverArt, ''));

@@ -32,7 +32,10 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
   void initState() {
     super.initState();
     _tabController = TabController(
-        length: 2, vsync: this, initialIndex: widget.initialTab);
+      length: 2,
+      vsync: this,
+      initialIndex: widget.initialTab,
+    );
   }
 
   @override
@@ -43,8 +46,18 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
 
   String _monthLabel() {
     const months = [
-      'January', 'February', 'March', 'April', 'May', 'June',
-      'July', 'August', 'September', 'October', 'November', 'December',
+      'January',
+      'February',
+      'March',
+      'April',
+      'May',
+      'June',
+      'July',
+      'August',
+      'September',
+      'October',
+      'November',
+      'December',
     ];
     final now = DateTime.now();
     return '${months[now.month - 1]} ${now.year}';
@@ -54,7 +67,20 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
     final now = DateTime.now();
     final monday = now.subtract(Duration(days: now.weekday - 1));
     final sunday = monday.add(const Duration(days: 6));
-    final monthNames = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+    final monthNames = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
     return '${monthNames[monday.month - 1]} ${monday.day} – ${sunday.day}';
   }
 
@@ -89,13 +115,15 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
                       _ReplayTabContent(
                         provider: monthlyReplayProvider,
                         periodLabel: _monthLabel(),
-                        emptyLabel: 'Listen more this month to\nbuild your Monthly Replay',
+                        emptyLabel:
+                            'Listen more this month to\nbuild your Monthly Replay',
                         showDailyChart: false,
                       ),
                       _ReplayTabContent(
                         provider: weeklyReplayProvider,
                         periodLabel: _weekLabel(),
-                        emptyLabel: 'Listen more this week to\nbuild your Weekly Replay',
+                        emptyLabel:
+                            'Listen more this week to\nbuild your Weekly Replay',
                         showDailyChart: true,
                       ),
                     ],
@@ -105,12 +133,7 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
             ),
 
             // ── Mini player overlay ─────────────────────────────────────
-            const Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
-              child: MiniPlayer(),
-            ),
+            const Positioned(left: 0, right: 0, bottom: 0, child: MiniPlayer()),
           ],
         ),
       ),
@@ -152,8 +175,11 @@ class _ReplayHeader extends StatelessWidget {
                   button: true,
                   label: 'Go back',
                   child: IconButton(
-                    icon: Icon(Icons.keyboard_arrow_down_rounded,
-                        color: ThemeTokens.of(context).textPrimary, size: 30),
+                    icon: Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: ThemeTokens.of(context).textPrimary,
+                      size: 30,
+                    ),
                     onPressed: onBack,
                   ),
                 ),
@@ -171,10 +197,11 @@ class _ReplayHeader extends StatelessWidget {
             unselectedLabelColor: ThemeTokens.of(context).textMuted,
             indicatorColor: ThemeTokens.of(context).accent,
             indicatorWeight: 2,
-            labelStyle: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w600),
+            labelStyle: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
             unselectedLabelStyle: TextStyle(
-                fontSize: 14, fontWeight: FontWeight.w400),
+              fontSize: 14,
+              fontWeight: FontWeight.w400,
+            ),
             tabs: [
               Tab(text: monthLabel),
               const Tab(text: 'This Week'),
@@ -218,11 +245,15 @@ class _ReplayTabContent extends ConsumerWidget {
       },
       loading: () => Center(
         child: CircularProgressIndicator(
-            color: ThemeTokens.of(context).accent, strokeWidth: 2),
+          color: ThemeTokens.of(context).accent,
+          strokeWidth: 2,
+        ),
       ),
       error: (e, _) => Center(
-        child: Text('Could not load replay data',
-            style: TextStyle(color: ThemeTokens.of(context).textMuted)),
+        child: Text(
+          'Could not load replay data',
+          style: TextStyle(color: ThemeTokens.of(context).textMuted),
+        ),
       ),
     );
   }
@@ -243,24 +274,28 @@ class _ReplayList extends ConsumerWidget {
     required this.showDailyChart,
   });
 
-  Future<void> _playSong(BuildContext context, WidgetRef ref, ReplaySong song) async {
+  Future<void> _playSong(
+    BuildContext context,
+    WidgetRef ref,
+    ReplaySong song,
+  ) async {
     try {
       final svc = ref.read(subsonicServiceProvider);
-      
-      // If we are in the ranked list, we probably want to play the whole list 
+
+      // If we are in the ranked list, we probably want to play the whole list
       // starting from this song.
       final songIds = data.songs.map((s) => s.songId).toList();
       final startIndex = data.songs.indexOf(song);
-      
+
       // Fetch full song objects for the queue
       final songs = await svc.getSongs(songIds);
-      
+
       if (context.mounted && songs.isNotEmpty) {
         // Adjust index in case some songs failed to fetch
         int adjustedIndex = 0;
         final match = songs.indexWhere((s) => s.id == song.songId);
         if (match != -1) adjustedIndex = match;
-        
+
         ref.read(playerProvider.notifier).setQueue(songs, adjustedIndex);
       }
     } catch (e) {
@@ -311,8 +346,10 @@ class _ReplayList extends ConsumerWidget {
                     elevation: 0,
                   ),
                   icon: Icon(Icons.play_arrow_rounded, size: 22),
-                  label: Text('Play All',
-                      style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15)),
+                  label: Text(
+                    'Play All',
+                    style: TextStyle(fontWeight: FontWeight.w700, fontSize: 15),
+                  ),
                   onPressed: () async {
                     if (data.songs.isEmpty) return;
                     final svc = ref.read(subsonicServiceProvider);
@@ -339,14 +376,15 @@ class _ReplayList extends ConsumerWidget {
         // ── Song rows ──────────────────────────────────────────────────
         SliverList(
           delegate: SliverChildBuilderDelegate(
-            (context, i) => _ReplaySongRow(
-              song: data.songs[i],
-              rank: i + 1,
-              onTap: () => _playSong(context, ref, data.songs[i]),
-            )
-            .animate(delay: (i * 50).clamp(0, 400).ms)
-            .fadeIn(duration: 350.ms)
-            .slideX(begin: 0.04, end: 0, curve: Curves.easeOutCubic),
+            (context, i) =>
+                _ReplaySongRow(
+                      song: data.songs[i],
+                      rank: i + 1,
+                      onTap: () => _playSong(context, ref, data.songs[i]),
+                    )
+                    .animate(delay: (i * 50).clamp(0, 400).ms)
+                    .fadeIn(duration: 350.ms)
+                    .slideX(begin: 0.04, end: 0, curve: Curves.easeOutCubic),
             childCount: data.songs.length,
           ),
         ),
@@ -397,23 +435,34 @@ class _DailyListeningChart extends StatelessWidget {
         children: [
           Row(
             children: [
-              Text('DAILY ACTIVITY',
-                  style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w600,
-                      color: ThemeTokens.of(context).textMuted, letterSpacing: 1.2)),
+              Text(
+                'DAILY ACTIVITY',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: ThemeTokens.of(context).textMuted,
+                  letterSpacing: 1.2,
+                ),
+              ),
               const Spacer(),
               if (hasData) ...[
                 Container(
-                  width: 8, height: 8,
+                  width: 8,
+                  height: 8,
                   decoration: BoxDecoration(
-                      color: ThemeTokens.of(context).accent.withOpacity(0.5),
-                      shape: BoxShape.circle),
+                    color: ThemeTokens.of(context).accent.withOpacity(0.5),
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 SizedBox(width: 4),
-                Text('avg ${_timeLabel(avgSec.round())}/day',
-                    style: TextStyle(
-                        fontSize: 11, color: ThemeTokens.of(context).textMuted,
-                        fontWeight: FontWeight.w500)),
+                Text(
+                  'avg ${_timeLabel(avgSec.round())}/day',
+                  style: TextStyle(
+                    fontSize: 11,
+                    color: ThemeTokens.of(context).textMuted,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
               ],
             ],
           ),
@@ -422,134 +471,159 @@ class _DailyListeningChart extends StatelessWidget {
             SizedBox(
               height: _maxBarHeight + 40,
               child: Center(
-                child: Text('No daily data yet — keep listening!',
-                    style: TextStyle(
-                        fontSize: 13,
-                        color: ThemeTokens.of(context).textMuted.withOpacity(0.6))),
+                child: Text(
+                  'No daily data yet — keep listening!',
+                  style: TextStyle(
+                    fontSize: 13,
+                    color: ThemeTokens.of(context).textMuted.withOpacity(0.6),
+                  ),
+                ),
               ),
             )
           else
             SizedBox(
               height: _maxBarHeight + 60,
-              child: LayoutBuilder(builder: (context, constraints) {
-                final avgFraction =
-                    maxVal > 0 ? (avgSec / maxVal).clamp(0.0, 1.0) : 0.0;
-                final avgY = _maxBarHeight * (1 - avgFraction);
+              child: LayoutBuilder(
+                builder: (context, constraints) {
+                  final avgFraction = maxVal > 0
+                      ? (avgSec / maxVal).clamp(0.0, 1.0)
+                      : 0.0;
+                  final avgY = _maxBarHeight * (1 - avgFraction);
 
-                return Stack(children: [
-                  Positioned(
-                    top: 20 + avgY,
-                    left: 0,
-                    right: 0,
-                    child: _DashedLine(
-                        color: ThemeTokens.of(context).accent.withOpacity(0.3)),
-                  ),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.end,
-                    children: List.generate(7, (i) {
-                      final sec = values[i];
-                      final fraction = maxVal > 0
-                          ? (sec / maxVal).clamp(0.05, 1.0)
-                          : 0.05;
-                      final isToday = (i + 1) == today;
-                      final barGradient = isToday
-                          ? [
-                              ThemeTokens.of(context).accent,
-                              ThemeTokens.of(context).accent.withOpacity(0.7),
-                            ]
-                          : [
-                              HSLColor.fromAHSL(
-                                      1.0, 160 + i * 4.0, 0.55, 0.38)
-                                  .toColor(),
-                              HSLColor.fromAHSL(
-                                      1.0, 160 + i * 4.0, 0.45, 0.25)
-                                  .toColor(),
-                            ];
-
-                      return Expanded(
-                        child: Padding(
-                          padding: EdgeInsets.only(
-                              left: i == 0 ? 0 : 5,
-                              right: i == 6 ? 0 : 5),
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.end,
-                            children: [
-                              Text(
-                                _timeLabel(sec),
-                                style: TextStyle(
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w700,
-                                  color: isToday
-                                      ? ThemeTokens.of(context).accent
-                                      : ThemeTokens.of(context).textMuted,
-                                ),
-                              ),
-                              SizedBox(height: 4),
-                              TweenAnimationBuilder<double>(
-                                tween: Tween(
-                                    begin: 0.0,
-                                    end: _maxBarHeight * fraction),
-                                duration: Duration(
-                                    milliseconds: 600 + i * 80),
-                                curve: Curves.easeOutCubic,
-                                builder: (context, height, _) {
-                                  return Container(
-                                    height: height,
-                                    decoration: BoxDecoration(
-                                      borderRadius:
-                                          BorderRadius.circular(6),
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: barGradient,
-                                      ),
-                                      boxShadow: isToday
-                                          ? [
-                                              BoxShadow(
-                                                color: AppTheme
-                                                    .spotifyGreen
-                                                    .withOpacity(0.3),
-                                                blurRadius: 10,
-                                                spreadRadius: 1,
-                                              ),
-                                            ]
-                                          : null,
-                                    ),
-                                  );
-                                },
-                              ),
-                              SizedBox(height: 8),
-                              Text(
-                                _dayLabels[i],
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  fontWeight: isToday
-                                      ? FontWeight.w700
-                                      : FontWeight.w500,
-                                  color: isToday
-                                      ? ThemeTokens.of(context).accent
-                                      : ThemeTokens.of(context).textSecondary,
-                                ),
-                              ),
-                              if (isToday)
-                                Container(
-                                  margin: const EdgeInsets.only(top: 3),
-                                  width: 4,
-                                  height: 4,
-                                  decoration: BoxDecoration(
-                                      color: ThemeTokens.of(context).accent,
-                                      shape: BoxShape.circle),
-                                )
-                              else
-                                SizedBox(height: 7),
-                            ],
-                          ),
+                  return Stack(
+                    children: [
+                      Positioned(
+                        top: 20 + avgY,
+                        left: 0,
+                        right: 0,
+                        child: _DashedLine(
+                          color: ThemeTokens.of(
+                            context,
+                          ).accent.withOpacity(0.3),
                         ),
-                      );
-                    }),
-                  ),
-                ]);
-              }),
+                      ),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.end,
+                        children: List.generate(7, (i) {
+                          final sec = values[i];
+                          final fraction = maxVal > 0
+                              ? (sec / maxVal).clamp(0.05, 1.0)
+                              : 0.05;
+                          final isToday = (i + 1) == today;
+                          final barGradient = isToday
+                              ? [
+                                  ThemeTokens.of(context).accent,
+                                  ThemeTokens.of(
+                                    context,
+                                  ).accent.withOpacity(0.7),
+                                ]
+                              : [
+                                  HSLColor.fromAHSL(
+                                    1.0,
+                                    160 + i * 4.0,
+                                    0.55,
+                                    0.38,
+                                  ).toColor(),
+                                  HSLColor.fromAHSL(
+                                    1.0,
+                                    160 + i * 4.0,
+                                    0.45,
+                                    0.25,
+                                  ).toColor(),
+                                ];
+
+                          return Expanded(
+                            child: Padding(
+                              padding: EdgeInsets.only(
+                                left: i == 0 ? 0 : 5,
+                                right: i == 6 ? 0 : 5,
+                              ),
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.end,
+                                children: [
+                                  Text(
+                                    _timeLabel(sec),
+                                    style: TextStyle(
+                                      fontSize: 11,
+                                      fontWeight: FontWeight.w700,
+                                      color: isToday
+                                          ? ThemeTokens.of(context).accent
+                                          : ThemeTokens.of(context).textMuted,
+                                    ),
+                                  ),
+                                  SizedBox(height: 4),
+                                  TweenAnimationBuilder<double>(
+                                    tween: Tween(
+                                      begin: 0.0,
+                                      end: _maxBarHeight * fraction,
+                                    ),
+                                    duration: Duration(
+                                      milliseconds: 600 + i * 80,
+                                    ),
+                                    curve: Curves.easeOutCubic,
+                                    builder: (context, height, _) {
+                                      return Container(
+                                        height: height,
+                                        decoration: BoxDecoration(
+                                          borderRadius: BorderRadius.circular(
+                                            6,
+                                          ),
+                                          gradient: LinearGradient(
+                                            begin: Alignment.topCenter,
+                                            end: Alignment.bottomCenter,
+                                            colors: barGradient,
+                                          ),
+                                          boxShadow: isToday
+                                              ? [
+                                                  BoxShadow(
+                                                    color: AppTheme.spotifyGreen
+                                                        .withOpacity(0.3),
+                                                    blurRadius: 10,
+                                                    spreadRadius: 1,
+                                                  ),
+                                                ]
+                                              : null,
+                                        ),
+                                      );
+                                    },
+                                  ),
+                                  SizedBox(height: 8),
+                                  Text(
+                                    _dayLabels[i],
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      fontWeight: isToday
+                                          ? FontWeight.w700
+                                          : FontWeight.w500,
+                                      color: isToday
+                                          ? ThemeTokens.of(context).accent
+                                          : ThemeTokens.of(
+                                              context,
+                                            ).textSecondary,
+                                    ),
+                                  ),
+                                  if (isToday)
+                                    Container(
+                                      margin: const EdgeInsets.only(top: 3),
+                                      width: 4,
+                                      height: 4,
+                                      decoration: BoxDecoration(
+                                        color: ThemeTokens.of(context).accent,
+                                        shape: BoxShape.circle,
+                                      ),
+                                    )
+                                  else
+                                    SizedBox(height: 7),
+                                ],
+                              ),
+                            ),
+                          );
+                        }),
+                      ),
+                    ],
+                  );
+                },
+              ),
             ),
         ],
       ),
@@ -563,14 +637,18 @@ class _DashedLine extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      final dashCount = (constraints.maxWidth / 8).floor();
-      return Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        children: List.generate(
-            dashCount, (_) => Container(width: 4, height: 1, color: color)),
-      );
-    });
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        final dashCount = (constraints.maxWidth / 8).floor();
+        return Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: List.generate(
+            dashCount,
+            (_) => Container(width: 4, height: 1, color: color),
+          ),
+        );
+      },
+    );
   }
 }
 
@@ -598,28 +676,37 @@ class _StatsCard extends StatelessWidget {
           // Top row: label + genre pill
           Row(
             children: [
-              Text('YOUR REPLAY',
-                  style: TextStyle(
-                      fontSize: 10, fontWeight: FontWeight.w600,
-                      color: ThemeTokens.of(context).accent, letterSpacing: 1.5)),
+              Text(
+                'YOUR REPLAY',
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: ThemeTokens.of(context).accent,
+                  letterSpacing: 1.5,
+                ),
+              ),
               const Spacer(),
               if (stats.topGenre != null)
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 10,
+                    vertical: 4,
+                  ),
                   decoration: BoxDecoration(
                     color: ThemeTokens.of(context).accent.withOpacity(0.12),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: ThemeTokens.of(context).accent.withOpacity(0.25),
-                        width: 0.7),
+                      color: ThemeTokens.of(context).accent.withOpacity(0.25),
+                      width: 0.7,
+                    ),
                   ),
                   child: Text(
                     stats.topGenre!,
                     style: TextStyle(
-                        fontSize: 11,
-                        fontWeight: FontWeight.w600,
-                        color: ThemeTokens.of(context).accent),
+                      fontSize: 11,
+                      fontWeight: FontWeight.w600,
+                      color: ThemeTokens.of(context).accent,
+                    ),
                   ),
                 ),
             ],
@@ -651,9 +738,10 @@ class _StatsCard extends StatelessWidget {
                     Text(
                       'time listened',
                       style: TextStyle(
-                          fontSize: 12,
-                          color: ThemeTokens.of(context).textMuted,
-                          fontWeight: FontWeight.w400),
+                        fontSize: 12,
+                        color: ThemeTokens.of(context).textMuted,
+                        fontWeight: FontWeight.w400,
+                      ),
                     ),
                   ],
                 ),
@@ -698,8 +786,11 @@ class _InlineStatRow extends StatelessWidget {
   final String value;
   final String label;
 
-  const _InlineStatRow(
-      {required this.icon, required this.value, required this.label});
+  const _InlineStatRow({
+    required this.icon,
+    required this.value,
+    required this.label,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -708,14 +799,22 @@ class _InlineStatRow extends StatelessWidget {
       children: [
         Icon(icon, size: 13, color: ThemeTokens.of(context).textMuted),
         SizedBox(width: 5),
-        Text(value,
-            style: TextStyle(
-                fontSize: 15,
-                fontWeight: FontWeight.w800,
-                color: ThemeTokens.of(context).textPrimary)),
+        Text(
+          value,
+          style: TextStyle(
+            fontSize: 15,
+            fontWeight: FontWeight.w800,
+            color: ThemeTokens.of(context).textPrimary,
+          ),
+        ),
         SizedBox(width: 3),
-        Text(label,
-            style: TextStyle(fontSize: 12, color: ThemeTokens.of(context).textMuted)),
+        Text(
+          label,
+          style: TextStyle(
+            fontSize: 12,
+            color: ThemeTokens.of(context).textMuted,
+          ),
+        ),
       ],
     );
   }
@@ -729,14 +828,18 @@ class _ReplaySongRow extends ConsumerWidget {
   final ReplaySong song;
   final int rank;
   final VoidCallback onTap;
-  const _ReplaySongRow(
-      {required this.song, required this.rank, required this.onTap});
+  const _ReplaySongRow({
+    required this.song,
+    required this.rank,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final svc = ref.watch(subsonicServiceProvider);
-    final coverUrl =
-        song.coverArtId != null ? svc.getCoverArtUrl(song.coverArtId!) : null;
+    final coverUrl = song.coverArtId != null
+        ? svc.getCoverArtUrl(song.coverArtId!)
+        : null;
 
     return Semantics(
       button: true,
@@ -749,7 +852,9 @@ class _ReplaySongRow extends ConsumerWidget {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                  color: Colors.white.withOpacity(0.04), width: 0.5),
+                color: Colors.white.withOpacity(0.04),
+                width: 0.5,
+              ),
             ),
           ),
           child: Row(
@@ -762,8 +867,9 @@ class _ReplaySongRow extends ConsumerWidget {
                   style: TextStyle(
                     fontSize: rank <= 3 ? 20 : 15,
                     fontWeight: FontWeight.w900,
-                    color:
-                        rank <= 3 ? ThemeTokens.of(context).accent : ThemeTokens.of(context).textMuted,
+                    color: rank <= 3
+                        ? ThemeTokens.of(context).accent
+                        : ThemeTokens.of(context).textMuted,
                     letterSpacing: -0.3,
                   ),
                 ),
@@ -773,8 +879,9 @@ class _ReplaySongRow extends ConsumerWidget {
                 width: 48,
                 height: 48,
                 decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    color: ThemeTokens.of(context).bgElevated),
+                  borderRadius: BorderRadius.circular(6),
+                  color: ThemeTokens.of(context).bgElevated,
+                ),
                 clipBehavior: Clip.hardEdge,
                 child: coverUrl != null
                     ? CachedNetworkImage(
@@ -791,22 +898,30 @@ class _ReplaySongRow extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 14,
-                          fontWeight: FontWeight.w600,
-                          color: rank <= 3
-                              ? ThemeTokens.of(context).textPrimary
-                              : ThemeTokens.of(context).textPrimary.withOpacity(0.85),
-                        )),
+                    Text(
+                      song.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 14,
+                        fontWeight: FontWeight.w600,
+                        color: rank <= 3
+                            ? ThemeTokens.of(context).textPrimary
+                            : ThemeTokens.of(
+                                context,
+                              ).textPrimary.withOpacity(0.85),
+                      ),
+                    ),
                     SizedBox(height: 2),
-                    Text(song.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                            fontSize: 12, color: ThemeTokens.of(context).textSecondary)),
+                    Text(
+                      song.artist,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: ThemeTokens.of(context).textSecondary,
+                      ),
+                    ),
                   ],
                 ),
               ),
@@ -825,14 +940,21 @@ class _ReplaySongRow extends ConsumerWidget {
                     ),
                   ),
                   SizedBox(height: 2),
-                  Text('${song.playCount} plays',
-                      style: TextStyle(
-                          fontSize: 10, color: ThemeTokens.of(context).textMuted)),
+                  Text(
+                    '${song.playCount} plays',
+                    style: TextStyle(
+                      fontSize: 10,
+                      color: ThemeTokens.of(context).textMuted,
+                    ),
+                  ),
                 ],
               ),
               SizedBox(width: 4),
-              Icon(Icons.play_circle_outline_rounded,
-                  color: ThemeTokens.of(context).textMuted.withOpacity(0.5), size: 20),
+              Icon(
+                Icons.play_circle_outline_rounded,
+                color: ThemeTokens.of(context).textMuted.withOpacity(0.5),
+                size: 20,
+              ),
             ],
           ),
         ),
@@ -841,10 +963,13 @@ class _ReplaySongRow extends ConsumerWidget {
   }
 
   Widget _artPlaceholder(BuildContext context) => Container(
-        color: ThemeTokens.of(context).bgElevated,
-        child: Icon(Icons.music_note_rounded,
-            color: ThemeTokens.of(context).textMuted, size: 20),
-      );
+    color: ThemeTokens.of(context).bgElevated,
+    child: Icon(
+      Icons.music_note_rounded,
+      color: ThemeTokens.of(context).textMuted,
+      size: 20,
+    ),
+  );
 }
 
 // =============================================================================
@@ -858,30 +983,38 @@ class _EmptyReplay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: ThemeTokens.of(context).accent.withOpacity(0.12),
-            ),
-            child: Icon(Icons.bar_chart_rounded,
-                color: ThemeTokens.of(context).accent, size: 40),
-          ),
-          SizedBox(height: 20),
-          Text(label,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                  color: ThemeTokens.of(context).textSecondary, fontSize: 15, height: 1.5)),
-        ],
-      )
-          .animate()
-          .fadeIn(duration: 500.ms)
-          .scale(
-              begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
+      child:
+          Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    width: 80,
+                    height: 80,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: ThemeTokens.of(context).accent.withOpacity(0.12),
+                    ),
+                    child: Icon(
+                      Icons.bar_chart_rounded,
+                      color: ThemeTokens.of(context).accent,
+                      size: 40,
+                    ),
+                  ),
+                  SizedBox(height: 20),
+                  Text(
+                    label,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textSecondary,
+                      fontSize: 15,
+                      height: 1.5,
+                    ),
+                  ),
+                ],
+              )
+              .animate()
+              .fadeIn(duration: 500.ms)
+              .scale(begin: const Offset(0.9, 0.9), end: const Offset(1, 1)),
     );
   }
 }

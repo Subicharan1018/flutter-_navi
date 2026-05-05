@@ -65,9 +65,9 @@ class SubsonicService {
     this.customUploadDir,
     this.webdavUsername,
     this.webdavPassword,
-  })  : serverUrl = _normalizeServerUrl(serverUrl),
-        _cache = cache,
-        _client = client ?? http.Client() {
+  }) : serverUrl = _normalizeServerUrl(serverUrl),
+       _cache = cache,
+       _client = client ?? http.Client() {
     // BUG-8: Restore or generate a stable salt for cover-art URLs.
     // We compute the token dynamically so it updates if the password changes.
     // Changed key to coverArtSalt_v2 to permanently bust the corrupted CachedNetworkImage cache.
@@ -80,7 +80,7 @@ class SubsonicService {
       _coverArtSalt = _generateSalt();
       box.put('coverArtSalt_v2', _coverArtSalt);
     }
-    
+
     // Always generate token from current password so it never goes stale
     _coverArtToken = _generateToken(_coverArtSalt);
   }
@@ -88,7 +88,7 @@ class SubsonicService {
   static String _normalizeServerUrl(String url) {
     final trimmed = url.trim();
     if (trimmed.isEmpty) return Constants.defaultServerUrl;
-    
+
     final uri = Uri.parse(trimmed);
     if (uri.path.isEmpty || uri.path == '/') {
       return uri.replace(path: '/rest').toString();
@@ -106,8 +106,9 @@ class SubsonicService {
 
   String _generateSalt() {
     return List.generate(
-            16, (_) => _saltChars[_random.nextInt(_saltChars.length)])
-        .join();
+      16,
+      (_) => _saltChars[_random.nextInt(_saltChars.length)],
+    ).join();
   }
 
   String _generateToken(String salt) {
@@ -200,7 +201,7 @@ class SubsonicService {
       } else {
         final error = subsonicResponse['error'] as Map<String, dynamic>?;
         final code = error?['code'] as int? ?? 0;
-        final msg  = error?['message']?.toString() ?? 'Subsonic API error';
+        final msg = error?['message']?.toString() ?? 'Subsonic API error';
         // Subsonic error codes 40 (wrong creds) / 41 (token not supported)
         if (code == 40 || code == 41) throw const AuthException();
         throw SubsonicApiException(code, msg);
@@ -212,7 +213,9 @@ class SubsonicService {
     } on SubsonicApiException {
       rethrow;
     } on dart_io.SocketException catch (e) {
-      debugPrint('[SubsonicService] SocketException: ${e.message}, host: ${e.address?.host}, port: ${e.port}');
+      debugPrint(
+        '[SubsonicService] SocketException: ${e.message}, host: ${e.address?.host}, port: ${e.port}',
+      );
       throw NetworkException('No internet connection: ${e.message}');
     } on dart_async.TimeoutException {
       debugPrint('[SubsonicService] TimeoutException');
@@ -251,8 +254,7 @@ class SubsonicService {
         'query': '*',
         'songCount': size.toString(),
       });
-      final searchResult =
-          res['searchResult3'] as Map<String, dynamic>? ?? {};
+      final searchResult = res['searchResult3'] as Map<String, dynamic>? ?? {};
       final rawList = (searchResult['song'] as List<dynamic>? ?? [])
           .cast<Map<String, dynamic>>();
       // Parse 5000 Song objects on a background isolate.
@@ -268,24 +270,31 @@ class SubsonicService {
   Future<List<Song>> getRandomSongs({int size = 50}) async {
     final res = await _get('getRandomSongs.view', {'size': size.toString()});
     final randomSongs =
-        (res['randomSongs'] as Map<String, dynamic>)['song'] as List<dynamic>? ??
-            [];
+        (res['randomSongs'] as Map<String, dynamic>)['song']
+            as List<dynamic>? ??
+        [];
     return randomSongs
         .map((e) => Song.fromJson(e as Map<String, dynamic>))
         .toList();
   }
 
   Future<List<Song>> getNewestSongs({int size = 50}) async {
-    final res = await _get(
-        'getAlbumList2.view', {'type': 'newest', 'size': size.toString()});
+    final res = await _get('getAlbumList2.view', {
+      'type': 'newest',
+      'size': size.toString(),
+    });
     final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
-            [];
+        (res['albumList2'] as Map<String, dynamic>)['album']
+            as List<dynamic>? ??
+        [];
     if (albums.isEmpty) return [];
 
     // PERF-4: fetch all albums concurrently instead of sequentially.
     // Clamp to 10 albums max to avoid flooding the server with requests.
-    final toFetch = albums.take(10).map((a) => a['id']?.toString() ?? '').toList();
+    final toFetch = albums
+        .take(10)
+        .map((a) => a['id']?.toString() ?? '')
+        .toList();
     final results = await Future.wait(toFetch.map(getAlbum));
     final allSongs = results.expand((s) => s).toList();
     return allSongs.take(size).toList();
@@ -297,8 +306,9 @@ class SubsonicService {
       'count': count.toString(),
     });
     final similarSongs =
-        (res['similarSongs2'] as Map<String, dynamic>)['song'] as List<dynamic>? ??
-            [];
+        (res['similarSongs2'] as Map<String, dynamic>)['song']
+            as List<dynamic>? ??
+        [];
     return similarSongs
         .map((e) => Song.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -312,8 +322,9 @@ class SubsonicService {
     // BUG-31: cache removed — recentlyPlayedAlbumsProvider.keepAlive() owns it.
     final res = await _get('getAlbumList2.view', {'type': 'recent'});
     final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
-            [];
+        (res['albumList2'] as Map<String, dynamic>)['album']
+            as List<dynamic>? ??
+        [];
     return albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -323,8 +334,9 @@ class SubsonicService {
     // BUG-31: cache removed — frequentAlbumsProvider.keepAlive() owns it.
     final res = await _get('getAlbumList2.view', {'type': 'frequent'});
     final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
-            [];
+        (res['albumList2'] as Map<String, dynamic>)['album']
+            as List<dynamic>? ??
+        [];
     return albums
         .map((e) => Album.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -344,9 +356,12 @@ class SubsonicService {
       'offset': offset.toString(),
     });
     final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
-            [];
-    return albums.map((e) => Album.fromJson(e as Map<String, dynamic>)).toList();
+        (res['albumList2'] as Map<String, dynamic>)['album']
+            as List<dynamic>? ??
+        [];
+    return albums
+        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<Album>> getAlbums({int offset = 0, int size = 50}) async {
@@ -357,18 +372,19 @@ class SubsonicService {
       'size': size.toString(),
     });
     final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album'] as List<dynamic>? ??
-            [];
-    return albums.map((e) => Album.fromJson(e as Map<String, dynamic>)).toList();
+        (res['albumList2'] as Map<String, dynamic>)['album']
+            as List<dynamic>? ??
+        [];
+    return albums
+        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+        .toList();
   }
 
   Future<List<Song>> getAlbum(String id) async {
     final res = await _get('getAlbum.view', {'id': id});
     final songs =
         (res['album'] as Map<String, dynamic>)['song'] as List<dynamic>? ?? [];
-    return songs
-        .map((e) => Song.fromJson(e as Map<String, dynamic>))
-        .toList();
+    return songs.map((e) => Song.fromJson(e as Map<String, dynamic>)).toList();
   }
 
   Future<Song> getSong(String id) async {
@@ -380,10 +396,14 @@ class SubsonicService {
   Future<List<Song>> getSongs(List<String> ids) async {
     if (ids.isEmpty) return [];
     // Fetch all concurrently. Subsonic doesn't have a batch getSong.
-    final results = await Future.wait(ids.map((id) => getSong(id).catchError((e) {
-      debugPrint('Failed to fetch song $id: $e');
-      return null;
-    })));
+    final results = await Future.wait(
+      ids.map(
+        (id) => getSong(id).catchError((e) {
+          debugPrint('Failed to fetch song $id: $e');
+          return null;
+        }),
+      ),
+    );
     return results.whereType<Song>().toList();
   }
 
@@ -410,7 +430,7 @@ class SubsonicService {
     final res = await _get('getArtists.view');
     final indexes =
         (res['artists'] as Map<String, dynamic>)['index'] as List<dynamic>? ??
-            [];
+        [];
     final artists = <Map<String, dynamic>>[];
     for (final index in indexes) {
       final artistList =
@@ -430,8 +450,9 @@ class SubsonicService {
     // BUG-31: _playlistsCache removed — playlistsProvider.keepAlive() owns it.
     final res = await _get('getPlaylists.view');
     final playlists =
-        (res['playlists'] as Map<String, dynamic>)['playlist'] as List<dynamic>? ??
-            [];
+        (res['playlists'] as Map<String, dynamic>)['playlist']
+            as List<dynamic>? ??
+        [];
     return playlists
         .map((e) => Playlist.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -475,7 +496,7 @@ class SubsonicService {
     final res = await _get('getPlaylist.view', {'id': id});
     final rawEntries =
         (res['playlist'] as Map<String, dynamic>)['entry'] as List<dynamic>? ??
-            [];
+        [];
 
     // Parse Song objects on a background isolate to keep the UI thread free.
     final songs = await compute(
@@ -526,7 +547,7 @@ class SubsonicService {
     if (name != null) params['name'] = name;
     if (comment != null) params['comment'] = comment;
     await _get('updatePlaylist.view', params);
-    
+
     // Invalidate cache so the next getPlaylistSongs call re-fetches fresh data
     await invalidatePlaylist(playlistId);
   }
@@ -540,8 +561,7 @@ class SubsonicService {
   ///
   /// `Map<String, String>` cannot express repeated keys so we build the URI
   /// manually using [Uri.queryParametersAll] which accepts `Map<String, List<String>>`.
-  Future<void> setPlaylistSongs(
-      String playlistId, List<String> songIds) async {
+  Future<void> setPlaylistSongs(String playlistId, List<String> songIds) async {
     final salt = _generateSalt();
     final token = _generateToken(salt);
 
@@ -589,7 +609,9 @@ class SubsonicService {
       'id': playlistId,
     });
 
-    request.files.add(await http.MultipartFile.fromPath('file', imageFile.path));
+    request.files.add(
+      await http.MultipartFile.fromPath('file', imageFile.path),
+    );
 
     final response = await request.send();
     if (response.statusCode != 200) {
@@ -603,8 +625,7 @@ class SubsonicService {
 
   Future<Map<String, List<dynamic>>> search(String query) async {
     final res = await _get('search3.view', {'query': query});
-    final searchResult =
-        res['searchResult3'] as Map<String, dynamic>? ?? {};
+    final searchResult = res['searchResult3'] as Map<String, dynamic>? ?? {};
     final songs = (searchResult['song'] as List<dynamic>? ?? [])
         .map((e) => Song.fromJson(e as Map<String, dynamic>))
         .toList();
@@ -621,22 +642,20 @@ class SubsonicService {
   // Starring / Rating / Scrobbling
   // ---------------------------------------------------------------------------
 
-  Future<void> star(String songId) async =>
-      _get('star.view', {'id': songId});
+  Future<void> star(String songId) async => _get('star.view', {'id': songId});
 
   Future<void> unstar(String songId) async =>
       _get('unstar.view', {'id': songId});
 
   Future<void> setRating(String songId, int rating) async {
     assert(rating >= 0 && rating <= 5, 'Subsonic rating must be 0–5');
-    await _get('setRating.view', {
-      'id': songId,
-      'rating': rating.toString(),
-    });
+    await _get('setRating.view', {'id': songId, 'rating': rating.toString()});
   }
 
-  Future<void> scrobble(String songId, {bool submission = true}) async =>
-      _get('scrobble.view', {'id': songId, 'submission': submission.toString()});
+  Future<void> scrobble(String songId, {bool submission = true}) async => _get(
+    'scrobble.view',
+    {'id': songId, 'submission': submission.toString()},
+  );
 
   // ---------------------------------------------------------------------------
   // Lyrics
@@ -693,11 +712,13 @@ class SubsonicService {
       'f': 'json',
     });
 
-    request.files.add(await http.MultipartFile.fromPath(
-      'file',
-      file.path,
-      contentType: MediaType('audio', 'mpeg'),
-    ));
+    request.files.add(
+      await http.MultipartFile.fromPath(
+        'file',
+        file.path,
+        contentType: MediaType('audio', 'mpeg'),
+      ),
+    );
 
     final response = await request.send();
     if (response.statusCode != 200) {
@@ -728,8 +749,8 @@ class SubsonicService {
 
     final remoteDir =
         (customUploadDir == null || customUploadDir!.trim().isEmpty)
-            ? '/DATA/Media/Music'
-            : customUploadDir!.trim();
+        ? '/DATA/Media/Music'
+        : customUploadDir!.trim();
 
     final normalizedDir = remoteDir.startsWith('/') ? remoteDir : '/$remoteDir';
     final dirSegments = normalizedDir
@@ -779,8 +800,10 @@ class SubsonicService {
   }) async {
     final uri = _buildWebDavUploadUri(targetFileName);
 
-    if (webdavUsername == null || webdavUsername!.isEmpty ||
-        webdavPassword == null || webdavPassword!.isEmpty) {
+    if (webdavUsername == null ||
+        webdavUsername!.isEmpty ||
+        webdavPassword == null ||
+        webdavPassword!.isEmpty) {
       throw const AuthException();
     }
 
@@ -810,7 +833,8 @@ class SubsonicService {
 
         final streamedResponse = await responseFuture;
         debugPrint(
-            'Upload(WebDAV): Response status: ${streamedResponse.statusCode}');
+          'Upload(WebDAV): Response status: ${streamedResponse.statusCode}',
+        );
 
         if (streamedResponse.statusCode == 200 ||
             streamedResponse.statusCode == 201 ||
@@ -844,8 +868,10 @@ class SubsonicService {
       }
     }
 
-    throw Exception('WebDAV upload failed after $_webDavMaxAttempts attempts: '
-        '$lastError');
+    throw Exception(
+      'WebDAV upload failed after $_webDavMaxAttempts attempts: '
+      '$lastError',
+    );
   }
 
   Future<void> _webDavUpload(File file, String targetFileName) async {

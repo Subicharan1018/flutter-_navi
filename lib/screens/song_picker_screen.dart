@@ -59,16 +59,18 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Added $added song${added == 1 ? '' : 's'} to ${widget.playlistName}'),
+            content: Text(
+              'Added $added song${added == 1 ? '' : 's'} to ${widget.playlistName}',
+            ),
           ),
         );
         Navigator.pop(context, true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error adding songs: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error adding songs: $e')));
         setState(() => _isSaving = false);
       }
     }
@@ -85,12 +87,23 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
         backgroundColor: ThemeTokens.of(context).bgBase,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        title: Text('Add to ${widget.playlistName}', style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          'Add to ${widget.playlistName}',
+          style: TextStyle(
+            color: ThemeTokens.of(context).textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
         leading: SizedBox(
           width: 48,
           height: 48,
           child: IconButton(
-            icon: Icon(Icons.close_rounded, color: ThemeTokens.of(context).textPrimary, size: 24),
+            icon: Icon(
+              Icons.close_rounded,
+              color: ThemeTokens.of(context).textPrimary,
+              size: 24,
+            ),
             onPressed: () => Navigator.pop(context),
           ),
         ),
@@ -105,15 +118,20 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                       width: 20,
                       height: 20,
                       child: CircularProgressIndicator(
-                          strokeWidth: 2, color: ThemeTokens.of(context).bgBase),
+                        strokeWidth: 2,
+                        color: ThemeTokens.of(context).bgBase,
+                      ),
                     )
-                  : Icon(Icons.save_rounded, color: ThemeTokens.of(context).bgBase),
+                  : Icon(
+                      Icons.save_rounded,
+                      color: ThemeTokens.of(context).bgBase,
+                    ),
               label: Text(
-                _isSaving
-                    ? 'Saving...'
-                    : 'Save (${_selectedSongIds.length})',
+                _isSaving ? 'Saving...' : 'Save (${_selectedSongIds.length})',
                 style: TextStyle(
-                    color: ThemeTokens.of(context).bgBase, fontWeight: FontWeight.bold),
+                  color: ThemeTokens.of(context).bgBase,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             )
           : null,
@@ -131,12 +149,22 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
               child: TextField(
                 controller: _searchController,
                 onChanged: (v) => setState(() => _searchQuery = v),
-                style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15),
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 15,
+                ),
                 cursorColor: ThemeTokens.of(context).accent,
                 decoration: InputDecoration(
                   hintText: 'Search for songs...',
-                  hintStyle: TextStyle(color: ThemeTokens.of(context).textMuted.withOpacity(0.5), fontSize: 15),
-                  prefixIcon: Icon(Icons.search_rounded, color: ThemeTokens.of(context).textMuted, size: 22),
+                  hintStyle: TextStyle(
+                    color: ThemeTokens.of(context).textMuted.withOpacity(0.5),
+                    fontSize: 15,
+                  ),
+                  prefixIcon: Icon(
+                    Icons.search_rounded,
+                    color: ThemeTokens.of(context).textMuted,
+                    size: 22,
+                  ),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),
                 ),
@@ -146,18 +174,36 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
           Expanded(
             child: allSongsAsync.when(
               data: (songs) {
-                final filteredSongs = songs.where((s) =>
-                    s.title.toLowerCase().contains(_searchQuery.toLowerCase()) ||
-                    s.artist.toLowerCase().contains(_searchQuery.toLowerCase())).toList();
+                final filteredSongs = songs
+                    .where(
+                      (s) =>
+                          s.title.toLowerCase().contains(
+                            _searchQuery.toLowerCase(),
+                          ) ||
+                          s.artist.toLowerCase().contains(
+                            _searchQuery.toLowerCase(),
+                          ),
+                    )
+                    .toList();
 
                 if (filteredSongs.isEmpty) {
                   return Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.search_off_rounded, color: ThemeTokens.of(context).textMuted, size: 48),
+                        Icon(
+                          Icons.search_off_rounded,
+                          color: ThemeTokens.of(context).textMuted,
+                          size: 48,
+                        ),
                         SizedBox(height: 16),
-                        Text('No songs found', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
+                        Text(
+                          'No songs found',
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textMuted,
+                            fontSize: 15,
+                          ),
+                        ),
                       ],
                     ),
                   );
@@ -170,11 +216,16 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                     final song = filteredSongs[index];
                     final isSelected = _selectedSongIds.contains(song.id);
                     return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                      contentPadding: const EdgeInsets.symmetric(
+                        horizontal: 16,
+                        vertical: 4,
+                      ),
                       leading: Container(
                         decoration: BoxDecoration(
                           borderRadius: BorderRadius.circular(8),
-                          border: Border.all(color: ThemeTokens.of(context).outline),
+                          border: Border.all(
+                            color: ThemeTokens.of(context).outline,
+                          ),
                         ),
                         child: ClipRRect(
                           borderRadius: BorderRadius.circular(7),
@@ -183,16 +234,35 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                             width: 44,
                             height: 44,
                             fit: BoxFit.cover,
-                            placeholder: (_, __) => Container(color: ThemeTokens.of(context).bgSurface),
+                            placeholder: (_, __) => Container(
+                              color: ThemeTokens.of(context).bgSurface,
+                            ),
                             errorWidget: (_, __, ___) => Container(
                               color: ThemeTokens.of(context).bgSurface,
-                              child: Icon(Icons.music_note_rounded, color: ThemeTokens.of(context).textMuted, size: 24),
+                              child: Icon(
+                                Icons.music_note_rounded,
+                                color: ThemeTokens.of(context).textMuted,
+                                size: 24,
+                              ),
                             ),
                           ),
                         ),
                       ),
-                      title: Text(song.title, style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.w600, fontSize: 15)),
-                      subtitle: Text(song.artist, style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 13)),
+                      title: Text(
+                        song.title,
+                        style: TextStyle(
+                          color: ThemeTokens.of(context).textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 15,
+                        ),
+                      ),
+                      subtitle: Text(
+                        song.artist,
+                        style: TextStyle(
+                          color: ThemeTokens.of(context).textMuted,
+                          fontSize: 13,
+                        ),
+                      ),
                       trailing: SizedBox(
                         width: 48,
                         height: 48,
@@ -200,9 +270,11 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                           padding: EdgeInsets.zero,
                           icon: Icon(
                             isSelected
-                              ? Icons.check_circle_rounded
-                              : Icons.add_circle_outline_rounded,
-                            color: isSelected ? ThemeTokens.of(context).accent : ThemeTokens.of(context).textMuted,
+                                ? Icons.check_circle_rounded
+                                : Icons.add_circle_outline_rounded,
+                            color: isSelected
+                                ? ThemeTokens.of(context).accent
+                                : ThemeTokens.of(context).textMuted,
                             size: 24,
                           ),
                           // UX FIX: Toggle local selection — no network call.
@@ -213,14 +285,28 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                   },
                 );
               },
-              loading: () => Center(child: CircularProgressIndicator(color: ThemeTokens.of(context).accent)),
+              loading: () => Center(
+                child: CircularProgressIndicator(
+                  color: ThemeTokens.of(context).accent,
+                ),
+              ),
               error: (e, st) => Center(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+                    Icon(
+                      Icons.error_outline_rounded,
+                      color: Colors.redAccent,
+                      size: 48,
+                    ),
                     SizedBox(height: 12),
-                    Text('Error: $e', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 13)),
+                    Text(
+                      'Error: $e',
+                      style: TextStyle(
+                        color: ThemeTokens.of(context).textMuted,
+                        fontSize: 13,
+                      ),
+                    ),
                   ],
                 ),
               ),

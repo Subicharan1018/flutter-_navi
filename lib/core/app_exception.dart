@@ -30,8 +30,7 @@ class AuthException extends AppException {
 /// The server returned an unexpected HTTP error status.
 class ServerException extends AppException {
   final int statusCode;
-  ServerException(this.statusCode)
-      : super('Server error ($statusCode)');
+  ServerException(this.statusCode) : super('Server error ($statusCode)');
 }
 
 /// The request timed out before the server responded.
@@ -44,5 +43,5 @@ class TimeoutException extends AppException {
 class SubsonicApiException extends AppException {
   final int code;
   SubsonicApiException(this.code, String description)
-      : super('Subsonic error $code: $description');
+    : super('Subsonic error $code: $description');
 }

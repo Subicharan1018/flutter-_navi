@@ -353,10 +353,12 @@ class AudioHandler {
   /// when the window fills. LinkedHashSet preserves insertion order.
   final Set<String> _recentlyPlayedIds = {};
 
-  AudioHandler(this.subsonicService,
-      {AudioPlayer? player, ReplayGainService? replayGainService})
-      : player = player ?? AudioPlayer(),
-        _replayGainService = replayGainService ?? ReplayGainService() {
+  AudioHandler(
+    this.subsonicService, {
+    AudioPlayer? player,
+    ReplayGainService? replayGainService,
+  }) : player = player ?? AudioPlayer(),
+       _replayGainService = replayGainService ?? ReplayGainService() {
     // Hook into track changes so _recentlyPlayedIds stays current
     // without requiring callers to remember to call _trackRecentlyPlayed.
     player?.currentIndexStream.listen((index) {
@@ -390,12 +392,24 @@ class AudioHandler {
 
   AudioSource _toSource(Song song) {
     // FIX (Offline-1): Prioritise local file when song has been downloaded.
-    // OfflineService.getLocalPath() returns the on-disk path synchronously
-    // (it just calls File.existsSync), so this is safe on the UI thread.
-    final localPath = OfflineService().getLocalPath(song.id);
-    final streamUri = localPath != null
-        ? Uri.parse('file://$localPath')
-        : Uri.parse(subsonicService.getStreamUrl(song.id));
+    // FIX (Local-1): Also handle local-scanned songs with 'local:' ID prefix.
+    // LocalLibraryService.pathFromId() strips 'local:' to get the file path.
+    late final Uri streamUri;
+    if (song.isLocal) {
+      // Local-scanned song — path is embedded in the Song.path field.
+      streamUri = Uri.file(song.path);
+    } else {
+      final localPath = OfflineService().getLocalPath(song.id);
+      streamUri = localPath != null
+          ? Uri.parse('file://$localPath')
+          : Uri.parse(subsonicService.getStreamUrl(song.id));
+    }
+
+    // For local songs the coverArt field holds a filesystem path to the
+    // extracted art JPG. For server songs it's a Subsonic cover ID.
+    final artUri = song.isLocal
+        ? (song.coverArt.isNotEmpty ? Uri.file(song.coverArt) : null)
+        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt));
 
     return AudioSource.uri(
       streamUri,
@@ -405,9 +419,9 @@ class AudioHandler {
         artist: song.artist,
         album: song.album,
         genre: song.genre,
-        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+        artUri: artUri,
         duration: Duration(seconds: song.duration),
-        extras: {'composer': song.composer, 'isLocal': localPath != null},
+        extras: {'composer': song.composer, 'isLocal': song.isLocal},
       ),
     );
   }
@@ -417,8 +431,11 @@ class AudioHandler {
   // shuffle). For incremental changes use addToQueue / removeFromQueue /
   // reorderQueue below.
   // ---------------------------------------------------------------------------
-  Future<void> setQueue(List<Song> songs, int startIndex,
-      {List<Song>? unshuffledSongs}) async {
+  Future<void> setQueue(
+    List<Song> songs,
+    int startIndex, {
+    List<Song>? unshuffledSongs,
+  }) async {
     _currentQueue = List.from(songs);
     _unshuffledQueue = List.from(unshuffledSongs ?? songs);
     await _rebuildSource(startIndex);
@@ -437,8 +454,10 @@ class AudioHandler {
   /// or when the user changes replay gain settings.
   void refreshReplayGain() => _applyReplayGain();
 
-  Future<void> _rebuildSource(int startIndex,
-      {Duration? initialPosition}) async {
+  Future<void> _rebuildSource(
+    int startIndex, {
+    Duration? initialPosition,
+  }) async {
     if (_currentQueue.isEmpty) return;
     final savedLoopMode = player.loopMode;
     final sources = _currentQueue.map(_toSource).toList();
@@ -484,12 +503,10 @@ class AudioHandler {
     // that gets updated after every move.
     final int n = _currentQueue.length;
 
-
     // ── O(n²) selection-sort on the live playlist ────────────────────────
     final List<String> liveIds = List.generate(
       n,
-      (i) => (_playlist!.children[i] as UriAudioSource)
-          .tag is MediaItem
+      (i) => (_playlist!.children[i] as UriAudioSource).tag is MediaItem
           ? ((_playlist!.children[i] as UriAudioSource).tag as MediaItem).id
           : '',
     );
@@ -562,8 +579,11 @@ class AudioHandler {
     }
   }
 
-  Future<void> reorderQueue(int oldIndex, int newIndex,
-      {bool isShuffleMode = false}) async {
+  Future<void> reorderQueue(
+    int oldIndex,
+    int newIndex, {
+    bool isShuffleMode = false,
+  }) async {
     if (oldIndex < 0 || oldIndex >= _currentQueue.length) return;
     if (newIndex < 0 || newIndex >= _currentQueue.length) return;
     final song = _currentQueue.removeAt(oldIndex);
@@ -669,10 +689,10 @@ class AudioHandler {
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
 
-    final result = await compute(
-      _mergeShuffleIsolate,
-      <String, dynamic>{'songs': future, 'pref': preference.index},
-    );
+    final result = await compute(_mergeShuffleIsolate, <String, dynamic>{
+      'songs': future,
+      'pref': preference.index,
+    });
 
     debugPrint('✅ [SHUFFLE] Merge result: ${result.length} songs');
     _currentQueue = [...pastAndPresent, ...result];
@@ -700,9 +720,13 @@ class AudioHandler {
   // ---------------------------------------------------------------------------
   // 5. Album-Aware Shuffle
   // ---------------------------------------------------------------------------
-  Future<void> albumAwareShuffle({bool shuffleTracksWithinAlbum = false}) async {
+  Future<void> albumAwareShuffle({
+    bool shuffleTracksWithinAlbum = false,
+  }) async {
     if (_currentQueue.isEmpty) return;
-    debugPrint('🚀 [SHUFFLE] Album-Aware (shuffleTracks=$shuffleTracksWithinAlbum)');
+    debugPrint(
+      '🚀 [SHUFFLE] Album-Aware (shuffleTracks=$shuffleTracksWithinAlbum)',
+    );
 
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
@@ -710,13 +734,10 @@ class AudioHandler {
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
 
-    final result = await compute(
-      _albumAwareShuffleIsolate,
-      <String, dynamic>{
-        'songs': future,
-        'shuffleTracks': shuffleTracksWithinAlbum,
-      },
-    );
+    final result = await compute(_albumAwareShuffleIsolate, <String, dynamic>{
+      'songs': future,
+      'shuffleTracks': shuffleTracksWithinAlbum,
+    });
 
     debugPrint('✅ [SHUFFLE] Album-Aware result: ${result.length} songs');
     _currentQueue = [...pastAndPresent, ...result];
@@ -728,8 +749,10 @@ class AudioHandler {
   // ---------------------------------------------------------------------------
   Future<void> recencyDampenedWeightedShuffle() async {
     if (_currentQueue.isEmpty) return;
-    debugPrint('🚀 [SHUFFLE] Recency-Dampened Weighted Shuffle '
-        '(window=$_recencyWindow, recent=${_recentlyPlayedIds.length})');
+    debugPrint(
+      '🚀 [SHUFFLE] Recency-Dampened Weighted Shuffle '
+      '(window=$_recencyWindow, recent=${_recentlyPlayedIds.length})',
+    );
 
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
@@ -763,8 +786,7 @@ class AudioHandler {
     // Restore the ENTIRE original order, then seek to the current song's
     // position within it so playback continues from the right track.
     _currentQueue = List.from(_unshuffledQueue);
-    final newIndex =
-        _unshuffledQueue.indexWhere((s) => s.id == currentSong.id);
+    final newIndex = _unshuffledQueue.indexWhere((s) => s.id == currentSong.id);
     await _updateQueueAfterAnchor(newIndex != -1 ? newIndex : safeIndex);
   }
 

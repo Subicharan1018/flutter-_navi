@@ -20,8 +20,12 @@ class Playlist {
       id: json['id']?.toString() ?? '',
       name: json['name']?.toString() ?? 'Unknown Playlist',
       comment: json['comment']?.toString() ?? '',
-      songCount: json['songCount'] is int ? json['songCount'] : int.tryParse(json['songCount']?.toString() ?? '') ?? 0,
-      duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
+      songCount: json['songCount'] is int
+          ? json['songCount']
+          : int.tryParse(json['songCount']?.toString() ?? '') ?? 0,
+      duration: json['duration'] is int
+          ? json['duration']
+          : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
       coverArt: json['coverArt']?.toString(),
     );
   }
@@ -42,4 +46,3 @@ class Playlist {
   int get hashCode =>
       Object.hash(id, name, comment, songCount, duration, coverArt);
 }
-

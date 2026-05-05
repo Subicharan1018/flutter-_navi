@@ -32,7 +32,7 @@ class MyMusicPlayerApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode   = ref.watch(themeModeProvider);
+    final mode = ref.watch(themeModeProvider);
     final tokens = ThemeVariants.of(mode);
 
     return ThemeTokens(

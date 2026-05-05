@@ -36,7 +36,9 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
 
     setState(() => _isCreating = true);
     try {
-      await ref.read(playlistControllerProvider).createAndAdd(name, widget.song.id);
+      await ref
+          .read(playlistControllerProvider)
+          .createAndAdd(name, widget.song.id);
 
       if (mounted) {
         _nameController.clear();
@@ -51,7 +53,8 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to create playlist: $e')));
+          SnackBar(content: Text('Failed to create playlist: $e')),
+        );
         setState(() => _isCreating = false);
       }
     }
@@ -95,15 +98,19 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
     setState(() => _isSaving = true);
     final songId = widget.song.id;
     try {
-      final successCount = await ref.read(playlistControllerProvider).batchUpdate(
-        songId: songId,
-        adds: _pendingAdds,
-        removes: _pendingRemoves,
-      );
+      final successCount = await ref
+          .read(playlistControllerProvider)
+          .batchUpdate(
+            songId: songId,
+            adds: _pendingAdds,
+            removes: _pendingRemoves,
+          );
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text('Updated $successCount playlist${successCount == 1 ? '' : 's'}'),
+            content: Text(
+              'Updated $successCount playlist${successCount == 1 ? '' : 's'}',
+            ),
             behavior: SnackBarBehavior.floating,
           ),
         );
@@ -111,8 +118,9 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Save failed: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
         setState(() => _isSaving = false);
       }
     }
@@ -129,8 +137,7 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
         side: BorderSide(color: ThemeTokens.of(context).outline, width: 1),
       ),
       child: ConstrainedBox(
-        constraints:
-            const BoxConstraints(maxWidth: 400, maxHeight: 600),
+        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
         child: Padding(
           padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
           child: Column(
@@ -141,11 +148,16 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
               Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text('Add to Playlist', style: ThemeTokens.of(context).headingMd),
+                  Text(
+                    'Add to Playlist',
+                    style: ThemeTokens.of(context).headingMd,
+                  ),
                   IconButton(
                     onPressed: () => Navigator.pop(context),
-                    icon: Icon(Icons.close,
-                        color: ThemeTokens.of(context).textSecondary),
+                    icon: Icon(
+                      Icons.close,
+                      color: ThemeTokens.of(context).textSecondary,
+                    ),
                   ),
                 ],
               ),
@@ -159,7 +171,9 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                   border: Border.all(color: ThemeTokens.of(context).outline),
                 ),
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 12, vertical: 4),
+                  horizontal: 12,
+                  vertical: 4,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -170,7 +184,9 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                         decoration: InputDecoration(
                           hintText: 'Create new playlist...',
                           hintStyle: ThemeTokens.of(context).technicalSm
-                              .copyWith(color: ThemeTokens.of(context).textMuted),
+                              .copyWith(
+                                color: ThemeTokens.of(context).textMuted,
+                              ),
                           border: InputBorder.none,
                           isDense: true,
                         ),
@@ -182,13 +198,16 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                             width: 24,
                             height: 24,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: ThemeTokens.of(context).accent),
+                              strokeWidth: 2,
+                              color: ThemeTokens.of(context).accent,
+                            ),
                           )
                         : IconButton(
-                            icon: Icon(Icons.add_circle,
-                                color: ThemeTokens.of(context).accent,
-                                size: 28),
+                            icon: Icon(
+                              Icons.add_circle,
+                              color: ThemeTokens.of(context).accent,
+                              size: 28,
+                            ),
                             onPressed: _createAndAdd,
                           ),
                   ],
@@ -205,17 +224,20 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                   data: (playlists) {
                     if (playlists.isEmpty) {
                       return Padding(
-                        padding:
-                            const EdgeInsets.symmetric(vertical: 32),
+                        padding: const EdgeInsets.symmetric(vertical: 32),
                         child: Center(
                           child: Column(
                             children: [
-                              Icon(Icons.playlist_add,
-                                  size: 48,
-                                  color: ThemeTokens.of(context).textMuted),
+                              Icon(
+                                Icons.playlist_add,
+                                size: 48,
+                                color: ThemeTokens.of(context).textMuted,
+                              ),
                               SizedBox(height: 12),
-                              Text('No playlists yet',
-                                  style: ThemeTokens.of(context).technicalSm),
+                              Text(
+                                'No playlists yet',
+                                style: ThemeTokens.of(context).technicalSm,
+                              ),
                             ],
                           ),
                         ),
@@ -226,46 +248,53 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                       shrinkWrap: true,
                       itemCount: playlists.length,
                       separatorBuilder: (_, __) => Divider(
-                          color: ThemeTokens.of(context).outline, height: 1),
+                        color: ThemeTokens.of(context).outline,
+                        height: 1,
+                      ),
                       itemBuilder: (context, index) {
                         final pl = playlists[index];
 
                         return Consumer(
                           builder: (context, ref, child) {
                             final songsAsync = ref.watch(
-                                songsInPlaylistProvider(pl.id));
+                              songsInPlaylistProvider(pl.id),
+                            );
 
                             return songsAsync.when(
                               data: (songs) {
                                 final originallyIn = songs.any(
-                                    (s) => s.id == widget.song.id);
+                                  (s) => s.id == widget.song.id,
+                                );
                                 // UX FIX: Use local pending state for display.
                                 final checked = _isChecked(pl.id, originallyIn);
 
                                 return ListTile(
-                                  contentPadding:
-                                      const EdgeInsets.symmetric(
-                                          horizontal: 4),
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 4,
+                                  ),
                                   leading: Container(
                                     width: 40,
                                     height: 40,
                                     decoration: BoxDecoration(
                                       color: ThemeTokens.of(context).bgElevated,
-                                      borderRadius:
-                                          BorderRadius.circular(4),
+                                      borderRadius: BorderRadius.circular(4),
                                     ),
                                     child: Icon(
-                                        Icons.music_note,
-                                        color:
-                                            ThemeTokens.of(context).textSecondary),
+                                      Icons.music_note,
+                                      color: ThemeTokens.of(
+                                        context,
+                                      ).textSecondary,
+                                    ),
                                   ),
-                                  title: Text(pl.name,
-                                      style: ThemeTokens.of(context).bodyMd.copyWith(
-                                          fontWeight:
-                                              FontWeight.w600)),
+                                  title: Text(
+                                    pl.name,
+                                    style: ThemeTokens.of(context).bodyMd
+                                        .copyWith(fontWeight: FontWeight.w600),
+                                  ),
                                   subtitle: Text(
-                                      '${pl.songCount} songs',
-                                      style: ThemeTokens.of(context).technicalXs),
+                                    '${pl.songCount} songs',
+                                    style: ThemeTokens.of(context).technicalXs,
+                                  ),
                                   trailing: Icon(
                                     checked
                                         ? Icons.check_circle
@@ -275,29 +304,36 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                                         : ThemeTokens.of(context).textMuted,
                                   ),
                                   // UX FIX: Toggle local state only — no network call.
-                                  onTap: () => _toggleEntry(pl.id, originallyIn),
+                                  onTap: () =>
+                                      _toggleEntry(pl.id, originallyIn),
                                 );
                               },
                               loading: () => ListTile(
-                                contentPadding:
-                                    const EdgeInsets.symmetric(
-                                        horizontal: 4),
-                                title: Text(pl.name,
-                                    style: ThemeTokens.of(context).bodyMd),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 4,
+                                ),
+                                title: Text(
+                                  pl.name,
+                                  style: ThemeTokens.of(context).bodyMd,
+                                ),
                                 trailing: SizedBox(
                                   width: 20,
                                   height: 20,
                                   child: CircularProgressIndicator(
-                                      strokeWidth: 2,
-                                      color: ThemeTokens.of(context).textMuted),
+                                    strokeWidth: 2,
+                                    color: ThemeTokens.of(context).textMuted,
+                                  ),
                                 ),
                               ),
                               error: (_, __) => ListTile(
-                                title: Text(pl.name,
-                                    style: ThemeTokens.of(context).bodyMd),
+                                title: Text(
+                                  pl.name,
+                                  style: ThemeTokens.of(context).bodyMd,
+                                ),
                                 trailing: Icon(
-                                    Icons.error_outline,
-                                    color: Colors.red),
+                                  Icons.error_outline,
+                                  color: Colors.red,
+                                ),
                               ),
                             );
                           },
@@ -309,11 +345,15 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                     child: Padding(
                       padding: EdgeInsets.all(32),
                       child: CircularProgressIndicator(
-                          color: ThemeTokens.of(context).accent),
+                        color: ThemeTokens.of(context).accent,
+                      ),
                     ),
                   ),
                   error: (e, st) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24, horizontal: 16),
+                    padding: const EdgeInsets.symmetric(
+                      vertical: 24,
+                      horizontal: 16,
+                    ),
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       children: [
@@ -325,14 +365,16 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                         const SizedBox(height: 12),
                         Text(
                           'Could not load playlists',
-                          style: Theme.of(context).textTheme.titleSmall?.copyWith(
-                            color: ThemeTokens.of(context).textPrimary,
-                          ),
+                          style: Theme.of(context).textTheme.titleSmall
+                              ?.copyWith(
+                                color: ThemeTokens.of(context).textPrimary,
+                              ),
                         ),
                         const SizedBox(height: 4),
                         Text(
                           'Check your connection and try again.',
-                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                          style: Theme.of(context).textTheme.bodySmall
+                              ?.copyWith(
                                 color: ThemeTokens.of(context).textSecondary,
                               ),
                           textAlign: TextAlign.center,
@@ -361,7 +403,8 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                       child: Text(
                         'Cancel',
                         style: ThemeTokens.of(context).bodyMd.copyWith(
-                            color: ThemeTokens.of(context).textMuted),
+                          color: ThemeTokens.of(context).textMuted,
+                        ),
                       ),
                     ),
                     SizedBox(width: 8),
@@ -370,16 +413,18 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                             width: 24,
                             height: 24,
                             child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: ThemeTokens.of(context).accent),
+                              strokeWidth: 2,
+                              color: ThemeTokens.of(context).accent,
+                            ),
                           )
                         : TextButton(
                             onPressed: _save,
                             child: Text(
                               _hasChanges() ? 'Save' : 'Done',
                               style: ThemeTokens.of(context).bodyMd.copyWith(
-                                  color: ThemeTokens.of(context).accent,
-                                  fontWeight: FontWeight.bold),
+                                color: ThemeTokens.of(context).accent,
+                                fontWeight: FontWeight.bold,
+                              ),
                             ),
                           ),
                   ],

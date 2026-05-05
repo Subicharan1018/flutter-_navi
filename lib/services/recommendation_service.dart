@@ -137,8 +137,7 @@ class RecommendationService extends ChangeNotifier {
 
     _skipCounts[song.id] = (_skipCounts[song.id] ?? 0) + 1;
 
-    _artistAffinity[song.artist] =
-        (_artistAffinity[song.artist] ?? 0) - 0.3;
+    _artistAffinity[song.artist] = (_artistAffinity[song.artist] ?? 0) - 0.3;
 
     if (_profiles.containsKey(song.id)) {
       _profiles[song.id]!.skipCount++;

@@ -30,7 +30,7 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
     try {
       final songs = await OfflineService().getDownloadedSongsMetadata();
       final sizeBytes = await OfflineService().getDownloadedSize();
-      
+
       if (mounted) {
         setState(() {
           _songs = songs;
@@ -59,8 +59,8 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
       builder: (ctx) => CupertinoAlertDialog(
         title: const Text('Clear All Downloads'),
         content: Text(
-          'This will permanently delete all ${_songs.length} downloaded '  
-          '${_songs.length == 1 ? 'song' : 'songs'} ($_storageUsed) '  
+          'This will permanently delete all ${_songs.length} downloaded '
+          '${_songs.length == 1 ? 'song' : 'songs'} ($_storageUsed) '
           'from this device. This cannot be undone.',
         ),
         actions: [
@@ -107,8 +107,10 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
               button: true,
               label: 'Clear all downloads',
               child: IconButton(
-                icon: const Icon(Icons.delete_sweep_rounded,
-                    color: Colors.redAccent),
+                icon: const Icon(
+                  Icons.delete_sweep_rounded,
+                  color: Colors.redAccent,
+                ),
                 tooltip: 'Clear all downloads',
                 onPressed: _clearAllDownloads,
               ),
@@ -118,8 +120,8 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
           : _songs.isEmpty
-              ? _buildEmptyState(context)
-              : _buildContent(context),
+          ? _buildEmptyState(context)
+          : _buildContent(context),
     );
   }
 
@@ -128,7 +130,11 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.cloud_off_rounded, size: 80, color: ThemeTokens.of(context).textMuted),
+          Icon(
+            Icons.cloud_off_rounded,
+            size: 80,
+            color: ThemeTokens.of(context).textMuted,
+          ),
           const SizedBox(height: 16),
           Text(
             'No offline music',
@@ -178,7 +184,9 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
                     onTap: _clearAllDownloads,
                     child: Container(
                       padding: const EdgeInsets.symmetric(
-                          horizontal: 12, vertical: 6),
+                        horizontal: 12,
+                        vertical: 6,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.redAccent.withValues(alpha: 0.10),
                         borderRadius: BorderRadius.circular(20),
@@ -190,8 +198,11 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
                       child: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          Icon(Icons.delete_sweep_rounded,
-                              color: Colors.redAccent, size: 15),
+                          Icon(
+                            Icons.delete_sweep_rounded,
+                            color: Colors.redAccent,
+                            size: 15,
+                          ),
                           const SizedBox(width: 5),
                           const Text(
                             'Clear All',
@@ -214,13 +225,16 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _playAll(shuffle: false),
-                      icon: Icon(Icons.play_arrow_rounded,
-                          color: ThemeTokens.of(context).bgBase),
+                      icon: Icon(
+                        Icons.play_arrow_rounded,
+                        color: ThemeTokens.of(context).bgBase,
+                      ),
                       label: Text(
                         'Play All',
                         style: TextStyle(
-                            color: ThemeTokens.of(context).bgBase,
-                            fontWeight: FontWeight.w600),
+                          color: ThemeTokens.of(context).bgBase,
+                          fontWeight: FontWeight.w600,
+                        ),
                       ),
                       style: ElevatedButton.styleFrom(
                         backgroundColor: ThemeTokens.of(context).textPrimary,
@@ -236,7 +250,10 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
                   Expanded(
                     child: ElevatedButton.icon(
                       onPressed: () => _playAll(shuffle: true),
-                      icon: Icon(Icons.shuffle_rounded, color: ThemeTokens.of(context).textPrimary),
+                      icon: Icon(
+                        Icons.shuffle_rounded,
+                        color: ThemeTokens.of(context).textPrimary,
+                      ),
                       label: Text(
                         'Shuffle',
                         style: TextStyle(
@@ -259,7 +276,7 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
             ],
           ),
         ),
-        
+
         // List
         Expanded(
           child: RefreshIndicator(

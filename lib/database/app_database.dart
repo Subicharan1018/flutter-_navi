@@ -8,18 +8,20 @@ import 'tables/recommendation_tables.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [
-  PlayEvents,
-  SongMetadata,
-  SongPairs,
-  UserFeedback,
-  SongWeights,
-  PlaylistCache,
-  SearchHistory,
-  RecommendationProfiles,
-  ArtistAffinity,
-  GenreAffinity,
-])
+@DriftDatabase(
+  tables: [
+    PlayEvents,
+    SongMetadata,
+    SongPairs,
+    UserFeedback,
+    SongWeights,
+    PlaylistCache,
+    SearchHistory,
+    RecommendationProfiles,
+    ArtistAffinity,
+    GenreAffinity,
+  ],
+)
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'navivibe_drift'));
 

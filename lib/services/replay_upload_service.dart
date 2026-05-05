@@ -50,14 +50,17 @@ class ReplayUploadService {
     debugPrint('[ReplayUpload] Starting $schedule upload...');
     final collector = _ref.read(listenerCollectorProvider);
     final subsonic = _ref.read(subsonicServiceProvider);
-    
+
     try {
       // 1. Export data as JSON
       final jsonData = await collector.exportJson();
       final jsonString = jsonEncode(jsonData);
 
       // 2. Upload via WebDAV
-      final timestamp = DateTime.now().toIso8601String().replaceAll(':', '-').substring(0, 19);
+      final timestamp = DateTime.now()
+          .toIso8601String()
+          .replaceAll(':', '-')
+          .substring(0, 19);
       final remoteFileName = 'navivibe_analytics_$timestamp.json';
 
       await subsonic.uploadTextToWebDav(
@@ -68,7 +71,9 @@ class ReplayUploadService {
 
       // 3. Mark last upload time
       final now = DateTime.now();
-      await _ref.read(settingsProvider.notifier).setAnalyticsLastUpload(now.toIso8601String());
+      await _ref
+          .read(settingsProvider.notifier)
+          .setAnalyticsLastUpload(now.toIso8601String());
 
       // 4. Cleanup local data (delete events older than the current upload threshold)
       // Keep recent data so the app doesn't go totally blank right after upload.

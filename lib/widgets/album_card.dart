@@ -24,7 +24,9 @@ class AlbumCard extends ConsumerWidget {
     // FIX 2 — Static cacheKey so the Subsonic salt/token rotation in the URL
     // doesn't bust the image cache on every rebuild/scroll.
     // ---------------------------------------------------------------------------
-    final String coverId = album.coverArt.isNotEmpty ? album.coverArt : album.id;
+    final String coverId = album.coverArt.isNotEmpty
+        ? album.coverArt
+        : album.id;
     final String imageUrl = service.getCoverArtUrl(coverId);
     final String imageCacheKey = 'cover_$coverId';
 
@@ -33,50 +35,52 @@ class AlbumCard extends ConsumerWidget {
       label: 'Album: ${album.name} by ${album.artist}',
       child: CupertinoClickable(
         onTap: onTap,
-      child: SizedBox(
-        width: 160,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: CachedNetworkImage(
-                imageUrl: imageUrl,
-                cacheKey: imageCacheKey, // ← stable cache key
-                width: 160,
-                height: 160,
-                fit: BoxFit.cover,
-                memCacheWidth: 400,
-                memCacheHeight: 400,
-                placeholder: (context, url) => const _AlbumPlaceholder(),
-                errorWidget: (context, url, error) => const _AlbumPlaceholder(),
+        child: SizedBox(
+          width: 160,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: CachedNetworkImage(
+                  imageUrl: imageUrl,
+                  cacheKey: imageCacheKey, // ← stable cache key
+                  width: 160,
+                  height: 160,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 400,
+                  memCacheHeight: 400,
+                  placeholder: (context, url) => const _AlbumPlaceholder(),
+                  errorWidget: (context, url, error) =>
+                      const _AlbumPlaceholder(),
+                ),
               ),
-            ),
-            SizedBox(height: 8),
-            Text(
-              album.name,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontWeight: FontWeight.w600,
-                fontSize: 13,
-                color: ThemeTokens.of(context).textPrimary,
+              SizedBox(height: 8),
+              Text(
+                album.name,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontWeight: FontWeight.w600,
+                  fontSize: 13,
+                  color: ThemeTokens.of(context).textPrimary,
+                ),
               ),
-            ),
-            SizedBox(height: 2),
-            Text(
-              album.artist,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: 12,
-                color: ThemeTokens.of(context).textSecondary,
+              SizedBox(height: 2),
+              Text(
+                album.artist,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  color: ThemeTokens.of(context).textSecondary,
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ));
+    );
   }
 }
 
@@ -91,7 +95,11 @@ class _AlbumPlaceholder extends StatelessWidget {
       height: 160,
       color: ThemeTokens.of(context).bgElevated,
       child: Center(
-        child: Icon(Icons.album_rounded, size: 48, color: ThemeTokens.of(context).textMuted),
+        child: Icon(
+          Icons.album_rounded,
+          size: 48,
+          color: ThemeTokens.of(context).textMuted,
+        ),
       ),
     );
   }

@@ -14,7 +14,10 @@ import '../core/theme.dart';
 // ---------------------------------------------------------------------------
 // Isolate-safe colour extraction — runs on main isolate (required by Flutter)
 // ---------------------------------------------------------------------------
-Future<Color?> _extractMiniPalette(String imageUrl, BuildContext context) async {
+Future<Color?> _extractMiniPalette(
+  String imageUrl,
+  BuildContext context,
+) async {
   try {
     final palette = await PaletteGenerator.fromImageProvider(
       CachedNetworkImageProvider(imageUrl),
@@ -22,8 +25,8 @@ Future<Color?> _extractMiniPalette(String imageUrl, BuildContext context) async 
       maximumColorCount: 5,
     );
     return palette.vibrantColor?.color ??
-           palette.dominantColor?.color ??
-           ThemeTokens.of(context).accent;
+        palette.dominantColor?.color ??
+        ThemeTokens.of(context).accent;
   } catch (_) {
     return ThemeTokens.of(context).accent;
   }
@@ -74,11 +77,11 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
-    final service     = ref.watch(subsonicServiceProvider);
+    final service = ref.watch(subsonicServiceProvider);
 
     if (playerState.queue.isEmpty) return SizedBox.shrink();
 
-    final song     = playerState.queue[playerState.currentIndex];
+    final song = playerState.queue[playerState.currentIndex];
     final imageUrl = service.getCoverArtUrl(song.coverArt);
 
     // Defer palette load past the current frame to avoid cascading rebuilds.
@@ -113,7 +116,10 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                     child: Row(
                       children: [
                         // Album art thumbnail
-                        _AlbumThumb(imageUrl: imageUrl, themeColor: _themeColor),
+                        _AlbumThumb(
+                          imageUrl: imageUrl,
+                          themeColor: _themeColor,
+                        ),
                         SizedBox(width: 12),
 
                         // Song info — constrained to avoid overflow
@@ -171,8 +177,9 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                     : ThemeTokens.of(context).textMuted,
                                 size: 20,
                               ),
-                              onPressed: () =>
-                                  ref.read(playerProvider.notifier).toggleStar(song.id),
+                              onPressed: () => ref
+                                  .read(playerProvider.notifier)
+                                  .toggleStar(song.id),
                             ),
                           ),
                         ),
@@ -200,8 +207,11 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             height: 48,
                             child: IconButton(
                               padding: EdgeInsets.zero,
-                              icon: Icon(Icons.skip_next_rounded,
-                                  color: ThemeTokens.of(context).textSecondary, size: 24),
+                              icon: Icon(
+                                Icons.skip_next_rounded,
+                                color: ThemeTokens.of(context).textSecondary,
+                                size: 24,
+                              ),
                               onPressed: () =>
                                   ref.read(playerProvider.notifier).playNext(),
                             ),
@@ -361,11 +371,7 @@ class _NoiseLayer extends StatelessWidget {
         // Grain overlay — CustomPaint with a very low-opacity random noise pass.
         // Positioned fill so it never affects layout.
         Positioned.fill(
-          child: IgnorePointer(
-            child: CustomPaint(
-              painter: _NoisePainter(),
-            ),
-          ),
+          child: IgnorePointer(child: CustomPaint(painter: _NoisePainter())),
         ),
       ],
     );
@@ -386,7 +392,8 @@ class _NoisePainter extends CustomPainter {
     for (double y = 0; y < size.height; y += step) {
       for (double x = 0; x < size.width; x += step) {
         // Pseudo-random dot placement using a cheap bit-mix hash
-        final h = ((x * 374761393 + y * 668265263).truncate() ^ 0x9e3779b9) & 0xFFFF;
+        final h =
+            ((x * 374761393 + y * 668265263).truncate() ^ 0x9e3779b9) & 0xFFFF;
         if (h > 0xC000) {
           canvas.drawCircle(Offset(x, y), 0.5, paint);
         }
@@ -455,8 +462,11 @@ class _AlbumThumb extends StatelessWidget {
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(
                 color: ThemeTokens.of(context).bgElevated,
-                child: Icon(Icons.music_note_rounded,
-                    color: ThemeTokens.of(context).textMuted, size: 20),
+                child: Icon(
+                  Icons.music_note_rounded,
+                  color: ThemeTokens.of(context).textMuted,
+                  size: 20,
+                ),
               ),
             ),
           ),
@@ -694,10 +704,7 @@ class _ProgressPainter extends CustomPainter {
       RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, fill, h), Radius.circular(r)),
       Paint()
         ..shader = LinearGradient(
-          colors: [
-            themeColor.withOpacity(0.70),
-            themeColor,
-          ],
+          colors: [themeColor.withOpacity(0.70), themeColor],
         ).createShader(Rect.fromLTWH(0, 0, fill, h)),
     );
 
