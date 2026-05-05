@@ -15,12 +15,20 @@ class Song {
   final DateTime? created;
 
   // Audio quality metadata — reported directly by the Subsonic server.
-  final int bitRate;        // kbps, 0 = unknown
+  final int bitRate; // kbps, 0 = unknown
   final String contentType; // e.g. 'audio/flac', 'audio/mpeg'
-  final String suffix;      // e.g. 'flac', 'mp3', 'opus'
+  final String suffix; // e.g. 'flac', 'mp3', 'opus'
+  final int size; // bytes, 0 = unknown
 
   // Local weight for smart shuffle algorithms — immutable, updated via copyWith.
   final double dynamicWeight;
+
+  // Offline local library fields.
+  /// Absolute filesystem path. Non-empty only for local-scanned songs.
+  final String path;
+
+  /// True when this song originates from a local folder scan (not the server).
+  final bool isLocal;
 
   Song({
     required this.id,
@@ -40,33 +48,51 @@ class Song {
     this.bitRate = 0,
     this.contentType = '',
     this.suffix = '',
+    this.size = 0,
     this.dynamicWeight = 1.0,
+    this.path = '',
+    this.isLocal = false,
   });
 
   factory Song.fromJson(Map<String, dynamic> json) {
     final rawId = json['id']?.toString() ?? '';
     final rawCover = json['coverArt']?.toString() ?? '';
-    
+
     return Song(
       id: rawId,
       title: json['title']?.toString() ?? 'Unknown Title',
       artist: json['artist']?.toString() ?? 'Unknown Artist',
       album: json['album']?.toString() ?? 'Unknown Album',
       genre: json['genre']?.toString() ?? '',
-      composer: json['displayComposer']?.toString() ?? json['composer']?.toString() ?? '',
+      composer:
+          json['displayComposer']?.toString() ??
+          json['composer']?.toString() ??
+          '',
       coverArt: rawCover.isNotEmpty ? rawCover : rawId,
-      duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
-      track: json['track'] is int ? json['track'] : int.tryParse(json['track']?.toString() ?? '') ?? 0,
-      year: json['year'] is int ? json['year'] : int.tryParse(json['year']?.toString() ?? '') ?? 0,
+      duration: json['duration'] is int
+          ? json['duration']
+          : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
+      track: json['track'] is int
+          ? json['track']
+          : int.tryParse(json['track']?.toString() ?? '') ?? 0,
+      year: json['year'] is int
+          ? json['year']
+          : int.tryParse(json['year']?.toString() ?? '') ?? 0,
       // 'starred' in Subsonic JSON is a timestamp string when starred, absent when not
       starred: json['starred'] != null,
-      playCount: json['playCount'] is int ? json['playCount'] : int.tryParse(json['playCount']?.toString() ?? '') ?? 0,
+      playCount: json['playCount'] is int
+          ? json['playCount']
+          : int.tryParse(json['playCount']?.toString() ?? '') ?? 0,
       // Subsonic 'userRating' field (1–5)
-      rating: json['userRating'] is int ? json['userRating'] : (json['rating'] is int ? json['rating'] : 0),
+      rating: json['userRating'] is int
+          ? json['userRating']
+          : (json['rating'] is int ? json['rating'] : 0),
       created: json['created'] != null
           ? DateTime.tryParse(json['created'].toString())
           : null,
-      bitRate: json['bitRate'] is int ? json['bitRate'] : int.tryParse(json['bitRate']?.toString() ?? '') ?? 0,
+      bitRate: json['bitRate'] is int
+          ? json['bitRate']
+          : int.tryParse(json['bitRate']?.toString() ?? '') ?? 0,
       contentType: json['contentType']?.toString() ?? '',
       suffix: json['suffix']?.toString() ?? '',
     );
@@ -93,7 +119,38 @@ class Song {
       'bitRate': bitRate,
       'contentType': contentType,
       'suffix': suffix,
+      'size': size,
+      'path': path,
+      'isLocal': isLocal ? 1 : 0,
     };
+  }
+
+  /// Creates a [Song] from a map (e.g. from Hive or SQLite).
+  factory Song.fromMap(Map<String, dynamic> map) {
+    return Song(
+      id: map['id']?.toString() ?? '',
+      title: map['title']?.toString() ?? 'Unknown Title',
+      artist: map['artist']?.toString() ?? 'Unknown Artist',
+      album: map['album']?.toString() ?? 'Unknown Album',
+      genre: map['genre']?.toString() ?? '',
+      composer: map['composer']?.toString() ?? '',
+      coverArt: map['coverArt']?.toString() ?? '',
+      duration: map['duration'] as int? ?? 0,
+      track: map['track'] as int? ?? 0,
+      year: map['year'] as int? ?? 0,
+      starred: map['starred'] == 1,
+      playCount: map['playCount'] as int? ?? 0,
+      rating: map['userRating'] as int? ?? 0,
+      created: map['created'] != null
+          ? DateTime.tryParse(map['created'].toString())
+          : null,
+      bitRate: map['bitRate'] as int? ?? 0,
+      contentType: map['contentType']?.toString() ?? '',
+      suffix: map['suffix']?.toString() ?? '',
+      size: map['size'] as int? ?? 0,
+      path: map['path']?.toString() ?? '',
+      isLocal: map['isLocal'] == 1,
+    );
   }
 
   Song copyWith({
@@ -106,7 +163,11 @@ class Song {
     int? bitRate,
     String? contentType,
     String? suffix,
+    int? size,
     double? dynamicWeight,
+    String? path,
+    bool? isLocal,
+    int? duration,
   }) {
     return Song(
       id: id,
@@ -116,7 +177,7 @@ class Song {
       genre: genre ?? this.genre,
       composer: composer ?? this.composer,
       coverArt: coverArt,
-      duration: duration,
+      duration: duration ?? this.duration,
       track: track,
       year: year,
       starred: starred ?? this.starred,
@@ -126,7 +187,10 @@ class Song {
       bitRate: bitRate ?? this.bitRate,
       contentType: contentType ?? this.contentType,
       suffix: suffix ?? this.suffix,
+      size: size ?? this.size,
       dynamicWeight: dynamicWeight ?? this.dynamicWeight,
+      path: path ?? this.path,
+      isLocal: isLocal ?? this.isLocal,
     );
   }
 
@@ -158,11 +222,32 @@ class Song {
           created == other.created &&
           bitRate == other.bitRate &&
           contentType == other.contentType &&
-          suffix == other.suffix;
+          suffix == other.suffix &&
+          size == other.size &&
+          path == other.path &&
+          isLocal == other.isLocal;
 
   @override
   int get hashCode => Object.hash(
-      id, title, artist, album, genre, composer,
-      coverArt, duration, track, year, starred,
-      playCount, rating, created, bitRate, contentType, suffix);
-}
+    id,
+    title,
+    artist,
+    album,
+    genre,
+    composer,
+    coverArt,
+    duration,
+    track,
+    year,
+    starred,
+    playCount,
+    rating,
+    created,
+    bitRate,
+    contentType,
+    suffix,
+    size,
+    path,
+    isLocal,
+  );
+}

@@ -55,14 +55,16 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final playlistsAsync    = ref.watch(playlistsProvider);
-    final monthlyAsync      = ref.watch(monthlyReplayProvider);
-    final weeklyAsync       = ref.watch(weeklyReplayProvider);
-    final topPad            = MediaQuery.of(context).padding.top;
-    final tokens            = ThemeTokens.of(context);
+    final playlistsAsync = ref.watch(playlistsProvider);
+    final monthlyAsync = ref.watch(monthlyReplayProvider);
+    final weeklyAsync = ref.watch(weeklyReplayProvider);
+    final topPad = MediaQuery.of(context).padding.top;
+    final tokens = ThemeTokens.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: tokens.isLight ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
+      value: tokens.isLight
+          ? SystemUiOverlayStyle.dark
+          : SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: tokens.bgBase,
         body: Stack(
@@ -81,103 +83,136 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 controller: _sc,
                 physics: const BouncingScrollPhysics(),
                 slivers: [
-
                   // ── Greeting header ─────────────────────────────────────────
                   SliverToBoxAdapter(
-                    child: _HomeHeader(
-                      greeting: _greet(),
-                      topPad: topPad,
-                      onSettings: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const SettingsScreen())),
-                    )
-                    .animate()
-                    .fadeIn(duration: 500.ms)
-                    .slideY(begin: -0.04, end: 0, curve: Curves.easeOutCubic),
+                    child:
+                        _HomeHeader(
+                              greeting: _greet(),
+                              topPad: topPad,
+                              onSettings: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) => const SettingsScreen(),
+                                ),
+                              ),
+                            )
+                            .animate()
+                            .fadeIn(duration: 500.ms)
+                            .slideY(
+                              begin: -0.04,
+                              end: 0,
+                              curve: Curves.easeOutCubic,
+                            ),
                   ),
 
                   // ── Explore cards ────────────────────────────────────────────
-                  SliverToBoxAdapter(
-                    child: _SectionLabel(title: 'Explore'),
-                  ),
+                  SliverToBoxAdapter(child: _SectionLabel(title: 'Explore')),
                   SliverToBoxAdapter(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Builder(builder: (context) {
-                        // Compute theme-aware accent/bg combinations so that
-                        // every theme (Neumorphic, Zen, Analog, Frost, etc.)
-                        // renders the Explore cards with proper contrast instead
-                        // of the hardcoded dark green/red/blue that look black
-                        // on all non-Spotify dark themes.
-                        final t = ThemeTokens.of(context);
+                      child: Builder(
+                        builder: (context) {
+                          // Compute theme-aware accent/bg combinations so that
+                          // every theme (Neumorphic, Zen, Analog, Frost, etc.)
+                          // renders the Explore cards with proper contrast instead
+                          // of the hardcoded dark green/red/blue that look black
+                          // on all non-Spotify dark themes.
+                          final t = ThemeTokens.of(context);
 
-                        // Spotify brand green; other themes use accent.
-                        final greenAccent  = t.mode == AppThemeMode.spotify
-                            ? const Color(0xFF1DB954) : t.accent;
-                        final roseAccent   = t.mode == AppThemeMode.spotify
-                            ? const Color(0xFFF43F5E)
-                            : Color.lerp(t.accent, const Color(0xFFF43F5E), 0.55)!;
-                        final blueAccent   = t.mode == AppThemeMode.spotify
-                            ? const Color(0xFF3B82F6)
-                            : Color.lerp(t.accent, const Color(0xFF3B82F6), 0.55)!;
+                          // Spotify brand green; other themes use accent.
+                          final greenAccent = t.mode == AppThemeMode.spotify
+                              ? const Color(0xFF1DB954)
+                              : t.accent;
+                          final roseAccent = t.mode == AppThemeMode.spotify
+                              ? const Color(0xFFF43F5E)
+                              : Color.lerp(
+                                  t.accent,
+                                  const Color(0xFFF43F5E),
+                                  0.55,
+                                )!;
+                          final blueAccent = t.mode == AppThemeMode.spotify
+                              ? const Color(0xFF3B82F6)
+                              : Color.lerp(
+                                  t.accent,
+                                  const Color(0xFF3B82F6),
+                                  0.55,
+                                )!;
 
-                        // bgColor: 14% accent overlaid on bgBase (dark themes)
-                        // or 8% accent overlaid on bgSurface (light themes).
-                        Color cardBg(Color accent) => t.isLight
-                            ? Color.alphaBlend(accent.withOpacity(0.10), t.bgSurface)
-                            : Color.alphaBlend(accent.withOpacity(0.16), t.bgBase);
+                          // bgColor: 14% accent overlaid on bgBase (dark themes)
+                          // or 8% accent overlaid on bgSurface (light themes).
+                          Color cardBg(Color accent) => t.isLight
+                              ? Color.alphaBlend(
+                                  accent.withOpacity(0.10),
+                                  t.bgSurface,
+                                )
+                              : Color.alphaBlend(
+                                  accent.withOpacity(0.16),
+                                  t.bgBase,
+                                );
 
-                        return Row(
-                          children: [
-                            Expanded(
-                              child: _ExploreCard(
-                                key: const Key('explore_made_for_you'),
-                                label: 'CURATED',
-                                title: 'Made\nFor You',
-                                icon: Icons.auto_awesome_rounded,
-                                color: greenAccent,
-                                bgColor: cardBg(greenAccent),
-                                onTap: () => Navigator.push(context,
-                                    MaterialPageRoute(builder: (_) => const MadeForYouScreen())),
+                          return Row(
+                            children: [
+                              Expanded(
+                                child: _ExploreCard(
+                                  key: const Key('explore_made_for_you'),
+                                  label: 'CURATED',
+                                  title: 'Made\nFor You',
+                                  icon: Icons.auto_awesome_rounded,
+                                  color: greenAccent,
+                                  bgColor: cardBg(greenAccent),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const MadeForYouScreen(),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: _ExploreCard(
-                                key: const Key('explore_favorites'),
-                                label: 'SAVED',
-                                title: 'Your\nFavorites',
-                                icon: Icons.favorite_rounded,
-                                color: roseAccent,
-                                bgColor: cardBg(roseAccent),
-                                onTap: () => Navigator.push(context,
-                                    MaterialPageRoute(builder: (_) => const FavoritesScreen())),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: _ExploreCard(
+                                  key: const Key('explore_favorites'),
+                                  label: 'SAVED',
+                                  title: 'Your\nFavorites',
+                                  icon: Icons.favorite_rounded,
+                                  color: roseAccent,
+                                  bgColor: cardBg(roseAccent),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const FavoritesScreen(),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: _ExploreCard(
-                                key: const Key('explore_new_releases'),
-                                label: 'FRESH',
-                                title: 'New\nReleases',
-                                icon: Icons.new_releases_rounded,
-                                color: blueAccent,
-                                bgColor: cardBg(blueAccent),
-                                onTap: () => Navigator.push(context,
-                                    MaterialPageRoute(builder: (_) => const NewReleasesScreen())),
+                              SizedBox(width: 8),
+                              Expanded(
+                                child: _ExploreCard(
+                                  key: const Key('explore_new_releases'),
+                                  label: 'FRESH',
+                                  title: 'New\nReleases',
+                                  icon: Icons.new_releases_rounded,
+                                  color: blueAccent,
+                                  bgColor: cardBg(blueAccent),
+                                  onTap: () => Navigator.push(
+                                    context,
+                                    MaterialPageRoute(
+                                      builder: (_) => const NewReleasesScreen(),
+                                    ),
+                                  ),
+                                ),
                               ),
-                            ),
-                          ],
-                        );
-                      }),
+                            ],
+                          );
+                        },
+                      ),
                     ).animate(delay: 80.ms).fadeIn(duration: 400.ms),
                   ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 4)),
 
                   // ── Quick Play — playlists, ONE section only ──────────────────
-                  SliverToBoxAdapter(
-                    child: _SectionLabel(title: 'Quick Play'),
-                  ),
+                  SliverToBoxAdapter(child: _SectionLabel(title: 'Quick Play')),
                   SliverToBoxAdapter(
                     child: playlistsAsync.when(
                       data: (playlists) {
@@ -189,12 +224,18 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             try {
                               final songs = await svc.getPlaylistSongs(pl.id);
                               if (context.mounted) {
-                                ref.read(playerProvider.notifier).setQueue(songs, 0);
+                                ref
+                                    .read(playerProvider.notifier)
+                                    .setQueue(songs, 0);
                               }
                             } catch (e) {
                               if (context.mounted) {
                                 ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(content: Text('Could not play "${pl.name}": $e')),
+                                  SnackBar(
+                                    content: Text(
+                                      'Could not play "${pl.name}": $e',
+                                    ),
+                                  ),
                                 );
                               }
                             }
@@ -210,8 +251,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   SliverToBoxAdapter(
                     child: _SectionLabel(
                       title: 'Monthly Replay',
-                      onSeeAll: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const ReplayScreen(initialTab: 0))),
+                      onSeeAll: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ReplayScreen(initialTab: 0),
+                        ),
+                      ),
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -220,8 +265,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ? const _EmptyReplayHint()
                           : _ReplaySongReel(
                               data: data,
-                              onSeeAll: () => Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => const ReplayScreen(initialTab: 0))),
+                              onSeeAll: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const ReplayScreen(initialTab: 0),
+                                ),
+                              ),
                             ).animate(delay: 140.ms).fadeIn(duration: 400.ms),
                       loading: () => const _ShimmerReel(),
                       error: (_, __) => const _EmptyReplayHint(),
@@ -232,8 +282,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                   SliverToBoxAdapter(
                     child: _SectionLabel(
                       title: 'This Week',
-                      onSeeAll: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const ReplayScreen(initialTab: 1))),
+                      onSeeAll: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => const ReplayScreen(initialTab: 1),
+                        ),
+                      ),
                     ),
                   ),
                   SliverToBoxAdapter(
@@ -242,8 +296,13 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                           ? const _EmptyReplayHint()
                           : _ReplaySongReel(
                               data: data,
-                              onSeeAll: () => Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => const ReplayScreen(initialTab: 1))),
+                              onSeeAll: () => Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (_) =>
+                                      const ReplayScreen(initialTab: 1),
+                                ),
+                              ),
                             ).animate(delay: 180.ms).fadeIn(duration: 400.ms),
                       loading: () => const _ShimmerReel(),
                       error: (_, __) => const _EmptyReplayHint(),
@@ -258,7 +317,9 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
             // ── Frosted sticky top bar (appears on scroll) ────────────────────
             Positioned(
-              top: 0, left: 0, right: 0,
+              top: 0,
+              left: 0,
+              right: 0,
               child: ValueListenableBuilder<double>(
                 valueListenable: _scrollOffset,
                 builder: (context, offset, _) {
@@ -280,8 +341,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                               _TopBarIcon(
                                 icon: Icons.settings_outlined,
                                 label: 'Settings',
-                                onTap: () => Navigator.push(context,
-                                    MaterialPageRoute(builder: (_) => const SettingsScreen())),
+                                onTap: () => Navigator.push(
+                                  context,
+                                  MaterialPageRoute(
+                                    builder: (_) => const SettingsScreen(),
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -307,7 +372,11 @@ class _HomeHeader extends StatelessWidget {
   final String greeting;
   final double topPad;
   final VoidCallback onSettings;
-  const _HomeHeader({required this.greeting, required this.topPad, required this.onSettings});
+  const _HomeHeader({
+    required this.greeting,
+    required this.topPad,
+    required this.onSettings,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -321,10 +390,7 @@ class _HomeHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  greeting.toUpperCase(),
-                  style: tokens.labelMd,
-                ),
+                Text(greeting.toUpperCase(), style: tokens.labelMd),
                 SizedBox(height: 6),
                 Text('Home', style: tokens.headingLg),
               ],
@@ -337,8 +403,11 @@ class _HomeHeader extends StatelessWidget {
               width: 48,
               height: 48,
               child: IconButton(
-                icon: Icon(Icons.settings_outlined,
-                    color: ThemeTokens.of(context).textSecondary, size: 22),
+                icon: Icon(
+                  Icons.settings_outlined,
+                  color: ThemeTokens.of(context).textSecondary,
+                  size: 22,
+                ),
                 onPressed: onSettings,
               ),
             ),
@@ -390,7 +459,8 @@ class _ExploreCard extends StatelessWidget {
             children: [
               // Background icon watermark
               Positioned(
-                right: -8, top: -8,
+                right: -8,
+                top: -8,
                 child: Icon(icon, color: color.withOpacity(0.08), size: 90),
               ),
               // Content
@@ -400,37 +470,45 @@ class _ExploreCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(label,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 9,
-                          fontWeight: FontWeight.w600,
-                          color: color,
-                          letterSpacing: 1.5,
-                        )),
+                    Text(
+                      label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 9,
+                        fontWeight: FontWeight.w600,
+                        color: color,
+                        letterSpacing: 1.5,
+                      ),
+                    ),
                     SizedBox(height: 4),
-                    Text(title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: tokens.textStyle(
-                          16,
-                          FontWeight.w700,
-                          tokens.textPrimary,
-                        ).copyWith(height: 1.15)),
+                    Text(
+                      title,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: tokens
+                          .textStyle(16, FontWeight.w700, tokens.textPrimary)
+                          .copyWith(height: 1.15),
+                    ),
                   ],
                 ),
               ),
               // Arrow chip — bottom right
               Positioned(
-                bottom: 12, right: 12,
+                bottom: 12,
+                right: 12,
                 child: Container(
-                  width: 28, height: 28,
+                  width: 28,
+                  height: 28,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
                     color: color.withOpacity(0.15),
                   ),
-                  child: Icon(Icons.chevron_right_rounded, color: color, size: 18),
+                  child: Icon(
+                    Icons.chevron_right_rounded,
+                    color: color,
+                    size: 18,
+                  ),
                 ),
               ),
             ],
@@ -464,20 +542,24 @@ class _QuickPlayGrid extends StatelessWidget {
               padding: const EdgeInsets.only(bottom: 8),
               child: Row(
                 children: [
-                  for (int c = 0; c < 2; c++) Builder(builder: (_) {
-                    final i = r * 2 + c;
-                    if (i >= items.length) return Expanded(child: SizedBox());
-                    return Expanded(
-                      child: Padding(
-                        padding: EdgeInsets.only(left: c == 1 ? 8 : 0),
-                        child: _QuickTile(
-                          playlist: items[i],
-                          index: i,
-                          onTap: () => onTap(items[i]),
-                        ),
-                      ),
-                    );
-                  }),
+                  for (int c = 0; c < 2; c++)
+                    Builder(
+                      builder: (_) {
+                        final i = r * 2 + c;
+                        if (i >= items.length)
+                          return Expanded(child: SizedBox());
+                        return Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(left: c == 1 ? 8 : 0),
+                            child: _QuickTile(
+                              playlist: items[i],
+                              index: i,
+                              onTap: () => onTap(items[i]),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
                 ],
               ),
             ),
@@ -491,11 +573,19 @@ class _QuickTile extends ConsumerWidget {
   final Playlist playlist;
   final int index;
   final VoidCallback onTap;
-  const _QuickTile({required this.playlist, required this.index, required this.onTap});
+  const _QuickTile({
+    required this.playlist,
+    required this.index,
+    required this.onTap,
+  });
 
   static const _colors = [
-    Color(0xFF1DB954), Color(0xFF3B82F6), Color(0xFFF43F5E),
-    Color(0xFF10B981), Color(0xFFA855F7), Color(0xFF22D3EE),
+    Color(0xFF1DB954),
+    Color(0xFF3B82F6),
+    Color(0xFFF43F5E),
+    Color(0xFF10B981),
+    Color(0xFFA855F7),
+    Color(0xFF22D3EE),
   ];
   Color get _ac => _colors[index % _colors.length];
 
@@ -505,70 +595,78 @@ class _QuickTile extends ConsumerWidget {
     final tokens = ThemeTokens.of(context);
 
     return Semantics(
-      button: true,
-      label: 'Play playlist: ${playlist.name}',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          height: 56,
-          decoration: BoxDecoration(
-            color: tokens.bgSurface,
-            borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _ac.withOpacity(0.12), width: 0.7),
-          ),
-          clipBehavior: Clip.hardEdge,
-          child: Row(
-            children: [
-              // Artwork
-              SizedBox(
-                width: 56, height: 56,
-                child: playlist.coverArt != null
-                    ? CachedNetworkImage(
-                        imageUrl: svc.getCoverArtUrl(playlist.coverArt!),
-                        fit: BoxFit.cover,
-                      )
-                    : Container(
-                        decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [_ac.withOpacity(0.8), _ac.withOpacity(0.3)],
+          button: true,
+          label: 'Play playlist: ${playlist.name}',
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              height: 56,
+              decoration: BoxDecoration(
+                color: tokens.bgSurface,
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(color: _ac.withOpacity(0.12), width: 0.7),
+              ),
+              clipBehavior: Clip.hardEdge,
+              child: Row(
+                children: [
+                  // Artwork
+                  SizedBox(
+                    width: 56,
+                    height: 56,
+                    child: playlist.coverArt != null
+                        ? CachedNetworkImage(
+                            imageUrl: svc.getCoverArtUrl(playlist.coverArt!),
+                            fit: BoxFit.cover,
+                          )
+                        : Container(
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                colors: [
+                                  _ac.withOpacity(0.8),
+                                  _ac.withOpacity(0.3),
+                                ],
+                              ),
+                            ),
+                            child: Icon(
+                              Icons.queue_music_rounded,
+                              color: tokens.textPrimary.withOpacity(0.7),
+                              size: 22,
+                            ),
                           ),
-                        ),
-                        child: Icon(Icons.queue_music_rounded,
-                            color: tokens.textPrimary.withOpacity(0.7), size: 22),
-                      ),
-              ),
-              SizedBox(width: 10),
-              // Title — Expanded prevents overflow
-              Expanded(
-                child: Text(
-                  playlist.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                    color: tokens.textPrimary,
                   ),
-                ),
+                  SizedBox(width: 10),
+                  // Title — Expanded prevents overflow
+                  Expanded(
+                    child: Text(
+                      playlist.name,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 13,
+                        fontWeight: FontWeight.w600,
+                        color: tokens.textPrimary,
+                      ),
+                    ),
+                  ),
+                  // Play icon
+                  Container(
+                    width: 28,
+                    height: 28,
+                    margin: const EdgeInsets.only(right: 10),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: _ac.withOpacity(0.15),
+                    ),
+                    child: Icon(Icons.play_arrow_rounded, color: _ac, size: 16),
+                  ),
+                ],
               ),
-              // Play icon
-              Container(
-                width: 28, height: 28,
-                margin: const EdgeInsets.only(right: 10),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: _ac.withOpacity(0.15),
-                ),
-                child: Icon(Icons.play_arrow_rounded, color: _ac, size: 16),
-              ),
-            ],
+            ),
           ),
-        ),
-      ),
-    )
-    .animate(delay: (index * 40).clamp(0, 200).ms)
-    .fadeIn(duration: 350.ms)
-    .slideX(begin: 0.04, end: 0, curve: Curves.easeOutCubic);
+        )
+        .animate(delay: (index * 40).clamp(0, 200).ms)
+        .fadeIn(duration: 350.ms)
+        .slideX(begin: 0.04, end: 0, curve: Curves.easeOutCubic);
   }
 }
 
@@ -581,12 +679,16 @@ class _ReplaySongReel extends ConsumerWidget {
   final VoidCallback onSeeAll;
   const _ReplaySongReel({required this.data, required this.onSeeAll});
 
-  Future<void> _playSong(BuildContext context, WidgetRef ref, ReplaySong song) async {
+  Future<void> _playSong(
+    BuildContext context,
+    WidgetRef ref,
+    ReplaySong song,
+  ) async {
     try {
       final svc = ref.read(subsonicServiceProvider);
       final songIds = data.songs.map((s) => s.songId).toList();
       final songs = await svc.getSongs(songIds);
-      
+
       if (context.mounted && songs.isNotEmpty) {
         int adjustedIndex = 0;
         final match = songs.indexWhere((s) => s.id == song.songId);
@@ -630,7 +732,11 @@ class _ReplayCard extends ConsumerWidget {
   final ReplaySong song;
   final int rank;
   final VoidCallback onTap;
-  const _ReplayCard({required this.song, required this.rank, required this.onTap});
+  const _ReplayCard({
+    required this.song,
+    required this.rank,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -641,125 +747,143 @@ class _ReplayCard extends ConsumerWidget {
         : null;
 
     return Semantics(
-      button: true,
-      label: 'Play rank $rank: ${song.title} by ${song.artist}',
-      child: GestureDetector(
-        onTap: onTap,
-        child: Container(
-          width: 130,
-          decoration: BoxDecoration(
-            color: tokens.bgSurface,
-            borderRadius: BorderRadius.circular(12),
-            border: Border.all(color: tokens.outline, width: 0.7),
-          ),
-          clipBehavior: Clip.hardEdge,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Album art — real cover from Subsonic
-              SizedBox(
-                height: 100,
-                width: double.infinity,
-                child: Stack(
-                  fit: StackFit.expand,
-                  children: [
-                    if (coverUrl != null)
-                      CachedNetworkImage(
-                        imageUrl: coverUrl,
-                        cacheKey: 'replay_${song.songId}',
-                        fit: BoxFit.cover,
-                        placeholder: (_, __) => _artGradient(tokens),
-                        errorWidget: (_, __, ___) => _artGradient(tokens),
-                      )
-                    else
-                      _artGradient(tokens),
-                    // Rank badge
-                    Positioned(
-                      top: 6, left: 8,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
-                          borderRadius: BorderRadius.circular(4),
-                        ),
-                        child: Text(
-                          '#$rank',
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w900,
-                            color: Colors.white,
-                          ),
-                        ),
-                      ),
-                    ),
-                    // Play overlay
-                    Positioned(
-                      bottom: 6, right: 6,
-                      child: Container(
-                        width: 28, height: 28,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: tokens.accent.withOpacity(0.9),
-                        ),
-                        child: Icon(Icons.play_arrow_rounded,
-                            color: tokens.isLight ? Colors.white : Colors.black, size: 16),
-                      ),
-                    ),
-                  ],
-                ),
+          button: true,
+          label: 'Play rank $rank: ${song.title} by ${song.artist}',
+          child: GestureDetector(
+            onTap: onTap,
+            child: Container(
+              width: 130,
+              decoration: BoxDecoration(
+                color: tokens.bgSurface,
+                borderRadius: BorderRadius.circular(12),
+                border: Border.all(color: tokens.outline, width: 0.7),
               ),
-              // Song info
-              Expanded(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(song.title,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                            color: tokens.textPrimary,
-                          )),
-                      SizedBox(height: 2),
-                      Text(song.artist,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: TextStyle(
-                            fontSize: 11,
-                            color: tokens.textSecondary,
-                          )),
-                      const Spacer(),
-                      // Listening time badge
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: tokens.accent.withOpacity(0.15),
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          song.listeningLabel,
-                          style: TextStyle(
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                            color: tokens.accent,
+              clipBehavior: Clip.hardEdge,
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  // Album art — real cover from Subsonic
+                  SizedBox(
+                    height: 100,
+                    width: double.infinity,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (coverUrl != null)
+                          CachedNetworkImage(
+                            imageUrl: coverUrl,
+                            cacheKey: 'replay_${song.songId}',
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => _artGradient(tokens),
+                            errorWidget: (_, __, ___) => _artGradient(tokens),
+                          )
+                        else
+                          _artGradient(tokens),
+                        // Rank badge
+                        Positioned(
+                          top: 6,
+                          left: 8,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.black.withOpacity(0.6),
+                              borderRadius: BorderRadius.circular(4),
+                            ),
+                            child: Text(
+                              '#$rank',
+                              style: TextStyle(
+                                fontSize: 12,
+                                fontWeight: FontWeight.w900,
+                                color: Colors.white,
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                        // Play overlay
+                        Positioned(
+                          bottom: 6,
+                          right: 6,
+                          child: Container(
+                            width: 28,
+                            height: 28,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: tokens.accent.withOpacity(0.9),
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: tokens.isLight
+                                  ? Colors.white
+                                  : Colors.black,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
-                ),
+                  // Song info
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(10, 8, 10, 6),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 12,
+                              fontWeight: FontWeight.w600,
+                              color: tokens.textPrimary,
+                            ),
+                          ),
+                          SizedBox(height: 2),
+                          Text(
+                            song.artist,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: tokens.textSecondary,
+                            ),
+                          ),
+                          const Spacer(),
+                          // Listening time badge
+                          Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 6,
+                              vertical: 2,
+                            ),
+                            decoration: BoxDecoration(
+                              color: tokens.accent.withOpacity(0.15),
+                              borderRadius: BorderRadius.circular(20),
+                            ),
+                            child: Text(
+                              song.listeningLabel,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: FontWeight.w600,
+                                color: tokens.accent,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
+            ),
           ),
-        ),
-      ),
-    )
-    .animate(delay: (rank * 40).clamp(0, 240).ms)
-    .fadeIn(duration: 350.ms)
-    .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
+        )
+        .animate(delay: (rank * 40).clamp(0, 240).ms)
+        .fadeIn(duration: 350.ms)
+        .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic);
   }
 
   Widget _artGradient(AppThemeTokens tokens) {
@@ -775,13 +899,11 @@ class _ReplayCard extends ConsumerWidget {
         ),
       ),
       child: Center(
-        child: Icon(Icons.music_note_rounded,
-            color: Colors.white38, size: 28),
+        child: Icon(Icons.music_note_rounded, color: Colors.white38, size: 28),
       ),
     );
   }
 }
-
 
 // =============================================================================
 // Empty state for replay sections
@@ -804,16 +926,12 @@ class _EmptyReplayHint extends StatelessWidget {
         ),
         child: Row(
           children: [
-            Icon(Icons.bar_chart_rounded,
-                color: tokens.accent, size: 28),
+            Icon(Icons.bar_chart_rounded, color: tokens.accent, size: 28),
             SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Start listening to build your Replay',
-                style: TextStyle(
-                  fontSize: 13,
-                  color: tokens.textSecondary,
-                ),
+                style: TextStyle(fontSize: 13, color: tokens.textSecondary),
               ),
             ),
           ],
@@ -871,7 +989,11 @@ class _TopBarIcon extends StatelessWidget {
   final IconData icon;
   final String label;
   final VoidCallback onTap;
-  const _TopBarIcon({required this.icon, required this.label, required this.onTap});
+  const _TopBarIcon({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -903,29 +1025,36 @@ class _ShimmerGrid extends StatelessWidget {
     final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: List.generate(3, (r) => Padding(
-          padding: const EdgeInsets.only(bottom: 8),
-          child: Row(
-            children: List.generate(2, (c) => Expanded(
-              child: Padding(
-                padding: EdgeInsets.only(left: c == 1 ? 8 : 0),
-                child: Container(
-                  height: 56,
-                  decoration: BoxDecoration(
-                    color: tokens.bgSurface,
-                    borderRadius: BorderRadius.circular(10),
+      child:
+          Column(
+                children: List.generate(
+                  3,
+                  (r) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      children: List.generate(
+                        2,
+                        (c) => Expanded(
+                          child: Padding(
+                            padding: EdgeInsets.only(left: c == 1 ? 8 : 0),
+                            child: Container(
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: tokens.bgSurface,
+                                borderRadius: BorderRadius.circular(10),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   ),
                 ),
-              ),
-            )),
-          ),
-        )),
-      )
-      .animate(onPlay: (c) => c.repeat(reverse: true))
-      .fadeIn(duration: 700.ms)
-      .then()
-      .fadeOut(duration: 700.ms),
+              )
+              .animate(onPlay: (c) => c.repeat(reverse: true))
+              .fadeIn(duration: 700.ms)
+              .then()
+              .fadeOut(duration: 700.ms),
     );
   }
 }
@@ -938,25 +1067,26 @@ class _ShimmerReel extends StatelessWidget {
     final tokens = ThemeTokens.of(context);
     return SizedBox(
       height: 170,
-      child: ListView.builder(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 16),
-        itemCount: 5,
-        itemBuilder: (_, i) => Padding(
-          padding: const EdgeInsets.only(right: 12),
-          child: Container(
-            width: 120,
-            decoration: BoxDecoration(
-              color: tokens.bgSurface,
-              borderRadius: BorderRadius.circular(12),
-            ),
-          ),
-        ),
-      )
-      .animate(onPlay: (c) => c.repeat(reverse: true))
-      .fadeIn(duration: 700.ms)
-      .then()
-      .fadeOut(duration: 700.ms),
+      child:
+          ListView.builder(
+                scrollDirection: Axis.horizontal,
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                itemCount: 5,
+                itemBuilder: (_, i) => Padding(
+                  padding: const EdgeInsets.only(right: 12),
+                  child: Container(
+                    width: 120,
+                    decoration: BoxDecoration(
+                      color: tokens.bgSurface,
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                  ),
+                ),
+              )
+              .animate(onPlay: (c) => c.repeat(reverse: true))
+              .fadeIn(duration: 700.ms)
+              .then()
+              .fadeOut(duration: 700.ms),
     );
   }
 }

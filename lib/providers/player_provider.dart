@@ -60,14 +60,12 @@ class PlayerState {
   }
 
   List<Song> get historySongs => history;
-  Song? get currentSong =>
-      queue.isNotEmpty && currentIndex < queue.length
-          ? queue[currentIndex]
-          : null;
-  List<Song> get upNext =>
-      queue.isNotEmpty && currentIndex + 1 < queue.length
-          ? queue.sublist(currentIndex + 1)
-          : const [];
+  Song? get currentSong => queue.isNotEmpty && currentIndex < queue.length
+      ? queue[currentIndex]
+      : null;
+  List<Song> get upNext => queue.isNotEmpty && currentIndex + 1 < queue.length
+      ? queue.sublist(currentIndex + 1)
+      : const [];
 }
 
 // ---------------------------------------------------------------------------
@@ -108,8 +106,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String _nextTransitionType = 'autoplay';
 
   PlayerNotifier(
-      this._ref, this._audioHandler, this._subsonicService, this._collector)
-      : super(const PlayerState(
+    this._ref,
+    this._audioHandler,
+    this._subsonicService,
+    this._collector,
+  ) : super(
+        const PlayerState(
           queue: [],
           currentIndex: 0,
           isPlaying: false,
@@ -118,7 +120,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           repeatMode: LoopMode.off,
           starredIds: [],
           history: [],
-        )) {
+        ),
+      ) {
     _init();
     _loadPersistedState();
   }
@@ -129,16 +132,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final s = HiveBoxes.session;
     final p = HiveBoxes.prefs;
 
-    _pendingSeekMs =
-        s.get(HiveBoxes.kLastPositionMs, defaultValue: 0) as int;
+    _pendingSeekMs = s.get(HiveBoxes.kLastPositionMs, defaultValue: 0) as int;
     final shuffle =
         p.get(HiveBoxes.kShufflePreference, defaultValue: false) as bool;
     final repeatIdx = p.get('repeatMode', defaultValue: 0) as int;
 
     state = state.copyWith(
       shuffleMode: shuffle,
-      repeatMode: LoopMode.values[
-          repeatIdx.clamp(0, LoopMode.values.length - 1)],
+      repeatMode:
+          LoopMode.values[repeatIdx.clamp(0, LoopMode.values.length - 1)],
     );
   }
 
@@ -168,171 +170,188 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void _init() {
     _lastKnownIndex = player.currentIndex ?? 0;
 
-    _subscriptions.add(player.currentIndexStream.listen((index) {
-      if (index == null) return;
-      if (_suppressStreamEvents) return;
+    _subscriptions.add(
+      player.currentIndexStream.listen((index) {
+        if (index == null) return;
+        if (_suppressStreamEvents) return;
 
-      final prevIndex = _lastKnownIndex;
+        final prevIndex = _lastKnownIndex;
 
-      // ── CRITICAL FIX: snapshot everything BEFORE mutating state ──────────
-      // _lastKnownPosition is reset to Duration.zero at the bottom of this
-      // block.  All analytics calls must capture it NOW, synchronously.
-      final positionAtSwitch = _lastKnownPosition;
+        // ── CRITICAL FIX: snapshot everything BEFORE mutating state ──────────
+        // _lastKnownPosition is reset to Duration.zero at the bottom of this
+        // block.  All analytics calls must capture it NOW, synchronously.
+        final positionAtSwitch = _lastKnownPosition;
 
-      final settings = _ref.read(settingsProvider);
-      final analyticsEnabled = settings.dataCollectionEnabled;
+        final settings = _ref.read(settingsProvider);
+        final analyticsEnabled = settings.dataCollectionEnabled;
 
-      final Song? prevSong =
-          prevIndex < state.queue.length ? state.queue[prevIndex] : null;
-      final Song? newSong =
-          index < state.queue.length ? state.queue[index] : null;
+        final Song? prevSong = prevIndex < state.queue.length
+            ? state.queue[prevIndex]
+            : null;
+        final Song? newSong = index < state.queue.length
+            ? state.queue[index]
+            : null;
 
-      // Ignore no-op index events (same index, not a repeat-one scenario).
-      if (index == prevIndex && state.repeatMode != LoopMode.one) {
-        return;
-      }
+        // Ignore no-op index events (same index, not a repeat-one scenario).
+        if (index == prevIndex && state.repeatMode != LoopMode.one) {
+          return;
+        }
 
-      _lastKnownIndex = index;
+        _lastKnownIndex = index;
 
-      // ── Analytics ────────────────────────────────────────────────────────
-      if (!analyticsEnabled) {
-        debugPrint('[Analytics] ⏭ Collection disabled — skipping event');
-      } else if (newSong == null) {
-        debugPrint('[Analytics] ⚠ New song is null at index $index — skipping');
-      } else {
-        // Snapshot context labels before they might be overwritten by a
-        // concurrent operation.
-        final sourceCtx = _nextSourceContext;
-        final transCtx = _nextTransitionType;
-        _nextSourceContext = 'autoplay';
-        _nextTransitionType = 'autoplay';
-
-        // Debounce: cancel any pending timer from a rapid sequence of index
-        // changes.  All values are captured HERE (synchronously) so the timer
-        // callback uses the correct snapshot, not stale state.
-        _trackChangeTimer?.cancel();
-        final capturedPrev = prevSong;
-        final capturedNew = newSong;
-        final capturedPos = positionAtSwitch; // already snapshotted above
-        final capturedIdx = index;
-        final capturedShuffle = state.shuffleMode;
-
-        _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
-          _collector.onSongStarted(
-            song: capturedNew,
-            sourceContext: sourceCtx,
-            transitionType: transCtx,
-            prevSong: capturedPrev,
-            positionAtSwitch: capturedPos,
-            queuePosition: capturedIdx,
-            shuffleActive: capturedShuffle,
+        // ── Analytics ────────────────────────────────────────────────────────
+        if (!analyticsEnabled) {
+          debugPrint('[Analytics] ⏭ Collection disabled — skipping event');
+        } else if (newSong == null) {
+          debugPrint(
+            '[Analytics] ⚠ New song is null at index $index — skipping',
           );
-        });
+        } else {
+          // Snapshot context labels before they might be overwritten by a
+          // concurrent operation.
+          final sourceCtx = _nextSourceContext;
+          final transCtx = _nextTransitionType;
+          _nextSourceContext = 'autoplay';
+          _nextTransitionType = 'autoplay';
 
-        _ref.read(recommendationProvider).trackSongPlay(
-              newSong,
-              durationPlayed: positionAtSwitch.inSeconds,
-              completed: prevSong != null &&
-                  positionAtSwitch.inSeconds >
-                      (prevSong.duration * 0.8).toInt(),
+          // Debounce: cancel any pending timer from a rapid sequence of index
+          // changes.  All values are captured HERE (synchronously) so the timer
+          // callback uses the correct snapshot, not stale state.
+          _trackChangeTimer?.cancel();
+          final capturedPrev = prevSong;
+          final capturedNew = newSong;
+          final capturedPos = positionAtSwitch; // already snapshotted above
+          final capturedIdx = index;
+          final capturedShuffle = state.shuffleMode;
+
+          _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
+            _collector.onSongStarted(
+              song: capturedNew,
+              sourceContext: sourceCtx,
+              transitionType: transCtx,
+              prevSong: capturedPrev,
+              positionAtSwitch: capturedPos,
+              queuePosition: capturedIdx,
+              shuffleActive: capturedShuffle,
             );
+          });
 
-        _audioHandler.refreshReplayGain();
-      }
+          _ref
+              .read(recommendationProvider)
+              .trackSongPlay(
+                newSong,
+                durationPlayed: positionAtSwitch.inSeconds,
+                completed:
+                    prevSong != null &&
+                    positionAtSwitch.inSeconds >
+                        (prevSong.duration * 0.8).toInt(),
+              );
 
-      // ── History ──────────────────────────────────────────────────────────
-      // Push to history only when moving forward and the previous song was
-      // actually playing for a meaningful time (>= 2 s).
-      if (!_suppressNextHistoryPush &&
-          index > prevIndex &&
-          prevIndex < state.queue.length &&
-          positionAtSwitch.inSeconds >= 2) {
-        _pushToHistory(state.queue[prevIndex]);
-      }
-      _suppressNextHistoryPush = false;
-
-      // ── Reset position tracker for the new track ─────────────────────────
-      _lastKnownPosition = Duration.zero;
-
-      // ── Update state ─────────────────────────────────────────────────────
-      state = state.copyWith(currentIndex: index);
-
-      // ── Autoplay lookahead ───────────────────────────────────────────────
-      if (state.autoplayMode && state.queue.isNotEmpty) {
-        final queueLen = state.queue.length;
-        if (index >= queueLen - 2) {
-          _triggerAutoplayIfNeeded();
+          _audioHandler.refreshReplayGain();
         }
-      }
 
-      // ── Scrobble tracking ────────────────────────────────────────────────
-      if (index < state.queue.length) {
-        final songId = state.queue[index].id;
-        if (songId != _lastScrobbleSongId) {
-          _scrobbledIds.clear();
-          _lastScrobbleSongId = songId;
+        // ── History ──────────────────────────────────────────────────────────
+        // Push to history only when moving forward and the previous song was
+        // actually playing for a meaningful time (>= 2 s).
+        if (!_suppressNextHistoryPush &&
+            index > prevIndex &&
+            prevIndex < state.queue.length &&
+            positionAtSwitch.inSeconds >= 2) {
+          _pushToHistory(state.queue[prevIndex]);
         }
-      }
-    }));
+        _suppressNextHistoryPush = false;
 
-    _subscriptions.add(player.playingStream.listen((playing) {
-      if (_suppressStreamEvents) return;
-      state = state.copyWith(isPlaying: playing);
-    }));
+        // ── Reset position tracker for the new track ─────────────────────────
+        _lastKnownPosition = Duration.zero;
 
-    _subscriptions.add(player.loopModeStream.listen((loopMode) {
-      state = state.copyWith(repeatMode: loopMode);
-    }));
+        // ── Update state ─────────────────────────────────────────────────────
+        state = state.copyWith(currentIndex: index);
 
-    _subscriptions.add(player.processingStateStream.listen((ps) async {
-      if (ps != ProcessingState.completed) return;
-      if (_suppressStreamEvents) return;
+        // ── Autoplay lookahead ───────────────────────────────────────────────
+        if (state.autoplayMode && state.queue.isNotEmpty) {
+          final queueLen = state.queue.length;
+          if (index >= queueLen - 2) {
+            _triggerAutoplayIfNeeded();
+          }
+        }
 
-      if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
-        final song = state.queue[state.currentIndex];
-        _collector.onSongEnded(song, player.position);
-      }
+        // ── Scrobble tracking ────────────────────────────────────────────────
+        if (index < state.queue.length) {
+          final songId = state.queue[index].id;
+          if (songId != _lastScrobbleSongId) {
+            _scrobbledIds.clear();
+            _lastScrobbleSongId = songId;
+          }
+        }
+      }),
+    );
 
-      if (!state.autoplayMode) return;
-      if (state.currentIndex < state.queue.length - 1) return;
+    _subscriptions.add(
+      player.playingStream.listen((playing) {
+        if (_suppressStreamEvents) return;
+        state = state.copyWith(isPlaying: playing);
+      }),
+    );
 
-      _triggerAutoplayIfNeeded();
-    }));
+    _subscriptions.add(
+      player.loopModeStream.listen((loopMode) {
+        state = state.copyWith(repeatMode: loopMode);
+      }),
+    );
+
+    _subscriptions.add(
+      player.processingStateStream.listen((ps) async {
+        if (ps != ProcessingState.completed) return;
+        if (_suppressStreamEvents) return;
+
+        if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
+          final song = state.queue[state.currentIndex];
+          _collector.onSongEnded(song, player.position);
+        }
+
+        if (!state.autoplayMode) return;
+        if (state.currentIndex < state.queue.length - 1) return;
+
+        _triggerAutoplayIfNeeded();
+      }),
+    );
 
     Duration prevPosition = Duration.zero;
-    _subscriptions.add(player.positionStream.listen((position) {
-      // Only update _lastKnownPosition when the player is on the expected
-      // track. Guards against position events firing on the old source while
-      // the index has already moved (common during gapless transitions).
-      if (player.currentIndex == _lastKnownIndex) {
-        _lastKnownPosition = position;
-      }
-
-      if (position.inSeconds > 0 && position.inSeconds % 5 == 0) {
-        _persistState();
-      }
-
-      if (state.queue.isEmpty || state.currentIndex >= state.queue.length) {
-        prevPosition = position;
-        return;
-      }
-      final currentSong = state.queue[state.currentIndex];
-      final duration = currentSong.duration;
-
-      if (state.repeatMode == LoopMode.one &&
-          prevPosition.inSeconds > (duration * 0.5) &&
-          position.inSeconds < 2) {
-        _collector.onSongRepeated();
-      }
-      prevPosition = position;
-
-      if (duration > 0 && position.inSeconds > (duration * 0.5)) {
-        if (!_scrobbledIds.contains(currentSong.id)) {
-          _scrobbledIds.add(currentSong.id);
-          scrobble(currentSong.id);
+    _subscriptions.add(
+      player.positionStream.listen((position) {
+        // Only update _lastKnownPosition when the player is on the expected
+        // track. Guards against position events firing on the old source while
+        // the index has already moved (common during gapless transitions).
+        if (player.currentIndex == _lastKnownIndex) {
+          _lastKnownPosition = position;
         }
-      }
-    }));
+
+        if (position.inSeconds > 0 && position.inSeconds % 5 == 0) {
+          _persistState();
+        }
+
+        if (state.queue.isEmpty || state.currentIndex >= state.queue.length) {
+          prevPosition = position;
+          return;
+        }
+        final currentSong = state.queue[state.currentIndex];
+        final duration = currentSong.duration;
+
+        if (state.repeatMode == LoopMode.one &&
+            prevPosition.inSeconds > (duration * 0.5) &&
+            position.inSeconds < 2) {
+          _collector.onSongRepeated();
+        }
+        prevPosition = position;
+
+        if (duration > 0 && position.inSeconds > (duration * 0.5)) {
+          if (!_scrobbledIds.contains(currentSong.id)) {
+            _scrobbledIds.add(currentSong.id);
+            scrobble(currentSong.id);
+          }
+        }
+      }),
+    );
   }
 
   bool _suppressNextHistoryPush = false;
@@ -412,8 +431,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       if (!shuffle) {
         _suppressStreamEvents = true;
-        state =
-            state.copyWith(shuffleMode: false, queue: songs, currentIndex: 0);
+        state = state.copyWith(
+          shuffleMode: false,
+          queue: songs,
+          currentIndex: 0,
+        );
         await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
         _suppressStreamEvents = false;
         player.play();
@@ -428,7 +450,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final pool = List<Song>.from(songs)..removeAt(startIndex);
         final settings = _ref.read(settingsProvider);
         final shuffled = await _audioHandler.computeShuffle(
-            pool, settings.shuffleAlgorithm, settings.shufflePreference);
+          pool,
+          settings.shuffleAlgorithm,
+          settings.shufflePreference,
+        );
         if (_queueOpLock != completer) return;
         final finalQueue = [currentSong, ...shuffled];
         _suppressStreamEvents = true;
@@ -464,18 +489,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         await player.seekToNext();
       } else {
         await _jumpToInternal(
-            state.currentIndex < state.queue.length - 1
-                ? state.currentIndex + 1
-                : 0,
-            pushHistory: false);
+          state.currentIndex < state.queue.length - 1
+              ? state.currentIndex + 1
+              : 0,
+          pushHistory: false,
+        );
       }
     } catch (e, stack) {
       debugPrint('playNext failed: $e\n$stack');
       await _jumpToInternal(
-          state.currentIndex < state.queue.length - 1
-              ? state.currentIndex + 1
-              : 0,
-          pushHistory: false);
+        state.currentIndex < state.queue.length - 1
+            ? state.currentIndex + 1
+            : 0,
+        pushHistory: false,
+      );
     }
   }
 
@@ -497,8 +524,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           state = state.copyWith(currentIndex: historyIndex);
         } else {
           _suppressNextHistoryPush = true;
-          final prevIdx =
-              state.currentIndex > 0 ? state.currentIndex - 1 : 0;
+          final prevIdx = state.currentIndex > 0 ? state.currentIndex - 1 : 0;
           await player.seek(Duration.zero, index: prevIdx);
           state = state.copyWith(currentIndex: prevIdx);
         }
@@ -510,15 +536,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       } else {
         _suppressNextHistoryPush = true;
         await _jumpToInternal(
-            state.currentIndex > 0 ? state.currentIndex - 1 : 0,
-            pushHistory: false);
+          state.currentIndex > 0 ? state.currentIndex - 1 : 0,
+          pushHistory: false,
+        );
       }
     } catch (e, stack) {
       debugPrint('playPrev failed: $e\n$stack');
       _suppressNextHistoryPush = true;
       await _jumpToInternal(
-          state.currentIndex > 0 ? state.currentIndex - 1 : 0,
-          pushHistory: false);
+        state.currentIndex > 0 ? state.currentIndex - 1 : 0,
+        pushHistory: false,
+      );
     }
   }
 
@@ -577,8 +605,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         currentIndex++;
       }
       state = state.copyWith(queue: currentQueue, currentIndex: currentIndex);
-      await _audioHandler.reorderQueue(oldIndex, newIndex,
-          isShuffleMode: state.shuffleMode);
+      await _audioHandler.reorderQueue(
+        oldIndex,
+        newIndex,
+        isShuffleMode: state.shuffleMode,
+      );
     } finally {
       _suppressStreamEvents = false;
     }
@@ -633,8 +664,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       await _audioHandler.unshuffle();
       state = state.copyWith(
-          queue: _audioHandler.currentQueue,
-          currentIndex: _audioHandler.player.currentIndex ?? 0);
+        queue: _audioHandler.currentQueue,
+        currentIndex: _audioHandler.player.currentIndex ?? 0,
+      );
     } finally {
       _isShuffling = false;
       _suppressStreamEvents = false;
@@ -673,7 +705,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           break;
       }
       state = state.copyWith(
-          queue: _audioHandler.currentQueue, currentIndex: savedIndex);
+        queue: _audioHandler.currentQueue,
+        currentIndex: savedIndex,
+      );
     } finally {
       _isShuffling = false;
       _suppressStreamEvents = false;
@@ -721,6 +755,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> scrobble(String songId) async {
+    // Local-scanned songs have 'local:' prefix IDs — the Subsonic server
+    // has no record of them, so scrobbling would 404. Skip gracefully.
+    if (songId.startsWith('local:')) return;
     await _subsonicService.scrobble(songId);
   }
 
@@ -756,8 +793,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final indexBeforeFetch = state.currentIndex;
       final queueLenBeforeFetch = state.queue.length;
 
-      final similar =
-          await _subsonicService.getSimilarSongs(seedSong.id, count: 10);
+      final similar = await _subsonicService.getSimilarSongs(
+        seedSong.id,
+        count: 10,
+      );
 
       if (similar.isEmpty) {
         debugPrint('[AUTOPLAY] No similar songs found for ${seedSong.title}');
@@ -765,8 +804,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
 
       final existingIds = state.queue.map((s) => s.id).toSet();
-      final fresh =
-          similar.where((s) => !existingIds.contains(s.id)).toList();
+      final fresh = similar.where((s) => !existingIds.contains(s.id)).toList();
 
       if (fresh.isEmpty) {
         debugPrint('[AUTOPLAY] All similar songs already in queue');
@@ -778,7 +816,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _audioHandler.addAllToQueue(fresh);
 
       debugPrint(
-          '[AUTOPLAY] Appended ${fresh.length} songs. Queue now ${newQueue.length}');
+        '[AUTOPLAY] Appended ${fresh.length} songs. Queue now ${newQueue.length}',
+      );
 
       final currentIndexNow = state.currentIndex;
       final wasAtEnd = currentIndexNow >= queueLenBeforeFetch - 1;
@@ -815,8 +854,9 @@ final audioHandlerProvider = Provider<AudioHandler>((ref) {
   return AudioHandler(service, replayGainService: replayGain);
 });
 
-final playerProvider =
-    StateNotifierProvider<PlayerNotifier, PlayerState>((ref) {
+final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
+  ref,
+) {
   final handler = ref.watch(audioHandlerProvider);
   final service = ref.watch(subsonicServiceProvider);
   final collector = ref.watch(listenerCollectorProvider);

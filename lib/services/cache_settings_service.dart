@@ -14,7 +14,10 @@ class CacheSettingsService {
   }
 
   bool getImageCacheEnabled() {
-    final val = HiveBoxes.prefs.get(HiveBoxes.kImageCacheEnabled, defaultValue: true);
+    final val = HiveBoxes.prefs.get(
+      HiveBoxes.kImageCacheEnabled,
+      defaultValue: true,
+    );
     return val is bool ? val : true;
   }
 
@@ -23,7 +26,10 @@ class CacheSettingsService {
   }
 
   bool getMusicCacheEnabled() {
-    final val = HiveBoxes.prefs.get(HiveBoxes.kMusicCacheEnabled, defaultValue: true);
+    final val = HiveBoxes.prefs.get(
+      HiveBoxes.kMusicCacheEnabled,
+      defaultValue: true,
+    );
     return val is bool ? val : true;
   }
 
@@ -32,7 +38,10 @@ class CacheSettingsService {
   }
 
   bool getBpmCacheEnabled() {
-    final val = HiveBoxes.prefs.get(HiveBoxes.kBpmCacheEnabled, defaultValue: true);
+    final val = HiveBoxes.prefs.get(
+      HiveBoxes.kBpmCacheEnabled,
+      defaultValue: true,
+    );
     return val is bool ? val : true;
   }
 

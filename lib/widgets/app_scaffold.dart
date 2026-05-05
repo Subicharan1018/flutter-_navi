@@ -6,6 +6,7 @@ import '../screens/home_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/favorites_screen.dart';
+import '../screens/local_library_screen.dart';
 import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
 import '../providers/settings_provider.dart';
@@ -39,24 +40,41 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
   }
 
   static const List<_NavItem> _items = [
-    _NavItem(icon: Icons.home_outlined,   activeIcon: Icons.home_rounded,          label: 'Home'),
-    _NavItem(icon: Icons.search_outlined, activeIcon: Icons.search_rounded,         label: 'Search'),
-    _NavItem(icon: Icons.favorite_outline, activeIcon: Icons.favorite_rounded,      label: 'Favorites'),
-    _NavItem(icon: Icons.library_music_outlined, activeIcon: Icons.library_music_rounded, label: 'Library'),
-  ];
-
-  final List<Widget> _screens = const [
-    HomeScreen(),
-    SearchScreen(),
-    FavoritesScreen(),
-    LibraryScreen(),
+    _NavItem(
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home_rounded,
+      label: 'Home',
+    ),
+    _NavItem(
+      icon: Icons.search_outlined,
+      activeIcon: Icons.search_rounded,
+      label: 'Search',
+    ),
+    _NavItem(
+      icon: Icons.favorite_outline,
+      activeIcon: Icons.favorite_rounded,
+      label: 'Favorites',
+    ),
+    _NavItem(
+      icon: Icons.library_music_outlined,
+      activeIcon: Icons.library_music_rounded,
+      label: 'Library',
+    ),
   ];
 
   @override
   Widget build(BuildContext context) {
-    final bottomPad        = MediaQuery.of(context).padding.bottom;
-    final tokens           = ThemeTokens.of(context);
-    final meshEnabled      = ref.watch(settingsProvider).meshGradientEnabled;
+    final tokens = ThemeTokens.of(context);
+    final meshEnabled = ref.watch(settingsProvider).meshGradientEnabled;
+    final isLocalMode = ref.watch(settingsProvider).isLocalMode;
+
+    // Dynamically swap Library ↔ LocalLibraryScreen based on mode.
+    final screens = <Widget>[
+      const HomeScreen(),
+      const SearchScreen(),
+      const FavoritesScreen(),
+      isLocalMode ? const LocalLibraryScreen() : const LibraryScreen(),
+    ];
 
     final navBar = ClipRect(
       child: BackdropFilter(
@@ -70,8 +88,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(_items.length, (i) {
-                  final item    = _items[i];
-                  final active  = _currentIndex == i;
+                  final item = _items[i];
+                  final active = _currentIndex == i;
                   return Expanded(
                     child: Semantics(
                       selected: active,
@@ -142,15 +160,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
               ),
             ),
             // Layer 1: actual screen content
-            IndexedStack(index: _currentIndex, children: _screens),
+            IndexedStack(index: _currentIndex, children: screens),
           ],
         ),
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
-            const MiniPlayer(),
-            navBar,
-          ],
+          children: [const MiniPlayer(), navBar],
         ),
       );
     }
@@ -159,13 +174,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> {
     return Scaffold(
       extendBody: true,
       backgroundColor: tokens.bgBase,
-      body: IndexedStack(index: _currentIndex, children: _screens),
+      body: IndexedStack(index: _currentIndex, children: screens),
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
-        children: [
-          const MiniPlayer(),
-          navBar,
-        ],
+        children: [const MiniPlayer(), navBar],
       ),
     );
   }
@@ -175,5 +187,9 @@ class _NavItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
-  const _NavItem({required this.icon, required this.activeIcon, required this.label});
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
 }

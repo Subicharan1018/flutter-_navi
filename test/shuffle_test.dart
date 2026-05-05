@@ -16,7 +16,11 @@ class TestAudioHandler extends AudioHandler {
   bool updateSourceCalled = false;
 
   @override
-  Future<void> setQueue(List<Song> songs, int startIndex, {List<Song>? unshuffledSongs}) async {
+  Future<void> setQueue(
+    List<Song> songs,
+    int startIndex, {
+    List<Song>? unshuffledSongs,
+  }) async {
     currentQueue = List<Song>.from(songs);
   }
 
@@ -69,7 +73,8 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
 }
 
 class MockSubsonicService extends SubsonicService {
-  MockSubsonicService(PlaylistCacheService cache) : super(serverUrl: '', username: '', password: '', cache: cache);
+  MockSubsonicService(PlaylistCacheService cache)
+    : super(serverUrl: '', username: '', password: '', cache: cache);
 }
 
 class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
@@ -82,7 +87,8 @@ class MockAudioPlayer extends Fake implements AudioPlayer {
   AudioSource? get audioSource => null;
 
   @override
-  Future<Duration?> setAudioSource(AudioSource source, {
+  Future<Duration?> setAudioSource(
+    AudioSource source, {
     bool preload = true,
     int? initialIndex,
     Duration? initialPosition,
@@ -102,10 +108,54 @@ void main() {
       final mockPlayer = MockAudioPlayer();
       handler = TestAudioHandler(mockService, player: mockPlayer);
 
-      s1 = Song(id: '1', title: 'S1', artist: 'A1', album: 'B1', composer: 'Comp1', genre: 'G1', coverArt: '', duration: 100, track: 1, year: 2020);
-      s2 = Song(id: '2', title: 'S2', artist: 'A2', album: 'B2', composer: 'Comp1', genre: 'G2', coverArt: '', duration: 100, track: 2, year: 2020);
-      s3 = Song(id: '3', title: 'S3', artist: 'A3', album: 'B3', composer: 'Comp2', genre: 'G1', coverArt: '', duration: 100, track: 3, year: 2020);
-      s4 = Song(id: '4', title: 'S4', artist: 'A4', album: 'B4', composer: 'Comp2', genre: 'G2', coverArt: '', duration: 100, track: 4, year: 2020);
+      s1 = Song(
+        id: '1',
+        title: 'S1',
+        artist: 'A1',
+        album: 'B1',
+        composer: 'Comp1',
+        genre: 'G1',
+        coverArt: '',
+        duration: 100,
+        track: 1,
+        year: 2020,
+      );
+      s2 = Song(
+        id: '2',
+        title: 'S2',
+        artist: 'A2',
+        album: 'B2',
+        composer: 'Comp1',
+        genre: 'G2',
+        coverArt: '',
+        duration: 100,
+        track: 2,
+        year: 2020,
+      );
+      s3 = Song(
+        id: '3',
+        title: 'S3',
+        artist: 'A3',
+        album: 'B3',
+        composer: 'Comp2',
+        genre: 'G1',
+        coverArt: '',
+        duration: 100,
+        track: 3,
+        year: 2020,
+      );
+      s4 = Song(
+        id: '4',
+        title: 'S4',
+        artist: 'A4',
+        album: 'B4',
+        composer: 'Comp2',
+        genre: 'G2',
+        coverArt: '',
+        duration: 100,
+        track: 4,
+        year: 2020,
+      );
 
       handler.currentQueue = [s1, s2, s3, s4];
     });
@@ -129,7 +179,18 @@ void main() {
     });
 
     test('Handles missing metadata gracefully with "Unknown" bucket', () {
-      final s5 = Song(id: '5', title: 'S5', artist: 'A5', album: 'B5', composer: '', genre: '', coverArt: '', duration: 100, track: 5, year: 2020);
+      final s5 = Song(
+        id: '5',
+        title: 'S5',
+        artist: 'A5',
+        album: 'B5',
+        composer: '',
+        genre: '',
+        coverArt: '',
+        duration: 100,
+        track: 5,
+        year: 2020,
+      );
       handler.currentQueue = [s1, s5];
 
       handler.spotifyDitherShuffle(ShufflePreference.composer);
@@ -149,30 +210,58 @@ void main() {
     expect(song.composer, 'Beethoven');
   });
 
-  test('history does not duplicate the same song on repeated index events', () async {
-    final mockCache = MockPlaylistCacheService();
-    final mockService = MockSubsonicService(mockCache);
-    final mockPlayer = ControlledAudioPlayer();
-    final handler = TestAudioHandler(mockService, player: mockPlayer);
+  test(
+    'history does not duplicate the same song on repeated index events',
+    () async {
+      final mockCache = MockPlaylistCacheService();
+      final mockService = MockSubsonicService(mockCache);
+      final mockPlayer = ControlledAudioPlayer();
+      final handler = TestAudioHandler(mockService, player: mockPlayer);
 
-    final container = ProviderContainer(
-      overrides: [
-        audioHandlerProvider.overrideWithValue(handler),
-        subsonicServiceProvider.overrideWithValue(mockService),
-      ],
-    );
-    addTearDown(container.dispose);
+      final container = ProviderContainer(
+        overrides: [
+          audioHandlerProvider.overrideWithValue(handler),
+          subsonicServiceProvider.overrideWithValue(mockService),
+        ],
+      );
+      addTearDown(container.dispose);
 
-    final notifier = container.read(playerProvider.notifier);
-    final songs = [
-      Song(id: '1', title: 'First', artist: 'Artist 1', album: 'A', composer: 'C', genre: 'G', coverArt: '', duration: 120, track: 1, year: 2024),
-      Song(id: '2', title: 'Second', artist: 'Artist 2', album: 'A', composer: 'C', genre: 'G', coverArt: '', duration: 120, track: 2, year: 2024),
-    ];
+      final notifier = container.read(playerProvider.notifier);
+      final songs = [
+        Song(
+          id: '1',
+          title: 'First',
+          artist: 'Artist 1',
+          album: 'A',
+          composer: 'C',
+          genre: 'G',
+          coverArt: '',
+          duration: 120,
+          track: 1,
+          year: 2024,
+        ),
+        Song(
+          id: '2',
+          title: 'Second',
+          artist: 'Artist 2',
+          album: 'A',
+          composer: 'C',
+          genre: 'G',
+          coverArt: '',
+          duration: 120,
+          track: 2,
+          year: 2024,
+        ),
+      ];
 
-    await notifier.setQueue(songs, 0);
-    await mockPlayer.emitCurrentIndex(1);
-    await mockPlayer.emitCurrentIndex(1);
+      await notifier.setQueue(songs, 0);
+      await mockPlayer.emitCurrentIndex(1);
+      await mockPlayer.emitCurrentIndex(1);
 
-    expect(container.read(playerProvider).historySongs.map((song) => song.id), ['1']);
-  });
+      expect(
+        container.read(playerProvider).historySongs.map((song) => song.id),
+        ['1'],
+      );
+    },
+  );
 }

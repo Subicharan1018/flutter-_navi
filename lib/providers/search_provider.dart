@@ -2,7 +2,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/hive_boxes.dart';
 import 'settings_provider.dart';
 
-final searchProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, query) async {
+final searchProvider = FutureProvider.family<Map<String, dynamic>, String>((
+  ref,
+  query,
+) async {
   if (query.isEmpty) return {'songs': [], 'albums': [], 'artists': []};
   final service = ref.watch(subsonicServiceProvider);
   return await service.search(query);
@@ -44,6 +47,7 @@ class SearchHistoryNotifier extends StateNotifier<List<String>> {
   }
 }
 
-final searchHistoryProvider = StateNotifierProvider<SearchHistoryNotifier, List<String>>((ref) {
-  return SearchHistoryNotifier();
-});
+final searchHistoryProvider =
+    StateNotifierProvider<SearchHistoryNotifier, List<String>>((ref) {
+      return SearchHistoryNotifier();
+    });

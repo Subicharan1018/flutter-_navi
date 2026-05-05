@@ -11,6 +11,7 @@ import '../services/replay_gain_service.dart';
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
 import '../services/search_history_service.dart';
+import '../services/local_library_service.dart';
 import '../database/app_database.dart';
 
 // ---------------------------------------------------------------------------
@@ -48,10 +49,7 @@ enum ShuffleAlgorithm {
 // ---------------------------------------------------------------------------
 // Shuffle Preference enum
 // ---------------------------------------------------------------------------
-enum ShufflePreference {
-  composer,
-  genre,
-}
+enum ShufflePreference { composer, genre }
 
 // ---------------------------------------------------------------------------
 // Settings state
@@ -78,6 +76,12 @@ class SettingsState {
   /// When true a live mesh-gradient shader renders behind the main scaffold.
   final bool meshGradientEnabled;
 
+  /// When true the app reads from local folders instead of the Subsonic server.
+  final bool isLocalMode;
+
+  /// List of absolute folder paths the user has chosen for local scanning.
+  final List<String> localMusicFolders;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
@@ -93,6 +97,8 @@ class SettingsState {
     this.analyticsLastUpload,
     this.themeMode = AppThemeMode.spotify,
     this.meshGradientEnabled = false,
+    this.isLocalMode = false,
+    this.localMusicFolders = const [],
   });
 
   SettingsState copyWith({
@@ -110,6 +116,8 @@ class SettingsState {
     String? analyticsLastUpload,
     AppThemeMode? themeMode,
     bool? meshGradientEnabled,
+    bool? isLocalMode,
+    List<String>? localMusicFolders,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -128,6 +136,8 @@ class SettingsState {
       analyticsLastUpload: analyticsLastUpload ?? this.analyticsLastUpload,
       themeMode: themeMode ?? this.themeMode,
       meshGradientEnabled: meshGradientEnabled ?? this.meshGradientEnabled,
+      isLocalMode: isLocalMode ?? this.isLocalMode,
+      localMusicFolders: localMusicFolders ?? this.localMusicFolders,
     );
   }
 }
@@ -137,11 +147,7 @@ class SettingsState {
 // ---------------------------------------------------------------------------
 class SettingsNotifier extends StateNotifier<SettingsState> {
   SettingsNotifier()
-      : super(const SettingsState(
-          serverUrl: '',
-          username: '',
-          password: '',
-        )) {
+    : super(const SettingsState(serverUrl: '', username: '', password: '')) {
     _loadFromHive();
   }
 
@@ -149,17 +155,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final auth = HiveBoxes.auth;
     final p = HiveBoxes.prefs;
 
-    final algoName = p
+    final algoName =
+        p
             .get(HiveBoxes.kShuffleAlgorithm, defaultValue: 'standard')
             ?.toString() ??
         'standard';
-    final prefName = p
+    final prefName =
+        p
             .get(HiveBoxes.kShufflePreference, defaultValue: 'composer')
             ?.toString() ??
         'composer';
-    final themeName = p
-            .get(HiveBoxes.kThemeMode, defaultValue: 'spotify')
-            ?.toString() ??
+    final themeName =
+        p.get(HiveBoxes.kThemeMode, defaultValue: 'spotify')?.toString() ??
         'spotify';
 
     String getString(dynamic box, String key, String defaultValue) {
@@ -169,9 +176,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
     state = SettingsState(
       serverUrl: getString(
-          auth, HiveBoxes.kServerUrl, Constants.defaultServerUrl),
-      username: getString(
-          auth, HiveBoxes.kUsername, Constants.defaultUsername),
+        auth,
+        HiveBoxes.kServerUrl,
+        Constants.defaultServerUrl,
+      ),
+      username: getString(auth, HiveBoxes.kUsername, Constants.defaultUsername),
       password: auth.get(HiveBoxes.kPassword)?.toString() ?? '',
       webdavUsername: auth.get(HiveBoxes.kWebdavUsername)?.toString() ?? '',
       webdavPassword: auth.get(HiveBoxes.kWebdavPassword)?.toString() ?? '',
@@ -189,24 +198,28 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       uploadDirectory: p.get(HiveBoxes.kUploadDirectory)?.toString() ?? '',
       dataCollectionEnabled:
           p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool
-              ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true)
-                  as bool
-              : true,
+          ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) as bool
+          : true,
       analyticsUploadSchedule:
-          p.get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none')
-                  ?.toString() ??
-              'none',
-      analyticsLastUpload:
-          p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
+          p
+              .get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none')
+              ?.toString() ??
+          'none',
+      analyticsLastUpload: p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
       themeMode: AppThemeMode.values.firstWhere(
         (e) => e.name == themeName,
         orElse: () => AppThemeMode.spotify,
       ),
       meshGradientEnabled:
           p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false) is bool
-              ? p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false)
-                  as bool
-              : false,
+          ? p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false) as bool
+          : false,
+      isLocalMode: p.get(HiveBoxes.kIsLocalMode, defaultValue: false) is bool
+          ? p.get(HiveBoxes.kIsLocalMode, defaultValue: false) as bool
+          : false,
+      localMusicFolders:
+          (p.get(HiveBoxes.kLocalMusicFolders) as List?)?.cast<String>() ??
+          const [],
     );
   }
 
@@ -225,8 +238,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await auth.put(HiveBoxes.kServerUrl, url);
     await auth.put(HiveBoxes.kUsername, user);
     await auth.put(HiveBoxes.kPassword, pass);
-    if (webdavUser != null) await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
-    if (webdavPass != null) await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
+    if (webdavUser != null)
+      await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
+    if (webdavPass != null)
+      await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
     if (uploadUrl != null) await p.put(HiveBoxes.kUploadApiUrl, uploadUrl);
     if (uploadDir != null) await p.put(HiveBoxes.kUploadDirectory, uploadDir);
 
@@ -277,15 +292,38 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await HiveBoxes.prefs.put(HiveBoxes.kMeshGradientEnabled, enabled);
     state = state.copyWith(meshGradientEnabled: enabled);
   }
+
+  /// Toggles between local offline mode and server (Subsonic) mode.
+  Future<void> toggleLocalMode() async {
+    final newValue = !state.isLocalMode;
+    await HiveBoxes.prefs.put(HiveBoxes.kIsLocalMode, newValue);
+    state = state.copyWith(isLocalMode: newValue);
+  }
+
+  /// Adds a new local music folder path. Persists immediately.
+  Future<void> addLocalFolder(String path) async {
+    if (state.localMusicFolders.contains(path)) return;
+    final updated = [...state.localMusicFolders, path];
+    await HiveBoxes.prefs.put(HiveBoxes.kLocalMusicFolders, updated);
+    state = state.copyWith(localMusicFolders: updated);
+  }
+
+  /// Removes a local music folder by path. Persists immediately.
+  Future<void> removeLocalFolder(String path) async {
+    final updated = state.localMusicFolders.where((f) => f != path).toList();
+    await HiveBoxes.prefs.put(HiveBoxes.kLocalMusicFolders, updated);
+    state = state.copyWith(localMusicFolders: updated);
+  }
 }
 
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
-final settingsProvider =
-    StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
-  return SettingsNotifier();
-});
+final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
+  (ref) {
+    return SettingsNotifier();
+  },
+);
 
 /// Convenience provider — just the active [AppThemeMode].
 final themeModeProvider = Provider<AppThemeMode>((ref) {
@@ -314,13 +352,13 @@ final playlistCacheServiceProvider = Provider<PlaylistCacheService>((ref) {
 /// [SubsonicService] instance we need.
 final _credentialsProvider =
     Provider<({String serverUrl, String username, String password})>((ref) {
-  final s = ref.watch(settingsProvider);
-  return (
-    serverUrl: s.serverUrl,
-    username: s.username,
-    password: s.password,
-  );
-});
+      final s = ref.watch(settingsProvider);
+      return (
+        serverUrl: s.serverUrl,
+        username: s.username,
+        password: s.password,
+      );
+    });
 
 final subsonicServiceProvider = Provider<SubsonicService>((ref) {
   final creds = ref.watch(_credentialsProvider);
@@ -331,10 +369,18 @@ final subsonicServiceProvider = Provider<SubsonicService>((ref) {
     username: creds.username,
     password: creds.password,
     cache: cache,
-    customUploadUrl: settings.uploadApiUrl.isEmpty ? null : settings.uploadApiUrl,
-    customUploadDir: settings.uploadDirectory.isEmpty ? null : settings.uploadDirectory,
-    webdavUsername: settings.webdavUsername.isEmpty ? null : settings.webdavUsername,
-    webdavPassword: settings.webdavPassword.isEmpty ? null : settings.webdavPassword,
+    customUploadUrl: settings.uploadApiUrl.isEmpty
+        ? null
+        : settings.uploadApiUrl,
+    customUploadDir: settings.uploadDirectory.isEmpty
+        ? null
+        : settings.uploadDirectory,
+    webdavUsername: settings.webdavUsername.isEmpty
+        ? null
+        : settings.webdavUsername,
+    webdavPassword: settings.webdavPassword.isEmpty
+        ? null
+        : settings.webdavPassword,
   );
 
   ref.onDispose(service.dispose);
@@ -376,8 +422,9 @@ final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {
 });
 
 /// [RecommendationService] — play pattern tracking and personalised feeds.
-final recommendationProvider =
-    ChangeNotifierProvider<RecommendationService>((ref) {
+final recommendationProvider = ChangeNotifierProvider<RecommendationService>((
+  ref,
+) {
   final service = RecommendationService();
   service.initialize();
   return service;
@@ -387,4 +434,9 @@ final recommendationProvider =
 final searchHistoryServiceProvider = Provider<SearchHistoryService>((ref) {
   final db = ref.watch(appDatabaseProvider);
   return SearchHistoryService(db);
+});
+
+/// Singleton [LocalLibraryService] — scans local folders for audio files.
+final localLibraryServiceProvider = Provider<LocalLibraryService>((ref) {
+  return LocalLibraryService();
 });

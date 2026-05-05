@@ -43,8 +43,7 @@ class PlaylistDetailsScreen extends ConsumerStatefulWidget {
       _PlaylistDetailsScreenState();
 }
 
-class _PlaylistDetailsScreenState
-    extends ConsumerState<PlaylistDetailsScreen> {
+class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   List<Song> _songs = [];
   List<Song> _filteredSongs = [];
   bool _isLoading = true;
@@ -98,7 +97,8 @@ class _PlaylistDetailsScreenState
 
       // Determine cover art then load palette without blocking the list.
       final coverArtId =
-          widget.playlist.coverArt ?? (songs.isNotEmpty ? songs.first.coverArt : null);
+          widget.playlist.coverArt ??
+          (songs.isNotEmpty ? songs.first.coverArt : null);
       if (coverArtId != null && coverArtId.isNotEmpty) {
         _loadCoverAndPalette(service, coverArtId);
       }
@@ -114,10 +114,7 @@ class _PlaylistDetailsScreenState
 
   /// Loads the cover image URL and extracts the vibrant palette colour.
   /// Runs independently of [_loadSongs] so it never blocks the song list.
-  Future<void> _loadCoverAndPalette(
-    dynamic service,
-    String coverArtId,
-  ) async {
+  Future<void> _loadCoverAndPalette(dynamic service, String coverArtId) async {
     final imageUrl = service.getCoverArtUrl(coverArtId) as String;
     final cacheKey = 'cover_$coverArtId';
 
@@ -149,10 +146,12 @@ class _PlaylistDetailsScreenState
       _filteredSongs = query.isEmpty
           ? List.of(_songs)
           : _songs
-              .where((s) =>
-                  s.title.toLowerCase().contains(query) ||
-                  s.artist.toLowerCase().contains(query))
-              .toList();
+                .where(
+                  (s) =>
+                      s.title.toLowerCase().contains(query) ||
+                      s.artist.toLowerCase().contains(query),
+                )
+                .toList();
     });
   }
 
@@ -164,12 +163,13 @@ class _PlaylistDetailsScreenState
     return '$m min';
   }
 
-  int get _totalDurationSeconds =>
-      _songs.fold(0, (sum, s) => sum + s.duration);
+  int get _totalDurationSeconds => _songs.fold(0, (sum, s) => sum + s.duration);
 
   void _playAll({bool shuffle = false}) async {
     if (_songs.isEmpty) return;
-    await ref.read(playerProvider.notifier).playPlaylist(_songs, shuffle: shuffle);
+    await ref
+        .read(playerProvider.notifier)
+        .playPlaylist(_songs, shuffle: shuffle);
   }
 
   Future<void> _deleteSong(int filteredIndex) async {
@@ -185,7 +185,9 @@ class _PlaylistDetailsScreenState
     try {
       final service = ref.read(subsonicServiceProvider);
       await service.updatePlaylist(
-          widget.playlist.id, songIndexToRemove: originalIndex);
+        widget.playlist.id,
+        songIndexToRemove: originalIndex,
+      );
       // Invalidate the SQLite cache so the next open fetches fresh data.
       await service.invalidatePlaylist(widget.playlist.id);
       ref.invalidate(playlistsProvider);
@@ -198,8 +200,9 @@ class _PlaylistDetailsScreenState
           _songs.insert(originalIndex, song);
           _filterSongs();
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to remove song: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to remove song: $e')));
       }
     }
   }
@@ -214,20 +217,30 @@ class _PlaylistDetailsScreenState
       builder: (_) => AlertDialog(
         backgroundColor: ThemeTokens.of(context).bgSurface,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: ThemeTokens.of(context).outline)),
-        title: Text('Delete Playlist',
-            style: TextStyle(
-                color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.bold)),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: ThemeTokens.of(context).outline),
+        ),
+        title: Text(
+          'Delete Playlist',
+          style: TextStyle(
+            color: ThemeTokens.of(context).textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(
           'Delete "${widget.playlist.name}"? This cannot be undone.',
-          style: TextStyle(color: ThemeTokens.of(context).textSecondary, fontSize: 14),
+          style: TextStyle(
+            color: ThemeTokens.of(context).textSecondary,
+            fontSize: 14,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
-                style: TextStyle(color: ThemeTokens.of(context).textPrimary)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: ThemeTokens.of(context).textPrimary),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -237,19 +250,23 @@ class _PlaylistDetailsScreenState
                     .read(subsonicServiceProvider)
                     .deletePlaylist(widget.playlist.id);
                 ref.invalidate(playlistsProvider);
-                if (mounted) Navigator.pop(context); // return to previous screen
+                if (mounted)
+                  Navigator.pop(context); // return to previous screen
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text('Failed to delete playlist: $e')),
+                    SnackBar(content: Text('Failed to delete playlist: $e')),
                   );
                 }
               }
             },
-            child: Text('Delete',
-                style: TextStyle(
-                    color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -292,8 +309,11 @@ class _PlaylistDetailsScreenState
                   stretchModes: const [StretchMode.zoomBackground],
                   // Title fades in only when collapsed
                   title: _CollapsedTitle(title: widget.playlist.name),
-                  titlePadding:
-                      const EdgeInsets.only(left: 56, right: 56, bottom: 14),
+                  titlePadding: const EdgeInsets.only(
+                    left: 56,
+                    right: 56,
+                    bottom: 14,
+                  ),
                   background: _isLoading
                       ? _LoadingHeader(playlist: widget.playlist)
                       : _ExpandedHeader(
@@ -348,7 +368,9 @@ class _PlaylistDetailsScreenState
                         Text(
                           '${_songs.length} songs • ${_formatDuration(_totalDurationSeconds)}',
                           style: TextStyle(
-                              color: tokens.textMuted, fontSize: 13),
+                            color: tokens.textMuted,
+                            fontSize: 13,
+                          ),
                         ).animate().fadeIn(duration: 300.ms),
                       SizedBox(height: 12),
                       _SearchField(controller: _searchController),
@@ -384,29 +406,33 @@ class _PlaylistDetailsScreenState
 
               // ── Song list ────────────────────────────────────────────────
               if (_isLoading)
-                const SliverFillRemaining(
-                  child: _SongListSkeleton(),
-                )
+                const SliverFillRemaining(child: _SongListSkeleton())
               else if (_hasError)
                 SliverFillRemaining(
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.wifi_off_rounded,
-                            color: tokens.textMuted, size: 48),
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          color: tokens.textMuted,
+                          size: 48,
+                        ),
                         SizedBox(height: 12),
-                        Text('Could not load songs',
-                            style: TextStyle(color: tokens.textSecondary)),
+                        Text(
+                          'Could not load songs',
+                          style: TextStyle(color: tokens.textSecondary),
+                        ),
                         SizedBox(height: 16),
                         TextButton(
                           onPressed: () {
                             setState(() => _isLoading = true);
                             _loadSongs();
                           },
-                          child: Text('Retry',
-                              style:
-                                  TextStyle(color: tokens.accent)),
+                          child: Text(
+                            'Retry',
+                            style: TextStyle(color: tokens.accent),
+                          ),
                         ),
                       ],
                     ),
@@ -416,8 +442,10 @@ class _PlaylistDetailsScreenState
                   _searchController.text.isNotEmpty)
                 SliverFillRemaining(
                   child: Center(
-                    child: Text('No songs match your search',
-                        style: TextStyle(color: tokens.textMuted)),
+                    child: Text(
+                      'No songs match your search',
+                      style: TextStyle(color: tokens.textMuted),
+                    ),
                   ),
                 )
               else
@@ -430,8 +458,8 @@ class _PlaylistDetailsScreenState
                     if (_searchController.text.isNotEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text(
-                                'Clear search to reorder songs')),
+                          content: Text('Clear search to reorder songs'),
+                        ),
                       );
                       return;
                     }
@@ -447,14 +475,14 @@ class _PlaylistDetailsScreenState
                         .read(subsonicServiceProvider)
                         .setPlaylistSongs(widget.playlist.id, songIds)
                         .catchError((e) {
-                      if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                              content:
-                                  Text('Failed to save order: $e')),
-                        );
-                      }
-                    });
+                          if (mounted) {
+                            ScaffoldMessenger.of(context).showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to save order: $e'),
+                              ),
+                            );
+                          }
+                        });
                   },
                   itemBuilder: (context, index) {
                     final song = _filteredSongs[index];
@@ -552,7 +580,8 @@ class _PlaylistDetailsScreenState
       context: context,
       backgroundColor: tokens.bgSurface,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -562,14 +591,17 @@ class _PlaylistDetailsScreenState
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                  color: tokens.outline,
-                  borderRadius: BorderRadius.circular(2)),
+                color: tokens.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             SizedBox(height: 8),
             ListTile(
               leading: Icon(Icons.edit_rounded, color: tokens.textPrimary),
-              title: Text('Edit Playlist',
-                  style: TextStyle(color: tokens.textPrimary, fontSize: 15)),
+              title: Text(
+                'Edit Playlist',
+                style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+              ),
               onTap: () async {
                 Navigator.pop(ctx);
                 final changed = await Navigator.push(
@@ -583,10 +615,14 @@ class _PlaylistDetailsScreenState
               },
             ),
             ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
-                  color: Colors.redAccent),
-              title: Text('Delete Playlist',
-                  style: TextStyle(color: Colors.redAccent, fontSize: 15)),
+              leading: Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+              ),
+              title: Text(
+                'Delete Playlist',
+                style: TextStyle(color: Colors.redAccent, fontSize: 15),
+              ),
               onTap: () {
                 Navigator.pop(ctx);
                 _confirmDeletePlaylist();
@@ -718,26 +754,26 @@ class _LoadingHeader extends StatelessWidget {
           children: [
             // Pulsing placeholder art
             Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                color: tokens.bgSurface,
-                borderRadius: BorderRadius.circular(16),
-              ),
-            )
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: tokens.bgSurface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .fadeIn(duration: 600.ms)
                 .then()
                 .fadeOut(duration: 600.ms),
             SizedBox(height: 24),
             Container(
-              width: 160,
-              height: 20,
-              decoration: BoxDecoration(
-                color: tokens.bgSurface,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            )
+                  width: 160,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: tokens.bgSurface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .fadeIn(duration: 600.ms, delay: 100.ms)
                 .then()
@@ -790,13 +826,17 @@ class _ExpandedHeader extends StatelessWidget {
               imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
               child: ColorFiltered(
                 colorFilter: ColorFilter.mode(
-                    Colors.black.withOpacity(0.55), BlendMode.darken),
+                  Colors.black.withOpacity(0.55),
+                  BlendMode.darken,
+                ),
                 child: CachedNetworkImage(
                   imageUrl: coverImageUrl,
-                  cacheKey: '${coverCacheKey}_bg', // separate key for blurred bg
+                  cacheKey:
+                      '${coverCacheKey}_bg', // separate key for blurred bg
                   fit: BoxFit.cover,
                   // No placeholder — blurred bg is decorative, silence errors
-                  errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
+                  errorWidget: (_, __, ___) =>
+                      const ColoredBox(color: Colors.black),
                 ),
               ),
             ),
@@ -857,18 +897,30 @@ class _ExpandedHeader extends StatelessWidget {
                           cacheKey: coverCacheKey, // ← stable key
                           fit: BoxFit.cover,
                           placeholder: (_, __) => Container(
-                              color: tokens.bgSurface,
-                              child: Icon(Icons.music_note_rounded,
-                                  size: 72, color: tokens.textMuted)),
+                            color: tokens.bgSurface,
+                            child: Icon(
+                              Icons.music_note_rounded,
+                              size: 72,
+                              color: tokens.textMuted,
+                            ),
+                          ),
                           errorWidget: (_, __, ___) => Container(
-                              color: tokens.bgSurface,
-                              child: Icon(Icons.music_note_rounded,
-                                  size: 72, color: tokens.textMuted)),
+                            color: tokens.bgSurface,
+                            child: Icon(
+                              Icons.music_note_rounded,
+                              size: 72,
+                              color: tokens.textMuted,
+                            ),
+                          ),
                         )
                       : Container(
                           color: tokens.bgSurface,
-                          child: Icon(Icons.music_note_rounded,
-                              size: 72, color: tokens.textMuted)),
+                          child: Icon(
+                            Icons.music_note_rounded,
+                            size: 72,
+                            color: tokens.textMuted,
+                          ),
+                        ),
                 ),
               ),
               SizedBox(height: 20),
@@ -912,8 +964,11 @@ class _ExpandedHeader extends StatelessWidget {
                     size: 52,
                     onTap: onShuffleAll,
                     filled: false,
-                    child: Icon(Icons.shuffle_rounded,
-                        color: tokens.textPrimary, size: 22),
+                    child: Icon(
+                      Icons.shuffle_rounded,
+                      color: tokens.textPrimary,
+                      size: 22,
+                    ),
                   ),
                   SizedBox(width: 20),
 
@@ -922,8 +977,11 @@ class _ExpandedHeader extends StatelessWidget {
                     size: 64,
                     onTap: onPlayAll,
                     filled: true,
-                    child: Icon(Icons.play_arrow_rounded,
-                        color: ThemeTokens.of(context).textPrimary, size: 36),
+                    child: Icon(
+                      Icons.play_arrow_rounded,
+                      color: ThemeTokens.of(context).textPrimary,
+                      size: 36,
+                    ),
                   ),
                   SizedBox(width: 20),
 
@@ -932,8 +990,11 @@ class _ExpandedHeader extends StatelessWidget {
                     size: 52,
                     onTap: () {},
                     filled: false,
-                    child: Icon(Icons.queue_music_rounded,
-                        color: tokens.textPrimary, size: 22),
+                    child: Icon(
+                      Icons.queue_music_rounded,
+                      color: tokens.textPrimary,
+                      size: 22,
+                    ),
                   ),
                 ],
               ),
@@ -978,7 +1039,9 @@ class _HeaderButton extends StatelessWidget {
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: filled ? null : ThemeTokens.of(context).textPrimary.withOpacity(0.10),
+          color: filled
+              ? null
+              : ThemeTokens.of(context).textPrimary.withOpacity(0.10),
           border: filled
               ? null
               : Border.all(
@@ -1012,14 +1075,14 @@ class _DismissBackground extends StatelessWidget {
       padding: const EdgeInsets.only(right: 24),
       decoration: BoxDecoration(
         gradient: LinearGradient(
-          colors: [
-            Colors.transparent,
-            Colors.redAccent.withOpacity(0.85),
-          ],
+          colors: [Colors.transparent, Colors.redAccent.withOpacity(0.85)],
         ),
       ),
-      child: Icon(Icons.delete_outline_rounded,
-          color: ThemeTokens.of(context).textPrimary, size: 24),
+      child: Icon(
+        Icons.delete_outline_rounded,
+        color: ThemeTokens.of(context).textPrimary,
+        size: 24,
+      ),
     );
   }
 }
@@ -1046,14 +1109,22 @@ class _SearchField extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'Search in playlist',
               hintStyle: TextStyle(
-                  color: tokens.textMuted.withOpacity(0.6), fontSize: 15),
-              prefixIcon: Icon(Icons.search_rounded,
-                  color: tokens.textMuted, size: 18),
+                color: tokens.textMuted.withOpacity(0.6),
+                fontSize: 15,
+              ),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: tokens.textMuted,
+                size: 18,
+              ),
               suffixIcon: value.text.isNotEmpty
                   ? GestureDetector(
                       onTap: () => controller.clear(),
-                      child: Icon(Icons.cancel_rounded,
-                          color: tokens.textMuted, size: 18),
+                      child: Icon(
+                        Icons.cancel_rounded,
+                        color: tokens.textMuted,
+                        size: 18,
+                      ),
                     )
                   : null,
               filled: true,
@@ -1061,17 +1132,23 @@ class _SearchField extends StatelessWidget {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.outline.withOpacity(0.25), width: 0.5),
+                  color: tokens.outline.withOpacity(0.25),
+                  width: 0.5,
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.outline.withOpacity(0.25), width: 0.5),
+                  color: tokens.outline.withOpacity(0.25),
+                  width: 0.5,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.accent.withOpacity(0.55), width: 1),
+                  color: tokens.accent.withOpacity(0.55),
+                  width: 1,
+                ),
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
@@ -1104,7 +1181,9 @@ class _AddSongsRow extends StatelessWidget {
               shape: BoxShape.circle,
               color: Colors.green.withOpacity(0.12),
               border: Border.all(
-                  color: Colors.green.withOpacity(0.45), width: 1.5),
+                color: Colors.green.withOpacity(0.45),
+                width: 1.5,
+              ),
             ),
             child: Icon(Icons.add_rounded, color: Colors.green, size: 24),
           ),

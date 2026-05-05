@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
+import '../providers/local_library_provider.dart';
 import '../services/subsonic_service.dart';
 import '../services/listening_event_collector.dart';
 import '../services/cache_settings_service.dart';
@@ -56,13 +57,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     final settings = ref.read(settingsProvider);
-    _urlController        = TextEditingController(text: settings.serverUrl);
-    _userController       = TextEditingController(text: settings.username);
-    _passController       = TextEditingController(text: settings.password);
-    _uploadUrlController  = TextEditingController(text: settings.uploadApiUrl);
-    _uploadDirController  = TextEditingController(text: settings.uploadDirectory);
-    _webdavUserController = TextEditingController(text: settings.webdavUsername);
-    _webdavPassController = TextEditingController(text: settings.webdavPassword);
+    _urlController = TextEditingController(text: settings.serverUrl);
+    _userController = TextEditingController(text: settings.username);
+    _passController = TextEditingController(text: settings.password);
+    _uploadUrlController = TextEditingController(text: settings.uploadApiUrl);
+    _uploadDirController = TextEditingController(
+      text: settings.uploadDirectory,
+    );
+    _webdavUserController = TextEditingController(
+      text: settings.webdavUsername,
+    );
+    _webdavPassController = TextEditingController(
+      text: settings.webdavPassword,
+    );
     // Load analytics row counts for the settings summary.
     _loadStats();
     _loadNewFeatureSettings();
@@ -96,8 +103,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _loadStats() async {
-    final stats =
-        await ref.read(listenerCollectorProvider).getStats();
+    final stats = await ref.read(listenerCollectorProvider).getStats();
     if (mounted) setState(() => _analyticsStats = stats);
   }
 
@@ -114,7 +120,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _save() async {
-    await ref.read(settingsProvider.notifier).saveSettings(
+    await ref
+        .read(settingsProvider.notifier)
+        .saveSettings(
           _urlController.text.trim(),
           _userController.text.trim(),
           _passController.text,
@@ -130,8 +138,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _exportData() async {
     setState(() => _isExporting = true);
     try {
-      final paths =
-          await ref.read(listenerCollectorProvider).exportCsvToDownloads();
+      final paths = await ref
+          .read(listenerCollectorProvider)
+          .exportCsvToDownloads();
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -143,9 +152,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Export failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _isExporting = false);
@@ -157,7 +166,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (uploadUrl.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Set Custom API before syncing analytics to the server'),
+          content: Text(
+            'Set Custom API before syncing analytics to the server',
+          ),
         ),
       );
       return;
@@ -179,9 +190,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Sync failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Sync failed: $e')));
       }
     } finally {
       if (mounted) setState(() => _isSyncing = false);
@@ -197,33 +208,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (result != null && result.files.single.path != null) {
       setState(() => _isUploading = true);
       try {
-      debugPrint('Upload UI: file=${result.files.single.path!} server=${_urlController.text.trim()} customApi=${_uploadUrlController.text.trim().isNotEmpty}');
-      final cache = ref.read(playlistCacheServiceProvider);
-      final service = SubsonicService(
-        serverUrl: _urlController.text.trim(),
-        username: _userController.text.trim(),
-        password: _passController.text,
-        cache: cache,
-        customUploadUrl: _uploadUrlController.text.trim().isEmpty
-          ? null
-          : _uploadUrlController.text.trim(),
-        customUploadDir: _uploadDirController.text.trim().isEmpty
-          ? null
-          : _uploadDirController.text.trim(),
-        webdavUsername: _webdavUserController.text.trim(),
-        webdavPassword: _webdavPassController.text,
-      );
+        debugPrint(
+          'Upload UI: file=${result.files.single.path!} server=${_urlController.text.trim()} customApi=${_uploadUrlController.text.trim().isNotEmpty}',
+        );
+        final cache = ref.read(playlistCacheServiceProvider);
+        final service = SubsonicService(
+          serverUrl: _urlController.text.trim(),
+          username: _userController.text.trim(),
+          password: _passController.text,
+          cache: cache,
+          customUploadUrl: _uploadUrlController.text.trim().isEmpty
+              ? null
+              : _uploadUrlController.text.trim(),
+          customUploadDir: _uploadDirController.text.trim().isEmpty
+              ? null
+              : _uploadDirController.text.trim(),
+          webdavUsername: _webdavUserController.text.trim(),
+          webdavPassword: _webdavPassController.text,
+        );
         await service.uploadSong(File(result.files.single.path!));
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Upload successful')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('Upload successful')));
         }
       } catch (e) {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Upload failed: $e')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
         }
       } finally {
         if (mounted) setState(() => _isUploading = false);
@@ -237,7 +250,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final tokens = ThemeTokens.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: tokens.isLight ? SystemUiOverlayStyle.dark : SystemUiOverlayStyle.light,
+      value: tokens.isLight
+          ? SystemUiOverlayStyle.dark
+          : SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: tokens.bgBase,
         appBar: AppBar(
@@ -248,28 +263,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             width: 48,
             height: 48,
             child: IconButton(
-              icon: Icon(Icons.close_rounded,
-                  color: tokens.textPrimary, size: 24),
+              icon: Icon(
+                Icons.close_rounded,
+                color: tokens.textPrimary,
+                size: 24,
+              ),
               onPressed: () => Navigator.pop(context),
             ),
           ),
           title: Text(
             'Settings',
             style: TextStyle(
-                color: tokens.textPrimary,
-                fontWeight: FontWeight.bold,
-                fontSize: 18),
+              color: tokens.textPrimary,
+              fontWeight: FontWeight.bold,
+              fontSize: 18,
+            ),
           ),
           actions: [
             Padding(
               padding: const EdgeInsets.only(right: 8),
               child: TextButton(
                 onPressed: _save,
-                child: Text('Save',
-                    style: TextStyle(
-                        color: tokens.accent,
-                        fontWeight: FontWeight.bold,
-                        fontSize: 15)),
+                child: Text(
+                  'Save',
+                  style: TextStyle(
+                    color: tokens.accent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 15,
+                  ),
+                ),
               ),
             ),
           ],
@@ -317,22 +339,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: 'CLOUD ACTIONS',
               children: [
                 ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16),
-                  leading: Icon(Icons.cloud_upload_outlined,
-                      color: ThemeTokens.of(context).textMuted, size: 24),
-                  title: Text('Upload Song',
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Icon(
+                    Icons.cloud_upload_outlined,
+                    color: ThemeTokens.of(context).textMuted,
+                    size: 24,
+                  ),
+                  title: Text(
+                    'Upload Song',
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
                   trailing: _isUploading
                       ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: ThemeTokens.of(context).accent))
-                      : Icon(Icons.chevron_right_rounded,
-                          color: ThemeTokens.of(context).textMuted, size: 20),
+                            strokeWidth: 2,
+                            color: ThemeTokens.of(context).accent,
+                          ),
+                        )
+                      : Icon(
+                          Icons.chevron_right_rounded,
+                          color: ThemeTokens.of(context).textMuted,
+                          size: 20,
+                        ),
                   onTap: _isUploading ? null : _upload,
                 ),
               ],
@@ -372,7 +405,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     'Required only if using the WebDAV sync/upload features. '
                     'Stored in encrypted local storage.',
                     style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                      color: ThemeTokens.of(context).textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 _SettingsDivider(),
@@ -413,7 +448,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsDivider(),
 
                 if (settings.shuffleAlgorithm == ShuffleAlgorithm.spotify ||
-                    settings.shuffleAlgorithm == ShuffleAlgorithm.mergeShuffle) ...[
+                    settings.shuffleAlgorithm ==
+                        ShuffleAlgorithm.mergeShuffle) ...[
                   _SettingsDropdownRow<ShufflePreference>(
                     label: 'Balanced Grouping',
                     value: settings.shufflePreference,
@@ -432,11 +468,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // Info tile so users know what each algorithm does
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   child: Text(
                     _shuffleAlgorithmDescription(settings.shuffleAlgorithm),
                     style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                      color: ThemeTokens.of(context).textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
               ],
@@ -461,81 +501,119 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsDivider(),
                 Padding(
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
+                    horizontal: 16,
+                    vertical: 10,
+                  ),
                   child: Text(
                     _analyticsStats == null
                         ? 'Loading stats…'
                         : '${_analyticsStats!.playEvents} plays • '
-                            '${_analyticsStats!.uniqueSongs} songs • '
-                            '${_analyticsStats!.songPairs} pairs • '
-                            '${_analyticsStats!.feedbackActions} feedback signals',
+                              '${_analyticsStats!.uniqueSongs} songs • '
+                              '${_analyticsStats!.songPairs} pairs • '
+                              '${_analyticsStats!.feedbackActions} feedback signals',
                     style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                      color: ThemeTokens.of(context).textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                 ),
                 _SettingsDivider(),
                 ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16),
-                  leading: Icon(Icons.download_rounded,
-                      color: ThemeTokens.of(context).textMuted, size: 24),
-                  title: Text('Export data as CSV',
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Icon(
+                    Icons.download_rounded,
+                    color: ThemeTokens.of(context).textMuted,
+                    size: 24,
+                  ),
+                  title: Text(
+                    'Export data as CSV',
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
                   subtitle: Text(
                     'Saves play_events, song_metadata, song_pairs, user_feedback to Downloads',
                     style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                      color: ThemeTokens.of(context).textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                   trailing: _isExporting
                       ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: ThemeTokens.of(context).accent))
-                      : Icon(Icons.chevron_right_rounded,
-                          color: ThemeTokens.of(context).textMuted, size: 20),
+                            strokeWidth: 2,
+                            color: ThemeTokens.of(context).accent,
+                          ),
+                        )
+                      : Icon(
+                          Icons.chevron_right_rounded,
+                          color: ThemeTokens.of(context).textMuted,
+                          size: 20,
+                        ),
                   onTap: _isExporting ? null : _exportData,
                 ),
                 _SettingsDivider(),
                 ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16),
-                  leading: Icon(Icons.cloud_sync_outlined,
-                      color: ThemeTokens.of(context).textMuted, size: 24),
-                  title: Text('Sync data to server',
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Icon(
+                    Icons.cloud_sync_outlined,
+                    color: ThemeTokens.of(context).textMuted,
+                    size: 24,
+                  ),
+                  title: Text(
+                    'Sync data to server',
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
                   subtitle: Text(
                     'Streams play_events, song_metadata, song_pairs, user_feedback to your WebDAV target',
                     style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                      color: ThemeTokens.of(context).textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                   trailing: _isSyncing
                       ? SizedBox(
                           width: 20,
                           height: 20,
                           child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: ThemeTokens.of(context).accent))
-                      : Icon(Icons.chevron_right_rounded,
-                          color: ThemeTokens.of(context).textMuted, size: 20),
+                            strokeWidth: 2,
+                            color: ThemeTokens.of(context).accent,
+                          ),
+                        )
+                      : Icon(
+                          Icons.chevron_right_rounded,
+                          color: ThemeTokens.of(context).textMuted,
+                          size: 20,
+                        ),
                   onTap: _isSyncing ? null : _syncDataToServer,
                 ),
                 _SettingsDivider(),
                 ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16),
-                  leading: Icon(Icons.cleaning_services_rounded,
-                      color: ThemeTokens.of(context).textMuted, size: 24),
-                  title: Text('Clean up junk data',
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Icon(
+                    Icons.cleaning_services_rounded,
+                    color: ThemeTokens.of(context).textMuted,
+                    size: 24,
+                  ),
+                  title: Text(
+                    'Clean up junk data',
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                      fontSize: 15,
+                    ),
+                  ),
                   subtitle: Text(
                     'Purges redundant 0-second play events from the local database',
                     style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                      color: ThemeTokens.of(context).textMuted,
+                      fontSize: 12,
+                    ),
                   ),
                   onTap: () async {
                     final purgedCount = await ref
@@ -559,7 +637,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   items: const ['none', 'weekly', 'monthly'],
                   onChanged: (v) {
                     if (v != null) {
-                      ref.read(settingsProvider.notifier).setAnalyticsUploadSchedule(v);
+                      ref
+                          .read(settingsProvider.notifier)
+                          .setAnalyticsUploadSchedule(v);
                     }
                   },
                 ),
@@ -678,14 +758,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 if (_replayGainMode != ReplayGainMode.off) ...[
                   _SettingsDivider(),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Pre-amp',
-                            style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
-                        Text('${_preampGain.toStringAsFixed(1)} dB',
-                            style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
+                        Text(
+                          'Pre-amp',
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textPrimary,
+                            fontSize: 15,
+                          ),
+                        ),
+                        Text(
+                          '${_preampGain.toStringAsFixed(1)} dB',
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textMuted,
+                            fontSize: 15,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -711,14 +804,27 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   _SettingsDivider(),
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 8,
+                    ),
                     child: Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text('Fallback Gain',
-                            style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
-                        Text('${_fallbackGain.toStringAsFixed(1)} dB',
-                            style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
+                        Text(
+                          'Fallback Gain',
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textPrimary,
+                            fontSize: 15,
+                          ),
+                        ),
+                        Text(
+                          '${_fallbackGain.toStringAsFixed(1)} dB',
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textMuted,
+                            fontSize: 15,
+                          ),
+                        ),
                       ],
                     ),
                   ),
@@ -755,11 +861,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 _SettingsDivider(),
                 _SettingsNavRow(
                   label: 'Listening Stats',
-                  value: '${ref.read(recommendationProvider).profiles.length} songs',
+                  value:
+                      '${ref.read(recommendationProvider).profiles.length} songs',
                 ),
                 _SettingsDivider(),
                 Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
                   child: SizedBox(
                     width: double.infinity,
                     child: CupertinoButton(
@@ -771,8 +881,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           builder: (ctx) => CupertinoAlertDialog(
                             title: Text('Clear Recommendation Data'),
                             content: Text(
-                                'This will delete all listening patterns and '  
-                                'personalisation data. This cannot be undone.'),
+                              'This will delete all listening patterns and '
+                              'personalisation data. This cannot be undone.',
+                            ),
                             actions: [
                               CupertinoDialogAction(
                                 child: Text('Cancel'),
@@ -799,14 +910,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           }
                         }
                       },
-                      child: Text('Clear Data',
-                          style: TextStyle(
-                              color: Colors.redAccent, fontSize: 14)),
+                      child: Text(
+                        'Clear Data',
+                        style: TextStyle(color: Colors.redAccent, fontSize: 14),
+                      ),
                     ),
                   ),
                 ),
               ],
             ),
+            SizedBox(height: 32),
+
+            // ----------------------------------------------------------------
+            // Local Music (Offline Mode)
+            // ----------------------------------------------------------------
+            _LocalMusicSection(),
             SizedBox(height: 32),
 
             // ----------------------------------------------------------------
@@ -862,8 +980,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Text(
               TranscodeBitrate.getLabel(b),
               style: TextStyle(
-                  fontWeight:
-                      b == current ? FontWeight.bold : FontWeight.normal),
+                fontWeight: b == current ? FontWeight.bold : FontWeight.normal,
+              ),
             ),
           );
         }).toList(),
@@ -890,8 +1008,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Text(
               TranscodeFormat.getLabel(f),
               style: TextStyle(
-                  fontWeight:
-                      f == _transcodeFormat ? FontWeight.bold : FontWeight.normal),
+                fontWeight: f == _transcodeFormat
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+              ),
             ),
           );
         }).toList(),
@@ -918,8 +1038,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Text(
               m.name.toUpperCase(),
               style: TextStyle(
-                  fontWeight:
-                      m == _replayGainMode ? FontWeight.bold : FontWeight.normal),
+                fontWeight: m == _replayGainMode
+                    ? FontWeight.bold
+                    : FontWeight.normal,
+              ),
             ),
           );
         }).toList(),
@@ -952,10 +1074,11 @@ class _SettingsGroup extends StatelessWidget {
           child: Text(
             title,
             style: TextStyle(
-                color: tokens.textMuted,
-                fontSize: 12,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 0.5),
+              color: tokens.textMuted,
+              fontSize: 12,
+              fontWeight: FontWeight.bold,
+              letterSpacing: 0.5,
+            ),
           ),
         ),
         Container(
@@ -995,25 +1118,23 @@ class _SettingsInputRow extends StatelessWidget {
         children: [
           SizedBox(
             width: 100,
-            child: Text(label,
-                style: TextStyle(
-                    color: tokens.textPrimary, fontSize: 15)),
+            child: Text(
+              label,
+              style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+            ),
           ),
           Expanded(
             child: TextField(
               controller: controller,
               obscureText: obscure,
               textAlign: TextAlign.right,
-              style: TextStyle(
-                  color: tokens.textMuted, fontSize: 15),
+              style: TextStyle(color: tokens.textMuted, fontSize: 15),
               cursorColor: tokens.accent,
               decoration: InputDecoration(
                 hintText: hint,
-                hintStyle: TextStyle(
-                    color: tokens.textMuted.withOpacity(0.3)),
+                hintStyle: TextStyle(color: tokens.textMuted.withOpacity(0.3)),
                 border: InputBorder.none,
-                contentPadding:
-                    const EdgeInsets.symmetric(vertical: 12),
+                contentPadding: const EdgeInsets.symmetric(vertical: 12),
               ),
             ),
           ),
@@ -1024,11 +1145,12 @@ class _SettingsInputRow extends StatelessWidget {
               child: IconButton(
                 padding: EdgeInsets.zero,
                 icon: Icon(
-                    obscure
-                        ? Icons.visibility_outlined
-                        : Icons.visibility_off_outlined,
-                    size: 20,
-                    color: tokens.textMuted),
+                  obscure
+                      ? Icons.visibility_outlined
+                      : Icons.visibility_off_outlined,
+                  size: 20,
+                  color: tokens.textMuted,
+                ),
                 onPressed: onToggleObscure,
               ),
             ),
@@ -1043,10 +1165,11 @@ class _SettingsToggleRow extends StatelessWidget {
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _SettingsToggleRow(
-      {required this.label,
-      required this.value,
-      required this.onChanged});
+  const _SettingsToggleRow({
+    required this.label,
+    required this.value,
+    required this.onChanged,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -1056,9 +1179,10 @@ class _SettingsToggleRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: TextStyle(
-                  color: tokens.textPrimary, fontSize: 15)),
+          Text(
+            label,
+            style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+          ),
           CupertinoSwitch(
             value: value,
             activeColor: tokens.accent,
@@ -1091,9 +1215,10 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
-          Text(label,
-              style: TextStyle(
-                  color: tokens.textPrimary, fontSize: 15)),
+          Text(
+            label,
+            style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+          ),
           DropdownButton<T>(
             value: value,
             // bgSurfaceOpaque composites a translucent surface over bgBase,
@@ -1119,18 +1244,23 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
                   ShufflePreference.genre => 'By Genre',
                 };
               } else if (item is String) {
-                if (item == 'none') name = 'Disabled';
-                else if (item == 'weekly') name = 'Weekly';
-                else if (item == 'monthly') name = 'Monthly';
-                else name = item;
+                if (item == 'none')
+                  name = 'Disabled';
+                else if (item == 'weekly')
+                  name = 'Weekly';
+                else if (item == 'monthly')
+                  name = 'Monthly';
+                else
+                  name = item;
               } else {
                 name = item.toString();
               }
               return DropdownMenuItem(
                 value: item,
-                child: Text(name,
-                    style: TextStyle(
-                        color: tokens.textPrimary, fontSize: 14)),
+                child: Text(
+                  name,
+                  style: TextStyle(color: tokens.textPrimary, fontSize: 14),
+                ),
               );
             }).toList(),
           ),
@@ -1157,18 +1287,23 @@ class _SettingsNavRow extends StatelessWidget {
         child: Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            Text(label,
-                style: TextStyle(
-                    color: tokens.textPrimary, fontSize: 15)),
+            Text(
+              label,
+              style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+            ),
             Row(
               children: [
                 if (value != null)
-                  Text(value!,
-                      style: TextStyle(
-                          color: tokens.textMuted, fontSize: 15)),
+                  Text(
+                    value!,
+                    style: TextStyle(color: tokens.textMuted, fontSize: 15),
+                  ),
                 SizedBox(width: 8),
-                Icon(Icons.chevron_right_rounded,
-                    color: tokens.textMuted, size: 20),
+                Icon(
+                  Icons.chevron_right_rounded,
+                  color: tokens.textMuted,
+                  size: 20,
+                ),
               ],
             ),
           ],
@@ -1183,5 +1318,154 @@ class _SettingsDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
     return Divider(height: 1, indent: 16, color: tokens.outline);
+  }
+}
+
+// =============================================================================
+// _LocalMusicSection — inline ConsumerWidget added to SettingsScreen
+// Handles local mode toggle, folder list, add/remove, and scan trigger.
+// =============================================================================
+class _LocalMusicSection extends ConsumerWidget {
+  const _LocalMusicSection();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final settings = ref.watch(settingsProvider);
+    final localState = ref.watch(localLibraryProvider);
+    final tokens = ThemeTokens.of(context);
+
+    return _SettingsGroup(
+      title: 'LOCAL MUSIC',
+      children: [
+        // ── Mode toggle ────────────────────────────────────────────────────
+        _SettingsToggleRow(
+          label: 'Local / Offline Mode',
+          value: settings.isLocalMode,
+          onChanged: (_) =>
+              ref.read(settingsProvider.notifier).toggleLocalMode(),
+        ),
+        _SettingsDivider(),
+
+        // ── Info label ─────────────────────────────────────────────────────
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 10, 16, 10),
+          child: Text(
+            settings.isLocalMode
+                ? 'App is reading from local folders. '
+                      'Tap the 📁 icon in the Library tab to browse local songs.'
+                : 'Enable to switch from the Subsonic server to local folders on this device.',
+            style: TextStyle(color: tokens.textMuted, fontSize: 12),
+          ),
+        ),
+
+        // ── Folder list ────────────────────────────────────────────────────
+        if (settings.localMusicFolders.isNotEmpty) ...[
+          _SettingsDivider(),
+          ...settings.localMusicFolders.map((folder) {
+            final name = folder.split(RegExp(r'[/\\]')).last;
+            return ListTile(
+              key: ValueKey(folder),
+              contentPadding: const EdgeInsets.only(left: 16, right: 4),
+              leading: Icon(
+                Icons.folder_rounded,
+                color: tokens.accent,
+                size: 22,
+              ),
+              title: Text(
+                name,
+                style: TextStyle(color: tokens.textPrimary, fontSize: 14),
+                overflow: TextOverflow.ellipsis,
+              ),
+              subtitle: Text(
+                folder,
+                style: TextStyle(color: tokens.textMuted, fontSize: 11),
+                overflow: TextOverflow.ellipsis,
+              ),
+              trailing: IconButton(
+                icon: const Icon(
+                  Icons.remove_circle_outline_rounded,
+                  color: Colors.redAccent,
+                  size: 20,
+                ),
+                onPressed: () => ref
+                    .read(settingsProvider.notifier)
+                    .removeLocalFolder(folder),
+              ),
+            );
+          }),
+          _SettingsDivider(),
+        ],
+
+        // ── Add Folder button ──────────────────────────────────────────────
+        ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          leading: Icon(
+            Icons.add_circle_outline_rounded,
+            color: tokens.accent,
+            size: 24,
+          ),
+          title: Text(
+            'Add Music Folder',
+            style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+          ),
+          onTap: () async {
+            final path = await FilePicker.platform.getDirectoryPath();
+            if (path != null) {
+              await ref.read(settingsProvider.notifier).addLocalFolder(path);
+            }
+          },
+        ),
+
+        // ── Scan button ────────────────────────────────────────────────────
+        if (settings.localMusicFolders.isNotEmpty) ...[
+          _SettingsDivider(),
+          ListTile(
+            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+            leading: localState.isScanning
+                ? SizedBox(
+                    width: 24,
+                    height: 24,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: tokens.accent,
+                    ),
+                  )
+                : Icon(
+                    Icons.manage_search_rounded,
+                    color: tokens.textMuted,
+                    size: 24,
+                  ),
+            title: Text(
+              localState.isScanning ? 'Scanning…' : 'Scan Folders for Music',
+              style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+            ),
+            subtitle: localState.songs.isNotEmpty
+                ? Text(
+                    '${localState.songs.length} songs found',
+                    style: TextStyle(color: tokens.textMuted, fontSize: 12),
+                  )
+                : null,
+            trailing: Icon(
+              Icons.chevron_right_rounded,
+              color: tokens.textMuted,
+              size: 20,
+            ),
+            onTap: localState.isScanning
+                ? null
+                : () => ref.read(localLibraryProvider.notifier).scan(),
+          ),
+        ],
+
+        // ── Error banner ───────────────────────────────────────────────────
+        if (localState.error != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
+            child: Text(
+              localState.error!,
+              style: const TextStyle(color: Colors.redAccent, fontSize: 12),
+            ),
+          ),
+      ],
+    );
   }
 }

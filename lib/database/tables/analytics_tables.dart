@@ -12,7 +12,8 @@ class PlayEvents extends Table {
   RealColumn get skipPositionPct => real().nullable()();
   IntColumn get repeatCount => integer().withDefault(const Constant(0))();
   IntColumn get queuePosition => integer().withDefault(const Constant(0))();
-  BoolColumn get shuffleActive => boolean().withDefault(const Constant(false))();
+  BoolColumn get shuffleActive =>
+      boolean().withDefault(const Constant(false))();
   TextColumn get sourceContext => text()();
   IntColumn get hourOfDay => integer()();
   IntColumn get dayOfWeek => integer()();

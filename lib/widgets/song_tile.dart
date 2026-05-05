@@ -70,85 +70,90 @@ class SongTile extends ConsumerWidget {
       onLongPressHint: 'Show options menu',
       child: CupertinoClickable(
         onTap: onTap,
-      child: GestureDetector(
-        onLongPress: onLongPress,
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              // Album art
-              ClipRRect(
-                borderRadius: BorderRadius.circular(4),
-                child: CachedNetworkImage(
-                  imageUrl: imageUrl,
-                  cacheKey: imageCacheKey, // ← stable cache key
-                  width: 48,
-                  height: 48,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 150,
-                  memCacheHeight: 150,
-                  placeholder: (context, url) => const _ArtPlaceholder(size: 48),
-                  errorWidget: (context, url, error) => const _ArtPlaceholder(size: 48),
+        child: GestureDetector(
+          onLongPress: onLongPress,
+          child: Container(
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+            child: Row(
+              children: [
+                // Album art
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: CachedNetworkImage(
+                    imageUrl: imageUrl,
+                    cacheKey: imageCacheKey, // ← stable cache key
+                    width: 48,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    memCacheWidth: 150,
+                    memCacheHeight: 150,
+                    placeholder: (context, url) =>
+                        const _ArtPlaceholder(size: 48),
+                    errorWidget: (context, url, error) =>
+                        const _ArtPlaceholder(size: 48),
+                  ),
                 ),
-              ),
-              SizedBox(width: 12),
+                SizedBox(width: 12),
 
-              // Title + artist
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      song.title,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 14,
-                        fontWeight: FontWeight.w500,
-                        // AnimatedDefaultTextStyle would also work here but
-                        // a plain conditional is cheaper for a list this large.
-                        color: isActive ? ThemeTokens.of(context).accent : ThemeTokens.of(context).textPrimary,
+                // Title + artist
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w500,
+                          // AnimatedDefaultTextStyle would also work here but
+                          // a plain conditional is cheaper for a list this large.
+                          color: isActive
+                              ? ThemeTokens.of(context).accent
+                              : ThemeTokens.of(context).textPrimary,
+                        ),
                       ),
-                    ),
-                    SizedBox(height: 4),
-                    Text(
-                      song.artist,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 12,
-                        color: ThemeTokens.of(context).textSecondary,
+                      SizedBox(height: 4),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: ThemeTokens.of(context).textSecondary,
+                        ),
                       ),
-                    ),
-                  ],
+                    ],
+                  ),
                 ),
-              ),
-              SizedBox(width: 8),
+                SizedBox(width: 8),
 
-              // Options
-              IconButton(
-                padding: EdgeInsets.zero,
-                constraints: const BoxConstraints(),
-                icon: Icon(
-                  Icons.more_horiz_rounded,
-                  color: ThemeTokens.of(context).textSecondary,
-                  size: 20,
+                // Options
+                IconButton(
+                  padding: EdgeInsets.zero,
+                  constraints: const BoxConstraints(),
+                  icon: Icon(
+                    Icons.more_horiz_rounded,
+                    color: ThemeTokens.of(context).textSecondary,
+                    size: 20,
+                  ),
+                  onPressed: () {
+                    showModalBottomSheet(
+                      context: context,
+                      isScrollControlled: true,
+                      backgroundColor: Colors.transparent,
+                      builder: (context) =>
+                          OptionsMenu(song: song, playlistId: playlistId),
+                    );
+                  },
                 ),
-                onPressed: () {
-                  showModalBottomSheet(
-                    context: context,
-                    isScrollControlled: true,
-                    backgroundColor: Colors.transparent,
-                    builder: (context) =>
-                        OptionsMenu(song: song, playlistId: playlistId),
-                  );
-                },
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
-    ));
+    );
   }
 }
 

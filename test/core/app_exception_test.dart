@@ -102,8 +102,10 @@ void main() {
 
   group('SubsonicApiException', () {
     test('is an AppException', () {
-      expect(SubsonicApiException(10, 'Required parameter missing'),
-          isA<AppException>());
+      expect(
+        SubsonicApiException(10, 'Required parameter missing'),
+        isA<AppException>(),
+      );
     });
 
     test('exposes code field', () {
@@ -118,8 +120,7 @@ void main() {
 
     test('toString() returns human-readable message', () {
       final e = SubsonicApiException(10, 'Required parameter missing');
-      expect(e.toString(),
-          'Subsonic error 10: Required parameter missing');
+      expect(e.toString(), 'Subsonic error 10: Required parameter missing');
     });
   });
 
@@ -129,12 +130,12 @@ void main() {
 
   group('AppException pattern matching', () {
     String classify(AppException e) => switch (e) {
-          NetworkException() => 'network',
-          AuthException() => 'auth',
-          ServerException() => 'server',
-          TimeoutException() => 'timeout',
-          SubsonicApiException() => 'subsonic',
-        };
+      NetworkException() => 'network',
+      AuthException() => 'auth',
+      ServerException() => 'server',
+      TimeoutException() => 'timeout',
+      SubsonicApiException() => 'subsonic',
+    };
 
     test('NetworkException classified correctly', () {
       expect(classify(const NetworkException()), 'network');
@@ -170,17 +171,11 @@ void main() {
     });
 
     test('AuthException can be caught as AppException', () {
-      expect(
-        () => throw const AuthException(),
-        throwsA(isA<AppException>()),
-      );
+      expect(() => throw const AuthException(), throwsA(isA<AppException>()));
     });
 
     test('ServerException can be caught specifically', () {
-      expect(
-        () => throw ServerException(503),
-        throwsA(isA<ServerException>()),
-      );
+      expect(() => throw ServerException(503), throwsA(isA<ServerException>()));
     });
 
     test('NetworkException is NOT caught as AuthException', () {

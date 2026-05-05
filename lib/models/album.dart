@@ -21,11 +21,18 @@ class Album {
 
     return Album(
       id: rawId,
-      name: json['name']?.toString() ?? json['title']?.toString() ?? 'Unknown Album',
+      name:
+          json['name']?.toString() ??
+          json['title']?.toString() ??
+          'Unknown Album',
       artist: json['artist']?.toString() ?? 'Unknown Artist',
       coverArt: rawCover.isNotEmpty ? rawCover : rawId,
-      songCount: json['songCount'] is int ? json['songCount'] : int.tryParse(json['songCount']?.toString() ?? '') ?? 0,
-      duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
+      songCount: json['songCount'] is int
+          ? json['songCount']
+          : int.tryParse(json['songCount']?.toString() ?? '') ?? 0,
+      duration: json['duration'] is int
+          ? json['duration']
+          : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
     );
   }
 
@@ -45,4 +52,3 @@ class Album {
   int get hashCode =>
       Object.hash(id, name, artist, coverArt, songCount, duration);
 }
-

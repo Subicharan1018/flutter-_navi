@@ -35,10 +35,10 @@ class SongPair {
   });
 
   Map<String, dynamic> toMap() => {
-        'prev_song_id': prevSongId,
-        'current_song_id': currentSongId,
-        'transition_type': transitionType,
-        'play_count': playCount,
-        'last_seen': lastSeen,
-      };
+    'prev_song_id': prevSongId,
+    'current_song_id': currentSongId,
+    'transition_type': transitionType,
+    'play_count': playCount,
+    'last_seen': lastSeen,
+  };
 }

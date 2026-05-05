@@ -43,4 +43,32 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-linux
+linux/
+macos/
+web/
+# AI Assistant
+.agents/
+.gemini/
+
+# Sensitive files
+.env
+*.jks
+*.keystore
+google-services.json
+GoogleService-Info.plist
+
+# Android local properties
+/android/local.properties
+
+# iOS generated files
+ios/Flutter/Generated.xcconfig
+ios/Flutter/flutter_export_environment.sh
+
+# Windows/Linux/macOS desktop build folders (redundant but safe)
+/windows/flutter/ephemeral/
+/linux/flutter/ephemeral/
+/macos/Flutter/ephemeral/
+
+# User-specific tools
+.pub-cache/
+.pub/

@@ -75,7 +75,7 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
       // before navigating back. This prevents the parent screen from
       // building with stale playlist data.
       await Future<void>.delayed(const Duration(milliseconds: 100));
-      
+
       if (mounted) {
         HapticFeedback.mediumImpact();
         Navigator.pop(context, true);
@@ -103,18 +103,45 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
         elevation: 0,
         leading: TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancel', style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              color: ThemeTokens.of(context).textPrimary,
+              fontSize: 15,
+            ),
+          ),
         ),
         leadingWidth: 80,
-        title: Text('Edit Playlist', style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.bold, fontSize: 18)),
+        title: Text(
+          'Edit Playlist',
+          style: TextStyle(
+            color: ThemeTokens.of(context).textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
+        ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: TextButton(
               onPressed: _isSaving ? null : _save,
-              child: _isSaving 
-                ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2, color: ThemeTokens.of(context).accent))
-                : Text('Done', style: TextStyle(color: ThemeTokens.of(context).accent, fontWeight: FontWeight.bold, fontSize: 15)),
+              child: _isSaving
+                  ? SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(
+                        strokeWidth: 2,
+                        color: ThemeTokens.of(context).accent,
+                      ),
+                    )
+                  : Text(
+                      'Done',
+                      style: TextStyle(
+                        color: ThemeTokens.of(context).accent,
+                        fontWeight: FontWeight.bold,
+                        fontSize: 15,
+                      ),
+                    ),
             ),
           ),
         ],
@@ -134,7 +161,10 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: ThemeTokens.of(context).outline),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 32),
+                    BoxShadow(
+                      color: Colors.black.withOpacity(0.4),
+                      blurRadius: 32,
+                    ),
                   ],
                 ),
                 child: ClipRRect(
@@ -142,21 +172,33 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
                   child: _selectedImage != null
                       ? Image.file(_selectedImage!, fit: BoxFit.cover)
                       : (widget.playlist.coverArt != null
-                          ? CachedNetworkImage(
-                              imageUrl: service.getCoverArtUrl(widget.playlist.coverArt!),
-                              fit: BoxFit.cover,
-                            )
-                          : Icon(Icons.music_note_rounded, size: 64, color: ThemeTokens.of(context).textMuted)),
+                            ? CachedNetworkImage(
+                                imageUrl: service.getCoverArtUrl(
+                                  widget.playlist.coverArt!,
+                                ),
+                                fit: BoxFit.cover,
+                              )
+                            : Icon(
+                                Icons.music_note_rounded,
+                                size: 64,
+                                color: ThemeTokens.of(context).textMuted,
+                              )),
                 ),
               ),
             ),
             SizedBox(height: 12),
             TextButton(
               onPressed: _pickImage,
-              child: Text('Change Photo', style: TextStyle(color: ThemeTokens.of(context).accent, fontWeight: FontWeight.w600)),
+              child: Text(
+                'Change Photo',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).accent,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
             SizedBox(height: 36),
-            
+
             Container(
               decoration: BoxDecoration(
                 color: ThemeTokens.of(context).bgSurface,
@@ -166,17 +208,23 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: TextField(
                 controller: _nameController,
-                style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 17),
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 17,
+                ),
                 cursorColor: ThemeTokens.of(context).accent,
                 decoration: InputDecoration(
                   labelText: 'Name',
-                  labelStyle: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14),
+                  labelStyle: TextStyle(
+                    color: ThemeTokens.of(context).textMuted,
+                    fontSize: 14,
+                  ),
                   border: InputBorder.none,
                 ),
               ),
             ),
             SizedBox(height: 16),
-            
+
             Container(
               decoration: BoxDecoration(
                 color: ThemeTokens.of(context).bgSurface,
@@ -186,12 +234,18 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
               child: TextField(
                 controller: _descController,
-                style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 17),
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 17,
+                ),
                 maxLines: 3,
                 cursorColor: ThemeTokens.of(context).accent,
                 decoration: InputDecoration(
                   labelText: 'Description',
-                  labelStyle: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14),
+                  labelStyle: TextStyle(
+                    color: ThemeTokens.of(context).textMuted,
+                    fontSize: 14,
+                  ),
                   border: InputBorder.none,
                 ),
               ),

@@ -1,0 +1,9 @@
+flutter_launcher_icons:
+  android: "launcher_icon"
+  ios: true
+  image_path: "icons8-music-100.png"
+  min_sdk_android: 21
+  windows:
+    generate: true
+    image_path: "icons8-music-100.png"
+    icon_size: 256

@@ -33,10 +33,13 @@ class HiveBoxes {
     // Secure encryption for sensitive data (credentials)
     final encryptionKey = await _getEncryptionKey();
 
-    auth    = await Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(encryptionKey));
+    auth = await Hive.openBox(
+      _authBox,
+      encryptionCipher: HiveAesCipher(encryptionKey),
+    );
     session = await Hive.openBox(_sessionBox);
-    prefs   = await Hive.openBox(_prefsBox);
-    audio   = await Hive.openBox(_audioBox);
+    prefs = await Hive.openBox(_prefsBox);
+    audio = await Hive.openBox(_audioBox);
 
     // One-time migration from SharedPreferences → Hive
     await _migrateFromSharedPreferences();
@@ -47,7 +50,10 @@ class HiveBoxes {
     final encodedKey = await storage.read(key: 'hive_encryption_key');
     if (encodedKey == null) {
       final key = Hive.generateSecureKey();
-      await storage.write(key: 'hive_encryption_key', value: base64UrlEncode(key));
+      await storage.write(
+        key: 'hive_encryption_key',
+        value: base64UrlEncode(key),
+      );
       return key;
     }
     return base64Url.decode(encodedKey);
@@ -86,6 +92,8 @@ class HiveBoxes {
   static const kBpmCacheEnabled = 'cache_bpm_enabled';
   static const kSearchHistory = 'search_history';
   static const kRecommendationsEnabled = 'recommendations_enabled';
+  static const kIsLocalMode = 'is_local_mode';
+  static const kLocalMusicFolders = 'local_music_folders';
 
   // ---------------------------------------------------------------------------
   // Audio keys
@@ -124,12 +132,22 @@ class HiveBoxes {
       _migrateString(sp, 'uploadApiUrl', prefs, kUploadApiUrl);
       _migrateString(sp, 'uploadDirectory', prefs, kUploadDirectory);
       _migrateBool(sp, 'dataCollectionEnabled', prefs, kDataCollectionEnabled);
-      _migrateString(sp, 'analytics_upload_schedule', prefs, kAnalyticsUploadSchedule);
+      _migrateString(
+        sp,
+        'analytics_upload_schedule',
+        prefs,
+        kAnalyticsUploadSchedule,
+      );
       _migrateString(sp, 'analytics_last_upload', prefs, kAnalyticsLastUpload);
       _migrateBool(sp, 'cache_images_enabled', prefs, kImageCacheEnabled);
       _migrateBool(sp, 'cache_music_enabled', prefs, kMusicCacheEnabled);
       _migrateBool(sp, 'cache_bpm_enabled', prefs, kBpmCacheEnabled);
-      _migrateBool(sp, 'recommendations_enabled', prefs, kRecommendationsEnabled);
+      _migrateBool(
+        sp,
+        'recommendations_enabled',
+        prefs,
+        kRecommendationsEnabled,
+      );
 
       // Audio — transcoding
       _migrateBool(sp, 'transcoding_enabled', audio, kTranscodingEnabled);
@@ -166,22 +184,42 @@ class HiveBoxes {
     }
   }
 
-  static void _migrateString(SharedPreferences sp, String spKey, Box box, String hiveKey) {
+  static void _migrateString(
+    SharedPreferences sp,
+    String spKey,
+    Box box,
+    String hiveKey,
+  ) {
     final val = sp.getString(spKey);
     if (val != null) box.put(hiveKey, val);
   }
 
-  static void _migrateBool(SharedPreferences sp, String spKey, Box box, String hiveKey) {
+  static void _migrateBool(
+    SharedPreferences sp,
+    String spKey,
+    Box box,
+    String hiveKey,
+  ) {
     final val = sp.getBool(spKey);
     if (val != null) box.put(hiveKey, val);
   }
 
-  static void _migrateInt(SharedPreferences sp, String spKey, Box box, String hiveKey) {
+  static void _migrateInt(
+    SharedPreferences sp,
+    String spKey,
+    Box box,
+    String hiveKey,
+  ) {
     final val = sp.getInt(spKey);
     if (val != null) box.put(hiveKey, val);
   }
 
-  static void _migrateDouble(SharedPreferences sp, String spKey, Box box, String hiveKey) {
+  static void _migrateDouble(
+    SharedPreferences sp,
+    String spKey,
+    Box box,
+    String hiveKey,
+  ) {
     final val = sp.getDouble(spKey);
     if (val != null) box.put(hiveKey, val);
   }

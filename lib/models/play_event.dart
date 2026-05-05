@@ -130,10 +130,14 @@ class PlayEvent {
     } else {
       // Duration unknown — cap at wall-clock elapsed time to prevent
       // inflation from pause/resume cycles inflating the raw position.
-      final elapsedSec =
-          timestampEnd!.difference(timestampStart).inSeconds.abs();
-      playDurationSec = playedDuration.inSeconds
-          .clamp(0, elapsedSec > 0 ? elapsedSec : 86400);
+      final elapsedSec = timestampEnd!
+          .difference(timestampStart)
+          .inSeconds
+          .abs();
+      playDurationSec = playedDuration.inSeconds.clamp(
+        0,
+        elapsedSec > 0 ? elapsedSec : 86400,
+      );
       skipBeforeEnd = playedDuration.inSeconds < 30 && repeats == 0;
       skipPositionPct = null;
     }
@@ -144,19 +148,19 @@ class PlayEvent {
   // ---------------------------------------------------------------------------
 
   Map<String, dynamic> toMap() => {
-        'play_id': playId,
-        'song_id': songId,
-        'session_id': sessionId,
-        'ts_start': timestampStart.millisecondsSinceEpoch,
-        'ts_end': timestampEnd?.millisecondsSinceEpoch,
-        'play_dur_sec': playDurationSec,
-        'skip_before50': skipBeforeEnd ? 1 : 0,
-        'skip_position_pct': skipPositionPct,
-        'repeat_count': repeatCount,
-        'queue_position': queuePosition,
-        'shuffle_active': shuffleActive ? 1 : 0,
-        'source_context': sourceContext,
-        'hour_of_day': hourOfDay,
-        'day_of_week': dayOfWeek,
-      };
+    'play_id': playId,
+    'song_id': songId,
+    'session_id': sessionId,
+    'ts_start': timestampStart.millisecondsSinceEpoch,
+    'ts_end': timestampEnd?.millisecondsSinceEpoch,
+    'play_dur_sec': playDurationSec,
+    'skip_before50': skipBeforeEnd ? 1 : 0,
+    'skip_position_pct': skipPositionPct,
+    'repeat_count': repeatCount,
+    'queue_position': queuePosition,
+    'shuffle_active': shuffleActive ? 1 : 0,
+    'source_context': sourceContext,
+    'hour_of_day': hourOfDay,
+    'day_of_week': dayOfWeek,
+  };
 }
