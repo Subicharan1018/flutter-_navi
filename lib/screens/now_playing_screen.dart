@@ -40,8 +40,7 @@ Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
       maximumColorCount: 32,
     );
 
-    Color process(Color base,
-        {double satMul = 1.25, double lightMul = 0.48}) {
+    Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
       final hsl = HSLColor.fromColor(base);
       return hsl
           .withSaturation((hsl.saturation * satMul).clamp(0.08, 1.0))
@@ -67,16 +66,12 @@ Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
 
     final dominantHsl = HSLColor.fromColor(dominant);
     final derivedVibrant = dominantHsl
-        .withSaturation(
-            (dominantHsl.saturation + 0.25).clamp(0.20, 1.0))
-        .withLightness(
-            (dominantHsl.lightness * 0.95).clamp(0.08, 0.48))
+        .withSaturation((dominantHsl.saturation + 0.25).clamp(0.20, 1.0))
+        .withLightness((dominantHsl.lightness * 0.95).clamp(0.08, 0.48))
         .toColor();
     final derivedAccent = dominantHsl
-        .withSaturation(
-            (dominantHsl.saturation + 0.12).clamp(0.14, 1.0))
-        .withLightness(
-            (dominantHsl.lightness * 1.18).clamp(0.12, 0.58))
+        .withSaturation((dominantHsl.saturation + 0.12).clamp(0.14, 1.0))
+        .withLightness((dominantHsl.lightness * 1.18).clamp(0.12, 0.58))
         .toColor();
 
     final vibrant = firstNonNull([
@@ -111,8 +106,7 @@ Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
   }
 }
 
-List<Color> _intsToColors(List<int> v) =>
-    v.map((i) => Color(i)).toList();
+List<Color> _intsToColors(List<int> v) => v.map((i) => Color(i)).toList();
 
 // =============================================================================
 // 2. SMALL REUSABLE WIDGETS
@@ -121,7 +115,10 @@ List<Color> _intsToColors(List<int> v) =>
 class _SoundBar extends StatefulWidget {
   final bool isPlaying;
   final Color color;
-  const _SoundBar({required this.isPlaying, this.color = const Color(0x8AFFFFFF)});
+  const _SoundBar({
+    required this.isPlaying,
+    this.color = const Color(0x8AFFFFFF),
+  });
 
   @override
   State<_SoundBar> createState() => _SoundBarState();
@@ -164,10 +161,7 @@ class _SoundBarState extends State<_SoundBar>
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(4, (i) {
               final t = widget.isPlaying
-                  ? (math.sin(
-                              _ctrl.value * math.pi * 2 + _phases[i]) +
-                          1) /
-                      2
+                  ? (math.sin(_ctrl.value * math.pi * 2 + _phases[i]) + 1) / 2
                   : 0.15;
               return Container(
                 width: 2.5,
@@ -207,28 +201,29 @@ class _BottomAction extends StatelessWidget {
         onTap: onTap,
         behavior: HitTestBehavior.opaque,
         child: SizedBox(
-        width: 60,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            icon,
-            const SizedBox(height: 5),
-            Text(
-              label,
-              style: TextStyle(
-                color: labelColor,
-                fontSize: 9,
-                letterSpacing: 0.4,
-                fontWeight: FontWeight.w500,
+          width: 60,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              icon,
+              const SizedBox(height: 5),
+              Text(
+                label,
+                style: TextStyle(
+                  color: labelColor,
+                  fontSize: 9,
+                  letterSpacing: 0.4,
+                  fontWeight: FontWeight.w500,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                textAlign: TextAlign.center,
               ),
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
-            ),
-          ],
+            ],
+          ),
         ),
       ),
-    ));
+    );
   }
 }
 
@@ -244,15 +239,14 @@ class _AudioQualityStrip extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final transcoding = ref.watch(transcodingProvider);
 
-    final sourceSuffix  = song.suffix.toUpperCase();
+    final sourceSuffix = song.suffix.toUpperCase();
     final sourceBitrate = song.bitRate;
 
     final activeBitrate = transcoding.getCurrentBitrate();
-    final activeFormat  = transcoding.getCurrentFormat();
-    final isTranscoding = transcoding.enabled &&
-        (activeBitrate != null || activeFormat != null);
-    final isWifi =
-        transcoding.currentConnectionType == ConnectionType.wifi;
+    final activeFormat = transcoding.getCurrentFormat();
+    final isTranscoding =
+        transcoding.enabled && (activeBitrate != null || activeFormat != null);
+    final isWifi = transcoding.currentConnectionType == ConnectionType.wifi;
 
     if (sourceSuffix.isEmpty && sourceBitrate == 0 && !isTranscoding) {
       return const SizedBox.shrink();
@@ -272,12 +266,14 @@ class _AudioQualityStrip extends ConsumerWidget {
               ].join(' · '),
               color: ThemeTokens.of(context).textMuted,
             ),
-          if ((sourceSuffix.isNotEmpty || sourceBitrate > 0) &&
-              isTranscoding)
+          if ((sourceSuffix.isNotEmpty || sourceBitrate > 0) && isTranscoding)
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: 8),
-              child: Icon(Icons.arrow_forward_rounded,
-                  color: ThemeTokens.of(context).textMuted.withOpacity(0.5), size: 12),
+              child: Icon(
+                Icons.arrow_forward_rounded,
+                color: ThemeTokens.of(context).textMuted.withOpacity(0.5),
+                size: 12,
+              ),
             ),
           if (isTranscoding)
             _QualityPill(
@@ -320,10 +316,7 @@ class _QualityPill extends StatelessWidget {
             ? ThemeTokens.of(context).accent.withValues(alpha: 0.12)
             : ThemeTokens.of(context).textPrimary.withValues(alpha: 0.06),
         borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: color.withValues(alpha: 0.3),
-          width: 0.5,
-        ),
+        border: Border.all(color: color.withValues(alpha: 0.3), width: 0.5),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -335,8 +328,7 @@ class _QualityPill extends StatelessWidget {
             style: TextStyle(
               color: color,
               fontSize: 10.5,
-              fontWeight:
-                  highlighted ? FontWeight.w600 : FontWeight.w400,
+              fontWeight: highlighted ? FontWeight.w600 : FontWeight.w400,
               letterSpacing: 0.3,
             ),
           ),
@@ -389,8 +381,7 @@ class _VolumeSliderState extends State<_VolumeSlider> {
 
     final snaps = [0.0, 0.5, 1.0];
     for (final snap in snaps) {
-      if ((_lastHapticVolume - snap).abs() > 0.01 &&
-          (v - snap).abs() < 0.015) {
+      if ((_lastHapticVolume - snap).abs() > 0.01 && (v - snap).abs() < 0.015) {
         HapticFeedback.selectionClick();
         _lastHapticVolume = snap;
         break;
@@ -419,15 +410,18 @@ class _VolumeSliderState extends State<_VolumeSlider> {
                 data: SliderThemeData(
                   trackHeight: 4,
                   activeTrackColor: ThemeTokens.of(context).textPrimary,
-                  inactiveTrackColor: ThemeTokens.of(context).textPrimary.withOpacity(0.20),
+                  inactiveTrackColor: ThemeTokens.of(
+                    context,
+                  ).textPrimary.withOpacity(0.20),
                   thumbColor: Colors.transparent,
                   thumbShape: _AppleMusicThumb(
                     color: ThemeTokens.of(context).textPrimary,
-                    shadowColor: ThemeTokens.of(context).bgOverlay.withOpacity(0.35),
+                    shadowColor: ThemeTokens.of(
+                      context,
+                    ).bgOverlay.withOpacity(0.35),
                   ),
                   overlayColor: Colors.transparent,
-                  overlayShape:
-                      const RoundSliderOverlayShape(overlayRadius: 0),
+                  overlayShape: const RoundSliderOverlayShape(overlayRadius: 0),
                   trackShape: _RoundedTrackShape(),
                 ),
                 child: Slider(
@@ -461,9 +455,8 @@ class _RoundedTrackShape extends RoundedRectSliderTrackShape {
     bool isDiscrete = false,
   }) {
     final trackHeight = sliderTheme.trackHeight ?? 4;
-    final trackLeft   = offset.dx;
-    final trackTop =
-        offset.dy + (parentBox.size.height - trackHeight) / 2;
+    final trackLeft = offset.dx;
+    final trackTop = offset.dy + (parentBox.size.height - trackHeight) / 2;
     final trackWidth = parentBox.size.width;
     return Rect.fromLTWH(trackLeft, trackTop, trackWidth, trackHeight);
   }
@@ -531,7 +524,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   Timer? _sleepCountdownTimer;
   final ValueNotifier<int?> _sleepSeconds = ValueNotifier(null);
 
-  Song?   _lastKnownSong;
+  Song? _lastKnownSong;
   String? _lastKnownImageUrl;
 
   List<Color> _blobColors = PaletteCache.instance.colors;
@@ -565,16 +558,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
 
     if (_inflightSongId == songId) return;
     _lastExtractedSongId = songId;
-    _inflightSongId      = songId;
+    _inflightSongId = songId;
 
-    _extractPaletteIsolate(imageUrl).then((ints) {
-      if (!mounted || _inflightSongId != songId) return;
-      final colors = _intsToColors(ints);
-      PaletteCache.instance.update(songId, colors);
-      setState(() => _blobColors = colors);
-    }).catchError((_) {
-      _inflightSongId = null;
-    });
+    _extractPaletteIsolate(imageUrl)
+        .then((ints) {
+          if (!mounted || _inflightSongId != songId) return;
+          final colors = _intsToColors(ints);
+          PaletteCache.instance.update(songId, colors);
+          setState(() => _blobColors = colors);
+        })
+        .catchError((_) {
+          _inflightSongId = null;
+        });
   }
 
   // ── Sleep timer ──────────────────────────────────────────────────────────
@@ -584,7 +579,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       context: context,
       backgroundColor: ThemeTokens.of(context).bgSurface,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       // FIX BUG-4: Wrap the builder in a ValueListenableBuilder so the
       // checkmark reacts to _sleepSeconds changes while the sheet is open.
       // Without this, the trailing icon is evaluated once at open time and
@@ -596,29 +592,42 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
             mainAxisSize: MainAxisSize.min,
             children: [
               const SizedBox(height: 12),
-              Text('Stop Audio In',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold)),
+              Text(
+                'Stop Audio In',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 18,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
               const SizedBox(height: 12),
-              ...[5, 10, 15, 30, 45, 60].map((mins) => ListTile(
-                    title: Text('$mins Minutes',
-                        style: TextStyle(
-                            color: ThemeTokens.of(context).textPrimary)),
-                    trailing: remaining != null &&
-                            (remaining / 60).round() == mins
-                        ? Icon(Icons.check_rounded,
-                            color: ThemeTokens.of(context).accent, size: 18)
-                        : null,
-                    onTap: () {
-                      _setSleepTimer(mins);
-                      Navigator.pop(ctx);
-                    },
-                  )),
+              ...[5, 10, 15, 30, 45, 60].map(
+                (mins) => ListTile(
+                  title: Text(
+                    '$mins Minutes',
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                    ),
+                  ),
+                  trailing:
+                      remaining != null && (remaining / 60).round() == mins
+                      ? Icon(
+                          Icons.check_rounded,
+                          color: ThemeTokens.of(context).accent,
+                          size: 18,
+                        )
+                      : null,
+                  onTap: () {
+                    _setSleepTimer(mins);
+                    Navigator.pop(ctx);
+                  },
+                ),
+              ),
               ListTile(
-                title: const Text('Off',
-                    style: TextStyle(color: Colors.redAccent)),
+                title: const Text(
+                  'Off',
+                  style: TextStyle(color: Colors.redAccent),
+                ),
                 onTap: () {
                   _setSleepTimer(null);
                   Navigator.pop(ctx);
@@ -640,8 +649,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       return;
     }
     _sleepSeconds.value = minutes * 60;
-    _sleepCountdownTimer =
-        Timer.periodic(const Duration(seconds: 1), (t) {
+    _sleepCountdownTimer = Timer.periodic(const Duration(seconds: 1), (t) {
       if (!mounted) {
         t.cancel();
         return;
@@ -674,17 +682,21 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       context: context,
       backgroundColor: ThemeTokens.of(context).bgSurface,
       shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(24))),
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+      ),
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 12),
-            Text('Smart Shuffle Mode',
-                style: TextStyle(
-                    color: ThemeTokens.of(context).textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold)),
+            Text(
+              'Smart Shuffle Mode',
+              style: TextStyle(
+                color: ThemeTokens.of(context).textPrimary,
+                fontSize: 18,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
             const SizedBox(height: 12),
             ...ShuffleAlgorithm.values.map((algo) {
               final isSelected =
@@ -694,37 +706,38 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   algo == ShuffleAlgorithm.standard
                       ? Icons.shuffle_rounded
                       : algo == ShuffleAlgorithm.spotify
-                          ? Icons.auto_awesome_rounded
-                          : Icons.trending_up_rounded,
+                      ? Icons.auto_awesome_rounded
+                      : Icons.trending_up_rounded,
                   color: isSelected
                       ? ThemeTokens.of(context).accent
                       : ThemeTokens.of(context).textSecondary,
                 ),
-                title: Text(algo.name.toUpperCase(),
-                    style: TextStyle(
-                        color: ThemeTokens.of(context).textPrimary)),
+                title: Text(
+                  algo.name.toUpperCase(),
+                  style: TextStyle(color: ThemeTokens.of(context).textPrimary),
+                ),
                 subtitle: Text(
                   algo == ShuffleAlgorithm.spotify
                       ? 'Balanced dithering (Artist spacing)'
                       : algo == ShuffleAlgorithm.youtube
-                          ? 'Weighted lottery (Stars & Playcount)'
-                          : 'Standard Fisher-Yates',
+                      ? 'Weighted lottery (Stars & Playcount)'
+                      : 'Standard Fisher-Yates',
                   style: TextStyle(
-                      color: ThemeTokens.of(context).textMuted,
-                      fontSize: 12),
+                    color: ThemeTokens.of(context).textMuted,
+                    fontSize: 12,
+                  ),
                 ),
                 trailing: isSelected
-                    ? Icon(Icons.check_rounded,
-                        color: ThemeTokens.of(context).accent, size: 18)
+                    ? Icon(
+                        Icons.check_rounded,
+                        color: ThemeTokens.of(context).accent,
+                        size: 18,
+                      )
                     : null,
                 onTap: () {
-                  ref
-                      .read(settingsProvider.notifier)
-                      .setShuffleAlgorithm(algo);
+                  ref.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
                   if (ref.read(playerProvider).shuffleMode) {
-                    ref
-                        .read(playerProvider.notifier)
-                        .applyShuffleAlgorithm();
+                    ref.read(playerProvider.notifier).applyShuffleAlgorithm();
                   }
                   Navigator.pop(ctx);
                 },
@@ -742,22 +755,24 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
-    final notifier    = ref.read(playerProvider.notifier);
+    final notifier = ref.read(playerProvider.notifier);
     // FIX BUG-6: Use typed SubsonicService instead of dynamic.
-    final service     = ref.read(subsonicServiceProvider);
+    final service = ref.read(subsonicServiceProvider);
 
-    final bool queueReady = playerState.queue.isNotEmpty &&
+    final bool queueReady =
+        playerState.queue.isNotEmpty &&
         playerState.currentIndex < playerState.queue.length;
 
     if (queueReady) {
-      _lastKnownSong     = playerState.queue[playerState.currentIndex];
+      _lastKnownSong = playerState.queue[playerState.currentIndex];
       _lastKnownImageUrl = service.getCoverArtUrl(_lastKnownSong!.coverArt);
     }
 
     if (!queueReady && _lastKnownSong == null && !notifier.isShuffling) {
       return Scaffold(
-          backgroundColor: ThemeTokens.of(context).bgBase,
-          body: const SizedBox());
+        backgroundColor: ThemeTokens.of(context).bgBase,
+        body: const SizedBox(),
+      );
     }
 
     final song = queueReady
@@ -779,17 +794,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     }
 
     final isShuffleActive = playerState.shuffleMode;
-    final isRepeatActive  = playerState.repeatMode != LoopMode.off;
+    final isRepeatActive = playerState.repeatMode != LoopMode.off;
 
     return GestureDetector(
-      onVerticalDragUpdate: (d) => setState(() => _dragOffset =
-          (d.primaryDelta! > 0 || _dragOffset > 0)
-              ? (_dragOffset + d.primaryDelta!).clamp(0, double.infinity)
-              : 0),
+      onVerticalDragUpdate: (d) => setState(
+        () => _dragOffset = (d.primaryDelta! > 0 || _dragOffset > 0)
+            ? (_dragOffset + d.primaryDelta!).clamp(0, double.infinity)
+            : 0,
+      ),
       onVerticalDragEnd: (d) =>
           (_dragOffset > 150 || (d.primaryVelocity ?? 0) > 1000)
-              ? Navigator.pop(context)
-              : setState(() => _dragOffset = 0),
+          ? Navigator.pop(context)
+          : setState(() => _dragOffset = 0),
       child: AnimatedContainer(
         duration: _dragOffset == 0
             ? const Duration(milliseconds: 250)
@@ -811,7 +827,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         width: 36,
                         height: 4,
                         decoration: BoxDecoration(
-                          color: ThemeTokens.of(context).textPrimary.withOpacity(0.28),
+                          color: ThemeTokens.of(
+                            context,
+                          ).textPrimary.withOpacity(0.28),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -822,15 +840,21 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         children: [
                           IconButton(
                             icon: Icon(
-                                Icons.keyboard_arrow_down_rounded,
-                                color: ThemeTokens.of(context).textPrimary,
-                                size: 32),
+                              Icons.keyboard_arrow_down_rounded,
+                              color: ThemeTokens.of(context).textPrimary,
+                              size: 32,
+                            ),
                             onPressed: () => Navigator.pop(context),
                           ),
                           const Spacer(),
                           IconButton(
-                            icon: Icon(Icons.more_horiz_rounded,
-                                color: ThemeTokens.of(context).textPrimary.withOpacity(0.6), size: 28),
+                            icon: Icon(
+                              Icons.more_horiz_rounded,
+                              color: ThemeTokens.of(
+                                context,
+                              ).textPrimary.withOpacity(0.6),
+                              size: 28,
+                            ),
                             onPressed: () => showModalBottomSheet(
                               context: context,
                               isScrollControlled: true,
@@ -844,7 +868,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     Expanded(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(
-                            horizontal: 28, vertical: 10),
+                          horizontal: 28,
+                          vertical: 10,
+                        ),
                         child: RepaintBoundary(
                           child: AnimatedScale(
                             scale: playerState.isPlaying ? 1.0 : 0.93,
@@ -858,15 +884,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                     borderRadius: BorderRadius.circular(18),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: ThemeTokens.of(context).bgBase.withOpacity(0.70),
+                                        color: ThemeTokens.of(
+                                          context,
+                                        ).bgBase.withOpacity(0.70),
                                         blurRadius: 44,
                                         spreadRadius: 4,
                                         offset: const Offset(0, 18),
                                       ),
                                       if (_blobColors.length > 1)
                                         BoxShadow(
-                                          color: _blobColors[1]
-                                              .withOpacity(0.35),
+                                          color: _blobColors[1].withOpacity(
+                                            0.35,
+                                          ),
                                           blurRadius: 60,
                                           offset: const Offset(0, 10),
                                         ),
@@ -879,21 +908,29 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                       cacheKey: cacheKey,
                                       fit: BoxFit.cover,
                                       placeholder: (_, __) => Container(
-                                          color:
-                                              ThemeTokens.of(context).bgSurface,
-                                          child: Icon(
-                                              Icons.music_note_rounded,
-                                              size: 80,
-                                              color: ThemeTokens.of(context)
-                                                  .textMuted)),
+                                        color: ThemeTokens.of(
+                                          context,
+                                        ).bgSurface,
+                                        child: Icon(
+                                          Icons.music_note_rounded,
+                                          size: 80,
+                                          color: ThemeTokens.of(
+                                            context,
+                                          ).textMuted,
+                                        ),
+                                      ),
                                       errorWidget: (_, __, ___) => Container(
-                                          color:
-                                              ThemeTokens.of(context).bgSurface,
-                                          child: Icon(
-                                              Icons.music_note_rounded,
-                                              size: 80,
-                                              color: ThemeTokens.of(context)
-                                                  .textMuted)),
+                                        color: ThemeTokens.of(
+                                          context,
+                                        ).bgSurface,
+                                        child: Icon(
+                                          Icons.music_note_rounded,
+                                          size: 80,
+                                          color: ThemeTokens.of(
+                                            context,
+                                          ).textMuted,
+                                        ),
+                                      ),
                                     ),
                                   ),
                                 ),
@@ -904,15 +941,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
                     Padding(
-                      padding:
-                          const EdgeInsets.fromLTRB(32, 12, 24, 0),
+                      padding: const EdgeInsets.fromLTRB(32, 12, 24, 0),
                       child: Row(
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Expanded(
                             child: Column(
-                              crossAxisAlignment:
-                                  CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
                                 SizedBox(
                                   height: 30,
@@ -920,10 +955,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                       ? Marquee(
                                           text: song.title,
                                           style: TextStyle(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
-                                              color: ThemeTokens.of(context).textPrimary,
-                                              letterSpacing: -0.3),
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w700,
+                                            color: ThemeTokens.of(
+                                              context,
+                                            ).textPrimary,
+                                            letterSpacing: -0.3,
+                                          ),
                                           scrollAxis: Axis.horizontal,
                                           blankSpace: 52,
                                           velocity: 28,
@@ -931,21 +969,26 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                       : Text(
                                           song.title,
                                           style: TextStyle(
-                                              fontSize: 22,
-                                              fontWeight: FontWeight.w700,
-                                              color: ThemeTokens.of(context).textPrimary,
-                                              letterSpacing: -0.3),
-                                          overflow:
-                                              TextOverflow.ellipsis,
+                                            fontSize: 22,
+                                            fontWeight: FontWeight.w700,
+                                            color: ThemeTokens.of(
+                                              context,
+                                            ).textPrimary,
+                                            letterSpacing: -0.3,
+                                          ),
+                                          overflow: TextOverflow.ellipsis,
                                         ),
                                 ),
                                 const SizedBox(height: 3),
                                 Text(
                                   song.artist,
                                   style: TextStyle(
-                                      fontSize: 16,
-                                      color: ThemeTokens.of(context).textSecondary,
-                                      fontWeight: FontWeight.w400),
+                                    fontSize: 16,
+                                    color: ThemeTokens.of(
+                                      context,
+                                    ).textSecondary,
+                                    fontWeight: FontWeight.w400,
+                                  ),
                                   overflow: TextOverflow.ellipsis,
                                 ),
                               ],
@@ -957,20 +1000,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             child: IconButton(
                               padding: EdgeInsets.zero,
                               icon: AnimatedSwitcher(
-                                duration:
-                                    const Duration(milliseconds: 220),
+                                duration: const Duration(milliseconds: 220),
                                 transitionBuilder: (child, anim) =>
-                                    ScaleTransition(
-                                        scale: anim, child: child),
+                                    ScaleTransition(scale: anim, child: child),
                                 child: Icon(
-                                  playerState.starredIds
-                                          .contains(song.id)
+                                  playerState.starredIds.contains(song.id)
                                       ? Icons.favorite_rounded
                                       : Icons.favorite_border_rounded,
-                                  key: ValueKey(playerState.starredIds
-                                      .contains(song.id)),
-                                  color: playerState.starredIds
-                                          .contains(song.id)
+                                  key: ValueKey(
+                                    playerState.starredIds.contains(song.id),
+                                  ),
+                                  color:
+                                      playerState.starredIds.contains(song.id)
                                       ? Colors.pinkAccent
                                       : ThemeTokens.of(context).textSecondary,
                                   size: 26,
@@ -987,30 +1028,30 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     const SizedBox(height: 22),
                     RepaintBoundary(
                       child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 32),
+                        padding: const EdgeInsets.symmetric(horizontal: 32),
                         child: StreamBuilder<Duration>(
                           stream: notifier.player.positionStream,
                           builder: (context, snapshot) {
-                            final position =
-                                snapshot.data ?? Duration.zero;
+                            final position = snapshot.data ?? Duration.zero;
                             return ProgressBar(
                               progress: position,
-                              total:
-                                  Duration(seconds: song.duration),
-                              onSeek: (d) =>
-                                  notifier.player.seek(d),
-                              baseBarColor:
-                                  ThemeTokens.of(context).textPrimary.withOpacity(0.18),
-                              progressBarColor: ThemeTokens.of(context).textPrimary,
+                              total: Duration(seconds: song.duration),
+                              onSeek: (d) => notifier.player.seek(d),
+                              baseBarColor: ThemeTokens.of(
+                                context,
+                              ).textPrimary.withOpacity(0.18),
+                              progressBarColor: ThemeTokens.of(
+                                context,
+                              ).textPrimary,
                               thumbColor: ThemeTokens.of(context).textPrimary,
                               thumbRadius: 6,
                               barHeight: 4,
                               timeLabelTextStyle: TextStyle(
-                                  color: ThemeTokens.of(context).textSecondary,
-                                  fontSize: 11,
-                                  fontWeight: FontWeight.w500,
-                                  letterSpacing: 0.2),
+                                color: ThemeTokens.of(context).textSecondary,
+                                fontSize: 11,
+                                fontWeight: FontWeight.w500,
+                                letterSpacing: 0.2,
+                              ),
                             );
                           },
                         ),
@@ -1020,25 +1061,29 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     _AudioQualityStrip(song: song),
                     const SizedBox(height: 36),
                     Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 20),
+                      padding: const EdgeInsets.symmetric(horizontal: 20),
                       child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         crossAxisAlignment: CrossAxisAlignment.center,
                         children: [
                           Semantics(
                             button: true,
-                            label: isShuffleActive ? 'Disable Shuffle' : 'Enable Shuffle',
+                            label: isShuffleActive
+                                ? 'Disable Shuffle'
+                                : 'Enable Shuffle',
                             child: GestureDetector(
                               onLongPress: _showSmartShuffleDialog,
                               child: IconButton(
-                                tooltip: isShuffleActive ? 'Disable Shuffle' : 'Enable Shuffle',
-                                icon: Icon(Icons.shuffle_rounded,
+                                tooltip: isShuffleActive
+                                    ? 'Disable Shuffle'
+                                    : 'Enable Shuffle',
+                                icon: Icon(
+                                  Icons.shuffle_rounded,
                                   color: isShuffleActive
                                       ? ThemeTokens.of(context).accent
                                       : ThemeTokens.of(context).textSecondary,
-                                  size: 26),
+                                  size: 26,
+                                ),
                                 onPressed: () => notifier.toggleShuffle(),
                               ),
                             ),
@@ -1046,9 +1091,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           IconButton(
                             tooltip: 'Skip Previous',
                             icon: Icon(
-                                Icons.skip_previous_rounded,
-                                size: 48,
-                                color: ThemeTokens.of(context).textPrimary),
+                              Icons.skip_previous_rounded,
+                              size: 48,
+                              color: ThemeTokens.of(context).textPrimary,
+                            ),
                             onPressed: () => notifier.playPrev(),
                           ),
                           Semantics(
@@ -1066,24 +1112,26 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                   shape: BoxShape.circle,
                                   boxShadow: [
                                     BoxShadow(
-                                      color: ThemeTokens.of(context).textPrimary.withOpacity(0.22),
+                                      color: ThemeTokens.of(
+                                        context,
+                                      ).textPrimary.withOpacity(0.22),
                                       blurRadius: 28,
                                       spreadRadius: 2,
                                     ),
                                   ],
                                 ),
                                 child: AnimatedSwitcher(
-                                  duration: const Duration(
-                                      milliseconds: 180),
+                                  duration: const Duration(milliseconds: 180),
                                   transitionBuilder: (child, anim) =>
                                       ScaleTransition(
-                                          scale: anim, child: child),
+                                        scale: anim,
+                                        child: child,
+                                      ),
                                   child: Icon(
                                     playerState.isPlaying
                                         ? Icons.pause_rounded
                                         : Icons.play_arrow_rounded,
-                                    key:
-                                        ValueKey(playerState.isPlaying),
+                                    key: ValueKey(playerState.isPlaying),
                                     size: 42,
                                     color: ThemeTokens.of(context).bgBase,
                                   ),
@@ -1093,20 +1141,24 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           ),
                           IconButton(
                             tooltip: 'Skip Next',
-                            icon: Icon(Icons.skip_next_rounded,
-                                size: 48, color: ThemeTokens.of(context).textPrimary),
+                            icon: Icon(
+                              Icons.skip_next_rounded,
+                              size: 48,
+                              color: ThemeTokens.of(context).textPrimary,
+                            ),
                             onPressed: () => notifier.playNext(),
                           ),
                           IconButton(
                             tooltip: 'Cycle Repeat Mode',
                             icon: Icon(
-                                playerState.repeatMode == LoopMode.one
-                                    ? Icons.repeat_one_rounded
-                                    : Icons.repeat_rounded,
-                                color: isRepeatActive
-                                    ? ThemeTokens.of(context).accent
-                                    : ThemeTokens.of(context).textSecondary,
-                                size: 26),
+                              playerState.repeatMode == LoopMode.one
+                                  ? Icons.repeat_one_rounded
+                                  : Icons.repeat_rounded,
+                              color: isRepeatActive
+                                  ? ThemeTokens.of(context).accent
+                                  : ThemeTokens.of(context).textSecondary,
+                              size: 26,
+                            ),
                             onPressed: () => notifier.cycleRepeat(),
                           ),
                         ],
@@ -1114,29 +1166,29 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     ),
                     const SizedBox(height: 28),
                     _VolumeSlider(player: notifier.player),
-                    const Spacer(),
+                    const SizedBox(height: 24),
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 28),
+                      padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
                       child: Row(
-                        mainAxisAlignment:
-                            MainAxisAlignment.spaceEvenly,
+                        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _BottomAction(
                             icon: _SoundBar(
-                                isPlaying: playerState.isPlaying,
-                                color: ThemeTokens.of(context).textSecondary),
-                            label: playerState.isPlaying
-                                ? 'Playing'
-                                : 'Paused',
+                              isPlaying: playerState.isPlaying,
+                              color: ThemeTokens.of(context).textSecondary,
+                            ),
+                            label: playerState.isPlaying ? 'Playing' : 'Paused',
                             labelColor: ThemeTokens.of(context).textMuted,
                             onTap: () {},
                           ),
                           _BottomAction(
-                            icon: Icon(Icons.all_inclusive_rounded,
-                                color: playerState.autoplayMode
-                                    ? ThemeTokens.of(context).accent
-                                    : ThemeTokens.of(context).textSecondary,
-                                size: 24),
+                            icon: Icon(
+                              Icons.all_inclusive_rounded,
+                              color: playerState.autoplayMode
+                                  ? ThemeTokens.of(context).accent
+                                  : ThemeTokens.of(context).textSecondary,
+                              size: 24,
+                            ),
                             label: 'Autoplay',
                             labelColor: playerState.autoplayMode
                                 ? ThemeTokens.of(context).accent
@@ -1145,13 +1197,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           ),
                           ValueListenableBuilder<int?>(
                             valueListenable: _sleepSeconds,
-                            builder: (_, remaining, __) =>
-                                _BottomAction(
-                              icon: Icon(Icons.bedtime_outlined,
-                                  color: remaining != null
-                                      ? ThemeTokens.of(context).accent
-                                      : ThemeTokens.of(context).textSecondary,
-                                  size: 24),
+                            builder: (_, remaining, __) => _BottomAction(
+                              icon: Icon(
+                                Icons.bedtime_outlined,
+                                color: remaining != null
+                                    ? ThemeTokens.of(context).accent
+                                    : ThemeTokens.of(context).textSecondary,
+                                size: 24,
+                              ),
                               label: remaining != null
                                   ? _formatSleepLabel(remaining)
                                   : 'Sleep',
@@ -1163,9 +1216,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           ),
                           _BottomAction(
                             icon: Icon(
-                                Icons.queue_music_rounded,
-                                color: ThemeTokens.of(context).textSecondary,
-                                size: 24),
+                              Icons.queue_music_rounded,
+                              color: ThemeTokens.of(context).textSecondary,
+                              size: 24,
+                            ),
                             label: 'Queue',
                             labelColor: ThemeTokens.of(context).textSecondary,
                             onTap: () => showModalBottomSheet(
@@ -1220,12 +1274,12 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
-    final notifier    = ref.read(playerProvider.notifier);
+    final notifier = ref.read(playerProvider.notifier);
     // FIX BUG-6: Use typed SubsonicService instead of dynamic.
-    final service     = ref.read(subsonicServiceProvider);
+    final service = ref.read(subsonicServiceProvider);
 
-    final upNext      = playerState.upNext;
-    final history     = playerState.historySongs;
+    final upNext = playerState.upNext;
+    final history = playerState.historySongs;
     final currentSong = playerState.currentSong;
 
     return DraggableScrollableSheet(
@@ -1236,8 +1290,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
         return Container(
           decoration: BoxDecoration(
             color: ThemeTokens.of(context).bgSurface,
-            borderRadius:
-                const BorderRadius.vertical(top: Radius.circular(20)),
+            borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
           child: Column(
             children: [
@@ -1258,27 +1311,31 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                     const SizedBox(height: 14),
                     Row(
                       children: [
-                        Text('Queue',
-                            style: TextStyle(
-                                color: ThemeTokens.of(context).textPrimary,
-                                fontSize: 20,
-                                fontWeight: FontWeight.bold,
-                                letterSpacing: -0.3)),
+                        Text(
+                          'Queue',
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textPrimary,
+                            fontSize: 20,
+                            fontWeight: FontWeight.bold,
+                            letterSpacing: -0.3,
+                          ),
+                        ),
                         const Spacer(),
                         AnimatedBuilder(
                           animation: _tabs,
                           builder: (_, __) {
-                            if (_tabs.index != 1 ||
-                                history.isEmpty) {
+                            if (_tabs.index != 1 || history.isEmpty) {
                               return const SizedBox.shrink();
                             }
                             return TextButton(
-                              onPressed: () =>
-                                  notifier.clearHistory(),
-                              child: const Text('Clear',
-                                  style: TextStyle(
-                                      color: Colors.redAccent,
-                                      fontSize: 13)),
+                              onPressed: () => notifier.clearHistory(),
+                              child: const Text(
+                                'Clear',
+                                style: TextStyle(
+                                  color: Colors.redAccent,
+                                  fontSize: 13,
+                                ),
+                              ),
                             );
                           },
                         ),
@@ -1288,13 +1345,17 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                     Container(
                       height: 38,
                       decoration: BoxDecoration(
-                        color: ThemeTokens.of(context).textPrimary.withOpacity(0.07),
+                        color: ThemeTokens.of(
+                          context,
+                        ).textPrimary.withOpacity(0.07),
                         borderRadius: BorderRadius.circular(11),
                       ),
                       child: TabBar(
                         controller: _tabs,
                         indicator: BoxDecoration(
-                          color: ThemeTokens.of(context).textPrimary.withOpacity(0.16),
+                          color: ThemeTokens.of(
+                            context,
+                          ).textPrimary.withOpacity(0.16),
                           borderRadius: BorderRadius.circular(9),
                         ),
                         indicatorSize: TabBarIndicatorSize.tab,
@@ -1302,34 +1363,27 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                         labelColor: ThemeTokens.of(context).textPrimary,
                         unselectedLabelColor: ThemeTokens.of(context).textMuted,
                         labelStyle: const TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600),
+                          fontSize: 13,
+                          fontWeight: FontWeight.w600,
+                        ),
                         tabs: [
                           Tab(
                             child: Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(
-                                    Icons.queue_music_rounded,
-                                    size: 14),
+                                const Icon(Icons.queue_music_rounded, size: 14),
                                 const SizedBox(width: 5),
-                                Text(
-                                    'Up Next (${upNext.length})'),
+                                Text('Up Next (${upNext.length})'),
                               ],
                             ),
                           ),
                           Tab(
                             child: Row(
-                              mainAxisAlignment:
-                                  MainAxisAlignment.center,
+                              mainAxisAlignment: MainAxisAlignment.center,
                               children: [
-                                const Icon(
-                                    Icons.history_rounded,
-                                    size: 14),
+                                const Icon(Icons.history_rounded, size: 14),
                                 const SizedBox(width: 5),
-                                Text(
-                                    'History (${history.length})'),
+                                Text('History (${history.length})'),
                               ],
                             ),
                           ),
@@ -1351,27 +1405,22 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                     upNext.isEmpty
                         ? const _EmptyTab(
                             icon: Icons.queue_music_rounded,
-                            label: 'Nothing up next')
+                            label: 'Nothing up next',
+                          )
                         : ReorderableListView.builder(
                             scrollController: scrollController,
-                            padding:
-                                const EdgeInsets.only(bottom: 120),
+                            padding: const EdgeInsets.only(bottom: 120),
                             itemCount: upNext.length,
                             onReorder: (oldIdx, newIdx) {
                               final qOld =
-                                  playerState.currentIndex +
-                                      1 +
-                                      oldIdx;
+                                  playerState.currentIndex + 1 + oldIdx;
                               final qNew =
-                                  playerState.currentIndex +
-                                      1 +
-                                      newIdx;
+                                  playerState.currentIndex + 1 + newIdx;
                               notifier.reorderQueue(qOld, qNew);
                             },
                             itemBuilder: (context, i) {
-                              final s    = upNext[i];
-                              final qIdx =
-                                  playerState.currentIndex + 1 + i;
+                              final s = upNext[i];
+                              final qIdx = playerState.currentIndex + 1 + i;
                               return _QueueTile(
                                 key: ValueKey('nxt_${s.id}_$i'),
                                 song: s,
@@ -1380,17 +1429,16 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                                   notifier.jumpTo(qIdx);
                                   Navigator.pop(context);
                                 },
-                                onRemove: () =>
-                                    notifier.removeFromQueue(qIdx),
-                                dragHandle:
-                                    ReorderableDragStartListener(
+                                onRemove: () => notifier.removeFromQueue(qIdx),
+                                dragHandle: ReorderableDragStartListener(
                                   index: i,
                                   child: Padding(
                                     padding: const EdgeInsets.all(12),
                                     child: Icon(
-                                        Icons.drag_handle_rounded,
-                                        color: ThemeTokens.of(context).textMuted,
-                                        size: 20),
+                                      Icons.drag_handle_rounded,
+                                      color: ThemeTokens.of(context).textMuted,
+                                      size: 20,
+                                    ),
                                   ),
                                 ),
                               );
@@ -1399,24 +1447,22 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                     history.isEmpty
                         ? const _EmptyTab(
                             icon: Icons.history_rounded,
-                            label: 'No songs played yet')
+                            label: 'No songs played yet',
+                          )
                         : ListView.builder(
-                            padding:
-                                const EdgeInsets.only(bottom: 120),
+                            padding: const EdgeInsets.only(bottom: 120),
                             itemCount: history.length,
                             itemBuilder: (context, i) {
-                              final song =
-                                  history[history.length - 1 - i];
+                              final song = history[history.length - 1 - i];
                               return _HistoryTile(
-                                key: ValueKey(
-                                    'hist_${song.id}_$i'),
+                                key: ValueKey('hist_${song.id}_$i'),
                                 song: song,
                                 service: service,
                                 isNewest: i == 0,
                                 onTap: () {
-                                  final qIdx = playerState.queue
-                                      .lastIndexWhere(
-                                          (s) => s.id == song.id);
+                                  final qIdx = playerState.queue.lastIndexWhere(
+                                    (s) => s.id == song.id,
+                                  );
                                   if (qIdx >= 0) {
                                     notifier.jumpTo(qIdx);
                                   } else {
@@ -1446,8 +1492,7 @@ class _NowPlayingStrip extends StatelessWidget {
   final Song song;
   // FIX BUG-6: Use the concrete SubsonicService type instead of dynamic.
   final SubsonicService service;
-  const _NowPlayingStrip(
-      {required this.song, required this.service});
+  const _NowPlayingStrip({required this.song, required this.service});
 
   @override
   Widget build(BuildContext context) {
@@ -1455,8 +1500,7 @@ class _NowPlayingStrip extends StatelessWidget {
     final key = 'cover_${song.coverArt ?? song.id}';
     return Container(
       color: ThemeTokens.of(context).textPrimary.withOpacity(0.05),
-      padding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
           ClipRRect(
@@ -1468,12 +1512,15 @@ class _NowPlayingStrip extends StatelessWidget {
               height: 44,
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
-                  width: 44,
-                  height: 44,
-                  color: ThemeTokens.of(context).bgSurface,
-                  child: Icon(Icons.music_note_rounded,
-                      color: ThemeTokens.of(context).textMuted,
-                      size: 20)),
+                width: 44,
+                height: 44,
+                color: ThemeTokens.of(context).bgSurface,
+                child: Icon(
+                  Icons.music_note_rounded,
+                  color: ThemeTokens.of(context).textMuted,
+                  size: 20,
+                ),
+              ),
             ),
           ),
           const SizedBox(width: 12),
@@ -1481,19 +1528,26 @@ class _NowPlayingStrip extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: ThemeTokens.of(context).textPrimary,
-                        fontSize: 14,
-                        fontWeight: FontWeight.w600)),
+                Text(
+                  song.title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textPrimary,
+                    fontSize: 14,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
                 const SizedBox(height: 2),
-                Text(song.artist,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                        color: ThemeTokens.of(context).textSecondary, fontSize: 12)),
+                Text(
+                  song.artist,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
               ],
             ),
           ),
@@ -1547,10 +1601,8 @@ class _MiniSoundBarsState extends State<_MiniSoundBars>
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(3, (i) {
-              final t = (math.sin(
-                          _ctrl.value * math.pi * 2 + _phases[i]) +
-                      1) /
-                  2;
+              final t =
+                  (math.sin(_ctrl.value * math.pi * 2 + _phases[i]) + 1) / 2;
               return Container(
                 width: 2.5,
                 height: (3 + t * 11).toDouble(),
@@ -1595,19 +1647,20 @@ class _QueueTile extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
-          gradient: LinearGradient(colors: [
-            Colors.transparent,
-            Colors.redAccent.withOpacity(0.80),
-          ]),
+          gradient: LinearGradient(
+            colors: [Colors.transparent, Colors.redAccent.withOpacity(0.80)],
+          ),
         ),
-        child: Icon(Icons.remove_circle_outline_rounded,
-            color: ThemeTokens.of(context).textPrimary, size: 22),
+        child: Icon(
+          Icons.remove_circle_outline_rounded,
+          color: ThemeTokens.of(context).textPrimary,
+          size: 22,
+        ),
       ),
       onDismissed: (_) => onRemove(),
       child: ListTile(
         onTap: onTap,
-        contentPadding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
         leading: ClipRRect(
           borderRadius: BorderRadius.circular(5),
           child: CachedNetworkImage(
@@ -1617,26 +1670,36 @@ class _QueueTile extends StatelessWidget {
             height: 44,
             fit: BoxFit.cover,
             errorWidget: (_, __, ___) => Container(
-                width: 44,
-                height: 44,
-                color: ThemeTokens.of(context).bgSurface,
-                child: Icon(Icons.music_note_rounded,
-                    color: ThemeTokens.of(context).textMuted,
-                    size: 20)),
+              width: 44,
+              height: 44,
+              color: ThemeTokens.of(context).bgSurface,
+              child: Icon(
+                Icons.music_note_rounded,
+                color: ThemeTokens.of(context).textMuted,
+                size: 20,
+              ),
+            ),
           ),
         ),
-        title: Text(song.title,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style: TextStyle(
-                color: ThemeTokens.of(context).textPrimary,
-                fontSize: 14,
-                fontWeight: FontWeight.w500)),
-        subtitle: Text(song.artist,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            style:
-                TextStyle(color: ThemeTokens.of(context).textSecondary, fontSize: 12)),
+        title: Text(
+          song.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: ThemeTokens.of(context).textPrimary,
+            fontSize: 14,
+            fontWeight: FontWeight.w500,
+          ),
+        ),
+        subtitle: Text(
+          song.artist,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: TextStyle(
+            color: ThemeTokens.of(context).textSecondary,
+            fontSize: 12,
+          ),
+        ),
         trailing: dragHandle,
       ),
     );
@@ -1664,8 +1727,7 @@ class _HistoryTile extends StatelessWidget {
     final key = 'cover_${song.coverArt ?? song.id}';
     return ListTile(
       onTap: onTap,
-      contentPadding:
-          const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
       leading: Stack(
         children: [
           ClipRRect(
@@ -1677,12 +1739,15 @@ class _HistoryTile extends StatelessWidget {
               height: 44,
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
-                  width: 44,
-                  height: 44,
-                  color: ThemeTokens.of(context).bgSurface,
-                  child: Icon(Icons.music_note_rounded,
-                      color: ThemeTokens.of(context).textMuted,
-                      size: 20)),
+                width: 44,
+                height: 44,
+                color: ThemeTokens.of(context).bgSurface,
+                child: Icon(
+                  Icons.music_note_rounded,
+                  color: ThemeTokens.of(context).textMuted,
+                  size: 20,
+                ),
+              ),
             ),
           ),
           Positioned(
@@ -1694,45 +1759,61 @@ class _HistoryTile extends StatelessWidget {
               decoration: BoxDecoration(
                 color: ThemeTokens.of(context).bgOverlay.withOpacity(0.65),
                 borderRadius: const BorderRadius.only(
-                    topLeft: Radius.circular(4),
-                    bottomRight: Radius.circular(5)),
+                  topLeft: Radius.circular(4),
+                  bottomRight: Radius.circular(5),
+                ),
               ),
-              child: Icon(Icons.play_arrow_rounded,
-                  color: ThemeTokens.of(context).textSecondary, size: 11),
+              child: Icon(
+                Icons.play_arrow_rounded,
+                color: ThemeTokens.of(context).textSecondary,
+                size: 11,
+              ),
             ),
           ),
         ],
       ),
-      title: Text(song.title,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-              color: isNewest
-                  ? ThemeTokens.of(context).textPrimary
-                  : ThemeTokens.of(context).textPrimary.withOpacity(0.72),
-              fontSize: 14,
-              fontWeight:
-                  isNewest ? FontWeight.w600 : FontWeight.w400)),
-      subtitle: Text(song.artist,
-          maxLines: 1,
-          overflow: TextOverflow.ellipsis,
-          style: TextStyle(
-              color: isNewest
-                  ? ThemeTokens.of(context).textSecondary
-                  : ThemeTokens.of(context).textSecondary.withOpacity(0.7),
-              fontSize: 12)),
+      title: Text(
+        song.title,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: isNewest
+              ? ThemeTokens.of(context).textPrimary
+              : ThemeTokens.of(context).textPrimary.withOpacity(0.72),
+          fontSize: 14,
+          fontWeight: isNewest ? FontWeight.w600 : FontWeight.w400,
+        ),
+      ),
+      subtitle: Text(
+        song.artist,
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+        style: TextStyle(
+          color: isNewest
+              ? ThemeTokens.of(context).textSecondary
+              : ThemeTokens.of(context).textSecondary.withOpacity(0.7),
+          fontSize: 12,
+        ),
+      ),
       trailing: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          Icon(Icons.history_rounded,
-              color: ThemeTokens.of(context).textMuted.withOpacity(0.5), size: 15),
+          Icon(
+            Icons.history_rounded,
+            color: ThemeTokens.of(context).textMuted.withOpacity(0.5),
+            size: 15,
+          ),
           if (isNewest)
             Padding(
               padding: const EdgeInsets.only(top: 2),
-              child: Text('Last played',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textMuted, fontSize: 9)),
+              child: Text(
+                'Last played',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textMuted,
+                  fontSize: 9,
+                ),
+              ),
             ),
         ],
       ),
@@ -1751,12 +1832,19 @@ class _EmptyTab extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(icon,
-              color: ThemeTokens.of(context).textMuted.withOpacity(0.3), size: 54),
+          Icon(
+            icon,
+            color: ThemeTokens.of(context).textMuted.withOpacity(0.3),
+            size: 54,
+          ),
           const SizedBox(height: 14),
-          Text(label,
-              style: TextStyle(
-                  color: ThemeTokens.of(context).textMuted, fontSize: 15)),
+          Text(
+            label,
+            style: TextStyle(
+              color: ThemeTokens.of(context).textMuted,
+              fontSize: 15,
+            ),
+          ),
         ],
       ),
     );
