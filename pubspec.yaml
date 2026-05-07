@@ -61,6 +61,7 @@ dev_dependencies:
   custom_lint: ^0.7.6
   riverpod_lint: ^2.3.13
   drift_dev: ^2.22.1
+  sqlite3_flutter_libs: ^0.5.42
 
 flutter:
   uses-material-design: true

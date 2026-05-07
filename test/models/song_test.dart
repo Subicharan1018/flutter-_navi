@@ -239,4 +239,36 @@ void main() {
       expect(a.hashCode, b.hashCode);
     });
   });
+
+  // --------------------------------------------------------------------------
+  // Additional field parsing tests
+  // --------------------------------------------------------------------------
+
+  group('Song.fromJson — additional field parsing', () {
+    test('coverArt falls back to empty string when field absent', () {
+      final s = Song.fromJson({'id': 'myId', 'title': 'T'});
+      expect(s.coverArt, equals(''));
+    });
+
+    test('coverArt falls back to empty string when field is empty string', () {
+      final s = Song.fromJson({'id': 'myId', 'title': 'T', 'coverArt': ''});
+      expect(s.coverArt, equals(''));
+    });
+
+    test('numeric duration as string parses correctly', () {
+      final s = Song.fromJson({'id': '1', 'title': 'T', 'duration': '300'});
+      expect(s.duration, equals(300));
+    });
+
+    test('numeric track as string parses correctly', () {
+      final s = Song.fromJson({'id': '1', 'title': 'T', 'track': '5'});
+      expect(s.track, equals(5));
+    });
+
+    test('rating from userRating field takes priority', () {
+      final s = Song.fromJson(
+          {'id': '1', 'title': 'T', 'userRating': 5, 'rating': 2});
+      expect(s.rating, equals(5));
+    });
+  });
 }

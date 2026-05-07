@@ -3,9 +3,14 @@
 // Widget tests for the ReplayScreen and ReplayProvider data model.
 // Follows the flutter-add-widget-test skill workflow.
 
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+
+import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/providers/replay_provider.dart';
 import 'package:navivibe/screens/replay_screen.dart';
 import 'package:navivibe/core/theme.dart';
@@ -55,9 +60,12 @@ final _weeklyOverride = weeklyReplayProvider.overrideWith(
 Widget _buildTestApp({List<Override>? overrides}) {
   return ProviderScope(
     overrides: overrides ?? [_monthlyOverride, _weeklyOverride],
-    child: MaterialApp(
-      theme: AppTheme.darkTheme,
-      home: const ReplayScreen(),
+    child: ThemeTokens(
+      tokens: ThemeVariants.spotify(),
+      child: MaterialApp(
+        theme: AppTheme.darkTheme,
+        home: const ReplayScreen(),
+      ),
     ),
   );
 }
@@ -67,6 +75,15 @@ Widget _buildTestApp({List<Override>? overrides}) {
 // ---------------------------------------------------------------------------
 
 void main() {
+  setUpAll(() async {
+    final dir = Directory.systemTemp.createTempSync('hive_test_replay');
+    Hive.init(dir.path);
+    HiveBoxes.auth = await Hive.openBox('auth');
+    HiveBoxes.session = await Hive.openBox('session');
+    HiveBoxes.prefs = await Hive.openBox('prefs');
+    HiveBoxes.audio = await Hive.openBox('audio');
+  });
+
   // ── Step 1: ReplaySong.listeningLabel ─────────────────────────────────────
   group('ReplaySong.listeningLabel', () {
     test('formats hours and minutes correctly', () {
