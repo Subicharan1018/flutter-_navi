@@ -106,7 +106,7 @@ void main() {
         expect(s.album, 'Unknown Album'));
     test('genre defaults to empty string', () => expect(s.genre, ''));
     test('composer defaults to empty string', () => expect(s.composer, ''));
-    test('coverArt defaults to empty string', () => expect(s.coverArt, ''));
+    test('coverArt defaults to rawId', () => expect(s.coverArt, 'x'));
     test('duration defaults to 0', () => expect(s.duration, 0));
     test('track defaults to 0', () => expect(s.track, 0));
     test('year defaults to 0', () => expect(s.year, 0));
@@ -247,12 +247,12 @@ void main() {
   group('Song.fromJson — additional field parsing', () {
     test('coverArt falls back to empty string when field absent', () {
       final s = Song.fromJson({'id': 'myId', 'title': 'T'});
-      expect(s.coverArt, equals(''));
+      expect(s.coverArt, equals('myId'));
     });
 
     test('coverArt falls back to empty string when field is empty string', () {
       final s = Song.fromJson({'id': 'myId', 'title': 'T', 'coverArt': ''});
-      expect(s.coverArt, equals(''));
+      expect(s.coverArt, equals('myId'));
     });
 
     test('numeric duration as string parses correctly', () {

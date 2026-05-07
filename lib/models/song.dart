@@ -15,9 +15,9 @@ class Song {
   final DateTime? created;
 
   // Audio quality metadata — reported directly by the Subsonic server.
-  final int bitRate; // kbps, 0 = unknown
+  final int bitRate;        // kbps, 0 = unknown
   final String contentType; // e.g. 'audio/flac', 'audio/mpeg'
-  final String suffix; // e.g. 'flac', 'mp3', 'opus'
+  final String suffix;      // e.g. 'flac', 'mp3', 'opus'
 
   // Local weight for smart shuffle algorithms — immutable, updated via copyWith.
   final double dynamicWeight;
@@ -46,42 +46,27 @@ class Song {
   factory Song.fromJson(Map<String, dynamic> json) {
     final rawId = json['id']?.toString() ?? '';
     final rawCover = json['coverArt']?.toString() ?? '';
-
+    
     return Song(
       id: rawId,
       title: json['title']?.toString() ?? 'Unknown Title',
       artist: json['artist']?.toString() ?? 'Unknown Artist',
       album: json['album']?.toString() ?? 'Unknown Album',
       genre: json['genre']?.toString() ?? '',
-      composer:
-          json['displayComposer']?.toString() ??
-          json['composer']?.toString() ??
-          '',
-      coverArt: rawCover.isNotEmpty ? rawCover : '',
-      duration: json['duration'] is int
-          ? json['duration']
-          : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
-      track: json['track'] is int
-          ? json['track']
-          : int.tryParse(json['track']?.toString() ?? '') ?? 0,
-      year: json['year'] is int
-          ? json['year']
-          : int.tryParse(json['year']?.toString() ?? '') ?? 0,
+      composer: json['displayComposer']?.toString() ?? json['composer']?.toString() ?? '',
+      coverArt: rawCover.isNotEmpty ? rawCover : rawId,
+      duration: json['duration'] is int ? json['duration'] : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
+      track: json['track'] is int ? json['track'] : int.tryParse(json['track']?.toString() ?? '') ?? 0,
+      year: json['year'] is int ? json['year'] : int.tryParse(json['year']?.toString() ?? '') ?? 0,
       // 'starred' in Subsonic JSON is a timestamp string when starred, absent when not
       starred: json['starred'] != null,
-      playCount: json['playCount'] is int
-          ? json['playCount']
-          : int.tryParse(json['playCount']?.toString() ?? '') ?? 0,
+      playCount: json['playCount'] is int ? json['playCount'] : int.tryParse(json['playCount']?.toString() ?? '') ?? 0,
       // Subsonic 'userRating' field (1–5)
-      rating: json['userRating'] is int
-          ? json['userRating']
-          : (json['rating'] is int ? json['rating'] : 0),
+      rating: json['userRating'] is int ? json['userRating'] : (json['rating'] is int ? json['rating'] : 0),
       created: json['created'] != null
           ? DateTime.tryParse(json['created'].toString())
           : null,
-      bitRate: json['bitRate'] is int
-          ? json['bitRate']
-          : int.tryParse(json['bitRate']?.toString() ?? '') ?? 0,
+      bitRate: json['bitRate'] is int ? json['bitRate'] : int.tryParse(json['bitRate']?.toString() ?? '') ?? 0,
       contentType: json['contentType']?.toString() ?? '',
       suffix: json['suffix']?.toString() ?? '',
     );
@@ -177,22 +162,7 @@ class Song {
 
   @override
   int get hashCode => Object.hash(
-    id,
-    title,
-    artist,
-    album,
-    genre,
-    composer,
-    coverArt,
-    duration,
-    track,
-    year,
-    starred,
-    playCount,
-    rating,
-    created,
-    bitRate,
-    contentType,
-    suffix,
-  );
-}
+      id, title, artist, album, genre, composer,
+      coverArt, duration, track, year, starred,
+      playCount, rating, created, bitRate, contentType, suffix);
+}

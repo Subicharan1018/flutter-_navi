@@ -841,57 +841,61 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         ],
                       ),
                     ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 28, vertical: 10),
-                      child: RepaintBoundary(
-                        child: AnimatedScale(
-                          scale: playerState.isPlaying ? 1.0 : 0.93,
-                          duration: const Duration(milliseconds: 450),
-                          curve: Curves.easeInOutCubic,
-                          child: AspectRatio(
-                            aspectRatio: 1,
-                            child: Container(
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(18),
-                                boxShadow: [
-                                  BoxShadow(
-                                    color: ThemeTokens.of(context).bgBase.withOpacity(0.70),
-                                    blurRadius: 44,
-                                    spreadRadius: 4,
-                                    offset: const Offset(0, 18),
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 28, vertical: 10),
+                        child: RepaintBoundary(
+                          child: AnimatedScale(
+                            scale: playerState.isPlaying ? 1.0 : 0.93,
+                            duration: const Duration(milliseconds: 450),
+                            curve: Curves.easeInOutCubic,
+                            child: Center(
+                              child: AspectRatio(
+                                aspectRatio: 1,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: ThemeTokens.of(context).bgBase.withOpacity(0.70),
+                                        blurRadius: 44,
+                                        spreadRadius: 4,
+                                        offset: const Offset(0, 18),
+                                      ),
+                                      if (_blobColors.length > 1)
+                                        BoxShadow(
+                                          color: _blobColors[1]
+                                              .withOpacity(0.35),
+                                          blurRadius: 60,
+                                          offset: const Offset(0, 10),
+                                        ),
+                                    ],
                                   ),
-                                  if (_blobColors.length > 1)
-                                    BoxShadow(
-                                      color: _blobColors[1]
-                                          .withOpacity(0.35),
-                                      blurRadius: 60,
-                                      offset: const Offset(0, 10),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: CachedNetworkImage(
+                                      imageUrl: imageUrl,
+                                      cacheKey: cacheKey,
+                                      fit: BoxFit.cover,
+                                      placeholder: (_, __) => Container(
+                                          color:
+                                              ThemeTokens.of(context).bgSurface,
+                                          child: Icon(
+                                              Icons.music_note_rounded,
+                                              size: 80,
+                                              color: ThemeTokens.of(context)
+                                                  .textMuted)),
+                                      errorWidget: (_, __, ___) => Container(
+                                          color:
+                                              ThemeTokens.of(context).bgSurface,
+                                          child: Icon(
+                                              Icons.music_note_rounded,
+                                              size: 80,
+                                              color: ThemeTokens.of(context)
+                                                  .textMuted)),
                                     ),
-                                ],
-                              ),
-                              child: ClipRRect(
-                                borderRadius: BorderRadius.circular(18),
-                                child: CachedNetworkImage(
-                                  imageUrl: imageUrl,
-                                  cacheKey: cacheKey,
-                                  fit: BoxFit.cover,
-                                  placeholder: (_, __) => Container(
-                                      color:
-                                          ThemeTokens.of(context).bgSurface,
-                                      child: Icon(
-                                          Icons.music_note_rounded,
-                                          size: 80,
-                                          color: ThemeTokens.of(context)
-                                              .textMuted)),
-                                  errorWidget: (_, __, ___) => Container(
-                                      color:
-                                          ThemeTokens.of(context).bgSurface,
-                                      child: Icon(
-                                          Icons.music_note_rounded,
-                                          size: 80,
-                                          color: ThemeTokens.of(context)
-                                              .textMuted)),
+                                  ),
                                 ),
                               ),
                             ),
