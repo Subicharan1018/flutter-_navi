@@ -7,6 +7,8 @@ import 'subsonic_service.dart';
 import 'replay_gain_service.dart';
 import '../providers/settings_provider.dart';
 import '../offline_service.dart';
+import 'dart:convert';
+import 'package:http/http.dart' as http;
 
 // ---------------------------------------------------------------------------
 // ISOLATE RULES (apply to every top-level worker below)
@@ -769,7 +771,61 @@ class AudioHandler {
   }
 
   // ---------------------------------------------------------------------------
-  // 7. Unshuffle (restore original queue)
+  // 7. Smart Local Model Shuffle
+  // ---------------------------------------------------------------------------
+  Future<void> smartLocalShuffle() async {
+    if (_currentQueue.isEmpty) return;
+    debugPrint('🚀 [SHUFFLE] Smart Local Model Shuffle');
+
+    final currentIndex = player.currentIndex ?? 0;
+    final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
+    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
+    final future = _currentQueue.sublist(safeIndex + 1);
+    if (future.isEmpty) return;
+
+    final currentSong = _currentQueue[safeIndex];
+
+    try {
+      final count = future.length;
+      final uri = Uri.parse('http://100.99.105.51:5000/next').replace(queryParameters: {
+        'current': currentSong.title,
+        'artist': currentSong.artist,
+        'count': count.toString(),
+      });
+      final response = await http.get(uri);
+      
+      if (response.statusCode == 200) {
+        final List<dynamic> data = jsonDecode(response.body);
+        final List<String> serverSongKeys = data.map((e) => e['song_key'].toString()).toList();
+        
+        final futureMap = {for (var song in future) song.title.toLowerCase().trim(): song};
+        List<Song> shuffled = [];
+        
+        for (var key in serverSongKeys) {
+          if (futureMap.containsKey(key)) {
+            shuffled.add(futureMap[key]!);
+            futureMap.remove(key);
+          }
+        }
+        
+        // Add remaining songs from the pool that the server didn't return
+        final remaining = futureMap.values.toList()..shuffle();
+        shuffled.addAll(remaining);
+        
+        _currentQueue = [...pastAndPresent, ...shuffled];
+        await _updateQueueAfterAnchor(safeIndex);
+        debugPrint('✅ [SHUFFLE] Smart Local Model result: ${shuffled.length} songs');
+      } else {
+        throw Exception('Server returned ${response.statusCode}');
+      }
+    } catch (e) {
+      debugPrint('❌ [SHUFFLE] Smart Local Model Shuffle failed: $e, falling back to standard');
+      await standardShuffle();
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // 8. Unshuffle (restore original queue)
   // ---------------------------------------------------------------------------
   Future<void> unshuffle() async {
     if (_currentQueue.isEmpty || _unshuffledQueue.isEmpty) return;
@@ -798,6 +854,8 @@ class AudioHandler {
     ShuffleAlgorithm algorithm,
     ShufflePreference preference, {
     bool albumShuffleTracks = false,
+    Song? currentSong,
+    String? contextName,
   }) async {
     switch (algorithm) {
       case ShuffleAlgorithm.standard:
@@ -831,6 +889,45 @@ class AudioHandler {
           'songs': pool,
           'recentIds': _recentlyPlayedIds.toList(),
         });
+
+      case ShuffleAlgorithm.smartLocal:
+        try {
+          final queryParams = <String, String>{
+            'count': pool.length.toString(),
+          };
+          if (currentSong != null) {
+            queryParams['current'] = currentSong.title;
+            queryParams['artist'] = currentSong.artist;
+          }
+          if (contextName != null) {
+            queryParams['playlist'] = contextName;
+          }
+          final uri = Uri.parse('http://100.99.105.51:5000/next').replace(queryParameters: queryParams);
+          final response = await http.get(uri);
+          
+          if (response.statusCode == 200) {
+            final List<dynamic> data = jsonDecode(response.body);
+            final List<String> serverSongKeys = data.map((e) => e['song_key'].toString()).toList();
+            
+            final poolMap = {for (var song in pool) song.title.toLowerCase().trim(): song};
+            List<Song> shuffled = [];
+            
+            for (var key in serverSongKeys) {
+              if (poolMap.containsKey(key)) {
+                shuffled.add(poolMap[key]!);
+                poolMap.remove(key);
+              }
+            }
+            
+            final remaining = poolMap.values.toList()..shuffle();
+            shuffled.addAll(remaining);
+            return shuffled;
+          } else {
+            return compute(_standardShuffleIsolate, pool);
+          }
+        } catch (e) {
+          return compute(_standardShuffleIsolate, pool);
+        }
     }
   }
 

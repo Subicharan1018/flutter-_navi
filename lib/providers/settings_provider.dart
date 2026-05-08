@@ -43,6 +43,9 @@ enum ShuffleAlgorithm {
   /// recently in this session receive a 10× weight penalty, preventing
   /// repeats during long listening sessions.
   recencyDampened,
+
+  /// Smart Local Model Shuffle: Queries a local Flask server for smart predictions.
+  smartLocal,
 }
 
 // ---------------------------------------------------------------------------
@@ -77,6 +80,7 @@ class SettingsState {
 
   /// When true a live mesh-gradient shader renders behind the main scaffold.
   final bool meshGradientEnabled;
+  final bool allowHttp;
 
   const SettingsState({
     required this.serverUrl,
@@ -93,6 +97,7 @@ class SettingsState {
     this.analyticsLastUpload,
     this.themeMode = AppThemeMode.spotify,
     this.meshGradientEnabled = false,
+    this.allowHttp = false,
   });
 
   SettingsState copyWith({
@@ -110,6 +115,7 @@ class SettingsState {
     String? analyticsLastUpload,
     AppThemeMode? themeMode,
     bool? meshGradientEnabled,
+    bool? allowHttp,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -128,6 +134,7 @@ class SettingsState {
       analyticsLastUpload: analyticsLastUpload ?? this.analyticsLastUpload,
       themeMode: themeMode ?? this.themeMode,
       meshGradientEnabled: meshGradientEnabled ?? this.meshGradientEnabled,
+      allowHttp: allowHttp ?? this.allowHttp,
     );
   }
 }
@@ -207,6 +214,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
               ? p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false)
                   as bool
               : false,
+      allowHttp: p.get(HiveBoxes.kAllowHttp, defaultValue: false) == true,
     );
   }
 
@@ -276,6 +284,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setMeshGradientEnabled(bool enabled) async {
     await HiveBoxes.prefs.put(HiveBoxes.kMeshGradientEnabled, enabled);
     state = state.copyWith(meshGradientEnabled: enabled);
+  }
+
+  Future<void> setAllowHttp(bool allow) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kAllowHttp, allow);
+    state = state.copyWith(allowHttp: allow);
   }
 }
 

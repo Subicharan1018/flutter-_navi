@@ -2,8 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
+import '../models/download_state.dart';
 import '../providers/settings_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/download_provider.dart';
 import '../core/theme.dart';
 import 'options_menu.dart';
 
@@ -123,7 +125,11 @@ class SongTile extends ConsumerWidget {
                   ],
                 ),
               ),
-              SizedBox(width: 8),
+
+              // Download badge — minimal-rebuild via select()
+              _DownloadBadge(songId: song.id),
+
+              SizedBox(width: 4),
 
               // Options
               IconButton(
@@ -149,6 +155,62 @@ class SongTile extends ConsumerWidget {
         ),
       ),
     ));
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Per-song download badge — 14×14 status indicator.
+// Uses select() so only this widget rebuilds when ITS song's status changes,
+// not the entire tile list.
+// ---------------------------------------------------------------------------
+class _DownloadBadge extends ConsumerWidget {
+  final String songId;
+  const _DownloadBadge({required this.songId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final status = ref.watch(
+      downloadStateProvider.select(
+        (m) => m[songId]?.status ?? SongDownloadStatus.notDownloaded,
+      ),
+    );
+    final progress = ref.watch(
+      downloadStateProvider.select((m) => m[songId]?.progress ?? 0.0),
+    );
+    final tokens = ThemeTokens.of(context);
+
+    switch (status) {
+      case SongDownloadStatus.notDownloaded:
+        return const SizedBox.shrink();
+
+      case SongDownloadStatus.queued:
+      case SongDownloadStatus.downloading:
+        return SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(
+            value: status == SongDownloadStatus.downloading && progress > 0
+                ? progress
+                : null,
+            strokeWidth: 1.5,
+            color: tokens.accent,
+          ),
+        );
+
+      case SongDownloadStatus.downloaded:
+        return Icon(
+          Icons.arrow_circle_down_rounded,
+          size: 14,
+          color: tokens.accent,
+        );
+
+      case SongDownloadStatus.failed:
+        return Icon(
+          Icons.error_outline_rounded,
+          size: 14,
+          color: Colors.redAccent,
+        );
+    }
   }
 }
 

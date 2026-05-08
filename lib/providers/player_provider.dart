@@ -400,7 +400,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  Future<void> playPlaylist(List<Song> songs, {bool shuffle = false}) async {
+  Future<void> playPlaylist(List<Song> songs, {bool shuffle = false, String? playlistName}) async {
     if (songs.isEmpty) return;
     await _queueOpLock?.future;
     final completer = Completer<void>();
@@ -428,7 +428,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final pool = List<Song>.from(songs)..removeAt(startIndex);
         final settings = _ref.read(settingsProvider);
         final shuffled = await _audioHandler.computeShuffle(
-            pool, settings.shuffleAlgorithm, settings.shufflePreference);
+            pool, settings.shuffleAlgorithm, settings.shufflePreference,
+            currentSong: currentSong, contextName: playlistName);
         if (_queueOpLock != completer) return;
         final finalQueue = [currentSong, ...shuffled];
         _suppressStreamEvents = true;
@@ -670,6 +671,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           break;
         case ShuffleAlgorithm.recencyDampened:
           await _audioHandler.recencyDampenedWeightedShuffle();
+          break;
+        case ShuffleAlgorithm.smartLocal:
+          await _audioHandler.smartLocalShuffle();
           break;
       }
       state = state.copyWith(

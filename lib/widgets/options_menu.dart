@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
+import '../models/download_state.dart';
 import '../providers/player_provider.dart';
+import '../providers/download_provider.dart';
 import '../core/theme.dart';
-import '../offline_service.dart';
 import '../providers/settings_provider.dart';
 import 'add_to_playlist_dialog.dart';
 
@@ -136,50 +137,98 @@ class OptionsMenu extends ConsumerWidget {
             ),
 
             // ----------------------------------------------------------------
-            // Download for Offline Playback
+            // Download for Offline Playback — driven by downloadStateProvider
             // ----------------------------------------------------------------
-            StatefulBuilder(
-              builder: (context, setState) {
-                final isDownloaded = OfflineService().isSongDownloaded(song.id);
+            Consumer(
+              builder: (context, ref, _) {
+                final dlState = ref.watch(
+                  downloadStateProvider.select((m) => m[song.id]),
+                );
+                final status =
+                    dlState?.status ?? SongDownloadStatus.notDownloaded;
+                final progress = dlState?.progress ?? 0.0;
+                final tokens = ThemeTokens.of(context);
+
+                Widget leadingWidget;
+                String titleText;
+                VoidCallback? onTapAction;
+
+                switch (status) {
+                  case SongDownloadStatus.notDownloaded:
+                    leadingWidget = Icon(Icons.download_rounded,
+                        color: tokens.textPrimary, size: 24);
+                    titleText = 'Download';
+                    onTapAction = () {
+                      // Fire-and-forget; menu stays open so user sees progress.
+                      ref
+                          .read(downloadStateProvider.notifier)
+                          .downloadSong(song);
+                    };
+
+                  case SongDownloadStatus.queued:
+                    leadingWidget = Icon(Icons.hourglass_top_rounded,
+                        color: tokens.textMuted, size: 24);
+                    titleText = 'Queued…';
+                    onTapAction = null;
+
+                  case SongDownloadStatus.downloading:
+                    leadingWidget = SizedBox(
+                      width: 24,
+                      height: 24,
+                      child: CircularProgressIndicator(
+                        value: progress > 0 ? progress : null,
+                        strokeWidth: 2.5,
+                        color: tokens.accent,
+                      ),
+                    );
+                    final pct = (progress * 100).toStringAsFixed(0);
+                    titleText = 'Downloading… $pct%';
+                    onTapAction = null;
+
+                  case SongDownloadStatus.downloaded:
+                    leadingWidget = Icon(Icons.download_done_rounded,
+                        color: tokens.accent, size: 24);
+                    titleText = 'Downloaded';
+                    // Tap to remove
+                    onTapAction = () {
+                      ref
+                          .read(downloadStateProvider.notifier)
+                          .deleteSong(song.id);
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(content: Text('Download removed')),
+                        );
+                      }
+                    };
+
+                  case SongDownloadStatus.failed:
+                    leadingWidget = Icon(Icons.error_outline_rounded,
+                        color: Colors.redAccent, size: 24);
+                    titleText = 'Failed — tap to retry';
+                    onTapAction = () {
+                      ref
+                          .read(downloadStateProvider.notifier)
+                          .downloadSong(song);
+                    };
+                }
+
                 return ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                  leading: Icon(
-                      isDownloaded
-                          ? Icons.download_done_rounded
-                          : Icons.download_rounded,
-                      color: ThemeTokens.of(context).textPrimary,
-                      size: 24),
-                  title: Text(isDownloaded ? 'Remove Download' : 'Download',
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textPrimary,
-                          fontSize: 15,
-                          fontWeight: FontWeight.w500)),
-                  onTap: () async {
-                    if (isDownloaded) {
-                      await OfflineService().deleteSong(song.id);
-                      setState(() {});
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Removed download')),
-                        );
-                      }
-                    } else {
-                      final service = ref.read(subsonicServiceProvider);
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Downloading "${song.title}"...')),
-                      );
-                      final success = await OfflineService().downloadSong(song, service);
-                      setState(() {});
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(
-                            content: Text(success ? 'Downloaded successfully' : 'Download failed'),
-                          ),
-                        );
-                      }
-                    }
-                  },
+                  leading: leadingWidget,
+                  title: Text(
+                    titleText,
+                    style: TextStyle(
+                      color: status == SongDownloadStatus.downloaded
+                          ? tokens.accent
+                          : status == SongDownloadStatus.failed
+                              ? Colors.redAccent
+                              : tokens.textPrimary,
+                      fontSize: 15,
+                      fontWeight: FontWeight.w500,
+                    ),
+                  ),
+                  onTap: onTapAction,
                 );
               },
             ),

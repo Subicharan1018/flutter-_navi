@@ -85,11 +85,25 @@ class SubsonicService {
     _coverArtToken = _generateToken(_coverArtSalt);
   }
 
-  static String _normalizeServerUrl(String url) {
-    final trimmed = url.trim();
-    if (trimmed.isEmpty) return Constants.defaultServerUrl;
-    
-    final uri = Uri.parse(trimmed);
+  static String _normalizeServerUrl(String raw) {
+    var url = raw.trim();
+    if (url.isEmpty) return Constants.defaultServerUrl;
+
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      url = 'https://$url';
+    }
+
+    final uri = Uri.parse(url);
+
+    if (uri.scheme == 'http') {
+      final allowHttp = HiveBoxes.prefs.get(HiveBoxes.kAllowHttp) == true;
+      if (!allowHttp) {
+        throw const NetworkException(
+          'Insecure connection rejected. NaviVibe requires HTTPS. Enable "Allow HTTP" in Advanced Settings to override.',
+        );
+      }
+    }
+
     if (uri.path.isEmpty || uri.path == '/') {
       return uri.replace(path: '/rest').toString();
     }
@@ -242,7 +256,7 @@ class SubsonicService {
   // Song library
   // ---------------------------------------------------------------------------
 
-  Future<List<Song>> getAllSongs({int size = 5000}) async {
+  Future<List<Song>> getAllSongs({int size = 5000, int offset = 0}) async {
     // BUG-29: Song.fromJson mapping moved to background isolate.
     // BUG-31: in-memory cache removed — Riverpod allSongsProvider.keepAlive()
     //         is the authoritative cache.
@@ -250,6 +264,7 @@ class SubsonicService {
       final res = await _get('search3.view', {
         'query': '*',
         'songCount': size.toString(),
+        'songOffset': offset.toString(),
       });
       final searchResult =
           res['searchResult3'] as Map<String, dynamic>? ?? {};
@@ -380,7 +395,7 @@ class SubsonicService {
   Future<List<Song>> getSongs(List<String> ids) async {
     if (ids.isEmpty) return [];
     // Fetch all concurrently. Subsonic doesn't have a batch getSong.
-    final results = await Future.wait(ids.map((id) => getSong(id).catchError((e) {
+    final results = await Future.wait(ids.map((id) => getSong(id).then((s) => s as Song?).catchError((e) {
       debugPrint('Failed to fetch song $id: $e');
       return null;
     })));

@@ -6,9 +6,11 @@ import 'package:palette_generator/palette_generator.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
+import '../models/download_state.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../providers/library_provider.dart';
+import '../providers/download_provider.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/options_menu.dart';
@@ -169,7 +171,7 @@ class _PlaylistDetailsScreenState
 
   void _playAll({bool shuffle = false}) async {
     if (_songs.isEmpty) return;
-    await ref.read(playerProvider.notifier).playPlaylist(_songs, shuffle: shuffle);
+    await ref.read(playerProvider.notifier).playPlaylist(_songs, shuffle: shuffle, playlistName: widget.playlist.name);
   }
 
   Future<void> _deleteSong(int filteredIndex) async {
@@ -303,8 +305,12 @@ class _PlaylistDetailsScreenState
                           vibrantColor: vibrantColor,
                           songCount: _songs.length,
                           totalDuration: _formatDuration(_totalDurationSeconds),
+                          songs: _songs,
                           onPlayAll: () => _playAll(),
                           onShuffleAll: () => _playAll(shuffle: true),
+                          onDownloadAll: () => ref
+                              .read(downloadStateProvider.notifier)
+                              .downloadPlaylist(_songs),
                         ),
                 ),
                 actions: [
@@ -752,15 +758,17 @@ class _LoadingHeader extends StatelessWidget {
 // ---------------------------------------------------------------------------
 // Fully expanded header (shown after songs are loaded)
 // ---------------------------------------------------------------------------
-class _ExpandedHeader extends StatelessWidget {
+class _ExpandedHeader extends ConsumerWidget {
   final Playlist playlist;
   final String coverImageUrl;
   final String coverCacheKey;
   final Color vibrantColor;
   final int songCount;
   final String totalDuration;
+  final List<Song> songs;
   final VoidCallback onPlayAll;
   final VoidCallback onShuffleAll;
+  final VoidCallback onDownloadAll;
 
   const _ExpandedHeader({
     required this.playlist,
@@ -769,15 +777,35 @@ class _ExpandedHeader extends StatelessWidget {
     required this.vibrantColor,
     required this.songCount,
     required this.totalDuration,
+    required this.songs,
     required this.onPlayAll,
     required this.onShuffleAll,
+    required this.onDownloadAll,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final double topPadding =
         MediaQuery.of(context).padding.top + kToolbarHeight;
     final tokens = ThemeTokens.of(context);
+
+    // ── Download button state (derived from per-song statuses)
+    final dlMap = ref.watch(downloadStateProvider);
+    final int totalSongs = songs.length;
+    final int downloadedCount = songs
+        .where((s) =>
+            dlMap[s.id]?.status == SongDownloadStatus.downloaded)
+        .length;
+    final int activeCount = songs
+        .where((s) =>
+            dlMap[s.id]?.status == SongDownloadStatus.queued ||
+            dlMap[s.id]?.status == SongDownloadStatus.downloading)
+        .length;
+    final bool allDownloaded =
+        totalSongs > 0 && downloadedCount == totalSongs;
+    final bool isActive = activeCount > 0;
+    final double dlFraction =
+        totalSongs > 0 ? (downloadedCount + activeCount / 2) / totalSongs : 0;
 
     return Stack(
       fit: StackFit.expand,
@@ -903,7 +931,7 @@ class _ExpandedHeader extends StatelessWidget {
               ),
               SizedBox(height: 20),
 
-              // Play / Shuffle buttons
+              // Play / Shuffle / Download buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
@@ -927,13 +955,15 @@ class _ExpandedHeader extends StatelessWidget {
                   ),
                   SizedBox(width: 20),
 
-                  // Queue
-                  _HeaderButton(
-                    size: 52,
-                    onTap: () {},
-                    filled: false,
-                    child: Icon(Icons.queue_music_rounded,
-                        color: tokens.textPrimary, size: 22),
+                  // Download all
+                  _DownloadAllButton(
+                    tokens: tokens,
+                    isActive: isActive,
+                    allDownloaded: allDownloaded,
+                    downloadedCount: downloadedCount,
+                    totalSongs: totalSongs,
+                    dlFraction: dlFraction,
+                    onTap: allDownloaded || isActive ? null : onDownloadAll,
                   ),
                 ],
               ),
@@ -1117,6 +1147,99 @@ class _AddSongsRow extends StatelessWidget {
               fontWeight: FontWeight.w500,
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Bulk-download button for the playlist header
+// ---------------------------------------------------------------------------
+class _DownloadAllButton extends StatelessWidget {
+  final AppThemeTokens tokens;
+  final bool isActive;
+  final bool allDownloaded;
+  final int downloadedCount;
+  final int totalSongs;
+  final double dlFraction;
+  final VoidCallback? onTap;
+
+  const _DownloadAllButton({
+    required this.tokens,
+    required this.isActive,
+    required this.allDownloaded,
+    required this.downloadedCount,
+    required this.totalSongs,
+    required this.dlFraction,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onTap,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              shape: BoxShape.circle,
+              color: allDownloaded
+                  ? tokens.accent.withOpacity(0.15)
+                  : tokens.textPrimary.withOpacity(0.10),
+              border: Border.all(
+                color: allDownloaded
+                    ? tokens.accent.withOpacity(0.55)
+                    : tokens.textPrimary.withOpacity(0.55),
+                width: 1.5,
+              ),
+            ),
+            child: isActive
+                ? Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      // Progress ring
+                      Padding(
+                        padding: const EdgeInsets.all(6),
+                        child: CircularProgressIndicator(
+                          value: dlFraction > 0 ? dlFraction : null,
+                          strokeWidth: 2.5,
+                          color: tokens.accent,
+                        ),
+                      ),
+                      // X/Y count in centre
+                      Text(
+                        '$downloadedCount',
+                        style: TextStyle(
+                          color: tokens.textPrimary,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ],
+                  )
+                : Icon(
+                    allDownloaded
+                        ? Icons.cloud_done_rounded
+                        : Icons.cloud_download_rounded,
+                    color: allDownloaded ? tokens.accent : tokens.textPrimary,
+                    size: 22,
+                  ),
+          ),
+          // "X/Y" label shown only while active
+          if (isActive) ...[
+            SizedBox(height: 4),
+            Text(
+              '$downloadedCount/$totalSongs',
+              style: TextStyle(
+                color: tokens.textSecondary,
+                fontSize: 10,
+              ),
+            ),
+          ],
         ],
       ),
     );

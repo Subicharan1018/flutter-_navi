@@ -127,13 +127,27 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   final db = ref.watch(appDatabaseProvider);
   final service = ref.watch(subsonicServiceProvider);
 
+  Future<List<Song>> fetchAllSongsPaginated() async {
+    final allSongs = <Song>[];
+    const chunkSize = 500;
+    int offset = 0;
+    while (true) {
+      final chunk = await service.getAllSongs(size: chunkSize, offset: offset);
+      if (chunk.isEmpty) break;
+      allSongs.addAll(chunk);
+      if (chunk.length < chunkSize) break;
+      offset += chunkSize;
+    }
+    return allSongs;
+  }
+
   final cached = await _getCachedSongs(db);
   if (cached.isNotEmpty) {
     // RC-5 FIX: After background refresh, invalidate this provider so the
     // UI gets fresh data. Previously the fire-and-forget .then() updated the
     // SQLite cache but never re-emitted to Riverpod, leaving stale data
     // visible for the entire session.
-    service.getAllSongs(size: 5000).then((fresh) async {
+    fetchAllSongsPaginated().then((fresh) async {
       final sorted = await compute(_sortSongsByCreated, fresh);
       await _cacheSongs(db, sorted);
       // Trigger a provider re-fetch with the fresh cached data.
@@ -144,7 +158,7 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
     return compute(_sortSongsByCreated, cached);
   }
 
-  final songs = await service.getAllSongs(size: 5000);
+  final songs = await fetchAllSongsPaginated();
   final sorted = await compute(_sortSongsByCreated, songs);
   await _cacheSongs(db, sorted);
   return sorted;

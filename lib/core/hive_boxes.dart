@@ -86,6 +86,7 @@ class HiveBoxes {
   static const kBpmCacheEnabled = 'cache_bpm_enabled';
   static const kSearchHistory = 'search_history';
   static const kRecommendationsEnabled = 'recommendations_enabled';
+  static const kAllowHttp = 'allow_http';
 
   // ---------------------------------------------------------------------------
   // Audio keys
@@ -114,48 +115,52 @@ class HiveBoxes {
       final sp = await SharedPreferences.getInstance();
 
       // Auth
-      _migrateString(sp, 'serverUrl', auth, kServerUrl);
-      _migrateString(sp, 'username', auth, kUsername);
-      _migrateString(sp, 'password', auth, kPassword);
+      await _migrateString(sp, 'serverUrl', auth, kServerUrl);
+      await _migrateString(sp, 'username', auth, kUsername);
+      await _migrateString(sp, 'password', auth, kPassword);
 
       // Prefs
-      _migrateString(sp, 'shuffleAlgorithm', prefs, kShuffleAlgorithm);
-      _migrateString(sp, 'shufflePreference', prefs, kShufflePreference);
-      _migrateString(sp, 'uploadApiUrl', prefs, kUploadApiUrl);
-      _migrateString(sp, 'uploadDirectory', prefs, kUploadDirectory);
-      _migrateBool(sp, 'dataCollectionEnabled', prefs, kDataCollectionEnabled);
-      _migrateString(sp, 'analytics_upload_schedule', prefs, kAnalyticsUploadSchedule);
-      _migrateString(sp, 'analytics_last_upload', prefs, kAnalyticsLastUpload);
-      _migrateBool(sp, 'cache_images_enabled', prefs, kImageCacheEnabled);
-      _migrateBool(sp, 'cache_music_enabled', prefs, kMusicCacheEnabled);
-      _migrateBool(sp, 'cache_bpm_enabled', prefs, kBpmCacheEnabled);
-      _migrateBool(sp, 'recommendations_enabled', prefs, kRecommendationsEnabled);
+      await _migrateString(sp, 'shuffleAlgorithm', prefs, kShuffleAlgorithm);
+      await _migrateString(sp, 'shufflePreference', prefs, kShufflePreference);
+      await _migrateString(sp, 'uploadApiUrl', prefs, kUploadApiUrl);
+      await _migrateString(sp, 'uploadDirectory', prefs, kUploadDirectory);
+      await _migrateBool(sp, 'dataCollectionEnabled', prefs, kDataCollectionEnabled);
+      await _migrateString(sp, 'analytics_upload_schedule', prefs, kAnalyticsUploadSchedule);
+      await _migrateString(sp, 'analytics_last_upload', prefs, kAnalyticsLastUpload);
+      await _migrateBool(sp, 'cache_images_enabled', prefs, kImageCacheEnabled);
+      await _migrateBool(sp, 'cache_music_enabled', prefs, kMusicCacheEnabled);
+      await _migrateBool(sp, 'cache_bpm_enabled', prefs, kBpmCacheEnabled);
+      await _migrateBool(sp, 'recommendations_enabled', prefs, kRecommendationsEnabled);
 
       // Audio — transcoding
-      _migrateBool(sp, 'transcoding_enabled', audio, kTranscodingEnabled);
-      _migrateBool(sp, 'transcoding_smart_enabled', audio, kSmartSwitchEnabled);
-      _migrateInt(sp, 'transcoding_wifi_bitrate', audio, kWifiBitrate);
-      _migrateInt(sp, 'transcoding_mobile_bitrate', audio, kMobileBitrate);
-      _migrateString(sp, 'transcoding_format', audio, kTranscodeFormat);
-      _migrateInt(sp, 'transcoding_connection_type', audio, kConnectionType);
+      await _migrateBool(sp, 'transcoding_enabled', audio, kTranscodingEnabled);
+      await _migrateBool(sp, 'transcoding_smart_enabled', audio, kSmartSwitchEnabled);
+      await _migrateInt(sp, 'transcoding_wifi_bitrate', audio, kWifiBitrate);
+      await _migrateInt(sp, 'transcoding_mobile_bitrate', audio, kMobileBitrate);
+      await _migrateString(sp, 'transcoding_format', audio, kTranscodeFormat);
+      await _migrateInt(sp, 'transcoding_connection_type', audio, kConnectionType);
 
       // Audio — replay gain
-      _migrateInt(sp, 'replay_gain_mode', audio, kReplayGainMode);
-      _migrateDouble(sp, 'replay_gain_preamp', audio, kPreampGain);
-      _migrateBool(sp, 'replay_gain_prevent_clipping', audio, kPreventClipping);
-      _migrateDouble(sp, 'replay_gain_fallback', audio, kFallbackGain);
+      await _migrateInt(sp, 'replay_gain_mode', audio, kReplayGainMode);
+      await _migrateDouble(sp, 'replay_gain_preamp', audio, kPreampGain);
+      await _migrateBool(sp, 'replay_gain_prevent_clipping', audio, kPreventClipping);
+      await _migrateDouble(sp, 'replay_gain_fallback', audio, kFallbackGain);
 
       // Search history
       final searchHistory = sp.getStringList('search_history');
       if (searchHistory != null) {
         await prefs.put(kSearchHistory, searchHistory);
+        await sp.remove('search_history');
       }
 
       // BPM cache — migrate all bpm_ keys
       for (final key in sp.getKeys()) {
         if (key.startsWith('bpm_')) {
           final val = sp.getInt(key);
-          if (val != null) await audio.put(key, val);
+          if (val != null) {
+            await audio.put(key, val);
+            await sp.remove(key);
+          }
         }
       }
 
@@ -166,23 +171,35 @@ class HiveBoxes {
     }
   }
 
-  static void _migrateString(SharedPreferences sp, String spKey, Box box, String hiveKey) {
+  static Future<void> _migrateString(SharedPreferences sp, String spKey, Box box, String hiveKey) async {
     final val = sp.getString(spKey);
-    if (val != null) box.put(hiveKey, val);
+    if (val != null) {
+      await box.put(hiveKey, val);
+      await sp.remove(spKey);
+    }
   }
 
-  static void _migrateBool(SharedPreferences sp, String spKey, Box box, String hiveKey) {
+  static Future<void> _migrateBool(SharedPreferences sp, String spKey, Box box, String hiveKey) async {
     final val = sp.getBool(spKey);
-    if (val != null) box.put(hiveKey, val);
+    if (val != null) {
+      await box.put(hiveKey, val);
+      await sp.remove(spKey);
+    }
   }
 
-  static void _migrateInt(SharedPreferences sp, String spKey, Box box, String hiveKey) {
+  static Future<void> _migrateInt(SharedPreferences sp, String spKey, Box box, String hiveKey) async {
     final val = sp.getInt(spKey);
-    if (val != null) box.put(hiveKey, val);
+    if (val != null) {
+      await box.put(hiveKey, val);
+      await sp.remove(spKey);
+    }
   }
 
-  static void _migrateDouble(SharedPreferences sp, String spKey, Box box, String hiveKey) {
+  static Future<void> _migrateDouble(SharedPreferences sp, String spKey, Box box, String hiveKey) async {
     final val = sp.getDouble(spKey);
-    if (val != null) box.put(hiveKey, val);
+    if (val != null) {
+      await box.put(hiveKey, val);
+      await sp.remove(spKey);
+    }
   }
 }

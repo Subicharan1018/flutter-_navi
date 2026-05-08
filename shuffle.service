@@ -1,0 +1,16 @@
+[Unit]
+Description=NaviVibe Local Music Shuffle Server
+After=network.target
+
+[Service]
+User=subi
+WorkingDirectory=/home/subi/Documents/flutter-_navi
+ExecStart=/usr/bin/python3 shuffle_server.py
+Restart=always
+RestartSec=5
+# Output logs to standard journalctl
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

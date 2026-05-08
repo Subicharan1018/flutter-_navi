@@ -306,6 +306,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onToggleObscure: () =>
                       setState(() => _obscurePass = !_obscurePass),
                 ),
+                _SettingsDivider(),
+                _SettingsToggleRow(
+                  label: 'Allow HTTP connection (Insecure)',
+                  value: settings.allowHttp,
+                  onChanged: (v) {
+                    ref.read(settingsProvider.notifier).setAllowHttp(v);
+                  },
+                ),
               ],
             ),
             SizedBox(height: 32),
@@ -841,6 +849,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         return 'Mathematical Optimum — interleaves categories (Composer/Genre) perfectly using the Merge-Shuffle algorithm (2023).';
       case ShuffleAlgorithm.recencyDampened:
         return 'Recency-Dampened — weighted mix that penalizes songs played recently in this session to ensure variety.';
+      case ShuffleAlgorithm.smartLocal:
+        return 'Smart Local AI — Uses a local machine learning model to predict the best next songs based on transitions and behavioral scores.';
     }
   }
 
@@ -1112,6 +1122,7 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
                   ShuffleAlgorithm.albumAware => 'Album-Aware',
                   ShuffleAlgorithm.mergeShuffle => 'Optimum',
                   ShuffleAlgorithm.recencyDampened => 'Variety-Weighted',
+                  ShuffleAlgorithm.smartLocal => 'Smart Local AI',
                 };
               } else if (item is ShufflePreference) {
                 name = switch (item) {
