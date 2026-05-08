@@ -1,3 +1,7 @@
+import 'dart:async';
+import 'dart:io';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 import '../models/download_state.dart';
@@ -21,15 +25,29 @@ final offlineServiceProvider = Provider<OfflineService>((ref) {
   return OfflineService();
 });
 
+/// Provides the [Connectivity] instance used for pre-flight checks.
+/// Override in tests to avoid platform channel initialisation.
+final connectivityProvider = Provider<Connectivity>((ref) => Connectivity());
+
 class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
   @override
   Map<String, SongDownloadState> build() {
-    // Synchronously seed the map with all songs already on disk so the UI
-    // is correct from the very first frame.  OfflineService.getDownloadedSongIds()
-    // reads from SharedPreferences which is already initialised before main()
-    // calls runApp().
+    // Synchronously seed the map from SharedPreferences so the UI is correct
+    // from the very first frame.  SharedPreferences is initialised before
+    // runApp() so this read is always fast.
+    //
+    // BUG-1 FIX (Option 2 — post-build async reconcile):
+    // We do NOT call isSongDownloaded() here because that calls
+    // File.existsSync() — blocking disk I/O on the main thread, proportional
+    // to library size.  Instead, we schedule an async reconciliation that
+    // verifies file existence off the fast-path and patches state quietly.
     final offline = ref.watch(offlineServiceProvider);
     final ids = offline.getDownloadedSongIds();
+
+    // Schedule reconciliation for the next microtask so build() returns
+    // synchronously (Notifier.build must be synchronous).
+    scheduleMicrotask(() => _reconcileWithDisk(offline, ids));
+
     return {
       for (final id in ids)
         id: SongDownloadState(
@@ -37,6 +55,29 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
           status: SongDownloadStatus.downloaded,
         ),
     };
+  }
+
+  /// Verifies that every ID in [ids] still has a file on disk.
+  ///
+  /// Uses [File.exists()] (async, non-blocking) so this never jams the main
+  /// thread regardless of library size.  Any ID whose file is gone is silently
+  /// demoted to [SongDownloadStatus.notDownloaded] and removed from state.
+  Future<void> _reconcileWithDisk(
+    OfflineService offline,
+    List<String> ids,
+  ) async {
+    final orphans = <String>[];
+    for (final id in ids) {
+      final exists = await offline.isSongDownloadedAsync(id);
+      if (!exists) orphans.add(id);
+    }
+    if (orphans.isEmpty) return;
+
+    final updated = Map<String, SongDownloadState>.from(state);
+    for (final id in orphans) {
+      updated.remove(id);
+    }
+    state = updated;
   }
 
   // -------------------------------------------------------------------------
@@ -63,6 +104,13 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
   /// - Transitions: notDownloaded → queued → downloading (with progress) →
   ///   downloaded | failed.
   /// - The menu stays open: Navigator.pop() is NOT called here.
+  /// Downloads [song] from the Subsonic server.
+  ///
+  /// BUG-2 FIX: Pre-flight connectivity check gives immediate feedback when
+  /// the device is offline instead of letting Dio hang indefinitely.
+  ///
+  /// connectivity_plus v7.1.1 returns `List<ConnectivityResult>` — verified
+  /// against pubspec.lock (sha: 62ffa266).
   Future<void> downloadSong(Song song) async {
     final current = statusOf(song.id);
     if (current == SongDownloadStatus.downloaded ||
@@ -71,7 +119,18 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
       return; // guard: no-op
     }
 
+    // Set to queued immediately to prevent parallel synchronous calls
+    // from slipping past the guard while the connectivity check yields.
     _set(song.id, SongDownloadStatus.queued);
+
+    // BUG-2 FIX: Pre-flight connectivity check.
+    final connectivity = ref.read(connectivityProvider);
+    final results = await connectivity.checkConnectivity();
+    if (results.contains(ConnectivityResult.none)) {
+      _setFailed(song.id, 'No internet connection');
+      return;
+    }
+
     await _performDownload(song);
   }
 

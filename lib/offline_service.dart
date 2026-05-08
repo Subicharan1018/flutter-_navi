@@ -116,6 +116,16 @@ class OfflineService {
     return file.existsSync();
   }
 
+  /// Async, non-blocking variant of [isSongDownloaded].
+  ///
+  /// Uses [File.exists()] instead of [File.existsSync()] so it never blocks
+  /// the main thread.  Called by [DownloadStateNotifier._reconcileWithDisk]
+  /// during the post-build reconciliation pass.
+  Future<bool> isSongDownloadedAsync(String songId) async {
+    if (_offlineDir == null) return false;
+    return File(_getSongPath(songId)).exists();
+  }
+
   Future<List<Song>> getDownloadedSongsMetadata() async {
     if (_offlineDir == null) await initialize();
     final ids = getDownloadedSongIds();
@@ -178,6 +188,10 @@ class OfflineService {
       final filePath = _getSongPath(song.id);
 
       final dio = Dio();
+      // BUG-2 FIX: Without timeouts, Dio hangs indefinitely on no-network,
+      // leaving the download state stuck at "downloading" forever.
+      dio.options.connectTimeout = const Duration(seconds: 15);
+      dio.options.receiveTimeout = const Duration(seconds: 120);
       await dio.download(
         url,
         filePath,

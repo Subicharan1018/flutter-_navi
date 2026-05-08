@@ -158,11 +158,28 @@ class OptionsMenu extends ConsumerWidget {
                     leadingWidget = Icon(Icons.download_rounded,
                         color: tokens.textPrimary, size: 24);
                     titleText = 'Download';
-                    onTapAction = () {
+                    onTapAction = () async {
                       // Fire-and-forget; menu stays open so user sees progress.
                       ref
                           .read(downloadStateProvider.notifier)
                           .downloadSong(song);
+                      // BUG-2 FIX: Give a brief window for the pre-flight
+                      // check to resolve, then show a snackbar if it failed.
+                      await Future<void>.delayed(
+                        const Duration(milliseconds: 200),
+                      );
+                      final postStatus = ref
+                          .read(downloadStateProvider.notifier)
+                          .statusOf(song.id);
+                      if (postStatus == SongDownloadStatus.failed &&
+                          context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('No internet — download failed'),
+                            duration: Duration(seconds: 3),
+                          ),
+                        );
+                      }
                     };
 
                   case SongDownloadStatus.queued:
@@ -209,6 +226,17 @@ class OptionsMenu extends ConsumerWidget {
                       ref
                           .read(downloadStateProvider.notifier)
                           .downloadSong(song);
+                      // BUG-2 FIX: Acknowledge retry so user knows the
+                      // button worked (especially important on poor networks
+                      // where state change is delayed).
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          const SnackBar(
+                            content: Text('Retrying download…'),
+                            duration: Duration(seconds: 2),
+                          ),
+                        );
+                      }
                     };
                 }
 

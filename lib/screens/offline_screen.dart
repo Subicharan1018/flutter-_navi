@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 import '../offline_service.dart';
+import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../core/theme.dart';
 import '../widgets/song_tile.dart';
@@ -80,6 +81,10 @@ class _OfflineScreenState extends ConsumerState<OfflineScreen> {
     if (confirmed != true || !mounted) return;
 
     await OfflineService().deleteAllDownloads();
+    // BUG-1 FIX: Invalidate Riverpod state so DownloadStateNotifier re-seeds
+    // from SharedPreferences (now empty).  Without this, all DownloadBadges
+    // continue showing "downloaded" even though the files are gone.
+    ref.invalidate(downloadStateProvider);
     if (mounted) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(

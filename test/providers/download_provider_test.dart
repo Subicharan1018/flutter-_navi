@@ -6,8 +6,8 @@ import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/download_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/offline_service.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:navivibe/services/subsonic_service.dart';
-
 Song makeSong({
   String id = '1',
   String title = 'Test Song',
@@ -66,31 +66,50 @@ class MockOfflineService extends Mock implements OfflineService {
     onProgress?.call(1.0);
     return downloadSuccess;
   }
+
+  @override
+  Future<bool> isSongDownloadedAsync(String songId) async {
+    return preDownloadedIds.contains(songId);
+  }
 }
+
+class MockConnectivity extends Mock implements Connectivity {}
 
 class MockSubsonicService extends Mock implements SubsonicService {}
 
 void main() {
   group('DownloadStateNotifier', () {
     late MockSubsonicService mockSubsonicService;
+    late MockConnectivity mockConnectivity;
+
+    setUpAll(() {
+      TestWidgetsFlutterBinding.ensureInitialized();
+    });
 
     setUp(() {
       mockSubsonicService = MockSubsonicService();
+      mockConnectivity = MockConnectivity();
+      when(() => mockConnectivity.checkConnectivity())
+          .thenAnswer((_) async => [ConnectivityResult.wifi]);
     });
 
-    test('initial state is seeded from OfflineService', () {
+    test('initial state is seeded from OfflineService', () async {
       final container = ProviderContainer(
         overrides: [
           offlineServiceProvider.overrideWithValue(
             MockOfflineService(preDownloadedIds: ['123']),
           ),
+          connectivityProvider.overrideWithValue(mockConnectivity),
         ],
       );
       addTearDown(container.dispose);
 
       final state = container.read(downloadStateProvider);
-      expect(state, isNotEmpty);
-      expect(state['123']?.status, equals(SongDownloadStatus.downloaded));
+      await Future<void>.delayed(Duration.zero); // wait for microtask
+      
+      final stateAfter = container.read(downloadStateProvider);
+      expect(stateAfter, isNotEmpty);
+      expect(stateAfter['123']?.status, equals(SongDownloadStatus.downloaded));
     });
 
     test(
@@ -102,6 +121,7 @@ void main() {
               MockOfflineService(downloadDelay: Duration.zero),
             ),
             subsonicServiceProvider.overrideWithValue(mockSubsonicService),
+            connectivityProvider.overrideWithValue(mockConnectivity),
           ],
         );
         addTearDown(container.dispose);
@@ -129,6 +149,7 @@ void main() {
               ),
             ),
             subsonicServiceProvider.overrideWithValue(mockSubsonicService),
+            connectivityProvider.overrideWithValue(mockConnectivity),
           ],
         );
         addTearDown(container.dispose);
@@ -155,6 +176,7 @@ void main() {
               MockOfflineService(downloadDelay: Duration.zero),
             ),
             subsonicServiceProvider.overrideWithValue(mockSubsonicService),
+            connectivityProvider.overrideWithValue(mockConnectivity),
           ],
         );
         addTearDown(container.dispose);
@@ -183,6 +205,7 @@ void main() {
             ),
           ),
           subsonicServiceProvider.overrideWithValue(mockSubsonicService),
+          connectivityProvider.overrideWithValue(mockConnectivity),
         ],
       );
       addTearDown(container.dispose);

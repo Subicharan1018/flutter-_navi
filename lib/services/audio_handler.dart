@@ -390,6 +390,7 @@ class AudioHandler {
   set currentQueue(List<Song> songs) => _currentQueue = songs;
 
   List<Song> get currentQueue => _currentQueue;
+  List<Song> get unshuffledQueue => _unshuffledQueue;
 
   // ---------------------------------------------------------------------------
   // Recency helper

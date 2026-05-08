@@ -10,7 +10,9 @@ import 'settings_provider.dart';
 import '../services/audio_handler.dart';
 import '../core/hive_boxes.dart';
 import '../core/app_constants.dart';
-
+import 'dart:convert';
+import 'package:http/http.dart' as http;
+import 'library_provider.dart';
 // ---------------------------------------------------------------------------
 // Player state
 // ---------------------------------------------------------------------------
@@ -103,7 +105,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // the debounce window.  The old code captured _lastKnownPosition inside the
   // timer callback, by which time it had already been reset to Duration.zero.
   Timer? _trackChangeTimer;
-
+  String? _currentPlaylistName;
+  bool _isFetchingSmartLocal = false;
   String _nextSourceContext = 'autoplay';
   String _nextTransitionType = 'autoplay';
 
@@ -258,10 +261,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       state = state.copyWith(currentIndex: index);
 
       // ── Autoplay lookahead ───────────────────────────────────────────────
-      if (state.autoplayMode && state.queue.isNotEmpty) {
+      final isSmartLocal = settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal && state.shuffleMode;
+
+      if ((state.autoplayMode || isSmartLocal) && state.queue.isNotEmpty) {
         final queueLen = state.queue.length;
-        if (index >= queueLen - 2) {
-          _triggerAutoplayIfNeeded();
+        if (index >= queueLen - 3) {
+          if (isSmartLocal) {
+            _triggerSmartLocalFetchIfNeeded();
+          } else {
+            _triggerAutoplayIfNeeded();
+          }
         }
       }
 
@@ -409,6 +418,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _clearHistory();
       _nextSourceContext = 'playlist';
       _nextTransitionType = 'user_selected';
+      _currentPlaylistName = playlistName;
+
+      final settings = _ref.read(settingsProvider);
 
       if (!shuffle) {
         _suppressStreamEvents = true;
@@ -425,18 +437,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       try {
         final startIndex = Random().nextInt(songs.length);
         final currentSong = songs[startIndex];
-        final pool = List<Song>.from(songs)..removeAt(startIndex);
-        final settings = _ref.read(settingsProvider);
-        final shuffled = await _audioHandler.computeShuffle(
-            pool, settings.shuffleAlgorithm, settings.shufflePreference,
-            currentSong: currentSong, contextName: playlistName);
-        if (_queueOpLock != completer) return;
-        final finalQueue = [currentSong, ...shuffled];
-        _suppressStreamEvents = true;
-        state = state.copyWith(queue: finalQueue, currentIndex: 0);
-        await _audioHandler.setQueue(finalQueue, 0, unshuffledSongs: songs);
-        _suppressStreamEvents = false;
-        player.play();
+        
+        if (settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
+          _suppressStreamEvents = true;
+          state = state.copyWith(queue: [currentSong], currentIndex: 0);
+          await _audioHandler.setQueue([currentSong], 0, unshuffledSongs: songs);
+          _suppressStreamEvents = false;
+          player.play();
+          _triggerSmartLocalFetchIfNeeded();
+        } else {
+          final pool = List<Song>.from(songs)..removeAt(startIndex);
+          final shuffled = await _audioHandler.computeShuffle(
+              pool, settings.shuffleAlgorithm, settings.shufflePreference,
+              currentSong: currentSong, contextName: playlistName);
+          if (_queueOpLock != completer) return;
+          final finalQueue = [currentSong, ...shuffled];
+          _suppressStreamEvents = true;
+          state = state.copyWith(queue: finalQueue, currentIndex: 0);
+          await _audioHandler.setQueue(finalQueue, 0, unshuffledSongs: songs);
+          _suppressStreamEvents = false;
+          player.play();
+        }
       } finally {
         _isShuffling = false;
       }
@@ -673,11 +694,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           await _audioHandler.recencyDampenedWeightedShuffle();
           break;
         case ShuffleAlgorithm.smartLocal:
-          await _audioHandler.smartLocalShuffle();
+          final currentSong = state.queue[state.currentIndex];
+          final unshuffled = _audioHandler.unshuffledQueue;
+          await _audioHandler.setQueue([currentSong], 0, unshuffledSongs: unshuffled);
+          state = state.copyWith(queue: [currentSong], currentIndex: 0);
+          _triggerSmartLocalFetchIfNeeded();
           break;
       }
-      state = state.copyWith(
-          queue: _audioHandler.currentQueue, currentIndex: savedIndex);
+      if (settings.shuffleAlgorithm != ShuffleAlgorithm.smartLocal) {
+        state = state.copyWith(
+            queue: _audioHandler.currentQueue, currentIndex: savedIndex);
+      }
     } finally {
       _isShuffling = false;
       _suppressStreamEvents = false;
@@ -804,6 +831,58 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       debugPrint('[AUTOPLAY] Failed to fetch similar songs: $e');
     } finally {
       _isFetchingSimilar = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Smart Local
+  // ---------------------------------------------------------------------------
+
+  void _triggerSmartLocalFetchIfNeeded() {
+    if (_isFetchingSmartLocal || state.queue.isEmpty) {
+      return;
+    }
+
+    final lastSong = state.queue.last;
+    if (_autoplayTriggeredFor.contains(lastSong.id)) return;
+
+    _autoplayTriggeredFor.add(lastSong.id);
+    _fetchAndAppendSmartLocal(lastSong);
+  }
+
+  Future<void> _fetchAndAppendSmartLocal(Song seedSong) async {
+    _isFetchingSmartLocal = true;
+    try {
+      debugPrint('[SMART LOCAL] Fetching similar songs to append for: ${seedSong.title}');
+
+      final similar = await _subsonicService.getSimilarSongs(seedSong.id, count: 10);
+
+      if (similar.isEmpty) {
+        debugPrint('[SMART LOCAL] No similar songs found for ${seedSong.title}');
+        return;
+      }
+
+      final existingIds = state.queue.map((s) => s.id).toSet();
+      final fresh = similar.where((s) => !existingIds.contains(s.id)).toList();
+
+      if (fresh.isEmpty) {
+        debugPrint('[SMART LOCAL] All fetched songs already in queue');
+        return;
+      }
+
+      final newQueue = [...state.queue, ...fresh];
+      state = state.copyWith(queue: newQueue);
+      await _audioHandler.addAllToQueue(fresh);
+
+      debugPrint('[SMART LOCAL] Appended ${fresh.length} songs. Triggering Smart Local Shuffle sort.');
+      
+      await _audioHandler.smartLocalShuffle();
+      
+      state = state.copyWith(queue: _audioHandler.currentQueue);
+    } catch (e) {
+      debugPrint('[SMART LOCAL] Failed to fetch/append: $e');
+    } finally {
+      _isFetchingSmartLocal = false;
     }
   }
 
