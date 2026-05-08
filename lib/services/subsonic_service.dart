@@ -650,8 +650,18 @@ class SubsonicService {
     });
   }
 
-  Future<void> scrobble(String songId, {bool submission = true}) async =>
-      _get('scrobble.view', {'id': songId, 'submission': submission.toString()});
+  Future<void> scrobble(String songId, {required bool submission}) async {
+    try {
+      final url = _buildUrl('scrobble.view', {
+        'id': songId,
+        'submission': submission.toString(),
+        'time': DateTime.now().millisecondsSinceEpoch.toString(),
+      });
+      await _client.get(Uri.parse(url));
+    } catch (_) {
+      // fire-and-forget: swallow all errors silently
+    }
+  }
 
   // ---------------------------------------------------------------------------
   // Lyrics

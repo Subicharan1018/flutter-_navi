@@ -13,6 +13,8 @@ import '../core/app_constants.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
 import 'library_provider.dart';
+import '../services/scrobble_service.dart';
+
 // ---------------------------------------------------------------------------
 // Player state
 // ---------------------------------------------------------------------------
@@ -162,7 +164,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   AudioPlayer get player => _audioHandler.player;
-  String? _lastScrobbleSongId;
+  
+  // SCROBBLE: Track playback position for threshold
+  Duration _scrobbleThreshold = Duration.zero;
+  bool _hasScrobbled = false;
+  String? _currentScrobbleSongId;
+  
   Duration _lastKnownPosition = Duration.zero;
   int _lastKnownIndex = 0;
   bool _isShuffling = false;
@@ -186,9 +193,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final analyticsEnabled = settings.dataCollectionEnabled;
 
       final Song? prevSong =
-          prevIndex < state.queue.length ? state.queue[prevIndex] : null;
+          prevIndex >= 0 && prevIndex < state.queue.length ? state.queue[prevIndex] : null;
       final Song? newSong =
-          index < state.queue.length ? state.queue[index] : null;
+          index >= 0 && index < state.queue.length ? state.queue[index] : null;
 
       // Ignore no-op index events (same index, not a repeat-one scenario).
       if (index == prevIndex && state.repeatMode != LoopMode.one) {
@@ -221,16 +228,28 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final capturedShuffle = state.shuffleMode;
 
         _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
-          _collector.onSongStarted(
-            song: capturedNew,
-            sourceContext: sourceCtx,
-            transitionType: transCtx,
-            prevSong: capturedPrev,
-            positionAtSwitch: capturedPos,
-            queuePosition: capturedIdx,
-            shuffleActive: capturedShuffle,
-          );
+          // SCROBBLE-MIGRATED: Local storage disabled.
+          // _collector.onSongStarted(
+          //   song: capturedNew,
+          //   sourceContext: sourceCtx,
+          //   transitionType: transCtx,
+          //   prevSong: capturedPrev,
+          //   positionAtSwitch: capturedPos,
+          //   queuePosition: capturedIdx,
+          //   shuffleActive: capturedShuffle,
+          // );
         });
+        
+        // SCROBBLE: track position and notify server
+        _hasScrobbled = false;
+        _currentScrobbleSongId = newSong.id;
+        
+        final total = Duration(seconds: newSong.duration);
+        final half = total * 0.5;
+        const fourMinutes = Duration(minutes: 4);
+        _scrobbleThreshold = half < fourMinutes ? half : fourMinutes;
+        
+        _ref.read(scrobbleServiceProvider).nowPlaying(newSong.id);
 
         _ref.read(recommendationProvider).trackSongPlay(
               newSong,
@@ -275,13 +294,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
 
       // ── Scrobble tracking ────────────────────────────────────────────────
-      if (index < state.queue.length) {
-        final songId = state.queue[index].id;
-        if (songId != _lastScrobbleSongId) {
-          _scrobbledIds.clear();
-          _lastScrobbleSongId = songId;
-        }
-      }
+      // Migrated to ScrobbleService
     }));
 
     _subscriptions.add(player.playingStream.listen((playing) {
@@ -335,11 +348,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       prevPosition = position;
 
-      if (duration > 0 && position.inSeconds > (duration * 0.5)) {
-        if (!_scrobbledIds.contains(currentSong.id)) {
-          _scrobbledIds.add(currentSong.id);
-          scrobble(currentSong.id);
-        }
+      if (!_hasScrobbled &&
+          _currentScrobbleSongId != null &&
+          position >= _scrobbleThreshold) {
+        _hasScrobbled = true;
+        _ref.read(scrobbleServiceProvider).submit(_currentScrobbleSongId!);
       }
     }));
   }
@@ -499,6 +512,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               : 0,
           pushHistory: false);
     }
+  }
+
+  Future<void> stop() async {
+    _hasScrobbled = false;
+    _currentScrobbleSongId = null;
+    await player.stop();
   }
 
   Future<void> playPrev() async {
@@ -749,10 +768,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _collector.persistWeight(updatedSong.id, updatedSong.dynamicWeight);
     }
     state = state.copyWith(queue: _audioHandler.currentQueue);
-  }
-
-  Future<void> scrobble(String songId) async {
-    await _subsonicService.scrobble(songId);
   }
 
   Future<void> toggleAutoplay() async {
