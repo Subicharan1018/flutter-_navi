@@ -138,6 +138,8 @@ void main() {
       expect(capturedPayload!['song_id'], 'song-abc123');
       // Optional new fields
       expect(capturedPayload!['cover_art'], 'https://server/art/cover-id');
+      expect(capturedPayload!['session_id'], isNotEmpty);
+      expect(capturedPayload!['session_id'].toString().length, 36); // UUID v4 length
       // album_id and artist_id must be null (not empty string)
       expect(capturedPayload!['album_id'], isNull);
       expect(capturedPayload!['artist_id'], isNull);

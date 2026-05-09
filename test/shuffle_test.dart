@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:navivibe/services/audio_handler.dart';
 import 'package:navivibe/models/song.dart';
@@ -161,6 +162,12 @@ class MockAudioPlayer extends Fake implements AudioPlayer {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+
+    const MethodChannel('dev.fluttercommunity.plus/connectivity')
+        .setMockMethodCallHandler((MethodCall methodCall) async {
+      return ['wifi'];
+    });
+
     SharedPreferences.setMockInitialValues({});
     final dir = Directory.systemTemp.createTempSync('hive_test_shuffle');
     Hive.init(dir.path);

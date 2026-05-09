@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../models/song.dart';
 import '../providers/settings_provider.dart';  // subsonicServiceProvider + settingsProvider
@@ -53,6 +54,9 @@ class ListeningLogService {
   final String? _webdavPass;
   final String _logPath;
 
+  String _sessionId = const Uuid().v4();
+  DateTime _lastPlayTime = DateTime.now();
+
   ListeningLogService({
     required http.Client client,
     String? baseUrl,
@@ -86,10 +90,18 @@ class ListeningLogService {
       return;
     }
 
+    final now = DateTime.now().toUtc();
+    final gap = now.difference(_lastPlayTime);
+    if (gap.inMinutes >= 30) {
+      _sessionId = const Uuid().v4();
+    }
+    _lastPlayTime = now;
+
     final payload = _buildPayload(
       song: song,
       coverArtUrl: coverArtUrl,
-      now: DateTime.now().toUtc(),
+      now: now,
+      sessionId: _sessionId,
     );
 
     final success = await _post(payload);
@@ -149,6 +161,7 @@ class ListeningLogService {
   Map<String, dynamic> _buildPayload({
     required Song song,
     required DateTime now,
+    required String sessionId,
     String? coverArtUrl,
   }) {
     return {
@@ -162,6 +175,7 @@ class ListeningLogService {
       'artist_id': null,
       'cover_art': coverArtUrl,
       'played_at': now.toIso8601String(),
+      'session_id': sessionId,
     };
   }
 

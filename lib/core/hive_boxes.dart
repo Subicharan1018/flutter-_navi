@@ -75,6 +75,7 @@ class HiveBoxes {
   static const kShuffleAlgorithm = 'shuffleAlgorithm';
   static const kShufflePreference = 'shufflePreference';
   static const kUploadApiUrl = 'uploadApiUrl';
+  static const kListeningApiUrl = 'listeningApiUrl';
   static const kUploadDirectory = 'uploadDirectory';
   static const kDataCollectionEnabled = 'dataCollectionEnabled';
   static const kAnalyticsUploadSchedule = 'analytics_upload_schedule';
@@ -123,6 +124,12 @@ class HiveBoxes {
       await _migrateString(sp, 'shuffleAlgorithm', prefs, kShuffleAlgorithm);
       await _migrateString(sp, 'shufflePreference', prefs, kShufflePreference);
       await _migrateString(sp, 'uploadApiUrl', prefs, kUploadApiUrl);
+      
+      // Migration: listening API defaults to upload API if it wasn't set yet.
+      if (!prefs.containsKey(kListeningApiUrl) && prefs.containsKey(kUploadApiUrl)) {
+        await prefs.put(kListeningApiUrl, prefs.get(kUploadApiUrl));
+      }
+
       await _migrateString(sp, 'uploadDirectory', prefs, kUploadDirectory);
       await _migrateBool(sp, 'dataCollectionEnabled', prefs, kDataCollectionEnabled);
       await _migrateString(sp, 'analytics_upload_schedule', prefs, kAnalyticsUploadSchedule);

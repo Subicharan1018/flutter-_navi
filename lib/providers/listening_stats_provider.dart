@@ -69,7 +69,7 @@ class ListeningStatsNotifier
 /// Provider family — one notifier per period string ('weekly', 'monthly', 'all').
 final listeningStatsProvider = StateNotifierProvider.family<
     ListeningStatsNotifier, AsyncValue<ListeningStats>, String>((ref, period) {
-  final baseUrl = ref.watch(settingsProvider).uploadApiUrl;
+  final baseUrl = ref.watch(settingsProvider).listeningApiUrl;
   final client = ref.watch(subsonicServiceProvider).client;
   return ListeningStatsNotifier(
     client: client,

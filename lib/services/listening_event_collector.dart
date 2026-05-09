@@ -348,49 +348,45 @@ class ListeningEventCollector {
   }
 
   void _writeEvent(PlayEvent event) {
-    // SCROBBLE-MIGRATED: Local storage disabled.
-    // _db.into(_db.playEvents).insertOnConflictUpdate(PlayEventsCompanion.insert(
-    //   playId: event.playId,
-    //   songId: event.songId,
-    //   sessionId: event.sessionId,
-    //   tsStart: event.timestampStart.millisecondsSinceEpoch,
-    //   tsEnd: Value(event.timestampEnd?.millisecondsSinceEpoch),
-    //   // PlayEvent.playDurationSec is a double (sub-second precision kept in
-    //   // the model); the Drift column is IntColumn so we floor here.
-    //   playDurSec: Value(event.playDurationSec.toInt()),
-    //   skipBefore50: Value(event.skipBeforeEnd),
-    //   skipPositionPct: Value(event.skipPositionPct),
-    //   repeatCount: Value(event.repeatCount),
-    //   queuePosition: Value(event.queuePosition),
-    //   shuffleActive: Value(event.shuffleActive),
-    //   sourceContext: event.sourceContext,
-    //   hourOfDay: event.hourOfDay,
-    //   dayOfWeek: event.dayOfWeek,
-    // )).catchError((e) {
-    //   debugPrint('[Analytics] ❌ writeEvent: $e');
-    //   return 0;
-    // });
+    _db.into(_db.playEvents).insertOnConflictUpdate(PlayEventsCompanion.insert(
+      playId: event.playId,
+      songId: event.songId,
+      sessionId: event.sessionId,
+      tsStart: event.timestampStart.millisecondsSinceEpoch,
+      tsEnd: Value(event.timestampEnd?.millisecondsSinceEpoch),
+      playDurSec: Value(event.playDurationSec.toInt()),
+      skipBefore50: Value(event.skipBeforeEnd),
+      skipPositionPct: Value(event.skipPositionPct),
+      repeatCount: Value(event.repeatCount),
+      queuePosition: Value(event.queuePosition),
+      shuffleActive: Value(event.shuffleActive),
+      sourceContext: event.sourceContext,
+      hourOfDay: event.hourOfDay,
+      dayOfWeek: event.dayOfWeek,
+    )).catchError((e) {
+      debugPrint('[Analytics] ❌ writeEvent: $e');
+      return 0;
+    });
   }
 
   void _upsertSongMetadata(Song song) {
-    // SCROBBLE-MIGRATED: Local storage disabled.
-    // _db.into(_db.songMetadata).insertOnConflictUpdate(SongMetadataCompanion.insert(
-    //   songId: song.id,
-    //   trackName: song.title,
-    //   artistName: song.artist,
-    //   albumName: song.album,
-    //   genre: Value(song.genre.isEmpty ? null : song.genre),
-    //   composer: Value(song.composer.isEmpty ? null : song.composer),
-    //   durationSec: song.duration,
-    //   year: Value(song.year > 0 ? song.year : null),
-    //   playCount: Value(song.playCount),
-    //   rating: Value(song.rating),
-    //   starred: Value(song.starred),
-    //   updatedAt: _now().millisecondsSinceEpoch,
-    // )).catchError((e) {
-    //   debugPrint('[Analytics] ❌ upsertSongMetadata: $e');
-    //   return 0;
-    // });
+    _db.into(_db.songMetadata).insertOnConflictUpdate(SongMetadataCompanion.insert(
+      songId: song.id,
+      trackName: song.title,
+      artistName: song.artist,
+      albumName: song.album,
+      genre: Value(song.genre.isEmpty ? null : song.genre),
+      composer: Value(song.composer.isEmpty ? null : song.composer),
+      durationSec: song.duration,
+      year: Value(song.year > 0 ? song.year : null),
+      playCount: Value(song.playCount),
+      rating: Value(song.rating),
+      starred: Value(song.starred),
+      updatedAt: _now().millisecondsSinceEpoch,
+    )).catchError((e) {
+      debugPrint('[Analytics] ❌ upsertSongMetadata: $e');
+      return 0;
+    });
   }
 
   void _recordPair({
@@ -398,23 +394,22 @@ class ListeningEventCollector {
     required String currentSongId,
     required String transitionType,
   }) {
-    // SCROBBLE-MIGRATED: Local storage disabled.
-    // _db.customStatement('''
-    //   INSERT INTO song_pairs (prev_song_id, current_song_id, transition_type,
-    //                           play_count, last_seen)
-    //   VALUES (?, ?, ?, 1, ?)
-    //   ON CONFLICT(prev_song_id, current_song_id, transition_type)
-    //   DO UPDATE SET
-    //     play_count = play_count + 1,
-    //     last_seen  = excluded.last_seen
-    // ''', [
-    //   prevSongId,
-    //   currentSongId,
-    //   transitionType,
-    //   _now().millisecondsSinceEpoch,
-    // ]).catchError((e) {
-    //   debugPrint('[Analytics] ❌ recordPair: $e');
-    // });
+    _db.customStatement('''
+      INSERT INTO song_pairs (prev_song_id, current_song_id, transition_type,
+                              play_count, last_seen)
+      VALUES (?, ?, ?, 1, ?)
+      ON CONFLICT(prev_song_id, current_song_id, transition_type)
+      DO UPDATE SET
+        play_count = play_count + 1,
+        last_seen  = excluded.last_seen
+    ''', [
+      prevSongId,
+      currentSongId,
+      transitionType,
+      _now().millisecondsSinceEpoch,
+    ]).catchError((e) {
+      debugPrint('[Analytics] ❌ recordPair: $e');
+    });
   }
 
   // ──────────────────────────────────────────────────────────────────────────

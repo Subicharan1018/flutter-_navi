@@ -28,6 +28,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _userController;
   late TextEditingController _passController;
   late TextEditingController _uploadUrlController;
+  late TextEditingController _listeningUrlController;
   late TextEditingController _uploadDirController;
   late TextEditingController _webdavUserController;
   late TextEditingController _webdavPassController;
@@ -61,6 +62,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _userController       = TextEditingController(text: settings.username);
     _passController       = TextEditingController(text: settings.password);
     _uploadUrlController  = TextEditingController(text: settings.uploadApiUrl);
+    _listeningUrlController = TextEditingController(text: settings.listeningApiUrl);
     _uploadDirController  = TextEditingController(text: settings.uploadDirectory);
     _webdavUserController = TextEditingController(text: settings.webdavUsername);
     _webdavPassController = TextEditingController(text: settings.webdavPassword);
@@ -108,6 +110,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _userController.dispose();
     _passController.dispose();
     _uploadUrlController.dispose();
+    _listeningUrlController.dispose();
     _uploadDirController.dispose();
     _webdavUserController.dispose();
     _webdavPassController.dispose();
@@ -120,6 +123,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _userController.text.trim(),
           _passController.text,
           uploadUrl: _uploadUrlController.text.trim(),
+          listeningUrl: _listeningUrlController.text.trim(),
           uploadDir: _uploadDirController.text.trim(),
           webdavUser: _webdavUserController.text.trim(),
           webdavPass: _webdavPassController.text,
@@ -355,9 +359,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: 'ADVANCED UPLOAD',
               children: [
                 _SettingsInputRow(
-                  label: 'Custom API',
+                  label: 'WebDAV URL',
                   controller: _uploadUrlController,
-                  hint: 'http://server/api/upload',
+                  hint: 'http://server:5005',
+                ),
+                _SettingsDivider(),
+                _SettingsInputRow(
+                  label: 'Listening API',
+                  controller: _listeningUrlController,
+                  hint: 'http://server:5006',
                 ),
                 _SettingsDivider(),
                 _SettingsInputRow(
@@ -384,12 +394,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   trailing: Icon(Icons.chevron_right_rounded,
                       color: ThemeTokens.of(context).textMuted, size: 20),
                   onTap: () {
-                    final url = _uploadUrlController.text.trim();
+                    final url = _listeningUrlController.text.trim();
                     if (url.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                              'Set a Custom API URL first to use Listening Stats'),
+                              'Set a Listening API URL first to use Listening Stats'),
                         ),
                       );
                       return;

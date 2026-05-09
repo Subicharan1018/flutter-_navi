@@ -68,6 +68,7 @@ class SettingsState {
   final ShuffleAlgorithm shuffleAlgorithm;
   final ShufflePreference shufflePreference;
   final String uploadApiUrl;
+  final String listeningApiUrl;
   final String uploadDirectory;
 
   /// When false the [ListeningEventCollector] is a no-op — no rows written.
@@ -91,6 +92,7 @@ class SettingsState {
     this.shuffleAlgorithm = ShuffleAlgorithm.standard,
     this.shufflePreference = ShufflePreference.composer,
     this.uploadApiUrl = '',
+    this.listeningApiUrl = '',
     this.uploadDirectory = '',
     this.dataCollectionEnabled = true,
     this.analyticsUploadSchedule = 'none',
@@ -109,6 +111,7 @@ class SettingsState {
     ShuffleAlgorithm? shuffleAlgorithm,
     ShufflePreference? shufflePreference,
     String? uploadApiUrl,
+    String? listeningApiUrl,
     String? uploadDirectory,
     bool? dataCollectionEnabled,
     String? analyticsUploadSchedule,
@@ -126,6 +129,7 @@ class SettingsState {
       shuffleAlgorithm: shuffleAlgorithm ?? this.shuffleAlgorithm,
       shufflePreference: shufflePreference ?? this.shufflePreference,
       uploadApiUrl: uploadApiUrl ?? this.uploadApiUrl,
+      listeningApiUrl: listeningApiUrl ?? this.listeningApiUrl,
       uploadDirectory: uploadDirectory ?? this.uploadDirectory,
       dataCollectionEnabled:
           dataCollectionEnabled ?? this.dataCollectionEnabled,
@@ -193,6 +197,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         orElse: () => ShufflePreference.composer,
       ),
       uploadApiUrl: p.get(HiveBoxes.kUploadApiUrl)?.toString() ?? '',
+      listeningApiUrl: p.get(HiveBoxes.kListeningApiUrl)?.toString() ?? '',
       uploadDirectory: p.get(HiveBoxes.kUploadDirectory)?.toString() ?? '',
       dataCollectionEnabled:
           p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool
@@ -223,6 +228,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     String user,
     String pass, {
     String? uploadUrl,
+    String? listeningUrl,
     String? uploadDir,
     String? webdavUser,
     String? webdavPass,
@@ -236,6 +242,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     if (webdavUser != null) await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
     if (webdavPass != null) await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
     if (uploadUrl != null) await p.put(HiveBoxes.kUploadApiUrl, uploadUrl);
+    if (listeningUrl != null) await p.put(HiveBoxes.kListeningApiUrl, listeningUrl);
     if (uploadDir != null) await p.put(HiveBoxes.kUploadDirectory, uploadDir);
 
     state = state.copyWith(
@@ -245,8 +252,19 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       webdavUsername: webdavUser,
       webdavPassword: webdavPass,
       uploadApiUrl: uploadUrl,
+      listeningApiUrl: listeningUrl,
       uploadDirectory: uploadDir,
     );
+  }
+
+  Future<void> setUploadApiUrl(String uploadUrl) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kUploadApiUrl, uploadUrl);
+    state = state.copyWith(uploadApiUrl: uploadUrl);
+  }
+
+  Future<void> setListeningApiUrl(String listeningUrl) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kListeningApiUrl, listeningUrl);
+    state = state.copyWith(listeningApiUrl: listeningUrl);
   }
 
   Future<void> setShuffleAlgorithm(ShuffleAlgorithm algo) async {
