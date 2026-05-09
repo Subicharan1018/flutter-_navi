@@ -902,6 +902,12 @@ class SubsonicService {
   /// call ref.invalidate(recentlyPlayedAlbumsProvider) to force a refresh.
   void invalidatePlayHistory() {}
 
+  /// Exposes the shared HTTP client for reuse by co-located services
+  /// (e.g. [ListeningLogService]).
+  ///
+  /// **Do NOT close this client** — [SubsonicService.dispose] owns its lifecycle.
+  http.Client get client => _client;
+
   // BUG-3: close the http.Client to release socket connections.
   void dispose() {
     _client.close();

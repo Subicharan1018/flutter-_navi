@@ -15,11 +15,13 @@ import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:navivibe/services/audio_handler.dart';
 import 'package:navivibe/services/scrobble_service.dart';
 import 'package:navivibe/services/subsonic_service.dart';
+import 'package:navivibe/services/listening_log_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
 
 class MockSubsonicService extends Mock implements SubsonicService {}
 class MockConnectivity extends Mock implements Connectivity {}
 class MockScrobbleService extends Mock implements ScrobbleService {}
+class MockListeningLogService extends Mock implements ListeningLogService {}
 class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
 
 class ControlledAudioPlayer extends Fake implements AudioPlayer {
@@ -110,6 +112,10 @@ void main() {
     HiveBoxes.audio = await Hive.openBox('audio');
     
     registerFallbackValue(Uri());
+    registerFallbackValue(Duration.zero);
+    registerFallbackValue(
+      Song(id: '', title: '', artist: '', album: '', coverArt: '', duration: 0, track: 0, year: 0),
+    );
   });
 
   group('ScrobbleService - Offline Guards & Submissions', () {
@@ -120,7 +126,11 @@ void main() {
     setUp(() {
       mockApi = MockSubsonicService();
       mockConnectivity = MockConnectivity();
-      scrobbleService = ScrobbleService(mockApi, mockConnectivity);
+      scrobbleService = ScrobbleService(
+        mockApi,
+        mockConnectivity,
+        MockListeningLogService(),
+      );
     });
 
     test('nowPlaying submits with submission=false when online', () async {
@@ -206,12 +216,15 @@ void main() {
       // Cross threshold
       mockPlayer.setMockPosition(const Duration(seconds: 61));
       await Future.delayed(Duration.zero);
-      verify(() => mockScrobble.submit('s1')).called(1);
-      
+      verify(() => mockScrobble.submit(
+        's1',
+        song: any(named: 'song'),
+      )).called(1);
+
       // Ensure it doesn't submit twice
       mockPlayer.setMockPosition(const Duration(seconds: 70));
       await Future.delayed(Duration.zero);
-      verifyNever(() => mockScrobble.submit('s1'));
+      verifyNever(() => mockScrobble.submit(any()));
     });
 
     test('Threshold capped at 4 minutes for long songs', () async {
@@ -228,7 +241,10 @@ void main() {
 
       mockPlayer.setMockPosition(const Duration(seconds: 241));
       await Future.delayed(Duration.zero);
-      verify(() => mockScrobble.submit('long')).called(1);
+      verify(() => mockScrobble.submit(
+        'long',
+        song: any(named: 'song'),
+      )).called(1);
     });
     
     test('Skips before threshold do not trigger submission', () async {

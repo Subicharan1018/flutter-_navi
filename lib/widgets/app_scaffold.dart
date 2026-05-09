@@ -7,6 +7,7 @@ import '../screens/search_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/favorites_screen.dart';
 import '../services/replay_upload_service.dart';
+import '../services/listening_log_service.dart';
 import '../core/theme.dart';
 import '../providers/settings_provider.dart';
 import '../fluid_background.dart';
@@ -26,16 +27,33 @@ class AppScaffold extends ConsumerStatefulWidget {
   ConsumerState<AppScaffold> createState() => _AppScaffoldState();
 }
 
-class _AppScaffoldState extends ConsumerState<AppScaffold> {
+class _AppScaffoldState extends ConsumerState<AppScaffold>
+    with WidgetsBindingObserver {
   int _currentIndex = 0;
 
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     // Schedule background analytics upload on startup if needed
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(replayUploadServiceProvider).performUploadIfNeeded();
     });
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  /// Flush the listening-log retry queue whenever the app comes back to the
+  /// foreground. This is the single flush point — no background polling needed.
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      ref.read(listeningLogServiceProvider).flushQueue();
+    }
   }
 
   static const List<_NavItem> _items = [

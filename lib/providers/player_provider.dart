@@ -169,7 +169,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Duration _scrobbleThreshold = Duration.zero;
   bool _hasScrobbled = false;
   String? _currentScrobbleSongId;
-  
+
+  // LISTENING-LOG: Accumulate actual wall-clock listening time per track.
+  // Reset on every song change and stop().
+  Duration _playedDuration = Duration.zero;
+  DateTime? _lastPlayTimestamp;
+
   Duration _lastKnownPosition = Duration.zero;
   int _lastKnownIndex = 0;
   bool _isShuffling = false;
@@ -243,12 +248,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // SCROBBLE: track position and notify server
         _hasScrobbled = false;
         _currentScrobbleSongId = newSong.id;
-        
+
+        // LISTENING-LOG: reset the played-duration accumulator for the new track.
+        _playedDuration = Duration.zero;
+        _lastPlayTimestamp = null;
+
         final total = Duration(seconds: newSong.duration);
         final half = total * 0.5;
         const fourMinutes = Duration(minutes: 4);
         _scrobbleThreshold = half < fourMinutes ? half : fourMinutes;
-        
+
         _ref.read(scrobbleServiceProvider).nowPlaying(newSong.id);
 
         _ref.read(recommendationProvider).trackSongPlay(
@@ -348,11 +357,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       prevPosition = position;
 
+      // LISTENING-LOG: accumulate wall-clock time while the player is active.
+      // We use wall-clock deltas (not position deltas) so pauses and seeks are
+      // handled correctly — time only accumulates when the player is playing.
+      final now = DateTime.now();
+      if (state.isPlaying && _lastPlayTimestamp != null) {
+        _playedDuration += now.difference(_lastPlayTimestamp!);
+      }
+      _lastPlayTimestamp = state.isPlaying ? now : null;
+
       if (!_hasScrobbled &&
           _currentScrobbleSongId != null &&
           position >= _scrobbleThreshold) {
         _hasScrobbled = true;
-        _ref.read(scrobbleServiceProvider).submit(_currentScrobbleSongId!);
+        _ref.read(scrobbleServiceProvider).submit(
+          _currentScrobbleSongId!,
+          song: currentSong,
+        );
       }
     }));
   }
@@ -517,6 +538,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> stop() async {
     _hasScrobbled = false;
     _currentScrobbleSongId = null;
+    // LISTENING-LOG: stop accumulating on explicit stop.
+    _playedDuration = Duration.zero;
+    _lastPlayTimestamp = null;
     await player.stop();
   }
 

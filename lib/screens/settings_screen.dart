@@ -14,6 +14,7 @@ import '../services/recommendation_service.dart';
 import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
 import '../widgets/theme_selector.dart';
+import 'listening_stats_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -363,6 +364,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   label: 'Remote Dir',
                   controller: _uploadDirController,
                   hint: '/DATA/Media/Music',
+                ),
+                _SettingsDivider(),
+                ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16),
+                  leading: Icon(Icons.bar_chart_rounded,
+                      color: ThemeTokens.of(context).textMuted, size: 24),
+                  title: Text('Listening Stats',
+                      style: TextStyle(
+                          color: ThemeTokens.of(context).textPrimary,
+                          fontSize: 15)),
+                  subtitle: Text(
+                    'View your top artists, tracks and recent plays',
+                    style: TextStyle(
+                        color: ThemeTokens.of(context).textMuted,
+                        fontSize: 12),
+                  ),
+                  trailing: Icon(Icons.chevron_right_rounded,
+                      color: ThemeTokens.of(context).textMuted, size: 20),
+                  onTap: () {
+                    final url = _uploadUrlController.text.trim();
+                    if (url.isEmpty) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        const SnackBar(
+                          content: Text(
+                              'Set a Custom API URL first to use Listening Stats'),
+                        ),
+                      );
+                      return;
+                    }
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                          builder: (_) => const ListeningStatsScreen()),
+                    );
+                  },
                 ),
               ],
             ),
