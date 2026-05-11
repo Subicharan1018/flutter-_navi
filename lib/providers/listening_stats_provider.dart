@@ -9,7 +9,7 @@ import '../providers/settings_provider.dart';
 // =============================================================================
 // ListeningStatsNotifier
 //
-// Fetches playback stats from GET <uploadApiUrl>/listening-log/stats?period=...
+// Fetches playback stats from GET <loggingApiUrl>/listening-log/stats?period=...
 // Exposes AsyncValue<ListeningStats> so the UI can handle loading/error/data.
 // =============================================================================
 
@@ -35,7 +35,7 @@ class ListeningStatsNotifier
     state = const AsyncValue.loading();
     if (_baseUrl.isEmpty) {
       state = AsyncValue.error(
-        'No server URL configured. Set the Custom API in Settings.',
+        'No server URL configured. Set the API Base URL in Settings.',
         StackTrace.current,
       );
       return;
@@ -69,7 +69,8 @@ class ListeningStatsNotifier
 /// Provider family — one notifier per period string ('weekly', 'monthly', 'all').
 final listeningStatsProvider = StateNotifierProvider.family<
     ListeningStatsNotifier, AsyncValue<ListeningStats>, String>((ref, period) {
-  final baseUrl = ref.watch(settingsProvider).listeningApiUrl;
+  // Use the computed getter: apiBaseUrl:loggingPort
+  final baseUrl = ref.watch(settingsProvider).loggingApiUrl;
   final client = ref.watch(subsonicServiceProvider).client;
   return ListeningStatsNotifier(
     client: client,
@@ -77,3 +78,4 @@ final listeningStatsProvider = StateNotifierProvider.family<
     period: period,
   );
 });
+

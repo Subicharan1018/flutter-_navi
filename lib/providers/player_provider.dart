@@ -127,6 +127,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           history: [],
         ),
       ) {
+    _syncShuffleUrl();
     _init();
     _loadPersistedState();
   }
@@ -162,6 +163,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   AudioPlayer get player => _audioHandler.player;
+
+  /// Reads the current shuffle server URL from settings and pushes it into
+  /// [AudioHandler]. Call after settings change to reflect the new URL
+  /// without rebuilding the entire provider.
+  void _syncShuffleUrl() {
+    final url = _ref.read(settingsProvider).localShuffleUrl;
+    _audioHandler.updateShuffleBaseUrl(url);
+  }
 
   Duration _scrobbleThreshold = Duration.zero;
   bool _hasScrobbled = false;
@@ -580,10 +589,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// Called when a new queue is loaded so the model doesn't block songs
   /// from the previous session.
   void _resetSmartLocalSession() {
+    final url = _ref.read(settingsProvider).localShuffleUrl;
+    if (url.isEmpty) return;
     http
-        .get(Uri.parse('http://100.99.105.51:5000/session/reset'))
+        .get(Uri.parse('$url/session/reset'))
         .catchError((_) {}); // fire and forget, non-critical
   }
+
+  /// Re-syncs the shuffle server URL into [AudioHandler].
+  /// Call this whenever the relevant settings change at runtime.
+  void refreshShuffleUrl() => _syncShuffleUrl();
 
   Future<void> playNext() async {
     await _queueOpLock?.future;

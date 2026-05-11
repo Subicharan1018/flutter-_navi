@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
+import '../providers/player_provider.dart';
 import '../services/subsonic_service.dart';
 import '../services/listening_event_collector.dart';
 import '../services/cache_settings_service.dart';
@@ -27,8 +28,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _urlController;
   late TextEditingController _userController;
   late TextEditingController _passController;
-  late TextEditingController _uploadUrlController;
-  late TextEditingController _listeningUrlController;
+  late TextEditingController _apiBaseUrlController;
+  late TextEditingController _loggingPortController;
+  late TextEditingController _uploadPortController;
+  late TextEditingController _shufflePortController;
   late TextEditingController _uploadDirController;
   late TextEditingController _webdavUserController;
   late TextEditingController _webdavPassController;
@@ -61,8 +64,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _urlController        = TextEditingController(text: settings.serverUrl);
     _userController       = TextEditingController(text: settings.username);
     _passController       = TextEditingController(text: settings.password);
-    _uploadUrlController  = TextEditingController(text: settings.uploadApiUrl);
-    _listeningUrlController = TextEditingController(text: settings.listeningApiUrl);
+    _apiBaseUrlController = TextEditingController(text: settings.apiBaseUrl);
+    _loggingPortController = TextEditingController(text: settings.loggingPort.toString());
+    _uploadPortController = TextEditingController(text: settings.uploadPort.toString());
+    _shufflePortController = TextEditingController(text: settings.localShufflePort.toString());
     _uploadDirController  = TextEditingController(text: settings.uploadDirectory);
     _webdavUserController = TextEditingController(text: settings.webdavUsername);
     _webdavPassController = TextEditingController(text: settings.webdavPassword);
@@ -109,8 +114,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _urlController.dispose();
     _userController.dispose();
     _passController.dispose();
-    _uploadUrlController.dispose();
-    _listeningUrlController.dispose();
+    _apiBaseUrlController.dispose();
+    _loggingPortController.dispose();
+    _uploadPortController.dispose();
+    _shufflePortController.dispose();
     _uploadDirController.dispose();
     _webdavUserController.dispose();
     _webdavPassController.dispose();
@@ -122,12 +129,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _urlController.text.trim(),
           _userController.text.trim(),
           _passController.text,
-          uploadUrl: _uploadUrlController.text.trim(),
-          listeningUrl: _listeningUrlController.text.trim(),
+          apiBaseUrl: _apiBaseUrlController.text.trim(),
+          loggingPort: int.tryParse(_loggingPortController.text.trim()) ?? 5006,
+          uploadPort: int.tryParse(_uploadPortController.text.trim()) ?? 5005,
+          localShufflePort: int.tryParse(_shufflePortController.text.trim()) ?? 5000,
           uploadDir: _uploadDirController.text.trim(),
           webdavUser: _webdavUserController.text.trim(),
           webdavPass: _webdavPassController.text,
         );
+    // Push new shuffle URL into the running AudioHandler immediately
+    ref.read(playerProvider.notifier).refreshShuffleUrl();
     HapticFeedback.mediumImpact();
     Navigator.pop(context);
   }
@@ -158,11 +169,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _syncDataToServer() async {
-    final uploadUrl = _uploadUrlController.text.trim();
-    if (uploadUrl.isEmpty) {
+    final apiBase = _apiBaseUrlController.text.trim();
+    if (apiBase.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Set Custom API before syncing analytics to the server'),
+          content: Text('Set an API Base URL before syncing analytics to the server'),
         ),
       );
       return;
@@ -202,22 +213,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (result != null && result.files.single.path != null) {
       setState(() => _isUploading = true);
       try {
-      debugPrint('Upload UI: file=${result.files.single.path!} server=${_urlController.text.trim()} customApi=${_uploadUrlController.text.trim().isNotEmpty}');
-      final cache = ref.read(playlistCacheServiceProvider);
-      final service = SubsonicService(
-        serverUrl: _urlController.text.trim(),
-        username: _userController.text.trim(),
-        password: _passController.text,
-        cache: cache,
-        customUploadUrl: _uploadUrlController.text.trim().isEmpty
-          ? null
-          : _uploadUrlController.text.trim(),
-        customUploadDir: _uploadDirController.text.trim().isEmpty
-          ? null
-          : _uploadDirController.text.trim(),
-        webdavUsername: _webdavUserController.text.trim(),
-        webdavPassword: _webdavPassController.text,
-      );
+      debugPrint('Upload UI: file=${result.files.single.path!} server=${_urlController.text.trim()}');
+        final cache = ref.read(playlistCacheServiceProvider);
+        final uploadUrl = ref.read(settingsProvider).uploadApiUrl; // computed
+        final service = SubsonicService(
+          serverUrl: _urlController.text.trim(),
+          username: _userController.text.trim(),
+          password: _passController.text,
+          cache: cache,
+          customUploadUrl: uploadUrl.isEmpty ? null : uploadUrl,
+          customUploadDir: _uploadDirController.text.trim().isEmpty
+            ? null
+            : _uploadDirController.text.trim(),
+          webdavUsername: _webdavUserController.text.trim(),
+          webdavPassword: _webdavPassController.text,
+        );
         await service.uploadSong(File(result.files.single.path!));
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
@@ -356,18 +366,43 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Advanced Upload
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'ADVANCED UPLOAD',
+              title: 'API SERVER',
               children: [
-                _SettingsInputRow(
-                  label: 'WebDAV URL',
-                  controller: _uploadUrlController,
-                  hint: 'http://server:5005',
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                  child: Text(
+                    'Base URL (no port) for the AI shuffle, telemetry and upload services.',
+                    style: TextStyle(
+                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                  ),
                 ),
                 _SettingsDivider(),
                 _SettingsInputRow(
-                  label: 'Listening API',
-                  controller: _listeningUrlController,
-                  hint: 'http://server:5006',
+                  label: 'API Base URL',
+                  controller: _apiBaseUrlController,
+                  hint: 'http://192.168.1.10',
+                  keyboardType: TextInputType.url,
+                ),
+                _SettingsDivider(),
+                _SettingsInputRow(
+                  label: 'Logging Port',
+                  controller: _loggingPortController,
+                  hint: '5006',
+                  keyboardType: TextInputType.number,
+                ),
+                _SettingsDivider(),
+                _SettingsInputRow(
+                  label: 'Upload Port',
+                  controller: _uploadPortController,
+                  hint: '5005',
+                  keyboardType: TextInputType.number,
+                ),
+                _SettingsDivider(),
+                _SettingsInputRow(
+                  label: 'Shuffle Port',
+                  controller: _shufflePortController,
+                  hint: '5000',
+                  keyboardType: TextInputType.number,
                 ),
                 _SettingsDivider(),
                 _SettingsInputRow(
@@ -394,12 +429,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   trailing: Icon(Icons.chevron_right_rounded,
                       color: ThemeTokens.of(context).textMuted, size: 20),
                   onTap: () {
-                    final url = _listeningUrlController.text.trim();
-                    if (url.isEmpty) {
+                    final base = _apiBaseUrlController.text.trim();
+                    if (base.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
                           content: Text(
-                              'Set a Listening API URL first to use Listening Stats'),
+                              'Set an API Base URL first to use Listening Stats'),
                         ),
                       );
                       return;
@@ -1034,6 +1069,7 @@ class _SettingsInputRow extends StatelessWidget {
   final String hint;
   final bool obscure;
   final VoidCallback? onToggleObscure;
+  final TextInputType? keyboardType;
 
   const _SettingsInputRow({
     required this.label,
@@ -1041,6 +1077,7 @@ class _SettingsInputRow extends StatelessWidget {
     required this.hint,
     this.obscure = false,
     this.onToggleObscure,
+    this.keyboardType,
   });
 
   @override
@@ -1060,6 +1097,7 @@ class _SettingsInputRow extends StatelessWidget {
             child: TextField(
               controller: controller,
               obscureText: obscure,
+              keyboardType: keyboardType,
               textAlign: TextAlign.right,
               style: TextStyle(
                   color: tokens.textMuted, fontSize: 15),

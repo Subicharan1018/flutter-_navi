@@ -1,0 +1,163 @@
+00:00 +0: loading /home/subi/Documents/flutter-_navi/test/providers/player_notifier_timer_test.dart
+00:00 +0: (setUpAll)
+00:00 +0: BUG 1 — _trackChangeTimer fires onSongStarted track change emits analytics after 200ms debounce
+[AudioHandler] Shuffle server URL updated: (empty — fallback mode)
+[Analytics] 🔑 New session (gap 29642581min) → 852108ca-9765-4535-a14c-7e98c7284271
+[Analytics] ⏺ Started: "Second 2" (ctx=user_queue, q=1, shuffle=false)
+[Analytics] ❌ upsertSongMetadata: MissingPluginException(No implementation found for method getApplicationDocumentsDirectory on channel plugins.flutter.io/path_provider)
+[Analytics] 🗑 Discarded short event: "Second 2" (0.0s < 2.0s)
+00:00 +0 -1: BUG 1 — _trackChangeTimer fires onSongStarted track change emits analytics after 200ms debounce [E]
+  MissingPluginException(No implementation found for method getApplicationDocumentsDirectory on channel plugins.flutter.io/path_provider)
+  package:flutter/src/services/platform_channel.dart 364:7               MethodChannel._invokeMethod
+  ===== asynchronous gap ===========================
+  dart:async                                                             Future.then
+  package:drift/src/utils/lazy_database.dart 57:27                       LazyDatabase._awaitOpened
+  package:drift/src/utils/lazy_database.dart 74:12                       LazyDatabase.ensureOpen
+  package:drift/src/runtime/api/connection_user.dart 169:21              DatabaseConnectionUser.doWhenOpened
+  package:drift/src/runtime/api/connection_user.dart 728:19              InternalConnectionUserApi.withCurrentExecutor
+  package:drift/src/runtime/query_builder/statements/insert.dart 73:27   InsertStatement.insert
+  package:drift/src/runtime/query_builder/statements/insert.dart 212:12  InsertStatement.insertOnConflictUpdate
+  package:navivibe/services/listening_event_collector.dart 373:32        ListeningEventCollector._upsertSongMetadata
+  package:navivibe/services/listening_event_collector.dart 161:5         ListeningEventCollector.onSongStarted
+  package:navivibe/providers/player_provider.dart 234:24                 PlayerNotifier._init.<fn>.<fn>
+  ===== asynchronous gap ===========================
+  dart:async                                                             new Timer
+  package:navivibe/providers/player_provider.dart 233:31                 PlayerNotifier._init.<fn>
+  dart:async                                                             _BroadcastStreamController.add
+  test/providers/player_notifier_timer_test.dart 141:29                  ControlledAudioPlayer.emitCurrentIndex
+  test/providers/player_notifier_timer_test.dart 237:24                  main.<fn>.<fn>
+  ===== asynchronous gap ===========================
+  dart:async                                                             _StreamImpl.listen
+  package:navivibe/providers/player_provider.dart 196:33                 PlayerNotifier._init
+  package:navivibe/providers/player_provider.dart 131:5                  new PlayerNotifier
+  package:navivibe/providers/player_provider.dart 1075:10                playerProvider.<fn>
+  package:riverpod/src/state_notifier_provider/base.dart 119:21          StateNotifierProvider._create
+  package:riverpod/src/state_notifier_provider/base.dart 172:64          StateNotifierProviderElement.create.<fn>
+  package:riverpod/src/result.dart 21:28                                 Result.guard
+  package:riverpod/src/state_notifier_provider/base.dart 172:43          StateNotifierProviderElement.create
+  package:riverpod/src/framework/element.dart 426:7                      ProviderElementBase.buildState
+  package:riverpod/src/framework/element.dart 228:5                      ProviderElementBase.mount
+  package:riverpod/src/framework/container.dart 47:11                    _StateReader._create
+  package:riverpod/src/framework/container.dart 35:52                    _StateReader.getElement
+  package:riverpod/src/framework/container.dart 440:40                   ProviderContainer.readProviderElement.<fn>
+  package:riverpod/src/framework/container.dart 475:8                    ProviderContainer.readProviderElement
+  package:riverpod/src/framework/proxy_provider_listenable.dart 134:26   ProviderElementProxy.read
+  package:riverpod/src/framework/container.dart 241:21                   ProviderContainer.read
+  test/providers/player_notifier_timer_test.dart 223:34                  main.<fn>.<fn>
+  
+Warning: At least one test in this suite creates an HttpClient. When running a test suite that uses
+TestWidgetsFlutterBinding, all HTTP requests will return status code 400, and no network request
+will actually be made. Any test expecting a real network connection and status code will fail.
+To test code that needs an HttpClient, provide your own HttpClient implementation to the code under
+test, so that your test can consistently provide a testable response to the code under test.
+00:00 +0 -1: BUG 2 — Scrobble threshold check scrobble threshold is min(50%, 4min)
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database. 
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:navivibe/database/app_database.g.dart:4039:36)
+#4      new AppDatabase (package:navivibe/database/app_database.dart:27:19)
+#5      appDatabaseProvider.<anonymous closure> (package:navivibe/providers/settings_provider.dart:419:14)
+#6      Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#7      ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#8      ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#9      ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#10     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#11     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#12     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#13     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#14     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#15     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#16     listenerCollectorProvider.<anonymous closure> (package:navivibe/providers/settings_provider.dart:464:18)
+#17     Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#18     ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#19     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#20     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#21     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#22     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#23     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#24     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#25     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#26     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#27     playerProvider.<anonymous closure> (package:navivibe/providers/player_provider.dart:1074:25)
+#28     StateNotifierProvider._create (package:riverpod/src/state_notifier_provider/base.dart:119:21)
+#29     StateNotifierProviderElement.create.<anonymous closure> (package:riverpod/src/state_notifier_provider/base.dart:172:64)
+#30     Result.guard (package:riverpod/src/result.dart:21:28)
+#31     StateNotifierProviderElement.create (package:riverpod/src/state_notifier_provider/base.dart:172:43)
+#32     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#33     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#34     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#35     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#36     ProviderContainer.readProviderElement.<anonymous closure> (package:riverpod/src/framework/container.dart:440:40)
+#37     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:475:8)
+#38     ProviderBase.read (package:riverpod/src/framework/provider_base.dart:105:26)
+#39     ProviderContainer.read (package:riverpod/src/framework/container.dart:241:21)
+#40     main.<anonymous closure>.<anonymous closure> (file:///home/subi/Documents/flutter-_navi/test/providers/player_notifier_timer_test.dart:266:34)
+#41     Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:25)
+<asynchronous suspension>
+#42     Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#43     Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+[AudioHandler] Shuffle server URL updated: (empty — fallback mode)
+00:00 +1 -1: BUG 4 — Post-shuffle index correctness history does not duplicate the same song on repeated index events
+WARNING (drift): It looks like you've created the database class AppDatabase multiple times. When these two databases use the same QueryExecutor, race conditions will occur and might corrupt the database. 
+Try to follow the advice at https://drift.simonbinder.eu/faq/#using-the-database or, if you know what you're doing, set driftRuntimeOptions.dontWarnAboutMultipleDatabases = true
+Here is the stacktrace from when the database was opened a second time:
+#0      GeneratedDatabase._handleInstantiated (package:drift/src/runtime/api/db_base.dart:96:30)
+#1      GeneratedDatabase._whenConstructed (package:drift/src/runtime/api/db_base.dart:73:12)
+#2      new GeneratedDatabase (package:drift/src/runtime/api/db_base.dart:64:5)
+#3      new _$AppDatabase (package:navivibe/database/app_database.g.dart:4039:36)
+#4      new AppDatabase (package:navivibe/database/app_database.dart:27:19)
+#5      appDatabaseProvider.<anonymous closure> (package:navivibe/providers/settings_provider.dart:419:14)
+#6      Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#7      ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#8      ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#9      ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#10     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#11     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#12     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#13     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#14     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#15     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#16     listenerCollectorProvider.<anonymous closure> (package:navivibe/providers/settings_provider.dart:464:18)
+#17     Provider._create (package:riverpod/src/provider/base.dart:59:57)
+#18     ProviderElement.create (package:riverpod/src/provider/base.dart:345:23)
+#19     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#20     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#21     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#22     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#23     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:479:19)
+#24     ProviderElementBase._debugAssertCanDependOn.<anonymous closure> (package:riverpod/src/framework/element.dart:624:42)
+#25     ProviderElementBase._debugAssertCanDependOn (package:riverpod/src/framework/element.dart:667:8)
+#26     ProviderElementBase.watch (package:riverpod/src/framework/element.dart:714:12)
+#27     playerProvider.<anonymous closure> (package:navivibe/providers/player_provider.dart:1074:25)
+#28     StateNotifierProvider._create (package:riverpod/src/state_notifier_provider/base.dart:119:21)
+#29     StateNotifierProviderElement.create.<anonymous closure> (package:riverpod/src/state_notifier_provider/base.dart:172:64)
+#30     Result.guard (package:riverpod/src/result.dart:21:28)
+#31     StateNotifierProviderElement.create (package:riverpod/src/state_notifier_provider/base.dart:172:43)
+#32     ProviderElementBase.buildState (package:riverpod/src/framework/element.dart:426:7)
+#33     ProviderElementBase.mount (package:riverpod/src/framework/element.dart:228:5)
+#34     _StateReader._create (package:riverpod/src/framework/container.dart:47:11)
+#35     _StateReader.getElement (package:riverpod/src/framework/container.dart:35:52)
+#36     ProviderContainer.readProviderElement.<anonymous closure> (package:riverpod/src/framework/container.dart:440:40)
+#37     ProviderContainer.readProviderElement (package:riverpod/src/framework/container.dart:475:8)
+#38     ProviderElementProxy.read (package:riverpod/src/framework/proxy_provider_listenable.dart:134:26)
+#39     ProviderContainer.read (package:riverpod/src/framework/container.dart:241:21)
+#40     main.<anonymous closure>.<anonymous closure> (file:///home/subi/Documents/flutter-_navi/test/providers/player_notifier_timer_test.dart:304:34)
+#41     Declarer.test.<anonymous closure>.<anonymous closure> (package:test_api/src/backend/declarer.dart:253:25)
+<asynchronous suspension>
+#42     Declarer.test.<anonymous closure> (package:test_api/src/backend/declarer.dart:250:11)
+<asynchronous suspension>
+#43     Invoker._waitForOutstandingCallbacks.<anonymous closure> (package:test_api/src/backend/invoker.dart:318:9)
+<asynchronous suspension>
+This warning will only appear on debug builds.
+[AudioHandler] Shuffle server URL updated: (empty — fallback mode)
+00:00 +2 -1: BUG 5 — _persistState deduplication position 5s, 10s, 15s should trigger persist (once each)
+00:00 +3 -1: BUG 5 — _persistState deduplication non-5s positions do not trigger persist
+00:00 +4 -1: BUG 5 — _persistState deduplication position 0 does not trigger persist
+00:00 +5 -1: (tearDownAll)
+00:00 +5 -1: Some tests failed.

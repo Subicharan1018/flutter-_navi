@@ -12,6 +12,8 @@ import '../providers/settings_provider.dart';
 import '../providers/replay_provider.dart';
 import '../core/theme.dart';
 import 'settings_screen.dart';
+import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
+import '../features/ai_shuffle/ui/home_stats_widget.dart';
 import 'made_for_you_screen.dart';
 import 'new_releases_screen.dart';
 import 'favorites_screen.dart';
@@ -126,45 +128,70 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                             ? Color.alphaBlend(accent.withOpacity(0.10), t.bgSurface)
                             : Color.alphaBlend(accent.withOpacity(0.16), t.bgBase);
 
-                        return Row(
+                        final purpleAccent = t.mode == AppThemeMode.spotify
+                            ? const Color(0xFF9333EA)
+                            : Color.lerp(t.accent, const Color(0xFF9333EA), 0.55)!;
+
+                        return Column(
                           children: [
-                            Expanded(
-                              child: _ExploreCard(
-                                key: const Key('explore_made_for_you'),
-                                label: 'CURATED',
-                                title: 'Made\nFor You',
-                                icon: Icons.auto_awesome_rounded,
-                                color: greenAccent,
-                                bgColor: cardBg(greenAccent),
-                                onTap: () => Navigator.push(context,
-                                    MaterialPageRoute(builder: (_) => const MadeForYouScreen())),
-                              ),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ExploreCard(
+                                    key: const Key('explore_made_for_you'),
+                                    label: 'CURATED',
+                                    title: 'Made\nFor You',
+                                    icon: Icons.auto_awesome_rounded,
+                                    color: greenAccent,
+                                    bgColor: cardBg(greenAccent),
+                                    onTap: () => Navigator.push(context,
+                                        MaterialPageRoute(builder: (_) => const MadeForYouScreen())),
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: _ExploreCard(
+                                    key: const Key('explore_ai_shuffle'),
+                                    label: 'SERVER',
+                                    title: 'AI\nShuffle',
+                                    icon: Icons.auto_awesome,
+                                    color: purpleAccent,
+                                    bgColor: cardBg(purpleAccent),
+                                    onTap: () => Navigator.push(context,
+                                        MaterialPageRoute(builder: (_) => const AiShuffleScreen())),
+                                  ),
+                                ),
+                              ],
                             ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: _ExploreCard(
-                                key: const Key('explore_favorites'),
-                                label: 'SAVED',
-                                title: 'Your\nFavorites',
-                                icon: Icons.favorite_rounded,
-                                color: roseAccent,
-                                bgColor: cardBg(roseAccent),
-                                onTap: () => Navigator.push(context,
-                                    MaterialPageRoute(builder: (_) => const FavoritesScreen())),
-                              ),
-                            ),
-                            SizedBox(width: 8),
-                            Expanded(
-                              child: _ExploreCard(
-                                key: const Key('explore_new_releases'),
-                                label: 'FRESH',
-                                title: 'New\nReleases',
-                                icon: Icons.new_releases_rounded,
-                                color: blueAccent,
-                                bgColor: cardBg(blueAccent),
-                                onTap: () => Navigator.push(context,
-                                    MaterialPageRoute(builder: (_) => const NewReleasesScreen())),
-                              ),
+                            SizedBox(height: 8),
+                            Row(
+                              children: [
+                                Expanded(
+                                  child: _ExploreCard(
+                                    key: const Key('explore_favorites'),
+                                    label: 'SAVED',
+                                    title: 'Your\nFavorites',
+                                    icon: Icons.favorite_rounded,
+                                    color: roseAccent,
+                                    bgColor: cardBg(roseAccent),
+                                    onTap: () => Navigator.push(context,
+                                        MaterialPageRoute(builder: (_) => const FavoritesScreen())),
+                                  ),
+                                ),
+                                SizedBox(width: 8),
+                                Expanded(
+                                  child: _ExploreCard(
+                                    key: const Key('explore_new_releases'),
+                                    label: 'FRESH',
+                                    title: 'New\nReleases',
+                                    icon: Icons.new_releases_rounded,
+                                    color: blueAccent,
+                                    bgColor: cardBg(blueAccent),
+                                    onTap: () => Navigator.push(context,
+                                        MaterialPageRoute(builder: (_) => const NewReleasesScreen())),
+                                  ),
+                                ),
+                              ],
                             ),
                           ],
                         );
@@ -208,46 +235,12 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
 
                   // ── Monthly Replay ─────────────────────────────────────────────
                   SliverToBoxAdapter(
-                    child: _SectionLabel(
-                      title: 'Monthly Replay',
-                      onSeeAll: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const ReplayScreen(initialTab: 0))),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: monthlyAsync.when(
-                      data: (data) => data.isEmpty
-                          ? const _EmptyReplayHint()
-                          : _ReplaySongReel(
-                              data: data,
-                              onSeeAll: () => Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => const ReplayScreen(initialTab: 0))),
-                            ).animate(delay: 140.ms).fadeIn(duration: 400.ms),
-                      loading: () => const _ShimmerReel(),
-                      error: (_, __) => const _EmptyReplayHint(),
-                    ),
+                    child: const HomeStatsWidget(period: 'monthly'),
                   ),
 
                   // ── Weekly Replay ──────────────────────────────────────────────
                   SliverToBoxAdapter(
-                    child: _SectionLabel(
-                      title: 'This Week',
-                      onSeeAll: () => Navigator.push(context,
-                          MaterialPageRoute(builder: (_) => const ReplayScreen(initialTab: 1))),
-                    ),
-                  ),
-                  SliverToBoxAdapter(
-                    child: weeklyAsync.when(
-                      data: (data) => data.isEmpty
-                          ? const _EmptyReplayHint()
-                          : _ReplaySongReel(
-                              data: data,
-                              onSeeAll: () => Navigator.push(context,
-                                  MaterialPageRoute(builder: (_) => const ReplayScreen(initialTab: 1))),
-                            ).animate(delay: 180.ms).fadeIn(duration: 400.ms),
-                      loading: () => const _ShimmerReel(),
-                      error: (_, __) => const _EmptyReplayHint(),
-                    ),
+                    child: const HomeStatsWidget(period: 'weekly'),
                   ),
 
                   // Bottom safe spacing for mini player

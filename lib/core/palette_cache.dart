@@ -26,7 +26,7 @@ class PaletteCache {
   PaletteCache._();
   static final PaletteCache instance = PaletteCache._();
 
-  static const int _maxEntries = 50;
+  static const int maxEntries = 50;
 
   // ── Defaults match the fallback in _extractPaletteIsolate ─────────────────
   static const List<Color> _kFallback = [
@@ -53,6 +53,10 @@ class PaletteCache {
 
   /// The song ID whose colours are currently active, or null if empty.
   String? get songId => _currentSongId;
+
+  /// The current number of entries in the cache.
+  @visibleForTesting
+  int get length => _cache.length;
 
   /// Returns true when [id] is present in the cache — safe to skip extraction.
   bool hasColorsFor(String id) => _cache.containsKey(id);
@@ -88,7 +92,7 @@ class PaletteCache {
 
   void _evictIfNeeded() {
     // _cache.keys.first is the least-recently-used entry (insertion-order head).
-    while (_cache.length > _maxEntries) {
+    while (_cache.length > maxEntries) {
       _cache.remove(_cache.keys.first);
     }
   }

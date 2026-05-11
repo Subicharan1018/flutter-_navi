@@ -192,9 +192,9 @@ class AudioHandler {
   static const int _recencyWindow = 20;
   final Set<String> _recentlyPlayedIds = {};
 
-  // FIX-PERF-1: Cache the smart local server base URL so it doesn't get
-  // reconstructed on every call.
-  static const String _smartLocalBase = 'http://100.99.105.51:5000';
+  // Shuffle server base URL — set dynamically from Settings so no hardcoded
+  // IP ever appears in source code. Empty = fall back to standard shuffle.
+  String _shuffleBaseUrl = '';
 
   AudioHandler(
     this.subsonicService, {
@@ -320,9 +320,9 @@ class AudioHandler {
     final savedLoopMode = player.loopMode;
     // BUG-7 FIX: Pre-compute offline paths to avoid per-song File.existsSync() calls.
     final offlinePaths = _precomputeOfflinePaths(_currentQueue);
-    final sources = _currentQueue
+    final List<AudioSource> sources = _currentQueue
         .map((song) => _toSourceWithPaths(song, offlinePaths))
-        .toList();
+        .toList() as List<AudioSource>;
     _playlist = ConcatenatingAudioSource(children: sources);
     await player.setAudioSource(
       _playlist!,
@@ -375,9 +375,9 @@ class AudioHandler {
     final wasPlaying = player.playing;
 
     final offlinePaths = _precomputeOfflinePaths(_currentQueue);
-    final sources = _currentQueue
+    final List<AudioSource> sources = _currentQueue
         .map((song) => _toSourceWithPaths(song, offlinePaths))
-        .toList();
+        .toList() as List<AudioSource>;
     _playlist = ConcatenatingAudioSource(children: sources);
     await player.setAudioSource(
       _playlist!,
@@ -671,14 +671,18 @@ class AudioHandler {
       futureMap.putIfAbsent(key, () => song);
     }
 
+    if (_shuffleBaseUrl.isEmpty) {
+      debugPrint('⚠️ [SHUFFLE] Smart Local: no server URL configured, falling back to standard shuffle');
+      await standardShuffle();
+      return;
+    }
+
     try {
-      final uri = Uri.parse('$_smartLocalBase/next').replace(
+      final uri = Uri.parse('$_shuffleBaseUrl/next').replace(
         queryParameters: {
           'current': currentSong.title,
           'artist': currentSong.artist,
           'count': count.toString(),
-          // FIX: tell the server to reset its session exclusion before
-          // reordering the whole queue (fresh queue load context)
         },
       );
 
@@ -791,6 +795,10 @@ class AudioHandler {
       // The pool IS the songs to order; the model picks the best sequence.
       case ShuffleAlgorithm.smartLocal:
         if (pool.isEmpty) return pool;
+        if (_shuffleBaseUrl.isEmpty) {
+          debugPrint('⚠️ [computeShuffle] Smart Local: no server URL configured, falling back to standard shuffle');
+          return compute(_standardShuffleIsolate, pool);
+        }
         try {
           final queryParams = <String, String>{'count': pool.length.toString()};
           if (currentSong != null) {
@@ -802,7 +810,7 @@ class AudioHandler {
           }
 
           final uri = Uri.parse(
-            '$_smartLocalBase/next',
+            '$_shuffleBaseUrl/next',
           ).replace(queryParameters: queryParams);
           final response = await http
               .get(uri)
@@ -874,40 +882,11 @@ class AudioHandler {
   // future improvement is to use Future.wait() with File.exists() (async).
   // ---------------------------------------------------------------------------
 
-  /// Pre-computes offline file paths for every song in [songs].
-  /// Batches all File.existsSync() calls into a single tight loop instead of
-  /// interleaving them with AudioSource + MediaItem construction.
-  Map<String, String?> _precomputeOfflinePaths(List<Song> songs) {
-    final offline = OfflineService();
-    final map = <String, String?>{};
-    for (final song in songs) {
-      map[song.id] = offline.getLocalPath(song.id);
-    }
-    return map;
-  }
-
-  /// Like [_toSource] but uses a pre-computed [paths] map instead of calling
-  /// OfflineService.getLocalPath() (which does File.existsSync()) per song.
-  /// Use during bulk source-list builds; use [_toSource] for single songs.
-  AudioSource _toSourceWithPaths(Song song, Map<String, String?> paths) {
-    final localPath = paths[song.id];
-    final streamUri = localPath != null
-        ? Uri.parse('file://$localPath')
-        : Uri.parse(subsonicService.getStreamUrl(song.id));
-
-    return AudioSource.uri(
-      streamUri,
-      tag: MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        genre: song.genre,
-        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
-        duration: Duration(seconds: song.duration),
-        extras: {'composer': song.composer, 'isLocal': localPath != null},
-      ),
-    );
+  /// Updates the base URL used for Smart Local shuffle requests.
+  /// Called by [PlayerNotifier] when settings change at runtime.
+  void updateShuffleBaseUrl(String url) {
+    _shuffleBaseUrl = url;
+    debugPrint('[AudioHandler] Shuffle server URL updated: ${url.isEmpty ? "(empty — fallback mode)" : url}');
   }
 
   Future<void> dispose() async {

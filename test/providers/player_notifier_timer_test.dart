@@ -22,6 +22,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:navivibe/core/hive_boxes.dart';
@@ -29,6 +30,7 @@ import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/audio_handler.dart';
+import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
 
@@ -56,6 +58,8 @@ Song _song({
 // ── Mock classes ──────────────────────────────────────────────────────────────
 
 class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
+
+class MockListeningEventCollector extends Mock implements ListeningEventCollector {}
 
 class MockSubsonicService extends SubsonicService {
   MockSubsonicService(PlaylistCacheService cache)
@@ -190,6 +194,9 @@ class TestAudioHandler extends AudioHandler {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    registerFallbackValue(
+      Song(id: '', title: '', artist: '', album: '', coverArt: '', duration: 0, track: 0, year: 0),
+    );
 
     const MethodChannel('dev.fluttercommunity.plus/connectivity')
         .setMockMethodCallHandler((MethodCall methodCall) async {
@@ -212,10 +219,12 @@ void main() {
       final mockPlayer = ControlledAudioPlayer();
       final handler = TestAudioHandler(mockService, player: mockPlayer);
 
+      final mockCollector = MockListeningEventCollector();
       final container = ProviderContainer(
         overrides: [
           audioHandlerProvider.overrideWithValue(handler),
           subsonicServiceProvider.overrideWithValue(mockService),
+          listenerCollectorProvider.overrideWithValue(mockCollector),
         ],
       );
       addTearDown(container.dispose);
@@ -255,10 +264,12 @@ void main() {
       final mockPlayer = ControlledAudioPlayer();
       final handler = TestAudioHandler(mockService, player: mockPlayer);
 
+      final mockCollector = MockListeningEventCollector();
       final container = ProviderContainer(
         overrides: [
           audioHandlerProvider.overrideWithValue(handler),
           subsonicServiceProvider.overrideWithValue(mockService),
+          listenerCollectorProvider.overrideWithValue(mockCollector),
         ],
       );
       addTearDown(container.dispose);
@@ -293,10 +304,12 @@ void main() {
       final mockPlayer = ControlledAudioPlayer();
       final handler = TestAudioHandler(mockService, player: mockPlayer);
 
+      final mockCollector = MockListeningEventCollector();
       final container = ProviderContainer(
         overrides: [
           audioHandlerProvider.overrideWithValue(handler),
           subsonicServiceProvider.overrideWithValue(mockService),
+          listenerCollectorProvider.overrideWithValue(mockCollector),
         ],
       );
       addTearDown(container.dispose);

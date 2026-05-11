@@ -25,6 +25,7 @@ class HiveBoxes {
   static late Box session;
   static late Box prefs;
   static late Box audio;
+  static late Box shuffleCache;
 
   /// Initialize Hive and open all boxes. Must be called before runApp().
   static Future<void> init() async {
@@ -33,10 +34,11 @@ class HiveBoxes {
     // Secure encryption for sensitive data (credentials)
     final encryptionKey = await _getEncryptionKey();
 
-    auth    = await Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(encryptionKey));
-    session = await Hive.openBox(_sessionBox);
-    prefs   = await Hive.openBox(_prefsBox);
-    audio   = await Hive.openBox(_audioBox);
+    auth         = await Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(encryptionKey));
+    session      = await Hive.openBox(_sessionBox);
+    prefs        = await Hive.openBox(_prefsBox);
+    audio        = await Hive.openBox(_audioBox);
+    shuffleCache = await Hive.openBox('shuffle_cache');
 
     // One-time migration from SharedPreferences → Hive
     await _migrateFromSharedPreferences();
@@ -74,8 +76,12 @@ class HiveBoxes {
   // ---------------------------------------------------------------------------
   static const kShuffleAlgorithm = 'shuffleAlgorithm';
   static const kShufflePreference = 'shufflePreference';
-  static const kUploadApiUrl = 'uploadApiUrl';
-  static const kListeningApiUrl = 'listeningApiUrl';
+  static const kUploadApiUrl = 'uploadApiUrl';           // legacy — kept for migration
+  static const kListeningApiUrl = 'listeningApiUrl';     // legacy — kept for migration
+  static const kApiBaseUrl = 'api_base_url';
+  static const kLoggingPort = 'logging_port';
+  static const kUploadPort = 'upload_port';
+  static const kLocalShufflePort = 'local_shuffle_port';
   static const kUploadDirectory = 'uploadDirectory';
   static const kDataCollectionEnabled = 'dataCollectionEnabled';
   static const kAnalyticsUploadSchedule = 'analytics_upload_schedule';

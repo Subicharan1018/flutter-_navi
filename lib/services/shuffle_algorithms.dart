@@ -59,7 +59,7 @@ List<Song> standardShuffleIsolate(List<Song> rest) {
 ///   'pref'  → int  (ShufflePreference.index)
 @visibleForTesting
 List<Song> ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
-  final songs = List<Song>.from(args['songs'] as List<Song>);
+  final songs = List<Song>.from(args['songs'] as List);
   final prefIndex = args['pref'] as int;
   final preference = ShufflePreference.values[prefIndex];
   final random = Random();
@@ -137,7 +137,7 @@ List<Song> interleave(List<Song> larger, List<Song> smaller, Random random) {
 ///   'pref'  → int  (ShufflePreference.index)
 @visibleForTesting
 List<Song> mergeShuffleIsolate(Map<String, dynamic> args) {
-  final songs = List<Song>.from(args['songs'] as List<Song>);
+  final songs = List<Song>.from(args['songs'] as List);
   final prefIndex = args['pref'] as int;
   final preference = ShufflePreference.values[prefIndex];
   final random = Random();
@@ -200,7 +200,7 @@ List<Song> weightedShuffleIsolate(List<Song> pool) {
 ///   'shuffleTracks' → bool  (shuffle tracks within each album if true)
 @visibleForTesting
 List<Song> albumAwareShuffleIsolate(Map<String, dynamic> args) {
-  final songs = List<Song>.from(args['songs'] as List<Song>);
+  final songs = List<Song>.from(args['songs'] as List);
   final shuffleTracks = args['shuffleTracks'] as bool? ?? false;
   final random = Random();
 
@@ -234,7 +234,7 @@ List<Song> albumAwareShuffleIsolate(Map<String, dynamic> args) {
 ///   'recentIds' → List<String>  (song IDs played recently in this session)
 @visibleForTesting
 List<Song> recencyDampenedShuffleIsolate(Map<String, dynamic> args) {
-  final songs = List<Song>.from(args['songs'] as List<Song>);
+  final songs = List<Song>.from(args['songs'] as List);
   final recentIds = Set<String>.from(args['recentIds'] as List);
   final random = Random();
 
