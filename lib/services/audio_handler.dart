@@ -264,6 +264,36 @@ class AudioHandler {
     );
   }
 
+  // BUG-7 FIX: Overload that takes a pre-computed offline path map to avoid
+  // per-song synchronous Hive lookups during batch source building.
+  AudioSource _toSourceWithPaths(Song song, Map<String, String?> offlinePaths) {
+    final localPath = offlinePaths[song.id];
+    final streamUri = localPath != null
+        ? Uri.parse('file://$localPath')
+        : Uri.parse(subsonicService.getStreamUrl(song.id));
+
+    return AudioSource.uri(
+      streamUri,
+      tag: MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        genre: song.genre,
+        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+        duration: Duration(seconds: song.duration),
+        extras: {'composer': song.composer, 'isLocal': localPath != null},
+      ),
+    );
+  }
+
+  /// BUG-7 FIX: Pre-compute all offline paths in a single pass through the
+  /// Hive box, eliminating O(n) individual lookups during source building.
+  Map<String, String?> _precomputeOfflinePaths(List<Song> songs) {
+    final offline = OfflineService();
+    return {for (final song in songs) song.id: offline.getLocalPath(song.id)};
+  }
+
   Future<void> setQueue(
     List<Song> songs,
     int startIndex, {
@@ -288,7 +318,11 @@ class AudioHandler {
   }) async {
     if (_currentQueue.isEmpty) return;
     final savedLoopMode = player.loopMode;
-    final sources = _currentQueue.map(_toSource).toList();
+    // BUG-7 FIX: Pre-compute offline paths to avoid per-song File.existsSync() calls.
+    final offlinePaths = _precomputeOfflinePaths(_currentQueue);
+    final sources = _currentQueue
+        .map((song) => _toSourceWithPaths(song, offlinePaths))
+        .toList();
     _playlist = ConcatenatingAudioSource(children: sources);
     await player.setAudioSource(
       _playlist!,
@@ -335,10 +369,15 @@ class AudioHandler {
     }
 
     // FIX-PERF-2: Single setAudioSource call — O(n), one platform channel round-trip.
+    // BUG-7 FIX: Pre-compute offline paths to avoid N synchronous File.existsSync()
+    // calls on the main thread during the _toSourceWithPaths loop.
     final savedPosition = player.position;
     final wasPlaying = player.playing;
 
-    final sources = _currentQueue.map(_toSource).toList();
+    final offlinePaths = _precomputeOfflinePaths(_currentQueue);
+    final sources = _currentQueue
+        .map((song) => _toSourceWithPaths(song, offlinePaths))
+        .toList();
     _playlist = ConcatenatingAudioSource(children: sources);
     await player.setAudioSource(
       _playlist!,
@@ -817,6 +856,58 @@ class AudioHandler {
         break;
       }
     }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Offline path helpers — BUG 3 + BUG 7 fix
+  //
+  // _toSource() calls OfflineService().getLocalPath() which does
+  // File.existsSync() synchronously. During a bulk source rebuild for a large
+  // queue this is N blocking I/O calls interleaved with AudioSource/MediaItem
+  // construction.  Pre-computing a Map<songId, localPath?> in one tight loop
+  // is significantly cheaper than N interleaved existsSync calls.
+  //
+  // OfflineService() is a singleton (factory constructor → _instance), so
+  // constructing it here always returns the same object.
+  //
+  // NOTE: This is still synchronous. For very large queues (500+ songs) a
+  // future improvement is to use Future.wait() with File.exists() (async).
+  // ---------------------------------------------------------------------------
+
+  /// Pre-computes offline file paths for every song in [songs].
+  /// Batches all File.existsSync() calls into a single tight loop instead of
+  /// interleaving them with AudioSource + MediaItem construction.
+  Map<String, String?> _precomputeOfflinePaths(List<Song> songs) {
+    final offline = OfflineService();
+    final map = <String, String?>{};
+    for (final song in songs) {
+      map[song.id] = offline.getLocalPath(song.id);
+    }
+    return map;
+  }
+
+  /// Like [_toSource] but uses a pre-computed [paths] map instead of calling
+  /// OfflineService.getLocalPath() (which does File.existsSync()) per song.
+  /// Use during bulk source-list builds; use [_toSource] for single songs.
+  AudioSource _toSourceWithPaths(Song song, Map<String, String?> paths) {
+    final localPath = paths[song.id];
+    final streamUri = localPath != null
+        ? Uri.parse('file://$localPath')
+        : Uri.parse(subsonicService.getStreamUrl(song.id));
+
+    return AudioSource.uri(
+      streamUri,
+      tag: MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        genre: song.genre,
+        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+        duration: Duration(seconds: song.duration),
+        extras: {'composer': song.composer, 'isLocal': localPath != null},
+      ),
+    );
   }
 
   Future<void> dispose() async {

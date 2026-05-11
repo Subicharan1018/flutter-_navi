@@ -166,12 +166,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Duration _scrobbleThreshold = Duration.zero;
   bool _hasScrobbled = false;
   String? _currentScrobbleSongId;
-  Duration _playedDuration = Duration.zero;
-  DateTime? _lastPlayTimestamp;
+  // BUG-2 FIX: Replaced per-tick DateTime accumulation with play/pause
+  // transition tracking. _scrobbleListenDuration tracks wall-clock time
+  // the player was actually in the Playing state (for the 4-min rule).
+  // _scrobblePlayStart is set when play starts, nulled when paused/stopped.
+  Duration _scrobbleListenDuration = Duration.zero;
+  DateTime? _scrobblePlayStart;
   Duration _lastKnownPosition = Duration.zero;
   int _lastKnownIndex = 0;
   bool _isShuffling = false;
   bool get isShuffling => _isShuffling;
+  // BUG-5 FIX: Deduplicate _persistState() calls — only fire once per
+  // 5-second boundary instead of on every position tick within that second.
+  int _lastPersistSecond = -1;
 
   void _init() {
     _lastKnownIndex = player.currentIndex ?? 0;
@@ -210,19 +217,37 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final capturedIdx = index;
           final capturedShuffle = state.shuffleMode;
 
+          // BUG-1 FIX: Wire the timer callback to actually call
+          // _collector.onSongStarted(). The 200ms debounce prevents
+          // counting rapid index changes (e.g. during seek) as separate
+          // song transitions.
           _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
-            // Analytics hook — extend here as needed
+            _collector.onSongStarted(
+              song: capturedNew,
+              sourceContext: sourceCtx,
+              transitionType: transCtx,
+              prevSong: capturedPrev,
+              positionAtSwitch: capturedPos,
+              queuePosition: capturedIdx,
+              shuffleActive: capturedShuffle,
+            );
           });
 
           _hasScrobbled = false;
           _currentScrobbleSongId = newSong.id;
-          _playedDuration = Duration.zero;
-          _lastPlayTimestamp = null;
+          // BUG-2 FIX: Reset accumulated listen time for the new song.
+          _scrobbleListenDuration = Duration.zero;
+          // BUG-2 GAPLESS FIX: Use player.playing (not state.isPlaying)
+          // because in gapless auto-advance the player is already playing when
+          // this index-change fires, but state.isPlaying may not reflect that
+          // yet (the state update from playingStream could arrive later).
+          _scrobblePlayStart = player.playing ? DateTime.now() : null;
 
-          final total = Duration(seconds: newSong.duration);
-          final half = total * 0.5;
-          const fourMinutes = Duration(minutes: 4);
-          _scrobbleThreshold = half < fourMinutes ? half : fourMinutes;
+          // BUG-2 FIX (REVISED): _scrobbleThreshold is purely 50% of track
+          // duration. The 4-minute rule is handled separately via
+          // _scrobbleListenDuration in the positionStream listener.
+          // Do NOT restore the old min(50%, 4min) logic here.
+          _scrobbleThreshold = Duration(seconds: newSong.duration) * 0.5;
 
           _ref.read(scrobbleServiceProvider).nowPlaying(newSong.id);
           _ref
@@ -280,6 +305,26 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _subscriptions.add(
       player.playingStream.listen((playing) {
         if (_suppressStreamEvents) return;
+
+        // BUG-2 FIX: Track play/pause transitions for the scrobble
+        // 4-minute actual-listening-time rule. Accumulate wall-clock
+        // time only on pause (or stop) events — not on every position tick.
+        //
+        // Use _scrobblePlayStart != null as the "was playing" check instead
+        // of state.isPlaying. state.isPlaying is updated by this same
+        // listener after this block — so reading it here gives the *new*
+        // value only if Dart's event loop has already applied it, which is
+        // not guaranteed on the very first emission (app init / unpause).
+        if (playing && _scrobblePlayStart == null) {
+          // Transition: paused → playing. Start the clock.
+          _scrobblePlayStart = DateTime.now();
+        } else if (!playing && _scrobblePlayStart != null) {
+          // Transition: playing → paused. Accumulate elapsed time.
+          _scrobbleListenDuration +=
+              DateTime.now().difference(_scrobblePlayStart!);
+          _scrobblePlayStart = null;
+        }
+
         state = state.copyWith(isPlaying: playing);
       }),
     );
@@ -313,7 +358,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (player.currentIndex == _lastKnownIndex) {
           _lastKnownPosition = position;
         }
-        if (position.inSeconds > 0 && position.inSeconds % 5 == 0) {
+        // BUG-5 FIX: Only call _persistState() once per 5-second boundary.
+        final posSec = position.inSeconds;
+        if (posSec > 0 && posSec % 5 == 0 && posSec != _lastPersistSecond) {
+          _lastPersistSecond = posSec;
           _persistState();
         }
 
@@ -331,19 +379,30 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
         prevPosition = position;
 
-        final now = DateTime.now();
-        if (state.isPlaying && _lastPlayTimestamp != null) {
-          _playedDuration += now.difference(_lastPlayTimestamp!);
-        }
-        _lastPlayTimestamp = state.isPlaying ? now : null;
+        // BUG-2 FIX: Hybrid scrobble check per Last.fm spec.
+        // Scrobble fires when EITHER condition is met first:
+        //   A) player.position >= 50% of track duration
+        //   B) actual listening time >= 4 minutes
+        // Condition A uses the player's reported position (handles seeks).
+        // Condition B uses wall-clock accumulation via play/pause transitions
+        // (avoids per-tick drift from the old DateTime.now() approach).
+        if (!_hasScrobbled && _currentScrobbleSongId != null) {
+          // Condition A: position-based (50% check)
+          final positionMet = position >= _scrobbleThreshold;
 
-        if (!_hasScrobbled &&
-            _currentScrobbleSongId != null &&
-            position >= _scrobbleThreshold) {
-          _hasScrobbled = true;
-          _ref
-              .read(scrobbleServiceProvider)
-              .submit(_currentScrobbleSongId!, song: currentSong);
+          // Condition B: actual listening time (4-min check)
+          Duration totalListened = _scrobbleListenDuration;
+          if (state.isPlaying && _scrobblePlayStart != null) {
+            totalListened += DateTime.now().difference(_scrobblePlayStart!);
+          }
+          final fourMinMet = totalListened >= const Duration(minutes: 4);
+
+          if (positionMet || fourMinMet) {
+            _hasScrobbled = true;
+            _ref
+                .read(scrobbleServiceProvider)
+                .submit(_currentScrobbleSongId!, song: currentSong);
+          }
         }
       }),
     );
@@ -564,8 +623,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> stop() async {
     _hasScrobbled = false;
     _currentScrobbleSongId = null;
-    _playedDuration = Duration.zero;
-    _lastPlayTimestamp = null;
+    _scrobbleListenDuration = Duration.zero;
+    _scrobblePlayStart = null;
     await player.stop();
   }
 
@@ -778,9 +837,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           break;
       }
 
+      // BUG-4 FIX: Read the player's currentIndex AFTER shuffle completes,
+      // not the stale savedIndex captured before the shuffle. The shuffle
+      // reorders the queue so the old index points to the wrong song.
+      final postShuffleIndex =
+          _audioHandler.player.currentIndex ?? savedIndex;
       state = state.copyWith(
         queue: _audioHandler.currentQueue,
-        currentIndex: savedIndex,
+        currentIndex: postShuffleIndex,
       );
     } finally {
       _isShuffling = false;
