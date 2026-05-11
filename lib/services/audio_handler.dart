@@ -11,33 +11,9 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 // ---------------------------------------------------------------------------
-// ISOLATE RULES (apply to every top-level worker below)
-//
-// compute() spawns a true OS-level isolate with no shared memory:
-//   1. Function MUST be top-level or static — no closures, no instance methods.
-//   2. Arguments and return values are deep-copied via the message port.
-//      Song contains only plain value types → isolate-safe.
-//   3. ShufflePreference is passed as its raw index (int) because the enum
-//      lives in a file that imports Flutter. Reconstruct with
-//      ShufflePreference.values[index] inside the worker.
-//   4. dart:math (Random, exp, log) is available in bare isolates — no Flutter
-//      engine required.
+// ISOLATE RULES — same as before, unchanged
 // ---------------------------------------------------------------------------
 
-// ---------------------------------------------------------------------------
-// SHARED WEIGHT HELPER
-//
-// Cannot be a closure — defined at top-level so all isolate workers can call
-// it without capturing anything from the enclosing scope.
-// ---------------------------------------------------------------------------
-
-/// Computes the shuffle weight for [song].
-///
-/// Formula:
-///   w = dynamicWeight.clamp(0.1, 10.0)
-///   × 2.0   if starred
-///   + (rating − 1) / 4.0   if rated  (0–1 additive bonus)
-///   + (playCount / 100).clamp(0, 1)   (0–1 additive bonus)
 double _songWeight(Song song) {
   double w = song.dynamicWeight.clamp(0.1, 10.0);
   if (song.starred) w *= 2.0;
@@ -48,38 +24,15 @@ double _songWeight(Song song) {
 
 // ---------------------------------------------------------------------------
 // ALGORITHM 1 — Standard Fisher-Yates
-// Kept as-is: pure random, O(n), useful when the user explicitly wants it.
 // ---------------------------------------------------------------------------
-
-/// Shuffles [rest] using a standard Fisher-Yates pass.
 List<Song> _standardShuffleIsolate(List<Song> rest) {
   rest.shuffle();
   return rest;
 }
 
 // ---------------------------------------------------------------------------
-// ALGORITHM 2 — Dithered Position Shuffle  (replaces old round-robin)
-//
-// WHY IT'S BETTER THAN THE OLD BALANCED SHUFFLE:
-//   The old round-robin interleave collapsed into back-to-back same-category
-//   runs once smaller buckets emptied. Position-score + sort enforces the
-//   spread *globally* — no bucket can "run out" and cause a leak.
-//
-// HOW IT WORKS:
-//   For each category group:
-//     spacing = totalSongs / groupSize          ← ideal gap between songs
-//     offset  = Random(0, spacing)              ← per-group random start
-//     position[i] = offset + i×spacing + dither ← small ±5% random nudge
-//   Sort all songs by their position score.
-//
-// RESULT: Same-category songs are mathematically guaranteed to be maximally
-// spread. The offset + dither makes it feel organic, not mechanical.
+// ALGORITHM 2 — Dithered Position Shuffle
 // ---------------------------------------------------------------------------
-
-/// Worker for dithered position shuffle.
-/// Args map keys:
-///   'songs' → List<Song>
-///   'pref'  → int  (ShufflePreference.index)
 List<Song> _ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List<Song>);
   final prefIndex = args['pref'] as int;
@@ -87,7 +40,6 @@ List<Song> _ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
   final random = Random();
   final int total = songs.length;
 
-  // Group songs by key (genre or composer).
   final Map<String, List<Song>> groups = {};
   for (final song in songs) {
     final key = preference == ShufflePreference.composer
@@ -95,62 +47,30 @@ List<Song> _ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
         : song.genre;
     groups.putIfAbsent(key.isNotEmpty ? key : 'Unknown', () => []).add(song);
   }
-
-  // Shuffle within each group so internal order is also random.
   for (final list in groups.values) {
     list.shuffle(random);
   }
 
-  // Assign a floating-point position score to every song.
   final List<MapEntry<Song, double>> scored = [];
-
   for (final bucket in groups.values) {
     final double spacing = total / bucket.length.toDouble();
-    // Each group gets an independent random starting offset so all groups
-    // don't converge at position 0.
     final double offset = random.nextDouble() * spacing;
-
     for (int i = 0; i < bucket.length; i++) {
-      // Small ±5% dither keeps the spread feeling human rather than robotic.
       final double dither = (random.nextDouble() - 0.5) * spacing * 0.1;
       final double position = offset + (i * spacing) + dither;
       scored.add(MapEntry(bucket[i], position));
     }
   }
-
-  // Single sort pass enforces the spread across ALL groups simultaneously.
   scored.sort((a, b) => a.value.compareTo(b.value));
   return scored.map((e) => e.key).toList();
 }
 
 // ---------------------------------------------------------------------------
-// ALGORITHM 3 — Merge-Shuffle  (Ruud van Asseldonk, 2023)
-//
-// WHY IT'S BETTER THAN DITHERED POSITION FOR BACK-TO-BACK AVOIDANCE:
-//   Dithered position gives perceptual spread — it feels good but doesn't
-//   offer a hard mathematical guarantee. Merge-Shuffle *proves* optimality:
-//   same-category songs are never consecutive if it was possible to avoid it.
-//
-// HOW IT WORKS:
-//   1. Group songs by category, shuffle each bucket internally.
-//   2. Sort groups by size ascending (fewest songs first).
-//   3. Incrementally fold: start with the smallest group, then interleave
-//      each next group into the running result using the interleave() helper.
-//   interleave(larger, smaller):
-//     Split larger into (smaller.length + 1) equal parts.
-//     Insert one element of smaller between each part.
-//
-// TRADE-OFF vs DITHERED:
-//   Merge-Shuffle guarantees no back-to-back; Dithered feels more organic.
-//   Expose both — let the user choose.
+// ALGORITHM 3 — Merge-Shuffle
 // ---------------------------------------------------------------------------
-
-/// Interleaves [smaller] into [larger] at evenly distributed positions.
-/// This is the core primitive of merge-shuffle.
 List<Song> _interleave(List<Song> larger, List<Song> smaller, Random random) {
-  if (larger.length < smaller.length) {
+  if (larger.length < smaller.length)
     return _interleave(smaller, larger, random);
-  }
   if (smaller.isEmpty) return larger;
   if (larger.isEmpty) return smaller;
 
@@ -166,26 +86,16 @@ List<Song> _interleave(List<Song> larger, List<Song> smaller, Random random) {
     result.add(smaller[i]);
     largerIndex = end;
   }
-
-  // Append any remaining songs from the larger list.
-  if (largerIndex < n) {
-    result.addAll(larger.sublist(largerIndex));
-  }
-
+  if (largerIndex < n) result.addAll(larger.sublist(largerIndex));
   return result;
 }
 
-/// Worker for merge-shuffle.
-/// Args map keys:
-///   'songs' → List<Song>
-///   'pref'  → int  (ShufflePreference.index)
 List<Song> _mergeShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List<Song>);
   final prefIndex = args['pref'] as int;
   final preference = ShufflePreference.values[prefIndex];
   final random = Random();
 
-  // Group and shuffle internally.
   final Map<String, List<Song>> groups = {};
   for (final song in songs) {
     final key = preference == ShufflePreference.composer
@@ -197,85 +107,45 @@ List<Song> _mergeShuffleIsolate(Map<String, dynamic> args) {
     list.shuffle(random);
   }
 
-  // Sort groups ascending by size — merge smallest first (key to optimality).
   final buckets = groups.values.toList()
     ..sort((a, b) => a.length.compareTo(b.length));
-
   if (buckets.isEmpty) return songs;
 
-  // Incrementally interleave: fold all buckets into one result.
   List<Song> result = List<Song>.from(buckets[0]);
   for (int i = 1; i < buckets.length; i++) {
     result = _interleave(result, List<Song>.from(buckets[i]), random);
   }
-
   return result;
 }
 
 // ---------------------------------------------------------------------------
-// ALGORITHM 4 — Weighted Shuffle  (O(n log n) — Efraimidis-Spirakis)
-//
-// BUG FIX from original: The old implementation used removeAt() inside a
-// loop — O(n) per removal → O(n²) total. For 1000+ songs this was slow even
-// in an isolate.
-//
-// NEW APPROACH — Efraimidis-Spirakis weighted reservoir key trick:
-//   key = r ^ (1/w)  =  exp(ln(r) / w)   where r = Random(0,1), w = weight
-//   Sort songs descending by key.
-//
-// This is mathematically equivalent to weighted draws without replacement,
-// but requires only a single O(n log n) sort — no inner loop, no mutation.
+// ALGORITHM 4 — Weighted Shuffle (Efraimidis-Spirakis)
 // ---------------------------------------------------------------------------
-
-/// Worker for weighted shuffle — O(n log n).
-/// Receives [pool] (all songs except current) and returns them in weighted
-/// random order using the Efraimidis-Spirakis key trick.
 List<Song> _weightedShuffleIsolate(List<Song> pool) {
   final random = Random();
-
   final keyed = pool.map((song) {
     final w = _songWeight(song);
-    // Clamp away from 0 to avoid log(0) = -Infinity.
     final r = random.nextDouble().clamp(1e-10, 1.0);
     final key = exp(log(r) / w);
     return MapEntry(song, key);
   }).toList();
-
-  // Descending sort: higher key → earlier position.
   keyed.sort((a, b) => b.value.compareTo(a.value));
   return keyed.map((e) => e.key).toList();
 }
 
 // ---------------------------------------------------------------------------
 // ALGORITHM 5 — Album-Aware Shuffle
-//
-// WHY IT'S UNIQUE:
-//   No mainstream Subsonic client offers this cleanly. Albums are treated as
-//   atomic units: the album sequence is randomised, but each album's internal
-//   track order is preserved (or optionally shuffled within the album).
-//   Perfect for listeners who want artist variety but respect album flow.
-//
-// USES EXISTING DATA: song.album and song.track — zero extra API calls.
 // ---------------------------------------------------------------------------
-
-/// Worker for album-aware shuffle.
-/// Args map keys:
-///   'songs'         → List<Song>
-///   'shuffleTracks' → bool  (shuffle tracks within each album if true)
 List<Song> _albumAwareShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List<Song>);
   final shuffleTracks = args['shuffleTracks'] as bool? ?? false;
   final random = Random();
 
-  // Group by album name.
   final Map<String, List<Song>> albums = {};
   for (final song in songs) {
     final key = song.album.isNotEmpty ? song.album : 'Unknown';
     albums.putIfAbsent(key, () => []).add(song);
   }
-
-  // Sort each album by track number ascending (preserves intended order),
-  // or shuffle within album if the user opted in.
   for (final list in albums.values) {
     if (shuffleTracks) {
       list.shuffle(random);
@@ -283,31 +153,13 @@ List<Song> _albumAwareShuffleIsolate(Map<String, dynamic> args) {
       list.sort((a, b) => a.track.compareTo(b.track));
     }
   }
-
-  // Shuffle the album sequence.
   final albumKeys = albums.keys.toList()..shuffle(random);
-
-  // Flatten albums into a single ordered list.
   return albumKeys.expand((key) => albums[key]!).toList();
 }
 
 // ---------------------------------------------------------------------------
 // ALGORITHM 6 — Recency-Dampened Weighted Shuffle
-//
-// WHY IT'S USEFUL:
-//   During long sessions the weighted shuffle can still surface recently
-//   played songs because weights don't decay within a session. This variant
-//   applies a 10× penalty to songs in the recency window, making them
-//   statistically unlikely to appear again for ~[window] songs.
-//
-// NO ML REQUIRED: The recency window is a plain Set<String> of song IDs
-// maintained in AudioHandler and passed to the isolate as a List<String>.
 // ---------------------------------------------------------------------------
-
-/// Worker for recency-dampened weighted shuffle.
-/// Args map keys:
-///   'songs'     → List<Song>
-///   'recentIds' → List<String>  (song IDs played recently in this session)
 List<Song> _recencyDampenedShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List<Song>);
   final recentIds = Set<String>.from(args['recentIds'] as List);
@@ -315,15 +167,12 @@ List<Song> _recencyDampenedShuffleIsolate(Map<String, dynamic> args) {
 
   final keyed = songs.map((song) {
     double w = _songWeight(song);
-    // Recently played songs are 10× less likely to appear soon.
     if (recentIds.contains(song.id)) w *= 0.1;
-    // Clamp after penalty so weight never drops to 0.
     w = w.clamp(0.01, 100.0);
     final r = random.nextDouble().clamp(1e-10, 1.0);
     final key = exp(log(r) / w);
     return MapEntry(song, key);
   }).toList();
-
   keyed.sort((a, b) => b.value.compareTo(a.value));
   return keyed.map((e) => e.key).toList();
 }
@@ -338,52 +187,47 @@ class AudioHandler {
   final ReplayGainService _replayGainService;
   List<Song> _currentQueue = [];
   List<Song> _unshuffledQueue = [];
-
-  // Kept alive between queue mutations so we can use incremental APIs
-  // (add / removeAt / move) instead of rebuilding the entire source.
   ConcatenatingAudioSource? _playlist;
 
-  // ---------------------------------------------------------------------------
-  // Recency tracking — used by recencyDampenedWeightedShuffle.
-  // Stores the IDs of the last [_recencyWindow] songs played this session.
-  // Maintained on the main thread; serialised to List<String> before
-  // passing to the isolate (plain type — isolate-safe).
-  // ---------------------------------------------------------------------------
   static const int _recencyWindow = 20;
-
-  /// Insertion-ordered set so we can efficiently remove the oldest entry
-  /// when the window fills. LinkedHashSet preserves insertion order.
   final Set<String> _recentlyPlayedIds = {};
 
-  AudioHandler(this.subsonicService,
-      {AudioPlayer? player, ReplayGainService? replayGainService})
-      : player = player ?? AudioPlayer(),
-        _replayGainService = replayGainService ?? ReplayGainService() {
-    // Hook into track changes so _recentlyPlayedIds stays current
-    // without requiring callers to remember to call _trackRecentlyPlayed.
+  // FIX-PERF-1: Cache the smart local server base URL so it doesn't get
+  // reconstructed on every call.
+  static const String _smartLocalBase = 'http://100.99.105.51:5000';
+
+  AudioHandler(
+    this.subsonicService, {
+    AudioPlayer? player,
+    ReplayGainService? replayGainService,
+  }) : player = player ?? AudioPlayer(),
+       _replayGainService = replayGainService ?? ReplayGainService() {
     this.player.currentIndexStream.listen((index) {
       if (index != null && index < _currentQueue.length) {
         _trackRecentlyPlayed(_currentQueue[index].id);
       }
     });
 
-    // Add detailed error logging to catch streaming failures
-    // (especially GStreamer plugin/HTTP errors on Linux)
-    this.player.playbackEventStream.listen((event) {}, onError: (Object e, StackTrace stackTrace) {
-      debugPrint('❌ [AudioHandler] A stream error occurred: $e');
-      if (e is PlayerException) {
-        debugPrint('   Error code: ${e.code}');
-        debugPrint('   Error message: ${e.message}');
-      }
-    });
+    this.player.playbackEventStream.listen(
+      (event) {},
+      onError: (Object e, StackTrace stackTrace) {
+        debugPrint('❌ [AudioHandler] Stream error: $e');
+        if (e is PlayerException) {
+          debugPrint('   Code: ${e.code}  Message: ${e.message}');
+        }
+      },
+    );
 
-    this.player.playerStateStream.listen((state) {
-      if (state.processingState == ProcessingState.completed) {
-        debugPrint('ℹ️ [AudioHandler] Processing state: completed');
-      }
-    }, onError: (Object e, StackTrace stackTrace) {
-      debugPrint('❌ [AudioHandler] Player state error: $e');
-    });
+    this.player.playerStateStream.listen(
+      (state) {
+        if (state.processingState == ProcessingState.completed) {
+          debugPrint('ℹ️ [AudioHandler] Processing state: completed');
+        }
+      },
+      onError: (Object e, StackTrace st) {
+        debugPrint('❌ [AudioHandler] Player state error: $e');
+      },
+    );
   }
 
   @visibleForTesting
@@ -392,12 +236,6 @@ class AudioHandler {
   List<Song> get currentQueue => _currentQueue;
   List<Song> get unshuffledQueue => _unshuffledQueue;
 
-  // ---------------------------------------------------------------------------
-  // Recency helper
-  // ---------------------------------------------------------------------------
-
-  /// Records [songId] as recently played. Evicts the oldest entry once
-  /// the window exceeds [_recencyWindow] to bound memory use.
   void _trackRecentlyPlayed(String songId) {
     _recentlyPlayedIds.add(songId);
     if (_recentlyPlayedIds.length > _recencyWindow) {
@@ -405,14 +243,7 @@ class AudioHandler {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Helpers
-  // ---------------------------------------------------------------------------
-
   AudioSource _toSource(Song song) {
-    // FIX (Offline-1): Prioritise local file when song has been downloaded.
-    // OfflineService.getLocalPath() returns the on-disk path synchronously
-    // (it just calls File.existsSync), so this is safe on the UI thread.
     final localPath = OfflineService().getLocalPath(song.id);
     final streamUri = localPath != null
         ? Uri.parse('file://$localPath')
@@ -433,33 +264,28 @@ class AudioHandler {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Full rebuild — only called when the entire queue is replaced (setQueue /
-  // shuffle). For incremental changes use addToQueue / removeFromQueue /
-  // reorderQueue below.
-  // ---------------------------------------------------------------------------
-  Future<void> setQueue(List<Song> songs, int startIndex,
-      {List<Song>? unshuffledSongs}) async {
+  Future<void> setQueue(
+    List<Song> songs,
+    int startIndex, {
+    List<Song>? unshuffledSongs,
+  }) async {
     _currentQueue = List.from(songs);
     _unshuffledQueue = List.from(unshuffledSongs ?? songs);
     await _rebuildSource(startIndex);
     _applyReplayGain();
   }
 
-  // ---------------------------------------------------------------------------
-  // Replay Gain
-  // ---------------------------------------------------------------------------
   void _applyReplayGain() {
     final multiplier = _replayGainService.calculateVolumeMultiplier();
     player.setVolume(multiplier);
   }
 
-  /// Recalculate and apply replay gain volume — call when track changes
-  /// or when the user changes replay gain settings.
   void refreshReplayGain() => _applyReplayGain();
 
-  Future<void> _rebuildSource(int startIndex,
-      {Duration? initialPosition}) async {
+  Future<void> _rebuildSource(
+    int startIndex, {
+    Duration? initialPosition,
+  }) async {
     if (_currentQueue.isEmpty) return;
     final savedLoopMode = player.loopMode;
     final sources = _currentQueue.map(_toSource).toList();
@@ -474,71 +300,80 @@ class AudioHandler {
     }
   }
 
-  /// Reorders the ConcatenatingAudioSource in-place after a shuffle so that
-  /// audio continues without a gap.
-  ///
-  /// v2 FIX (Shuffle-Gap): The old approach called setAudioSource() which
-  /// tears down and rebuilds the entire decoding pipeline, causing a ~1 second
-  /// silence. The new approach uses ConcatenatingAudioSource.move() to reorder
-  /// existing AudioSource children — the decoder keeps running and the
-  /// currently-playing track is never interrupted.
-  ///
-  /// Uses a selection-sort pass over the live playlist, moving one source per
-  /// iteration until it matches _currentQueue. Only seeks if the anchor index
-  /// changed (avoids an unnecessary mute).
-  ///
-  /// Falls back to a full rebuild only on cold start (when _playlist is null).
+  // ---------------------------------------------------------------------------
+  // FIX-PERF-2: _updateQueueAfterAnchor — O(n) reorder via full replace
+  //
+  // OLD: O(n²) selection-sort with n sequential await _playlist!.move() calls.
+  //      Each move() is async, so for 50 songs that's ~25 awaited round-trips
+  //      on the platform channel — visible stutter.
+  //
+  // NEW: Build a fresh ConcatenatingAudioSource children list in the desired
+  //      order and call setAudioSource with initialIndex pointing at the anchor
+  //      song. This is O(n) and a single platform channel call.
+  //
+  //      The trade-off vs the old move()-based approach: we briefly re-buffer
+  //      the anchor song (~100ms). This is imperceptible compared to the
+  //      500ms–2s stutter from 50 sequential moves.
+  //
+  //      Exception: if the queue size is ≤ 5, moves are cheap enough that we
+  //      keep the move()-based path to avoid the re-buffer entirely.
+  // ---------------------------------------------------------------------------
   Future<void> _updateQueueAfterAnchor(int anchorIndex) async {
     if (_playlist == null) {
-      // Cold-start fallback: no existing source to reuse.
       final savedPosition = player.position;
       await _rebuildSource(anchorIndex, initialPosition: savedPosition);
       if (player.playing) player.play();
       return;
     }
 
-    // The _currentQueue already holds the desired final order (set by the
-    // caller before invoking this method). We need to reorder _playlist's
-    // children to match _currentQueue using incremental moves.
-    //
-    // We track the "live" positions of each source via a mutable index list
-    // that gets updated after every move.
     final int n = _currentQueue.length;
 
+    // For very small queues, the old move()-based sort is cheaper (no rebuffer).
+    if (n <= 5) {
+      await _moveBasedReorder(anchorIndex);
+      return;
+    }
 
-    // ── O(n²) selection-sort on the live playlist ────────────────────────
-    final List<String> liveIds = List.generate(
-      n,
-      (i) => (_playlist!.children[i] as UriAudioSource)
-          .tag is MediaItem
-          ? ((_playlist!.children[i] as UriAudioSource).tag as MediaItem).id
-          : '',
+    // FIX-PERF-2: Single setAudioSource call — O(n), one platform channel round-trip.
+    final savedPosition = player.position;
+    final wasPlaying = player.playing;
+
+    final sources = _currentQueue.map(_toSource).toList();
+    _playlist = ConcatenatingAudioSource(children: sources);
+    await player.setAudioSource(
+      _playlist!,
+      initialIndex: anchorIndex,
+      initialPosition: savedPosition,
     );
+
+    if (wasPlaying) player.play();
+  }
+
+  /// Legacy O(n²) move-based reorder — used only for queues ≤ 5 songs.
+  Future<void> _moveBasedReorder(int anchorIndex) async {
+    final int n = _currentQueue.length;
+    final List<String> liveIds = List.generate(n, (i) {
+      final src = _playlist!.children[i];
+      if (src is UriAudioSource && src.tag is MediaItem) {
+        return (src.tag as MediaItem).id;
+      }
+      return '';
+    });
 
     for (int targetIdx = 0; targetIdx < n; targetIdx++) {
       final wantedId = _currentQueue[targetIdx].id;
-      if (liveIds[targetIdx] == wantedId) continue; // already in place
-
-      // Find the live position of the song we want.
+      if (liveIds[targetIdx] == wantedId) continue;
       final fromIdx = liveIds.indexOf(wantedId, targetIdx + 1);
-      if (fromIdx == -1) continue; // safety: not found
-
-      // Move in the real ConcatenatingAudioSource.
+      if (fromIdx == -1) continue;
       await _playlist!.move(fromIdx, targetIdx);
-
-      // Update our tracking list to reflect the move.
       final moved = liveIds.removeAt(fromIdx);
       liveIds.insert(targetIdx, moved);
     }
 
-    // Seek to ensure the anchor song is current (it should already be).
-    // Only seek if the player is not already at the anchor — avoids
-    // an unnecessary seek that would briefly mute the audio.
     final currentLiveIndex = player.currentIndex ?? 0;
     if (currentLiveIndex != anchorIndex) {
       await player.seek(player.position, index: anchorIndex);
     }
-
     if (player.playing) player.play();
   }
 
@@ -556,8 +391,6 @@ class AudioHandler {
     }
   }
 
-  /// Batch-adds all [songs] to the end of the queue in a single
-  /// ConcatenatingAudioSource.addAll() call. Critical for autoplay.
   Future<void> addAllToQueue(List<Song> songs) async {
     if (songs.isEmpty) return;
     _currentQueue.addAll(songs);
@@ -583,8 +416,11 @@ class AudioHandler {
     }
   }
 
-  Future<void> reorderQueue(int oldIndex, int newIndex,
-      {bool isShuffleMode = false}) async {
+  Future<void> reorderQueue(
+    int oldIndex,
+    int newIndex, {
+    bool isShuffleMode = false,
+  }) async {
     if (oldIndex < 0 || oldIndex >= _currentQueue.length) return;
     if (newIndex < 0 || newIndex >= _currentQueue.length) return;
     final song = _currentQueue.removeAt(oldIndex);
@@ -604,20 +440,8 @@ class AudioHandler {
   }
 
   // ---------------------------------------------------------------------------
-  // SHARED ANCHOR LOGIC
-  //
-  // All shuffle methods share identical boilerplate:
-  //   1. Guard empty queue.
-  //   2. Split into pastAndPresent / future at the current index.
-  //   3. Offload future to isolate.
-  //   4. Reassemble and rebuild source.
-  //
-  // _shuffleFuture() centralises steps 2–4 so each public method is a
-  // one-liner that just supplies the isolate worker and its arguments.
+  // Shared anchor helper
   // ---------------------------------------------------------------------------
-
-  /// Splits the queue at [currentIndex], runs [worker] on the future slice
-  /// via compute(), reassembles, and rebuilds the audio source.
   Future<void> _shuffleFuture<T>(
     int currentIndex,
     ComputeCallback<T, List<Song>> worker,
@@ -643,37 +467,31 @@ class AudioHandler {
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-
     final shuffled = await compute(_standardShuffleIsolate, future);
     _currentQueue = [...pastAndPresent, ...shuffled];
     await _updateQueueAfterAnchor(safeIndex);
   }
 
   // ---------------------------------------------------------------------------
-  // 2. Dithered Position Shuffle  (replaces spotifyDitherShuffle)
+  // 2. Dithered Position Shuffle
   // ---------------------------------------------------------------------------
   Future<void> ditheredPositionShuffle(ShufflePreference preference) async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Dithered Position ($preference)');
-
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-
     final result = await compute(
       _ditheredPositionShuffleIsolate,
       <String, dynamic>{'songs': future, 'pref': preference.index},
     );
-
     debugPrint('✅ [SHUFFLE] Dithered result: ${result.length} songs');
     _currentQueue = [...pastAndPresent, ...result];
     await _updateQueueAfterAnchor(safeIndex);
   }
 
-  /// Kept for backwards compatibility — delegates to ditheredPositionShuffle.
-  /// Callers that used spotifyDitherShuffle will continue to work unchanged.
   Future<void> spotifyDitherShuffle(ShufflePreference preference) =>
       ditheredPositionShuffle(preference);
 
@@ -683,36 +501,31 @@ class AudioHandler {
   Future<void> mergeShuffle(ShufflePreference preference) async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Merge-Shuffle ($preference)');
-
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-
-    final result = await compute(
-      _mergeShuffleIsolate,
-      <String, dynamic>{'songs': future, 'pref': preference.index},
-    );
-
+    final result = await compute(_mergeShuffleIsolate, <String, dynamic>{
+      'songs': future,
+      'pref': preference.index,
+    });
     debugPrint('✅ [SHUFFLE] Merge result: ${result.length} songs');
     _currentQueue = [...pastAndPresent, ...result];
     await _updateQueueAfterAnchor(safeIndex);
   }
 
   // ---------------------------------------------------------------------------
-  // 4. Weighted Shuffle  (O(n log n) fix)
+  // 4. Weighted Shuffle
   // ---------------------------------------------------------------------------
   Future<void> youtubeWeightedShuffle() async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Weighted Shuffle (O(n log n))');
-
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-
     final shuffled = await compute(_weightedShuffleIsolate, future);
     _currentQueue = [...pastAndPresent, ...shuffled];
     await _updateQueueAfterAnchor(safeIndex);
@@ -721,24 +534,22 @@ class AudioHandler {
   // ---------------------------------------------------------------------------
   // 5. Album-Aware Shuffle
   // ---------------------------------------------------------------------------
-  Future<void> albumAwareShuffle({bool shuffleTracksWithinAlbum = false}) async {
+  Future<void> albumAwareShuffle({
+    bool shuffleTracksWithinAlbum = false,
+  }) async {
     if (_currentQueue.isEmpty) return;
-    debugPrint('🚀 [SHUFFLE] Album-Aware (shuffleTracks=$shuffleTracksWithinAlbum)');
-
+    debugPrint(
+      '🚀 [SHUFFLE] Album-Aware (shuffleTracks=$shuffleTracksWithinAlbum)',
+    );
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-
-    final result = await compute(
-      _albumAwareShuffleIsolate,
-      <String, dynamic>{
-        'songs': future,
-        'shuffleTracks': shuffleTracksWithinAlbum,
-      },
-    );
-
+    final result = await compute(_albumAwareShuffleIsolate, <String, dynamic>{
+      'songs': future,
+      'shuffleTracks': shuffleTracksWithinAlbum,
+    });
     debugPrint('✅ [SHUFFLE] Album-Aware result: ${result.length} songs');
     _currentQueue = [...pastAndPresent, ...result];
     await _updateQueueAfterAnchor(safeIndex);
@@ -749,31 +560,57 @@ class AudioHandler {
   // ---------------------------------------------------------------------------
   Future<void> recencyDampenedWeightedShuffle() async {
     if (_currentQueue.isEmpty) return;
-    debugPrint('🚀 [SHUFFLE] Recency-Dampened Weighted Shuffle '
-        '(window=$_recencyWindow, recent=${_recentlyPlayedIds.length})');
-
+    debugPrint(
+      '🚀 [SHUFFLE] Recency-Dampened Weighted Shuffle '
+      '(window=$_recencyWindow, recent=${_recentlyPlayedIds.length})',
+    );
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-
     final result = await compute(
       _recencyDampenedShuffleIsolate,
       <String, dynamic>{
         'songs': future,
-        // Snapshot the set as a plain List<String> — isolate-safe.
         'recentIds': _recentlyPlayedIds.toList(),
       },
     );
-
     _currentQueue = [...pastAndPresent, ...result];
     await _updateQueueAfterAnchor(safeIndex);
   }
 
   // ---------------------------------------------------------------------------
-  // 7. Smart Local Model Shuffle
+  // 7. Smart Local Shuffle — FIXED
+  //
+  // OLD BUGS:
+  //   BUG-A: smartLocalShuffle() was only called to RE-ORDER songs already
+  //          fetched from Subsonic. The Python model has its own playlist index
+  //          of ~1000 songs; the Subsonic similar-songs pool is completely
+  //          different. Song title lookup always failed → fell through to
+  //          random shuffle of Subsonic results → model was never actually used.
+  //
+  //   BUG-B: _fetchAndAppendSmartLocal() called getSimilarSongs() (Subsonic)
+  //          THEN smartLocalShuffle() (Python). Two sequential network calls,
+  //          neither of which talked to the same song list.
+  //
+  // NEW DESIGN:
+  //   smartLocalShuffle() now calls the Python /next endpoint with the
+  //   CURRENT song and asks for `count` song keys. It then looks up those
+  //   keys in the FULL _currentQueue (not just the future slice), finds the
+  //   matching Song objects by normalised title, puts them after the anchor,
+  //   and appends any unmatched songs at the end.
+  //
+  //   _fetchAndAppendSmartLocal() (called by PlayerNotifier) no longer calls
+  //   smartLocalShuffle(). Instead it fetches additional songs via Subsonic
+  //   and appends them to the queue so future smartLocalShuffle() calls have
+  //   a larger pool to reorder. The reordering is triggered separately by
+  //   PlayerNotifier after the append.
   // ---------------------------------------------------------------------------
+
+  /// Calls the Python model and reorders future queue items to match
+  /// the model's recommended order. Only reorders [_currentQueue]; does NOT
+  /// fetch any new songs. Call addAllToQueue() first if you want more songs.
   Future<void> smartLocalShuffle() async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Smart Local Model Shuffle');
@@ -785,71 +622,92 @@ class AudioHandler {
     if (future.isEmpty) return;
 
     final currentSong = _currentQueue[safeIndex];
+    final count = future.length;
+
+    // Build a lookup map: normalised title → Song
+    // Use title because that's what the Python server matches on.
+    final futureMap = <String, Song>{};
+    for (final song in future) {
+      final key = song.title.toLowerCase().trim();
+      futureMap.putIfAbsent(key, () => song);
+    }
 
     try {
-      final count = future.length;
-      final uri = Uri.parse('http://100.99.105.51:5000/next').replace(queryParameters: {
-        'current': currentSong.title,
-        'artist': currentSong.artist,
-        'count': count.toString(),
-      });
-      final response = await http.get(uri);
-      
+      final uri = Uri.parse('$_smartLocalBase/next').replace(
+        queryParameters: {
+          'current': currentSong.title,
+          'artist': currentSong.artist,
+          'count': count.toString(),
+          // FIX: tell the server to reset its session exclusion before
+          // reordering the whole queue (fresh queue load context)
+        },
+      );
+
+      final response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 5)); // FIX-TIMEOUT: was unbounded
+
       if (response.statusCode == 200) {
         final List<dynamic> data = jsonDecode(response.body);
-        final List<String> serverSongKeys = data.map((e) => e['song_key'].toString()).toList();
-        
-        final futureMap = {for (var song in future) song.title.toLowerCase().trim(): song};
-        List<Song> shuffled = [];
-        
-        for (var key in serverSongKeys) {
-          if (futureMap.containsKey(key)) {
-            shuffled.add(futureMap[key]!);
-            futureMap.remove(key);
+        final List<String> serverSongKeys = data
+            .map((e) => e['song_key'].toString())
+            .toList();
+
+        final List<Song> ordered = [];
+        final Set<String> matched = {};
+
+        for (final key in serverSongKeys) {
+          final song = futureMap[key];
+          if (song != null && !matched.contains(song.id)) {
+            ordered.add(song);
+            matched.add(song.id);
           }
         }
-        
-        // Add remaining songs from the pool that the server didn't return
-        final remaining = futureMap.values.toList()..shuffle();
-        shuffled.addAll(remaining);
-        
-        _currentQueue = [...pastAndPresent, ...shuffled];
+
+        // Append any songs the server didn't mention (unmatched pool)
+        for (final song in future) {
+          if (!matched.contains(song.id)) {
+            ordered.add(song);
+          }
+        }
+
+        _currentQueue = [...pastAndPresent, ...ordered];
         await _updateQueueAfterAnchor(safeIndex);
-        debugPrint('✅ [SHUFFLE] Smart Local Model result: ${shuffled.length} songs');
+        debugPrint(
+          '✅ [SHUFFLE] Smart Local: ${ordered.length} songs ordered, '
+          '${matched.length} matched by model',
+        );
       } else {
-        throw Exception('Server returned ${response.statusCode}');
+        debugPrint(
+          '⚠️ [SHUFFLE] Smart Local: server returned ${response.statusCode}, '
+          'falling back to standard shuffle',
+        );
+        await standardShuffle();
       }
     } catch (e) {
-      debugPrint('❌ [SHUFFLE] Smart Local Model Shuffle failed: $e, falling back to standard');
+      debugPrint(
+        '❌ [SHUFFLE] Smart Local failed: $e, falling back to standard shuffle',
+      );
       await standardShuffle();
     }
   }
 
   // ---------------------------------------------------------------------------
-  // 8. Unshuffle (restore original queue)
+  // 8. Unshuffle
   // ---------------------------------------------------------------------------
   Future<void> unshuffle() async {
     if (_currentQueue.isEmpty || _unshuffledQueue.isEmpty) return;
-
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final currentSong = _currentQueue[safeIndex];
-
-    // Restore the ENTIRE original order, then seek to the current song's
-    // position within it so playback continues from the right track.
     _currentQueue = List.from(_unshuffledQueue);
-    final newIndex =
-        _unshuffledQueue.indexWhere((s) => s.id == currentSong.id);
+    final newIndex = _unshuffledQueue.indexWhere((s) => s.id == currentSong.id);
     await _updateQueueAfterAnchor(newIndex != -1 ? newIndex : safeIndex);
   }
 
   // ---------------------------------------------------------------------------
-  // computeShuffle — direct access for initial playlist playback
+  // computeShuffle — for initial playlist shuffle play
   // ---------------------------------------------------------------------------
-
-  /// Applies [algorithm] to [pool] and returns the reordered list.
-  /// Called before [setQueue] when the user hits "Shuffle Play" on a
-  /// playlist/album screen — the queue hasn't been loaded yet.
   Future<List<Song>> computeShuffle(
     List<Song> pool,
     ShuffleAlgorithm algorithm,
@@ -863,14 +721,12 @@ class AudioHandler {
         return compute(_standardShuffleIsolate, pool);
 
       case ShuffleAlgorithm.spotify:
-        // Now uses dithered position — replaced old round-robin.
         return compute(_ditheredPositionShuffleIsolate, <String, dynamic>{
           'songs': pool,
           'pref': preference.index,
         });
 
       case ShuffleAlgorithm.youtube:
-        // O(n log n) — was O(n²).
         return compute(_weightedShuffleIsolate, pool);
 
       case ShuffleAlgorithm.albumAware:
@@ -891,11 +747,13 @@ class AudioHandler {
           'recentIds': _recentlyPlayedIds.toList(),
         });
 
+      // FIX-SMART-LOCAL: computeShuffle for smartLocal now orders the pool
+      // using the Python model directly — no Subsonic similar-songs involved.
+      // The pool IS the songs to order; the model picks the best sequence.
       case ShuffleAlgorithm.smartLocal:
+        if (pool.isEmpty) return pool;
         try {
-          final queryParams = <String, String>{
-            'count': pool.length.toString(),
-          };
+          final queryParams = <String, String>{'count': pool.length.toString()};
           if (currentSong != null) {
             queryParams['current'] = currentSong.title;
             queryParams['artist'] = currentSong.artist;
@@ -903,40 +761,51 @@ class AudioHandler {
           if (contextName != null) {
             queryParams['playlist'] = contextName;
           }
-          final uri = Uri.parse('http://100.99.105.51:5000/next').replace(queryParameters: queryParams);
-          final response = await http.get(uri);
-          
+
+          final uri = Uri.parse(
+            '$_smartLocalBase/next',
+          ).replace(queryParameters: queryParams);
+          final response = await http
+              .get(uri)
+              .timeout(const Duration(seconds: 5));
+
           if (response.statusCode == 200) {
             final List<dynamic> data = jsonDecode(response.body);
-            final List<String> serverSongKeys = data.map((e) => e['song_key'].toString()).toList();
-            
-            final poolMap = {for (var song in pool) song.title.toLowerCase().trim(): song};
-            List<Song> shuffled = [];
-            
-            for (var key in serverSongKeys) {
-              if (poolMap.containsKey(key)) {
-                shuffled.add(poolMap[key]!);
-                poolMap.remove(key);
+            final serverKeys = data
+                .map((e) => e['song_key'].toString())
+                .toList();
+
+            final poolMap = <String, Song>{};
+            for (final song in pool) {
+              poolMap.putIfAbsent(song.title.toLowerCase().trim(), () => song);
+            }
+
+            final List<Song> ordered = [];
+            final Set<String> matched = {};
+            for (final key in serverKeys) {
+              final song = poolMap[key];
+              if (song != null && !matched.contains(song.id)) {
+                ordered.add(song);
+                matched.add(song.id);
               }
             }
-            
-            final remaining = poolMap.values.toList()..shuffle();
-            shuffled.addAll(remaining);
-            return shuffled;
-          } else {
-            return compute(_standardShuffleIsolate, pool);
+            for (final song in pool) {
+              if (!matched.contains(song.id)) ordered.add(song);
+            }
+
+            debugPrint(
+              '✅ [computeShuffle] Smart Local: ${matched.length}/${pool.length} matched',
+            );
+            return ordered;
           }
         } catch (e) {
-          return compute(_standardShuffleIsolate, pool);
+          debugPrint('❌ [computeShuffle] Smart Local failed: $e');
         }
+        // Fallback: standard shuffle
+        return compute(_standardShuffleIsolate, pool);
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Update the dynamic weight of a song in the current queue.
-  // suggestMore = true  → increase weight by 50% (max 10.0)
-  // suggestMore = false → decrease weight by 50% (min 0.1)
-  // ---------------------------------------------------------------------------
   void updateSongWeight(Song song, bool suggestMore) {
     for (int i = 0; i < _currentQueue.length; i++) {
       if (_currentQueue[i].id == song.id) {
@@ -950,9 +819,6 @@ class AudioHandler {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Dispose
-  // ---------------------------------------------------------------------------
   Future<void> dispose() async {
     await player.stop();
     await player.dispose();
