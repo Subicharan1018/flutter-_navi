@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -11,7 +12,7 @@ import 'dart:convert';
 import 'package:http/http.dart' as http;
 
 // ---------------------------------------------------------------------------
-// ISOLATE RULES — same as before, unchanged
+// ISOLATE HELPERS — pure functions, no platform-channel contact
 // ---------------------------------------------------------------------------
 
 double _songWeight(Song song) {
@@ -192,8 +193,6 @@ class AudioHandler {
   static const int _recencyWindow = 20;
   final Set<String> _recentlyPlayedIds = {};
 
-  // Shuffle server base URL — set dynamically from Settings so no hardcoded
-  // IP ever appears in source code. Empty = fall back to standard shuffle.
   String _shuffleBaseUrl = '';
 
   AudioHandler(
@@ -264,8 +263,6 @@ class AudioHandler {
     );
   }
 
-  // BUG-7 FIX: Overload that takes a pre-computed offline path map to avoid
-  // per-song synchronous Hive lookups during batch source building.
   AudioSource _toSourceWithPaths(Song song, Map<String, String?> offlinePaths) {
     final localPath = offlinePaths[song.id];
     final streamUri = localPath != null
@@ -287,8 +284,6 @@ class AudioHandler {
     );
   }
 
-  /// BUG-7 FIX: Pre-compute all offline paths in a single pass through the
-  /// Hive box, eliminating O(n) individual lookups during source building.
   Map<String, String?> _precomputeOfflinePaths(List<Song> songs) {
     final offline = OfflineService();
     return {for (final song in songs) song.id: offline.getLocalPath(song.id)};
@@ -318,7 +313,6 @@ class AudioHandler {
   }) async {
     if (_currentQueue.isEmpty) return;
     final savedLoopMode = player.loopMode;
-    // BUG-7 FIX: Pre-compute offline paths to avoid per-song File.existsSync() calls.
     final offlinePaths = _precomputeOfflinePaths(_currentQueue);
     final List<AudioSource> sources = _currentQueue
         .map((song) => _toSourceWithPaths(song, offlinePaths))
@@ -335,24 +329,20 @@ class AudioHandler {
   }
 
   // ---------------------------------------------------------------------------
-  // FIX-PERF-2: _updateQueueAfterAnchor — O(n) reorder via full replace
+  // _updateQueueAfterAnchor
   //
-  // OLD: O(n²) selection-sort with n sequential await _playlist!.move() calls.
-  //      Each move() is async, so for 50 songs that's ~25 awaited round-trips
-  //      on the platform channel — visible stutter.
+  // For queues > 5: full setAudioSource rebuild. One platform-channel call,
+  // O(n) source construction. Rebuffers the anchor track briefly (~100ms).
   //
-  // NEW: Build a fresh ConcatenatingAudioSource children list in the desired
-  //      order and call setAudioSource with initialIndex pointing at the anchor
-  //      song. This is O(n) and a single platform channel call.
-  //
-  //      The trade-off vs the old move()-based approach: we briefly re-buffer
-  //      the anchor song (~100ms). This is imperceptible compared to the
-  //      500ms–2s stutter from 50 sequential moves.
-  //
-  //      Exception: if the queue size is ≤ 5, moves are cheap enough that we
-  //      keep the move()-based path to avoid the re-buffer entirely.
+  // For queues ≤ 5 OR when preferMoveBasedReorder=true (background apply):
+  // move()-based reorder. No rebuffer, but O(n²) platform-channel calls.
+  // Acceptable for small n, and for background applies where n is already
+  // playing (rebuffer audible, moves are not).
   // ---------------------------------------------------------------------------
-  Future<void> _updateQueueAfterAnchor(int anchorIndex) async {
+  Future<void> _updateQueueAfterAnchor(
+    int anchorIndex, {
+    bool preferMoveBasedReorder = false,
+  }) async {
     if (_playlist == null) {
       final savedPosition = player.position;
       await _rebuildSource(anchorIndex, initialPosition: savedPosition);
@@ -362,15 +352,11 @@ class AudioHandler {
 
     final int n = _currentQueue.length;
 
-    // For very small queues, the old move()-based sort is cheaper (no rebuffer).
-    if (n <= 5) {
+    if (n <= 5 || preferMoveBasedReorder) {
       await _moveBasedReorder(anchorIndex);
       return;
     }
 
-    // FIX-PERF-2: Single setAudioSource call — O(n), one platform channel round-trip.
-    // BUG-7 FIX: Pre-compute offline paths to avoid N synchronous File.existsSync()
-    // calls on the main thread during the _toSourceWithPaths loop.
     final savedPosition = player.position;
     final wasPlaying = player.playing;
 
@@ -388,7 +374,6 @@ class AudioHandler {
     if (wasPlaying) player.play();
   }
 
-  /// Legacy O(n²) move-based reorder — used only for queues ≤ 5 songs.
   Future<void> _moveBasedReorder(int anchorIndex) async {
     final int n = _currentQueue.length;
     final List<String> liveIds = List.generate(n, (i) {
@@ -479,7 +464,7 @@ class AudioHandler {
   }
 
   // ---------------------------------------------------------------------------
-  // Shared anchor helper
+  // Shared anchor helper (used by non-smart-local algorithms)
   // ---------------------------------------------------------------------------
   Future<void> _shuffleFuture<T>(
     int currentIndex,
@@ -620,39 +605,131 @@ class AudioHandler {
   }
 
   // ---------------------------------------------------------------------------
-  // 7. Smart Local Shuffle — FIXED
+  // 7. Smart Local Shuffle
   //
-  // OLD BUGS:
-  //   BUG-A: smartLocalShuffle() was only called to RE-ORDER songs already
-  //          fetched from Subsonic. The Python model has its own playlist index
-  //          of ~1000 songs; the Subsonic similar-songs pool is completely
-  //          different. Song title lookup always failed → fell through to
-  //          random shuffle of Subsonic results → model was never actually used.
+  // FIX-LATENCY — two-phase split:
   //
-  //   BUG-B: _fetchAndAppendSmartLocal() called getSimilarSongs() (Subsonic)
-  //          THEN smartLocalShuffle() (Python). Two sequential network calls,
-  //          neither of which talked to the same song list.
+  // Phase 1 (COMPUTE — no platform channel contact):
+  //   _computeSmartLocalOrder() fetches the HTTP ordering from the Python
+  //   server and returns the reordered List<Song>. This is pure Dart + HTTP;
+  //   it does NOT touch the player or _playlist. It can safely run while
+  //   _queueOpLock is NOT held.
   //
-  // NEW DESIGN:
-  //   smartLocalShuffle() now calls the Python /next endpoint with the
-  //   CURRENT song and asks for `count` song keys. It then looks up those
-  //   keys in the FULL _currentQueue (not just the future slice), finds the
-  //   matching Song objects by normalised title, puts them after the anchor,
-  //   and appends any unmatched songs at the end.
+  // Phase 2 (COMMIT — platform channel, fast):
+  //   commitSmartLocalOrder() receives the pre-computed list and calls
+  //   _updateQueueAfterAnchor(). The only work left at this point is
+  //   _precomputeOfflinePaths + setAudioSource, which is O(n) but no longer
+  //   serialised behind a 5-second HTTP wait.
   //
-  //   _fetchAndAppendSmartLocal() (called by PlayerNotifier) no longer calls
-  //   smartLocalShuffle(). Instead it fetches additional songs via Subsonic
-  //   and appends them to the queue so future smartLocalShuffle() calls have
-  //   a larger pool to reorder. The reordering is triggered separately by
-  //   PlayerNotifier after the append.
+  // Callers:
+  //   • applyShuffleAlgorithm() in PlayerNotifier: releases _queueOpLock
+  //     before calling _computeSmartLocalOrder(), then re-acquires only for
+  //     commitSmartLocalOrder(). This removes the 5-second lock-hold entirely.
+  //
+  //   • _fetchAndReorderSmartLocal() in PlayerNotifier: calls
+  //     _computeSmartLocalOrder() while addAllToQueue() runs concurrently
+  //     (Future.wait), so the HTTP fetch and the incremental playlist append
+  //     overlap rather than being sequential.
+  //
+  // smartLocalShuffle() is kept as a convenience wrapper for call sites that
+  // don't need the split (e.g. computeShuffle for initial playlist load).
   // ---------------------------------------------------------------------------
 
-  /// Calls the Python model and reorders future queue items to match
-  /// the model's recommended order. Only reorders [_currentQueue]; does NOT
-  /// fetch any new songs. Call addAllToQueue() first if you want more songs.
-  Future<void> smartLocalShuffle() async {
+  /// Phase 1: Pure computation — HTTP fetch + list reorder.
+  /// Does NOT touch the player or ConcatenatingAudioSource.
+  /// Safe to call outside any lock.
+  ///
+  /// Returns the reordered future slice, or null if the server is unreachable
+  /// and the caller should fall back to a standard shuffle of [future].
+  Future<List<Song>?> computeSmartLocalOrder({
+    required Song currentSong,
+    required List<Song> future,
+    String? contextName,
+  }) async {
+    if (_shuffleBaseUrl.isEmpty) return null;
+
+    final futureMap = <String, Song>{};
+    for (final song in future) {
+      futureMap.putIfAbsent(song.title.toLowerCase().trim(), () => song);
+    }
+
+    try {
+      final queryParams = <String, String>{
+        'current': currentSong.title,
+        'artist': currentSong.artist,
+        'count': future.length.toString(),
+      };
+      if (contextName != null && contextName.isNotEmpty) {
+        queryParams['playlist'] = contextName;
+      }
+      final uri = Uri.parse('$_shuffleBaseUrl/next')
+          .replace(queryParameters: queryParams);
+
+      final response = await http
+          .get(uri)
+          .timeout(const Duration(seconds: 5));
+
+      if (response.statusCode != 200) {
+        debugPrint(
+          '⚠️ [SHUFFLE] Smart Local: server ${response.statusCode}',
+        );
+        return null;
+      }
+
+      final List<dynamic> data = jsonDecode(response.body);
+      final serverKeys =
+          data.map((e) => e['song_key'].toString()).toList();
+
+      final List<Song> ordered = [];
+      final Set<String> matched = {};
+      for (final key in serverKeys) {
+        final song = futureMap[key];
+        if (song != null && !matched.contains(song.id)) {
+          ordered.add(song);
+          matched.add(song.id);
+        }
+      }
+      for (final song in future) {
+        if (!matched.contains(song.id)) ordered.add(song);
+      }
+
+      debugPrint(
+        '✅ [SHUFFLE] Smart Local order computed: ${ordered.length} songs, '
+        '${matched.length} matched by model',
+      );
+      return ordered;
+    } catch (e) {
+      debugPrint('❌ [SHUFFLE] Smart Local compute failed: $e');
+      return null;
+    }
+  }
+
+  /// Phase 2: Commit a pre-computed order to _currentQueue and the player.
+  ///
+  /// [pastAndPresent] — songs up to and including the anchor (not reordered).
+  /// [orderedFuture]  — the reordered future slice from _computeSmartLocalOrder.
+  /// [anchorIndex]    — index of the currently playing song in the final queue.
+  /// [preferMoveBasedReorder] — true when called from a background/lookahead
+  ///   path so we use move() instead of setAudioSource() to avoid rebuffering.
+  Future<void> commitSmartLocalOrder({
+    required List<Song> pastAndPresent,
+    required List<Song> orderedFuture,
+    required int anchorIndex,
+    bool preferMoveBasedReorder = false,
+  }) async {
+    _currentQueue = [...pastAndPresent, ...orderedFuture];
+    await _updateQueueAfterAnchor(
+      anchorIndex,
+      preferMoveBasedReorder: preferMoveBasedReorder,
+    );
+  }
+
+  /// Convenience wrapper: compute + commit in one call.
+  /// Used by computeShuffle (initial playlist load) and any caller that does
+  /// not need to release a lock between the two phases.
+  Future<void> smartLocalShuffle({String? contextName}) async {
     if (_currentQueue.isEmpty) return;
-    debugPrint('🚀 [SHUFFLE] Smart Local Model Shuffle');
+    debugPrint('🚀 [SHUFFLE] Smart Local (inline)');
 
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
@@ -661,78 +738,25 @@ class AudioHandler {
     if (future.isEmpty) return;
 
     final currentSong = _currentQueue[safeIndex];
-    final count = future.length;
 
-    // Build a lookup map: normalised title → Song
-    // Use title because that's what the Python server matches on.
-    final futureMap = <String, Song>{};
-    for (final song in future) {
-      final key = song.title.toLowerCase().trim();
-      futureMap.putIfAbsent(key, () => song);
-    }
+    final ordered = await computeSmartLocalOrder(
+      currentSong: currentSong,
+      future: future,
+      contextName: contextName,
+    );
 
-    if (_shuffleBaseUrl.isEmpty) {
-      debugPrint('⚠️ [SHUFFLE] Smart Local: no server URL configured, falling back to standard shuffle');
+    if (ordered == null) {
+      // Server unreachable — fall back to standard shuffle of future slice.
+      debugPrint('⚠️ [SHUFFLE] Smart Local: falling back to standard shuffle');
       await standardShuffle();
       return;
     }
 
-    try {
-      final uri = Uri.parse('$_shuffleBaseUrl/next').replace(
-        queryParameters: {
-          'current': currentSong.title,
-          'artist': currentSong.artist,
-          'count': count.toString(),
-        },
-      );
-
-      final response = await http
-          .get(uri)
-          .timeout(const Duration(seconds: 5)); // FIX-TIMEOUT: was unbounded
-
-      if (response.statusCode == 200) {
-        final List<dynamic> data = jsonDecode(response.body);
-        final List<String> serverSongKeys = data
-            .map((e) => e['song_key'].toString())
-            .toList();
-
-        final List<Song> ordered = [];
-        final Set<String> matched = {};
-
-        for (final key in serverSongKeys) {
-          final song = futureMap[key];
-          if (song != null && !matched.contains(song.id)) {
-            ordered.add(song);
-            matched.add(song.id);
-          }
-        }
-
-        // Append any songs the server didn't mention (unmatched pool)
-        for (final song in future) {
-          if (!matched.contains(song.id)) {
-            ordered.add(song);
-          }
-        }
-
-        _currentQueue = [...pastAndPresent, ...ordered];
-        await _updateQueueAfterAnchor(safeIndex);
-        debugPrint(
-          '✅ [SHUFFLE] Smart Local: ${ordered.length} songs ordered, '
-          '${matched.length} matched by model',
-        );
-      } else {
-        debugPrint(
-          '⚠️ [SHUFFLE] Smart Local: server returned ${response.statusCode}, '
-          'falling back to standard shuffle',
-        );
-        await standardShuffle();
-      }
-    } catch (e) {
-      debugPrint(
-        '❌ [SHUFFLE] Smart Local failed: $e, falling back to standard shuffle',
-      );
-      await standardShuffle();
-    }
+    await commitSmartLocalOrder(
+      pastAndPresent: pastAndPresent,
+      orderedFuture: ordered,
+      anchorIndex: safeIndex,
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -790,17 +814,18 @@ class AudioHandler {
           'recentIds': _recentlyPlayedIds.toList(),
         });
 
-      // FIX-SMART-LOCAL: computeShuffle for smartLocal now orders the pool
-      // using the Python model directly — no Subsonic similar-songs involved.
-      // The pool IS the songs to order; the model picks the best sequence.
       case ShuffleAlgorithm.smartLocal:
         if (pool.isEmpty) return pool;
         if (_shuffleBaseUrl.isEmpty) {
-          debugPrint('⚠️ [computeShuffle] Smart Local: no server URL configured, falling back to standard shuffle');
+          debugPrint(
+            '⚠️ [computeShuffle] Smart Local: no server URL, falling back',
+          );
           return compute(_standardShuffleIsolate, pool);
         }
         try {
-          final queryParams = <String, String>{'count': pool.length.toString()};
+          final queryParams = <String, String>{
+            'count': pool.length.toString(),
+          };
           if (currentSong != null) {
             queryParams['current'] = currentSong.title;
             queryParams['artist'] = currentSong.artist;
@@ -809,22 +834,21 @@ class AudioHandler {
             queryParams['playlist'] = contextName;
           }
 
-          final uri = Uri.parse(
-            '$_shuffleBaseUrl/next',
-          ).replace(queryParameters: queryParams);
+          final uri = Uri.parse('$_shuffleBaseUrl/next')
+              .replace(queryParameters: queryParams);
           final response = await http
               .get(uri)
               .timeout(const Duration(seconds: 5));
 
           if (response.statusCode == 200) {
             final List<dynamic> data = jsonDecode(response.body);
-            final serverKeys = data
-                .map((e) => e['song_key'].toString())
-                .toList();
+            final serverKeys =
+                data.map((e) => e['song_key'].toString()).toList();
 
             final poolMap = <String, Song>{};
             for (final song in pool) {
-              poolMap.putIfAbsent(song.title.toLowerCase().trim(), () => song);
+              poolMap.putIfAbsent(
+                  song.title.toLowerCase().trim(), () => song);
             }
 
             final List<Song> ordered = [];
@@ -841,14 +865,14 @@ class AudioHandler {
             }
 
             debugPrint(
-              '✅ [computeShuffle] Smart Local: ${matched.length}/${pool.length} matched',
+              '✅ [computeShuffle] Smart Local: '
+              '${matched.length}/${pool.length} matched',
             );
             return ordered;
           }
         } catch (e) {
           debugPrint('❌ [computeShuffle] Smart Local failed: $e');
         }
-        // Fallback: standard shuffle
         return compute(_standardShuffleIsolate, pool);
     }
   }
@@ -866,27 +890,12 @@ class AudioHandler {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Offline path helpers — BUG 3 + BUG 7 fix
-  //
-  // _toSource() calls OfflineService().getLocalPath() which does
-  // File.existsSync() synchronously. During a bulk source rebuild for a large
-  // queue this is N blocking I/O calls interleaved with AudioSource/MediaItem
-  // construction.  Pre-computing a Map<songId, localPath?> in one tight loop
-  // is significantly cheaper than N interleaved existsSync calls.
-  //
-  // OfflineService() is a singleton (factory constructor → _instance), so
-  // constructing it here always returns the same object.
-  //
-  // NOTE: This is still synchronous. For very large queues (500+ songs) a
-  // future improvement is to use Future.wait() with File.exists() (async).
-  // ---------------------------------------------------------------------------
-
-  /// Updates the base URL used for Smart Local shuffle requests.
-  /// Called by [PlayerNotifier] when settings change at runtime.
   void updateShuffleBaseUrl(String url) {
     _shuffleBaseUrl = url;
-    debugPrint('[AudioHandler] Shuffle server URL updated: ${url.isEmpty ? "(empty — fallback mode)" : url}');
+    debugPrint(
+      '[AudioHandler] Shuffle server URL updated: '
+      '${url.isEmpty ? "(empty — fallback mode)" : url}',
+    );
   }
 
   Future<void> dispose() async {

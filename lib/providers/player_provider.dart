@@ -84,11 +84,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final List<StreamSubscription> _subscriptions = [];
 
   bool _isFetchingSimilar = false;
-
-  // FIX-RACE-1: Replaced _autoplayTriggeredFor Set with a single
-  // _lastFetchedForSongId. The old Set grew forever and never got cleared
-  // properly across sessions, which meant autoplay could silently stop
-  // triggering after a queue clear. A single ID is easier to reason about.
   String? _lastFetchedForSongId;
 
   Completer<void>? _queueOpLock;
@@ -98,9 +93,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Timer? _trackChangeTimer;
   String? _currentPlaylistName;
 
-  // FIX-RACE-2: _isFetchingSmartLocal moved to a Completer so callers can
-  // await it, preventing the race where _isFetchingSmartLocal was set to
-  // false in finally before the state update that follows it completes.
   Completer<void>? _smartLocalFetchCompleter;
 
   bool get _isFetchingSmartLocal =>
@@ -164,9 +156,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   AudioPlayer get player => _audioHandler.player;
 
-  /// Reads the current shuffle server URL from settings and pushes it into
-  /// [AudioHandler]. Call after settings change to reflect the new URL
-  /// without rebuilding the entire provider.
   void _syncShuffleUrl() {
     final url = _ref.read(settingsProvider).localShuffleUrl;
     _audioHandler.updateShuffleBaseUrl(url);
@@ -175,18 +164,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Duration _scrobbleThreshold = Duration.zero;
   bool _hasScrobbled = false;
   String? _currentScrobbleSongId;
-  // BUG-2 FIX: Replaced per-tick DateTime accumulation with play/pause
-  // transition tracking. _scrobbleListenDuration tracks wall-clock time
-  // the player was actually in the Playing state (for the 4-min rule).
-  // _scrobblePlayStart is set when play starts, nulled when paused/stopped.
   Duration _scrobbleListenDuration = Duration.zero;
   DateTime? _scrobblePlayStart;
   Duration _lastKnownPosition = Duration.zero;
   int _lastKnownIndex = 0;
   bool _isShuffling = false;
   bool get isShuffling => _isShuffling;
-  // BUG-5 FIX: Deduplicate _persistState() calls — only fire once per
-  // 5-second boundary instead of on every position tick within that second.
   int _lastPersistSecond = -1;
 
   void _init() {
@@ -226,10 +209,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final capturedIdx = index;
           final capturedShuffle = state.shuffleMode;
 
-          // BUG-1 FIX: Wire the timer callback to actually call
-          // _collector.onSongStarted(). The 200ms debounce prevents
-          // counting rapid index changes (e.g. during seek) as separate
-          // song transitions.
           _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
             _collector.onSongStarted(
               song: capturedNew,
@@ -244,18 +223,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
           _hasScrobbled = false;
           _currentScrobbleSongId = newSong.id;
-          // BUG-2 FIX: Reset accumulated listen time for the new song.
           _scrobbleListenDuration = Duration.zero;
-          // BUG-2 GAPLESS FIX: Use player.playing (not state.isPlaying)
-          // because in gapless auto-advance the player is already playing when
-          // this index-change fires, but state.isPlaying may not reflect that
-          // yet (the state update from playingStream could arrive later).
           _scrobblePlayStart = player.playing ? DateTime.now() : null;
-
-          // BUG-2 FIX (REVISED): _scrobbleThreshold is purely 50% of track
-          // duration. The 4-minute rule is handled separately via
-          // _scrobbleListenDuration in the positionStream listener.
-          // Do NOT restore the old min(50%, 4min) logic here.
           _scrobbleThreshold = Duration(seconds: newSong.duration) * 0.5;
 
           _ref.read(scrobbleServiceProvider).nowPlaying(newSong.id);
@@ -283,17 +252,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
         state = state.copyWith(currentIndex: index);
 
-        // ---------------------------------------------------------------------------
-        // FIX-AUTOPLAY: Lookahead trigger
-        //
-        // OLD: Used _autoplayTriggeredFor.contains(lastSong.id) to guard, but
-        //      lastSong = queue.last which changes after every smartLocal fetch
-        //      because the queue gets reordered. This caused the guard to always
-        //      miss, triggering a new fetch on every track change near the end.
-        //
-        // NEW: Use _lastFetchedForSongId which tracks the SEED song ID used in
-        //      the most recent fetch, not the last song in the queue.
-        // ---------------------------------------------------------------------------
         final isSmartLocal =
             settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal &&
             state.shuffleMode;
@@ -315,20 +273,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       player.playingStream.listen((playing) {
         if (_suppressStreamEvents) return;
 
-        // BUG-2 FIX: Track play/pause transitions for the scrobble
-        // 4-minute actual-listening-time rule. Accumulate wall-clock
-        // time only on pause (or stop) events — not on every position tick.
-        //
-        // Use _scrobblePlayStart != null as the "was playing" check instead
-        // of state.isPlaying. state.isPlaying is updated by this same
-        // listener after this block — so reading it here gives the *new*
-        // value only if Dart's event loop has already applied it, which is
-        // not guaranteed on the very first emission (app init / unpause).
         if (playing && _scrobblePlayStart == null) {
-          // Transition: paused → playing. Start the clock.
           _scrobblePlayStart = DateTime.now();
         } else if (!playing && _scrobblePlayStart != null) {
-          // Transition: playing → paused. Accumulate elapsed time.
           _scrobbleListenDuration +=
               DateTime.now().difference(_scrobblePlayStart!);
           _scrobblePlayStart = null;
@@ -367,7 +314,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (player.currentIndex == _lastKnownIndex) {
           _lastKnownPosition = position;
         }
-        // BUG-5 FIX: Only call _persistState() once per 5-second boundary.
         final posSec = position.inSeconds;
         if (posSec > 0 && posSec % 5 == 0 && posSec != _lastPersistSecond) {
           _lastPersistSecond = posSec;
@@ -388,18 +334,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
         prevPosition = position;
 
-        // BUG-2 FIX: Hybrid scrobble check per Last.fm spec.
-        // Scrobble fires when EITHER condition is met first:
-        //   A) player.position >= 50% of track duration
-        //   B) actual listening time >= 4 minutes
-        // Condition A uses the player's reported position (handles seeks).
-        // Condition B uses wall-clock accumulation via play/pause transitions
-        // (avoids per-tick drift from the old DateTime.now() approach).
         if (!_hasScrobbled && _currentScrobbleSongId != null) {
-          // Condition A: position-based (50% check)
           final positionMet = position >= _scrobbleThreshold;
-
-          // Condition B: actual listening time (4-min check)
           Duration totalListened = _scrobbleListenDuration;
           if (state.isPlaying && _scrobblePlayStart != null) {
             totalListened += DateTime.now().difference(_scrobblePlayStart!);
@@ -438,8 +374,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   void _clearHistory() {
     state = state.copyWith(history: []);
-    // FIX-RACE-1: Reset the fetch guard on queue clear so autoplay/smartLocal
-    // can trigger fresh fetches for the new queue.
     _lastFetchedForSongId = null;
   }
 
@@ -521,26 +455,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final currentSong = songs[startIndex];
 
         if (settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
-          // ---------------------------------------------------------------------------
-          // FIX-SMART-LOCAL-FLOW:
-          //
-          // OLD flow (broken):
-          //   1. setQueue([currentSong], 0)         ← 1-song queue
-          //   2. player.play()
-          //   3. _triggerSmartLocalFetchIfNeeded()  ← fetches Subsonic similar songs
-          //   4. _fetchAndAppendSmartLocal()        ← appends them
-          //   5. smartLocalShuffle()                ← tries to match Subsonic songs
-          //                                            against Python model → always fails
-          //
-          // NEW flow (correct):
-          //   1. Compute the smart local ordered queue BEFORE setting it
-          //   2. Use the full songs list as the pool for the Python model
-          //   3. setQueue with the ordered result
-          //   4. No separate fetch needed — the model already picked from the full library
-          // ---------------------------------------------------------------------------
           _suppressStreamEvents = true;
 
-          // Remove startIndex song from pool and pass rest to model
           final pool = List<Song>.from(songs)..removeAt(startIndex);
           final ordered = await _audioHandler.computeShuffle(
             pool,
@@ -556,7 +472,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           _suppressStreamEvents = false;
           player.play();
 
-          // Notify Python server to reset session exclusions for this new queue
           _resetSmartLocalSession();
         } else {
           final pool = List<Song>.from(songs)..removeAt(startIndex);
@@ -585,19 +500,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  /// Reset the Python server's session exclusion list for this client.
-  /// Called when a new queue is loaded so the model doesn't block songs
-  /// from the previous session.
   void _resetSmartLocalSession() {
     final url = _ref.read(settingsProvider).localShuffleUrl;
     if (url.isEmpty) return;
     http
         .get(Uri.parse('$url/session/reset'))
-        .catchError((_) {}); // fire and forget, non-critical
+        .catchError((_) {});
   }
 
-  /// Re-syncs the shuffle server URL into [AudioHandler].
-  /// Call this whenever the relevant settings change at runtime.
   void refreshShuffleUrl() => _syncShuffleUrl();
 
   Future<void> playNext() async {
@@ -812,7 +722,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // applyShuffleAlgorithm
+  //
+  // FIX-LOCK-HOLD: For smartLocal, the old code held _queueOpLock for the
+  // full duration of the HTTP fetch (up to 5s). This blocked playNext(),
+  // removeFromQueue(), and any other op that awaits the lock.
+  //
+  // New flow for smartLocal:
+  //   1. Snapshot anchor state (currentIndex, pastAndPresent, future, seed song).
+  //   2. Release _queueOpLock.            ← player ops unblocked immediately
+  //   3. Await _computeSmartLocalOrder()  ← HTTP fetch, lock-free
+  //   4. Re-acquire _queueOpLock.
+  //   5. commitSmartLocalOrder()          ← setAudioSource, fast
+  //   6. Release lock.
+  //
+  // All other algorithms keep the lock for their entire duration because they
+  // use compute() (isolate, fast) not a network call.
+  // ---------------------------------------------------------------------------
   Future<void> applyShuffleAlgorithm() async {
+    final settings = _ref.read(settingsProvider);
+
+    if (settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
+      await _applySmartLocalAlgorithm(settings);
+      return;
+    }
+
+    // Non-smart-local: hold lock for the full compute() duration (fast, OK).
     final completer = Completer<void>();
     _queueOpLock = completer;
     _isShuffling = true;
@@ -820,7 +756,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       final savedIndex =
           _audioHandler.player.currentIndex ?? state.currentIndex;
-      final settings = _ref.read(settingsProvider);
 
       switch (settings.shuffleAlgorithm) {
         case ShuffleAlgorithm.spotify:
@@ -841,20 +776,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         case ShuffleAlgorithm.recencyDampened:
           await _audioHandler.recencyDampenedWeightedShuffle();
           break;
-        // FIX-SMART-LOCAL-TOGGLE: When toggling smart local shuffle on from
-        // the now-playing screen (not from playPlaylist), we reorder the
-        // EXISTING queue using the model rather than dropping it to 1 song
-        // and triggering a separate fetch. This means the user gets an
-        // immediately reordered queue rather than a jarring single-song flash.
         case ShuffleAlgorithm.smartLocal:
-          await _audioHandler.smartLocalShuffle();
-          _resetSmartLocalSession();
+          // Unreachable: handled above. Compiler needs exhaustiveness.
           break;
       }
 
-      // BUG-4 FIX: Read the player's currentIndex AFTER shuffle completes,
-      // not the stale savedIndex captured before the shuffle. The shuffle
-      // reorders the queue so the old index points to the wrong song.
       final postShuffleIndex =
           _audioHandler.player.currentIndex ?? savedIndex;
       state = state.copyWith(
@@ -866,6 +792,115 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _suppressStreamEvents = false;
       completer.complete();
       if (_queueOpLock == completer) _queueOpLock = null;
+    }
+  }
+
+  /// Smart Local variant of applyShuffleAlgorithm.
+  ///
+  /// Releases _queueOpLock before the HTTP fetch so that playNext() and
+  /// other player ops are not blocked during the network wait.
+  Future<void> _applySmartLocalAlgorithm(SettingsState settings) async {
+    // --- Phase 1: snapshot while we may still hold a prior lock ---
+    await _queueOpLock?.future;
+
+    _isShuffling = true;
+    _suppressStreamEvents = true;
+
+    // Snapshot the anchor state synchronously before releasing any lock.
+    final safeIndex = (_audioHandler.player.currentIndex ?? state.currentIndex)
+        .clamp(0, _audioHandler.currentQueue.length - 1);
+    final pastAndPresent =
+        List<Song>.from(_audioHandler.currentQueue.sublist(0, safeIndex + 1));
+    final future =
+        List<Song>.from(_audioHandler.currentQueue.sublist(safeIndex + 1));
+    final currentSong = _audioHandler.currentQueue[safeIndex];
+
+    if (future.isEmpty) {
+      _isShuffling = false;
+      _suppressStreamEvents = false;
+      return;
+    }
+
+    // No lock held here — HTTP fetch is lock-free.
+    // _suppressStreamEvents stays true so index-change events during the
+    // fetch don't fire autoplay triggers mid-reorder.
+
+    List<Song>? ordered;
+    try {
+      ordered = await _audioHandler.computeSmartLocalOrder(
+        currentSong: currentSong,
+        future: future,
+        contextName: _currentPlaylistName,
+      );
+    } catch (_) {
+      // computeSmartLocalOrder never throws (internal try/catch), but guard.
+    }
+
+    if (ordered == null) {
+      // Fallback: standard shuffle, which uses compute() and is fast.
+      // Re-use the normal lock path for this.
+      _isShuffling = false;
+      _suppressStreamEvents = false;
+      // Patch algorithm temporarily to standard and recurse once.
+      // Simpler: just call standardShuffle directly.
+      final completer = Completer<void>();
+      _queueOpLock = completer;
+      _isShuffling = true;
+      _suppressStreamEvents = true;
+      try {
+        await _audioHandler.standardShuffle();
+        final postShuffleIndex =
+            _audioHandler.player.currentIndex ?? safeIndex;
+        state = state.copyWith(
+          queue: _audioHandler.currentQueue,
+          currentIndex: postShuffleIndex,
+        );
+      } finally {
+        _isShuffling = false;
+        _suppressStreamEvents = false;
+        completer.complete();
+        if (_queueOpLock == completer) _queueOpLock = null;
+      }
+      return;
+    }
+
+    // --- Phase 2: commit — re-acquire lock for setAudioSource ---
+    final commitCompleter = Completer<void>();
+    _queueOpLock = commitCompleter;
+    try {
+      // Re-read the live index: the player may have advanced during the fetch.
+      final liveIndex = _audioHandler.player.currentIndex ?? safeIndex;
+      if (liveIndex != safeIndex) {
+        // Player moved while we were fetching. The computed order is now stale
+        // relative to the buffer state. Discard it; the lookahead trigger will
+        // schedule a fresh fetch if needed.
+        debugPrint(
+          '⚠️ [applyShuffleAlgorithm] Smart Local: player advanced '
+          'during fetch ($safeIndex→$liveIndex), discarding stale order',
+        );
+        state = state.copyWith(queue: _audioHandler.currentQueue,
+            currentIndex: liveIndex);
+        return;
+      }
+
+      await _audioHandler.commitSmartLocalOrder(
+        pastAndPresent: pastAndPresent,
+        orderedFuture: ordered,
+        anchorIndex: safeIndex,
+      );
+      _resetSmartLocalSession();
+
+      final postShuffleIndex =
+          _audioHandler.player.currentIndex ?? safeIndex;
+      state = state.copyWith(
+        queue: _audioHandler.currentQueue,
+        currentIndex: postShuffleIndex,
+      );
+    } finally {
+      _isShuffling = false;
+      _suppressStreamEvents = false;
+      commitCompleter.complete();
+      if (_queueOpLock == commitCompleter) _queueOpLock = null;
     }
   }
 
@@ -923,7 +958,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (!state.autoplayMode || _isFetchingSimilar || state.queue.isEmpty)
       return;
 
-    // FIX-RACE-1: Guard on the current song, not the last song in the queue.
     final currentSong = state.currentSong;
     if (currentSong == null) return;
     if (_lastFetchedForSongId == currentSong.id) return;
@@ -989,26 +1023,38 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // ---------------------------------------------------------------------------
   // Smart Local — lookahead feed
   //
-  // FIX-SMART-LOCAL-LOOKAHEAD:
+  // FIX-CONCURRENT-FETCH: The old flow was two sequential awaited calls:
+  //   1. addAllToQueue(candidates)         ← platform channel (~50ms)
+  //   2. smartLocalShuffle()               ← HTTP 0–5s + setAudioSource
   //
-  // OLD: _fetchAndAppendSmartLocal() called getSimilarSongs() (Subsonic) to
-  //      get candidates, then called smartLocalShuffle() to order them.
-  //      This was wrong because:
-  //        a) The Subsonic similar-songs list is different from the Python
-  //           model's song index — song keys don't match.
-  //        b) smartLocalShuffle() reorders the FUTURE slice, not the appended
-  //           songs specifically, causing double-reordering.
+  // These can partially overlap. The HTTP fetch does not need the candidates
+  // to be in the player yet — it only needs the Song list to build the
+  // futureMap. So we restructure as:
   //
-  // NEW: The lookahead just appends more songs from the full unshuffled
-  //      library (via _audioHandler.unshuffledQueue) and then calls
-  //      smartLocalShuffle() once to reorder the whole future queue.
-  //      The model picks the best order from whatever songs are present.
+  //   [concurrent]:
+  //     A. _computeSmartLocalOrder(future: [...existingFuture, ...candidates])
+  //        ← HTTP fetch, no platform channel
+  //     B. addAllToQueue(candidates)
+  //        ← platform channel, no HTTP
+  //
+  //   [after both complete]:
+  //     C. commitSmartLocalOrder(...)
+  //        ← single setAudioSource with move-based reorder (no rebuffer)
+  //
+  // This reduces the wall-clock time from
+  //   (addAllToQueue latency) + (HTTP latency) + (setAudioSource latency)
+  // to
+  //   max(addAllToQueue latency, HTTP latency) + (setAudioSource latency).
+  //
+  // For a 200ms addAllToQueue and 1s HTTP fetch, that is ~1.3s → ~1.2s.
+  // For a cold-start 5s HTTP fetch, that is ~5.2s → ~5.05s.
+  // The real gain is removing setAudioSource from the hot path by using
+  // preferMoveBasedReorder=true, which avoids the anchor rebuffer entirely.
   // ---------------------------------------------------------------------------
 
   void _triggerSmartLocalFetchIfNeeded() {
     if (_isFetchingSmartLocal || state.queue.isEmpty) return;
 
-    // FIX-RACE-1: Guard on current song, not queue.last
     final currentSong = state.currentSong;
     if (currentSong == null) return;
     if (_lastFetchedForSongId == currentSong.id) return;
@@ -1023,27 +1069,87 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       debugPrint('[SMART LOCAL] Reordering queue for: ${seedSong.title}');
 
-      // Get songs from the unshuffled library that aren't in the queue yet
+      // Snapshot the anchor state synchronously.
+      final safeIndex = (player.currentIndex ?? state.currentIndex)
+          .clamp(0, _audioHandler.currentQueue.length - 1);
+      final pastAndPresent = List<Song>.from(
+        _audioHandler.currentQueue.sublist(0, safeIndex + 1),
+      );
+      final existingFuture = List<Song>.from(
+        _audioHandler.currentQueue.sublist(safeIndex + 1),
+      );
+
+      // Build the candidate list: songs from unshuffledQueue not yet in queue.
       final existingIds = state.queue.map((s) => s.id).toSet();
-      final unshuffled = _audioHandler.unshuffledQueue;
-      final candidates = unshuffled
+      final candidates = _audioHandler.unshuffledQueue
           .where((s) => !existingIds.contains(s.id))
-          .take(20) // add up to 20 more songs as fresh candidates
+          .take(20)
           .toList();
 
-      if (candidates.isNotEmpty) {
-        // Append fresh candidates first
-        final newQueue = [...state.queue, ...candidates];
-        state = state.copyWith(queue: newQueue);
-        await _audioHandler.addAllToQueue(candidates);
-        debugPrint('[SMART LOCAL] Appended ${candidates.length} candidates');
+      // The full future the model will order = existing future + candidates.
+      final fullFuture = [...existingFuture, ...candidates];
+
+      if (fullFuture.isEmpty) {
+        debugPrint('[SMART LOCAL] No candidates to add or reorder');
+        return;
       }
 
-      // Now reorder the whole future using the Python model
-      // smartLocalShuffle() handles the network call with a 5s timeout
-      await _audioHandler.smartLocalShuffle();
-      state = state.copyWith(queue: _audioHandler.currentQueue);
+      // FIX-CONCURRENT-FETCH: run HTTP fetch and playlist append concurrently.
+      // _computeSmartLocalOrder only needs fullFuture (a List<Song> snapshot);
+      // it does not touch the player. addAllToQueue only touches the playlist
+      // append; it does not need the HTTP result. They are independent.
+      final results = await Future.wait([
+        // A: HTTP fetch — returns List<Song>? (null = fallback needed)
+        _audioHandler.computeSmartLocalOrder(
+          currentSong: seedSong,
+          future: fullFuture,
+          contextName: _currentPlaylistName,
+        ),
+        // B: Incremental append — returns void, cast to Object? for Future.wait
+        candidates.isNotEmpty
+            ? _audioHandler.addAllToQueue(candidates).then((_) {
+                // Mirror the state update that was previously done after addAllToQueue.
+                final newQueue = [...state.queue, ...candidates];
+                state = state.copyWith(queue: newQueue);
+                debugPrint('[SMART LOCAL] Appended ${candidates.length} candidates');
+                return null;
+              })
+            : Future.value(null),
+      ]);
 
+      final ordered = results[0] as List<Song>?;
+
+      if (ordered == null) {
+        // HTTP failed. The candidates are already appended. Queue is longer
+        // but unordered past the current position — acceptable fallback.
+        debugPrint('[SMART LOCAL] HTTP fetch failed; candidates appended, no reorder');
+        return;
+      }
+
+      // FIX: Check if the player has moved while we were fetching.
+      final liveIndex = player.currentIndex ?? safeIndex;
+      if (liveIndex != safeIndex) {
+        debugPrint(
+          '[SMART LOCAL] Player advanced during fetch '
+          '($safeIndex→$liveIndex), discarding stale order',
+        );
+        // Update state to reflect the appended candidates even if we skip reorder.
+        state = state.copyWith(queue: _audioHandler.currentQueue);
+        return;
+      }
+
+      // Phase 2: commit with move-based reorder to avoid anchor rebuffer.
+      // The candidates are already in _playlist via addAllToQueue above, so
+      // the move-based reorder only shuffles existing playlist entries —
+      // no setAudioSource call needed.
+      await _audioHandler.commitSmartLocalOrder(
+        pastAndPresent: pastAndPresent,
+        orderedFuture: ordered,
+        anchorIndex: safeIndex,
+        preferMoveBasedReorder: true, // no rebuffer while audio is live
+      );
+
+      state = state.copyWith(queue: _audioHandler.currentQueue);
       debugPrint(
         '[SMART LOCAL] Reorder complete. Queue: ${state.queue.length}',
       );
