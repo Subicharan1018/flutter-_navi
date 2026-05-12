@@ -22,6 +22,21 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   String _currentSong = '';
 
   @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final currentSong = ref.read(playerProvider).currentSong;
+      if (currentSong != null) {
+        setState(() {
+          _currentSong = currentSong.title;
+          _songController.text = _currentSong;
+        });
+        _fetchRecommendations();
+      }
+    });
+  }
+
+  @override
   void dispose() {
     _songController.dispose();
     super.dispose();
@@ -73,6 +88,19 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
   @override
   Widget build(BuildContext context) {
+    ref.listen(
+      playerProvider.select((s) => s.currentSong),
+      (previous, next) {
+        if (next != null && next.title != _currentSong) {
+          setState(() {
+            _currentSong = next.title;
+            _songController.text = _currentSong;
+          });
+          _fetchRecommendations();
+        }
+      },
+    );
+
     final queueAsync = ref.watch(shuffleQueueProvider);
     final theme = Theme.of(context);
     final colorScheme = theme.colorScheme;

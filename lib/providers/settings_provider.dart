@@ -120,17 +120,25 @@ class SettingsState {
 
   // ── Computed URL getters — single source of truth ───────────────────────────
 
+  String _normalizedBaseUrl() {
+    if (apiBaseUrl.isEmpty) return '';
+    if (apiBaseUrl.startsWith('http://') || apiBaseUrl.startsWith('https://')) {
+      return apiBaseUrl;
+    }
+    return 'http://$apiBaseUrl';
+  }
+
   /// Full URL for the logging/telemetry service. Empty when `apiBaseUrl` unset.
   String get loggingApiUrl =>
-      apiBaseUrl.isEmpty ? '' : '$apiBaseUrl:$loggingPort';
+      apiBaseUrl.isEmpty ? '' : '${_normalizedBaseUrl()}:$loggingPort';
 
   /// Full URL for the WebDAV/upload service. Empty when `apiBaseUrl` unset.
   String get uploadApiUrl =>
-      apiBaseUrl.isEmpty ? '' : '$apiBaseUrl:$uploadPort';
+      apiBaseUrl.isEmpty ? '' : '${_normalizedBaseUrl()}:$uploadPort';
 
   /// Full URL for the local shuffle model server. Empty when `apiBaseUrl` unset.
   String get localShuffleUrl =>
-      apiBaseUrl.isEmpty ? '' : '$apiBaseUrl:$localShufflePort';
+      apiBaseUrl.isEmpty ? '' : '${_normalizedBaseUrl()}:$localShufflePort';
 
   SettingsState copyWith({
     String? serverUrl,

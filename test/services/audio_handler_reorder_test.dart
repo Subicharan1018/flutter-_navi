@@ -22,6 +22,10 @@ import 'package:navivibe/services/audio_handler.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
 import 'package:navivibe/providers/settings_provider.dart' show ShufflePreference;
+import 'dart:io';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'package:navivibe/core/hive_boxes.dart';
+
 
 // ── Test data factory ─────────────────────────────────────────────────────────
 
@@ -143,6 +147,16 @@ class TestAudioHandler extends AudioHandler {
 // =============================================================================
 
 void main() {
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    final dir = Directory.systemTemp.createTempSync('hive_test_audio_handler_reorder');
+    Hive.init(dir.path);
+    HiveBoxes.auth = await Hive.openBox('auth');
+    HiveBoxes.session = await Hive.openBox('session');
+    HiveBoxes.prefs = await Hive.openBox('prefs');
+    HiveBoxes.audio = await Hive.openBox('audio');
+  });
+
   late TestAudioHandler handler;
   late MockAudioPlayer mockPlayer;
   late MockSubsonicService mockService;

@@ -257,7 +257,7 @@ final listeningLogServiceProvider = Provider<ListeningLogService>((ref) {
 
   return ListeningLogService(
     client: subsonic.client,
-    baseUrl: settings.uploadApiUrl.isEmpty ? null : settings.uploadApiUrl,
+    baseUrl: settings.loggingApiUrl.isEmpty ? null : settings.loggingApiUrl,
     webdavUser: settings.webdavUsername.isEmpty ? null : settings.webdavUsername,
     webdavPass: settings.webdavPassword.isEmpty ? null : settings.webdavPassword,
   );

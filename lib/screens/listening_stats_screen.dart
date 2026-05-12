@@ -43,7 +43,7 @@ class _ListeningStatsScreenState extends ConsumerState<ListeningStatsScreen>
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final uploadUrl = ref.watch(settingsProvider).uploadApiUrl;
+    final loggingUrl = ref.watch(settingsProvider).loggingApiUrl;
     final statsAsync = ref.watch(listeningStatsProvider(_period));
 
     return Scaffold(
@@ -90,7 +90,7 @@ class _ListeningStatsScreenState extends ConsumerState<ListeningStatsScreen>
 
           // ── Content ──────────────────────────────────────────────────────
           Expanded(
-            child: uploadUrl.isEmpty
+            child: loggingUrl.isEmpty
                 ? _EmptyConfigState(tokens: tokens)
                 : statsAsync.when(
                     loading: () => _SkeletonLoader(tokens: tokens),
