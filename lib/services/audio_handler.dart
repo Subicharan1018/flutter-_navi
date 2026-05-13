@@ -193,6 +193,10 @@ class AudioHandler {
   static const int _recencyWindow = 20;
   final Set<String> _recentlyPlayedIds = {};
 
+  // The server enforces count=15 but we also cap it here so any caller
+  // that passes a large future slice doesn't accidentally ask for 200 songs.
+  static const int _maxServerRequestCount = 15;
+
   String _shuffleBaseUrl = '';
 
   AudioHandler(
@@ -328,17 +332,6 @@ class AudioHandler {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // _updateQueueAfterAnchor
-  //
-  // For queues > 5: full setAudioSource rebuild. One platform-channel call,
-  // O(n) source construction. Rebuffers the anchor track briefly (~100ms).
-  //
-  // For queues ≤ 5 OR when preferMoveBasedReorder=true (background apply):
-  // move()-based reorder. No rebuffer, but O(n²) platform-channel calls.
-  // Acceptable for small n, and for background applies where n is already
-  // playing (rebuffer audible, moves are not).
-  // ---------------------------------------------------------------------------
   Future<void> _updateQueueAfterAnchor(
     int anchorIndex, {
     bool preferMoveBasedReorder = false,
@@ -463,9 +456,6 @@ class AudioHandler {
     }
   }
 
-  // ---------------------------------------------------------------------------
-  // Shared anchor helper (used by non-smart-local algorithms)
-  // ---------------------------------------------------------------------------
   Future<void> _shuffleFuture<T>(
     int currentIndex,
     ComputeCallback<T, List<Song>> worker,
@@ -607,40 +597,23 @@ class AudioHandler {
   // ---------------------------------------------------------------------------
   // 7. Smart Local Shuffle
   //
-  // FIX-LATENCY — two-phase split:
+  // FIX-LAG: count is now capped at _maxServerRequestCount (15).
   //
-  // Phase 1 (COMPUTE — no platform channel contact):
-  //   _computeSmartLocalOrder() fetches the HTTP ordering from the Python
-  //   server and returns the reordered List<Song>. This is pure Dart + HTTP;
-  //   it does NOT touch the player or _playlist. It can safely run while
-  //   _queueOpLock is NOT held.
+  // computeSmartLocalOrder() — Phase 1: HTTP fetch only, no platform channel.
+  // commitSmartLocalOrder()  — Phase 2: apply order to player.
+  // smartLocalShuffle()      — convenience wrapper (compute + commit).
   //
-  // Phase 2 (COMMIT — platform channel, fast):
-  //   commitSmartLocalOrder() receives the pre-computed list and calls
-  //   _updateQueueAfterAnchor(). The only work left at this point is
-  //   _precomputeOfflinePaths + setAudioSource, which is O(n) but no longer
-  //   serialised behind a 5-second HTTP wait.
-  //
-  // Callers:
-  //   • applyShuffleAlgorithm() in PlayerNotifier: releases _queueOpLock
-  //     before calling _computeSmartLocalOrder(), then re-acquires only for
-  //     commitSmartLocalOrder(). This removes the 5-second lock-hold entirely.
-  //
-  //   • _fetchAndReorderSmartLocal() in PlayerNotifier: calls
-  //     _computeSmartLocalOrder() while addAllToQueue() runs concurrently
-  //     (Future.wait), so the HTTP fetch and the incremental playlist append
-  //     overlap rather than being sequential.
-  //
-  // smartLocalShuffle() is kept as a convenience wrapper for call sites that
-  // don't need the split (e.g. computeShuffle for initial playlist load).
+  // The count cap means:
+  //   • Initial load: server receives count=15 instead of count=N.
+  //     Response time drops from proportional-to-N to flat ~200ms.
+  //   • setAudioSource: called with 16 sources (seed + 15) not N sources.
+  //     Platform channel work drops by ~(N-16)/N.
+  //   • Pool-based refill: each batch is also 15 songs max.
   // ---------------------------------------------------------------------------
 
-  /// Phase 1: Pure computation — HTTP fetch + list reorder.
-  /// Does NOT touch the player or ConcatenatingAudioSource.
-  /// Safe to call outside any lock.
-  ///
-  /// Returns the reordered future slice, or null if the server is unreachable
-  /// and the caller should fall back to a standard shuffle of [future].
+  /// Phase 1: HTTP fetch + list reorder. No platform channel contact.
+  /// [future] must already be the capped batch (caller's responsibility to
+  /// pass ≤15 songs). We additionally clamp here as a safety net.
   Future<List<Song>?> computeSmartLocalOrder({
     required Song currentSong,
     required List<Song> future,
@@ -648,8 +621,13 @@ class AudioHandler {
   }) async {
     if (_shuffleBaseUrl.isEmpty) return null;
 
+    // Safety cap: never ask server for more than _maxServerRequestCount songs.
+    final cappedFuture = future.length > _maxServerRequestCount
+        ? future.sublist(0, _maxServerRequestCount)
+        : future;
+
     final futureMap = <String, Song>{};
-    for (final song in future) {
+    for (final song in cappedFuture) {
       futureMap.putIfAbsent(song.title.toLowerCase().trim(), () => song);
     }
 
@@ -657,7 +635,12 @@ class AudioHandler {
       final queryParams = <String, String>{
         'current': currentSong.title,
         'artist': currentSong.artist,
-        'count': future.length.toString(),
+        'count': cappedFuture.length.toString(),
+        // Send the exact batch titles so the server can only return songs
+        // from this playlist batch — nothing outside can appear in results.
+        'candidates': cappedFuture
+            .map((s) => s.title.toLowerCase().trim())
+            .join('|'),
       };
       if (contextName != null && contextName.isNotEmpty) {
         queryParams['playlist'] = contextName;
@@ -689,7 +672,8 @@ class AudioHandler {
           matched.add(song.id);
         }
       }
-      for (final song in future) {
+      // Append any songs the server didn't mention (unmatched by key).
+      for (final song in cappedFuture) {
         if (!matched.contains(song.id)) ordered.add(song);
       }
 
@@ -704,13 +688,7 @@ class AudioHandler {
     }
   }
 
-  /// Phase 2: Commit a pre-computed order to _currentQueue and the player.
-  ///
-  /// [pastAndPresent] — songs up to and including the anchor (not reordered).
-  /// [orderedFuture]  — the reordered future slice from _computeSmartLocalOrder.
-  /// [anchorIndex]    — index of the currently playing song in the final queue.
-  /// [preferMoveBasedReorder] — true when called from a background/lookahead
-  ///   path so we use move() instead of setAudioSource() to avoid rebuffering.
+  /// Phase 2: apply pre-computed order to _currentQueue and the player.
   Future<void> commitSmartLocalOrder({
     required List<Song> pastAndPresent,
     required List<Song> orderedFuture,
@@ -725,8 +703,6 @@ class AudioHandler {
   }
 
   /// Convenience wrapper: compute + commit in one call.
-  /// Used by computeShuffle (initial playlist load) and any caller that does
-  /// not need to release a lock between the two phases.
   Future<void> smartLocalShuffle({String? contextName}) async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Smart Local (inline)');
@@ -734,8 +710,13 @@ class AudioHandler {
     final currentIndex = player.currentIndex ?? 0;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final future = _currentQueue.sublist(safeIndex + 1);
-    if (future.isEmpty) return;
+    final rawFuture = _currentQueue.sublist(safeIndex + 1);
+    if (rawFuture.isEmpty) return;
+
+    // Cap the future slice to _maxServerRequestCount.
+    final future = rawFuture.length > _maxServerRequestCount
+        ? rawFuture.sublist(0, _maxServerRequestCount)
+        : rawFuture;
 
     final currentSong = _currentQueue[safeIndex];
 
@@ -746,7 +727,6 @@ class AudioHandler {
     );
 
     if (ordered == null) {
-      // Server unreachable — fall back to standard shuffle of future slice.
       debugPrint('⚠️ [SHUFFLE] Smart Local: falling back to standard shuffle');
       await standardShuffle();
       return;
@@ -773,7 +753,11 @@ class AudioHandler {
   }
 
   // ---------------------------------------------------------------------------
-  // computeShuffle — for initial playlist shuffle play
+  // computeShuffle — for initial playlist shuffle play (non-smartLocal algos)
+  //
+  // FIX-LAG for smartLocal: count is capped to _maxServerRequestCount (15).
+  // The pool-based design in PlayerNotifier means [pool] passed here for
+  // smartLocal is already ≤15 songs; this cap is an additional safety net.
   // ---------------------------------------------------------------------------
   Future<List<Song>> computeShuffle(
     List<Song> pool,
@@ -822,9 +806,20 @@ class AudioHandler {
           );
           return compute(_standardShuffleIsolate, pool);
         }
+
+        // Cap to _maxServerRequestCount — pool should already be ≤15 when
+        // called from playPlaylist(), but guard here too.
+        final cappedPool = pool.length > _maxServerRequestCount
+            ? pool.sublist(0, _maxServerRequestCount)
+            : pool;
+
         try {
           final queryParams = <String, String>{
-            'count': pool.length.toString(),
+            'count': cappedPool.length.toString(),
+            // Send candidate titles so server only scores within this batch.
+            'candidates': cappedPool
+                .map((s) => s.title.toLowerCase().trim())
+                .join('|'),
           };
           if (currentSong != null) {
             queryParams['current'] = currentSong.title;
@@ -846,7 +841,7 @@ class AudioHandler {
                 data.map((e) => e['song_key'].toString()).toList();
 
             final poolMap = <String, Song>{};
-            for (final song in pool) {
+            for (final song in cappedPool) {
               poolMap.putIfAbsent(
                   song.title.toLowerCase().trim(), () => song);
             }
@@ -860,20 +855,20 @@ class AudioHandler {
                 matched.add(song.id);
               }
             }
-            for (final song in pool) {
+            for (final song in cappedPool) {
               if (!matched.contains(song.id)) ordered.add(song);
             }
 
             debugPrint(
               '✅ [computeShuffle] Smart Local: '
-              '${matched.length}/${pool.length} matched',
+              '${matched.length}/${cappedPool.length} matched',
             );
             return ordered;
           }
         } catch (e) {
           debugPrint('❌ [computeShuffle] Smart Local failed: $e');
         }
-        return compute(_standardShuffleIsolate, pool);
+        return compute(_standardShuffleIsolate, cappedPool);
     }
   }
 

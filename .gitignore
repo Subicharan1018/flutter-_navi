@@ -44,3 +44,11 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 linux
+# Graphify - Ignore heavy machine-generated data, logs, and AST caches
+graphify-out/*.json
+graphify-out/.graphify_*
+graphify-out/GRAPH_LOG.md
+graphify-out/cache/
+
+# Keep human-readable reports for team context
+!graphify-out/GRAPH_REPORT.md
