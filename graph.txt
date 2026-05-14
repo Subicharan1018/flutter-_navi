@@ -1,0 +1,86 @@
+/graphify                          # run on current directory
+/graphify ./raw                    # run on a specific folder
+/graphify ./raw --mode deep        # more aggressive relationship extraction
+/graphify ./raw --update           # re-extract only changed files
+/graphify ./raw --directed         # preserve edge direction
+/graphify ./raw --cluster-only     # rerun clustering on existing graph
+/graphify ./raw --no-viz           # skip HTML visualization
+/graphify ./raw --obsidian         # generate Obsidian vault
+/graphify ./raw --wiki             # build agent-crawlable markdown wiki
+/graphify ./raw --svg              # export graph.svg
+/graphify ./raw --graphml          # export for Gephi / yEd
+/graphify ./raw --neo4j            # generate cypher.txt for Neo4j
+/graphify ./raw --neo4j-push bolt://localhost:7687
+/graphify ./raw --watch            # auto-sync as files change
+/graphify ./raw --mcp              # start MCP stdio server
+
+/graphify add https://arxiv.org/abs/1706.03762
+/graphify add <video-url>
+/graphify add https://... --author "Name" --contributor "Name"
+
+/graphify query "what connects attention to the optimizer?"
+/graphify query "..." --dfs --budget 1500
+/graphify path "DigestAuth" "Response"
+/graphify explain "SwinTransformer"
+
+graphify uninstall                 # remove from all platforms in one shot
+graphify uninstall --purge         # also delete graphify-out/
+
+graphify hook install              # post-commit + post-checkout hooks
+graphify hook uninstall
+graphify hook status
+
+graphify claude install / uninstall
+graphify codex install / uninstall
+graphify opencode install
+graphify cursor install / uninstall
+graphify gemini install / uninstall
+graphify copilot install / uninstall
+graphify aider install / uninstall
+graphify claw install / uninstall
+graphify droid install / uninstall
+graphify trae install / uninstall
+graphify trae-cn install / uninstall
+graphify hermes install / uninstall
+graphify kiro install / uninstall
+graphify antigravity install / uninstall
+
+graphify extract ./docs                        # headless LLM extraction for CI (no IDE needed)
+graphify extract ./docs --backend gemini       # explicit backend: gemini, kimi, claude, openai, ollama, bedrock, or claude-cli
+graphify extract ./docs --backend gemini --model gemini-3.1-pro-preview
+graphify extract ./docs --backend ollama       # local Ollama (set OLLAMA_BASE_URL / OLLAMA_MODEL) - no API key needed for loopback
+GRAPHIFY_OLLAMA_NUM_CTX=32768 graphify extract ./docs --backend ollama   # override KV-cache window (auto-sized by default)
+GRAPHIFY_OLLAMA_KEEP_ALIVE=0 graphify extract ./docs --backend ollama    # unload model after each chunk (saves VRAM on small GPUs)
+graphify extract ./docs --backend bedrock      # AWS Bedrock via IAM - no API key, uses AWS credential chain
+graphify extract ./docs --backend claude-cli   # route through Claude Code CLI - no API key, uses your Claude subscription
+graphify extract ./docs --max-workers 16       # AST parallelism (also GRAPHIFY_MAX_WORKERS)
+graphify extract ./docs --token-budget 30000   # smaller semantic chunks for local/small models
+graphify extract ./docs --max-concurrency 2    # fewer parallel LLM calls (useful for local inference)
+graphify extract ./docs --api-timeout 900      # longer HTTP timeout for slow local models (default 600s)
+graphify extract ./docs --google-workspace     # export .gdoc/.gsheet/.gslides via gws before extraction
+graphify extract ./docs --no-cluster           # raw extraction only, skip clustering
+graphify extract ./docs --force                # overwrite graph.json even if new graph has fewer nodes (use after refactors or to clear ghost duplicates)
+graphify extract ./docs --dedup-llm            # LLM tiebreaker for ambiguous entity pairs (uses same API key)
+graphify extract ./docs --global --as myrepo   # extract and register into the cross-project global graph
+GRAPHIFY_MAX_OUTPUT_TOKENS=32768 graphify extract ./docs --backend claude  # raise output cap for dense corpora
+
+graphify export callflow-html                       # graphify-out/<project>-callflow.html
+graphify export callflow-html --max-sections 8      # cap generated architecture sections
+graphify export callflow-html --output docs/arch.html
+graphify export callflow-html ./some-repo/graphify-out
+
+graphify global add graphify-out/graph.json myrepo   # register a project graph into ~/.graphify/global.json
+graphify global remove myrepo                         # remove a project from the global graph
+graphify global list                                  # show all registered repos + node/edge counts
+graphify global path                                  # print path to the global graph file
+
+graphify clone https://github.com/karpathy/nanoGPT
+graphify merge-graphs a.json b.json --out merged.json
+graphify --version                                    # print installed version
+graphify watch ./src
+graphify check-update ./src
+graphify update ./src
+graphify update ./src --no-cluster  # skip reclustering, write raw AST graph only
+graphify update ./src --force       # overwrite even if new graph has fewer nodes
+graphify cluster-only ./my-project
+graphify cluster-only ./my-project --graph path/to/graph.json  # custom graph location

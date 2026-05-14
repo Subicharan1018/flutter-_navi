@@ -106,6 +106,10 @@ class _FluidPainter extends CustomPainter {
 
 // ── Animated widget ───────────────────────────────────────────────────────────
 
+/// An animated fluid background widget.
+///
+/// This widget delegates to [_FluidPainter] for the actual rendering and uses
+/// [FluidShaderLoader] to load the underlying fragment shader.
 class FluidBackground extends StatefulWidget {
   final List<Color> colors;
   const FluidBackground({super.key, required this.colors});

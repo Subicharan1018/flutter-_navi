@@ -3,34 +3,8 @@ import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/shuffle_algorithms.dart';
 
-Song makeSong({
-  required String id,
-  String genre = 'Unknown',
-  String composer = 'Unknown',
-  String album = 'Unknown',
-  int track = 0,
-  double dynamicWeight = 1.0,
-  int rating = 0,
-  int playCount = 0,
-  bool starred = false,
-}) {
-  return Song(
-    id: id,
-    title: 'Title $id',
-    artist: 'Artist',
-    album: album,
-    genre: genre,
-    composer: composer,
-    coverArt: '',
-    duration: 200,
-    track: track,
-    year: 2024,
-    starred: starred,
-    playCount: playCount,
-    rating: rating,
-    dynamicWeight: dynamicWeight,
-  );
-}
+import '../helpers/test_utils.dart';
+
 
 void main() {
   List<Song> generatePool(int count) {

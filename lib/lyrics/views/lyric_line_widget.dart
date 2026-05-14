@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../models/lyric_line.dart';
 
 /// Renders a single lyric line with Apple Music–style animations.
 ///

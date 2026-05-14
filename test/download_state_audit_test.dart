@@ -23,7 +23,10 @@ import 'package:navivibe/models/download_state.dart';
 import 'package:navivibe/offline_service.dart';
 import 'package:navivibe/providers/download_provider.dart';
 import 'package:navivibe/models/song.dart';
+import 'package:navivibe/models/song.dart';
 import 'package:navivibe/services/subsonic_service.dart';
+
+import 'helpers/test_utils.dart';
 
 // ---------------------------------------------------------------------------
 // Mocks
@@ -35,18 +38,6 @@ class MockSubsonicService extends Mock implements SubsonicService {}
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-/// Build a minimal Song value object for use in tests.
-Song _makeSong({String id = 'song-1', String title = 'Test Song'}) => Song(
-      id: id,
-      title: title,
-      artist: 'Test Artist',
-      album: 'Test Album',
-      coverArt: '',
-      duration: 200,
-      track: 1,
-      year: 2024,
-    );
 
 /// Build a [ProviderContainer] with [offlineServiceProvider] overridden by the
 /// supplied mock. This follows the project's Riverpod architecture: services
@@ -69,7 +60,7 @@ void main() {
     TestWidgetsFlutterBinding.ensureInitialized();
     // AUDIT: mocktail requires fallback values for any custom types used
     // with any() / captureAny() matchers in verify() calls.
-    registerFallbackValue(_makeSong());
+    registerFallbackValue(makeSong());
     registerFallbackValue(MockSubsonicService());
   });
 
@@ -480,7 +471,7 @@ void main() {
         addTearDown(container.dispose);
 
         final notifier = container.read(downloadStateProvider.notifier);
-        final song = _makeSong(id: 'song-1');
+        final song = makeSong(id: 'song-1');
 
         // AUDIT: Song is already downloaded — calling downloadSong() must be
         // a no-op (guard at download_provider.dart:66-76).

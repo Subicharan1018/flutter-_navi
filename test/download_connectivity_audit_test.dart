@@ -29,6 +29,8 @@ import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 
+import 'helpers/test_utils.dart';
+
 // ---------------------------------------------------------------------------
 // Mocks
 // ---------------------------------------------------------------------------
@@ -40,17 +42,6 @@ class MockConnectivity extends Mock implements Connectivity {}
 // ---------------------------------------------------------------------------
 // Helpers
 // ---------------------------------------------------------------------------
-
-Song _makeSong({String id = 'song-1', String title = 'Test Song'}) => Song(
-      id: id,
-      title: title,
-      artist: 'Test Artist',
-      album: 'Test Album',
-      coverArt: '',
-      duration: 200,
-      track: 1,
-      year: 2024,
-    );
 
 /// Build a [ProviderContainer] with all service providers overridden.
 ProviderContainer _buildContainer({
@@ -75,7 +66,7 @@ void main() {
   setUpAll(() {
     // AUDIT: mocktail requires fallback values for any custom types used
     // with any() / captureAny() matchers in verify() calls.
-    registerFallbackValue(_makeSong());
+    registerFallbackValue(makeSong());
     registerFallbackValue(MockSubsonicService());
   });
 
@@ -112,7 +103,7 @@ void main() {
       'AUDIT: failed downloadSong() → status transitions to failed, not stuck',
       () async {
         // AUDIT: Arrange — simulate a network failure (OfflineService throws).
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockOffline.downloadSong(song, mockSubsonic))
             .thenThrow(Exception('Network unreachable'));
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
@@ -147,7 +138,7 @@ void main() {
       () async {
         // AUDIT: The _setFailed() path should record a human-readable message
         // (per AppException rules in GEMINI.md).
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockOffline.downloadSong(song, mockSubsonic))
             .thenThrow(Exception('Connection timed out'));
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
@@ -194,7 +185,7 @@ void main() {
         //   dio.options.connectTimeout = const Duration(seconds: 15);
         //   dio.options.receiveTimeout = const Duration(seconds: 60);
 
-        final song = _makeSong(id: 'hanging-song');
+        final song = makeSong(id: 'hanging-song');
         final hangCompleter = Completer<bool>();
 
         // AUDIT: The download call never completes — simulates an infinite
@@ -255,7 +246,7 @@ void main() {
     test(
       'AUDIT: downloadSong() guard allows retry when status == failed',
       () async {
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
 
         // AUDIT: First attempt fails.
@@ -301,7 +292,7 @@ void main() {
       () async {
         // AUDIT: This is the correct guard behaviour — not the bug.
         // Prevents multi-tap from starting duplicate downloads.
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
 
         // AUDIT: Simulate a download that hasn't finished yet.
@@ -363,7 +354,7 @@ void main() {
         // and optionally a callback/stream from the notifier for proactive
         // failure notification.
 
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockOffline.downloadSong(song, mockSubsonic))
             .thenThrow(Exception('No internet'));
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
@@ -411,7 +402,7 @@ void main() {
     test(
       'AUDIT: connectivity restore → retry succeeds without app restart',
       () async {
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
 
         // AUDIT: Phase 1 — app starts with no network.
@@ -455,7 +446,7 @@ void main() {
     test(
       'AUDIT: multiple failure-retry cycles work correctly',
       () async {
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
 
         final container = _buildContainer(
@@ -508,7 +499,7 @@ void main() {
       () async {
         // AUDIT: Bug 2 FIX verified — the pre-check in downloadSong() blocks
         // the service call when offline and sets failed immediately.
-        final song = _makeSong();
+        final song = makeSong();
 
         // Simulate no connectivity.
         when(() => mockConnectivity.checkConnectivity())
@@ -540,7 +531,7 @@ void main() {
       () async {
         // AUDIT: With the fix applied, OfflineService is NOT called when
         // the device is offline — the pre-flight short-circuits.
-        final song = _makeSong();
+        final song = makeSong();
 
         // Simulate no connectivity.
         when(() => mockConnectivity.checkConnectivity())
@@ -583,7 +574,7 @@ void main() {
     test(
       'AUDIT: successful download → status transitions to downloaded',
       () async {
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
         when(() => mockOffline.downloadSong(
               song,
@@ -616,7 +607,7 @@ void main() {
     test(
       'AUDIT: progress is emitted during download (0 → 1)',
       () async {
-        final song = _makeSong();
+        final song = makeSong();
         when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
 
         // AUDIT: Simulate a download that fires the progress callback.

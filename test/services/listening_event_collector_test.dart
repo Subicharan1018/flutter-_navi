@@ -7,46 +7,8 @@ import 'package:navivibe/database/app_database.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:sqlite3/open.dart';
-// ---------------------------------------------------------------------------
-// Shared song factory
-// ---------------------------------------------------------------------------
 
-Song makeSong({
-  String id = '1',
-  String title = 'Test Song',
-  String artist = 'Artist',
-  String album = 'Album',
-  String genre = 'Rock',
-  String composer = 'Bach',
-  int duration = 200,
-  int track = 1,
-  int year = 2024,
-  bool starred = false,
-  int playCount = 0,
-  int rating = 0,
-  double dynamicWeight = 1.0,
-}) => Song(
-  id: id,
-  title: title,
-  artist: artist,
-  album: album,
-  genre: genre,
-  composer: composer,
-  coverArt: '',
-  duration: duration,
-  track: track,
-  year: year,
-  starred: starred,
-  playCount: playCount,
-  rating: rating,
-  dynamicWeight: dynamicWeight,
-);
-
-// ---------------------------------------------------------------------------
-// Helper: pump the microtask queue so fire-and-forget DB writes complete.
-// ---------------------------------------------------------------------------
-Future<void> pumpMicrotasks() => Future.delayed(Duration.zero);
-
+import '../helpers/test_utils.dart';
 // ---------------------------------------------------------------------------
 // Tests
 // ---------------------------------------------------------------------------
