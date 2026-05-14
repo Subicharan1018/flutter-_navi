@@ -75,12 +75,6 @@ void main() {
 
     test('interleaves larger and smaller lists correctly', () {
       // This tests the underlying interleave function
-      final larger = [
-        makeSong(id: 'l1'),
-        makeSong(id: 'l2'),
-        makeSong(id: 'l3'),
-      ];
-      final smaller = [makeSong(id: 's1')];
       // Note: we can't directly call interleave without importing dart:math inside test
       // but we can test mergeShuffleIsolate which uses it.
 

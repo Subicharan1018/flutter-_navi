@@ -287,21 +287,21 @@ class _GlassShell extends StatelessWidget {
         boxShadow: [
           // Wide soft artwork-coloured outer glow
           BoxShadow(
-            color: themeColor.withOpacity(0.22),
+            color: themeColor.withValues(alpha: 0.22),
             blurRadius: 36,
             spreadRadius: -2,
             offset: const Offset(0, 8),
           ),
           // Tighter, more saturated inner glow ring
           BoxShadow(
-            color: themeColor.withOpacity(0.12),
+            color: themeColor.withValues(alpha: 0.12),
             blurRadius: 14,
             spreadRadius: 0,
             offset: const Offset(0, 4),
           ),
           // Dark depth shadow underneath
           BoxShadow(
-            color: Colors.black.withOpacity(0.55),
+            color: Colors.black.withValues(alpha: 0.55),
             blurRadius: 28,
             spreadRadius: -2,
             offset: const Offset(0, 8),
@@ -321,15 +321,15 @@ class _GlassShell extends StatelessWidget {
                 begin: Alignment.topLeft,
                 end: Alignment.bottomRight,
                 colors: [
-                  Colors.white.withOpacity(0.10),
-                  Colors.white.withOpacity(0.05),
-                  Colors.black.withOpacity(0.22),
+                  Colors.white.withValues(alpha: 0.10),
+                  Colors.white.withValues(alpha: 0.05),
+                  Colors.black.withValues(alpha: 0.22),
                 ],
                 stops: const [0.0, 0.45, 1.0],
               ),
               // Iridescent rim: theme colour at low opacity, thicker than before
               border: Border.all(
-                color: themeColor.withOpacity(0.28),
+                color: themeColor.withValues(alpha: 0.28),
                 width: 1.0,
               ),
               borderRadius: BorderRadius.circular(22),
@@ -379,7 +379,7 @@ class _NoisePainter extends CustomPainter {
     // Full random noise would require dart:math import and is more expensive;
     // this approach is zero-allocation and visually sufficient.
     final paint = Paint()
-      ..color = Colors.white.withOpacity(0.018)
+      ..color = Colors.white.withValues(alpha: 0.018)
       ..strokeWidth = 1;
 
     const step = 4.0;
@@ -421,14 +421,14 @@ class _AlbumThumb extends StatelessWidget {
         boxShadow: [
           // Wide ambient glow
           BoxShadow(
-            color: themeColor.withOpacity(0.30),
+            color: themeColor.withValues(alpha: 0.30),
             blurRadius: 20,
             spreadRadius: 0,
             offset: const Offset(0, 4),
           ),
           // Tight specular glow — brighter, closer
           BoxShadow(
-            color: themeColor.withOpacity(0.45),
+            color: themeColor.withValues(alpha: 0.45),
             blurRadius: 8,
             spreadRadius: -2,
             offset: const Offset(0, 2),
@@ -442,7 +442,7 @@ class _AlbumThumb extends StatelessWidget {
             borderRadius: BorderRadius.circular(10),
             // White inner border to separate art from glass surface
             border: Border.all(
-              color: Colors.white.withOpacity(0.15),
+              color: Colors.white.withValues(alpha: 0.15),
               width: 0.8,
             ),
           ),
@@ -491,9 +491,9 @@ class _PlayButton extends StatelessWidget {
     // Compute a slightly darkened variant for the gradient bottom stop
     final darkened = Color.fromARGB(
       255,
-      (themeColor.red * 0.65).round(),
-      (themeColor.green * 0.65).round(),
-      (themeColor.blue * 0.65).round(),
+      ((themeColor.r * 255.0) * 0.65).round().clamp(0, 255),
+      ((themeColor.g * 255.0) * 0.65).round().clamp(0, 255),
+      ((themeColor.b * 255.0) * 0.65).round().clamp(0, 255),
     );
 
     return Semantics(
@@ -516,21 +516,21 @@ class _PlayButton extends StatelessWidget {
             boxShadow: [
               // Outer artwork glow
               BoxShadow(
-                color: themeColor.withOpacity(0.50),
+                color: themeColor.withValues(alpha: 0.50),
                 blurRadius: 18,
                 spreadRadius: -2,
                 offset: const Offset(0, 4),
               ),
               // Crisp depth shadow
               BoxShadow(
-                color: Colors.black.withOpacity(0.40),
+                color: Colors.black.withValues(alpha: 0.40),
                 blurRadius: 8,
                 spreadRadius: -1,
                 offset: const Offset(0, 3),
               ),
               // Top-edge inset highlight — white shimmer along the upper rim
               BoxShadow(
-                color: Colors.white.withOpacity(0.22),
+                color: Colors.white.withValues(alpha: 0.22),
                 blurRadius: 0,
                 spreadRadius: 0,
                 offset: const Offset(0, -1),
@@ -549,7 +549,7 @@ class _PlayButton extends StatelessWidget {
                       begin: Alignment.topCenter,
                       end: Alignment.bottomCenter,
                       colors: [
-                        Colors.white.withOpacity(0.18),
+                        Colors.white.withValues(alpha: 0.18),
                         Colors.transparent,
                       ],
                       stops: const [0.0, 0.5],
@@ -662,7 +662,7 @@ class _ProgressPainter extends CustomPainter {
     // 1. Track
     canvas.drawRRect(
       RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, w, h), Radius.circular(r)),
-      Paint()..color = Colors.white.withOpacity(0.12),
+      Paint()..color = Colors.white.withValues(alpha: 0.12),
     );
 
     if (fill <= 0) return;
@@ -674,7 +674,7 @@ class _ProgressPainter extends CustomPainter {
         const Radius.circular(8),
       ),
       Paint()
-        ..color = themeColor.withOpacity(0.28)
+        ..color = themeColor.withValues(alpha: 0.28)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7),
     );
 
@@ -685,7 +685,7 @@ class _ProgressPainter extends CustomPainter {
         const Radius.circular(4),
       ),
       Paint()
-        ..color = themeColor.withOpacity(0.45)
+        ..color = themeColor.withValues(alpha: 0.45)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3),
     );
 
@@ -695,7 +695,7 @@ class _ProgressPainter extends CustomPainter {
       Paint()
         ..shader = LinearGradient(
           colors: [
-            themeColor.withOpacity(0.70),
+            themeColor.withValues(alpha: 0.70),
             themeColor,
           ],
         ).createShader(Rect.fromLTWH(0, 0, fill, h)),
@@ -708,7 +708,7 @@ class _ProgressPainter extends CustomPainter {
       Offset(thumbX, h / 2),
       5.5,
       Paint()
-        ..color = themeColor.withOpacity(0.40)
+        ..color = themeColor.withValues(alpha: 0.40)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 4),
     );
     // Playhead dot — uses white for strong contrast on the coloured track

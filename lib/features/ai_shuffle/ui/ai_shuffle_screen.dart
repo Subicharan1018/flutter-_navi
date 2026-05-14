@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/song.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../data/models/recommended_song.dart';
@@ -20,6 +21,10 @@ class AiShuffleScreen extends ConsumerStatefulWidget {
 class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   final TextEditingController _songController = TextEditingController();
   String _currentSong = '';
+
+  /// True while _applyAiShuffle() is resolving songs and setting the queue.
+  /// Disables both action buttons to prevent double-tap races.
+  bool _isApplyingQueue = false;
 
   @override
   void initState() {
@@ -59,7 +64,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           );
 
       if (localSong != null) {
-        await ref.read(playerProvider.notifier).addToQueue(localSong);
+        await ref.read(playerProvider.notifier).addToQueue(localSong as Song);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Added "${song.title}" to queue')),
@@ -76,6 +81,68 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
         SnackBar(content: Text('Error adding song: $e')),
       );
     }
+  }
+
+  /// Resolves all currently displayed recommendations against the local library,
+  /// replaces the playback queue with the resolved songs, and pops this screen.
+  ///
+  /// Errors are shown as snackbars — the screen stays open so the user can
+  /// retry or adjust the query.
+  Future<void> _applyAiShuffle() async {
+    if (_isApplyingQueue) return; // guard against double-tap
+    setState(() => _isApplyingQueue = true);
+
+    try {
+      final recommendations = ref.read(shuffleQueueProvider).valueOrNull;
+
+      if (recommendations == null || recommendations.isEmpty) {
+        _showSnackBar('No recommendations to shuffle — refresh first');
+        return;
+      }
+
+      // Resolve recommendations against the full local library.
+      // Same matching strategy as _enqueueSong for consistency.
+      final allSongs = await ref.read(allSongsProvider.future);
+      final resolved = recommendations
+          .map((rec) {
+            try {
+              return allSongs.firstWhere(
+                (s) =>
+                    s.title.toLowerCase() == rec.title.toLowerCase() &&
+                    s.artist.toLowerCase() == rec.artist.toLowerCase(),
+              );
+            } catch (_) {
+              return null;
+            }
+          })
+          .whereType<Song>()
+          .toList();
+
+      if (resolved.isEmpty) {
+        _showSnackBar('None of the recommendations were found in your library');
+        return;
+      }
+
+      await ref
+          .read(playerProvider.notifier)
+          .setQueue(resolved, 0);
+
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+    } catch (e, st) {
+      debugPrint('[AiShuffle] _applyAiShuffle error: $e\n$st');
+      _showSnackBar('Failed to apply shuffle — please try again');
+    } finally {
+      if (mounted) setState(() => _isApplyingQueue = false);
+    }
+  }
+
+  void _showSnackBar(String message) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text(message)),
+    );
   }
 
   void _showProfileSheet(String songTitle) {
@@ -106,6 +173,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     final colorScheme = theme.colorScheme;
 
     return Scaffold(
+      // FAB removed — replaced by sticky footer row below.
       appBar: AppBar(
         title: const Text('AI Shuffle'),
         actions: [
@@ -163,12 +231,45 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               },
             ),
           ),
+
+          // ── Sticky footer: Refresh + Shuffle Now ─────────────────────────
+          SafeArea(
+            top: false,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: Row(
+                children: [
+                  // Refresh recommendations (replaces old FAB)
+                  IconButton.outlined(
+                    onPressed: _isApplyingQueue ? null : _fetchRecommendations,
+                    icon: const Icon(Icons.refresh),
+                    tooltip: 'Refresh recommendations',
+                  ),
+                  const SizedBox(width: 12),
+                  // Shuffle Now — replace queue with all resolved recommendations
+                  Expanded(
+                    child: FilledButton.icon(
+                      onPressed: _isApplyingQueue ? null : _applyAiShuffle,
+                      icon: _isApplyingQueue
+                          ? const SizedBox(
+                              width: 16,
+                              height: 16,
+                              child: CircularProgressIndicator(
+                                strokeWidth: 2,
+                                color: Colors.white,
+                              ),
+                            )
+                          : const Icon(Icons.shuffle),
+                      label: Text(
+                        _isApplyingQueue ? 'Applying…' : 'Shuffle Now',
+                      ),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
         ],
-      ),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _fetchRecommendations,
-        tooltip: 'Refresh recommendations',
-        child: const Icon(Icons.refresh),
       ),
     );
   }

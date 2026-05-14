@@ -9,7 +9,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:palette_generator/palette_generator.dart';
 import 'package:marquee/marquee.dart';
-import 'package:audio_video_progress_bar/audio_video_progress_bar.dart';
 import 'package:just_audio/just_audio.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -1030,31 +1029,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                     RepaintBoundary(
                       child: Padding(
                         padding: const EdgeInsets.symmetric(horizontal: 32),
-                        child: StreamBuilder<Duration>(
-                          stream: notifier.player.positionStream,
-                          builder: (context, snapshot) {
-                            final position = snapshot.data ?? Duration.zero;
-                            return ProgressBar(
-                              progress: position,
-                              total: Duration(seconds: song.duration),
-                              onSeek: (d) => notifier.player.seek(d),
-                              baseBarColor: ThemeTokens.of(
-                                context,
-                              ).textPrimary.withOpacity(0.18),
-                              progressBarColor: ThemeTokens.of(
-                                context,
-                              ).textPrimary,
-                              thumbColor: ThemeTokens.of(context).textPrimary,
-                              thumbRadius: 6,
-                              barHeight: 4,
-                              timeLabelTextStyle: TextStyle(
-                                color: ThemeTokens.of(context).textSecondary,
-                                fontSize: 11,
-                                fontWeight: FontWeight.w500,
-                                letterSpacing: 0.2,
-                              ),
-                            );
-                          },
+                        child: _PositionStream(
+                          player: notifier.player,
+                          songId: song.id,
+                          duration: Duration(seconds: song.duration),
+                          onSeek: (d) => notifier.player.seek(d),
                         ),
                       ),
                     ),
@@ -1259,6 +1238,96 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           ),
         ),
       ),
+    );
+  }
+}
+
+// =============================================================================
+// 5b. POSITION STREAM — flash-free progress bar wrapper
+// =============================================================================
+
+/// Wraps [ProgressBar] and subscribes to [AudioPlayer.positionStream] in a
+/// StatefulWidget so we can cache the last-known position.
+///
+/// **Why not `StreamBuilder`?** When `just_audio` switches sources it briefly
+/// emits `null` on `positionStream`, which `StreamBuilder`'s
+/// `snapshot.data ?? Duration.zero` maps to 0 — causing the progress bar to
+/// visually reset to zero for a single frame (the flash bug).
+///
+/// This widget holds `_lastKnown` and only updates it when the incoming
+/// position is `> Duration.zero` OR when the song has genuinely changed (in
+/// which case we intentionally reset to zero once the first real position
+/// arrives).
+class _PositionStream extends StatefulWidget {
+  final AudioPlayer player;
+  final String songId;
+  final Duration duration;
+  final ValueChanged<Duration> onSeek;
+
+  const _PositionStream({
+    required this.player,
+    required this.songId,
+    required this.duration,
+    required this.onSeek,
+  });
+
+  @override
+  State<_PositionStream> createState() => _PositionStreamState();
+}
+
+class _PositionStreamState extends State<_PositionStream> {
+  late StreamSubscription<Duration> _sub;
+  Duration _lastKnown = Duration.zero;
+  String _lastSongId = '';
+
+  @override
+  void initState() {
+    super.initState();
+    _lastSongId = widget.songId;
+    _sub = widget.player.positionStream.listen(_onPosition);
+  }
+
+  void _onPosition(Duration pos) {
+    if (!mounted) return;
+    final songChanged = widget.songId != _lastSongId;
+    if (songChanged) {
+      // New song detected — reset cache so we start from 0 cleanly.
+      setState(() {
+        _lastKnown = Duration.zero;
+        _lastSongId = widget.songId;
+      });
+      return;
+    }
+    // Only update if pos is meaningful — never overwrite a non-zero cache
+    // with a transient zero emitted during source switching.
+    if (pos > Duration.zero || _lastKnown == Duration.zero) {
+      setState(() => _lastKnown = pos);
+    }
+  }
+
+  @override
+  void didUpdateWidget(_PositionStream old) {
+    super.didUpdateWidget(old);
+    if (old.songId != widget.songId) {
+      // Song changed from parent — reset immediately so the bar shows 0
+      // until the player emits the first real position for the new track.
+      _lastSongId = widget.songId;
+      _lastKnown = Duration.zero;
+    }
+  }
+
+  @override
+  void dispose() {
+    _sub.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ProgressBar(
+      position: _lastKnown,
+      duration: widget.duration,
+      onSeek: widget.onSeek,
     );
   }
 }

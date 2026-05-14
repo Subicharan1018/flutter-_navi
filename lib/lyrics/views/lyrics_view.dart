@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/song.dart';
+import '../../providers/player_provider.dart';
 import '../controllers/lyrics_controller.dart';
 import 'lyric_line_widget.dart';
 import 'lyrics_background.dart';
@@ -22,11 +23,7 @@ class LyricsView extends ConsumerStatefulWidget {
   final Song song;
   final String imageUrl;
 
-  const LyricsView({
-    super.key,
-    required this.song,
-    required this.imageUrl,
-  });
+  const LyricsView({super.key, required this.song, required this.imageUrl});
 
   @override
   ConsumerState<LyricsView> createState() => _LyricsViewState();
@@ -65,14 +62,14 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
   @override
   Widget build(BuildContext context) {
     // Listen for active-line changes to trigger auto-scroll.
-    ref.listen<int>(
-      lyricsControllerProvider.select((s) => s.activeLineIndex),
-      (prev, next) {
-        if (next >= 0 && next != prev) {
-          _scrollToLine(next);
-        }
-      },
-    );
+    ref.listen<int>(lyricsControllerProvider.select((s) => s.activeLineIndex), (
+      prev,
+      next,
+    ) {
+      if (next >= 0 && next != prev) {
+        _scrollToLine(next);
+      }
+    });
 
     final lyricsState = ref.watch(lyricsControllerProvider);
 
@@ -185,9 +182,9 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       LyricsStatus.loading => _buildShimmer(),
       LyricsStatus.synced => _buildSyncedList(state),
       LyricsStatus.plain => PlainTextView(
-          lyrics: state.lyrics!,
-          song: widget.song,
-        ),
+        lyrics: state.lyrics!,
+        song: widget.song,
+      ),
       LyricsStatus.empty => const NoLyricsCard(),
       LyricsStatus.error => _buildError(state.errorMessage),
     };
@@ -223,13 +220,30 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
       padding: const EdgeInsets.only(top: 8, bottom: 160),
       itemCount: lines.length,
       itemBuilder: (_, i) {
-        return LyricLineWidget(
-          key: ValueKey('line_$i'),
-          text: lines[i].text,
-          isActive: i == activeIdx,
-          isPast: activeIdx >= 0 && i < activeIdx,
-          index: i,
-          animate: !_hasAnimated,
+        return GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () {
+            final ts = lines[i].timestamp;
+            // Skip seek for lines without a meaningful timestamp
+            // (e.g. blank separator lines parsed from plain-text LRC).
+            if (ts == Duration.zero && i > 0) return;
+            final duration =
+                ref.read(playerProvider).currentSong?.duration ?? 0;
+            final max = Duration(seconds: duration);
+            final safe = ts.clamp(Duration.zero, max);
+            // Seek the audio — modal stays open per design decision.
+            ref.read(playerProvider.notifier).player.seek(safe);
+            // Snap the scroll list to the tapped line.
+            _scrollToLine(i);
+          },
+          child: LyricLineWidget(
+            key: ValueKey('line_$i'),
+            text: lines[i].text,
+            isActive: i == activeIdx,
+            isPast: activeIdx >= 0 && i < activeIdx,
+            index: i,
+            animate: !_hasAnimated,
+          ),
         );
       },
     );
@@ -239,44 +253,49 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
 
   Widget _buildError(String? message) {
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 40),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.wifi_off_rounded,
-                size: 48, color: Colors.white.withOpacity(0.3)),
-            const SizedBox(height: 16),
-            Text(
-              'Could not load lyrics',
-              style: TextStyle(
-                fontSize: 17,
-                fontWeight: FontWeight.w600,
-                color: Colors.white.withOpacity(0.6),
-              ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 40),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.wifi_off_rounded,
+                  size: 48,
+                  color: Colors.white.withOpacity(0.3),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Could not load lyrics',
+                  style: TextStyle(
+                    fontSize: 17,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withOpacity(0.6),
+                  ),
+                ),
+                if (message != null) ...[
+                  const SizedBox(height: 6),
+                  Text(
+                    message,
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: Colors.white.withOpacity(0.3),
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ],
+                const SizedBox(height: 24),
+                TextButton(
+                  onPressed: () =>
+                      ref.read(lyricsControllerProvider.notifier).retry(),
+                  child: const Text(
+                    'Retry',
+                    style: TextStyle(color: Colors.white70, fontSize: 15),
+                  ),
+                ),
+              ],
             ),
-            if (message != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                message,
-                style: TextStyle(
-                    fontSize: 12, color: Colors.white.withOpacity(0.3)),
-                textAlign: TextAlign.center,
-              ),
-            ],
-            const SizedBox(height: 24),
-            TextButton(
-              onPressed: () =>
-                  ref.read(lyricsControllerProvider.notifier).retry(),
-              child: const Text(
-                'Retry',
-                style: TextStyle(color: Colors.white70, fontSize: 15),
-              ),
-            ),
-          ],
-        ),
-      ),
-    )
+          ),
+        )
         .animate()
         .fadeIn(duration: 400.ms)
         .slideY(begin: 0.06, end: 0, duration: 400.ms);
@@ -318,20 +337,22 @@ class _ShimmerBarState extends State<_ShimmerBar>
 
   @override
   Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, constraints) {
-      return FadeTransition(
-        opacity: Tween<double>(begin: 0.15, end: 0.35).animate(_anim),
-        child: Container(
-          width: constraints.maxWidth * widget.widthFraction,
-          height: 22,
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(6),
-          ),
-        ),
-      )
-          .animate(delay: Duration(milliseconds: widget.delay))
-          .fadeIn(duration: 300.ms);
-    });
+    return LayoutBuilder(
+      builder: (context, constraints) {
+        return FadeTransition(
+              opacity: Tween<double>(begin: 0.15, end: 0.35).animate(_anim),
+              child: Container(
+                width: constraints.maxWidth * widget.widthFraction,
+                height: 22,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+              ),
+            )
+            .animate(delay: Duration(milliseconds: widget.delay))
+            .fadeIn(duration: 300.ms);
+      },
+    );
   }
 }

@@ -32,8 +32,6 @@ Song makeSong({
     playCount: playCount,
     rating: rating,
     dynamicWeight: dynamicWeight,
-    albumId: 'album-1',
-    artistId: 'artist-1',
   );
 }
 

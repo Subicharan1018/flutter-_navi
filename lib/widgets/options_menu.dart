@@ -5,7 +5,6 @@ import '../models/download_state.dart';
 import '../providers/player_provider.dart';
 import '../providers/download_provider.dart';
 import '../core/theme.dart';
-import '../providers/settings_provider.dart';
 import 'add_to_playlist_dialog.dart';
 
 class OptionsMenu extends ConsumerWidget {
@@ -32,14 +31,14 @@ class OptionsMenu extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          children: [
+          childr  en: [
             // Handle
             SizedBox(height: 12),
             Container(
               width: 36,
               height: 5,
               decoration: BoxDecoration(
-                color: ThemeTokens.of(context).textPrimary.withOpacity(0.2),
+                color: ThemeTokens.of(context).textPrimary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),

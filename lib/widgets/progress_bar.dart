@@ -41,8 +41,8 @@ class _NeonTrackPainter extends CustomPainter {
     final glowPaint = Paint()
       ..shader = LinearGradient(
         colors: [
-          _PDS.neonPurple.withOpacity(0.55),
-          _PDS.neonPink.withOpacity(0.45),
+          _PDS.neonPurple.withValues(alpha: 0.55),
+          _PDS.neonPink.withValues(alpha: 0.45),
         ],
       ).createShader(Rect.fromLTWH(0, 0, fill, h))
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
@@ -73,7 +73,7 @@ class _NeonTrackPainter extends CustomPainter {
     // ── Leading-edge micro-flare ──────────────────────────────────────────
     if (fill > r) {
       final flarePaint = Paint()
-        ..color = Colors.white.withOpacity(0.35)
+        ..color = Colors.white.withValues(alpha: 0.35)
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 3);
 
       canvas.drawCircle(Offset(fill - r, r), r * 0.6, flarePaint);
@@ -84,9 +84,11 @@ class _NeonTrackPainter extends CustomPainter {
   bool shouldRepaint(_NeonTrackPainter old) => old.progress != progress;
 }
 
-// ── Custom thumb shape ────────────────────────────────────────────────────────
+// ── Custom thumb shape — reads pulse scale from ValueNotifier ─────────────────
 class _GlassThumbShape extends SliderComponentShape {
-  const _GlassThumbShape();
+  final ValueNotifier<double> pulseScale;
+
+  const _GlassThumbShape(this.pulseScale);
 
   static const _radius = 11.0;
 
@@ -110,11 +112,13 @@ class _GlassThumbShape extends SliderComponentShape {
     required Size sizeWithOverflow,
   }) {
     final canvas = context.canvas;
+    final scale  = pulseScale.value;
+    final r      = _radius * scale;
 
     // Drop shadow + glow
     canvas.drawCircle(
       center,
-      _radius + 3,
+      r + 3,
       Paint()
         ..color = _PDS.thumbShadow
         ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8),
@@ -123,7 +127,7 @@ class _GlassThumbShape extends SliderComponentShape {
     // Outer glass ring
     canvas.drawCircle(
       center,
-      _radius,
+      r,
       Paint()
         ..color = _PDS.glassBorderH
         ..style = PaintingStyle.stroke
@@ -133,7 +137,7 @@ class _GlassThumbShape extends SliderComponentShape {
     // Inner frosted fill
     canvas.drawCircle(
       center,
-      _radius - 1,
+      r - 1,
       Paint()..color = const Color(0xCCFFFFFF),
     );
 
@@ -141,13 +145,13 @@ class _GlassThumbShape extends SliderComponentShape {
     canvas.drawCircle(
       center.translate(-3, -3),
       4,
-      Paint()..color = Colors.white.withOpacity(0.6),
+      Paint()..color = Colors.white.withValues(alpha: 0.6),
     );
   }
 }
 
 // ── Progress bar ──────────────────────────────────────────────────────────────
-class ProgressBar extends StatelessWidget {
+class ProgressBar extends StatefulWidget {
   final Duration position;
   final Duration duration;
   final ValueChanged<Duration> onSeek;
@@ -160,6 +164,48 @@ class ProgressBar extends StatelessWidget {
   });
 
   @override
+  State<ProgressBar> createState() => _ProgressBarState();
+}
+
+class _ProgressBarState extends State<ProgressBar>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pulseCtrl;
+  late final Animation<double> _pulseAnim;
+  // ValueNotifier so _GlassThumbShape can read scale without rebuilding tree.
+  final ValueNotifier<double> _pulseScale = ValueNotifier(1.0);
+
+  @override
+  void initState() {
+    super.initState();
+    _pulseCtrl = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 150),
+    );
+    _pulseAnim = Tween<double>(begin: 1.0, end: 1.4).animate(
+      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut),
+    );
+    _pulseAnim.addListener(() {
+      _pulseScale.value = _pulseAnim.value;
+    });
+  }
+
+  @override
+  void dispose() {
+    _pulseCtrl.dispose();
+    _pulseScale.dispose();
+    super.dispose();
+  }
+
+  void _triggerPulse() {
+    _pulseCtrl.forward().then((_) => _pulseCtrl.reverse());
+  }
+
+  void _handleSeek(Duration d) {
+    widget.onSeek(d);
+    _triggerPulse();
+  }
+
+  @override
   Widget build(BuildContext context) {
     // ── Logic untouched ───────────────────────────────────────────────────
     String formatDuration(Duration d) {
@@ -168,10 +214,10 @@ class ProgressBar extends StatelessWidget {
       return '$minutes:${seconds.toString().padLeft(2, '0')}';
     }
 
-    final maxMs  = duration.inMilliseconds > 0
-        ? duration.inMilliseconds.toDouble()
+    final maxMs  = widget.duration.inMilliseconds > 0
+        ? widget.duration.inMilliseconds.toDouble()
         : 1.0;
-    final posMs  = position.inMilliseconds.toDouble().clamp(0.0, maxMs);
+    final posMs  = widget.position.inMilliseconds.toDouble().clamp(0.0, maxMs);
     final progress = maxMs > 1.0 ? posMs / maxMs : 0.0;
 
     return ClipRRect(
@@ -222,7 +268,7 @@ class ProgressBar extends StatelessWidget {
                   SliderTheme(
                     data: SliderTheme.of(context).copyWith(
                       trackHeight: 4,
-                      thumbShape: const _GlassThumbShape(),
+                      thumbShape: _GlassThumbShape(_pulseScale),
                       overlayShape: SliderComponentShape.noOverlay,
                       activeTrackColor:  Colors.transparent,
                       inactiveTrackColor: Colors.transparent,
@@ -233,7 +279,7 @@ class ProgressBar extends StatelessWidget {
                       max: maxMs,
                       value: posMs,
                       onChanged: (val) {
-                        onSeek(Duration(milliseconds: val.round()));
+                        _handleSeek(Duration(milliseconds: val.round()));
                       },
                     ),
                   ),
@@ -248,8 +294,8 @@ class ProgressBar extends StatelessWidget {
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
-                    _TimeLabel(text: formatDuration(position)),
-                    _TimeLabel(text: '-${formatDuration(duration - position)}'),
+                    _TimeLabel(text: formatDuration(widget.position)),
+                    _TimeLabel(text: '-${formatDuration(widget.duration - widget.position)}'),
                   ],
                 ),
               ),

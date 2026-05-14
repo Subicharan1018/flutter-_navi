@@ -75,7 +75,7 @@ class _ThemeCard extends StatelessWidget {
           boxShadow: isSelected
               ? [
                   BoxShadow(
-                    color: t.accent.withOpacity(0.4),
+                    color: t.accent.withValues(alpha: 0.4),
                     blurRadius: 12,
                     spreadRadius: -2,
                   ),

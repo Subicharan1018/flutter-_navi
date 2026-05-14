@@ -26,6 +26,25 @@ class Playlist {
     );
   }
 
+  /// Returns the best available cover-art ID for this playlist.
+  ///
+  /// Prefers the playlist's own [coverArt] field (populated by the server
+  /// for server-side playlists). Falls back to the first non-empty
+  /// [coverArt] from [songs] — used for user playlists that have songs
+  /// but no explicit cover art set.
+  ///
+  /// Returns `null` only when neither the playlist nor any song has art
+  /// (e.g. an empty user-created playlist) — callers should show a placeholder.
+  String? resolvedCoverArtId([List<dynamic>? songs]) {
+    if (coverArt != null && coverArt!.isNotEmpty) return coverArt;
+    if (songs == null || songs.isEmpty) return null;
+    for (final s in songs) {
+      final art = (s as dynamic).coverArt as String?;
+      if (art != null && art.isNotEmpty) return art;
+    }
+    return null;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

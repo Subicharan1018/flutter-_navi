@@ -1,0 +1,17 @@
+{
+  "communityLabels": {
+    "23": "Replay Gain Service",
+    "42": "Audio Handler Shuffle Logic",
+    "59": "LRC Parser & Lyrics UI",
+    "68": "Recommendation Service Logic",
+    "82": "Album Art Shader Extensions",
+    "84": "Build Phase Standards",
+    "85": "Riverpod Migration Standard",
+    "86": "Unsafe Cast Standard",
+    "88": "Android Gradle Build Config",
+    "89": "Linux Flutter App Header",
+    "90": "Linux Message Channel Header",
+    "91": "Linux Binary Codec Header",
+    "92": "Linux Binary Messenger Header"
+  }
+}

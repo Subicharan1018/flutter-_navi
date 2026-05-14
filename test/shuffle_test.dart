@@ -18,16 +18,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 class TestAudioHandler extends AudioHandler {
   TestAudioHandler(super.subsonicService, {super.player});
 
-  bool updateSourceCalled = false;
-
   @override
   Future<void> setQueue(List<Song> songs, int startIndex, {List<Song>? unshuffledSongs}) async {
     currentQueue = List<Song>.from(songs);
-  }
-
-  @override
-  Future<void> _updatePlayerSource(int startIndex) async {
-    updateSourceCalled = true;
   }
 }
 
@@ -163,8 +156,10 @@ void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
 
-    const MethodChannel('dev.fluttercommunity.plus/connectivity')
-        .setMockMethodCallHandler((MethodCall methodCall) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('dev.fluttercommunity.plus/connectivity'),
+            (MethodCall methodCall) async {
       return ['wifi'];
     });
 

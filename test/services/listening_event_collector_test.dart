@@ -1,10 +1,7 @@
 import 'dart:ffi';
-import 'dart:io';
-
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/database/app_database.dart';
-import 'package:navivibe/models/song.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:sqlite3/open.dart';
 

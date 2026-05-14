@@ -22,8 +22,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:navivibe/models/download_state.dart';
 import 'package:navivibe/offline_service.dart';
 import 'package:navivibe/providers/download_provider.dart';
-import 'package:navivibe/models/song.dart';
-import 'package:navivibe/models/song.dart';
+
 import 'package:navivibe/services/subsonic_service.dart';
 
 import 'helpers/test_utils.dart';

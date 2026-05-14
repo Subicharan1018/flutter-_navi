@@ -322,7 +322,7 @@ class AudioHandler {
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
     final List<AudioSource> sources = _currentQueue
         .map((song) => _toSourceWithPaths(song, offlinePaths))
-        .toList() as List<AudioSource>;
+        .toList();
     _playlist = ConcatenatingAudioSource(children: sources);
 
     await player.setAudioSource(
@@ -365,7 +365,7 @@ class AudioHandler {
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
       final List<AudioSource> sources = _currentQueue
           .map((song) => _toSourceWithPaths(song, offlinePaths))
-          .toList() as List<AudioSource>;
+          .toList();
       _playlist = ConcatenatingAudioSource(children: sources);
       await player.setAudioSource(
         _playlist!,
@@ -470,20 +470,7 @@ class AudioHandler {
     }
   }
 
-  Future<void> _shuffleFuture<T>(
-    int currentIndex,
-    ComputeCallback<T, List<Song>> worker,
-    T args,
-  ) async {
-    final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
-    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final future = _currentQueue.sublist(safeIndex + 1);
-    if (future.isEmpty) return;
 
-    final shuffled = await compute(worker, args);
-    _currentQueue = [...pastAndPresent, ...shuffled];
-    await _updateQueueAfterAnchor(safeIndex);
-  }
 
   // ---------------------------------------------------------------------------
   // 1. Standard Fisher-Yates

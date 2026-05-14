@@ -183,7 +183,7 @@ void main() {
 
     setUp(() {
       mockPlayer = ControlledAudioPlayer();
-      final mockCache = MockPlaylistCacheService();
+
       final mockService = MockSubsonicService();
       handler = TestAudioHandler(mockService, player: mockPlayer);
       mockScrobble = MockScrobbleService();

@@ -104,7 +104,7 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final state = container.read(downloadStateProvider);
+      container.read(downloadStateProvider);
       await Future<void>.delayed(Duration.zero); // wait for microtask
       
       final stateAfter = container.read(downloadStateProvider);

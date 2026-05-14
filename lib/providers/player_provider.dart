@@ -226,6 +226,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final capturedShuffle = state.shuffleMode;
 
           _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
+            if (_disposed) return;
             _collector.onSongStarted(
               song: capturedNew,
               sourceContext: sourceCtx,
@@ -355,11 +356,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         prevPosition = position;
 
         if (!_hasScrobbled && _currentScrobbleSongId != null) {
-          final positionMet = position >= _scrobbleThreshold;
           Duration totalListened = _scrobbleListenDuration;
           if (state.isPlaying && _scrobblePlayStart != null) {
             totalListened += DateTime.now().difference(_scrobblePlayStart!);
           }
+          final positionMet = totalListened >= _scrobbleThreshold;
           final fourMinMet = totalListened >= const Duration(minutes: 4);
 
           if (positionMet || fourMinMet) {
@@ -607,9 +608,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void _resetSmartLocalSession() {
     final url = _ref.read(settingsProvider).localShuffleUrl;
     if (url.isEmpty) return;
-    http
-        .get(Uri.parse('$url/session/reset'))
-        .catchError((_) {});
+    unawaited(
+      http
+          .get(Uri.parse('$url/session/reset'))
+          .catchError((_) => http.Response('', 500)),
+    );
   }
 
   void refreshShuffleUrl() => _syncShuffleUrl();

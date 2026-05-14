@@ -198,8 +198,10 @@ void main() {
       Song(id: '', title: '', artist: '', album: '', coverArt: '', duration: 0, track: 0, year: 0),
     );
 
-    const MethodChannel('dev.fluttercommunity.plus/connectivity')
-        .setMockMethodCallHandler((MethodCall methodCall) async {
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+            const MethodChannel('dev.fluttercommunity.plus/connectivity'),
+            (MethodCall methodCall) async {
       return ['wifi'];
     });
 
@@ -274,16 +276,8 @@ void main() {
       );
       addTearDown(container.dispose);
 
-      final notifier = container.read(playerProvider);
-
-      // Short song: 3 min = 180s → threshold should be 90s
-      final shortSong = _song(id: 'short', duration: 180);
-
-      // Long song: 10 min = 600s → threshold should be 240s (4 min)
-      final longSong = _song(id: 'long', duration: 600);
-
       // These are internal calculations; we verify the principle:
-      final shortHalf = Duration(seconds: 180) * 0.5;
+      final shortHalf = const Duration(seconds: 180) * 0.5;
       const fourMin = Duration(minutes: 4);
       final shortThreshold = shortHalf < fourMin ? shortHalf : fourMin;
       expect(shortThreshold, const Duration(seconds: 90));
