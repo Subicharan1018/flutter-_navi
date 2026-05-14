@@ -230,7 +230,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
             final duration =
                 ref.read(playerProvider).currentSong?.duration ?? 0;
             final max = Duration(seconds: duration);
-            final safe = ts.clamp(Duration.zero, max);
+            final safe = ts < Duration.zero ? Duration.zero : (ts > max ? max : ts);
             // Seek the audio — modal stays open per design decision.
             ref.read(playerProvider.notifier).player.seek(safe);
             // Snap the scroll list to the tapped line.

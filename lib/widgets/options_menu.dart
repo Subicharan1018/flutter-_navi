@@ -31,7 +31,7 @@ class OptionsMenu extends ConsumerWidget {
       child: SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
-          childr  en: [
+          children: [
             // Handle
             SizedBox(height: 12),
             Container(

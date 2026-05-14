@@ -21,6 +21,7 @@ import '../services/subsonic_service.dart';
 import '../services/transcoding_service.dart';
 import 'package:flutter/foundation.dart';
 import '../lyrics/views/lyrics_view.dart';
+import '../widgets/progress_bar.dart';
 
 // =============================================================================
 // 1. COLOR EXTRACTION

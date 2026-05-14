@@ -226,7 +226,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final capturedShuffle = state.shuffleMode;
 
           _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
-            if (_disposed) return;
+            if (!mounted) return;
             _collector.onSongStarted(
               song: capturedNew,
               sourceContext: sourceCtx,
