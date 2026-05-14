@@ -667,17 +667,48 @@ class SubsonicService {
   // Lyrics
   // ---------------------------------------------------------------------------
 
-  Future<List<Map<String, dynamic>>?> getLyricsBySongId(String songId) async {
+  /// Fetches structured lyrics via the OpenSubsonic `getLyricsBySongId` endpoint.
+  ///
+  /// Returns the best [Map] from `structuredLyrics[]` (preferring synced entries),
+  /// or `null` if the server does not support the extension, returns an empty
+  /// list, or an error occurs.
+  ///
+  /// Callers should inspect the `synced` key on the returned map to decide
+  /// whether to treat the `line[]` array as timestamped or plain text.
+  Future<Map<String, dynamic>?> getLyricsBySongId(String songId) async {
     try {
-      final res = await _get('getLyrics.view', {'id': songId});
-      final lyrics = res['lyrics'] as List<dynamic>?;
-      if (lyrics == null) return null;
-      return lyrics.map((e) => e as Map<String, dynamic>).toList();
+      final res = await _get('getLyricsBySongId.view', {'id': songId});
+      final lyricsList = res['lyricsList'];
+      if (lyricsList == null) return null;
+
+      final structured = lyricsList['structuredLyrics'];
+      if (structured == null || structured is! List || structured.isEmpty) {
+        return null;
+      }
+
+      // Prefer a synced entry; fall back to unsynced if that is all we have.
+      Map<String, dynamic>? syncedEntry;
+      Map<String, dynamic>? unsyncedEntry;
+
+      for (final entry in structured) {
+        if (entry is! Map<String, dynamic>) continue;
+        final isSynced = entry['synced'] == true;
+        final lines = entry['line'];
+        if (lines == null || lines is! List || lines.isEmpty) continue;
+        if (isSynced) {
+          syncedEntry ??= entry;
+        } else {
+          unsyncedEntry ??= entry;
+        }
+      }
+
+      return syncedEntry ?? unsyncedEntry;
     } catch (e) {
-      debugPrint('Error fetching lyrics by song ID: $e');
+      debugPrint('[SubsonicService] getLyricsBySongId error: $e');
       return null;
     }
   }
+
 
   Future<String?> getLyrics({String? artist, String? title}) async {
     try {

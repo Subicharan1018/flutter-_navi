@@ -288,10 +288,12 @@ class AudioHandler {
     );
   }
 
-  Map<String, String?> _precomputeOfflinePaths(List<Song> songs) {
+  Future<Map<String, String?>> _precomputeOfflinePaths(List<Song> songs) async {
     final offline = OfflineService();
+    await offline.initialize(); // Ensure directory is resolved
     return {for (final song in songs) song.id: offline.getLocalPath(song.id)};
   }
+
 
   Future<void> setQueue(
     List<Song> songs,
@@ -317,11 +319,12 @@ class AudioHandler {
   }) async {
     if (_currentQueue.isEmpty) return;
     final savedLoopMode = player.loopMode;
-    final offlinePaths = _precomputeOfflinePaths(_currentQueue);
+    final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
     final List<AudioSource> sources = _currentQueue
         .map((song) => _toSourceWithPaths(song, offlinePaths))
         .toList() as List<AudioSource>;
     _playlist = ConcatenatingAudioSource(children: sources);
+
     await player.setAudioSource(
       _playlist!,
       initialIndex: startIndex,
@@ -345,27 +348,38 @@ class AudioHandler {
 
     final int n = _currentQueue.length;
 
-    if (n <= 5 || preferMoveBasedReorder) {
-      await _moveBasedReorder(anchorIndex);
+    // FIX-SHUFFLE-GAP: Always prefer move-based reorder when the playlist is
+    // already loaded (i.e. _playlist != null).  The old threshold of 5 caused
+    // setAudioSource() to be called for large queues, which interrupts the
+    // current track and causes a 1-2 s silence.
+    //
+    // _moveBasedReorder uses ConcatenatingAudioSource.move() which is O(n)
+    // but gapless — the current track keeps playing throughout.  Only fall
+    // back to setAudioSource when the caller explicitly opts out AND the queue
+    // is tiny (≤ 5 songs), because for tiny queues setAudioSource is faster.
+    if (n <= 5 && !preferMoveBasedReorder) {
+      // Tiny queue: full rebuild is cheaper than many move() calls and the
+      // gap is imperceptible at these lengths.
+      final savedPosition = player.position;
+      final wasPlaying = player.playing;
+      final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+      final List<AudioSource> sources = _currentQueue
+          .map((song) => _toSourceWithPaths(song, offlinePaths))
+          .toList() as List<AudioSource>;
+      _playlist = ConcatenatingAudioSource(children: sources);
+      await player.setAudioSource(
+        _playlist!,
+        initialIndex: anchorIndex,
+        initialPosition: savedPosition,
+      );
+
+      if (wasPlaying) player.play();
       return;
     }
 
-    final savedPosition = player.position;
-    final wasPlaying = player.playing;
-
-    final offlinePaths = _precomputeOfflinePaths(_currentQueue);
-    final List<AudioSource> sources = _currentQueue
-        .map((song) => _toSourceWithPaths(song, offlinePaths))
-        .toList() as List<AudioSource>;
-    _playlist = ConcatenatingAudioSource(children: sources);
-    await player.setAudioSource(
-      _playlist!,
-      initialIndex: anchorIndex,
-      initialPosition: savedPosition,
-    );
-
-    if (wasPlaying) player.play();
+    await _moveBasedReorder(anchorIndex);
   }
+
 
   Future<void> _moveBasedReorder(int anchorIndex) async {
     final int n = _currentQueue.length;

@@ -21,6 +21,7 @@ import '../models/song.dart';
 import '../services/subsonic_service.dart';
 import '../services/transcoding_service.dart';
 import 'package:flutter/foundation.dart';
+import '../lyrics/views/lyrics_view.dart';
 
 // =============================================================================
 // 1. COLOR EXTRACTION
@@ -1227,6 +1228,24 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                               isScrollControlled: true,
                               backgroundColor: Colors.transparent,
                               builder: (_) => const QueueScreen(),
+                            ),
+                          ),
+                          _BottomAction(
+                            icon: Icon(
+                              Icons.lyrics_outlined,
+                              color: ThemeTokens.of(context).textSecondary,
+                              size: 24,
+                            ),
+                            label: 'Lyrics',
+                            labelColor: ThemeTokens.of(context).textSecondary,
+                            onTap: () => showModalBottomSheet(
+                              context: context,
+                              isScrollControlled: true,
+                              backgroundColor: Colors.transparent,
+                              builder: (_) => LyricsView(
+                                song: song,
+                                imageUrl: imageUrl,
+                              ),
                             ),
                           ),
                         ],

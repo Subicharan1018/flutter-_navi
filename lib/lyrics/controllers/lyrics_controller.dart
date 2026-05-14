@@ -1,0 +1,158 @@
+import 'dart:async';
+import 'package:flutter/foundation.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../../models/song.dart';
+import '../../providers/player_provider.dart';
+import '../models/lyric_line.dart';
+import '../models/lyrics_result.dart';
+import '../services/lyrics_repository.dart';
+
+// ── State ─────────────────────────────────────────────────────────────────────
+
+enum LyricsStatus { loading, synced, plain, empty, error }
+
+class LyricsState {
+  final LyricsStatus status;
+  final SyncedLyrics? lyrics;
+
+  /// Index of the currently active line. -1 means before the first line or
+  /// no synced lyrics are loaded.
+  final int activeLineIndex;
+
+  final String? errorMessage;
+
+  const LyricsState({
+    required this.status,
+    this.lyrics,
+    this.activeLineIndex = -1,
+    this.errorMessage,
+  });
+
+  LyricsState copyWith({
+    LyricsStatus? status,
+    SyncedLyrics? lyrics,
+    int? activeLineIndex,
+    String? errorMessage,
+  }) {
+    return LyricsState(
+      status: status ?? this.status,
+      lyrics: lyrics ?? this.lyrics,
+      activeLineIndex: activeLineIndex ?? this.activeLineIndex,
+      errorMessage: errorMessage ?? this.errorMessage,
+    );
+  }
+}
+
+// ── Controller ────────────────────────────────────────────────────────────────
+
+class LyricsController extends StateNotifier<LyricsState> {
+  final Ref _ref;
+  StreamSubscription<Duration>? _posSub;
+
+  LyricsController(this._ref)
+      : super(const LyricsState(status: LyricsStatus.loading)) {
+    // React to song changes.
+    _ref.listen<Song?>(
+      playerProvider.select((s) => s.currentSong),
+      (prev, next) {
+        if (next != null && next.id != (prev?.id ?? '')) {
+          _loadLyrics(next);
+        }
+      },
+    );
+
+    // Subscribe to position stream for active-line tracking.
+    _subscribeToPosition();
+
+    // Load lyrics for whatever is currently playing.
+    final song = _ref.read(playerProvider).currentSong;
+    if (song != null) {
+      _loadLyrics(song);
+    } else {
+      state = const LyricsState(status: LyricsStatus.empty);
+    }
+  }
+
+  // ── Position tracking ─────────────────────────────────────────────────────
+
+  void _subscribeToPosition() {
+    try {
+      final player = _ref.read(playerProvider.notifier).player;
+      _posSub = player.positionStream.listen((position) {
+        _onPosition(position);
+      });
+    } catch (e) {
+      debugPrint('[LyricsController] Could not subscribe to positionStream: $e');
+    }
+  }
+
+  void _onPosition(Duration position) {
+    if (!mounted) return;
+    final lyrics = state.lyrics;
+    if (lyrics == null || state.status != LyricsStatus.synced) return;
+
+    final idx = lyrics.getCurrentLineIndex(position);
+    if (idx != state.activeLineIndex) {
+      state = state.copyWith(activeLineIndex: idx);
+    }
+  }
+
+  // ── Lyrics loading ────────────────────────────────────────────────────────
+
+  Future<void> _loadLyrics(Song song) async {
+    if (!mounted) return;
+
+    state = const LyricsState(status: LyricsStatus.loading);
+
+    try {
+      final result =
+          await _ref.read(lyricsRepositoryProvider).getLyrics(song);
+
+      if (!mounted) return;
+
+      switch (result.type) {
+        case LyricsType.synced:
+          state = LyricsState(
+            status: LyricsStatus.synced,
+            lyrics: result.lyrics,
+            activeLineIndex: -1,
+          );
+        case LyricsType.plain:
+          state = LyricsState(
+            status: LyricsStatus.plain,
+            lyrics: result.lyrics,
+            activeLineIndex: -1,
+          );
+        case LyricsType.none:
+          state = const LyricsState(status: LyricsStatus.empty);
+      }
+    } catch (e) {
+      debugPrint('[LyricsController] Error loading lyrics: $e');
+      if (!mounted) return;
+      state = LyricsState(
+        status: LyricsStatus.error,
+        errorMessage: e.toString(),
+      );
+    }
+  }
+
+  /// Manually trigger a reload — used by the Retry button in the error state.
+  Future<void> retry() async {
+    final song = _ref.read(playerProvider).currentSong;
+    if (song != null) await _loadLyrics(song);
+  }
+
+  @override
+  void dispose() {
+    _posSub?.cancel();
+    super.dispose();
+  }
+}
+
+// ── Provider ──────────────────────────────────────────────────────────────────
+
+/// autoDispose: cleaned up automatically when the lyrics sheet is dismissed.
+final lyricsControllerProvider =
+    StateNotifierProvider.autoDispose<LyricsController, LyricsState>(
+  (ref) => LyricsController(ref),
+);

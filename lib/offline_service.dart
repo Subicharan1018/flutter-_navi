@@ -403,11 +403,18 @@ class OfflineService {
   }
 
   String? getLocalPath(String songId) {
-    if (isSongDownloaded(songId)) {
-      return _getSongPath(songId);
+    if (_offlineDir == null) return null;
+    for (final ext in ['flac', 'mp3', 'm4a', 'ogg']) {
+      final path = '$_offlineDir/$songId.$ext';
+      if (File(path).existsSync()) return path;
     }
+    // Fallback to extensionless or original mp3
+    final oldPath = '$_offlineDir/$songId.mp3';
+    if (File(oldPath).existsSync()) return oldPath;
     return null;
   }
+
+
 
   Future<void> queueScrobble(String songId, {bool submission = true}) async {
     if (_prefs == null) await initialize();
