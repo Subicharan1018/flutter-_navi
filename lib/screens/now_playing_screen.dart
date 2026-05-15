@@ -21,7 +21,7 @@ import '../services/subsonic_service.dart';
 import '../services/transcoding_service.dart';
 import 'package:flutter/foundation.dart';
 import '../lyrics/views/lyrics_view.dart';
-import '../widgets/progress_bar.dart';
+import 'package:audio_video_progress_bar/audio_video_progress_bar.dart' as avpb;
 
 // =============================================================================
 // 1. COLOR EXTRACTION
@@ -1325,10 +1325,21 @@ class _PositionStreamState extends State<_PositionStream> {
 
   @override
   Widget build(BuildContext context) {
-    return ProgressBar(
-      position: _lastKnown,
-      duration: widget.duration,
+    return avpb.ProgressBar(
+      progress: _lastKnown,
+      total: widget.duration,
       onSeek: widget.onSeek,
+      baseBarColor: ThemeTokens.of(context).textPrimary.withOpacity(0.18),
+      progressBarColor: ThemeTokens.of(context).textPrimary,
+      thumbColor: ThemeTokens.of(context).textPrimary,
+      thumbRadius: 6,
+      barHeight: 4,
+      timeLabelTextStyle: TextStyle(
+        color: ThemeTokens.of(context).textSecondary,
+        fontSize: 11,
+        fontWeight: FontWeight.w500,
+        letterSpacing: 0.2,
+      ),
     );
   }
 }
