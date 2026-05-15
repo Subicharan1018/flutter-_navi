@@ -61,8 +61,9 @@ class LyricsController extends StateNotifier<LyricsState> {
       },
     );
 
-    // Subscribe to position stream for active-line tracking.
-    _subscribeToPosition();
+    // PERF: Position subscription is deferred — only started once synced
+    // lyrics are loaded (see _loadLyrics). This avoids wasting frame ticks
+    // on position events when there are no lyrics to track.
 
     // Load lyrics for whatever is currently playing.
     final song = _ref.read(playerProvider).currentSong;
@@ -117,6 +118,10 @@ class LyricsController extends StateNotifier<LyricsState> {
             lyrics: result.lyrics,
             activeLineIndex: -1,
           );
+          // PERF: Only subscribe to position stream when we have synced
+          // lyrics to track. Cancel any previous subscription first.
+          _posSub?.cancel();
+          _subscribeToPosition();
         case LyricsType.plain:
           state = LyricsState(
             status: LyricsStatus.plain,

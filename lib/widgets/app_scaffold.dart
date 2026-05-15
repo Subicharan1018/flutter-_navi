@@ -11,6 +11,7 @@ import '../services/replay_upload_service.dart';
 import '../services/listening_log_service.dart';
 import '../core/theme.dart';
 import '../providers/settings_provider.dart';
+import '../providers/library_provider.dart';
 import '../fluid_background.dart';
 import 'mini_player.dart';
 
@@ -78,6 +79,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     final bottomPad        = MediaQuery.of(context).padding.bottom;
     final tokens           = ThemeTokens.of(context);
     final meshEnabled      = ref.watch(settingsProvider).meshGradientEnabled;
+    final isOffline        = ref.watch(isOfflineProvider);
 
     final navBar = ClipRect(
       child: BackdropFilter(
@@ -169,6 +171,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
         bottomNavigationBar: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
+            // Feature 3: Offline banner
+            if (isOffline) _OfflineBanner(tokens: tokens),
             const MiniPlayer(),
             navBar,
           ],
@@ -184,6 +188,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
       bottomNavigationBar: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          // Feature 3: Offline banner
+          if (isOffline) _OfflineBanner(tokens: tokens),
           const MiniPlayer(),
           navBar,
         ],
@@ -197,4 +203,35 @@ class _NavItem {
   final IconData activeIcon;
   final String label;
   const _NavItem({required this.icon, required this.activeIcon, required this.label});
+}
+
+/// Non-dismissible offline banner using theme tokens.
+class _OfflineBanner extends StatelessWidget {
+  final AppThemeTokens tokens;
+  const _OfflineBanner({required this.tokens});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
+      decoration: BoxDecoration(
+        color: tokens.gold.withOpacity(0.15),
+        border: Border(
+          bottom: BorderSide(color: tokens.gold.withOpacity(0.3), width: 0.5),
+        ),
+      ),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.cloud_off_rounded, size: 14, color: tokens.gold),
+          const SizedBox(width: 6),
+          Text(
+            'Offline — showing downloaded songs only',
+            style: tokens.textStyle(12, FontWeight.w500, tokens.gold),
+          ),
+        ],
+      ),
+    );
+  }
 }

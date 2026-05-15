@@ -1,9 +1,12 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 import 'settings_provider.dart';
+import 'download_provider.dart';
+import '../models/download_state.dart';
 import '../database/app_database.dart';
 import 'package:drift/drift.dart';
 
@@ -59,6 +62,45 @@ enum LibraryFilter { allSongs, playlists, albums, downloaded }
 
 final libraryFilterProvider =
     StateProvider<LibraryFilter>((ref) => LibraryFilter.allSongs);
+
+// ---------------------------------------------------------------------------
+// Connectivity-aware providers (Feature 3: Offline Mode)
+// ---------------------------------------------------------------------------
+
+/// Streams connectivity changes from the device radio.
+final connectivityStreamProvider = StreamProvider<List<ConnectivityResult>>((ref) {
+  return Connectivity().onConnectivityChanged;
+});
+
+/// Derived boolean — true when the device has no connectivity.
+final isOfflineProvider = Provider<bool>((ref) {
+  final connectivity = ref.watch(connectivityStreamProvider);
+  return connectivity.when(
+    data: (results) => results.contains(ConnectivityResult.none),
+    error: (_, __) => false,
+    loading: () => false,
+  );
+});
+
+/// Wraps [allSongsProvider] and filters to downloaded-only when offline.
+/// When online, returns the full song list unchanged.
+final offlineAwareSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
+  final isOffline = ref.watch(isOfflineProvider);
+  final allSongs = ref.watch(allSongsProvider);
+
+  if (!isOffline) return allSongs;
+
+  // When offline, filter to only downloaded songs.
+  final downloadState = ref.watch(downloadStateProvider);
+  final downloadedIds = downloadState.entries
+      .where((e) => e.value.status == SongDownloadStatus.downloaded)
+      .map((e) => e.key)
+      .toSet();
+
+  return allSongs.whenData(
+    (songs) => songs.where((s) => downloadedIds.contains(s.id)).toList(),
+  );
+});
 
 final recentlyPlayedAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   ref.keepAlive();
@@ -178,13 +220,22 @@ final filteredLibraryProvider =
 
   switch (filter) {
     case LibraryFilter.allSongs:
-      return ref.watch(allSongsProvider);
+      // Use offline-aware provider: filters to downloaded-only when offline.
+      return ref.watch(offlineAwareSongsProvider);
     case LibraryFilter.playlists:
       return ref.watch(playlistsProvider);
     case LibraryFilter.albums:
       return ref.watch(libraryAlbumsProvider);
     case LibraryFilter.downloaded:
-      return const AsyncValue.data([]);
+      // Show downloaded songs explicitly when the user picks this filter.
+      final downloadState = ref.watch(downloadStateProvider);
+      final downloadedIds = downloadState.entries
+          .where((e) => e.value.status == SongDownloadStatus.downloaded)
+          .map((e) => e.key)
+          .toSet();
+      return ref.watch(allSongsProvider).whenData(
+        (songs) => songs.where((s) => downloadedIds.contains(s.id)).toList(),
+      );
   }
 });
 

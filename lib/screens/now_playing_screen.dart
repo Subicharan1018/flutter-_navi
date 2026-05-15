@@ -735,12 +735,16 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         size: 18,
                       )
                     : null,
-                onTap: () {
+                onTap: () async {
                   ref.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
                   if (ref.read(playerProvider).shuffleMode) {
-                    ref.read(playerProvider.notifier).applyShuffleAlgorithm();
+                    // Await so the reshuffle completes before the sheet closes,
+                    // preventing a race if the user taps another algo quickly.
+                    await ref
+                        .read(playerProvider.notifier)
+                        .applyShuffleAlgorithm();
                   }
-                  Navigator.pop(ctx);
+                  if (ctx.mounted) Navigator.pop(ctx);
                 },
               );
             }),

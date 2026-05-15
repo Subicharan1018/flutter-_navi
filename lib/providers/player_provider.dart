@@ -843,8 +843,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _isShuffling = true;
     _suppressStreamEvents = true;
     try {
-      final savedIndex =
+      // BUG-004 FIX: Capture the current song by ID before shuffle, not by
+      // integer index. After the shuffle await completes, the integer index
+      // is stale because the queue has been reordered.
+      final preShuffleIndex =
           _audioHandler.player.currentIndex ?? state.currentIndex;
+      final currentSongId = preShuffleIndex < _audioHandler.currentQueue.length
+          ? _audioHandler.currentQueue[preShuffleIndex].id
+          : null;
 
       switch (settings.shuffleAlgorithm) {
         case ShuffleAlgorithm.spotify:
@@ -869,8 +875,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           break;
       }
 
-      final postShuffleIndex =
-          _audioHandler.player.currentIndex ?? savedIndex;
+      // BUG-004 FIX: Find the current song in the new shuffled queue by ID.
+      // The player's currentIndex after shuffle may be null or unreliable,
+      // so we look up the song we were playing before shuffle by its ID.
+      int postShuffleIndex = _audioHandler.player.currentIndex ?? 0;
+      if (currentSongId != null) {
+        final foundIndex = _audioHandler.currentQueue
+            .indexWhere((s) => s.id == currentSongId);
+        if (foundIndex != -1) {
+          postShuffleIndex = foundIndex;
+        }
+      }
       state = state.copyWith(
         queue: _audioHandler.currentQueue,
         currentIndex: postShuffleIndex,
@@ -886,6 +901,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> _applySmartLocalAlgorithm(SettingsState settings) async {
     await _queueOpLock?.future;
 
+    // BUG-FIX: Acquire the lock BEFORE the HTTP fetch so no concurrent queue
+    // operation (e.g. user tapping next) can race in during computeSmartLocalOrder.
+    final outerCompleter = Completer<void>();
+    _queueOpLock = outerCompleter;
     _isShuffling = true;
     _suppressStreamEvents = true;
 
@@ -900,6 +919,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (future.isEmpty) {
       _isShuffling = false;
       _suppressStreamEvents = false;
+      outerCompleter.complete();
+      if (_queueOpLock == outerCompleter) _queueOpLock = null;
       return;
     }
 
@@ -913,14 +934,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     } catch (_) {}
 
     if (ordered == null) {
-      final completer = Completer<void>();
-      _queueOpLock = completer;
-      _isShuffling = true;
-      _suppressStreamEvents = true;
+      // Server unavailable — fall back to standard shuffle.
       try {
         await _audioHandler.standardShuffle();
-        final postShuffleIndex =
-            _audioHandler.player.currentIndex ?? safeIndex;
+        // Use ID-based lookup to find current song's new position.
+        int postShuffleIndex = safeIndex;
+        final foundIdx = _audioHandler.currentQueue
+            .indexWhere((s) => s.id == currentSong.id);
+        if (foundIdx != -1) postShuffleIndex = foundIdx;
         state = state.copyWith(
           queue: _audioHandler.currentQueue,
           currentIndex: postShuffleIndex,
@@ -928,14 +949,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       } finally {
         _isShuffling = false;
         _suppressStreamEvents = false;
-        completer.complete();
-        if (_queueOpLock == completer) _queueOpLock = null;
+        outerCompleter.complete();
+        if (_queueOpLock == outerCompleter) _queueOpLock = null;
       }
       return;
     }
 
-    final commitCompleter = Completer<void>();
-    _queueOpLock = commitCompleter;
     try {
       final liveIndex = _audioHandler.player.currentIndex ?? safeIndex;
       if (liveIndex != safeIndex) {
@@ -955,17 +974,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       );
       _resetSmartLocalSession();
 
-      final postShuffleIndex =
-          _audioHandler.player.currentIndex ?? safeIndex;
+      // BUG-FIX: Do NOT read player.currentIndex here — just_audio updates it
+      // asynchronously via its stream and may still reflect the old position
+      // (typically 0) immediately after commitSmartLocalOrder returns.
+      // safeIndex IS the anchor and the current song stays at that position
+      // after a move-based reorder, so use it directly.
       state = state.copyWith(
         queue: _audioHandler.currentQueue,
-        currentIndex: postShuffleIndex,
+        currentIndex: safeIndex,
       );
     } finally {
       _isShuffling = false;
       _suppressStreamEvents = false;
-      commitCompleter.complete();
-      if (_queueOpLock == commitCompleter) _queueOpLock = null;
+      outerCompleter.complete();
+      if (_queueOpLock == outerCompleter) _queueOpLock = null;
     }
   }
 

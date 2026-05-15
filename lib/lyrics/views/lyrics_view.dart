@@ -109,7 +109,13 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 _buildHeader(),
-                Expanded(child: _buildBody(lyricsState)),
+                Expanded(
+                  // PERF: RepaintBoundary isolates lyrics repaints from the
+                  // expensive BackdropFilter background layer.
+                  child: RepaintBoundary(
+                    child: _buildBody(lyricsState),
+                  ),
+                ),
               ],
             ),
           ),

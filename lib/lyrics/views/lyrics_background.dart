@@ -26,8 +26,10 @@ class LyricsBackground extends StatelessWidget {
             errorWidget: (_, __, ___) => const SizedBox.shrink(),
           ),
         // Blur
+        // PERF: reduced from σ80 to σ40 — imperceptible behind dark overlay,
+        // but significantly cheaper GPU-side (blur cost ∝ σ²).
         BackdropFilter(
-          filter: ui.ImageFilter.blur(sigmaX: 80, sigmaY: 80),
+          filter: ui.ImageFilter.blur(sigmaX: 40, sigmaY: 40),
           child: const SizedBox.expand(),
         ),
         // Dark overlay so text is always readable
