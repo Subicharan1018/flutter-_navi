@@ -11,6 +11,7 @@ import 'settings_provider.dart';
 import '../services/navi_audio_handler.dart';
 import '../core/hive_boxes.dart';
 import '../core/app_constants.dart';
+import '../utils/platform_utils.dart';
 import 'package:http/http.dart' as http;
 import '../services/scrobble_service.dart';
 import '../main.dart';
@@ -368,7 +369,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               );
             }
             // BUG-001 FIX: If there are more songs ahead, explicitly advance.
-            if (state.currentIndex < state.queue.length - 1) {
+            // On Linux, the NaviAudioHandler._startLinuxCompletionListener handles
+            // advancement via the single-source bridge. Calling skipToNext() here
+            // would cause a race with _linuxLoadTrack ("Loading interrupted").
+            if (!PlatformUtils.isLinux &&
+                state.currentIndex < state.queue.length - 1) {
               _suppressStreamEvents = true;
               await _audioHandler.skipToNext();
               _suppressStreamEvents = false;
@@ -685,26 +690,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _nextTransitionType = 'manual_next';
     _nextSourceContext = 'manual_next';
 
-    try {
-      if (player.hasNext) {
-        await player.seekToNext();
-      } else {
-        await _jumpToInternal(
-          state.currentIndex < state.queue.length - 1
-              ? state.currentIndex + 1
-              : 0,
-          pushHistory: false,
-        );
-      }
-    } catch (e, stack) {
-      debugPrint('playNext failed: $e\n$stack');
-      await _jumpToInternal(
-        state.currentIndex < state.queue.length - 1
-            ? state.currentIndex + 1
-            : 0,
-        pushHistory: false,
-      );
-    }
+    // Always route through the handler — on Linux it calls _linuxSkipToNext()
+    // which loads the next track via the single-source bridge. On other platforms
+    // it calls player.seekToNext() as before.
+    await _audioHandler.skipToNext();
   }
 
   Future<void> stop() async {
@@ -724,38 +713,30 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       final historySong = _popFromHistory();
       if (historySong != null) {
+        // historyIndex is a resolved queue index (sublist search by song id),
+        // so passing it to jumpToIndex is safe on all platforms.
         final historyIndex = state.queue
             .sublist(0, state.currentIndex)
             .lastIndexWhere((s) => s.id == historySong.id);
+        _suppressNextHistoryPush = true;
         if (historyIndex >= 0) {
-          _suppressNextHistoryPush = true;
-          await player.seek(Duration.zero, index: historyIndex);
+          await _audioHandler.jumpToIndex(historyIndex);
           state = state.copyWith(currentIndex: historyIndex);
         } else {
-          _suppressNextHistoryPush = true;
           final prevIdx = state.currentIndex > 0 ? state.currentIndex - 1 : 0;
-          await player.seek(Duration.zero, index: prevIdx);
+          await _audioHandler.jumpToIndex(prevIdx);
           state = state.copyWith(currentIndex: prevIdx);
         }
         return;
       }
-      if (player.hasPrevious) {
-        _suppressNextHistoryPush = true;
-        await player.seekToPrevious();
-      } else {
-        _suppressNextHistoryPush = true;
-        await _jumpToInternal(
-          state.currentIndex > 0 ? state.currentIndex - 1 : 0,
-          pushHistory: false,
-        );
-      }
+      // No history — fall back to handler's skipToPrevious (Linux-aware).
+      _suppressNextHistoryPush = true;
+      await _audioHandler.skipToPrevious();
     } catch (e, stack) {
       debugPrint('playPrev failed: $e\n$stack');
       _suppressNextHistoryPush = true;
-      await _jumpToInternal(
-        state.currentIndex > 0 ? state.currentIndex - 1 : 0,
-        pushHistory: false,
-      );
+      final prevIdx = state.currentIndex > 0 ? state.currentIndex - 1 : 0;
+      await _audioHandler.jumpToIndex(prevIdx);
     }
   }
 
@@ -772,7 +753,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _pushToHistory(state.queue[state.currentIndex]);
     }
     _suppressNextHistoryPush = true;
-    await player.seek(Duration.zero, index: index);
+    // On Linux, player.seek(Duration.zero, index: index) is silently ignored
+    // because only one source is loaded at a time. Route through the handler
+    // which calls _linuxLoadTrack and updates _linuxIndex correctly.
+    await _audioHandler.jumpToIndex(index);
     state = state.copyWith(currentIndex: index);
   }
 

@@ -10,6 +10,7 @@ import 'widgets/server_status_bar.dart';
 import 'widgets/recommendation_card.dart';
 import 'widgets/song_profile_sheet.dart';
 import 'widgets/session_controls_sheet.dart';
+import '../../../widgets/desktop_dialogs.dart';
 
 class AiShuffleScreen extends ConsumerStatefulWidget {
   const AiShuffleScreen({super.key});
@@ -146,9 +147,9 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   }
 
   void _showProfileSheet(String songTitle) {
-    showModalBottomSheet(
+    showPlatformSheet(
       context: context,
-      isScrollControlled: true,
+      title: 'Song Profile',
       builder: (_) => SongProfileSheet(songTitle: songTitle),
     );
   }
@@ -180,8 +181,9 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           PopupMenuButton<String>(
             onSelected: (value) {
               if (value == 'session') {
-                showModalBottomSheet(
+                showPlatformSheet(
                   context: context,
+                  title: 'Session Controls',
                   builder: (_) => const SessionControlsSheet(),
                 );
               }

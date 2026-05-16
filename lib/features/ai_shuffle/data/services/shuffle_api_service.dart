@@ -23,18 +23,23 @@ import '../repositories/shuffle_exception.dart';
 class ShuffleApiService {
   final Dio _dio;
 
+  /// True when no valid base URL has been configured yet.
+  /// All methods short-circuit with [ShuffleNetworkError] when this is true.
+  final bool _unconfigured;
+
   /// [baseUrl] is the full URL including scheme and port,
   /// e.g. `http://192.168.1.10:5000`. Constructed from SettingsState.localShuffleUrl.
   ShuffleApiService({required String baseUrl})
-      : _dio = Dio(
+      : _unconfigured = baseUrl.isEmpty || !(Uri.tryParse(baseUrl)?.hasAuthority ?? false),
+        _dio = Dio(
           BaseOptions(
-            baseUrl: baseUrl,
+            baseUrl: baseUrl.isEmpty ? 'http://localhost' : baseUrl,
             connectTimeout: const Duration(seconds: 10),
             receiveTimeout: const Duration(seconds: 15),
             headers: {'Accept': 'application/json'},
           ),
         ) {
-    if (kDebugMode) {
+    if (kDebugMode && !_unconfigured) {
       _dio.interceptors.add(LogInterceptor(
         requestBody: false,
         responseBody: false,
@@ -50,6 +55,7 @@ class ShuffleApiService {
   /// Returns the server health status. Throws [ShuffleNetworkError] or
   /// [ShuffleServerError] on failure.
   Future<HealthResponse> getHealth() async {
+    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>('/health');
       return HealthResponse.fromJson(response.data!);
@@ -69,6 +75,7 @@ class ShuffleApiService {
     String? artist,
     int count = 5,
   }) async {
+    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
     return _wrap(() async {
       final queryParams = <String, dynamic>{
         'current': current,
@@ -96,6 +103,7 @@ class ShuffleApiService {
 
   /// Returns the behavioural + acoustic profile for [song].
   Future<ProfileResponse> getProfile({required String song}) async {
+    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/profile',
@@ -111,6 +119,7 @@ class ShuffleApiService {
 
   /// Returns aggregate server-side playback statistics.
   Future<ShuffleStatsResponse> getStats() async {
+    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>('/stats');
       return ShuffleStatsResponse.fromJson(response.data!);
@@ -124,6 +133,7 @@ class ShuffleApiService {
   /// Resets the server-side session so previously excluded songs become
   /// eligible again for recommendation.
   Future<void> resetSession() async {
+    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
     await _wrap(() async {
       await _dio.post<void>('/session/reset');
     });
@@ -135,6 +145,7 @@ class ShuffleApiService {
 
   /// Returns the current session state (session_id, song_count, started_at).
   Future<SessionStatusResponse> getSessionStatus() async {
+    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
     return _wrap(() async {
       final response =
           await _dio.get<Map<String, dynamic>>('/session/status');
@@ -168,3 +179,4 @@ class ShuffleApiService {
     }
   }
 }
+

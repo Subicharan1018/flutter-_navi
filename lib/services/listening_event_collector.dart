@@ -7,6 +7,7 @@ import 'package:path_provider/path_provider.dart';
 import '../database/app_database.dart';
 import '../models/play_event.dart';
 import '../models/song.dart';
+import '../utils/platform_utils.dart';
 
 const Duration _kSessionTimeout = Duration(minutes: 30);
 
@@ -522,8 +523,31 @@ class ListeningEventCollector {
   // ──────────────────────────────────────────────────────────────────────────
 
   /// Returns the best writable export directory for the current platform.
+  ///
+  /// Linux  → $XDG_DOWNLOAD_DIR → ~/Downloads → documents dir.
+  /// Android→ public /storage/emulated/0/Download → app-scoped external → documents dir.
+  /// iOS    → Documents dir (exposed in Files app via UIFileSharingEnabled).
+  /// Others → documents dir.
   Future<Directory> _resolveExportDirectory() async {
-    if (Platform.isAndroid) {
+    // ── Linux: XDG-compliant Downloads path ───────────────────────────────────
+    if (PlatformUtils.isLinux) {
+      final xdgPath = PlatformUtils.xdgDownloadDir;
+      if (xdgPath != null) {
+        final dir = Directory(xdgPath);
+        if (await dir.exists()) return dir;
+        // Create ~/Downloads if it doesn't exist yet (rare but possible).
+        try {
+          await dir.create(recursive: true);
+          return dir;
+        } catch (_) {
+          // Fall through to documents dir.
+        }
+      }
+      return getApplicationDocumentsDirectory();
+    }
+
+    // ── Android: public Downloads → app-scoped external ───────────────────────
+    if (PlatformUtils.isAndroid) {
       // Prefer the well-known public Downloads path.
       final pub = Directory('/storage/emulated/0/Download');
       if (await pub.exists()) {

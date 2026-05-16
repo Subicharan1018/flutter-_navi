@@ -10,6 +10,7 @@ import '../models/library_sort.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/desktop_dialogs.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/create_playlist_dialog.dart';
 import '../widgets/swipeable_library_tile.dart';
@@ -440,26 +441,14 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   }
 
   void _showPlaylistOptions(BuildContext context, dynamic playlist) {
-    showModalBottomSheet(
+    showPlatformSheet(
       context: context,
-      backgroundColor: ThemeTokens.of(context).bgSurface,
-      shape: const RoundedRectangleBorder(
-          borderRadius:
-              BorderRadius.vertical(top: Radius.circular(20))),
+      title: 'Playlist Options',
       builder: (context) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(height: 12),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                color: ThemeTokens.of(context).bgElevated,
-                borderRadius: BorderRadius.circular(2),
-              ),
-            ),
-            SizedBox(height: 12),
+            const SizedBox(height: 8),
             ListTile(
               leading: Icon(Icons.edit_rounded,
                   color: ThemeTokens.of(context).textPrimary),
@@ -475,16 +464,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               },
             ),
             ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
+              leading: const Icon(Icons.delete_outline_rounded,
                   color: Colors.redAccent),
-              title: Text('Delete Playlist',
+              title: const Text('Delete Playlist',
                   style: TextStyle(color: Colors.redAccent)),
               onTap: () {
                 Navigator.pop(context);
                 _confirmDelete(context, playlist);
               },
             ),
-            SizedBox(height: 12),
+            const SizedBox(height: 8),
           ],
         ),
       ),

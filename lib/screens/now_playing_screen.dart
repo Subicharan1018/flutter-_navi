@@ -1,7 +1,9 @@
 import 'dart:async';
+import 'dart:math' show min;
 import 'dart:math' as math;
 // dart:isolate removed — PaletteGenerator.fromImageProvider requires the
 // Flutter engine's image codec which is unavailable in bare Dart isolates.
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -18,8 +20,9 @@ import '../widgets/options_menu.dart';
 import '../models/song.dart';
 import '../services/subsonic_service.dart';
 import '../services/transcoding_service.dart';
-import 'package:flutter/foundation.dart';
+import '../widgets/desktop_dialogs.dart';
 import '../lyrics/views/lyrics_view.dart';
+import '../utils/platform_utils.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart' as avpb;
 
 // =============================================================================
@@ -575,16 +578,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   // ── Sleep timer ──────────────────────────────────────────────────────────
 
   void _showSleepTimerDialog() {
-    showModalBottomSheet(
+    showPlatformSheet(
       context: context,
-      backgroundColor: ThemeTokens.of(context).bgSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      // FIX BUG-4: Wrap the builder in a ValueListenableBuilder so the
-      // checkmark reacts to _sleepSeconds changes while the sheet is open.
-      // Without this, the trailing icon is evaluated once at open time and
-      // never re-reads the notifier.
+      title: 'Stop Audio In',
       builder: (ctx) => ValueListenableBuilder<int?>(
         valueListenable: _sleepSeconds,
         builder: (_, remaining, __) => SafeArea(
@@ -640,7 +636,6 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       ),
     );
   }
-
   void _setSleepTimer(int? minutes) {
     _sleepTimer?.cancel();
     _sleepCountdownTimer?.cancel();
@@ -678,12 +673,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   // ── Smart-shuffle dialog ─────────────────────────────────────────────────
 
   void _showSmartShuffleDialog() {
-    showModalBottomSheet(
+    showPlatformSheet(
       context: context,
-      backgroundColor: ThemeTokens.of(context).bgSurface,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
+      title: 'Smart Shuffle Mode',
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
@@ -859,10 +851,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                               ).textPrimary.withOpacity(0.6),
                               size: 28,
                             ),
-                            onPressed: () => showModalBottomSheet(
+                            onPressed: () => showPlatformSheet(
                               context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
                               builder: (_) => OptionsMenu(song: song),
                             ),
                           ),
@@ -870,70 +860,63 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
                     Expanded(
-                      child: Padding(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 28,
-                          vertical: 10,
-                        ),
-                        child: RepaintBoundary(
-                          child: AnimatedScale(
-                            scale: playerState.isPlaying ? 1.0 : 0.93,
-                            duration: const Duration(milliseconds: 450),
-                            curve: Curves.easeInOutCubic,
-                            child: Center(
-                              child: AspectRatio(
-                                aspectRatio: 1,
-                                child: Container(
-                                  decoration: BoxDecoration(
-                                    borderRadius: BorderRadius.circular(18),
-                                    boxShadow: [
+                      child: LayoutBuilder(builder: (ctx, constraints) {
+                        final artSize = min(
+                          constraints.maxWidth * 0.85,
+                          constraints.maxHeight * 0.95,
+                        ).clamp(160.0, 340.0);
+                        return Center(
+                          child: SizedBox(
+                            width: artSize,
+                            height: artSize,
+                            child: AnimatedScale(
+                              scale: playerState.isPlaying ? 1.0 : 0.93,
+                              duration: const Duration(milliseconds: 450),
+                              curve: Curves.easeInOutCubic,
+                              child: Container(
+                                decoration: BoxDecoration(
+                                  borderRadius: BorderRadius.circular(18),
+                                  boxShadow: [
+                                    BoxShadow(
+                                      color: ThemeTokens.of(context)
+                                          .bgBase
+                                          .withOpacity(0.70),
+                                      blurRadius: 44,
+                                      spreadRadius: 4,
+                                      offset: const Offset(0, 18),
+                                    ),
+                                    if (_blobColors.length > 1)
                                       BoxShadow(
-                                        color: ThemeTokens.of(
-                                          context,
-                                        ).bgBase.withOpacity(0.70),
-                                        blurRadius: 44,
-                                        spreadRadius: 4,
-                                        offset: const Offset(0, 18),
+                                        color: _blobColors[1].withOpacity(0.35),
+                                        blurRadius: 60,
+                                        offset: const Offset(0, 10),
                                       ),
-                                      if (_blobColors.length > 1)
-                                        BoxShadow(
-                                          color: _blobColors[1].withOpacity(
-                                            0.35,
-                                          ),
-                                          blurRadius: 60,
-                                          offset: const Offset(0, 10),
-                                        ),
-                                    ],
-                                  ),
-                                  child: ClipRRect(
-                                    borderRadius: BorderRadius.circular(18),
-                                    child: CachedNetworkImage(
-                                      imageUrl: imageUrl,
-                                      cacheKey: cacheKey,
-                                      fit: BoxFit.cover,
-                                      placeholder: (_, __) => Container(
-                                        color: ThemeTokens.of(
-                                          context,
-                                        ).bgSurface,
-                                        child: Icon(
-                                          Icons.music_note_rounded,
-                                          size: 80,
-                                          color: ThemeTokens.of(
-                                            context,
-                                          ).textMuted,
-                                        ),
+                                  ],
+                                ),
+                                child: ClipRRect(
+                                  borderRadius: BorderRadius.circular(18),
+                                  child: CachedNetworkImage(
+                                    imageUrl: imageUrl,
+                                    cacheKey: cacheKey,
+                                    fit: BoxFit.cover,
+                                    placeholder: (_, __) => Container(
+                                      color:
+                                          ThemeTokens.of(context).bgSurface,
+                                      child: Icon(
+                                        Icons.music_note_rounded,
+                                        size: 80,
+                                        color:
+                                            ThemeTokens.of(context).textMuted,
                                       ),
-                                      errorWidget: (_, __, ___) => Container(
-                                        color: ThemeTokens.of(
-                                          context,
-                                        ).bgSurface,
-                                        child: Icon(
-                                          Icons.music_note_rounded,
-                                          size: 80,
-                                          color: ThemeTokens.of(
-                                            context,
-                                          ).textMuted,
-                                        ),
+                                    ),
+                                    errorWidget: (_, __, ___) => Container(
+                                      color:
+                                          ThemeTokens.of(context).bgSurface,
+                                      child: Icon(
+                                        Icons.music_note_rounded,
+                                        size: 80,
+                                        color:
+                                            ThemeTokens.of(context).textMuted,
                                       ),
                                     ),
                                   ),
@@ -941,9 +924,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                               ),
                             ),
                           ),
-                        ),
-                      ),
+                        );
+                      }),
                     ),
+
                     Padding(
                       padding: const EdgeInsets.fromLTRB(32, 12, 24, 0),
                       child: Row(
@@ -1206,10 +1190,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             ),
                             label: 'Queue',
                             labelColor: ThemeTokens.of(context).textSecondary,
-                            onTap: () => showModalBottomSheet(
+                            onTap: () => showPlatformSheet(
                               context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
+                              title: 'Queue',
                               builder: (_) => const QueueScreen(),
                             ),
                           ),
@@ -1221,10 +1204,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             ),
                             label: 'Lyrics',
                             labelColor: ThemeTokens.of(context).textSecondary,
-                            onTap: () => showModalBottomSheet(
+                            onTap: () => showPlatformSheet(
                               context: context,
-                              isScrollControlled: true,
-                              backgroundColor: Colors.transparent,
+                              title: 'Lyrics',
                               builder: (_) => LyricsView(
                                 song: song,
                                 imageUrl: imageUrl,
@@ -1378,13 +1360,218 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
     final notifier = ref.read(playerProvider.notifier);
-    // FIX BUG-6: Use typed SubsonicService instead of dynamic.
     final service = ref.read(subsonicServiceProvider);
 
     final upNext = playerState.upNext;
     final history = playerState.historySongs;
     final currentSong = playerState.currentSong;
 
+    // Build the inner content (shared between mobile and desktop).
+    Widget queueContent = Column(
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+          child: Column(
+            children: [
+              Center(
+                child: Container(
+                  width: 36,
+                  height: 4,
+                  decoration: BoxDecoration(
+                    color: ThemeTokens.of(context).textMuted,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 14),
+              Row(
+                children: [
+                  Text(
+                    'Queue',
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                      fontSize: 20,
+                      fontWeight: FontWeight.bold,
+                      letterSpacing: -0.3,
+                    ),
+                  ),
+                  const Spacer(),
+                  AnimatedBuilder(
+                    animation: _tabs,
+                    builder: (_, __) {
+                      if (_tabs.index != 1 || history.isEmpty) {
+                        return const SizedBox.shrink();
+                      }
+                      return TextButton(
+                        onPressed: () => notifier.clearHistory(),
+                        child: const Text(
+                          'Clear',
+                          style: TextStyle(
+                            color: Colors.redAccent,
+                            fontSize: 13,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Container(
+                height: 38,
+                decoration: BoxDecoration(
+                  color: ThemeTokens.of(
+                    context,
+                  ).textPrimary.withOpacity(0.07),
+                  borderRadius: BorderRadius.circular(11),
+                ),
+                child: TabBar(
+                  controller: _tabs,
+                  indicator: BoxDecoration(
+                    color: ThemeTokens.of(
+                      context,
+                    ).textPrimary.withOpacity(0.16),
+                    borderRadius: BorderRadius.circular(9),
+                  ),
+                  indicatorSize: TabBarIndicatorSize.tab,
+                  dividerColor: Colors.transparent,
+                  labelColor: ThemeTokens.of(context).textPrimary,
+                  unselectedLabelColor: ThemeTokens.of(context).textMuted,
+                  labelStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  tabs: [
+                    Tab(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.queue_music_rounded, size: 14),
+                          const SizedBox(width: 5),
+                          Text('Up Next (${upNext.length})'),
+                        ],
+                      ),
+                    ),
+                    Tab(
+                      child: Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          const Icon(Icons.history_rounded, size: 14),
+                          const SizedBox(width: 5),
+                          Text('History (${history.length})'),
+                        ],
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: 4),
+            ],
+          ),
+        ),
+        if (currentSong != null) ...[
+          _NowPlayingStrip(song: currentSong, service: service),
+          Divider(color: ThemeTokens.of(context).outline, height: 1),
+        ],
+        Expanded(
+          child: TabBarView(
+            controller: _tabs,
+            children: [
+              upNext.isEmpty
+                  ? const _EmptyTab(
+                      icon: Icons.queue_music_rounded,
+                      label: 'Nothing up next',
+                    )
+                  : ReorderableListView.builder(
+                      padding: const EdgeInsets.only(bottom: 120),
+                      itemCount: upNext.length,
+                      onReorder: (oldIdx, newIdx) {
+                        final qOld =
+                            playerState.currentIndex + 1 + oldIdx;
+                        final qNew =
+                            playerState.currentIndex + 1 + newIdx;
+                        notifier.reorderQueue(qOld, qNew);
+                      },
+                      itemBuilder: (context, i) {
+                        final s = upNext[i];
+                        final qIdx = playerState.currentIndex + 1 + i;
+                        return _QueueTile(
+                          key: ValueKey('nxt_${s.id}_$i'),
+                          song: s,
+                          service: service,
+                          onTap: () {
+                            notifier.jumpTo(qIdx);
+                            Navigator.pop(context);
+                          },
+                          onRemove: () => notifier.removeFromQueue(qIdx),
+                          dragHandle: ReorderableDragStartListener(
+                            index: i,
+                            child: Padding(
+                              padding: const EdgeInsets.all(12),
+                              child: Icon(
+                                Icons.drag_handle_rounded,
+                                color: ThemeTokens.of(context).textMuted,
+                                size: 20,
+                              ),
+                            ),
+                          ),
+                        );
+                      },
+                    ),
+              history.isEmpty
+                  ? const _EmptyTab(
+                      icon: Icons.history_rounded,
+                      label: 'No songs played yet',
+                    )
+                  : ListView.builder(
+                      padding: const EdgeInsets.only(bottom: 120),
+                      itemCount: history.length,
+                      itemBuilder: (context, i) {
+                        final song = history[history.length - 1 - i];
+                        return _HistoryTile(
+                          key: ValueKey('hist_${song.id}_$i'),
+                          song: song,
+                          service: service,
+                          isNewest: i == 0,
+                          onTap: () {
+                            final qIdx = playerState.queue.lastIndexWhere(
+                              (s) => s.id == song.id,
+                            );
+                            if (qIdx >= 0) {
+                              notifier.jumpTo(qIdx);
+                            } else {
+                              notifier.setQueue([song], 0);
+                            }
+                            Navigator.pop(context);
+                          },
+                        );
+                      },
+                    ),
+            ],
+          ),
+        ),
+      ],
+    );
+
+    // On desktop: showPlatformSheet wraps in Dialog > SingleChildScrollView.
+    // DraggableScrollableSheet requires a BottomSheet parent — nesting it in
+    // a Dialog causes "RenderBox was not laid out" errors. Use a plain
+    // SizedBox-constrained Column instead.
+    if (PlatformUtils.isDesktop) {
+      return Container(
+        height: min(
+          560.0,
+          MediaQuery.of(context).size.height * 0.82,
+        ),
+        decoration: BoxDecoration(
+          color: ThemeTokens.of(context).bgSurface,
+          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+        ),
+        child: queueContent,
+      );
+    }
+
+    // Mobile: keep existing DraggableScrollableSheet behaviour.
     return DraggableScrollableSheet(
       initialChildSize: 0.92,
       minChildSize: 0.5,
@@ -1395,192 +1582,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
             color: ThemeTokens.of(context).bgSurface,
             borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
           ),
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-                child: Column(
-                  children: [
-                    Center(
-                      child: Container(
-                        width: 36,
-                        height: 4,
-                        decoration: BoxDecoration(
-                          color: ThemeTokens.of(context).textMuted,
-                          borderRadius: BorderRadius.circular(2),
-                        ),
-                      ),
-                    ),
-                    const SizedBox(height: 14),
-                    Row(
-                      children: [
-                        Text(
-                          'Queue',
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textPrimary,
-                            fontSize: 20,
-                            fontWeight: FontWeight.bold,
-                            letterSpacing: -0.3,
-                          ),
-                        ),
-                        const Spacer(),
-                        AnimatedBuilder(
-                          animation: _tabs,
-                          builder: (_, __) {
-                            if (_tabs.index != 1 || history.isEmpty) {
-                              return const SizedBox.shrink();
-                            }
-                            return TextButton(
-                              onPressed: () => notifier.clearHistory(),
-                              child: const Text(
-                                'Clear',
-                                style: TextStyle(
-                                  color: Colors.redAccent,
-                                  fontSize: 13,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 8),
-                    Container(
-                      height: 38,
-                      decoration: BoxDecoration(
-                        color: ThemeTokens.of(
-                          context,
-                        ).textPrimary.withOpacity(0.07),
-                        borderRadius: BorderRadius.circular(11),
-                      ),
-                      child: TabBar(
-                        controller: _tabs,
-                        indicator: BoxDecoration(
-                          color: ThemeTokens.of(
-                            context,
-                          ).textPrimary.withOpacity(0.16),
-                          borderRadius: BorderRadius.circular(9),
-                        ),
-                        indicatorSize: TabBarIndicatorSize.tab,
-                        dividerColor: Colors.transparent,
-                        labelColor: ThemeTokens.of(context).textPrimary,
-                        unselectedLabelColor: ThemeTokens.of(context).textMuted,
-                        labelStyle: const TextStyle(
-                          fontSize: 13,
-                          fontWeight: FontWeight.w600,
-                        ),
-                        tabs: [
-                          Tab(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.queue_music_rounded, size: 14),
-                                const SizedBox(width: 5),
-                                Text('Up Next (${upNext.length})'),
-                              ],
-                            ),
-                          ),
-                          Tab(
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                const Icon(Icons.history_rounded, size: 14),
-                                const SizedBox(width: 5),
-                                Text('History (${history.length})'),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                  ],
-                ),
-              ),
-              if (currentSong != null) ...[
-                _NowPlayingStrip(song: currentSong, service: service),
-                Divider(color: ThemeTokens.of(context).outline, height: 1),
-              ],
-              Expanded(
-                child: TabBarView(
-                  controller: _tabs,
-                  children: [
-                    upNext.isEmpty
-                        ? const _EmptyTab(
-                            icon: Icons.queue_music_rounded,
-                            label: 'Nothing up next',
-                          )
-                        : ReorderableListView.builder(
-                            scrollController: scrollController,
-                            padding: const EdgeInsets.only(bottom: 120),
-                            itemCount: upNext.length,
-                            onReorder: (oldIdx, newIdx) {
-                              final qOld =
-                                  playerState.currentIndex + 1 + oldIdx;
-                              final qNew =
-                                  playerState.currentIndex + 1 + newIdx;
-                              notifier.reorderQueue(qOld, qNew);
-                            },
-                            itemBuilder: (context, i) {
-                              final s = upNext[i];
-                              final qIdx = playerState.currentIndex + 1 + i;
-                              return _QueueTile(
-                                key: ValueKey('nxt_${s.id}_$i'),
-                                song: s,
-                                service: service,
-                                onTap: () {
-                                  notifier.jumpTo(qIdx);
-                                  Navigator.pop(context);
-                                },
-                                onRemove: () => notifier.removeFromQueue(qIdx),
-                                dragHandle: ReorderableDragStartListener(
-                                  index: i,
-                                  child: Padding(
-                                    padding: const EdgeInsets.all(12),
-                                    child: Icon(
-                                      Icons.drag_handle_rounded,
-                                      color: ThemeTokens.of(context).textMuted,
-                                      size: 20,
-                                    ),
-                                  ),
-                                ),
-                              );
-                            },
-                          ),
-                    history.isEmpty
-                        ? const _EmptyTab(
-                            icon: Icons.history_rounded,
-                            label: 'No songs played yet',
-                          )
-                        : ListView.builder(
-                            padding: const EdgeInsets.only(bottom: 120),
-                            itemCount: history.length,
-                            itemBuilder: (context, i) {
-                              final song = history[history.length - 1 - i];
-                              return _HistoryTile(
-                                key: ValueKey('hist_${song.id}_$i'),
-                                song: song,
-                                service: service,
-                                isNewest: i == 0,
-                                onTap: () {
-                                  final qIdx = playerState.queue.lastIndexWhere(
-                                    (s) => s.id == song.id,
-                                  );
-                                  if (qIdx >= 0) {
-                                    notifier.jumpTo(qIdx);
-                                  } else {
-                                    notifier.setQueue([song], 0);
-                                  }
-                                  Navigator.pop(context);
-                                },
-                              );
-                            },
-                          ),
-                  ],
-                ),
-              ),
-            ],
-          ),
+          child: queueContent,
         );
       },
     );

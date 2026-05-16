@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -200,6 +201,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   String _shuffleBaseUrl = '';
 
+  /// True on Linux — ConcatenatingAudioSource is not supported by
+  /// just_audio_media_kit 2.1.0 in its platform-channel message form.
+  static bool get _isLinux => !kIsWeb && Platform.isLinux;
+
+  // ── Linux single-source bridge state ────────────────────────────────────────
+  int _linuxIndex = 0;
+  StreamSubscription<PlayerState>? _linuxCompletionSub;
+  /// Mutex: true while setAudioSource() is in progress on Linux.
+  /// Prevents the dual-completion-listener race (Bug 1 + Bug 3).
+  bool _linuxLoading = false;
+
   NaviAudioHandler(
     this.subsonicService, {
     AudioPlayer? player,
@@ -210,7 +222,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _listenToPlayerEvents();
 
     this.player.currentIndexStream.listen((index) {
-      if (index != null && index < _currentQueue.length) {
+      // On Linux we manage index ourselves — ignore just_audio's index stream
+      if (!_isLinux && index != null && index < _currentQueue.length) {
         _trackRecentlyPlayed(_currentQueue[index].id);
       }
     });
@@ -243,13 +256,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     });
     
     // Sync current media item when sequence or index changes
-    player.sequenceStateStream.listen((sequenceState) {
-      if (sequenceState?.currentSource == null) return;
-      final source = sequenceState!.currentSource!;
-      if (source.tag is MediaItem) {
-        mediaItem.add(source.tag as MediaItem);
-      }
-    });
+    // (non-Linux only — on Linux we push MediaItem manually via _emitLinuxMediaItem)
+    if (!_isLinux) {
+      player.sequenceStateStream.listen((sequenceState) {
+        if (sequenceState?.currentSource == null) return;
+        final source = sequenceState!.currentSource!;
+        if (source.tag is MediaItem) {
+          mediaItem.add(source.tag as MediaItem);
+        }
+      });
+    }
   }
 
   void _broadcastState() {
@@ -314,10 +330,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> seek(Duration position) => player.seek(position);
 
   @override
-  Future<void> skipToNext() => player.seekToNext();
+  Future<void> skipToNext() {
+    if (_isLinux) return _linuxSkipToNext();
+    return player.seekToNext();
+  }
 
   @override
-  Future<void> skipToPrevious() => player.seekToPrevious();
+  Future<void> skipToPrevious() {
+    if (_isLinux) return _linuxSkipToPrevious();
+    return player.seekToPrevious();
+  }
 
   @override
   Future<void> stop() async {
@@ -432,6 +454,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> clearQueue() async {
     _currentQueue.clear();
     _playlist = ConcatenatingAudioSource(children: []);
+    if (_isLinux) {
+      _linuxCompletionSub?.cancel();
+      _linuxCompletionSub = null;
+      _linuxIndex = 0;
+    }
   }
 
   Future<void> _rebuildSource(
@@ -441,11 +468,23 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_currentQueue.isEmpty) return;
     final savedLoopMode = player.loopMode;
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+
+    if (_isLinux) {
+      // ── Linux: ConcatenatingAudioSource is not supported by
+      // just_audio_media_kit 2.1.0. Play one track at a time and advance
+      // manually on completion.
+      _linuxIndex = startIndex.clamp(0, _currentQueue.length - 1);
+      await _linuxLoadTrack(_linuxIndex, offlinePaths,
+          initialPosition: initialPosition);
+      _startLinuxCompletionListener();
+      return;
+    }
+
+    // ── Non-Linux: original ConcatenatingAudioSource path ────────────────────
     final List<AudioSource> sources = _currentQueue
         .map((song) => _toSourceWithPaths(song, offlinePaths))
         .toList();
     _playlist = ConcatenatingAudioSource(children: sources);
-
     await player.setAudioSource(
       _playlist!,
       initialIndex: startIndex,
@@ -453,6 +492,171 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
     if (savedLoopMode != LoopMode.off) {
       await player.setLoopMode(savedLoopMode);
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Linux single-source bridge
+  // ---------------------------------------------------------------------------
+
+  Future<void> _linuxLoadTrack(
+    int index,
+    Map<String, String?> offlinePaths, {
+    Duration? initialPosition,
+  }) async {
+    if (index < 0 || index >= _currentQueue.length) return;
+    // Mutex: if a load is already in progress, cancel this one.
+    // This prevents the dual-completion-listener race.
+    if (_linuxLoading) {
+      debugPrint('⚡ [Linux] Load skipped (already loading track $_linuxIndex)');
+      return;
+    }
+    _linuxLoading = true;
+    try {
+      final source = _toSourceWithPaths(_currentQueue[index], offlinePaths);
+      await player
+          .setAudioSource(source, initialPosition: initialPosition)
+          .timeout(
+            const Duration(seconds: 15),
+            onTimeout: () =>
+                throw TimeoutException('[Linux] _linuxLoadTrack timed out'),
+          );
+      _emitLinuxMediaItem(index);
+      _trackRecentlyPlayed(_currentQueue[index].id);
+      debugPrint('🎵 [Linux] Loaded track $index: ${_currentQueue[index].title}');
+    } on PlayerInterruptedException {
+      // Expected when a newer load supersedes this one (e.g. rapid Next press).
+      // Safe to swallow — the newer load will complete instead.
+      debugPrint('⚡ [Linux] Load interrupted (superseded by newer request)');
+    } on PlayerException catch (e) {
+      debugPrint('❌ [Linux] PlayerException loading track $index: ${e.message}');
+      rethrow;
+    } on TimeoutException catch (e) {
+      debugPrint('❌ [Linux] Timeout loading track $index: $e');
+      rethrow;
+    } finally {
+      _linuxLoading = false;
+    }
+  }
+
+  void _emitLinuxMediaItem(int index) {
+    if (index < 0 || index >= _currentQueue.length) return;
+    final song = _currentQueue[index];
+    mediaItem.add(MediaItem(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      genre: song.genre,
+      artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+      duration: Duration(seconds: song.duration),
+      extras: {'composer': song.composer, 'isLocal': false},
+    ));
+  }
+
+  void _startLinuxCompletionListener() {
+    _linuxCompletionSub?.cancel();
+    _linuxCompletionSub = player.playerStateStream.listen((state) async {
+      if (state.processingState != ProcessingState.completed) return;
+      // Guard: if PlayerNotifier or a manual skip already kicked off a load,
+      // don't double-advance. The mutex in _linuxLoadTrack will reject the
+      // second call anyway, but checking here avoids the index increment.
+      if (_linuxLoading) {
+        debugPrint('⚡ [Linux] Completion skipped (load already in progress)');
+        return;
+      }
+      debugPrint('🏁 [Linux] Track completed, advancing...');
+
+      // Repeat one — restart current track
+      if (player.loopMode == LoopMode.one) {
+        await player.seek(Duration.zero);
+        await player.play();
+        return;
+      }
+
+      int next = _linuxIndex + 1;
+      if (next >= _currentQueue.length) {
+        if (player.loopMode == LoopMode.all) {
+          next = 0; // wrap around
+        } else {
+          return; // end of queue, stay stopped
+        }
+      }
+
+      _linuxIndex = next;
+      final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+      await _linuxLoadTrack(_linuxIndex, offlinePaths);
+      if (!player.playing) await player.play();
+    });
+  }
+
+  Future<void> _linuxSkipToNext() async {
+    if (_currentQueue.isEmpty) return;
+    int next = _linuxIndex + 1;
+    if (next >= _currentQueue.length) {
+      if (player.loopMode == LoopMode.all) {
+        next = 0;
+      } else {
+        return;
+      }
+    }
+    _linuxIndex = next;
+    final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+    await _linuxLoadTrack(_linuxIndex, offlinePaths);
+    if (player.playing) await player.play();
+  }
+
+  Future<void> _linuxSkipToPrevious() async {
+    if (_currentQueue.isEmpty) return;
+    // If more than 3 seconds in, restart current track
+    if (player.position.inSeconds > 3) {
+      await player.seek(Duration.zero);
+      return;
+    }
+    int prev = _linuxIndex - 1;
+    if (prev < 0) {
+      if (player.loopMode == LoopMode.all) {
+        prev = _currentQueue.length - 1;
+      } else {
+        await player.seek(Duration.zero);
+        return;
+      }
+    }
+    _linuxIndex = prev;
+    final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+    await _linuxLoadTrack(_linuxIndex, offlinePaths);
+    if (player.playing) await player.play();
+  }
+
+  /// Current index — Linux uses _linuxIndex, other platforms use player.currentIndex
+  int get currentIndex => _isLinux ? _linuxIndex : (player.currentIndex ?? 0);
+
+  /// Platform-adaptive index jump.
+  /// On Linux: loads the track at [index] via the single-source bridge.
+  /// On other platforms: uses just_audio's seek(Duration.zero, index: index).
+  Future<void> jumpToIndex(int index) async {
+    if (index < 0 || index >= _currentQueue.length) return;
+    if (_isLinux) {
+      _linuxIndex = index;
+      final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+      await _linuxLoadTrack(_linuxIndex, offlinePaths);
+    } else {
+      await player.seek(Duration.zero, index: index);
+    }
+  }
+
+  /// Override BaseAudioHandler.skipToQueueItem so callers (and platform media
+  /// controls) land on the correct track on Linux single-source mode.
+  @override
+  Future<void> skipToQueueItem(int index) async {
+    if (index < 0 || index >= _currentQueue.length) return;
+    if (_isLinux) {
+      _linuxIndex = index;
+      final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+      await _linuxLoadTrack(_linuxIndex, offlinePaths);
+      if (player.playing) await player.play();
+    } else {
+      await player.seek(Duration.zero, index: index);
     }
   }
 
@@ -467,20 +671,20 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return;
     }
 
+    // FIX-SHUFFLE-GAP: Always prefer move-based reorder when the playlist is
+    // already loaded (i.e. _playlist != null). On Linux we don't use _playlist
+    // so we always fall back to _rebuildSource.
+    if (_isLinux) {
+
+      final savedPosition = player.position;
+      await _rebuildSource(anchorIndex, initialPosition: savedPosition);
+      if (player.playing) player.play();
+      return;
+    }
+
     final int n = _currentQueue.length;
 
-    // FIX-SHUFFLE-GAP: Always prefer move-based reorder when the playlist is
-    // already loaded (i.e. _playlist != null).  The old threshold of 5 caused
-    // setAudioSource() to be called for large queues, which interrupts the
-    // current track and causes a 1-2 s silence.
-    //
-    // _moveBasedReorder uses ConcatenatingAudioSource.move() which is O(n)
-    // but gapless — the current track keeps playing throughout.  Only fall
-    // back to setAudioSource when the caller explicitly opts out AND the queue
-    // is tiny (≤ 5 songs), because for tiny queues setAudioSource is faster.
     if (n <= 5 && !preferMoveBasedReorder) {
-      // Tiny queue: full rebuild is cheaper than many move() calls and the
-      // gap is imperceptible at these lengths.
       final savedPosition = player.position;
       final wasPlaying = player.playing;
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
@@ -493,14 +697,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         initialIndex: anchorIndex,
         initialPosition: savedPosition,
       );
-
       if (wasPlaying) player.play();
       return;
     }
 
     await _moveBasedReorder(anchorIndex);
   }
-
 
   Future<void> _moveBasedReorder(int anchorIndex) async {
     final int n = _currentQueue.length;
@@ -922,7 +1124,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       case ShuffleAlgorithm.smartLocal:
         if (pool.isEmpty) return pool;
-        if (_shuffleBaseUrl.isEmpty) {
+        if (_shuffleBaseUrl.isEmpty || !(Uri.tryParse(_shuffleBaseUrl)?.hasAuthority ?? false)) {
           debugPrint(
             '⚠️ [computeShuffle] Smart Local: no server URL, falling back',
           );

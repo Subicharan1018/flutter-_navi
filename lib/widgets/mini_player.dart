@@ -11,6 +11,7 @@ import '../providers/settings_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../core/navigation_transitions.dart';
 import '../core/theme.dart';
+import '../utils/platform_utils.dart';
 
 // ---------------------------------------------------------------------------
 // Isolate-safe colour extraction — runs on main isolate (required by Flutter)
@@ -68,7 +69,9 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
   }
 
   void _openNowPlaying(String imageUrl) {
-    Navigator.of(context).push(
+    // On desktop: use rootNavigator so NowPlayingScreen covers the full
+    // window (including the sidebar), not just the content column.
+    Navigator.of(context, rootNavigator: PlatformUtils.isDesktop).push(
       AppRouteTransitions.slideUp(
         builder: (_) => NowPlayingScreen(initialImageUrl: imageUrl),
       ),

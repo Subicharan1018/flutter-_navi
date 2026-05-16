@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../logic/shuffle_providers.dart';
 import '../../data/models/health_response.dart';
+import '../../../../widgets/desktop_dialogs.dart';
 
 class ServerStatusBar extends ConsumerWidget {
   const ServerStatusBar({super.key});
@@ -85,22 +86,14 @@ class ServerStatusBar extends ConsumerWidget {
 
   void _showDetailsSheet(BuildContext context, HealthResponse? health) {
     if (health == null) return;
-    showModalBottomSheet(
+    showPlatformSheet(
       context: context,
+      title: 'Server Status',
       builder: (context) {
-        final theme = Theme.of(context);
         return SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Text(
-                  'Server Status',
-                  style: theme.textTheme.titleMedium
-                      ?.copyWith(fontWeight: FontWeight.bold),
-                ),
-              ),
               const Divider(height: 1),
               ListTile(
                 leading: const Icon(Icons.info_outline),

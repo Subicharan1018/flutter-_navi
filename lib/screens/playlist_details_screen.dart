@@ -13,6 +13,7 @@ import '../providers/download_provider.dart';
 import '../widgets/mini_player.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/options_menu.dart';
+import '../widgets/desktop_dialogs.dart';
 import '../core/theme.dart';
 import 'song_picker_screen.dart';
 import 'edit_playlist_screen.dart';
@@ -505,10 +506,8 @@ class _PlaylistDetailsScreenState
                       onTap: () => ref
                           .read(playerProvider.notifier)
                           .setQueue(_filteredSongs, index),
-                      onLongPress: () => showModalBottomSheet(
+                      onLongPress: () => showPlatformSheet(
                         context: context,
-                        isScrollControlled: true,
-                        backgroundColor: Colors.transparent,
                         builder: (_) => OptionsMenu(
                           song: song,
                           playlistId: widget.playlist.id,
@@ -576,29 +575,20 @@ class _PlaylistDetailsScreenState
   // Playlist options bottom sheet
   // ---------------------------------------------------------------------------
   void _showPlaylistMenu() {
-    final tokens = ThemeTokens.of(context);
-    showModalBottomSheet(
+    showPlatformSheet(
       context: context,
-      backgroundColor: tokens.bgSurface,
-      shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      title: 'Playlist Options',
       builder: (ctx) => SafeArea(
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            SizedBox(height: 12),
-            Container(
-              width: 36,
-              height: 4,
-              decoration: BoxDecoration(
-                  color: tokens.outline,
-                  borderRadius: BorderRadius.circular(2)),
-            ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
             ListTile(
-              leading: Icon(Icons.edit_rounded, color: tokens.textPrimary),
+              leading: Icon(Icons.edit_rounded,
+                  color: ThemeTokens.of(context).textPrimary),
               title: Text('Edit Playlist',
-                  style: TextStyle(color: tokens.textPrimary, fontSize: 15)),
+                  style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
               onTap: () async {
                 Navigator.pop(ctx);
                 final changed = await Navigator.push(
@@ -612,16 +602,16 @@ class _PlaylistDetailsScreenState
               },
             ),
             ListTile(
-              leading: Icon(Icons.delete_outline_rounded,
+              leading: const Icon(Icons.delete_outline_rounded,
                   color: Colors.redAccent),
-              title: Text('Delete Playlist',
+              title: const Text('Delete Playlist',
                   style: TextStyle(color: Colors.redAccent, fontSize: 15)),
               onTap: () {
                 Navigator.pop(ctx);
                 _confirmDeletePlaylist();
               },
             ),
-            SizedBox(height: 8),
+            const SizedBox(height: 8),
           ],
         ),
       ),
