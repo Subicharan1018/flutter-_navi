@@ -313,6 +313,12 @@ class AudioHandler {
 
   void refreshReplayGain() => _applyReplayGain();
 
+  /// Clears the audio source and queue. Must be called AFTER player.stop().
+  Future<void> clearQueue() async {
+    _currentQueue.clear();
+    _playlist = ConcatenatingAudioSource(children: []);
+  }
+
   Future<void> _rebuildSource(
     int startIndex, {
     Duration? initialPosition,

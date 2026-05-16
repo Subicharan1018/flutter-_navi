@@ -345,8 +345,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             player.position,
           );
         }
+        // BUG-001 FIX: If there are more songs ahead, explicitly advance.
+        // After a shuffle rebuild, just_audio's ConcatenatingAudioSource may have
+        // been rebuilt with a stale initialIndex, causing it to think we're at the
+        // end even though the Dart-side queue has more tracks.
+        if (state.currentIndex < state.queue.length - 1) {
+          _suppressStreamEvents = true;
+          await player.seekToNext();
+          _suppressStreamEvents = false;
+          return;
+        }
+
+        // We're on the last track — attempt autoplay (fetch similar songs).
         if (!state.autoplayMode) return;
-        if (state.currentIndex < state.queue.length - 1) return;
         _triggerAutoplayIfNeeded();
       }),
     );
@@ -1117,10 +1128,50 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> toggleAutoplay() async {
     final newMode = !state.autoplayMode;
+    HiveBoxes.prefs.put(HiveBoxes.kAutoplayPreference, newMode);
     state = state.copyWith(autoplayMode: newMode);
     if (newMode && state.queue.isNotEmpty) {
       _triggerAutoplayIfNeeded();
     }
+  }
+
+  /// Clears all queued songs and stops playback. Used when the user explicitly
+  /// wants to exit AI Shuffle and start fresh.
+  ///
+  /// IMPORTANT: This method resets shuffleMode to false. If the intent is to
+  /// stay in shuffle mode but clear the queue, the caller should re-enable it.
+  Future<void> clearAiShuffleQueue() async {
+    // 1. Pause to prevent autoplay/lookahead from racing
+    await player.pause();
+    
+    // 2. Drain the pool completely
+    _playlistPool = [];
+    
+    // 3. Cancel any pending shuffle guards
+    _shuffleGuardTimer?.cancel();
+    _shuffleGuardTimer = null;
+    _pendingIndexAfterShuffle = null;
+    _suppressStreamEvents = false;
+    
+    // 4. Stop the player
+    await player.stop();
+    
+    // 5. Clear the audio handler's source
+    await _audioHandler.clearQueue();
+    
+    // 6. Reset state
+    _lastKnownIndex = 0;
+    _lastFetchedForSongId = null;
+    state = state.copyWith(
+      queue: [],
+      currentIndex: 0,
+      shuffleMode: false,
+      isPlaying: false,
+      history: [],
+    );
+    
+    // 7. Persist cleared state
+    _persistState();
   }
 
   // ---------------------------------------------------------------------------
@@ -1160,6 +1211,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final fresh = similar.where((s) => !existingIds.contains(s.id)).toList();
       if (fresh.isEmpty) {
         debugPrint('[AUTOPLAY] All similar songs already in queue');
+        _lastFetchedForSongId = null;  // ← Allow retry with different seed
         return;
       }
 
@@ -1175,10 +1227,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final wasAtEnd = currentIndexNow >= queueLenBeforeFetch - 1;
       final userNavigatedAway = currentIndexNow < indexBeforeFetch;
 
-      if (wasAtEnd &&
-          !userNavigatedAway &&
-          (player.processingState == ProcessingState.completed ||
-              !player.playing)) {
+      if (wasAtEnd && !userNavigatedAway) {
+        // Give just_audio a frame to process the new source items
+        await Future.delayed(const Duration(milliseconds: 50));
         final nextIndex = queueLenBeforeFetch;
         if (nextIndex < state.queue.length) {
           await player.seek(Duration.zero, index: nextIndex);

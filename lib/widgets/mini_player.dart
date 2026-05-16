@@ -48,6 +48,18 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
   late Color _themeColor;
   String? _lastImageUrl;
 
+  // ── Horizontal-swipe debounce guard ──────────────────────────────────────
+  // Prevents rapid-fire next/prev calls if the user swipes multiple times
+  // before the track has switched.
+  bool _horizontalSwipeInProgress = false;
+  Timer? _swipeDebounceTimer;
+
+  @override
+  void dispose() {
+    _swipeDebounceTimer?.cancel();
+    super.dispose();
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -92,8 +104,26 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
       label: 'Now playing: ${song.title} by ${song.artist}',
       child: GestureDetector(
         onTap: () => _openNowPlaying(imageUrl),
+        // Existing: swipe up → open Now Playing
         onVerticalDragEnd: (d) {
           if ((d.primaryVelocity ?? 0) < -300) _openNowPlaying(imageUrl);
+        },
+        // New: swipe left → next track, swipe right → previous track
+        onHorizontalDragEnd: (d) {
+          if (_horizontalSwipeInProgress) return;
+          final vx = d.primaryVelocity ?? 0;
+          if (vx.abs() < 300) return; // ignore slow drags
+          _horizontalSwipeInProgress = true;
+          _swipeDebounceTimer?.cancel();
+          _swipeDebounceTimer = Timer(const Duration(milliseconds: 400), () {
+            _horizontalSwipeInProgress = false;
+          });
+          final notifier = ref.read(playerProvider.notifier);
+          if (vx < 0) {
+            notifier.playNext();  // swipe left → forward
+          } else {
+            notifier.playPrev();  // swipe right → backward
+          }
         },
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -110,7 +140,15 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   height: 68,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Row(
+                    // AnimatedSwitcher keyed on song.id gives a quick cross-fade
+                    // whenever the track changes (including via swipe gesture).
+                    child: AnimatedSwitcher(
+                      duration: const Duration(milliseconds: 250),
+                      switchInCurve: Curves.easeOut,
+                      switchOutCurve: Curves.easeIn,
+                      child: KeyedSubtree(
+                        key: ValueKey(song.id),
+                        child: Row(
                       children: [
                         // Album art thumbnail
                         _AlbumThumb(imageUrl: imageUrl, themeColor: _themeColor),
@@ -208,7 +246,9 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                           ),
                         ),
                       ],
-                    ),
+                        ), // Row
+                      ), // KeyedSubtree
+                    ), // AnimatedSwitcher
                   ),
                 ),
 

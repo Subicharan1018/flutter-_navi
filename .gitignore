@@ -52,3 +52,7 @@ graphify-out/cache/
 
 # Keep human-readable reports for team context
 !graphify-out/GRAPH_REPORT.md
+
+# Hive local data files — never commit runtime DB files
+*.hive
+*.hive.lock

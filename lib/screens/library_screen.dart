@@ -4,17 +4,20 @@ import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/song.dart';
+import '../models/library_sort.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/create_playlist_dialog.dart';
+import '../widgets/swipeable_library_tile.dart';
 import '../core/theme.dart';
 import 'playlist_details_screen.dart';
 import 'edit_playlist_screen.dart';
 import 'search_screen.dart';
 import 'offline_screen.dart';
 import '../services/subsonic_service.dart';
+import '../core/navigation_transitions.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -31,8 +34,15 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   @override
   Widget build(BuildContext context) {
     final filter = ref.watch(libraryFilterProvider);
-    final filteredContentAsync = ref.watch(filteredLibraryProvider);
     final service = ref.watch(subsonicServiceProvider);
+
+    // Switch to the correctly-typed sorted provider for the active filter.
+    final AsyncValue<List<dynamic>> filteredContentAsync = switch (filter) {
+      LibraryFilter.allSongs    => ref.watch(sortedSongsProvider).whenData((s) => <dynamic>[...s]),
+      LibraryFilter.downloaded  => ref.watch(sortedSongsProvider).whenData((s) => <dynamic>[...s]),
+      LibraryFilter.albums      => ref.watch(sortedAlbumsProvider).whenData((a) => <dynamic>[...a]),
+      LibraryFilter.playlists   => ref.watch(sortedPlaylistsProvider).whenData((p) => <dynamic>[...p]),
+    };
 
     if (_lastFilter != filter) {
       _lastFilter = filter;
@@ -140,8 +150,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ),
               ),
             ),
+            // ── Sort chips ────────────────────────────────────────────────
+            SliverToBoxAdapter(
+              child: _SortChipRow(filter: filter),
+            ),
 
-            // ── Content ───────────────────────────────────────────────────
             filteredContentAsync.when(
               data: (items) {
                 if (items.isEmpty) {
@@ -205,102 +218,170 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       List items, dynamic item, int index, SubsonicService service) {
     switch (filter) {
       case LibraryFilter.allSongs:
-        return SongTile(
-          song: item as Song,
-          onTap: () => ref.read(playerProvider.notifier).setQueue(
-                items.cast<Song>().toList(),
-                index, // ← direct index, not indexOf
-              ),
+      case LibraryFilter.downloaded:
+        final song = item as Song;
+        final starred = ref.watch(
+          playerProvider.select((s) => s.starredIds.contains(song.id)),
+        );
+        return SwipeableLibraryTile(
+          dismissKey: 'song_${song.id}_$index',
+          isStarred: starred,
+          onSwipeRight: () => addSongsToQueue(
+            songs: [song],
+            notifier: ref.read(playerProvider.notifier),
+            playerState: ref.read(playerProvider),
+            context: context,
+          ),
+          onSwipeLeft: () =>
+              ref.read(playerProvider.notifier).toggleStar(song.id),
+          child: SongTile(
+            song: song,
+            onTap: () => ref.read(playerProvider.notifier).setQueue(
+                  items.cast<Song>().toList(),
+                  index,
+                ),
+          ),
         );
 
       case LibraryFilter.playlists:
-        return Semantics(
-          button: true,
-          label: 'Playlist: ${item.name}, ${item.songCount} songs',
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            leading: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
-                color: ThemeTokens.of(context).bgElevated,
-                borderRadius: BorderRadius.circular(6),
+        return SwipeableLibraryTile(
+          dismissKey: 'playlist_${item.id}',
+          onSwipeRight: () async {
+            try {
+              final songs = await service.getPlaylistSongs(item.id);
+              if (!context.mounted) return;
+              await addSongsToQueue(
+                songs: songs,
+                notifier: ref.read(playerProvider.notifier),
+                playerState: ref.read(playerProvider),
+                context: context,
+                label: item.name,
+              );
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not load playlist: $e')),
+                );
+              }
+            }
+          },
+          child: Semantics(
+            button: true,
+            label: 'Playlist: ${item.name}, ${item.songCount} songs',
+            child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              leading: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                  color: ThemeTokens.of(context).bgElevated,
+                  borderRadius: BorderRadius.circular(6),
+                ),
+                child: item.coverArt != null && item.coverArt!.isNotEmpty
+                    ? ClipRRect(
+                        borderRadius: BorderRadius.circular(6),
+                        child: CachedNetworkImage(
+                          imageUrl: service.getCoverArtUrl(item.coverArt),
+                          cacheKey: 'cover_${item.coverArt}',
+                          fit: BoxFit.cover,
+                          errorWidget: (_, __, ___) => Icon(
+                              Icons.queue_music_rounded,
+                              color: ThemeTokens.of(context).accent, size: 24),
+                        ),
+                      )
+                    : Icon(Icons.queue_music_rounded,
+                        color: ThemeTokens.of(context).accent, size: 24),
               ),
-              child: Icon(Icons.queue_music_rounded,
-                  color: ThemeTokens.of(context).accent, size: 24),
+              title: Text(item.name,
+                  style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14)),
+              subtitle: Text('Playlist • ${item.songCount} songs',
+                  style: TextStyle(
+                      color: ThemeTokens.of(context).textSecondary, fontSize: 12)),
+              onTap: () => Navigator.push(
+                  context,
+                  AppRouteTransitions.fadeScale(
+                      builder: (_) => PlaylistDetailsScreen(playlist: item))),
+              onLongPress: () => _showPlaylistOptions(context, item),
             ),
-            title: Text(item.name,
-                style: TextStyle(
-                    color: ThemeTokens.of(context).textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14)),
-            subtitle: Text('Playlist • ${item.songCount} songs',
-                style: TextStyle(
-                    color: ThemeTokens.of(context).textSecondary, fontSize: 12)),
-            onTap: () => Navigator.push(
-                context,
-                MaterialPageRoute(
-                    builder: (_) =>
-                        PlaylistDetailsScreen(playlist: item))),
-            onLongPress: () => _showPlaylistOptions(context, item),
           ),
         );
 
       case LibraryFilter.albums:
         final coverUrl = service.getCoverArtUrl(item.coverArt);
-
-        return Semantics(
-          button: true,
-          label: 'Album: ${item.name} by ${item.artist}',
-          child: ListTile(
-            contentPadding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-            leading: Container(
-              width: 52,
-              height: 52,
-              decoration: BoxDecoration(
+        return SwipeableLibraryTile(
+          dismissKey: 'album_${item.id}',
+          onSwipeRight: () async {
+            try {
+              final songs = await service.getAlbum(item.id);
+              if (!context.mounted) return;
+              await addSongsToQueue(
+                songs: songs,
+                notifier: ref.read(playerProvider.notifier),
+                playerState: ref.read(playerProvider),
+                context: context,
+                label: item.name,
+              );
+            } catch (e) {
+              if (context.mounted) {
+                ScaffoldMessenger.of(context).showSnackBar(
+                  SnackBar(content: Text('Could not load album: $e')),
+                );
+              }
+            }
+          },
+          child: Semantics(
+            button: true,
+            label: 'Album: ${item.name} by ${item.artist}',
+            child: ListTile(
+              contentPadding:
+                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              leading: Container(
+                width: 52,
+                height: 52,
+                decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    color: ThemeTokens.of(context).bgElevated),
+                child: ClipRRect(
                   borderRadius: BorderRadius.circular(6),
-                  color: ThemeTokens.of(context).bgElevated),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(6),
-                child: CachedNetworkImage(
-                  imageUrl: coverUrl,
-                  cacheKey: 'cover_${item.coverArt ?? item.id}',
-                  fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => Icon(
-                      Icons.album_rounded,
-                      color: ThemeTokens.of(context).textMuted),
+                  child: CachedNetworkImage(
+                    imageUrl: coverUrl,
+                    cacheKey: 'cover_${item.coverArt ?? item.id}',
+                    fit: BoxFit.cover,
+                    errorWidget: (_, __, ___) => Icon(
+                        Icons.album_rounded,
+                        color: ThemeTokens.of(context).textMuted),
+                  ),
                 ),
               ),
+              title: Text(item.name,
+                  style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 14)),
+              subtitle: Text('Album • ${item.artist}',
+                  style: TextStyle(
+                      color: ThemeTokens.of(context).textSecondary, fontSize: 12)),
+              onTap: () async {
+                try {
+                  final songs = await service.getAlbum(item.id);
+                  if (context.mounted) {
+                    ref.read(playerProvider.notifier).setQueue(songs, 0);
+                  }
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not play album: $e')),
+                    );
+                  }
+                }
+              },
             ),
-            title: Text(item.name,
-                style: TextStyle(
-                    color: ThemeTokens.of(context).textPrimary,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 14)),
-            subtitle: Text('Album • ${item.artist}',
-                style: TextStyle(
-                    color: ThemeTokens.of(context).textSecondary, fontSize: 12)),
-            onTap: () async {
-              try {
-                final songs = await service.getAlbum(item.id);
-                if (context.mounted) {
-                  ref.read(playerProvider.notifier).setQueue(songs, 0);
-                }
-              } catch (e) {
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(content: Text('Could not play album: $e')),
-                  );
-                }
-              }
-            },
           ),
         );
-
-      default:
-        return SizedBox.shrink();
     }
   }
 
@@ -489,7 +570,7 @@ class SwipeToDismissSongTile extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
-        color: Colors.redAccent.withOpacity(0.15),
+        color: Colors.redAccent.withValues(alpha: 0.15),
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
@@ -505,6 +586,123 @@ class SwipeToDismissSongTile extends StatelessWidget {
         ),
       ),
       child: child,
+    );
+  }
+}
+
+// =============================================================================
+// Sort chip row — per-section sort selector
+// =============================================================================
+
+/// Sort fields available for each library section.
+const _kSectionSortFields = <LibraryFilter, List<LibrarySortField>>{
+  LibraryFilter.allSongs: [
+    LibrarySortField.name,
+    LibrarySortField.recentlyAdded,
+    LibrarySortField.playCount,
+    LibrarySortField.duration,
+    LibrarySortField.artistName,
+  ],
+  LibraryFilter.downloaded: [
+    LibrarySortField.name,
+    LibrarySortField.recentlyAdded,
+    LibrarySortField.playCount,
+    LibrarySortField.duration,
+    LibrarySortField.artistName,
+  ],
+  LibraryFilter.albums: [
+    LibrarySortField.name,
+    LibrarySortField.artistName,
+    LibrarySortField.duration,
+  ],
+  LibraryFilter.playlists: [
+    LibrarySortField.name,
+  ],
+};
+
+const _kSortFieldLabel = <LibrarySortField, String>{
+  LibrarySortField.name:          'Name',
+  LibrarySortField.recentlyAdded: 'Recent',
+  LibrarySortField.playCount:     'Plays',
+  LibrarySortField.duration:      'Duration',
+  LibrarySortField.artistName:    'Artist',
+};
+
+class _SortChipRow extends ConsumerWidget {
+  const _SortChipRow({required this.filter});
+  final LibraryFilter filter;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final sortPrefs = ref.watch(librarySortProvider);
+    // downloaded piggybacks on allSongs sort pref
+    final effectiveFilter = filter == LibraryFilter.downloaded
+        ? LibraryFilter.allSongs
+        : filter;
+    final pref = sortPrefs[effectiveFilter] ?? const LibrarySortPreference();
+    final fields = _kSectionSortFields[filter] ?? [];
+
+    if (fields.isEmpty) return const SizedBox.shrink();
+
+    return SizedBox(
+      height: 44,
+      child: ListView(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16),
+        children: fields.map((field) {
+          final isActive = pref.field == field;
+          final tokens = ThemeTokens.of(context);
+          return Padding(
+            padding: const EdgeInsets.only(right: 8),
+            child: GestureDetector(
+              onTap: () => ref
+                  .read(librarySortProvider.notifier)
+                  .setSort(effectiveFilter, field),
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 180),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                decoration: BoxDecoration(
+                  color: isActive
+                      ? tokens.accent.withValues(alpha: 0.15)
+                      : tokens.bgElevated,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(
+                    color: isActive
+                        ? tokens.accent.withValues(alpha: 0.5)
+                        : Colors.transparent,
+                    width: 1,
+                  ),
+                ),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      _kSortFieldLabel[field] ?? field.name,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
+                        color:
+                            isActive ? tokens.accent : tokens.textSecondary,
+                      ),
+                    ),
+                    if (isActive) ...[
+                      const SizedBox(width: 4),
+                      Icon(
+                        pref.direction == LibrarySortDirection.asc
+                            ? Icons.arrow_upward_rounded
+                            : Icons.arrow_downward_rounded,
+                        size: 12,
+                        color: tokens.accent,
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
+          );
+        }).toList(),
+      ),
     );
   }
 }

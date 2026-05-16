@@ -76,6 +76,7 @@ class HiveBoxes {
   // ---------------------------------------------------------------------------
   static const kShuffleAlgorithm = 'shuffleAlgorithm';
   static const kShufflePreference = 'shufflePreference';
+  static const kAutoplayPreference = 'autoplay_enabled';
   static const kUploadApiUrl = 'uploadApiUrl';           // legacy — kept for migration
   static const kListeningApiUrl = 'listeningApiUrl';     // legacy — kept for migration
   static const kApiBaseUrl = 'api_base_url';

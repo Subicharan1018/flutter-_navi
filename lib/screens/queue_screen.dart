@@ -58,6 +58,52 @@ class QueueScreen extends ConsumerWidget {
           ),
           SizedBox(height: 24),
 
+          if (playerState.shuffleMode) ...[
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.end,
+                children: [
+                  TextButton.icon(
+                    icon: Icon(Icons.clear_all_rounded, size: 18),
+                    label: Text('Clear Queue', style: TextStyle(fontSize: 13)),
+                    style: TextButton.styleFrom(
+                      foregroundColor: Colors.redAccent,
+                    ),
+                    onPressed: () async {
+                      final confirm = await showDialog<bool>(
+                        context: context,
+                        builder: (_) => AlertDialog(
+                          backgroundColor: ThemeTokens.of(context).bgSurface,
+                          title: const Text('Clear AI Queue?'),
+                          content: const Text(
+                            'Playback will stop and all queued songs will be removed. '
+                            'Your listening history is kept.',
+                          ),
+                          actions: [
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, false),
+                              child: const Text('Cancel'),
+                            ),
+                            TextButton(
+                              onPressed: () => Navigator.pop(context, true),
+                              style: TextButton.styleFrom(foregroundColor: Colors.redAccent),
+                              child: const Text('Clear'),
+                            ),
+                          ],
+                        ),
+                      );
+                      if (confirm == true) {
+                        ref.read(playerProvider.notifier).clearAiShuffleQueue();
+                        if (context.mounted) Navigator.pop(context); // close queue sheet
+                      }
+                    },
+                  ),
+                ],
+              ),
+            ),
+          ],
+
           Expanded(
             child: ListView(
               padding: const EdgeInsets.only(bottom: 32),

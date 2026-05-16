@@ -2,12 +2,14 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/album.dart';
+import '../models/library_sort.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 import 'settings_provider.dart';
 import 'download_provider.dart';
 import '../models/download_state.dart';
 import '../database/app_database.dart';
+import '../core/hive_boxes.dart';
 import 'package:drift/drift.dart';
 
 // ---------------------------------------------------------------------------
@@ -248,6 +250,156 @@ List<Song> _sortSongsByCreated(List<Song> songs) {
   });
   return songs;
 }
+
+// ---------------------------------------------------------------------------
+// Sort comparators (pure top-level functions — safe to call from isolates)
+// ---------------------------------------------------------------------------
+
+int _compareDatesAsc(DateTime? a, DateTime? b) {
+  if (a == null && b == null) return 0;
+  if (a == null) return 1; // nulls sort last
+  if (b == null) return -1;
+  return a.compareTo(b);
+}
+
+int _sortCompareSong(Song a, Song b, LibrarySortPreference pref) {
+  final cmp = switch (pref.field) {
+    LibrarySortField.name          => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+    LibrarySortField.recentlyAdded => _compareDatesAsc(a.created, b.created),
+    LibrarySortField.playCount     => a.playCount.compareTo(b.playCount),
+    LibrarySortField.duration      => a.duration.compareTo(b.duration),
+    LibrarySortField.artistName    => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
+  };
+  return pref.direction == LibrarySortDirection.asc ? cmp : -cmp;
+}
+
+int _sortCompareAlbum(Album a, Album b, LibrarySortPreference pref) {
+  final cmp = switch (pref.field) {
+    LibrarySortField.name          => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    LibrarySortField.recentlyAdded => 0, // Albums have no creation date
+    LibrarySortField.playCount     => 0, // Albums have no play count
+    LibrarySortField.duration      => a.duration.compareTo(b.duration),
+    LibrarySortField.artistName    => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
+  };
+  return pref.direction == LibrarySortDirection.asc ? cmp : -cmp;
+}
+
+int _sortComparePlaylist(Playlist a, Playlist b, LibrarySortPreference pref) {
+  final cmp = switch (pref.field) {
+    LibrarySortField.name          => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    // Playlists have no creation date, play count, duration, or artist field.
+    LibrarySortField.recentlyAdded => 0,
+    LibrarySortField.playCount     => 0,
+    LibrarySortField.duration      => 0,
+    LibrarySortField.artistName    => 0,
+  };
+  return pref.direction == LibrarySortDirection.asc ? cmp : -cmp;
+}
+
+// ---------------------------------------------------------------------------
+// LibrarySortNotifier — per-section sort state, persisted to Hive prefs box
+// ---------------------------------------------------------------------------
+
+class LibrarySortNotifier
+    extends StateNotifier<Map<LibraryFilter, LibrarySortPreference>> {
+  LibrarySortNotifier() : super(const {}) {
+    _restore();
+  }
+
+  void setSort(LibraryFilter section, LibrarySortField field) {
+    final current = state[section] ?? const LibrarySortPreference();
+    final next = current.toggleField(field);
+    state = {...state, section: next};
+    _persist(section, next);
+  }
+
+  void _restore() {
+    final restored = <LibraryFilter, LibrarySortPreference>{};
+    final box = HiveBoxes.prefs;
+    for (final section in LibraryFilter.values) {
+      final dummy = const LibrarySortPreference();
+      final fi = box.get(dummy.fieldHiveKey(section.name));
+      final di = box.get(dummy.dirHiveKey(section.name));
+      restored[section] = LibrarySortPreference(
+        field: fi != null
+            ? LibrarySortField.values[(fi as int).clamp(0, LibrarySortField.values.length - 1)]
+            : LibrarySortField.name,
+        direction: di != null
+            ? LibrarySortDirection.values[(di as int).clamp(0, LibrarySortDirection.values.length - 1)]
+            : LibrarySortDirection.asc,
+      );
+    }
+    state = restored;
+  }
+
+  void _persist(LibraryFilter section, LibrarySortPreference pref) {
+    final box = HiveBoxes.prefs;
+    box.put(pref.fieldHiveKey(section.name), pref.field.index);
+    box.put(pref.dirHiveKey(section.name), pref.direction.index);
+  }
+}
+
+final librarySortProvider = StateNotifierProvider<LibrarySortNotifier,
+    Map<LibraryFilter, LibrarySortPreference>>(
+  (_) => LibrarySortNotifier(),
+);
+
+// ---------------------------------------------------------------------------
+// Typed sorted providers
+// Each wraps its corresponding data provider and applies the active sort pref.
+// The `downloaded` filter re-uses the `allSongs` sort key explicitly.
+// ---------------------------------------------------------------------------
+
+/// Sorted songs — used by allSongs and downloaded tabs.
+/// The caller is responsible for passing the correctly-filtered song list via
+/// [offlineAwareSongsProvider] (allSongs) or the downloaded filter (downloaded).
+final sortedSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
+  final sortPrefs = ref.watch(librarySortProvider);
+  final filter = ref.watch(libraryFilterProvider);
+  // downloaded has no own key — explicitly falls back to allSongs pref
+  final effectiveSection =
+      filter == LibraryFilter.downloaded ? LibraryFilter.allSongs : LibraryFilter.allSongs;
+  final pref = sortPrefs[effectiveSection] ?? const LibrarySortPreference();
+
+  final AsyncValue<List<Song>> source;
+  if (filter == LibraryFilter.downloaded) {
+    final downloadState = ref.watch(downloadStateProvider);
+    final downloadedIds = downloadState.entries
+        .where((e) => e.value.status == SongDownloadStatus.downloaded)
+        .map((e) => e.key)
+        .toSet();
+    source = ref
+        .watch(allSongsProvider)
+        .whenData((s) => s.where((song) => downloadedIds.contains(song.id)).toList());
+  } else {
+    source = ref.watch(offlineAwareSongsProvider);
+  }
+
+  return source.whenData((songs) {
+    final sorted = [...songs]..sort((a, b) => _sortCompareSong(a, b, pref));
+    return sorted;
+  });
+});
+
+/// Sorted albums.
+final sortedAlbumsProvider = Provider<AsyncValue<List<Album>>>((ref) {
+  final sortPrefs = ref.watch(librarySortProvider);
+  final pref = sortPrefs[LibraryFilter.albums] ?? const LibrarySortPreference();
+  return ref.watch(libraryAlbumsProvider).whenData((albums) {
+    final sorted = [...albums]..sort((a, b) => _sortCompareAlbum(a, b, pref));
+    return sorted;
+  });
+});
+
+/// Sorted playlists.
+final sortedPlaylistsProvider = Provider<AsyncValue<List<Playlist>>>((ref) {
+  final sortPrefs = ref.watch(librarySortProvider);
+  final pref = sortPrefs[LibraryFilter.playlists] ?? const LibrarySortPreference();
+  return ref.watch(playlistsProvider).whenData((playlists) {
+    final sorted = [...playlists]..sort((a, b) => _sortComparePlaylist(a, b, pref));
+    return sorted;
+  });
+});
 
 // ---------------------------------------------------------------------------
 // Playlist Actions Controller

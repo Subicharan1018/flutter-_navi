@@ -65,7 +65,9 @@ class _PlaylistDetailsScreenState
   @override
   void initState() {
     super.initState();
-    _loadSongs();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _loadSongs();
+    });
     _searchController.addListener(_filterSongs);
   }
 
@@ -99,8 +101,7 @@ class _PlaylistDetailsScreenState
       });
 
       // Determine cover art then load palette without blocking the list.
-      final coverArtId =
-          widget.playlist.coverArt ?? (songs.isNotEmpty ? songs.first.coverArt : null);
+      final coverArtId = widget.playlist.resolvedCoverArtId(songs);
       if (coverArtId != null && coverArtId.isNotEmpty) {
         _loadCoverAndPalette(service, coverArtId);
       }
@@ -130,7 +131,7 @@ class _PlaylistDetailsScreenState
     // compute() spawns a bare Dart isolate (no Flutter engine) → hangs or crashes.
     // Direct call is safe: the image is already cached by CachedNetworkImage.
     if (imageUrl != _coverImageUrl) {
-      vibrant = await _extractPlaylistPalette(imageUrl);
+      vibrant = await Future.microtask(() => _extractPlaylistPalette(imageUrl));
     }
 
     if (!mounted) return;
@@ -470,12 +471,13 @@ class _PlaylistDetailsScreenState
                     });
                     // Sync new order to server (fire-and-forget).
                     final songIds = _songs.map((s) => s.id).toList();
+                    final messenger = ScaffoldMessenger.of(context);
                     ref
                         .read(subsonicServiceProvider)
                         .setPlaylistSongs(widget.playlist.id, songIds)
                         .catchError((e) {
                       if (mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
+                        messenger.showSnackBar(
                           SnackBar(
                               content:
                                   Text('Failed to save order: $e')),
@@ -548,7 +550,7 @@ class _PlaylistDetailsScreenState
                         direction: DismissDirection.endToStart,
                         background: const DismissBackground(),
                         onDismissed: (_) => _deleteSong(index),
-                        child: tileContent,
+                        child: RepaintBoundary(child: tileContent),
                       ),
                     );
                   },
