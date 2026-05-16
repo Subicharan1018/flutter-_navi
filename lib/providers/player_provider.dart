@@ -88,6 +88,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Completer<void>? _queueOpLock;
   bool _suppressStreamEvents = false;
+  
+  int? _pendingIndexAfterShuffle;
+  Timer? _shuffleGuardTimer;
+
   final Set<String> _starTogglingIds = {};
   Timer? _persistTimer;
   Timer? _trackChangeTimer;
@@ -194,6 +198,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _subscriptions.add(
       player.currentIndexStream.listen((index) {
         if (index == null) return;
+        
+        if (_pendingIndexAfterShuffle != null) {
+          if (index == _pendingIndexAfterShuffle) {
+            _pendingIndexAfterShuffle = null;
+            _shuffleGuardTimer?.cancel();
+            _shuffleGuardTimer = null;
+            _suppressStreamEvents = false;
+            // BUG-004 FIX (Change 3): Sync internal tracking variable when the
+            // guard resolves early (player emits the correct index before the
+            // 500ms timer fires). Without this, _lastKnownIndex stays at a
+            // pre-shuffle value and the next stream event is processed with
+            // stale prevIndex, causing the UI to accept a transient index=0.
+            _lastKnownIndex = index;
+          } else {
+            return; // Drop transient event
+          }
+        }
+        
         if (_suppressStreamEvents) return;
 
         final prevIndex = _lastKnownIndex;
@@ -427,6 +449,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   @override
   void dispose() {
+    _shuffleGuardTimer?.cancel();
     _persistTimer?.cancel();
     _trackChangeTimer?.cancel();
     for (final sub in _subscriptions) {
@@ -811,6 +834,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> unshuffleQueue() async {
+    _shuffleGuardTimer?.cancel();
     final completer = Completer<void>();
     _queueOpLock = completer;
     _isShuffling = true;
@@ -818,13 +842,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _playlistPool = []; // clear pool on unshuffle
     try {
       await _audioHandler.unshuffle();
+      final postIndex = _audioHandler.player.currentIndex ?? 0;
       state = state.copyWith(
         queue: _audioHandler.currentQueue,
-        currentIndex: _audioHandler.player.currentIndex ?? 0,
+        currentIndex: postIndex,
       );
+      // BUG-004 FIX (Change 1): Keep internal tracking in sync after unshuffle
+      // so the stream handler uses the correct prevIndex when events resume.
+      _lastKnownIndex = postIndex;
+      
+      _pendingIndexAfterShuffle = postIndex;
+      _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        _pendingIndexAfterShuffle = null;
+        // BUG-004 FIX (Change 2): Sync _lastKnownIndex when the guard timer
+        // fires so that the first stream event processed after suppression ends
+        // has a correct prevIndex. Without this, a transient index=0 from
+        // just_audio is accepted as a legitimate track change.
+        //
+        // ACCEPTED TRADE-OFF: _suppressStreamEvents stays true for 500ms after
+        // unshuffle. Any play/pause taps within that window are dropped. This
+        // is intentional to prevent stale just_audio stream events from racing
+        // with the new queue order. The 500ms window is imperceptible to users.
+        _lastKnownIndex = state.currentIndex;
+        _suppressStreamEvents = false;
+      });
     } finally {
       _isShuffling = false;
-      _suppressStreamEvents = false;
       completer.complete();
       if (_queueOpLock == completer) _queueOpLock = null;
     }
@@ -838,6 +882,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       return;
     }
 
+    _shuffleGuardTimer?.cancel();
     final completer = Completer<void>();
     _queueOpLock = completer;
     _isShuffling = true;
@@ -890,9 +935,25 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         queue: _audioHandler.currentQueue,
         currentIndex: postShuffleIndex,
       );
+      // BUG-004 FIX (Change 1): Keep internal tracking in sync after
+      // non-smartLocal shuffle so the stream handler uses the correct prevIndex
+      // when events resume after the suppression window closes.
+      _lastKnownIndex = postShuffleIndex;
+      
+      _pendingIndexAfterShuffle = postShuffleIndex;
+      _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        _pendingIndexAfterShuffle = null;
+        // BUG-004 FIX (Change 2): Sync _lastKnownIndex on timer expiry.
+        // ACCEPTED TRADE-OFF: _suppressStreamEvents stays true for 500ms after
+        // each shuffle algorithm runs. This suppresses play/pause events in
+        // that window — intentional to block transient just_audio emissions
+        // that arrive while move-based reordering settles.
+        _lastKnownIndex = state.currentIndex;
+        _suppressStreamEvents = false;
+      });
     } finally {
       _isShuffling = false;
-      _suppressStreamEvents = false;
       completer.complete();
       if (_queueOpLock == completer) _queueOpLock = null;
     }
@@ -900,6 +961,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> _applySmartLocalAlgorithm(SettingsState settings) async {
     await _queueOpLock?.future;
+
+    _shuffleGuardTimer?.cancel();
 
     // BUG-FIX: Acquire the lock BEFORE the HTTP fetch so no concurrent queue
     // operation (e.g. user tapping next) can race in during computeSmartLocalOrder.
@@ -942,13 +1005,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final foundIdx = _audioHandler.currentQueue
             .indexWhere((s) => s.id == currentSong.id);
         if (foundIdx != -1) postShuffleIndex = foundIdx;
-        state = state.copyWith(
-          queue: _audioHandler.currentQueue,
-          currentIndex: postShuffleIndex,
-        );
+        // BUG-004 FIX (Change 1 – fallback path): sync _lastKnownIndex after
+        // the fallback standardShuffle so the stream handler is not stale.
+        _lastKnownIndex = postShuffleIndex;
+        _pendingIndexAfterShuffle = postShuffleIndex;
+        _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
+          if (!mounted) return;
+          _pendingIndexAfterShuffle = null;
+          // BUG-004 FIX (Change 2 – fallback timer): re-sync on expiry.
+          _lastKnownIndex = state.currentIndex;
+          _suppressStreamEvents = false;
+        });
       } finally {
         _isShuffling = false;
-        _suppressStreamEvents = false;
         outerCompleter.complete();
         if (_queueOpLock == outerCompleter) _queueOpLock = null;
       }
@@ -983,9 +1052,26 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         queue: _audioHandler.currentQueue,
         currentIndex: safeIndex,
       );
+      // BUG-004 FIX (Change 1 – smartLocal success path): sync _lastKnownIndex
+      // immediately after the queue is committed and state is written. This is
+      // the primary fix: without it, _lastKnownIndex stays at a pre-shuffle
+      // value and the guard timer's expiry allows transient index=0 events to
+      // be accepted as legitimate track changes, desyncing the UI tile.
+      _lastKnownIndex = safeIndex;
+      
+      _pendingIndexAfterShuffle = safeIndex;
+      _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted) return;
+        _pendingIndexAfterShuffle = null;
+        // BUG-004 FIX (Change 2 – smartLocal timer): re-sync _lastKnownIndex
+        // on guard expiry. state.currentIndex is the authoritative value here
+        // because it was set from safeIndex (the anchor) and not mutated during
+        // the suppression window.
+        _lastKnownIndex = state.currentIndex;
+        _suppressStreamEvents = false;
+      });
     } finally {
       _isShuffling = false;
-      _suppressStreamEvents = false;
       outerCompleter.complete();
       if (_queueOpLock == outerCompleter) _queueOpLock = null;
     }
