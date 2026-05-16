@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:math' as math;
-import 'dart:ui' as ui;
 // dart:isolate removed — PaletteGenerator.fromImageProvider requires the
 // Flutter engine's image codec which is unavailable in bare Dart isolates.
 import 'package:flutter/material.dart';

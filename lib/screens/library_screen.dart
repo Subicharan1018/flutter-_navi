@@ -3,6 +3,8 @@ import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+import '../models/album.dart';
+import '../models/playlist.dart';
 import '../models/song.dart';
 import '../models/library_sort.dart';
 import '../providers/library_provider.dart';
@@ -36,13 +38,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final filter = ref.watch(libraryFilterProvider);
     final service = ref.watch(subsonicServiceProvider);
 
-    // Switch to the correctly-typed sorted provider for the active filter.
-    final AsyncValue<List<dynamic>> filteredContentAsync = switch (filter) {
-      LibraryFilter.allSongs    => ref.watch(sortedSongsProvider).whenData((s) => <dynamic>[...s]),
-      LibraryFilter.downloaded  => ref.watch(sortedSongsProvider).whenData((s) => <dynamic>[...s]),
-      LibraryFilter.albums      => ref.watch(sortedAlbumsProvider).whenData((a) => <dynamic>[...a]),
-      LibraryFilter.playlists   => ref.watch(sortedPlaylistsProvider).whenData((p) => <dynamic>[...p]),
-    };
 
     if (_lastFilter != filter) {
       _lastFilter = filter;
@@ -155,52 +150,34 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               child: _SortChipRow(filter: filter),
             ),
 
-            filteredContentAsync.when(
-              data: (items) {
-                if (items.isEmpty) {
-                  return const SliverFillRemaining(
-                    child: _EmptyLibrary(),
-                  );
-                }
-                return SliverPadding(
-                  padding: const EdgeInsets.only(top: 8),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        // FIX (Queue-1): Pass index directly from the builder
-                        // instead of items.indexOf(item) which is O(n) and
-                        // breaks when two songs have identical field values.
-                        Widget tile = _buildItem(
-                            context, filter, items, items[index], index, service);
-                        if (!_listAnimated) {
-                          tile = RepaintBoundary(
-                            child: tile.animate().fadeIn(
-                                  duration: 400.ms,
-                                  delay:
-                                      (index * 18).clamp(0, 280).ms,
-                                ),
-                          );
-                        }
-                        return tile;
-                      },
-                      childCount: items.length,
-                    ),
-                  ),
-                );
-              },
-              loading: () => SliverFillRemaining(
-                child: Center(
-                  child: CircularProgressIndicator(
-                      color: ThemeTokens.of(context).accent, strokeWidth: 2),
+            // ── Content sliver — typed per filter (no dynamic erasure) ────
+            switch (filter) {
+              case LibraryFilter.allSongs:
+              case LibraryFilter.downloaded:
+                ...ref.watch(sortedSongsProvider).when(
+                  data: (songs) => songs.isEmpty
+                      ? [const SliverFillRemaining(child: _EmptyLibrary())]
+                      : [_buildSongSliver(context, songs)],
+                  loading: () => [_loadingSliver(context)],
+                  error: (e, _) => [_errorSliver(context, e)],
                 ),
-              ),
-              error: (e, _) => SliverFillRemaining(
-                child: Center(
-                  child: Text('Error: $e',
-                      style: TextStyle(color: Colors.redAccent)),
+              case LibraryFilter.albums:
+                ...ref.watch(sortedAlbumsProvider).when(
+                  data: (albums) => albums.isEmpty
+                      ? [const SliverFillRemaining(child: _EmptyLibrary())]
+                      : [_buildAlbumSliver(context, albums, service)],
+                  loading: () => [_loadingSliver(context)],
+                  error: (e, _) => [_errorSliver(context, e)],
                 ),
-              ),
-            ),
+              case LibraryFilter.playlists:
+                ...ref.watch(sortedPlaylistsProvider).when(
+                  data: (playlists) => playlists.isEmpty
+                      ? [const SliverFillRemaining(child: _EmptyLibrary())]
+                      : [_buildPlaylistSliver(context, playlists, service)],
+                  loading: () => [_loadingSliver(context)],
+                  error: (e, _) => [_errorSliver(context, e)],
+                ),
+            },
 
             const SliverToBoxAdapter(child: SizedBox(height: 140)),
           ],
@@ -209,180 +186,258 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     );
   }
 
-  // FIX (Queue-1): Accept explicit `index` parameter so tapping any song in
-  // "All Songs" correctly starts playback at that position in the queue.
-  // Previously items.indexOf(item) used object equality — if two Song objects
-  // had identical data but different instances the wrong index was returned,
-  // and the call was also O(n²) across the whole list build.
-  Widget _buildItem(BuildContext context, LibraryFilter filter,
-      List items, dynamic item, int index, SubsonicService service) {
-    switch (filter) {
-      case LibraryFilter.allSongs:
-      case LibraryFilter.downloaded:
-        final song = item as Song;
-        final starred = ref.watch(
-          playerProvider.select((s) => s.starredIds.contains(song.id)),
-        );
-        return SwipeableLibraryTile(
-          dismissKey: 'song_${song.id}_$index',
-          isStarred: starred,
-          onSwipeRight: () => addSongsToQueue(
-            songs: [song],
-            notifier: ref.read(playerProvider.notifier),
-            playerState: ref.read(playerProvider),
-            context: context,
-          ),
-          onSwipeLeft: () =>
-              ref.read(playerProvider.notifier).toggleStar(song.id),
-          child: SongTile(
-            song: song,
-            onTap: () => ref.read(playerProvider.notifier).setQueue(
-                  items.cast<Song>().toList(),
-                  index,
-                ),
-          ),
-        );
+  // ── Loading / error slivers ─────────────────────────────────────────────
 
-      case LibraryFilter.playlists:
-        return SwipeableLibraryTile(
-          dismissKey: 'playlist_${item.id}',
-          onSwipeRight: () async {
-            try {
-              final songs = await service.getPlaylistSongs(item.id);
-              if (!context.mounted) return;
-              await addSongsToQueue(
-                songs: songs,
+  Widget _loadingSliver(BuildContext context) => SliverFillRemaining(
+        child: Center(
+          child: CircularProgressIndicator(
+              color: ThemeTokens.of(context).accent, strokeWidth: 2),
+        ),
+      );
+
+  Widget _errorSliver(BuildContext context, Object e) => SliverFillRemaining(
+        child: Center(
+          child: Text('Error: $e', style: const TextStyle(color: Colors.redAccent)),
+        ),
+      );
+
+  // ── Song sliver ─────────────────────────────────────────────────────────
+  // Receives typed List<Song> — no cast, no copy.
+  // setQueue passes the same typed list directly; O(1) on tap.
+
+  Widget _buildSongSliver(BuildContext context, List<Song> songs) {
+    return SliverPadding(
+      padding: const EdgeInsets.only(top: 8),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final song = songs[index];
+            final starred = ref.watch(
+              playerProvider.select((s) => s.starredIds.contains(song.id)),
+            );
+            Widget tile = SwipeableLibraryTile(
+              dismissKey: 'song_${song.id}_$index',
+              isStarred: starred,
+              onSwipeRight: () => addSongsToQueue(
+                songs: [song],
                 notifier: ref.read(playerProvider.notifier),
                 playerState: ref.read(playerProvider),
                 context: context,
-                label: item.name,
-              );
-            } catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Could not load playlist: $e')),
-                );
-              }
-            }
-          },
-          child: Semantics(
-            button: true,
-            label: 'Playlist: ${item.name}, ${item.songCount} songs',
-            child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              leading: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                  color: ThemeTokens.of(context).bgElevated,
-                  borderRadius: BorderRadius.circular(6),
-                ),
-                child: item.coverArt != null && item.coverArt!.isNotEmpty
-                    ? ClipRRect(
-                        borderRadius: BorderRadius.circular(6),
-                        child: CachedNetworkImage(
-                          imageUrl: service.getCoverArtUrl(item.coverArt),
-                          cacheKey: 'cover_${item.coverArt}',
-                          fit: BoxFit.cover,
-                          errorWidget: (_, __, ___) => Icon(
-                              Icons.queue_music_rounded,
-                              color: ThemeTokens.of(context).accent, size: 24),
-                        ),
-                      )
-                    : Icon(Icons.queue_music_rounded,
-                        color: ThemeTokens.of(context).accent, size: 24),
               ),
-              title: Text(item.name,
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14)),
-              subtitle: Text('Playlist • ${item.songCount} songs',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textSecondary, fontSize: 12)),
-              onTap: () => Navigator.push(
-                  context,
-                  AppRouteTransitions.fadeScale(
-                      builder: (_) => PlaylistDetailsScreen(playlist: item))),
-              onLongPress: () => _showPlaylistOptions(context, item),
-            ),
-          ),
-        );
+              onSwipeLeft: () =>
+                  ref.read(playerProvider.notifier).toggleStar(song.id),
+              child: SongTile(
+                song: song,
+                // Typed List<Song> passed directly — no .cast().toList() allocation
+                onTap: () => ref.read(playerProvider.notifier).setQueue(songs, index),
+              ),
+            );
+            if (!_listAnimated) {
+              tile = RepaintBoundary(
+                child: tile.animate().fadeIn(
+                      duration: 400.ms,
+                      delay: (index * 18).clamp(0, 280).ms,
+                    ),
+              );
+            }
+            return tile;
+          },
+          childCount: songs.length,
+        ),
+      ),
+    );
+  }
 
-      case LibraryFilter.albums:
-        final coverUrl = service.getCoverArtUrl(item.coverArt);
-        return SwipeableLibraryTile(
-          dismissKey: 'album_${item.id}',
-          onSwipeRight: () async {
-            try {
-              final songs = await service.getAlbum(item.id);
-              if (!context.mounted) return;
-              await addSongsToQueue(
-                songs: songs,
-                notifier: ref.read(playerProvider.notifier),
-                playerState: ref.read(playerProvider),
-                context: context,
-                label: item.name,
-              );
-            } catch (e) {
-              if (context.mounted) {
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(content: Text('Could not load album: $e')),
-                );
-              }
-            }
-          },
-          child: Semantics(
-            button: true,
-            label: 'Album: ${item.name} by ${item.artist}',
-            child: ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              leading: Container(
-                width: 52,
-                height: 52,
-                decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(6),
-                    color: ThemeTokens.of(context).bgElevated),
-                child: ClipRRect(
-                  borderRadius: BorderRadius.circular(6),
-                  child: CachedNetworkImage(
-                    imageUrl: coverUrl,
-                    cacheKey: 'cover_${item.coverArt ?? item.id}',
-                    fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => Icon(
-                        Icons.album_rounded,
-                        color: ThemeTokens.of(context).textMuted),
-                  ),
-                ),
-              ),
-              title: Text(item.name,
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14)),
-              subtitle: Text('Album • ${item.artist}',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textSecondary, fontSize: 12)),
-              onTap: () async {
+  // ── Album sliver ─────────────────────────────────────────────────────────
+
+  Widget _buildAlbumSliver(
+      BuildContext context, List<Album> albums, SubsonicService service) {
+    return SliverPadding(
+      padding: const EdgeInsets.only(top: 8),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final item = albums[index];
+            final coverUrl = service.getCoverArtUrl(item.coverArt);
+            Widget tile = SwipeableLibraryTile(
+              dismissKey: 'album_${item.id}_$index',
+              onSwipeRight: () async {
                 try {
                   final songs = await service.getAlbum(item.id);
-                  if (context.mounted) {
-                    ref.read(playerProvider.notifier).setQueue(songs, 0);
-                  }
+                  if (!context.mounted) return;
+                  await addSongsToQueue(
+                    songs: songs,
+                    notifier: ref.read(playerProvider.notifier),
+                    playerState: ref.read(playerProvider),
+                    context: context,
+                    label: item.name,
+                  );
                 } catch (e) {
                   if (context.mounted) {
                     ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not play album: $e')),
+                      SnackBar(content: Text('Could not load album: $e')),
                     );
                   }
                 }
               },
-            ),
-          ),
-        );
-    }
+              child: Semantics(
+                button: true,
+                label: 'Album: ${item.name} by ${item.artist}',
+                child: ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(6),
+                        color: ThemeTokens.of(context).bgElevated),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(6),
+                      child: CachedNetworkImage(
+                        imageUrl: coverUrl,
+                        cacheKey: 'cover_${item.coverArt ?? item.id}',
+                        fit: BoxFit.cover,
+                        errorWidget: (_, __, ___) => Icon(
+                            Icons.album_rounded,
+                            color: ThemeTokens.of(context).textMuted),
+                      ),
+                    ),
+                  ),
+                  title: Text(item.name,
+                      style: TextStyle(
+                          color: ThemeTokens.of(context).textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14)),
+                  subtitle: Text('Album \u2022 ${item.artist}',
+                      style: TextStyle(
+                          color: ThemeTokens.of(context).textSecondary,
+                          fontSize: 12)),
+                  onTap: () async {
+                    try {
+                      final songs = await service.getAlbum(item.id);
+                      if (context.mounted) {
+                        ref.read(playerProvider.notifier).setQueue(songs, 0);
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Could not play album: $e')),
+                        );
+                      }
+                    }
+                  },
+                ),
+              ),
+            );
+            if (!_listAnimated) {
+              tile = RepaintBoundary(
+                child: tile.animate().fadeIn(
+                      duration: 400.ms,
+                      delay: (index * 18).clamp(0, 280).ms,
+                    ),
+              );
+            }
+            return tile;
+          },
+          childCount: albums.length,
+        ),
+      ),
+    );
+  }
+
+  // ── Playlist sliver ──────────────────────────────────────────────────────
+
+  Widget _buildPlaylistSliver(
+      BuildContext context, List<Playlist> playlists, SubsonicService service) {
+    return SliverPadding(
+      padding: const EdgeInsets.only(top: 8),
+      sliver: SliverList(
+        delegate: SliverChildBuilderDelegate(
+          (context, index) {
+            final item = playlists[index];
+            Widget tile = SwipeableLibraryTile(
+              dismissKey: 'playlist_${item.id}_$index',
+              onSwipeRight: () async {
+                try {
+                  final songs = await service.getPlaylistSongs(item.id);
+                  if (!context.mounted) return;
+                  await addSongsToQueue(
+                    songs: songs,
+                    notifier: ref.read(playerProvider.notifier),
+                    playerState: ref.read(playerProvider),
+                    context: context,
+                    label: item.name,
+                  );
+                } catch (e) {
+                  if (context.mounted) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Could not load playlist: $e')),
+                    );
+                  }
+                }
+              },
+              child: Semantics(
+                button: true,
+                label: 'Playlist: ${item.name}, ${item.songCount} songs',
+                child: ListTile(
+                  contentPadding:
+                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+                  leading: Container(
+                    width: 52,
+                    height: 52,
+                    decoration: BoxDecoration(
+                      color: ThemeTokens.of(context).bgElevated,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: item.coverArt != null && item.coverArt!.isNotEmpty
+                        ? ClipRRect(
+                            borderRadius: BorderRadius.circular(6),
+                            child: CachedNetworkImage(
+                              imageUrl: service.getCoverArtUrl(item.coverArt),
+                              cacheKey: 'cover_${item.coverArt}',
+                              fit: BoxFit.cover,
+                              errorWidget: (_, __, ___) => Icon(
+                                  Icons.queue_music_rounded,
+                                  color: ThemeTokens.of(context).accent,
+                                  size: 24),
+                            ),
+                          )
+                        : Icon(Icons.queue_music_rounded,
+                            color: ThemeTokens.of(context).accent, size: 24),
+                  ),
+                  title: Text(item.name,
+                      style: TextStyle(
+                          color: ThemeTokens.of(context).textPrimary,
+                          fontWeight: FontWeight.w600,
+                          fontSize: 14)),
+                  subtitle: Text('Playlist \u2022 ${item.songCount} songs',
+                      style: TextStyle(
+                          color: ThemeTokens.of(context).textSecondary,
+                          fontSize: 12)),
+                  onTap: () => Navigator.push(
+                      context,
+                      AppRouteTransitions.fadeScale(
+                          builder: (_) =>
+                              PlaylistDetailsScreen(playlist: item))),
+                  onLongPress: () => _showPlaylistOptions(context, item),
+                ),
+              ),
+            );
+            if (!_listAnimated) {
+              tile = RepaintBoundary(
+                child: tile.animate().fadeIn(
+                      duration: 400.ms,
+                      delay: (index * 18).clamp(0, 280).ms,
+                    ),
+              );
+            }
+            return tile;
+          },
+          childCount: playlists.length,
+        ),
+      ),
+    );
   }
 
   void _showPlaylistOptions(BuildContext context, dynamic playlist) {

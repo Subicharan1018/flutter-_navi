@@ -1,6 +1,7 @@
 import 'dart:ui';
 import 'dart:async';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:palette_generator/palette_generator.dart';
@@ -109,21 +110,31 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
           if ((d.primaryVelocity ?? 0) < -300) _openNowPlaying(imageUrl);
         },
         // New: swipe left → next track, swipe right → previous track
-        onHorizontalDragEnd: (d) {
+        onHorizontalDragEnd: (details) {
           if (_horizontalSwipeInProgress) return;
-          final vx = d.primaryVelocity ?? 0;
+          final vx = details.primaryVelocity ?? 0;
           if (vx.abs() < 300) return; // ignore slow drags
           _horizontalSwipeInProgress = true;
           _swipeDebounceTimer?.cancel();
-          _swipeDebounceTimer = Timer(const Duration(milliseconds: 400), () {
-            _horizontalSwipeInProgress = false;
-          });
+          HapticFeedback.lightImpact();
           final notifier = ref.read(playerProvider.notifier);
-          if (vx < 0) {
-            notifier.playNext();  // swipe left → forward
-          } else {
-            notifier.playPrev();  // swipe right → backward
-          }
+          () async {
+            try {
+              if (vx < 0) {
+                await notifier.playNext();  // swipe left → forward
+              } else {
+                await notifier.playPrev();  // swipe right → backward
+              }
+            } catch (_) {
+              // playNext/playPrev log internally; swallow here to ensure
+              // the finally block always resets the guard.
+            } finally {
+              // Minimum cooldown even on fast returns, then unlock.
+              // Guard against dispose: setState throws if widget is unmounted.
+              await Future.delayed(const Duration(milliseconds: 300));
+              if (mounted) setState(() => _horizontalSwipeInProgress = false);
+            }
+          }();
         },
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
@@ -146,8 +157,20 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                       duration: const Duration(milliseconds: 250),
                       switchInCurve: Curves.easeOut,
                       switchOutCurve: Curves.easeIn,
+                      // Wrap outgoing children in IgnorePointer so taps on
+                      // the fading-out row don't fire on the previous song.
+                      layoutBuilder: (currentChild, previousChildren) {
+                        return Stack(
+                          alignment: Alignment.center,
+                          children: [
+                            ...previousChildren
+                                .map((c) => IgnorePointer(child: c)),
+                            if (currentChild != null) currentChild,
+                          ],
+                        );
+                      },
                       child: KeyedSubtree(
-                        key: ValueKey(song.id),
+                        key: ValueKey(song.id), // required for animation to fire
                         child: Row(
                       children: [
                         // Album art thumbnail

@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
-import '../models/song.dart';
 import '../models/playlist.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
@@ -17,7 +16,6 @@ import '../features/ai_shuffle/ui/home_stats_widget.dart';
 import 'made_for_you_screen.dart';
 import 'new_releases_screen.dart';
 import 'favorites_screen.dart';
-import 'replay_screen.dart';
 
 // =============================================================================
 // Home Screen
@@ -823,7 +821,7 @@ class _EmptyReplayHint extends StatelessWidget {
 class _SectionLabel extends StatelessWidget {
   final String title;
   final VoidCallback? onSeeAll;
-  const _SectionLabel({required this.title, this.onSeeAll});
+  const _SectionLabel({required this.title});
 
   @override
   Widget build(BuildContext context) {

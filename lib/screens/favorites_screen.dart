@@ -230,7 +230,7 @@ class _FavoritesHeader extends StatelessWidget {
           SizedBox(height: 6),
           // Count
           Text(
-            '${songCount} songs • ${albumCount} albums',
+            '$songCount songs • $albumCount albums',
             style: TextStyle(
               fontSize: 13,
               color: ThemeTokens.of(context).textSecondary,

@@ -10,9 +10,7 @@ import 'settings_provider.dart';
 import '../services/audio_handler.dart';
 import '../core/hive_boxes.dart';
 import '../core/app_constants.dart';
-import 'dart:convert';
 import 'package:http/http.dart' as http;
-import 'library_provider.dart';
 import '../services/scrobble_service.dart';
 
 // ---------------------------------------------------------------------------
@@ -141,23 +139,30 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       ) {
     _syncShuffleUrl();
     _init();
-    _loadPersistedState();
+    unawaited(_loadPersistedState());
   }
 
   int _pendingSeekMs = 0;
 
-  void _loadPersistedState() {
+  Future<void> _loadPersistedState() async {
     final s = HiveBoxes.session;
     final p = HiveBoxes.prefs;
     _pendingSeekMs = s.get(HiveBoxes.kLastPositionMs, defaultValue: 0) as int;
     final shuffle =
         p.get(HiveBoxes.kShufflePreference, defaultValue: false) as bool;
     final repeatIdx = p.get('repeatMode', defaultValue: 0) as int;
+    final loopMode =
+        LoopMode.values[repeatIdx.clamp(0, LoopMode.values.length - 1)];
     state = state.copyWith(
       shuffleMode: shuffle,
-      repeatMode:
-          LoopMode.values[repeatIdx.clamp(0, LoopMode.values.length - 1)],
+      repeatMode: loopMode,
     );
+    // Apply to the just_audio player so audio behavior matches persisted UI
+    // state. Without this, the player stays on LoopMode.off after a restart
+    // even though the notification + UI correctly show repeat-one/all.
+    if (loopMode != LoopMode.off) {
+      await player.setLoopMode(loopMode);
+    }
   }
 
   void _persistState() {
@@ -761,6 +766,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _audioHandler.addToQueue(song);
   }
 
+  /// Batch-add multiple songs — single state update → single UI rebuild.
+  /// AudioHandler calls remain sequential (required by just_audio's source list).
+  Future<void> addAllToQueue(List<Song> songs) async {
+    if (songs.isEmpty) return;
+    final currentQueue = List<Song>.from(state.queue)..addAll(songs);
+    state = state.copyWith(queue: currentQueue);
+    for (final song in songs) {
+      await _audioHandler.addToQueue(song);
+    }
+  }
+
   Future<void> removeFromQueue(int index) async {
     _suppressStreamEvents = true;
     try {
@@ -1092,13 +1108,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final LoopMode nextMode;
     switch (state.repeatMode) {
       case LoopMode.off:
-        nextMode = LoopMode.all;
-        break;
-      case LoopMode.all:
-        nextMode = LoopMode.one;
+        nextMode = LoopMode.one;  // first tap → repeat single song
         break;
       case LoopMode.one:
-        nextMode = LoopMode.off;
+        nextMode = LoopMode.all;  // second tap → repeat playlist
+        break;
+      case LoopMode.all:
+        nextMode = LoopMode.off;  // third tap → off
         break;
     }
     await player.setLoopMode(nextMode);
@@ -1179,8 +1195,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // ---------------------------------------------------------------------------
 
   void _triggerAutoplayIfNeeded() {
-    if (!state.autoplayMode || _isFetchingSimilar || state.queue.isEmpty)
+    if (!state.autoplayMode || _isFetchingSimilar || state.queue.isEmpty) {
       return;
+    }
 
     final currentSong = state.currentSong;
     if (currentSong == null) return;
@@ -1323,7 +1340,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }),
       ]);
 
-      final ordered = results[0] as List<Song>?;
+      final ordered = results[0];
 
       if (ordered == null) {
         // Server unreachable: batch already appended in random pool order.

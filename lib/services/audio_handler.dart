@@ -70,8 +70,9 @@ List<Song> _ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
 // ALGORITHM 3 — Merge-Shuffle
 // ---------------------------------------------------------------------------
 List<Song> _interleave(List<Song> larger, List<Song> smaller, Random random) {
-  if (larger.length < smaller.length)
+  if (larger.length < smaller.length) {
     return _interleave(smaller, larger, random);
+  }
   if (smaller.isEmpty) return larger;
   if (larger.isEmpty) return smaller;
 

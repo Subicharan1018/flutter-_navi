@@ -134,12 +134,12 @@ Future<void> addSongsToQueue({
   }
 
   // If nothing is playing, use setQueue to start playback immediately.
+  // Intentional exception: start playback if queue is empty on first swipe.
   if (playerState.queue.isEmpty) {
     await notifier.setQueue(songs, 0);
   } else {
-    for (final song in songs) {
-      await notifier.addToQueue(song);
-    }
+    // Single state update: addAllToQueue avoids N sequential rebuilds.
+    await notifier.addAllToQueue(songs);
   }
 
   if (context.mounted) {

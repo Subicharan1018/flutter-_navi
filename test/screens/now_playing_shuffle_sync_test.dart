@@ -257,7 +257,7 @@ void main() {
         ProviderContainer,
         PlayerNotifier,
         ControlledAudioPlayer,
-      )> _buildContainer() async {
+      )> buildContainer() async {
     final mockCache = MockPlaylistCacheService();
     final mockService = MockSubsonicService(mockCache);
     final mockPlayer = ControlledAudioPlayer();
@@ -289,7 +289,7 @@ void main() {
     // Core regression: reshuffle must keep currentIndex on the anchor song
     // even when just_audio emits a transient index=0 immediately after.
     test('currentSong unchanged after reshuffle + transient index=0', () async {
-      final (container, notifier, mockPlayer) = await _buildContainer();
+      final (container, notifier, mockPlayer) = await buildContainer();
       addTearDown(container.dispose);
 
       final songs = [
@@ -334,7 +334,7 @@ void main() {
     // index=0 must STILL not desync the state because _lastKnownIndex is now
     // synced to the correct value.
     test('guard timer expiry: subsequent transient index=0 rejected', () async {
-      final (container, notifier, mockPlayer) = await _buildContainer();
+      final (container, notifier, mockPlayer) = await buildContainer();
       addTearDown(container.dispose);
 
       final songs = [
@@ -379,7 +379,7 @@ void main() {
     // before the 500ms timer fires, the guard clears early and the state
     // should stay locked on the anchor.
     test('early guard resolution: correct index clears guard and stays on anchor', () async {
-      final (container, notifier, mockPlayer) = await _buildContainer();
+      final (container, notifier, mockPlayer) = await buildContainer();
       addTearDown(container.dispose);
 
       final songs = [
@@ -418,7 +418,7 @@ void main() {
     // Rapid reshuffle: call applyShuffleAlgorithm twice in quick succession.
     // The second call must win and the final currentIndex must match its anchor.
     test('rapid double reshuffle: final state is consistent', () async {
-      final (container, notifier, mockPlayer) = await _buildContainer();
+      final (container, notifier, mockPlayer) = await buildContainer();
       addTearDown(container.dispose);
 
       final songs = List.generate(

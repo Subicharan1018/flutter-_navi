@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:convert';
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:http/http.dart' as http;
 import 'package:shared_preferences/shared_preferences.dart';
@@ -9,7 +8,6 @@ import 'package:uuid/uuid.dart';
 
 import '../models/song.dart';
 import '../providers/settings_provider.dart';  // subsonicServiceProvider + settingsProvider
-import '../utils/device_utils.dart';
 
 // =============================================================================
 // ListeningLogService
@@ -85,7 +83,7 @@ class ListeningLogService {
     required Song song,
     String? coverArtUrl,
   }) async {
-    if (_baseUrl == null || _baseUrl!.isEmpty) {
+    if (_baseUrl == null || _baseUrl.isEmpty) {
       debugPrint('[ListeningLog] ⏭ No server URL configured — skipping');
       return;
     }
@@ -116,7 +114,7 @@ class ListeningLogService {
   /// entries are removed from the queue. Entries that have exhausted their
   /// retries are also removed (dropped silently).
   Future<void> flushQueue() async {
-    if (_baseUrl == null || _baseUrl!.isEmpty) return;
+    if (_baseUrl == null || _baseUrl.isEmpty) return;
 
     final prefs = await SharedPreferences.getInstance();
     final raw = prefs.getStringList(_kQueueKey) ?? [];
@@ -196,9 +194,9 @@ class ListeningLogService {
       };
 
       if (_webdavUser != null &&
-          _webdavUser!.isNotEmpty &&
+          _webdavUser.isNotEmpty &&
           _webdavPass != null &&
-          _webdavPass!.isNotEmpty) {
+          _webdavPass.isNotEmpty) {
         final auth = base64Encode(utf8.encode('$_webdavUser:$_webdavPass'));
         headers['Authorization'] = 'Basic $auth';
       }

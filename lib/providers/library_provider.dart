@@ -314,6 +314,10 @@ class LibrarySortNotifier
   }
 
   void _restore() {
+    // Guard: prefs box must be open. Safe in production (HiveBoxes.init()
+    // completes at main.dart:17 before runApp at main.dart:44), but protects
+    // against test environments and hot-restart races.
+    if (!Hive.isBoxOpen('prefs')) return;
     final restored = <LibraryFilter, LibrarySortPreference>{};
     final box = HiveBoxes.prefs;
     for (final section in LibraryFilter.values) {
@@ -358,7 +362,7 @@ final sortedSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final filter = ref.watch(libraryFilterProvider);
   // downloaded has no own key — explicitly falls back to allSongs pref
   final effectiveSection =
-      filter == LibraryFilter.downloaded ? LibraryFilter.allSongs : LibraryFilter.allSongs;
+      filter == LibraryFilter.downloaded ? LibraryFilter.allSongs : filter;
   final pref = sortPrefs[effectiveSection] ?? const LibrarySortPreference();
 
   final AsyncValue<List<Song>> source;

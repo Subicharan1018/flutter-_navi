@@ -3,7 +3,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import '../models/song.dart';
 import '../providers/replay_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';

@@ -114,6 +114,7 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
 }
 
 class MockAudioHandler extends Mock implements AudioHandler {
+  @override
   final player = ControlledAudioPlayer();
   
   @override

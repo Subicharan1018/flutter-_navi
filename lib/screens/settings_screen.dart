@@ -8,10 +8,8 @@ import '../providers/settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/subsonic_service.dart';
 import '../services/listening_event_collector.dart';
-import '../services/cache_settings_service.dart';
 import '../services/replay_gain_service.dart';
 import '../services/transcoding_service.dart';
-import '../services/recommendation_service.dart';
 import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
 import '../widgets/theme_selector.dart';
@@ -1156,7 +1154,7 @@ class _SettingsToggleRow extends StatelessWidget {
                   color: tokens.textPrimary, fontSize: 15)),
           CupertinoSwitch(
             value: value,
-            activeColor: tokens.accent,
+            activeTrackColor: tokens.accent,
             onChanged: onChanged,
           ),
         ],
@@ -1215,8 +1213,9 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
                   ShufflePreference.genre => 'By Genre',
                 };
               } else if (item is String) {
-                if (item == 'none') name = 'Disabled';
-                else if (item == 'weekly') name = 'Weekly';
+                if (item == 'none') {
+                  name = 'Disabled';
+                } else if (item == 'weekly') name = 'Weekly';
                 else if (item == 'monthly') name = 'Monthly';
                 else name = item;
               } else {
