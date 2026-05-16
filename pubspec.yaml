@@ -12,7 +12,6 @@ dependencies:
 
   # Audio
   just_audio: ^0.10.5
-  just_audio_background: ^0.0.1-beta.13
   audio_session: ^0.2.3
 
   # State management
@@ -52,6 +51,7 @@ dependencies:
   just_audio_media_kit: ^2.1.0
   media_kit_libs_linux: ^1.2.1
   uuid: ^4.5.3
+  audio_service: ^0.18.18
   # mesh_gradient removed (ARCH-2): declared but never imported anywhere
 
 dev_dependencies:

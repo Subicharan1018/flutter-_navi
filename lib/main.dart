@@ -2,7 +2,7 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_service/audio_service.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'core/hive_boxes.dart';
 import 'core/theme.dart';
@@ -11,6 +11,15 @@ import 'fluid_background.dart';
 import 'dart:async';
 import 'providers/settings_provider.dart';
 import 'offline_service.dart';
+import 'services/navi_audio_handler.dart';
+import 'services/subsonic_service.dart';
+import 'services/replay_gain_service.dart';
+import 'providers/player_provider.dart';
+import 'services/subsonic_service.dart';
+import 'services/replay_gain_service.dart';
+import 'providers/player_provider.dart';
+
+late final NaviAudioHandler globalAudioHandler;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -26,14 +35,25 @@ Future<void> main() async {
     JustAudioMediaKit.ensureInitialized();
   }
 
+  final container = ProviderContainer();
+
   if (!kIsWeb && (Platform.isAndroid || Platform.isIOS || Platform.isMacOS)) {
-    await JustAudioBackground.init(
-      androidNotificationChannelId: 'com.mymusicplayer.audio',
-      androidNotificationChannelName: 'My Music Player',
-      // FIX BUG-1: true keeps the foreground service alive after the user
-      // swipes away the notification, preventing background playback from dying.
-      androidNotificationOngoing: false,
-      androidStopForegroundOnPause: false,
+    globalAudioHandler = await AudioService.init<NaviAudioHandler>(
+      builder: () => NaviAudioHandler(
+        container.read(subsonicServiceProvider),
+        replayGainService: container.read(replayGainProvider),
+      ),
+      config: const AudioServiceConfig(
+        androidNotificationChannelId: 'com.mymusicplayer.audio',
+        androidNotificationChannelName: 'My Music Player',
+        androidNotificationOngoing: false,
+        androidStopForegroundOnPause: false,
+      ),
+    );
+  } else {
+    globalAudioHandler = NaviAudioHandler(
+      container.read(subsonicServiceProvider),
+      replayGainService: container.read(replayGainProvider),
     );
   }
 
@@ -41,7 +61,10 @@ Future<void> main() async {
   // background is ready on first frame (prevents theme-switch flicker).
   unawaited(FluidShaderLoader.instance.load());
 
-  runApp(const ProviderScope(child: MyMusicPlayerApp()));
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: const MyMusicPlayerApp(),
+  ));
 }
 
 class MyMusicPlayerApp extends ConsumerWidget {

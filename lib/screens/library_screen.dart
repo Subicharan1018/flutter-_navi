@@ -151,26 +151,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             ),
 
             // ── Content sliver — typed per filter (no dynamic erasure) ────
-            switch (filter) {
-              case LibraryFilter.allSongs:
-              case LibraryFilter.downloaded:
-                ...ref.watch(sortedSongsProvider).when(
+            ...switch (filter) {
+              LibraryFilter.allSongs || LibraryFilter.downloaded =>
+                ref.watch(sortedSongsProvider).when(
                   data: (songs) => songs.isEmpty
                       ? [const SliverFillRemaining(child: _EmptyLibrary())]
                       : [_buildSongSliver(context, songs)],
                   loading: () => [_loadingSliver(context)],
                   error: (e, _) => [_errorSliver(context, e)],
                 ),
-              case LibraryFilter.albums:
-                ...ref.watch(sortedAlbumsProvider).when(
+              LibraryFilter.albums =>
+                ref.watch(sortedAlbumsProvider).when(
                   data: (albums) => albums.isEmpty
                       ? [const SliverFillRemaining(child: _EmptyLibrary())]
                       : [_buildAlbumSliver(context, albums, service)],
                   loading: () => [_loadingSliver(context)],
                   error: (e, _) => [_errorSliver(context, e)],
                 ),
-              case LibraryFilter.playlists:
-                ...ref.watch(sortedPlaylistsProvider).when(
+              LibraryFilter.playlists =>
+                ref.watch(sortedPlaylistsProvider).when(
                   data: (playlists) => playlists.isEmpty
                       ? [const SliverFillRemaining(child: _EmptyLibrary())]
                       : [_buildPlaylistSliver(context, playlists, service)],

@@ -2,7 +2,7 @@ import 'dart:async';
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:just_audio_background/just_audio_background.dart';
+import 'package:audio_service/audio_service.dart';
 import '../models/song.dart';
 import 'subsonic_service.dart';
 import 'replay_gain_service.dart';
@@ -183,7 +183,7 @@ List<Song> _recencyDampenedShuffleIsolate(Map<String, dynamic> args) {
 // AudioHandler
 // ---------------------------------------------------------------------------
 
-class AudioHandler {
+class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer player;
   final SubsonicService subsonicService;
   final ReplayGainService _replayGainService;
@@ -200,12 +200,15 @@ class AudioHandler {
 
   String _shuffleBaseUrl = '';
 
-  AudioHandler(
+  NaviAudioHandler(
     this.subsonicService, {
     AudioPlayer? player,
     ReplayGainService? replayGainService,
   }) : player = player ?? AudioPlayer(),
        _replayGainService = replayGainService ?? ReplayGainService() {
+    
+    _listenToPlayerEvents();
+
     this.player.currentIndexStream.listen((index) {
       if (index != null && index < _currentQueue.length) {
         _trackRecentlyPlayed(_currentQueue[index].id);
@@ -215,7 +218,7 @@ class AudioHandler {
     this.player.playbackEventStream.listen(
       (event) {},
       onError: (Object e, StackTrace stackTrace) {
-        debugPrint('❌ [AudioHandler] Stream error: $e');
+        debugPrint('❌ [NaviAudioHandler] Stream error: $e');
         if (e is PlayerException) {
           debugPrint('   Code: ${e.code}  Message: ${e.message}');
         }
@@ -225,13 +228,124 @@ class AudioHandler {
     this.player.playerStateStream.listen(
       (state) {
         if (state.processingState == ProcessingState.completed) {
-          debugPrint('ℹ️ [AudioHandler] Processing state: completed');
+          debugPrint('ℹ️ [NaviAudioHandler] Processing state: completed');
         }
       },
       onError: (Object e, StackTrace st) {
-        debugPrint('❌ [AudioHandler] Player state error: $e');
+        debugPrint('❌ [NaviAudioHandler] Player state error: $e');
       },
     );
+  }
+
+  void _listenToPlayerEvents() {
+    player.playbackEventStream.listen((event) {
+      _broadcastState();
+    });
+    
+    // Sync current media item when sequence or index changes
+    player.sequenceStateStream.listen((sequenceState) {
+      if (sequenceState?.currentSource == null) return;
+      final source = sequenceState!.currentSource!;
+      if (source.tag is MediaItem) {
+        mediaItem.add(source.tag as MediaItem);
+      }
+    });
+  }
+
+  void _broadcastState() {
+    final playing = player.playing;
+    final processingState = const {
+      ProcessingState.idle: AudioProcessingState.idle,
+      ProcessingState.loading: AudioProcessingState.loading,
+      ProcessingState.buffering: AudioProcessingState.buffering,
+      ProcessingState.ready: AudioProcessingState.ready,
+      ProcessingState.completed: AudioProcessingState.completed,
+    }[player.processingState]!;
+
+    playbackState.add(playbackState.value.copyWith(
+      controls: [
+        _shuffleAction,
+        MediaControl.skipToPrevious,
+        if (playing) MediaControl.pause else MediaControl.play,
+        MediaControl.skipToNext,
+        _repeatAction,
+      ],
+      systemActions: const {
+        MediaAction.seek,
+        MediaAction.seekForward,
+        MediaAction.seekBackward,
+      },
+      androidCompactActionIndices: const [1, 2, 3],
+      processingState: processingState,
+      playing: playing,
+      updatePosition: player.position,
+      bufferedPosition: player.bufferedPosition,
+      speed: player.speed,
+      repeatMode: const {
+        LoopMode.off: AudioServiceRepeatMode.none,
+        LoopMode.one: AudioServiceRepeatMode.one,
+        LoopMode.all: AudioServiceRepeatMode.all,
+      }[player.loopMode]!,
+      shuffleMode: player.shuffleModeEnabled
+          ? AudioServiceShuffleMode.all
+          : AudioServiceShuffleMode.none,
+    ));
+  }
+
+  static const _shuffleAction = MediaControl(
+    androidIcon: 'drawable/ic_shuffle',
+    label: 'Shuffle',
+    action: MediaAction.setShuffleMode,
+  );
+
+  static const _repeatAction = MediaControl(
+    androidIcon: 'drawable/ic_repeat',
+    label: 'Repeat',
+    action: MediaAction.setRepeatMode,
+  );
+
+  @override
+  Future<void> play() => player.play();
+
+  @override
+  Future<void> pause() => player.pause();
+
+  @override
+  Future<void> seek(Duration position) => player.seek(position);
+
+  @override
+  Future<void> skipToNext() => player.seekToNext();
+
+  @override
+  Future<void> skipToPrevious() => player.seekToPrevious();
+
+  @override
+  Future<void> stop() async {
+    await player.stop();
+    await super.stop();
+  }
+
+  @override
+  Future<void> setShuffleMode(AudioServiceShuffleMode shuffleMode) async {
+    final enabled = shuffleMode == AudioServiceShuffleMode.all;
+    await player.setShuffleModeEnabled(enabled);
+    _broadcastState();
+  }
+
+  @override
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
+    // REPEAT-ONCE BUG FIX: Ensure AudioServiceRepeatMode.one explicitly maps
+    // to LoopMode.one. The previously broken logic or mismatch caused infinite repeats.
+    // AudioServiceRepeatMode.none => LoopMode.off
+    // AudioServiceRepeatMode.one  => LoopMode.one
+    // AudioServiceRepeatMode.all  => LoopMode.all
+    final next = switch (player.loopMode) {
+      LoopMode.off => LoopMode.one,
+      LoopMode.one => LoopMode.all,
+      LoopMode.all => LoopMode.off,
+    };
+    await player.setLoopMode(next);
+    _broadcastState();
   }
 
   @visibleForTesting

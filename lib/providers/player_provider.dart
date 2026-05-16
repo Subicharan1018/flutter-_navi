@@ -3,15 +3,17 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
+import 'package:audio_service/audio_service.dart';
 import '../models/song.dart';
 import '../services/subsonic_service.dart';
 import '../services/listening_event_collector.dart';
 import 'settings_provider.dart';
-import '../services/audio_handler.dart';
+import '../services/navi_audio_handler.dart';
 import '../core/hive_boxes.dart';
 import '../core/app_constants.dart';
 import 'package:http/http.dart' as http;
 import '../services/scrobble_service.dart';
+import '../main.dart';
 
 // ---------------------------------------------------------------------------
 // Player state
@@ -75,7 +77,7 @@ class PlayerState {
 // ---------------------------------------------------------------------------
 class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
-  final AudioHandler _audioHandler;
+  final NaviAudioHandler _audioHandler;
   final SubsonicService _subsonicService;
   final ListeningEventCollector _collector;
   final Set<String> _scrobbledIds = {};
@@ -201,8 +203,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _lastKnownIndex = player.currentIndex ?? 0;
 
     _subscriptions.add(
-      player.currentIndexStream.listen((index) {
-        if (index == null) return;
+      _audioHandler.mediaItem.listen((mediaItem) {
+        if (mediaItem == null) return;
+        final index = state.queue.indexWhere((s) => s.id == mediaItem.id);
+        if (index == -1) return;
         
         if (_pendingIndexAfterShuffle != null) {
           if (index == _pendingIndexAfterShuffle) {
@@ -317,59 +321,71 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }),
     );
 
+    bool? _lastPlaying;
+    LoopMode? _lastLoopMode;
+    AudioProcessingState? _lastProcessingState;
+
     _subscriptions.add(
-      player.playingStream.listen((playing) {
+      _audioHandler.playbackState.listen((ps) async {
         if (_suppressStreamEvents) return;
 
-        if (playing && _scrobblePlayStart == null) {
-          _scrobblePlayStart = DateTime.now();
-        } else if (!playing && _scrobblePlayStart != null) {
-          _scrobbleListenDuration +=
-              DateTime.now().difference(_scrobblePlayStart!);
-          _scrobblePlayStart = null;
+        // 1. Handle playing state changes
+        final playing = ps.playing;
+        if (playing != _lastPlaying) {
+          _lastPlaying = playing;
+          if (playing && _scrobblePlayStart == null) {
+            _scrobblePlayStart = DateTime.now();
+          } else if (!playing && _scrobblePlayStart != null) {
+            _scrobbleListenDuration +=
+                DateTime.now().difference(_scrobblePlayStart!);
+            _scrobblePlayStart = null;
+          }
+          state = state.copyWith(isPlaying: playing);
         }
 
-        state = state.copyWith(isPlaying: playing);
-      }),
-    );
+        // 2. Handle loop mode changes
+        final loopMode = const {
+          AudioServiceRepeatMode.none: LoopMode.off,
+          AudioServiceRepeatMode.one: LoopMode.one,
+          AudioServiceRepeatMode.all: LoopMode.all,
+          AudioServiceRepeatMode.group: LoopMode.all,
+        }[ps.repeatMode] ?? LoopMode.off;
 
-    _subscriptions.add(
-      player.loopModeStream.listen((loopMode) {
-        state = state.copyWith(repeatMode: loopMode);
-      }),
-    );
-
-    _subscriptions.add(
-      player.processingStateStream.listen((ps) async {
-        if (ps != ProcessingState.completed) return;
-        if (_suppressStreamEvents) return;
-
-        if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
-          _collector.onSongEnded(
-            state.queue[state.currentIndex],
-            player.position,
-          );
-        }
-        // BUG-001 FIX: If there are more songs ahead, explicitly advance.
-        // After a shuffle rebuild, just_audio's ConcatenatingAudioSource may have
-        // been rebuilt with a stale initialIndex, causing it to think we're at the
-        // end even though the Dart-side queue has more tracks.
-        if (state.currentIndex < state.queue.length - 1) {
-          _suppressStreamEvents = true;
-          await player.seekToNext();
-          _suppressStreamEvents = false;
-          return;
+        if (loopMode != _lastLoopMode) {
+          _lastLoopMode = loopMode;
+          state = state.copyWith(repeatMode: loopMode);
         }
 
-        // We're on the last track — attempt autoplay (fetch similar songs).
-        if (!state.autoplayMode) return;
-        _triggerAutoplayIfNeeded();
+        // 3. Handle processing state changes
+        final processingState = ps.processingState;
+        if (processingState != _lastProcessingState) {
+          _lastProcessingState = processingState;
+          if (processingState == AudioProcessingState.completed) {
+            if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
+              _collector.onSongEnded(
+                state.queue[state.currentIndex],
+                player.position,
+              );
+            }
+            // BUG-001 FIX: If there are more songs ahead, explicitly advance.
+            if (state.currentIndex < state.queue.length - 1) {
+              _suppressStreamEvents = true;
+              await _audioHandler.skipToNext();
+              _suppressStreamEvents = false;
+              return;
+            }
+
+            // We're on the last track — attempt autoplay (fetch similar songs).
+            if (!state.autoplayMode) return;
+            _triggerAutoplayIfNeeded();
+          }
+        }
       }),
     );
 
     Duration prevPosition = Duration.zero;
     _subscriptions.add(
-      player.positionStream.listen((position) {
+      AudioService.position.listen((position) {
         if (player.currentIndex == _lastKnownIndex) {
           _lastKnownPosition = position;
         }
@@ -1390,10 +1406,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
-final audioHandlerProvider = Provider<AudioHandler>((ref) {
-  final service = ref.watch(subsonicServiceProvider);
-  final replayGain = ref.watch(replayGainProvider);
-  return AudioHandler(service, replayGainService: replayGain);
+final audioHandlerProvider = Provider<NaviAudioHandler>((ref) {
+  return globalAudioHandler;
 });
 
 final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((

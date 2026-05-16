@@ -821,7 +821,7 @@ class _EmptyReplayHint extends StatelessWidget {
 class _SectionLabel extends StatelessWidget {
   final String title;
   final VoidCallback? onSeeAll;
-  const _SectionLabel({required this.title});
+  const _SectionLabel({required this.title, this.onSeeAll});
 
   @override
   Widget build(BuildContext context) {

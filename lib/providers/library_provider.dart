@@ -11,6 +11,7 @@ import '../models/download_state.dart';
 import '../database/app_database.dart';
 import '../core/hive_boxes.dart';
 import 'package:drift/drift.dart';
+import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 
 // ---------------------------------------------------------------------------
 // Metadata Caching helpers (using AppDatabase/Drift)
