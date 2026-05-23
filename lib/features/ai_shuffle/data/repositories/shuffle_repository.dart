@@ -11,6 +11,7 @@ import '../models/feedback_request.dart';
 import '../models/model_status_response.dart';
 import '../models/listening_stats_response.dart';
 import '../models/listening_history_response.dart';
+import '../models/contribution_graph_response.dart';
 import 'shuffle_exception.dart';
 
 class ShuffleRepository {
@@ -46,7 +47,7 @@ class ShuffleRepository {
   Future<NextResponse> getNext({
     String source = 'smart',
     String? playlistId,
-    int count = 15,
+    int count = 16,
     int depth = 0,
     String? playlistName,
     String genreStreakType = '',
@@ -114,6 +115,8 @@ class ShuffleRepository {
         title: title,
         period: period,
       );
+
+  Future<ContributionGraphResponse> getContributionGraph() => _api.getContributionGraph();
 
   Future<List<Map<String, dynamic>>> getComposers() => _api.getComposers();
 

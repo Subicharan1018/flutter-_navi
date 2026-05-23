@@ -706,6 +706,23 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   Future<void> _moveBasedReorder(int anchorIndex) async {
     final int n = _currentQueue.length;
+    final int playlistLen = _playlist!.children.length;
+
+    // Guard: if the playlist source count diverges from the queue count,
+    // move-based reorder is unsafe — fall back to a full source rebuild
+    // to prevent the "Not in inclusive range 0..N: N+1" RangeError.
+    if (playlistLen != n) {
+      debugPrint(
+        '⚠️ [Reorder] playlist.children ($playlistLen) ≠ queue ($n) — '
+        'falling back to rebuildSource at anchor $anchorIndex',
+      );
+      final savedPosition = player.position;
+      await _rebuildSource(anchorIndex.clamp(0, n - 1),
+          initialPosition: savedPosition);
+      if (player.playing) player.play();
+      return;
+    }
+
     final List<String> liveIds = List.generate(n, (i) {
       final src = _playlist!.children[i];
       if (src is UriAudioSource && src.tag is MediaItem) {
@@ -976,8 +993,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final currentSong = _currentQueue[safeIndex];
     _currentQueue = List.from(_unshuffledQueue);
-    final newIndex = _unshuffledQueue.indexWhere((s) => s.id == currentSong.id);
-    await _updateQueueAfterAnchor(newIndex != -1 ? newIndex : safeIndex);
+    // Clamp anchor to the unshuffled queue length — songs added/removed since
+    // the last setQueue can make safeIndex exceed _unshuffledQueue.length.
+    final rawIndex = _unshuffledQueue.indexWhere((s) => s.id == currentSong.id);
+    final anchorIndex =
+        (rawIndex != -1 ? rawIndex : safeIndex)
+            .clamp(0, _currentQueue.length - 1);
+    await _updateQueueAfterAnchor(anchorIndex);
   }
 
   // ---------------------------------------------------------------------------

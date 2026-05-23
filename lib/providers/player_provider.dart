@@ -103,7 +103,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // ─── Smart-local playlist pool ───────────────────────────────────────────
   // Holds the remaining songs from the active playlist that have NOT yet been
   // queued. Populated on playPlaylist() and drained by
-  // _fetchAndReorderSmartLocal() as batches of 15 are appended to the queue.
+  // _fetchAndReorderSmartLocal() as batches of 16 are appended to the queue.
   //
   // Rules:
   //   • Only songs whose id is in this list will ever be appended.
@@ -112,7 +112,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   List<Song> _playlistPool = [];
 
   // How many songs to load initially and per refill batch.
-  static const int _smartLocalBatchSize = 15;
+  static const int _smartLocalBatchSize = 16;
   // Refill when this many songs remain ahead of the current position.
   static const int _smartLocalRefillThreshold = 3;
 
@@ -528,7 +528,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // ---------------------------------------------------------------------------
   // playPlaylist
   //
-  // FIX-SHUFFLE-LAG + 15-song smart queue:
+  // FIX-SHUFFLE-LAG + 16-song smart queue:
   //
   // OLD: load ALL songs → HTTP fetch for full count → setAudioSource(all)
   //      → lag = HTTP wait + building N audio sources
@@ -536,13 +536,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // NEW (smartLocal):
   //   1. Pick random start song.
   //   2. Build _playlistPool from remaining songs (shuffled).
-  //   3. Take first batch (up to 15) from pool.
-  //   4. HTTP fetch: ask server to order those 15 relative to seed.
-  //      count=15 instead of count=N — much faster response.
-  //   5. setAudioSource with only [seed + 15] = 16 sources total.
+  //   3. Take first batch (up to 16) from pool.
+  //   4. HTTP fetch: ask server to order those 16 relative to seed.
+  //      count=16 instead of count=N — much faster response.
+  //   5. setAudioSource with only [seed + 16] = 17 sources total.
   //      Playback starts immediately.
   //   6. When song 13 starts, _triggerSmartLocalFetchIfNeeded() fires,
-  //      takes next 15 from pool, fetches ordering, appends silently.
+  //      takes next 16 from pool, fetches ordering, appends silently.
   //
   // The pool enforces client-side playlist isolation — songs outside the
   // original playlist.songs list never enter the queue.
@@ -590,12 +590,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final startIndex = Random().nextInt(songs.length);
         final currentSong = songs[startIndex];
 
-        // ── Smart Local: 15-song initial load, pool-based refill ──────────
+        // ── Smart Local: 16-song initial load, pool-based refill ──────────
         if (settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
           // 1. Initialise pool with all songs except the seed.
           _initPlaylistPool(songs, currentSong.id);
 
-          // 2. Take the first batch from the pool (up to 15).
+          // 2. Take the first batch from the pool (up to 16).
           final firstBatch = _takeFromPool(_smartLocalBatchSize);
 
           // 3. Ask server to order the first batch relative to seed.
@@ -1303,7 +1303,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   //   _playlistPool is not empty.
   //
   //   1. Snapshot anchor (safeIndex, pastAndPresent).
-  //   2. Take next batch (up to 15) from _playlistPool.
+  //   2. Take next batch (up to 16) from _playlistPool.
   //   3. Concurrently:
   //      A. HTTP fetch: ask server to order the batch from current song.
   //      B. addAllToQueue(batch): append sources to ConcatenatingAudioSource.

@@ -25,6 +25,7 @@ import '../models/feedback_request.dart';
 import '../models/model_status_response.dart';
 import '../models/listening_stats_response.dart';
 import '../models/listening_history_response.dart';
+import '../models/contribution_graph_response.dart';
 import '../repositories/shuffle_exception.dart';
 
 /// The canonical base URL for the Smart Shuffle hosted service.
@@ -95,7 +96,7 @@ class ShuffleApiService {
   Future<NextResponse> getNext({
     String source = 'smart',
     String? playlistId,
-    int count = 15,
+    int count = 16,
     int depth = 0,
     String? playlistName,
     String genreStreakType = '',
@@ -104,7 +105,6 @@ class ShuffleApiService {
     List<double> recentListenRatios = const [],
     String lastEndReason = '',
   }) async {
-    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
       final body = <String, dynamic>{
         'source': source,
@@ -139,7 +139,6 @@ class ShuffleApiService {
 
   /// Records a played track so the model learns the user's taste.
   Future<void> postFeedback(FeedbackRequest request) async {
-    if (_unconfigured) return; // silently skip if not configured
     await _wrap(() async {
       await _dio.post<void>(
         '/feedback',
@@ -155,7 +154,6 @@ class ShuffleApiService {
 
   /// Returns the current state of the user's personal model.
   Future<ModelStatusResponse> getModelStatus() async {
-    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>('/model/status');
       return ModelStatusResponse.fromJson(response.data!);
@@ -171,7 +169,6 @@ class ShuffleApiService {
   Future<ListeningStatsResponse> getListeningStats({
     String period = 'weekly',
   }) async {
-    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/listening-log/stats',
@@ -193,7 +190,6 @@ class ShuffleApiService {
     String? title,
     String period = 'all',
   }) async {
-    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/listening-log/history',
@@ -210,12 +206,24 @@ class ShuffleApiService {
   }
 
   // ---------------------------------------------------------------------------
+  // GET /listening-log/contribution-graph
+  // ---------------------------------------------------------------------------
+
+  Future<ContributionGraphResponse> getContributionGraph() async {
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/listening-log/contribution-graph',
+      );
+      return ContributionGraphResponse.fromJson(response.data!);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // GET /listening-log/composers
   // ---------------------------------------------------------------------------
 
   /// Returns the composer loyalty table.
   Future<List<Map<String, dynamic>>> getComposers() async {
-    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/listening-log/composers',
@@ -233,7 +241,6 @@ class ShuffleApiService {
 
   /// Returns the full history for a single song across all context buckets.
   Future<Map<String, dynamic>> getSongDeepDive({required String title}) async {
-    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/listening-log/song',

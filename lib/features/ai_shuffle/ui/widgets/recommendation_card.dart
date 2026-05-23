@@ -1,11 +1,13 @@
 // =============================================================================
-// RecommendationCard — displays a single Smart Shuffle recommendation.
+// RecommendationCard — Smart Shuffle recommendation, NaviVibe design system.
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import '../../../../core/theme.dart';
+import '../../../../widgets/navi_ui.dart';
 import '../../data/models/recommended_song.dart';
 
-class RecommendationCard extends StatelessWidget {
+class RecommendationCard extends StatefulWidget {
   final RecommendedSong song;
   final VoidCallback onTap;
   final VoidCallback onLongPress;
@@ -18,195 +20,270 @@ class RecommendationCard extends StatelessWidget {
   });
 
   @override
-  Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final cs = theme.colorScheme;
+  State<RecommendationCard> createState() => _RecommendationCardState();
+}
 
-    return Card(
-      margin: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
-      clipBehavior: Clip.antiAlias,
-      child: InkWell(
-        onTap: onTap,
-        onLongPress: onLongPress,
-        child: Padding(
-          padding: const EdgeInsets.all(12.0),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // ── Top row: title + rank + badges ──────────────────────────
-              Row(
-                children: [
-                  // Rank chip
-                  Container(
-                    width: 28,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: cs.secondaryContainer,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    alignment: Alignment.center,
-                    child: Text(
-                      '${song.rank}',
-                      style: theme.textTheme.labelSmall?.copyWith(
-                        color: cs.onSecondaryContainer,
-                        fontWeight: FontWeight.bold,
+class _RecommendationCardState extends State<RecommendationCard>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _pressCtrl;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _pressCtrl = AnimationController(vsync: this, duration: kAnimFast);
+    _scale = Tween(begin: 1.0, end: 0.97).animate(
+      CurvedAnimation(parent: _pressCtrl, curve: kCurveStandard),
+    );
+  }
+
+  @override
+  void dispose() {
+    _pressCtrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    final score = widget.song.scores.finalScore.clamp(0.0, 1.0);
+
+    return GestureDetector(
+      onTapDown: (_) => _pressCtrl.forward(),
+      onTapUp: (_) {
+        _pressCtrl.reverse();
+        widget.onTap();
+      },
+      onTapCancel: () => _pressCtrl.reverse(),
+      onLongPress: widget.onLongPress,
+      child: ScaleTransition(
+        scale: _scale,
+        child: Container(
+          margin: const EdgeInsets.symmetric(horizontal: s8, vertical: s4),
+          decoration: BoxDecoration(
+            color: tokens.bgSurface,
+            borderRadius: radiusMd,
+            border: Border.all(
+              color: tokens.textPrimary.withOpacity(0.07),
+              width: 0.5,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.18),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Padding(
+            padding: const EdgeInsets.all(s12),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // ── Top row ──────────────────────────────────────────────────
+                Row(
+                  children: [
+                    // Rank bubble
+                    Container(
+                      width: 30,
+                      height: 30,
+                      decoration: BoxDecoration(
+                        color: tokens.accent.withOpacity(0.12),
+                        borderRadius: radiusSm,
+                        border: Border.all(
+                          color: tokens.accent.withOpacity(0.3),
+                          width: 0.5,
+                        ),
+                      ),
+                      alignment: Alignment.center,
+                      child: Text(
+                        '${widget.song.rank}',
+                        style: tokens.textStyle(12, FontWeight.w700, tokens.accent),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          song.title,
-                          style: theme.textTheme.titleSmall?.copyWith(
-                              fontWeight: FontWeight.bold),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        Text(
-                          song.composer.isNotEmpty
-                              ? song.composer
-                              : 'Unknown Composer',
-                          style: theme.textTheme.bodySmall?.copyWith(
-                              color: cs.onSurfaceVariant),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
+                    const SizedBox(width: s12),
+                    // Title + composer
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            widget.song.title,
+                            style: tokens.textStyle(14, FontWeight.w600, tokens.textPrimary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.song.composer.isNotEmpty
+                                ? widget.song.composer
+                                : 'Unknown Composer',
+                            style: tokens.textStyle(12, FontWeight.w400, tokens.textSecondary),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  // Genre bucket + cold-start badges
-                  if (song.genreBucket.isNotEmpty)
-                    _Chip(
-                      label: _genreLabel(song.genreBucket),
-                      color: _genreColor(song.genreBucket, cs),
-                      textColor: cs.onSecondary,
-                    ),
-                  if (song.isColdStart) ...[
-                    const SizedBox(width: 4),
-                    _Chip(
-                      label: 'NEW',
-                      color: cs.tertiaryContainer,
-                      textColor: cs.onTertiaryContainer,
+                    const SizedBox(width: s8),
+                    // Genre chip
+                    if (widget.song.genreBucket.isNotEmpty)
+                      _GenreChip(bucket: widget.song.genreBucket, tokens: tokens),
+                    if (widget.song.isColdStart) ...[
+                      const SizedBox(width: s4),
+                      _BadgeChip(label: 'NEW', color: tokens.accent),
+                    ],
+                    const SizedBox(width: s8),
+                    // Add-to-queue
+                    GestureDetector(
+                      onTap: widget.onTap,
+                      child: Container(
+                        width: 34,
+                        height: 34,
+                        decoration: BoxDecoration(
+                          color: tokens.accent.withOpacity(0.1),
+                          borderRadius: radiusSm,
+                          border: Border.all(color: tokens.accent.withOpacity(0.25)),
+                        ),
+                        child: Icon(
+                          Icons.playlist_add_rounded,
+                          color: tokens.accent,
+                          size: 18,
+                        ),
+                      ),
                     ),
                   ],
-                ],
-              ),
+                ),
 
-              const SizedBox(height: 10),
+                const SizedBox(height: s12),
 
-              // ── Score bar ─────────────────────────────────────────────────
-              Row(
-                children: [
-                  Text(
-                    'Match',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                        color: cs.onSurfaceVariant),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: LinearProgressIndicator(
-                        value: song.scores.finalScore.clamp(0.0, 1.0),
-                        backgroundColor: cs.surfaceContainerHighest,
-                        color: _scoreColor(song.scores.finalScore, cs),
-                        minHeight: 6,
+                // ── Score bar ─────────────────────────────────────────────────
+                Row(
+                  children: [
+                    Text(
+                      'MATCH',
+                      style: tokens.textStyle(9, FontWeight.w600, tokens.textMuted)
+                          .copyWith(letterSpacing: 0.8),
+                    ),
+                    const SizedBox(width: s8),
+                    Expanded(
+                      child: ClipRRect(
+                        borderRadius: radiusFull,
+                        child: TweenAnimationBuilder<double>(
+                          tween: Tween(begin: 0, end: score),
+                          duration: kAnimSlow,
+                          builder: (_, v, __) => LinearProgressIndicator(
+                            value: v,
+                            backgroundColor: tokens.textPrimary.withOpacity(0.07),
+                            valueColor: AlwaysStoppedAnimation(_scoreColor(score, tokens)),
+                            minHeight: 5,
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    '${(song.scores.finalScore * 100).toStringAsFixed(0)}%',
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: cs.primary,
-                      fontWeight: FontWeight.bold,
+                    const SizedBox(width: s8),
+                    Text(
+                      '${(score * 100).toStringAsFixed(0)}%',
+                      style: tokens.textStyle(11, FontWeight.w700, _scoreColor(score, tokens)),
                     ),
+                  ],
+                ),
+
+                // ── Why caption ───────────────────────────────────────────────
+                if (widget.song.why.isNotEmpty) ...[
+                  const SizedBox(height: s8),
+                  Text(
+                    widget.song.why,
+                    style: tokens.textStyle(11, FontWeight.w400, tokens.textSecondary)
+                        .copyWith(fontStyle: FontStyle.italic),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
                   ),
                 ],
-              ),
-
-              // ── Why caption ───────────────────────────────────────────────
-              if (song.why.isNotEmpty) ...[
-                const SizedBox(height: 6),
-                Text(
-                  song.why,
-                  style: theme.textTheme.bodySmall?.copyWith(
-                    color: cs.onSurfaceVariant.withValues(alpha: 0.8),
-                    fontStyle: FontStyle.italic,
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
               ],
-            ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Color _scoreColor(double score, ColorScheme cs) {
-    if (score >= 0.7) return cs.primary;
-    if (score >= 0.4) return cs.secondary;
-    return cs.tertiary;
+  Color _scoreColor(double score, AppThemeTokens tokens) {
+    if (score >= 0.7) return tokens.accent;
+    if (score >= 0.4) return const Color(0xFFFFD700);
+    return const Color(0xFFFF6B6B);
+  }
+}
+
+// ── Genre chip ─────────────────────────────────────────────────────────────────
+
+class _GenreChip extends StatelessWidget {
+  final String bucket;
+  final AppThemeTokens tokens;
+
+  const _GenreChip({required this.bucket, required this.tokens});
+
+  @override
+  Widget build(BuildContext context) {
+    final (label, color) = _genreStyle(bucket);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withOpacity(0.15),
+        borderRadius: radiusFull,
+        border: Border.all(color: color.withOpacity(0.35), width: 0.5),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: color,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
   }
 
-  Color _genreColor(String bucket, ColorScheme cs) {
+  (String, Color) _genreStyle(String bucket) {
     switch (bucket) {
       case 'melody':
-        return cs.primary;
+        return ('♪ MELODY', const Color(0xFF64D2FF));
       case 'kuthu':
-        return cs.error;
+        return ('🥁 KUTHU', const Color(0xFFFF6B6B));
       case 'devotional':
-        return cs.tertiary;
+        return ('🙏 DEVOTIONAL', const Color(0xFFFFD700));
+      case 'rock':
+        return ('🎸 ROCK', const Color(0xFFFF8C42));
       default:
-        return cs.secondary;
-    }
-  }
-
-  String _genreLabel(String bucket) {
-    switch (bucket) {
-      case 'melody':
-        return '♪ Melody';
-      case 'kuthu':
-        return '🥁 Kuthu';
-      case 'devotional':
-        return '🙏 Devotional';
-      default:
-        return bucket;
+        return (bucket.toUpperCase(), const Color(0xFFBB86FC));
     }
   }
 }
 
-class _Chip extends StatelessWidget {
+// ── Badge chip ─────────────────────────────────────────────────────────────────
+
+class _BadgeChip extends StatelessWidget {
   final String label;
   final Color color;
-  final Color textColor;
 
-  const _Chip({
-    required this.label,
-    required this.color,
-    required this.textColor,
-  });
+  const _BadgeChip({required this.label, required this.color});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: color,
-        borderRadius: BorderRadius.circular(6),
+        color: color.withOpacity(0.15),
+        borderRadius: radiusFull,
+        border: Border.all(color: color.withOpacity(0.4), width: 0.5),
       ),
       child: Text(
         label,
         style: TextStyle(
           fontSize: 9,
-          fontWeight: FontWeight.bold,
-          color: textColor,
+          fontWeight: FontWeight.w700,
+          color: color,
         ),
       ),
     );

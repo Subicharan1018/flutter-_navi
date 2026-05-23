@@ -11,6 +11,7 @@ import '../data/models/health_response.dart';
 import '../data/models/next_response.dart';
 import '../data/models/model_status_response.dart';
 import '../data/models/listening_stats_response.dart';
+import '../data/models/contribution_graph_response.dart';
 import '../data/models/feedback_request.dart';
 
 // ---------------------------------------------------------------------------
@@ -64,6 +65,16 @@ final listeningStatsProvider = FutureProvider.autoDispose
     .family<ListeningStatsResponse, String>((ref, period) {
   final repo = ref.watch(shuffleRepositoryProvider);
   return repo.getListeningStats(period: period);
+});
+
+// ---------------------------------------------------------------------------
+// Contribution Graph
+// ---------------------------------------------------------------------------
+
+/// Fetches the 1-year contribution graph.
+final contributionGraphProvider = FutureProvider.autoDispose<ContributionGraphResponse>((ref) {
+  final repo = ref.watch(shuffleRepositoryProvider);
+  return repo.getContributionGraph();
 });
 
 // ---------------------------------------------------------------------------
@@ -124,7 +135,7 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
   Future<void> fetchNext({
     String source = 'smart',
     String? playlistId,
-    int count = 15,
+    int count = 16,
     String? playlistName,
     String genreStreakType = '',
     int genreStreakCount = 0,

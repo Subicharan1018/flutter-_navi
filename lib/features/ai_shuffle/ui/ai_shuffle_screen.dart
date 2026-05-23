@@ -167,9 +167,8 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
       appBar: AppBar(
         title: const Text('Smart Shuffle'),
         actions: [
-          // Only keep the Model Status action — no "Reconnect" needed
           IconButton(
-            icon: const Icon(Icons.info_outline_rounded),
+            icon: Icon(Icons.info_outline_rounded, color: Theme.of(context).colorScheme.onSurface),
             tooltip: 'Model Status',
             onPressed: _showModelStatus,
           ),
@@ -330,7 +329,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
       itemBuilder: (context, index) => Card(
         margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
         child: ListTile(
-          leading: const Icon(Icons.music_note, color: Colors.transparent),
+          leading: Icon(Icons.music_note, color: cs.outlineVariant),
           title: Container(
             height: 14,
             width: double.infinity,

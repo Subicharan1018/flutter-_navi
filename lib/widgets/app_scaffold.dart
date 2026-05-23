@@ -6,6 +6,7 @@ import '../screens/home_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/library_screen.dart';
 import '../screens/favorites_screen.dart';
+import '../screens/dashboard_screen.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../services/replay_upload_service.dart';
 import '../services/listening_log_service.dart';
@@ -68,7 +69,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     _NavItem(icon: Icons.home_outlined,           activeIcon: Icons.home_rounded,               label: 'Home'),
     _NavItem(icon: Icons.search_outlined,         activeIcon: Icons.search_rounded,             label: 'Search'),
     _NavItem(icon: Icons.auto_awesome_outlined,   activeIcon: Icons.auto_awesome,               label: 'AI Shuffle'),
-    _NavItem(icon: Icons.favorite_outline,        activeIcon: Icons.favorite_rounded,           label: 'Favorites'),
+    _NavItem(icon: Icons.dashboard_outlined,      activeIcon: Icons.dashboard_rounded,          label: 'Dashboard'),
     _NavItem(icon: Icons.library_music_outlined,  activeIcon: Icons.library_music_rounded,      label: 'Library'),
   ];
 
@@ -76,7 +77,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     HomeScreen(),
     SearchScreen(),
     AiShuffleScreen(),
-    FavoritesScreen(),
+    DashboardScreen(),
     LibraryScreen(),
   ];
 

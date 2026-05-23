@@ -54,6 +54,7 @@ dependencies:
   audio_service: ^0.18.18
   audio_service_mpris: ^0.2.1   # Linux MPRIS D-Bus media control integration
   window_manager: ^0.5.1        # Desktop window size/position management
+  fl_chart: ^1.2.0
   # mesh_gradient removed (ARCH-2): declared but never imported anywhere
 
 dev_dependencies:
