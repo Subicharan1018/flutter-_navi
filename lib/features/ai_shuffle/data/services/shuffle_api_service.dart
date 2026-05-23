@@ -1,50 +1,65 @@
 // =============================================================================
-// ShuffleApiService — Dio-based HTTP client for the AI shuffle server.
+// ShuffleApiService — Dio-based HTTP client for the Smart Shuffle server.
 //
-// Typed methods for all 6 endpoints:
+// Base URL: https://shuffle.subimusic.me (hardcoded — no user config needed)
+// Auth:     HTTP Basic Auth with Navidrome username:password
+//
+// Endpoints (v3.0.0):
 //   GET  /health
-//   GET  /next?current=...&count=...
-//   GET  /profile?song=...
-//   GET  /stats
-//   POST /session/reset
-//   GET  /session/status
+//   POST /next
+//   POST /feedback
+//   GET  /model/status
+//   GET  /listening-log/stats
+//   GET  /listening-log/history
+//   GET  /listening-log/composers
+//   GET  /listening-log/song
 // =============================================================================
 
+import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/health_response.dart';
 import '../models/next_response.dart';
-import '../models/profile_response.dart';
-import '../models/stats_response.dart';
-import '../models/session_status_response.dart';
+import '../models/feedback_request.dart';
+import '../models/model_status_response.dart';
+import '../models/listening_stats_response.dart';
+import '../models/listening_history_response.dart';
 import '../repositories/shuffle_exception.dart';
+
+/// The canonical base URL for the Smart Shuffle hosted service.
+const _kShuffleBaseUrl = 'https://shuffle.subimusic.me';
 
 class ShuffleApiService {
   final Dio _dio;
 
-  /// True when no valid base URL has been configured yet.
+  /// True when no credentials have been configured.
   /// All methods short-circuit with [ShuffleNetworkError] when this is true.
   final bool _unconfigured;
 
-  /// [baseUrl] is the full URL including scheme and port,
-  /// e.g. `http://192.168.1.10:5000`. Constructed from SettingsState.localShuffleUrl.
-  ShuffleApiService({required String baseUrl})
-      : _unconfigured = baseUrl.isEmpty || !(Uri.tryParse(baseUrl)?.hasAuthority ?? false),
+  ShuffleApiService({
+    required String username,
+    required String password,
+  })  : _unconfigured = username.isEmpty || password.isEmpty,
         _dio = Dio(
           BaseOptions(
-            baseUrl: baseUrl.isEmpty ? 'http://localhost' : baseUrl,
+            baseUrl: _kShuffleBaseUrl,
             connectTimeout: const Duration(seconds: 10),
-            receiveTimeout: const Duration(seconds: 15),
+            receiveTimeout: const Duration(seconds: 20),
             headers: {'Accept': 'application/json'},
           ),
         ) {
-    if (kDebugMode && !_unconfigured) {
-      _dio.interceptors.add(LogInterceptor(
-        requestBody: false,
-        responseBody: false,
-        logPrint: (obj) => debugPrint('[ShuffleApi] $obj'),
-      ));
+    if (!_unconfigured) {
+      _dio.interceptors.add(_BasicAuthInterceptor(username, password));
+    }
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        LogInterceptor(
+          requestBody: false,
+          responseBody: false,
+          logPrint: (obj) => debugPrint('[ShuffleApi] $obj'),
+        ),
+      );
     }
   }
 
@@ -52,10 +67,9 @@ class ShuffleApiService {
   // GET /health
   // ---------------------------------------------------------------------------
 
-  /// Returns the server health status. Throws [ShuffleNetworkError] or
-  /// [ShuffleServerError] on failure.
+  /// Returns server health + current weather. No auth required by the server,
+  /// but we still send credentials so the connection is validated.
   Future<HealthResponse> getHealth() async {
-    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>('/health');
       return HealthResponse.fromJson(response.data!);
@@ -63,93 +77,169 @@ class ShuffleApiService {
   }
 
   // ---------------------------------------------------------------------------
-  // GET /next
+  // POST /next
   // ---------------------------------------------------------------------------
 
-  /// Returns a list of recommended songs following [current].
-  /// [count] controls how many recommendations to return (default 5).
-  /// [playlist] and [artist] are optional context hints.
+  /// Fetches the next shuffle queue.
+  ///
+  /// [source] — 'smart' | 'playlist' | 'all_songs'
+  /// [playlistId] — Navidrome playlist ID (triggers playlist mode)
+  /// [count] — number of songs to return
+  /// [depth] — session depth (affects exploration)
+  /// [playlistName] — name of current playlist (sets genre streak)
+  /// [genreStreakType] — genre of current streak
+  /// [genreStreakCount] — consecutive songs in current streak
+  /// [playedTitles] — titles played this session (excluded from results)
+  /// [recentListenRatios] — last N listen ratios (0.0–1.0)
+  /// [lastEndReason] — why the last song ended
   Future<NextResponse> getNext({
-    required String current,
-    String? playlist,
-    String? artist,
-    int count = 5,
+    String source = 'smart',
+    String? playlistId,
+    int count = 15,
+    int depth = 0,
+    String? playlistName,
+    String genreStreakType = '',
+    int genreStreakCount = 0,
+    List<String> playedTitles = const [],
+    List<double> recentListenRatios = const [],
+    String lastEndReason = '',
   }) async {
-    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
+    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
-      final queryParams = <String, dynamic>{
-        'current': current,
-        'count': count.toString(),
-        if (playlist != null && playlist.isNotEmpty) 'playlist': playlist,
-        if (artist != null && artist.isNotEmpty) 'artist': artist,
+      final body = <String, dynamic>{
+        'source': source,
+        'count': count,
+        'depth': depth,
+        if (playlistId != null && playlistId.isNotEmpty)
+          'playlist_id': playlistId,
+        if (playlistName != null && playlistName.isNotEmpty)
+          'playlist_name': playlistName,
+        if (genreStreakType.isNotEmpty) 'genre_streak_type': genreStreakType,
+        if (genreStreakCount > 0) 'genre_streak_count': genreStreakCount,
+        if (playedTitles.isNotEmpty)
+          'played_titles': playedTitles.join(','),
+        if (recentListenRatios.isNotEmpty)
+          'recent_listen_ratios': recentListenRatios,
+        if (lastEndReason.isNotEmpty) 'last_end_reason': lastEndReason,
       };
 
-      final response = await _dio.get<dynamic>('/next',
-          queryParameters: queryParams);
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/next',
+        data: body,
+        options: Options(contentType: 'application/json'),
+      );
 
-      final data = response.data;
-      if (data is List) {
-        return NextResponse.fromList(data);
-      } else if (data is Map<String, dynamic>) {
-        return NextResponse.fromJson(data);
-      }
-      return NextResponse(songs: [], source: 'unknown', sessionId: '');
+      return NextResponse.fromJson(response.data!);
     });
   }
 
   // ---------------------------------------------------------------------------
-  // GET /profile
+  // POST /feedback
   // ---------------------------------------------------------------------------
 
-  /// Returns the behavioural + acoustic profile for [song].
-  Future<ProfileResponse> getProfile({required String song}) async {
-    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
+  /// Records a played track so the model learns the user's taste.
+  Future<void> postFeedback(FeedbackRequest request) async {
+    if (_unconfigured) return; // silently skip if not configured
+    await _wrap(() async {
+      await _dio.post<void>(
+        '/feedback',
+        data: request.toJson(),
+        options: Options(contentType: 'application/json'),
+      );
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /model/status
+  // ---------------------------------------------------------------------------
+
+  /// Returns the current state of the user's personal model.
+  Future<ModelStatusResponse> getModelStatus() async {
+    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>('/model/status');
+      return ModelStatusResponse.fromJson(response.data!);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /listening-log/stats
+  // ---------------------------------------------------------------------------
+
+  /// Returns aggregate listening statistics for the given [period].
+  /// [period] must be one of: daily | weekly | monthly | all
+  Future<ListeningStatsResponse> getListeningStats({
+    String period = 'weekly',
+  }) async {
+    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>(
-        '/profile',
-        queryParameters: {'song': song},
+        '/listening-log/stats',
+        queryParameters: {'period': period},
       );
-      return ProfileResponse.fromJson(response.data!);
+      return ListeningStatsResponse.fromJson(response.data!);
     });
   }
 
   // ---------------------------------------------------------------------------
-  // GET /stats
+  // GET /listening-log/history
   // ---------------------------------------------------------------------------
 
-  /// Returns aggregate server-side playback statistics.
-  Future<ShuffleStatsResponse> getStats() async {
-    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
+  /// Returns paginated play history with optional filters.
+  Future<ListeningHistoryResponse> getListeningHistory({
+    int limit = 50,
+    int offset = 0,
+    String? artist,
+    String? title,
+    String period = 'all',
+  }) async {
+    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
-      final response = await _dio.get<Map<String, dynamic>>('/stats');
-      return ShuffleStatsResponse.fromJson(response.data!);
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/listening-log/history',
+        queryParameters: {
+          'limit': limit,
+          'offset': offset,
+          'period': period,
+          if (artist != null && artist.isNotEmpty) 'artist': artist,
+          if (title != null && title.isNotEmpty) 'title': title,
+        },
+      );
+      return ListeningHistoryResponse.fromJson(response.data!);
     });
   }
 
   // ---------------------------------------------------------------------------
-  // POST /session/reset
+  // GET /listening-log/composers
   // ---------------------------------------------------------------------------
 
-  /// Resets the server-side session so previously excluded songs become
-  /// eligible again for recommendation.
-  Future<void> resetSession() async {
-    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
-    await _wrap(() async {
-      await _dio.post<void>('/session/reset');
-    });
-  }
-
-  // ---------------------------------------------------------------------------
-  // GET /session/status
-  // ---------------------------------------------------------------------------
-
-  /// Returns the current session state (session_id, song_count, started_at).
-  Future<SessionStatusResponse> getSessionStatus() async {
-    if (_unconfigured) throw const ShuffleNetworkError('Server not configured');
+  /// Returns the composer loyalty table.
+  Future<List<Map<String, dynamic>>> getComposers() async {
+    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
     return _wrap(() async {
-      final response =
-          await _dio.get<Map<String, dynamic>>('/session/status');
-      return SessionStatusResponse.fromJson(response.data!);
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/listening-log/composers',
+      );
+      final data = response.data!;
+      return (data['composers'] as List<dynamic>? ?? [])
+          .whereType<Map<String, dynamic>>()
+          .toList();
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /listening-log/song
+  // ---------------------------------------------------------------------------
+
+  /// Returns the full history for a single song across all context buckets.
+  Future<Map<String, dynamic>> getSongDeepDive({required String title}) async {
+    if (_unconfigured) throw const ShuffleNetworkError('No credentials configured');
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/listening-log/song',
+        queryParameters: {'title': title},
+      );
+      return response.data!;
     });
   }
 
@@ -169,14 +259,33 @@ class ShuffleApiService {
         case DioExceptionType.connectionError:
           throw const ShuffleNetworkError();
         case DioExceptionType.badResponse:
-          throw ShuffleServerError(e.response?.statusCode ?? 0);
+          final code = e.response?.statusCode ?? 0;
+          if (code == 401) throw const ShuffleAuthError();
+          throw ShuffleServerError(code);
         default:
           throw ShuffleNetworkError(e.message ?? 'Unknown network error');
       }
     } catch (e) {
       debugPrint('[ShuffleApi] ❌ unexpected: $e');
+      if (e is ShuffleException) rethrow;
       throw ShuffleNetworkError(e.toString());
     }
   }
 }
 
+// ---------------------------------------------------------------------------
+// Basic Auth interceptor
+// ---------------------------------------------------------------------------
+
+class _BasicAuthInterceptor extends Interceptor {
+  final String _credentials;
+
+  _BasicAuthInterceptor(String username, String password)
+      : _credentials = base64Encode(utf8.encode('$username:$password'));
+
+  @override
+  void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
+    options.headers['Authorization'] = 'Basic $_credentials';
+    super.onRequest(options, handler);
+  }
+}

@@ -135,7 +135,7 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                 cursorColor: ThemeTokens.of(context).accent,
                 decoration: InputDecoration(
                   hintText: 'Search for songs...',
-                  hintStyle: TextStyle(color: ThemeTokens.of(context).textMuted.withOpacity(0.5), fontSize: 15),
+                  hintStyle: TextStyle(color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.5), fontSize: 15),
                   prefixIcon: Icon(Icons.search_rounded, color: ThemeTokens.of(context).textMuted, size: 22),
                   border: InputBorder.none,
                   contentPadding: const EdgeInsets.symmetric(vertical: 12),

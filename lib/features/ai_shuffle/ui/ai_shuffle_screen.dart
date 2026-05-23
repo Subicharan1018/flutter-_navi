@@ -1,16 +1,41 @@
+// =============================================================================
+// AiShuffleScreen — Smart Shuffle UI (v3.0.0)
+// =============================================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/song.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/library_provider.dart';
+import '../../../screens/now_playing_screen.dart';
 import '../data/models/recommended_song.dart';
 import '../logic/shuffle_providers.dart';
 import 'widgets/server_status_bar.dart';
 import 'widgets/recommendation_card.dart';
-import 'widgets/song_profile_sheet.dart';
-import 'widgets/session_controls_sheet.dart';
+import 'widgets/model_status_sheet.dart';
 import '../../../widgets/desktop_dialogs.dart';
+
+// Source mode options for the Smart Shuffle
+enum _ShuffleSource { smart, playlist, allSongs }
+
+extension _SourceExt on _ShuffleSource {
+  String get label {
+    switch (this) {
+      case _ShuffleSource.smart:    return 'Smart';
+      case _ShuffleSource.playlist: return 'Playlist';
+      case _ShuffleSource.allSongs: return 'All Songs';
+    }
+  }
+
+  String get apiValue {
+    switch (this) {
+      case _ShuffleSource.smart:    return 'smart';
+      case _ShuffleSource.playlist: return 'playlist';
+      case _ShuffleSource.allSongs: return 'all_songs';
+    }
+  }
+}
 
 class AiShuffleScreen extends ConsumerStatefulWidget {
   const AiShuffleScreen({super.key});
@@ -20,47 +45,30 @@ class AiShuffleScreen extends ConsumerStatefulWidget {
 }
 
 class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
-  final TextEditingController _songController = TextEditingController();
-  String _currentSong = '';
+  _ShuffleSource _selectedSource = _ShuffleSource.smart;
 
   /// True while _applyAiShuffle() is resolving songs and setting the queue.
-  /// Disables both action buttons to prevent double-tap races.
   bool _isApplyingQueue = false;
 
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final currentSong = ref.read(playerProvider).currentSong;
-      if (currentSong != null) {
-        setState(() {
-          _currentSong = currentSong.title;
-          _songController.text = _currentSong;
-        });
-        _fetchRecommendations();
-      }
+      _fetchRecommendations();
     });
   }
 
-  @override
-  void dispose() {
-    _songController.dispose();
-    super.dispose();
-  }
-
   void _fetchRecommendations() {
-    if (_currentSong.isEmpty) return;
-    ref.read(shuffleQueueProvider.notifier).fetchNext(current: _currentSong);
+    ref.read(shuffleQueueProvider.notifier).fetchNext(
+          source: _selectedSource.apiValue,
+        );
   }
 
   Future<void> _enqueueSong(RecommendedSong song) async {
     try {
       final allSongs = await ref.read(allSongsProvider.future);
-      // Try to find the exact song in the local library.
-      // A more robust implementation would use fuzzy matching or Subsonic search API.
       final localSong = allSongs.cast<dynamic>().firstWhere(
-            (s) => s.title.toLowerCase() == song.title.toLowerCase() &&
-                   s.artist.toLowerCase() == song.artist.toLowerCase(),
+            (s) => s.title.toLowerCase() == song.title.toLowerCase(),
             orElse: () => null,
           );
 
@@ -73,7 +81,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Song not found in library: ${song.title}')),
+          SnackBar(content: Text('Not found in library: ${song.title}')),
         );
       }
     } catch (e) {
@@ -84,33 +92,28 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     }
   }
 
-  /// Resolves all currently displayed recommendations against the local library,
-  /// replaces the playback queue with the resolved songs, and pops this screen.
-  ///
-  /// Errors are shown as snackbars — the screen stays open so the user can
-  /// retry or adjust the query.
+  /// Resolves all recommendations against the local library, replaces the
+  /// playback queue with the resolved songs, then navigates to Now Playing.
   Future<void> _applyAiShuffle() async {
-    if (_isApplyingQueue) return; // guard against double-tap
+    if (_isApplyingQueue) return;
     setState(() => _isApplyingQueue = true);
 
     try {
-      final recommendations = ref.read(shuffleQueueProvider).valueOrNull;
+      final queueState    = ref.read(shuffleQueueProvider);
+      final recommendations =
+          queueState.allSongs.whereType<RecommendedSong>().toList();
 
-      if (recommendations == null || recommendations.isEmpty) {
-        _showSnackBar('No recommendations to shuffle — refresh first');
+      if (recommendations.isEmpty) {
+        _showSnackBar('No recommendations — tap refresh first');
         return;
       }
 
-      // Resolve recommendations against the full local library.
-      // Same matching strategy as _enqueueSong for consistency.
       final allSongs = await ref.read(allSongsProvider.future);
       final resolved = recommendations
           .map((rec) {
             try {
               return allSongs.firstWhere(
-                (s) =>
-                    s.title.toLowerCase() == rec.title.toLowerCase() &&
-                    s.artist.toLowerCase() == rec.artist.toLowerCase(),
+                (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
               );
             } catch (_) {
               return null;
@@ -124,15 +127,15 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
         return;
       }
 
-      await ref
-          .read(playerProvider.notifier)
-          .setQueue(resolved, 0);
+      await ref.read(playerProvider.notifier).setQueue(resolved, 0);
 
-      if (mounted) {
-        Navigator.of(context).pop();
-      }
+      if (!mounted) return;
+      // Navigate to Now Playing screen instead of popping to a black screen
+      Navigator.of(context).push(
+        MaterialPageRoute(builder: (_) => const NowPlayingScreen()),
+      );
     } catch (e, st) {
-      debugPrint('[AiShuffle] _applyAiShuffle error: $e\n$st');
+      debugPrint('[SmartShuffle] _applyAiShuffle error: $e\n$st');
       _showSnackBar('Failed to apply shuffle — please try again');
     } finally {
       if (mounted) setState(() => _isApplyingQueue = false);
@@ -141,84 +144,124 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text(message)),
-    );
+    ScaffoldMessenger.of(context)
+        .showSnackBar(SnackBar(content: Text(message)));
   }
 
-  void _showProfileSheet(String songTitle) {
+  void _showModelStatus() {
     showPlatformSheet(
       context: context,
-      title: 'Song Profile',
-      builder: (_) => SongProfileSheet(songTitle: songTitle),
+      title: 'Model Status',
+      builder: (_) => const ModelStatusSheet(),
     );
   }
 
   @override
   Widget build(BuildContext context) {
-    ref.listen(
-      playerProvider.select((s) => s.currentSong),
-      (previous, next) {
-        if (next != null && next.title != _currentSong) {
-          setState(() {
-            _currentSong = next.title;
-            _songController.text = _currentSong;
-          });
-          _fetchRecommendations();
-        }
-      },
-    );
-
-    final queueAsync = ref.watch(shuffleQueueProvider);
-    final theme = Theme.of(context);
-    final colorScheme = theme.colorScheme;
+    final theme      = Theme.of(context);
+    final cs         = theme.colorScheme;
+    final queueState = ref.watch(shuffleQueueProvider);
+    final songs      = queueState.allSongs.whereType<RecommendedSong>().toList();
 
     return Scaffold(
-      // FAB removed — replaced by sticky footer row below.
       appBar: AppBar(
-        title: const Text('AI Shuffle'),
+        title: const Text('Smart Shuffle'),
         actions: [
-          PopupMenuButton<String>(
-            onSelected: (value) {
-              if (value == 'session') {
-                showPlatformSheet(
-                  context: context,
-                  title: 'Session Controls',
-                  builder: (_) => const SessionControlsSheet(),
-                );
-              }
-            },
-            itemBuilder: (_) => [
-              const PopupMenuItem(
-                  value: 'session', child: Text('Session Controls')),
-            ],
+          // Only keep the Model Status action — no "Reconnect" needed
+          IconButton(
+            icon: const Icon(Icons.info_outline_rounded),
+            tooltip: 'Model Status',
+            onPressed: _showModelStatus,
           ),
         ],
       ),
       body: Column(
         children: [
+          // ── Server status bar ──────────────────────────────────────────────
           const ServerStatusBar(),
-          Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: TextField(
-              controller: _songController,
-              decoration: const InputDecoration(
-                labelText: 'Current Song',
-                hintText: 'Type song title...',
-                border: OutlineInputBorder(),
-                prefixIcon: Icon(Icons.search),
+
+          // ── Context info strip ─────────────────────────────────────────────
+          if (queueState.lastContext != null ||
+              queueState.lastWeather != null) ...[
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              color: cs.surfaceContainerHigh,
+              child: Row(
+                children: [
+                  Icon(Icons.schedule_rounded,
+                      size: 13, color: cs.onSurfaceVariant),
+                  const SizedBox(width: 4),
+                  Text(
+                    [
+                      if (queueState.lastContext != null)
+                        queueState.lastContext!,
+                      if (queueState.lastWeather != null)
+                        queueState.lastWeather!,
+                    ].join(' · '),
+                    style: theme.textTheme.labelSmall
+                        ?.copyWith(color: cs.onSurfaceVariant),
+                  ),
+                ],
               ),
-              onChanged: (v) => setState(() => _currentSong = v.trim()),
-              textInputAction: TextInputAction.search,
-              onSubmitted: (_) => _fetchRecommendations(),
+            ),
+          ],
+
+          // ── Mode selector ──────────────────────────────────────────────────
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
+            child: Row(
+              children: _ShuffleSource.values.map((src) {
+                final selected = _selectedSource == src;
+                return Padding(
+                  padding: const EdgeInsets.only(right: 8),
+                  child: FilterChip(
+                    label: Text(src.label),
+                    selected: selected,
+                    onSelected: (_) {
+                      setState(() => _selectedSource = src);
+                      ref.read(shuffleQueueProvider.notifier).clearQueue();
+                      _fetchRecommendations();
+                    },
+                    // FIX: Use surface-based selected color — not primary fill
+                    selectedColor: cs.secondaryContainer,
+                    checkmarkColor: cs.onSecondaryContainer,
+                    backgroundColor: cs.surfaceContainerLow,
+                    side: BorderSide(
+                      color: selected
+                          ? cs.secondary
+                          : cs.outline.withValues(alpha: 0.4),
+                      width: selected ? 1.5 : 1,
+                    ),
+                    labelStyle: TextStyle(
+                      color: selected
+                          ? cs.onSecondaryContainer
+                          : cs.onSurfaceVariant,
+                      fontWeight:
+                          selected ? FontWeight.w600 : FontWeight.normal,
+                    ),
+                    showCheckmark: false, // icon-free, just color change
+                  ),
+                );
+              }).toList(),
             ),
           ),
+
+          const SizedBox(height: 8),
+
+          // ── Recommendations list ───────────────────────────────────────────
           Expanded(
-            child: queueAsync.when(
-              loading: () => _buildSkeletonList(colorScheme),
-              error: (e, _) => _buildErrorState(e.toString(), colorScheme),
-              data: (songs) {
-                if (songs.isEmpty) return _buildEmptyState(theme, colorScheme);
+            child: Builder(
+              builder: (context) {
+                if (queueState.isLoading && songs.isEmpty) {
+                  return _buildSkeletonList(cs);
+                }
+                if (queueState.error != null && songs.isEmpty) {
+                  return _buildErrorState(queueState.error!, cs);
+                }
+                if (songs.isEmpty) {
+                  return _buildEmptyState(theme, cs);
+                }
                 return ListView.builder(
                   itemCount: songs.length,
                   itemBuilder: (context, index) {
@@ -226,7 +269,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
                     return RecommendationCard(
                       song: song,
                       onTap: () => _enqueueSong(song),
-                      onLongPress: () => _showProfileSheet(song.title),
+                      onLongPress: () => _enqueueSong(song),
                     );
                   },
                 );
@@ -234,21 +277,26 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
             ),
           ),
 
-          // ── Sticky footer: Refresh + Shuffle Now ─────────────────────────
+          // ── Sticky footer ──────────────────────────────────────────────────
           SafeArea(
             top: false,
             child: Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Row(
                 children: [
-                  // Refresh recommendations (replaces old FAB)
                   IconButton.outlined(
-                    onPressed: _isApplyingQueue ? null : _fetchRecommendations,
+                    onPressed: _isApplyingQueue
+                        ? null
+                        : () {
+                            ref
+                                .read(shuffleQueueProvider.notifier)
+                                .clearQueue();
+                            _fetchRecommendations();
+                          },
                     icon: const Icon(Icons.refresh),
                     tooltip: 'Refresh recommendations',
                   ),
                   const SizedBox(width: 12),
-                  // Shuffle Now — replace queue with all resolved recommendations
                   Expanded(
                     child: FilledButton.icon(
                       onPressed: _isApplyingQueue ? null : _applyAiShuffle,
@@ -276,61 +324,59 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     );
   }
 
-  Widget _buildSkeletonList(ColorScheme colorScheme) {
+  Widget _buildSkeletonList(ColorScheme cs) {
     return ListView.builder(
       itemCount: 5,
-      itemBuilder: (context, index) {
-        return Card(
-          margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-          child: ListTile(
-            leading: const Icon(Icons.music_note, color: Colors.transparent),
-            title: Container(
-              height: 14,
-              width: double.infinity,
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            subtitle: Container(
-              height: 10,
-              width: 150,
-              margin: const EdgeInsets.only(top: 8),
-              decoration: BoxDecoration(
-                color: colorScheme.surfaceContainerHighest,
-                borderRadius: BorderRadius.circular(4),
-              ),
+      itemBuilder: (context, index) => Card(
+        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
+        child: ListTile(
+          leading: const Icon(Icons.music_note, color: Colors.transparent),
+          title: Container(
+            height: 14,
+            width: double.infinity,
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(4),
             ),
           ),
-        );
-      },
+          subtitle: Container(
+            height: 10,
+            width: 150,
+            margin: const EdgeInsets.only(top: 8),
+            decoration: BoxDecoration(
+              color: cs.surfaceContainerHighest,
+              borderRadius: BorderRadius.circular(4),
+            ),
+          ),
+        ),
+      ),
     );
   }
 
-  Widget _buildEmptyState(ThemeData theme, ColorScheme colorScheme) {
+  Widget _buildEmptyState(ThemeData theme, ColorScheme cs) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(Icons.queue_music, size: 64, color: colorScheme.outlineVariant),
+          Icon(Icons.auto_awesome_rounded, size: 64, color: cs.outlineVariant),
           const SizedBox(height: 16),
-          Text('Pick a song to start', style: theme.textTheme.titleMedium),
+          Text('No recommendations yet', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text('Type a song title above and tap search',
+          Text('Tap refresh to fetch Smart Shuffle results',
               style: theme.textTheme.bodySmall),
         ],
       ),
     );
   }
 
-  Widget _buildErrorState(String message, ColorScheme colorScheme) {
+  Widget _buildErrorState(String message, ColorScheme cs) {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(32.0),
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_off, size: 48, color: colorScheme.error),
+            Icon(Icons.cloud_off, size: 48, color: cs.error),
             const SizedBox(height: 12),
             Text(message, textAlign: TextAlign.center),
             const SizedBox(height: 12),

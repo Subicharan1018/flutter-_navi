@@ -55,7 +55,7 @@ class SongListSkeleton extends StatelessWidget {
           .shimmer(
             duration: 1200.ms,
             delay: (i * 60).ms,
-            color: ThemeTokens.of(context).textPrimary.withOpacity(0.06),
+            color: ThemeTokens.of(context).textPrimary.withValues(alpha: 0.06),
           ),
     );
   }
@@ -97,7 +97,7 @@ class SkeletonTile extends StatelessWidget {
                   height: 11,
                   width: 120,
                   decoration: BoxDecoration(
-                    color: tokens.bgSurface.withOpacity(0.6),
+                    color: tokens.bgSurface.withValues(alpha: 0.6),
                     borderRadius: BorderRadius.circular(6),
                   ),
                 ),
@@ -221,7 +221,7 @@ class ExpandedHeader extends ConsumerWidget {
               imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
               child: ColorFiltered(
                 colorFilter: ColorFilter.mode(
-                    Colors.black.withOpacity(0.55), BlendMode.darken),
+                    Colors.black.withValues(alpha: 0.55), BlendMode.darken),
                 child: CachedNetworkImage(
                   imageUrl: coverImageUrl,
                   cacheKey: '${coverCacheKey}_bg',
@@ -241,9 +241,9 @@ class ExpandedHeader extends ConsumerWidget {
                 end: Alignment.bottomCenter,
                 stops: const [0.0, 0.4, 0.78, 1.0],
                 colors: [
-                  vibrantColor.withOpacity(0.55),
-                  vibrantColor.withOpacity(0.08),
-                  tokens.bgBase.withOpacity(0.8),
+                  vibrantColor.withValues(alpha: 0.55),
+                  vibrantColor.withValues(alpha: 0.08),
+                  tokens.bgBase.withValues(alpha: 0.8),
                   tokens.bgBase,
                 ],
               ),
@@ -266,14 +266,14 @@ class ExpandedHeader extends ConsumerWidget {
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
                     BoxShadow(
-                      color: Colors.black.withOpacity(0.65),
+                      color: Colors.black.withValues(alpha: 0.65),
                       blurRadius: 36,
                       spreadRadius: 2,
                       offset: const Offset(0, 12),
                     ),
                     if (vibrantColor != tokens.bgSurface)
                       BoxShadow(
-                        color: vibrantColor.withOpacity(0.28),
+                        color: vibrantColor.withValues(alpha: 0.28),
                         blurRadius: 48,
                         offset: const Offset(0, 8),
                       ),
@@ -406,17 +406,17 @@ class HeaderButton extends StatelessWidget {
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: filled ? null : ThemeTokens.of(context).textPrimary.withOpacity(0.10),
+          color: filled ? null : ThemeTokens.of(context).textPrimary.withValues(alpha: 0.10),
           border: filled
               ? null
               : Border.all(
-                  color: tokens.textPrimary.withOpacity(0.55),
+                  color: tokens.textPrimary.withValues(alpha: 0.55),
                   width: 1.5,
                 ),
           boxShadow: filled
               ? [
                   BoxShadow(
-                    color: const Color(0xFFF54EA2).withOpacity(0.40),
+                    color: const Color(0xFFF54EA2).withValues(alpha: 0.40),
                     blurRadius: 18,
                     offset: const Offset(0, 6),
                   ),
@@ -444,7 +444,7 @@ class DismissBackground extends StatelessWidget {
         gradient: LinearGradient(
           colors: [
             Colors.transparent,
-            Colors.redAccent.withOpacity(0.85),
+            Colors.redAccent.withValues(alpha: 0.85),
           ],
         ),
       ),
@@ -476,7 +476,7 @@ class PlaylistSearchField extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'Search in playlist',
               hintStyle: TextStyle(
-                  color: tokens.textMuted.withOpacity(0.6), fontSize: 15),
+                  color: tokens.textMuted.withValues(alpha: 0.6), fontSize: 15),
               prefixIcon: Icon(Icons.search_rounded,
                   color: tokens.textMuted, size: 18),
               suffixIcon: value.text.isNotEmpty
@@ -487,21 +487,21 @@ class PlaylistSearchField extends StatelessWidget {
                     )
                   : null,
               filled: true,
-              fillColor: tokens.bgSurface.withOpacity(0.55),
+              fillColor: tokens.bgSurface.withValues(alpha: 0.55),
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.outline.withOpacity(0.25), width: 0.5),
+                    color: tokens.outline.withValues(alpha: 0.25), width: 0.5),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.outline.withOpacity(0.25), width: 0.5),
+                    color: tokens.outline.withValues(alpha: 0.25), width: 0.5),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.accent.withOpacity(0.55), width: 1),
+                    color: tokens.accent.withValues(alpha: 0.55), width: 1),
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
@@ -532,9 +532,9 @@ class AddSongsRow extends StatelessWidget {
             height: 48,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: Colors.green.withOpacity(0.12),
+              color: Colors.green.withValues(alpha: 0.12),
               border: Border.all(
-                  color: Colors.green.withOpacity(0.45), width: 1.5),
+                  color: Colors.green.withValues(alpha: 0.45), width: 1.5),
             ),
             child: const Icon(Icons.add_rounded, color: Colors.green, size: 24),
           ),
@@ -589,12 +589,12 @@ class DownloadAllButton extends StatelessWidget {
             decoration: BoxDecoration(
               shape: BoxShape.circle,
               color: allDownloaded
-                  ? tokens.accent.withOpacity(0.15)
-                  : tokens.textPrimary.withOpacity(0.10),
+                  ? tokens.accent.withValues(alpha: 0.15)
+                  : tokens.textPrimary.withValues(alpha: 0.10),
               border: Border.all(
                 color: allDownloaded
-                    ? tokens.accent.withOpacity(0.55)
-                    : tokens.textPrimary.withOpacity(0.55),
+                    ? tokens.accent.withValues(alpha: 0.55)
+                    : tokens.textPrimary.withValues(alpha: 0.55),
                 width: 1.5,
               ),
             ),
@@ -669,7 +669,7 @@ class CircleIconButton extends StatelessWidget {
         height: 36,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: tokens.bgSurface.withOpacity(0.55),
+          color: tokens.bgSurface.withValues(alpha: 0.55),
         ),
         child: Icon(icon, color: tokens.textPrimary, size: size),
       ),

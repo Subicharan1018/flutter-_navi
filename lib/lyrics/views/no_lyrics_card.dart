@@ -45,7 +45,7 @@ class _NoLyricsCardState extends State<NoLyricsCard>
               child: Icon(
                 Icons.music_note_rounded,
                 size: 72,
-                color: Colors.white.withOpacity(0.25),
+                color: Colors.white.withValues(alpha: 0.25),
               ),
             ),
             const SizedBox(height: 24),
@@ -54,7 +54,7 @@ class _NoLyricsCardState extends State<NoLyricsCard>
               style: TextStyle(
                 fontSize: 20,
                 fontWeight: FontWeight.w600,
-                color: Colors.white.withOpacity(0.55),
+                color: Colors.white.withValues(alpha: 0.55),
                 letterSpacing: -0.2,
               ),
               textAlign: TextAlign.center,
@@ -65,7 +65,7 @@ class _NoLyricsCardState extends State<NoLyricsCard>
               style: TextStyle(
                 fontSize: 14,
                 fontWeight: FontWeight.w400,
-                color: Colors.white.withOpacity(0.30),
+                color: Colors.white.withValues(alpha: 0.30),
                 height: 1.5,
               ),
               textAlign: TextAlign.center,

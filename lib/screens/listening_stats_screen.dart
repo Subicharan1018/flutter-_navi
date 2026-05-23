@@ -424,14 +424,14 @@ class _RankedRow extends StatelessWidget {
             width: 28,
             height: 28,
             decoration: BoxDecoration(
-              color: tokens.accent.withOpacity(badgeOpacity * 0.18),
+              color: tokens.accent.withValues(alpha: badgeOpacity * 0.18),
               borderRadius: BorderRadius.circular(8),
             ),
             child: Center(
               child: Text(
                 '$rank',
                 style: TextStyle(
-                  color: tokens.accent.withOpacity(badgeOpacity),
+                  color: tokens.accent.withValues(alpha: badgeOpacity),
                   fontSize: 13,
                   fontWeight: FontWeight.w700,
                 ),
@@ -601,7 +601,7 @@ class _SkeletonLoaderState extends State<_SkeletonLoader>
     return AnimatedBuilder(
       animation: _anim,
       builder: (_, __) {
-        final shimmer = t.bgSurface.withOpacity(_anim.value);
+        final shimmer = t.bgSurface.withValues(alpha: _anim.value);
         return ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
           physics: const NeverScrollableScrollPhysics(),
@@ -704,10 +704,10 @@ class _ErrorState extends StatelessWidget {
                 padding: const EdgeInsets.symmetric(
                     horizontal: 24, vertical: 12),
                 decoration: BoxDecoration(
-                  color: tokens.accent.withOpacity(0.15),
+                  color: tokens.accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                      color: tokens.accent.withOpacity(0.4)),
+                      color: tokens.accent.withValues(alpha: 0.4)),
                 ),
                 child: Text(
                   'Try Again',

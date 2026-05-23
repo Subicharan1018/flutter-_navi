@@ -10,6 +10,7 @@ import 'core/hive_boxes.dart';
 import 'core/theme.dart';
 import 'utils/platform_utils.dart';
 import 'widgets/app_scaffold.dart';
+import 'screens/login_screen.dart';
 import 'fluid_background.dart';
 import 'dart:async';
 import 'providers/settings_provider.dart';
@@ -17,7 +18,6 @@ import 'offline_service.dart';
 import 'services/navi_audio_handler.dart';
 import 'services/subsonic_service.dart';
 import 'services/replay_gain_service.dart';
-import 'providers/player_provider.dart';
 
 // ---------------------------------------------------------------------------
 // globalAudioHandler — the single NaviAudioHandler instance shared across
@@ -41,8 +41,6 @@ Future<void> main() async {
   }
 
   // ── Desktop window setup ───────────────────────────────────────────────────
-  // window_manager must be initialized before the Flutter window is shown so
-  // that size/title changes take effect on the very first frame.
   if (PlatformUtils.supportsWindowManager) {
     await windowManager.ensureInitialized();
     const options = WindowOptions(
@@ -61,27 +59,12 @@ Future<void> main() async {
 
   final container = ProviderContainer();
 
-  // ── Audio service / MPRIS initialisation ──────────────────────────────────
-  // Initialisation order matters for MPRIS: AudioService.init() wraps the
-  // handler with a D-Bus proxy BEFORE the handler is returned.  Constructing
-  // NaviAudioHandler outside of the builder would bypass the proxy and leave
-  // media controls silently unresponsive.
-  //
-  // Linux  → AudioService with MPRIS platform interface
-  // Mobile / macOS → AudioService with OS notification controls
-  // Other  → raw NaviAudioHandler (no OS integration)
-
   // ── MPRIS registration (Linux only) ──────────────────────────────────────
-  // AudioServiceMpris.registerWith() sets AudioServicePlatform.instance to
-  // the D-Bus MPRIS implementation BEFORE AudioService.init() wraps it.
-  // This is a pure Dart platform registration — no C++ plugin entry needed.
   if (PlatformUtils.isLinux) {
     AudioServiceMpris.registerWith();
   }
 
   // ── AudioService init ──────────────────────────────────────────────────────
-  // Single init path for all platforms — the platform implementation registered
-  // above determines whether MPRIS / Android notifications / nothing is used.
   try {
     globalAudioHandler = await AudioService.init<NaviAudioHandler>(
       builder: () => NaviAudioHandler(
@@ -89,8 +72,6 @@ Future<void> main() async {
         replayGainService: container.read(replayGainProvider),
       ),
       config: const AudioServiceConfig(
-        // Used as D-Bus service name suffix on Linux (MPRIS), notification
-        // channel ID on Android.
         androidNotificationChannelId:   'com.navivibe.audio',
         androidNotificationChannelName: 'NaviVibe',
         androidNotificationOngoing:     false,
@@ -98,8 +79,6 @@ Future<void> main() async {
       ),
     );
   } catch (e, st) {
-    // D-Bus session unavailable (headless CI / Wayland without XDG_RUNTIME_DIR).
-    // Fall back to a raw handler — audio plays, MPRIS controls are absent.
     debugPrint('⚠️  AudioService.init failed ($e)\n$st');
     globalAudioHandler = NaviAudioHandler(
       container.read(subsonicServiceProvider),
@@ -107,8 +86,7 @@ Future<void> main() async {
     );
   }
 
-  // PERF-15: Pre-load the fluid background shader so NowPlayingScreen
-  // background is ready on first frame (prevents theme-switch flicker).
+  // PERF-15: Pre-load the fluid background shader.
   unawaited(FluidShaderLoader.instance.load());
 
   runApp(UncontrolledProviderScope(
@@ -125,12 +103,15 @@ class MyMusicPlayerApp extends ConsumerWidget {
     final mode   = ref.watch(themeModeProvider);
     final tokens = ThemeVariants.of(mode);
 
+    // Route: show LoginScreen on first launch, AppScaffold if already logged in.
+    final home = isLoggedIn() ? const AppScaffold() : const LoginScreen();
+
     return ThemeTokens(
       tokens: tokens,
       child: MaterialApp(
         title: 'NaviVibe',
         theme: AppTheme.buildTheme(mode),
-        home: const AppScaffold(),
+        home: home,
         debugShowCheckedModeBanner: false,
       ),
     );

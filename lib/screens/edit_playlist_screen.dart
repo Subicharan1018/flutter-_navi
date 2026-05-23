@@ -134,7 +134,7 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
                   borderRadius: BorderRadius.circular(16),
                   border: Border.all(color: ThemeTokens.of(context).outline),
                   boxShadow: [
-                    BoxShadow(color: Colors.black.withOpacity(0.4), blurRadius: 32),
+                    BoxShadow(color: Colors.black.withValues(alpha: 0.4), blurRadius: 32),
                   ],
                 ),
                 child: ClipRRect(

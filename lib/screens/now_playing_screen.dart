@@ -274,7 +274,7 @@ class _AudioQualityStrip extends ConsumerWidget {
               padding: const EdgeInsets.symmetric(horizontal: 8),
               child: Icon(
                 Icons.arrow_forward_rounded,
-                color: ThemeTokens.of(context).textMuted.withOpacity(0.5),
+                color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.5),
                 size: 12,
               ),
             ),
@@ -415,13 +415,13 @@ class _VolumeSliderState extends State<_VolumeSlider> {
                   activeTrackColor: ThemeTokens.of(context).textPrimary,
                   inactiveTrackColor: ThemeTokens.of(
                     context,
-                  ).textPrimary.withOpacity(0.20),
+                  ).textPrimary.withValues(alpha: 0.20),
                   thumbColor: Colors.transparent,
                   thumbShape: _AppleMusicThumb(
                     color: ThemeTokens.of(context).textPrimary,
                     shadowColor: ThemeTokens.of(
                       context,
-                    ).bgOverlay.withOpacity(0.35),
+                    ).bgOverlay.withValues(alpha: 0.35),
                   ),
                   overlayColor: Colors.transparent,
                   overlayShape: const RoundSliderOverlayShape(overlayRadius: 0),
@@ -825,7 +825,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         decoration: BoxDecoration(
                           color: ThemeTokens.of(
                             context,
-                          ).textPrimary.withOpacity(0.28),
+                          ).textPrimary.withValues(alpha: 0.28),
                           borderRadius: BorderRadius.circular(2),
                         ),
                       ),
@@ -848,7 +848,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                               Icons.more_horiz_rounded,
                               color: ThemeTokens.of(
                                 context,
-                              ).textPrimary.withOpacity(0.6),
+                              ).textPrimary.withValues(alpha: 0.6),
                               size: 28,
                             ),
                             onPressed: () => showPlatformSheet(
@@ -880,14 +880,14 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                     BoxShadow(
                                       color: ThemeTokens.of(context)
                                           .bgBase
-                                          .withOpacity(0.70),
+                                          .withValues(alpha: 0.70),
                                       blurRadius: 44,
                                       spreadRadius: 4,
                                       offset: const Offset(0, 18),
                                     ),
                                     if (_blobColors.length > 1)
                                       BoxShadow(
-                                        color: _blobColors[1].withOpacity(0.35),
+                                        color: _blobColors[1].withValues(alpha: 0.35),
                                         blurRadius: 60,
                                         offset: const Offset(0, 10),
                                       ),
@@ -1082,7 +1082,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                     BoxShadow(
                                       color: ThemeTokens.of(
                                         context,
-                                      ).textPrimary.withOpacity(0.22),
+                                      ).textPrimary.withValues(alpha: 0.22),
                                       blurRadius: 28,
                                       spreadRadius: 2,
                                     ),
@@ -1314,7 +1314,7 @@ class _PositionStreamState extends State<_PositionStream> {
       progress: _lastKnown,
       total: widget.duration,
       onSeek: widget.onSeek,
-      baseBarColor: ThemeTokens.of(context).textPrimary.withOpacity(0.18),
+      baseBarColor: ThemeTokens.of(context).textPrimary.withValues(alpha: 0.18),
       progressBarColor: ThemeTokens.of(context).textPrimary,
       thumbColor: ThemeTokens.of(context).textPrimary,
       thumbRadius: 6,
@@ -1422,7 +1422,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                 decoration: BoxDecoration(
                   color: ThemeTokens.of(
                     context,
-                  ).textPrimary.withOpacity(0.07),
+                  ).textPrimary.withValues(alpha: 0.07),
                   borderRadius: BorderRadius.circular(11),
                 ),
                 child: TabBar(
@@ -1430,7 +1430,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                   indicator: BoxDecoration(
                     color: ThemeTokens.of(
                       context,
-                    ).textPrimary.withOpacity(0.16),
+                    ).textPrimary.withValues(alpha: 0.16),
                     borderRadius: BorderRadius.circular(9),
                   ),
                   indicatorSize: TabBarIndicatorSize.tab,
@@ -1604,7 +1604,7 @@ class _NowPlayingStrip extends StatelessWidget {
     final url = service.getCoverArtUrl(song.coverArt);
     final key = 'cover_${song.coverArt ?? song.id}';
     return Container(
-      color: ThemeTokens.of(context).textPrimary.withOpacity(0.05),
+      color: ThemeTokens.of(context).textPrimary.withValues(alpha: 0.05),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       child: Row(
         children: [
@@ -1753,7 +1753,7 @@ class _QueueTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.transparent, Colors.redAccent.withOpacity(0.80)],
+            colors: [Colors.transparent, Colors.redAccent.withValues(alpha: 0.80)],
           ),
         ),
         child: Icon(
@@ -1862,7 +1862,7 @@ class _HistoryTile extends StatelessWidget {
               width: 16,
               height: 16,
               decoration: BoxDecoration(
-                color: ThemeTokens.of(context).bgOverlay.withOpacity(0.65),
+                color: ThemeTokens.of(context).bgOverlay.withValues(alpha: 0.65),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
                   bottomRight: Radius.circular(5),
@@ -1884,7 +1884,7 @@ class _HistoryTile extends StatelessWidget {
         style: TextStyle(
           color: isNewest
               ? ThemeTokens.of(context).textPrimary
-              : ThemeTokens.of(context).textPrimary.withOpacity(0.72),
+              : ThemeTokens.of(context).textPrimary.withValues(alpha: 0.72),
           fontSize: 14,
           fontWeight: isNewest ? FontWeight.w600 : FontWeight.w400,
         ),
@@ -1896,7 +1896,7 @@ class _HistoryTile extends StatelessWidget {
         style: TextStyle(
           color: isNewest
               ? ThemeTokens.of(context).textSecondary
-              : ThemeTokens.of(context).textSecondary.withOpacity(0.7),
+              : ThemeTokens.of(context).textSecondary.withValues(alpha: 0.7),
           fontSize: 12,
         ),
       ),
@@ -1906,7 +1906,7 @@ class _HistoryTile extends StatelessWidget {
         children: [
           Icon(
             Icons.history_rounded,
-            color: ThemeTokens.of(context).textMuted.withOpacity(0.5),
+            color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.5),
             size: 15,
           ),
           if (isNewest)
@@ -1939,7 +1939,7 @@ class _EmptyTab extends StatelessWidget {
         children: [
           Icon(
             icon,
-            color: ThemeTokens.of(context).textMuted.withOpacity(0.3),
+            color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.3),
             size: 54,
           ),
           const SizedBox(height: 14),

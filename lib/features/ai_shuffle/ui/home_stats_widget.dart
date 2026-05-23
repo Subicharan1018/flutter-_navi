@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme.dart';
 import '../logic/shuffle_providers.dart';
 
+/// Shows top songs for the given [period] from the Smart Shuffle stats API.
+/// Migrated to listeningStatsProvider (v3.0.0).
 class HomeStatsWidget extends ConsumerWidget {
   final String period; // 'weekly' or 'monthly'
 
@@ -11,7 +13,7 @@ class HomeStatsWidget extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final statsAsync = ref.watch(shuffleStatsProvider);
+    final statsAsync = ref.watch(listeningStatsProvider(period));
     final theme = Theme.of(context);
     final tokens = ThemeTokens.of(context);
 
@@ -19,8 +21,7 @@ class HomeStatsWidget extends ConsumerWidget {
       loading: () => _buildSkeleton(tokens),
       error: (e, _) => _buildErrorCard(context, ref, e.toString(), tokens),
       data: (stats) {
-        final data = period == 'weekly' ? stats.weekly : stats.monthly;
-        final topSongs = data['top_songs'] as List<dynamic>? ?? [];
+        final topSongs = stats.topTracks;
 
         if (topSongs.isEmpty) {
           return const SizedBox.shrink();
@@ -39,8 +40,7 @@ class HomeStatsWidget extends ConsumerWidget {
                 ),
               ),
             ),
-            ...topSongs.take(5).map((song) {
-              final songMap = song as Map<String, dynamic>;
+            ...topSongs.take(5).map((songMap) {
               final title = songMap['title']?.toString() ?? 'Unknown';
               final artist = songMap['artist']?.toString() ?? 'Unknown';
               final playCount = songMap['play_count']?.toString() ?? '0';
@@ -160,9 +160,10 @@ class HomeStatsWidget extends ConsumerWidget {
               ),
             ),
             TextButton(
-              onPressed: () => ref.invalidate(shuffleStatsProvider),
+              onPressed: () => ref.invalidate(listeningStatsProvider(period)),
               style: TextButton.styleFrom(
-                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
+                foregroundColor:
+                    Theme.of(context).colorScheme.onErrorContainer,
               ),
               child: const Text('Retry'),
             ),

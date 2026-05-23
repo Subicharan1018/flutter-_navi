@@ -80,7 +80,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: ThemeTokens.of(context).bgSurface.withOpacity(0.8),
+                          color: ThemeTokens.of(context).bgSurface.withValues(alpha: 0.8),
                           borderRadius: BorderRadius.circular(12),
                           border: Border.all(color: ThemeTokens.of(context).outline),
                         ),
@@ -91,7 +91,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                           cursorColor: ThemeTokens.of(context).accent,
                           decoration: InputDecoration(
                             hintText: 'Artists, Songs, Lyrics and More',
-                            hintStyle: TextStyle(color: ThemeTokens.of(context).textMuted.withOpacity(0.6), fontSize: 15),
+                            hintStyle: TextStyle(color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.6), fontSize: 15),
                             prefixIcon: Icon(Icons.search_rounded, color: ThemeTokens.of(context).textMuted, size: 24),
                             border: InputBorder.none,
                             contentPadding: const EdgeInsets.symmetric(vertical: 12),
@@ -199,7 +199,7 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   @override
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
     return Container(
-      color: ThemeTokens.of(context).bgBase.withOpacity(shrinkOffset > 0 ? 0.9 : 0.0),
+      color: ThemeTokens.of(context).bgBase.withValues(alpha: shrinkOffset > 0 ? 0.9 : 0.0),
       child: child,
     );
   }

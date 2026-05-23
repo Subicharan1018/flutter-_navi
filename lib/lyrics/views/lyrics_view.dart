@@ -141,7 +141,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   style: TextStyle(
                     fontSize: 12,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white.withOpacity(0.45),
+                    color: Colors.white.withValues(alpha: 0.45),
                     letterSpacing: 1.2,
                   ),
                 ),
@@ -161,7 +161,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   style: TextStyle(
                     fontSize: 13,
                     fontWeight: FontWeight.w400,
-                    color: Colors.white.withOpacity(0.55),
+                    color: Colors.white.withValues(alpha: 0.55),
                   ),
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -267,7 +267,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 Icon(
                   Icons.wifi_off_rounded,
                   size: 48,
-                  color: Colors.white.withOpacity(0.3),
+                  color: Colors.white.withValues(alpha: 0.3),
                 ),
                 const SizedBox(height: 16),
                 Text(
@@ -275,7 +275,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                   style: TextStyle(
                     fontSize: 17,
                     fontWeight: FontWeight.w600,
-                    color: Colors.white.withOpacity(0.6),
+                    color: Colors.white.withValues(alpha: 0.6),
                   ),
                 ),
                 if (message != null) ...[
@@ -284,7 +284,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                     message,
                     style: TextStyle(
                       fontSize: 12,
-                      color: Colors.white.withOpacity(0.3),
+                      color: Colors.white.withValues(alpha: 0.3),
                     ),
                     textAlign: TextAlign.center,
                   ),

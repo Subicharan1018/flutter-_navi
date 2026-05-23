@@ -38,7 +38,7 @@ class LyricLineWidget extends StatelessWidget {
     final targetFontSize = isActive ? 28.0 : 22.0;
     final targetWeight =
         isActive ? FontWeight.w700 : FontWeight.w400;
-    final targetColor = Colors.white.withOpacity(targetOpacity);
+    final targetColor = Colors.white.withValues(alpha: targetOpacity);
 
     Widget line = AnimatedDefaultTextStyle(
       duration: const Duration(milliseconds: 350),

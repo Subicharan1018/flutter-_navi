@@ -405,7 +405,7 @@ class _DailyListeningChart extends StatelessWidget {
                 Container(
                   width: 8, height: 8,
                   decoration: BoxDecoration(
-                      color: ThemeTokens.of(context).accent.withOpacity(0.5),
+                      color: ThemeTokens.of(context).accent.withValues(alpha: 0.5),
                       shape: BoxShape.circle),
                 ),
                 SizedBox(width: 4),
@@ -424,7 +424,7 @@ class _DailyListeningChart extends StatelessWidget {
                 child: Text('No daily data yet — keep listening!',
                     style: TextStyle(
                         fontSize: 13,
-                        color: ThemeTokens.of(context).textMuted.withOpacity(0.6))),
+                        color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.6))),
               ),
             )
           else
@@ -441,7 +441,7 @@ class _DailyListeningChart extends StatelessWidget {
                     left: 0,
                     right: 0,
                     child: _DashedLine(
-                        color: ThemeTokens.of(context).accent.withOpacity(0.3)),
+                        color: ThemeTokens.of(context).accent.withValues(alpha: 0.3)),
                   ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
@@ -454,7 +454,7 @@ class _DailyListeningChart extends StatelessWidget {
                       final barGradient = isToday
                           ? [
                               ThemeTokens.of(context).accent,
-                              ThemeTokens.of(context).accent.withOpacity(0.7),
+                              ThemeTokens.of(context).accent.withValues(alpha: 0.7),
                             ]
                           : [
                               HSLColor.fromAHSL(
@@ -507,7 +507,7 @@ class _DailyListeningChart extends StatelessWidget {
                                               BoxShadow(
                                                 color: AppTheme
                                                     .spotifyGreen
-                                                    .withOpacity(0.3),
+                                                    .withValues(alpha: 0.3),
                                                 blurRadius: 10,
                                                 spreadRadius: 1,
                                               ),
@@ -607,10 +607,10 @@ class _StatsCard extends StatelessWidget {
                   padding:
                       const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                   decoration: BoxDecoration(
-                    color: ThemeTokens.of(context).accent.withOpacity(0.12),
+                    color: ThemeTokens.of(context).accent.withValues(alpha: 0.12),
                     borderRadius: BorderRadius.circular(20),
                     border: Border.all(
-                        color: ThemeTokens.of(context).accent.withOpacity(0.25),
+                        color: ThemeTokens.of(context).accent.withValues(alpha: 0.25),
                         width: 0.7),
                   ),
                   child: Text(
@@ -748,7 +748,7 @@ class _ReplaySongRow extends ConsumerWidget {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                  color: Colors.white.withOpacity(0.04), width: 0.5),
+                  color: Colors.white.withValues(alpha: 0.04), width: 0.5),
             ),
           ),
           child: Row(
@@ -798,7 +798,7 @@ class _ReplaySongRow extends ConsumerWidget {
                           fontWeight: FontWeight.w600,
                           color: rank <= 3
                               ? ThemeTokens.of(context).textPrimary
-                              : ThemeTokens.of(context).textPrimary.withOpacity(0.85),
+                              : ThemeTokens.of(context).textPrimary.withValues(alpha: 0.85),
                         )),
                     SizedBox(height: 2),
                     Text(song.artist,
@@ -831,7 +831,7 @@ class _ReplaySongRow extends ConsumerWidget {
               ),
               SizedBox(width: 4),
               Icon(Icons.play_circle_outline_rounded,
-                  color: ThemeTokens.of(context).textMuted.withOpacity(0.5), size: 20),
+                  color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.5), size: 20),
             ],
           ),
         ),
@@ -865,7 +865,7 @@ class _EmptyReplay extends StatelessWidget {
             height: 80,
             decoration: BoxDecoration(
               shape: BoxShape.circle,
-              color: ThemeTokens.of(context).accent.withOpacity(0.12),
+              color: ThemeTokens.of(context).accent.withValues(alpha: 0.12),
             ),
             child: Icon(Icons.bar_chart_rounded,
                 color: ThemeTokens.of(context).accent, size: 40),

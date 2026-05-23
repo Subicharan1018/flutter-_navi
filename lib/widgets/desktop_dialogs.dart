@@ -101,7 +101,7 @@ class _DesktopDialogTitleBar extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-            color: Theme.of(context).dividerColor.withOpacity(0.15),
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.15),
           ),
         ),
       ),

@@ -129,12 +129,12 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
             decoration: InputDecoration(
               hintText: 'Playlist name',
               hintStyle: TextStyle(
-                  color: ThemeTokens.of(context).textMuted.withOpacity(0.5), fontSize: 15),
+                  color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.5), fontSize: 15),
               focusedBorder: UnderlineInputBorder(
                   borderSide: BorderSide(color: ThemeTokens.of(context).accent)),
               enabledBorder: UnderlineInputBorder(
                   borderSide: BorderSide(
-                      color: ThemeTokens.of(context).textMuted.withOpacity(0.3))),
+                      color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.3))),
             ),
             onSubmitted: (_) => _create(),
           ),

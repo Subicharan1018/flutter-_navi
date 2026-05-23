@@ -23,13 +23,8 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  late TextEditingController _urlController;
   late TextEditingController _userController;
   late TextEditingController _passController;
-  late TextEditingController _apiBaseUrlController;
-  late TextEditingController _loggingPortController;
-  late TextEditingController _uploadPortController;
-  late TextEditingController _shufflePortController;
   late TextEditingController _uploadDirController;
   late TextEditingController _webdavUserController;
   late TextEditingController _webdavPassController;
@@ -59,13 +54,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   void initState() {
     super.initState();
     final settings = ref.read(settingsProvider);
-    _urlController        = TextEditingController(text: settings.serverUrl);
     _userController       = TextEditingController(text: settings.username);
     _passController       = TextEditingController(text: settings.password);
-    _apiBaseUrlController = TextEditingController(text: settings.apiBaseUrl);
-    _loggingPortController = TextEditingController(text: settings.loggingPort.toString());
-    _uploadPortController = TextEditingController(text: settings.uploadPort.toString());
-    _shufflePortController = TextEditingController(text: settings.localShufflePort.toString());
     _uploadDirController  = TextEditingController(text: settings.uploadDirectory);
     _webdavUserController = TextEditingController(text: settings.webdavUsername);
     _webdavPassController = TextEditingController(text: settings.webdavPassword);
@@ -109,13 +99,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
-    _urlController.dispose();
     _userController.dispose();
     _passController.dispose();
-    _apiBaseUrlController.dispose();
-    _loggingPortController.dispose();
-    _uploadPortController.dispose();
-    _shufflePortController.dispose();
     _uploadDirController.dispose();
     _webdavUserController.dispose();
     _webdavPassController.dispose();
@@ -123,14 +108,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _save() async {
+    final settings = ref.read(settingsProvider);
     await ref.read(settingsProvider.notifier).saveSettings(
-          _urlController.text.trim(),
+          settings.serverUrl,
           _userController.text.trim(),
           _passController.text,
-          apiBaseUrl: _apiBaseUrlController.text.trim(),
-          loggingPort: int.tryParse(_loggingPortController.text.trim()) ?? 5006,
-          uploadPort: int.tryParse(_uploadPortController.text.trim()) ?? 5005,
-          localShufflePort: int.tryParse(_shufflePortController.text.trim()) ?? 5000,
+          apiBaseUrl: settings.apiBaseUrl,
+          loggingPort: settings.loggingPort,
+          uploadPort: settings.uploadPort,
+          localShufflePort: settings.localShufflePort,
           uploadDir: _uploadDirController.text.trim(),
           webdavUser: _webdavUserController.text.trim(),
           webdavPass: _webdavPassController.text,
@@ -167,7 +153,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _syncDataToServer() async {
-    final apiBase = _apiBaseUrlController.text.trim();
+    final apiBase = ref.read(settingsProvider).apiBaseUrl;
     if (apiBase.isEmpty) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -211,11 +197,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (result != null && result.files.single.path != null) {
       setState(() => _isUploading = true);
       try {
-      debugPrint('Upload UI: file=${result.files.single.path!} server=${_urlController.text.trim()}');
+        final serverUrl = ref.read(settingsProvider).serverUrl;
+        debugPrint('Upload UI: file=${result.files.single.path!} server=$serverUrl');
         final cache = ref.read(playlistCacheServiceProvider);
         final uploadUrl = ref.read(settingsProvider).uploadApiUrl; // computed
         final service = SubsonicService(
-          serverUrl: _urlController.text.trim(),
+          serverUrl: serverUrl,
           username: _userController.text.trim(),
           password: _passController.text,
           cache: cache,
@@ -300,12 +287,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               title: 'SERVER CONNECTION',
               children: [
                 _SettingsInputRow(
-                  label: 'Server URL',
-                  controller: _urlController,
-                  hint: 'https://...',
-                ),
-                _SettingsDivider(),
-                _SettingsInputRow(
                   label: 'Username',
                   controller: _userController,
                   hint: 'User',
@@ -366,43 +347,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _SettingsGroup(
               title: 'API SERVER',
               children: [
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
-                  child: Text(
-                    'Base URL (no port) for the AI shuffle, telemetry and upload services.',
-                    style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
-                  ),
-                ),
-                _SettingsDivider(),
-                _SettingsInputRow(
-                  label: 'API Base URL',
-                  controller: _apiBaseUrlController,
-                  hint: 'http://192.168.1.10',
-                  keyboardType: TextInputType.url,
-                ),
-                _SettingsDivider(),
-                _SettingsInputRow(
-                  label: 'Logging Port',
-                  controller: _loggingPortController,
-                  hint: '5006',
-                  keyboardType: TextInputType.number,
-                ),
-                _SettingsDivider(),
-                _SettingsInputRow(
-                  label: 'Upload Port',
-                  controller: _uploadPortController,
-                  hint: '5005',
-                  keyboardType: TextInputType.number,
-                ),
-                _SettingsDivider(),
-                _SettingsInputRow(
-                  label: 'Shuffle Port',
-                  controller: _shufflePortController,
-                  hint: '5000',
-                  keyboardType: TextInputType.number,
-                ),
-                _SettingsDivider(),
                 _SettingsInputRow(
                   label: 'Remote Dir',
                   controller: _uploadDirController,
@@ -427,7 +371,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   trailing: Icon(Icons.chevron_right_rounded,
                       color: ThemeTokens.of(context).textMuted, size: 20),
                   onTap: () {
-                    final base = _apiBaseUrlController.text.trim();
+                    final base = ref.read(settingsProvider).apiBaseUrl;
                     if (base.isEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
@@ -537,31 +481,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             _SettingsGroup(
               title: 'LISTENING INTELLIGENCE',
               children: [
-                _SettingsToggleRow(
-                  label: 'Collect listening data',
-                  value: settings.dataCollectionEnabled,
-                  onChanged: (v) {
-                    ref
-                        .read(settingsProvider.notifier)
-                        .setDataCollectionEnabled(v);
-                  },
-                ),
-                _SettingsDivider(),
-                Padding(
-                  padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 10),
-                  child: Text(
-                    _analyticsStats == null
-                        ? 'Loading stats…'
-                        : '${_analyticsStats!.playEvents} plays • '
-                            '${_analyticsStats!.uniqueSongs} songs • '
-                            '${_analyticsStats!.songPairs} pairs • '
-                            '${_analyticsStats!.feedbackActions} feedback signals',
-                    style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted, fontSize: 12),
-                  ),
-                ),
-                _SettingsDivider(),
+                // Listening data is collected automatically via Smart Shuffle
+                // POST /feedback — no user toggle needed.
+
                 ListTile(
                   contentPadding:
                       const EdgeInsets.symmetric(horizontal: 16),
@@ -930,7 +852,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       case ShuffleAlgorithm.recencyDampened:
         return 'Recency-Dampened — weighted mix that penalizes songs played recently in this session to ensure variety.';
       case ShuffleAlgorithm.smartLocal:
-        return 'Smart Local AI — Uses a local machine learning model to predict the best next songs based on transitions and behavioral scores.';
+        return 'Smart Shuffle — Uses the hosted AI at shuffle.subimusic.me to recommend songs based on your listening patterns, time of day, and weather context.';
     }
   }
 
@@ -1103,7 +1025,7 @@ class _SettingsInputRow extends StatelessWidget {
               decoration: InputDecoration(
                 hintText: hint,
                 hintStyle: TextStyle(
-                    color: tokens.textMuted.withOpacity(0.3)),
+                    color: tokens.textMuted.withValues(alpha: 0.3)),
                 border: InputBorder.none,
                 contentPadding:
                     const EdgeInsets.symmetric(vertical: 12),
@@ -1205,7 +1127,7 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
                   ShuffleAlgorithm.albumAware => 'Album-Aware',
                   ShuffleAlgorithm.mergeShuffle => 'Optimum',
                   ShuffleAlgorithm.recencyDampened => 'Variety-Weighted',
-                  ShuffleAlgorithm.smartLocal => 'Smart Local AI',
+                  ShuffleAlgorithm.smartLocal => 'Smart Shuffle',
                 };
               } else if (item is ShufflePreference) {
                 name = switch (item) {

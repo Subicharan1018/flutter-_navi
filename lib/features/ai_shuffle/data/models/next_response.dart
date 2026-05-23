@@ -1,48 +1,86 @@
 // =============================================================================
-// NextResponse — response from GET /next
+// NextResponse — response from POST /next (v3.0.0)
 // =============================================================================
 
 import 'recommended_song.dart';
 
-/// Full response from the `/next` recommendation endpoint.
-class NextResponse {
-  final List<RecommendedSong> songs;
+/// Context information returned alongside the queue.
+class QueueContext {
+  final String bucket;
+  final int istHour;
+  final String weather;
 
-  /// Source strategy the server used: 'model', 'cold_start', 'fallback', etc.
-  final String source;
-
-  /// Session identifier for this recommendation sequence.
-  final String sessionId;
-
-  const NextResponse({
-    required this.songs,
-    required this.source,
-    required this.sessionId,
+  const QueueContext({
+    required this.bucket,
+    required this.istHour,
+    required this.weather,
   });
 
-  factory NextResponse.fromJson(Map<String, dynamic> json) {
-    // Support both envelope format {"songs":[...], "source":"..."} and
-    // legacy flat list format [{...}, {...}] from the old Flask server.
-    if (json.containsKey('songs')) {
-      return NextResponse(
-        songs: (json['songs'] as List<dynamic>? ?? [])
-            .map((e) => RecommendedSong.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        source: json['source']?.toString() ?? 'model',
-        sessionId: json['session_id']?.toString() ?? '',
+  factory QueueContext.fromJson(Map<String, dynamic> json) => QueueContext(
+        bucket: json['bucket']?.toString() ?? '',
+        istHour: _parseInt(json['ist_hour']),
+        weather: json['weather']?.toString() ?? '',
       );
-    }
-    // Fallback: treat the entire response as a single-key object containing
-    // a list (shouldn't happen with the new server but handles migration).
-    return NextResponse(songs: [], source: 'unknown', sessionId: '');
+
+  static int _parseInt(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse(v?.toString() ?? '') ?? 0;
   }
 
-  /// Convenience factory for a flat list response (legacy Flask format).
-  factory NextResponse.fromList(List<dynamic> list) => NextResponse(
-        songs: list
+  /// Human-readable label for the time bucket.
+  String get bucketLabel {
+    final parts = bucket.split('__');
+    final time = parts.isNotEmpty ? parts[0] : bucket;
+    final season = parts.length > 1 ? parts[1] : '';
+    final timeLabel = switch (time) {
+      'morning' => 'Morning',
+      'late_morning' => 'Late Morning',
+      'afternoon' => 'Afternoon',
+      'evening' => 'Evening',
+      'night' => 'Night',
+      'late_night' => 'Late Night',
+      _ => time,
+    };
+    final seasonLabel = switch (season) {
+      'summer' => 'Summer',
+      'southwest_monsoon' => 'Monsoon',
+      'northeast_monsoon' => 'NE Monsoon',
+      'winter' => 'Winter',
+      _ => season,
+    };
+    return seasonLabel.isEmpty ? timeLabel : '$timeLabel · $seasonLabel';
+  }
+}
+
+/// Full response from the `/next` recommendation endpoint (v3.0.0).
+class NextResponse {
+  final String mode;
+  final String source;
+  final String? playlistId;
+  final List<RecommendedSong> queue;
+  final QueueContext? context;
+
+  // Alias for compatibility with existing code that reads `.songs`
+  List<RecommendedSong> get songs => queue;
+
+  const NextResponse({
+    required this.mode,
+    required this.source,
+    this.playlistId,
+    required this.queue,
+    this.context,
+  });
+
+  factory NextResponse.fromJson(Map<String, dynamic> json) => NextResponse(
+        mode: json['mode']?.toString() ?? 'smart',
+        source: json['source']?.toString() ?? 'smart',
+        playlistId: json['playlist_id']?.toString(),
+        queue: (json['queue'] as List<dynamic>? ?? [])
             .map((e) => RecommendedSong.fromJson(e as Map<String, dynamic>))
             .toList(),
-        source: 'legacy',
-        sessionId: '',
+        context: json['context'] is Map<String, dynamic>
+            ? QueueContext.fromJson(json['context'] as Map<String, dynamic>)
+            : null,
       );
 }

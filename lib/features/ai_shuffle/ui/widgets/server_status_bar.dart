@@ -1,9 +1,14 @@
+// =============================================================================
+// ServerStatusBar — compact status strip at the top of Smart Shuffle screen.
+// =============================================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../logic/shuffle_providers.dart';
 import '../../data/models/health_response.dart';
 import '../../../../widgets/desktop_dialogs.dart';
+import '../smart_shuffle_login_screen.dart';
 
 class ServerStatusBar extends ConsumerWidget {
   const ServerStatusBar({super.key});
@@ -15,9 +20,17 @@ class ServerStatusBar extends ConsumerWidget {
 
     return InkWell(
       onTap: () {
-        if (healthAsync.hasValue) {
-          _showDetailsSheet(context, healthAsync.value);
-        }
+        healthAsync.whenOrNull(
+          data: (h) => _showDetailsSheet(context, h),
+          error: (e, _) {
+            // On auth error → show login screen.
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (_) => const SmartShuffleLoginScreen(),
+              ),
+            );
+          },
+        );
       },
       child: Container(
         width: double.infinity,
@@ -68,7 +81,8 @@ class ServerStatusBar extends ConsumerWidget {
 
   IconData _getIcon(AsyncValue<HealthResponse> asyncValue) {
     return asyncValue.when(
-      data: (health) => health.isHealthy ? Icons.check_circle : Icons.error,
+      data: (health) =>
+          health.isHealthy ? Icons.check_circle : Icons.error,
       loading: () => Icons.sync,
       error: (_, __) => Icons.cloud_off,
     );
@@ -76,16 +90,20 @@ class ServerStatusBar extends ConsumerWidget {
 
   String _getText(AsyncValue<HealthResponse> asyncValue) {
     return asyncValue.when(
-      data: (health) => health.isHealthy
-          ? 'Server Online · ${health.librarySize} songs'
-          : 'Server Offline',
+      data: (health) {
+        if (!health.isHealthy) return 'Server Offline';
+        final w = health.weather;
+        if (w != null) {
+          return 'Smart Shuffle Online · ${w.moodIcon} ${w.temperatureC.toStringAsFixed(1)}°C';
+        }
+        return 'Smart Shuffle Online';
+      },
       loading: () => 'Checking server…',
-      error: (_, __) => 'Server Offline',
+      error: (_, __) => 'Tap to reconnect',
     );
   }
 
-  void _showDetailsSheet(BuildContext context, HealthResponse? health) {
-    if (health == null) return;
+  void _showDetailsSheet(BuildContext context, HealthResponse health) {
     showPlatformSheet(
       context: context,
       title: 'Server Status',
@@ -100,21 +118,26 @@ class ServerStatusBar extends ConsumerWidget {
                 title: const Text('Status'),
                 trailing: Text(health.status.toUpperCase()),
               ),
-              ListTile(
-                leading: const Icon(Icons.timer_outlined),
-                title: const Text('Uptime'),
-                trailing: Text(health.uptime),
-              ),
-              ListTile(
-                leading: const Icon(Icons.library_music_outlined),
-                title: const Text('Library Size'),
-                trailing: Text('${health.librarySize} songs'),
-              ),
-              ListTile(
-                leading: const Icon(Icons.psychology_outlined),
-                title: const Text('Model Loaded'),
-                trailing: Text(health.modelLoaded ? 'Yes' : 'No'),
-              ),
+              if (health.weather != null) ...[
+                ListTile(
+                  leading: const Icon(Icons.thermostat_outlined),
+                  title: const Text('Temperature'),
+                  trailing: Text(
+                    '${health.weather!.temperatureC.toStringAsFixed(1)}°C',
+                  ),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.water_drop_outlined),
+                  title: const Text('Humidity'),
+                  trailing: Text('${health.weather!.humidityPct}%'),
+                ),
+                ListTile(
+                  leading: const Icon(Icons.cloud_outlined),
+                  title: const Text('Weather Mood'),
+                  trailing:
+                      Text('${health.weather!.moodIcon} ${health.weather!.mood}'),
+                ),
+              ],
             ],
           ),
         );

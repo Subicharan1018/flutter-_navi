@@ -199,7 +199,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // that passes a large future slice doesn't accidentally ask for 200 songs.
   static const int _maxServerRequestCount = 15;
 
-  String _shuffleBaseUrl = '';
+
 
   /// True on Linux — ConcatenatingAudioSource is not supported by
   /// just_audio_media_kit 2.1.0 in its platform-channel message form.
@@ -724,7 +724,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       liveIds.insert(targetIdx, moved);
     }
 
-    final currentLiveIndex = player.currentIndex ?? 0;
+    final currentLiveIndex = this.currentIndex;
     if (currentLiveIndex != anchorIndex) {
       await player.seek(player.position, index: anchorIndex);
     }
@@ -758,15 +758,25 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   Future<void> removeFromQueue(int index) async {
     if (index < 0 || index >= _currentQueue.length) return;
+    
+    bool needsRebuild = true;
+    if (_isLinux) {
+      if (index < _linuxIndex) {
+        _linuxIndex--;
+        needsRebuild = false; // Currently playing track is unaffected
+      } else if (index > _linuxIndex) {
+        needsRebuild = false; // Currently playing track is unaffected
+      }
+    }
+
     final song = _currentQueue.removeAt(index);
     final unIdx = _unshuffledQueue.indexWhere((s) => s.id == song.id);
     if (unIdx != -1) _unshuffledQueue.removeAt(unIdx);
 
     if (_playlist != null) {
       await _playlist!.removeAt(index);
-    } else {
-      final currentIndex = player.currentIndex ?? 0;
-      await _rebuildSource(currentIndex.clamp(0, _currentQueue.length - 1));
+    } else if (needsRebuild) {
+      await _rebuildSource(this.currentIndex.clamp(0, _currentQueue.length - 1));
     }
   }
 
@@ -777,6 +787,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }) async {
     if (oldIndex < 0 || oldIndex >= _currentQueue.length) return;
     if (newIndex < 0 || newIndex >= _currentQueue.length) return;
+    
+    if (_isLinux) {
+      if (oldIndex == _linuxIndex) {
+        _linuxIndex = newIndex;
+      } else if (oldIndex < _linuxIndex && newIndex >= _linuxIndex) {
+        _linuxIndex--;
+      } else if (oldIndex > _linuxIndex && newIndex <= _linuxIndex) {
+        _linuxIndex++;
+      }
+    }
+
     final song = _currentQueue.removeAt(oldIndex);
     _currentQueue.insert(newIndex, song);
 
@@ -787,9 +808,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     if (_playlist != null) {
       await _playlist!.move(oldIndex, newIndex);
-    } else {
-      final currentIndex = player.currentIndex ?? 0;
-      await _rebuildSource(currentIndex.clamp(0, _currentQueue.length - 1));
     }
   }
 
@@ -800,7 +818,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ---------------------------------------------------------------------------
   Future<void> standardShuffle() async {
     if (_currentQueue.isEmpty) return;
-    final currentIndex = player.currentIndex ?? 0;
+    final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
@@ -816,7 +834,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> ditheredPositionShuffle(ShufflePreference preference) async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Dithered Position ($preference)');
-    final currentIndex = player.currentIndex ?? 0;
+    final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
@@ -839,7 +857,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> mergeShuffle(ShufflePreference preference) async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Merge-Shuffle ($preference)');
-    final currentIndex = player.currentIndex ?? 0;
+    final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
@@ -859,7 +877,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> youtubeWeightedShuffle() async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Weighted Shuffle (O(n log n))');
-    final currentIndex = player.currentIndex ?? 0;
+    final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
@@ -879,7 +897,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint(
       '🚀 [SHUFFLE] Album-Aware (shuffleTracks=$shuffleTracksWithinAlbum)',
     );
-    final currentIndex = player.currentIndex ?? 0;
+    final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
@@ -902,7 +920,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       '🚀 [SHUFFLE] Recency-Dampened Weighted Shuffle '
       '(window=$_recencyWindow, recent=${_recentlyPlayedIds.length})',
     );
-    final currentIndex = player.currentIndex ?? 0;
+    final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
@@ -935,83 +953,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   //   • Pool-based refill: each batch is also 15 songs max.
   // ---------------------------------------------------------------------------
 
-  /// Phase 1: HTTP fetch + list reorder. No platform channel contact.
-  /// [future] must already be the capped batch (caller's responsibility to
-  /// pass ≤15 songs). We additionally clamp here as a safety net.
-  Future<List<Song>?> computeSmartLocalOrder({
-    required Song currentSong,
-    required List<Song> future,
-    String? contextName,
-  }) async {
-    if (_shuffleBaseUrl.isEmpty) return null;
-
-    // Safety cap: never ask server for more than _maxServerRequestCount songs.
-    final cappedFuture = future.length > _maxServerRequestCount
-        ? future.sublist(0, _maxServerRequestCount)
-        : future;
-
-    final futureMap = <String, Song>{};
-    for (final song in cappedFuture) {
-      futureMap.putIfAbsent(song.title.toLowerCase().trim(), () => song);
-    }
-
-    try {
-      final queryParams = <String, String>{
-        'current': currentSong.title,
-        'artist': currentSong.artist,
-        'count': cappedFuture.length.toString(),
-        // Send the exact batch titles so the server can only return songs
-        // from this playlist batch — nothing outside can appear in results.
-        'candidates': cappedFuture
-            .map((s) => s.title.toLowerCase().trim())
-            .join('|'),
-      };
-      if (contextName != null && contextName.isNotEmpty) {
-        queryParams['playlist'] = contextName;
-      }
-      final uri = Uri.parse('$_shuffleBaseUrl/next')
-          .replace(queryParameters: queryParams);
-
-      final response = await http
-          .get(uri)
-          .timeout(const Duration(seconds: 5));
-
-      if (response.statusCode != 200) {
-        debugPrint(
-          '⚠️ [SHUFFLE] Smart Local: server ${response.statusCode}',
-        );
-        return null;
-      }
-
-      final List<dynamic> data = jsonDecode(response.body);
-      final serverKeys =
-          data.map((e) => e['song_key'].toString()).toList();
-
-      final List<Song> ordered = [];
-      final Set<String> matched = {};
-      for (final key in serverKeys) {
-        final song = futureMap[key];
-        if (song != null && !matched.contains(song.id)) {
-          ordered.add(song);
-          matched.add(song.id);
-        }
-      }
-      // Append any songs the server didn't mention (unmatched by key).
-      for (final song in cappedFuture) {
-        if (!matched.contains(song.id)) ordered.add(song);
-      }
-
-      debugPrint(
-        '✅ [SHUFFLE] Smart Local order computed: ${ordered.length} songs, '
-        '${matched.length} matched by model',
-      );
-      return ordered;
-    } catch (e) {
-      debugPrint('❌ [SHUFFLE] Smart Local compute failed: $e');
-      return null;
-    }
-  }
-
   /// Phase 2: apply pre-computed order to _currentQueue and the player.
   Future<void> commitSmartLocalOrder({
     required List<Song> pastAndPresent,
@@ -1026,49 +967,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
   }
 
-  /// Convenience wrapper: compute + commit in one call.
-  Future<void> smartLocalShuffle({String? contextName}) async {
-    if (_currentQueue.isEmpty) return;
-    debugPrint('🚀 [SHUFFLE] Smart Local (inline)');
-
-    final currentIndex = player.currentIndex ?? 0;
-    final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
-    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final rawFuture = _currentQueue.sublist(safeIndex + 1);
-    if (rawFuture.isEmpty) return;
-
-    // Cap the future slice to _maxServerRequestCount.
-    final future = rawFuture.length > _maxServerRequestCount
-        ? rawFuture.sublist(0, _maxServerRequestCount)
-        : rawFuture;
-
-    final currentSong = _currentQueue[safeIndex];
-
-    final ordered = await computeSmartLocalOrder(
-      currentSong: currentSong,
-      future: future,
-      contextName: contextName,
-    );
-
-    if (ordered == null) {
-      debugPrint('⚠️ [SHUFFLE] Smart Local: falling back to standard shuffle');
-      await standardShuffle();
-      return;
-    }
-
-    await commitSmartLocalOrder(
-      pastAndPresent: pastAndPresent,
-      orderedFuture: ordered,
-      anchorIndex: safeIndex,
-    );
-  }
-
   // ---------------------------------------------------------------------------
   // 8. Unshuffle
   // ---------------------------------------------------------------------------
   Future<void> unshuffle() async {
     if (_currentQueue.isEmpty || _unshuffledQueue.isEmpty) return;
-    final currentIndex = player.currentIndex ?? 0;
+    final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final currentSong = _currentQueue[safeIndex];
     _currentQueue = List.from(_unshuffledQueue);
@@ -1123,76 +1027,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         });
 
       case ShuffleAlgorithm.smartLocal:
-        if (pool.isEmpty) return pool;
-        if (_shuffleBaseUrl.isEmpty || !(Uri.tryParse(_shuffleBaseUrl)?.hasAuthority ?? false)) {
-          debugPrint(
-            '⚠️ [computeShuffle] Smart Local: no server URL, falling back',
-          );
-          return compute(_standardShuffleIsolate, pool);
-        }
-
-        // Cap to _maxServerRequestCount — pool should already be ≤15 when
-        // called from playPlaylist(), but guard here too.
-        final cappedPool = pool.length > _maxServerRequestCount
-            ? pool.sublist(0, _maxServerRequestCount)
-            : pool;
-
-        try {
-          final queryParams = <String, String>{
-            'count': cappedPool.length.toString(),
-            // Send candidate titles so server only scores within this batch.
-            'candidates': cappedPool
-                .map((s) => s.title.toLowerCase().trim())
-                .join('|'),
-          };
-          if (currentSong != null) {
-            queryParams['current'] = currentSong.title;
-            queryParams['artist'] = currentSong.artist;
-          }
-          if (contextName != null) {
-            queryParams['playlist'] = contextName;
-          }
-
-          final uri = Uri.parse('$_shuffleBaseUrl/next')
-              .replace(queryParameters: queryParams);
-          final response = await http
-              .get(uri)
-              .timeout(const Duration(seconds: 5));
-
-          if (response.statusCode == 200) {
-            final List<dynamic> data = jsonDecode(response.body);
-            final serverKeys =
-                data.map((e) => e['song_key'].toString()).toList();
-
-            final poolMap = <String, Song>{};
-            for (final song in cappedPool) {
-              poolMap.putIfAbsent(
-                  song.title.toLowerCase().trim(), () => song);
-            }
-
-            final List<Song> ordered = [];
-            final Set<String> matched = {};
-            for (final key in serverKeys) {
-              final song = poolMap[key];
-              if (song != null && !matched.contains(song.id)) {
-                ordered.add(song);
-                matched.add(song.id);
-              }
-            }
-            for (final song in cappedPool) {
-              if (!matched.contains(song.id)) ordered.add(song);
-            }
-
-            debugPrint(
-              '✅ [computeShuffle] Smart Local: '
-              '${matched.length}/${cappedPool.length} matched',
-            );
-            return ordered;
-          }
-        } catch (e) {
-          debugPrint('❌ [computeShuffle] Smart Local failed: $e');
-        }
-        return compute(_standardShuffleIsolate, cappedPool);
+        // Already handled externally via player_provider + v3 API. 
+        // Fall back to standard here if accidentally called.
+        return compute(_standardShuffleIsolate, pool);
     }
   }
 
@@ -1209,13 +1046,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  void updateShuffleBaseUrl(String url) {
-    _shuffleBaseUrl = url;
-    debugPrint(
-      '[AudioHandler] Shuffle server URL updated: '
-      '${url.isEmpty ? "(empty — fallback mode)" : url}',
-    );
-  }
+
 
   Future<void> dispose() async {
     await player.stop();

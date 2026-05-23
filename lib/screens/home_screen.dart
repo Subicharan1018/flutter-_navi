@@ -123,8 +123,8 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         // bgColor: 14% accent overlaid on bgBase (dark themes)
                         // or 8% accent overlaid on bgSurface (light themes).
                         Color cardBg(Color accent) => t.isLight
-                            ? Color.alphaBlend(accent.withOpacity(0.10), t.bgSurface)
-                            : Color.alphaBlend(accent.withOpacity(0.16), t.bgBase);
+                            ? Color.alphaBlend(accent.withValues(alpha: 0.10), t.bgSurface)
+                            : Color.alphaBlend(accent.withValues(alpha: 0.16), t.bgBase);
 
                         final purpleAccent = t.mode == AppThemeMode.spotify
                             ? const Color(0xFF9333EA)
@@ -262,7 +262,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                         filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
                         child: Container(
                           height: topPad + 50,
-                          color: tokens.bgBase.withOpacity(0.90),
+                          color: tokens.bgBase.withValues(alpha: 0.90),
                           padding: EdgeInsets.fromLTRB(20, topPad + 10, 20, 0),
                           child: Row(
                             children: [
@@ -375,14 +375,14 @@ class _ExploreCard extends StatelessWidget {
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: color.withOpacity(0.18), width: 0.8),
+            border: Border.all(color: color.withValues(alpha: 0.18), width: 0.8),
           ),
           child: Stack(
             children: [
               // Background icon watermark
               Positioned(
                 right: -8, top: -8,
-                child: Icon(icon, color: color.withOpacity(0.08), size: 90),
+                child: Icon(icon, color: color.withValues(alpha: 0.08), size: 90),
               ),
               // Content
               Padding(
@@ -419,7 +419,7 @@ class _ExploreCard extends StatelessWidget {
                   width: 28, height: 28,
                   decoration: BoxDecoration(
                     shape: BoxShape.circle,
-                    color: color.withOpacity(0.15),
+                    color: color.withValues(alpha: 0.15),
                   ),
                   child: Icon(Icons.chevron_right_rounded, color: color, size: 18),
                 ),
@@ -505,7 +505,7 @@ class _QuickTile extends ConsumerWidget {
           decoration: BoxDecoration(
             color: tokens.bgSurface,
             borderRadius: BorderRadius.circular(10),
-            border: Border.all(color: _ac.withOpacity(0.12), width: 0.7),
+            border: Border.all(color: _ac.withValues(alpha: 0.12), width: 0.7),
           ),
           clipBehavior: Clip.hardEdge,
           child: Row(
@@ -521,11 +521,11 @@ class _QuickTile extends ConsumerWidget {
                     : Container(
                         decoration: BoxDecoration(
                           gradient: LinearGradient(
-                            colors: [_ac.withOpacity(0.8), _ac.withOpacity(0.3)],
+                            colors: [_ac.withValues(alpha: 0.8), _ac.withValues(alpha: 0.3)],
                           ),
                         ),
                         child: Icon(Icons.queue_music_rounded,
-                            color: tokens.textPrimary.withOpacity(0.7), size: 22),
+                            color: tokens.textPrimary.withValues(alpha: 0.7), size: 22),
                       ),
               ),
               SizedBox(width: 10),
@@ -548,7 +548,7 @@ class _QuickTile extends ConsumerWidget {
                 margin: const EdgeInsets.only(right: 10),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: _ac.withOpacity(0.15),
+                  color: _ac.withValues(alpha: 0.15),
                 ),
                 child: Icon(Icons.play_arrow_rounded, color: _ac, size: 16),
               ),
@@ -670,7 +670,7 @@ class _ReplayCard extends ConsumerWidget {
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: Colors.black.withOpacity(0.6),
+                          color: Colors.black.withValues(alpha: 0.6),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -690,7 +690,7 @@ class _ReplayCard extends ConsumerWidget {
                         width: 28, height: 28,
                         decoration: BoxDecoration(
                           shape: BoxShape.circle,
-                          color: tokens.accent.withOpacity(0.9),
+                          color: tokens.accent.withValues(alpha: 0.9),
                         ),
                         child: Icon(Icons.play_arrow_rounded,
                             color: tokens.isLight ? Colors.white : Colors.black, size: 16),
@@ -727,7 +727,7 @@ class _ReplayCard extends ConsumerWidget {
                       Container(
                         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
                         decoration: BoxDecoration(
-                          color: tokens.accent.withOpacity(0.15),
+                          color: tokens.accent.withValues(alpha: 0.15),
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
@@ -760,8 +760,8 @@ class _ReplayCard extends ConsumerWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            tokens.accent.withOpacity(0.6),
-            tokens.accent.withOpacity(0.15),
+            tokens.accent.withValues(alpha: 0.6),
+            tokens.accent.withValues(alpha: 0.15),
           ],
         ),
       ),

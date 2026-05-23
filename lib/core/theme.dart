@@ -414,7 +414,7 @@ class AppTheme {
       sliderTheme: SliderThemeData(
         trackHeight: mode == AppThemeMode.neumorphic ? 6 : 4,
         activeTrackColor: t.accent,
-        inactiveTrackColor: t.textPrimary.withOpacity(0.1),
+        inactiveTrackColor: t.textPrimary.withValues(alpha: 0.1),
         thumbColor: mode == AppThemeMode.zen ? t.accent : t.textPrimary,
         overlayColor: Colors.transparent,
         thumbShape: RoundSliderThumbShape(
@@ -531,7 +531,7 @@ class NeuBox extends StatelessWidget {
         boxShadow: isPressed
             ? [
                 BoxShadow(
-                  color: t.neuDark.withOpacity(0.6),
+                  color: t.neuDark.withValues(alpha: 0.6),
                   offset: const Offset(2, 2),
                   blurRadius: 6,
                 ),
@@ -543,7 +543,7 @@ class NeuBox extends StatelessWidget {
               ]
             : [
                 BoxShadow(
-                  color: t.neuDark.withOpacity(0.6),
+                  color: t.neuDark.withValues(alpha: 0.6),
                   offset: const Offset(6, 6),
                   blurRadius: 14,
                 ),
@@ -588,7 +588,7 @@ class GlassBox extends StatelessWidget {
           border: Border.all(color: t.glassBorder, width: 1),
           boxShadow: [
             BoxShadow(
-              color: Colors.black.withOpacity(0.25),
+              color: Colors.black.withValues(alpha: 0.25),
               blurRadius: 20,
               spreadRadius: -4,
             ),

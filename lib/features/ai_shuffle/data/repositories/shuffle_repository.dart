@@ -1,150 +1,122 @@
 // =============================================================================
-// ShuffleRepository — business logic layer wrapping ShuffleApiService.
-//
-// Responsibilities:
-//   - Health polling stream (every 30s)
-//   - Hive-backed stats cache with stale-while-revalidate strategy:
-//     read Hive first → return cached value → fetch from network in background
-//   - Thin pass-through for all other endpoints
+// ShuffleRepository — business logic layer for Smart Shuffle (v3.0.0).
 // =============================================================================
 
-import 'dart:async';
-import 'dart:convert';
 import 'package:flutter/foundation.dart';
-import '../../../../core/hive_boxes.dart';
 
-import '../models/health_response.dart';
-import '../models/recommended_song.dart';
-import '../models/profile_response.dart';
-import '../models/stats_response.dart';
-import '../models/session_status_response.dart';
-import '../repositories/shuffle_exception.dart';
 import '../services/shuffle_api_service.dart';
+import '../models/health_response.dart';
+import '../models/next_response.dart';
+import '../models/feedback_request.dart';
+import '../models/model_status_response.dart';
+import '../models/listening_stats_response.dart';
+import '../models/listening_history_response.dart';
+import 'shuffle_exception.dart';
 
 class ShuffleRepository {
   final ShuffleApiService _api;
 
-  // Hive box key for the cached stats JSON string.
-  static const _kStatsCache = 'shuffle_stats_cache';
-  static const _kStatsCacheTime = 'shuffle_stats_cache_time';
-
   ShuffleRepository(this._api);
 
   // ---------------------------------------------------------------------------
-  // Health stream — 30-second periodic poll
+  // Health
   // ---------------------------------------------------------------------------
 
-  /// Emits a [HealthResponse] immediately on first subscription, then every
-  /// 30 seconds. Network errors are silently swallowed and do not close the
-  /// stream — the UI uses `serverHealthProvider` to show an error indicator.
-  Stream<HealthResponse> healthStream() async* {
-    while (true) {
-      try {
-        yield await _api.getHealth();
-      } catch (e) {
-        debugPrint('[ShuffleRepo] Health check failed: $e');
-        // Yield a "down" placeholder so the UI can show a red indicator.
-        yield HealthResponse(
-          status: 'error',
-          uptime: '',
-          librarySize: 0,
-          modelLoaded: false,
-        );
-      }
-      await Future.delayed(const Duration(seconds: 30));
+  /// Fetches server health. Returns null on any error.
+  Future<HealthResponse?> getHealthOrNull() async {
+    try {
+      return await _api.getHealth();
+    } catch (e) {
+      debugPrint('[ShuffleRepo] health error: $e');
+      return null;
     }
   }
 
+  /// Health as a stream — polls on creation then once-on-call.
+  /// Callers can use Riverpod FutureProvider.autoDispose instead.
+  Future<HealthResponse> getHealth() async {
+    return await _api.getHealth();
+  }
+
   // ---------------------------------------------------------------------------
-  // Recommendations
+  // Next recommendation queue
   // ---------------------------------------------------------------------------
 
-  /// Fetches the next [count] recommended songs following [current].
-  /// Throws [ShuffleNetworkError], [ShuffleServerError], or
-  /// [ShuffleEmptyResponse] on failure.
-  Future<List<RecommendedSong>> getNext({
-    required String current,
-    String? playlist,
-    String? artist,
-    int count = 5,
+  /// Fetches the next Smart Shuffle queue. Throws [ShuffleException] subtypes.
+  Future<NextResponse> getNext({
+    String source = 'smart',
+    String? playlistId,
+    int count = 15,
+    int depth = 0,
+    String? playlistName,
+    String genreStreakType = '',
+    int genreStreakCount = 0,
+    List<String> playedTitles = const [],
+    List<double> recentListenRatios = const [],
+    String lastEndReason = '',
   }) async {
     final response = await _api.getNext(
-      current: current,
-      playlist: playlist,
-      artist: artist,
+      source: source,
+      playlistId: playlistId,
       count: count,
+      depth: depth,
+      playlistName: playlistName,
+      genreStreakType: genreStreakType,
+      genreStreakCount: genreStreakCount,
+      playedTitles: playedTitles,
+      recentListenRatios: recentListenRatios,
+      lastEndReason: lastEndReason,
     );
-    if (response.songs.isEmpty) {
-      throw const ShuffleEmptyResponse();
-    }
-    return response.songs;
-  }
 
-  // ---------------------------------------------------------------------------
-  // Profile
-  // ---------------------------------------------------------------------------
-
-  /// Returns the full behavioural + acoustic profile for [song].
-  Future<ProfileResponse> getProfile({required String song}) =>
-      _api.getProfile(song: song);
-
-  // ---------------------------------------------------------------------------
-  // Stats — Hive-backed stale-while-revalidate cache
-  // ---------------------------------------------------------------------------
-
-  /// Returns stats. Tries Hive first; if no cached data (or stale),
-  /// fetches from the network. The Riverpod provider adds a 15-min TTL on top.
-  Future<ShuffleStatsResponse> getStats() async {
-    final box = HiveBoxes.shuffleCache;
-
-    // Serve cached data if present and < 15 minutes old.
-    final cachedJson = box.get(_kStatsCache) as String?;
-    final cachedTime = box.get(_kStatsCacheTime) as int?;
-    if (cachedJson != null && cachedTime != null) {
-        final age = DateTime.now().millisecondsSinceEpoch - cachedTime;
-        if (age < const Duration(minutes: 15).inMilliseconds) {
-          try {
-            final map = jsonDecode(cachedJson) as Map<String, dynamic>;
-            debugPrint('[ShuffleRepo] Returning cached stats (${age ~/ 1000}s old)');
-            return ShuffleStatsResponse.fromJson(map);
-          } catch (_) { /* malformed cache — fall through to network */ }
-        }
-    }
-
-    // Fetch fresh data.
-    final response = await _api.getStats();
-
-    // Persist to Hive.
-    try {
-      await box.put(_kStatsCache, jsonEncode(_statsToJson(response)));
-      await box.put(_kStatsCacheTime, DateTime.now().millisecondsSinceEpoch);
-    } catch (e) {
-      debugPrint('[ShuffleRepo] Failed to cache stats: $e');
-    }
-
+    if (response.queue.isEmpty) throw const ShuffleEmptyResponse();
     return response;
   }
 
   // ---------------------------------------------------------------------------
-  // Session management
+  // Feedback
   // ---------------------------------------------------------------------------
 
-  /// Resets the server-side session exclusion list.
-  Future<void> resetSession() => _api.resetSession();
-
-  /// Returns the current session state.
-  Future<SessionStatusResponse> getSessionStatus() =>
-      _api.getSessionStatus();
+  /// Posts listening feedback. Errors are swallowed — feedback is best-effort.
+  Future<void> postFeedback(FeedbackRequest request) async {
+    try {
+      await _api.postFeedback(request);
+    } catch (e) {
+      debugPrint('[ShuffleRepo] feedback error (ignored): $e');
+    }
+  }
 
   // ---------------------------------------------------------------------------
-  // JSON serialisation helpers
+  // Model status
   // ---------------------------------------------------------------------------
 
-  Map<String, dynamic> _statsToJson(ShuffleStatsResponse r) => {
-        'total_plays': r.totalPlays,
-        'top_songs': r.topSongs,
-        'top_artists': r.topArtists,
-        'weekly': r.weekly,
-        'monthly': r.monthly,
-      };
+  Future<ModelStatusResponse> getModelStatus() => _api.getModelStatus();
+
+  // ---------------------------------------------------------------------------
+  // Listening log
+  // ---------------------------------------------------------------------------
+
+  Future<ListeningStatsResponse> getListeningStats({
+    String period = 'weekly',
+  }) =>
+      _api.getListeningStats(period: period);
+
+  Future<ListeningHistoryResponse> getListeningHistory({
+    int limit = 50,
+    int offset = 0,
+    String? artist,
+    String? title,
+    String period = 'all',
+  }) =>
+      _api.getListeningHistory(
+        limit: limit,
+        offset: offset,
+        artist: artist,
+        title: title,
+        period: period,
+      );
+
+  Future<List<Map<String, dynamic>>> getComposers() => _api.getComposers();
+
+  Future<Map<String, dynamic>> getSongDeepDive({required String title}) =>
+      _api.getSongDeepDive(title: title);
 }

@@ -45,7 +45,9 @@ enum ShuffleAlgorithm {
   /// repeats during long listening sessions.
   recencyDampened,
 
-  /// Smart Local Model Shuffle: Queries a local Flask server for smart predictions.
+  /// Smart Shuffle via shuffle.subimusic.me — queries the hosted AI server
+  /// for intelligent, context-aware song recommendations using the user's
+  /// personal Navidrome listening history and real-time weather/time context.
   smartLocal,
 }
 
