@@ -56,3 +56,13 @@ graphify-out/cache/
 # Hive local data files — never commit runtime DB files
 *.hive
 *.hive.lock
+# Ignore local tooling scripts
+suma.py
+build_audit.py
+scratch.dart
+auto_name.py
+fix_names.py
+extract_communities.py
+.graphifyignore
+graphify-out/obsidian
+.obsidian
