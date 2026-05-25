@@ -93,7 +93,9 @@ class BpmAnalyzerService {
 
   Future<void> clearCache() async {
     final box = HiveBoxes.audio;
-    final bpmKeys = box.keys.where((k) => k.toString().startsWith('bpm_')).toList();
+    final bpmKeys = box.keys
+        .where((k) => k.toString().startsWith('bpm_'))
+        .toList();
     for (final key in bpmKeys) {
       await box.delete(key);
     }
@@ -129,7 +131,9 @@ class BpmAnalyzerService {
   }
 
   int getCachedCount() {
-    return HiveBoxes.audio.keys.where((k) => k.toString().startsWith('bpm_')).length;
+    return HiveBoxes.audio.keys
+        .where((k) => k.toString().startsWith('bpm_'))
+        .length;
   }
 
   bool isCached(String songId) {

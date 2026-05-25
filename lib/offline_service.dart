@@ -134,7 +134,8 @@ class OfflineService {
       try {
         final file = File(_getSongMetadataPath(id));
         if (await file.exists()) {
-          final data = jsonDecode(await file.readAsString()) as Map<String, dynamic>;
+          final data =
+              jsonDecode(await file.readAsString()) as Map<String, dynamic>;
           songs.add(Song.fromJson(data));
         }
       } catch (e) {
@@ -217,7 +218,10 @@ class OfflineService {
 
       try {
         if (song.coverArt.isNotEmpty) {
-          final coverUrl = subsonicService.getCoverArtUrl(song.coverArt, size: 600);
+          final coverUrl = subsonicService.getCoverArtUrl(
+            song.coverArt,
+            size: 600,
+          );
           if (coverUrl.isNotEmpty) {
             final dioCover = Dio();
             await dioCover.download(coverUrl, _getCoverArtPath(song.id));
@@ -413,8 +417,6 @@ class OfflineService {
     if (File(oldPath).existsSync()) return oldPath;
     return null;
   }
-
-
 
   Future<void> queueScrobble(String songId, {bool submission = true}) async {
     if (_prefs == null) await initialize();

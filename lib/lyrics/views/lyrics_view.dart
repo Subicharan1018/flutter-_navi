@@ -112,9 +112,7 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
                 Expanded(
                   // PERF: RepaintBoundary isolates lyrics repaints from the
                   // expensive BackdropFilter background layer.
-                  child: RepaintBoundary(
-                    child: _buildBody(lyricsState),
-                  ),
+                  child: RepaintBoundary(child: _buildBody(lyricsState)),
                 ),
               ],
             ),
@@ -236,7 +234,9 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
             final duration =
                 ref.read(playerProvider).currentSong?.duration ?? 0;
             final max = Duration(seconds: duration);
-            final safe = ts < Duration.zero ? Duration.zero : (ts > max ? max : ts);
+            final safe = ts < Duration.zero
+                ? Duration.zero
+                : (ts > max ? max : ts);
             // Seek the audio — modal stays open per design decision.
             ref.read(playerProvider.notifier).player.seek(safe);
             // Snap the scroll list to the tapped line.

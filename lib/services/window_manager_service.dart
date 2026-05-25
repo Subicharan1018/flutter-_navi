@@ -30,10 +30,10 @@ class WindowManagerService with WindowListener {
 
   // ── Hive box key names ─────────────────────────────────────────────────────
   static const String _boxName = 'window_state';
-  static const String _keyWidth  = 'w';
+  static const String _keyWidth = 'w';
   static const String _keyHeight = 'h';
-  static const String _keyX      = 'x';
-  static const String _keyY      = 'y';
+  static const String _keyX = 'x';
+  static const String _keyY = 'y';
 
   bool _attached = false;
 
@@ -72,14 +72,14 @@ class WindowManagerService with WindowListener {
 
   Future<void> _saveWindowState() async {
     try {
-      final size     = await windowManager.getSize();
+      final size = await windowManager.getSize();
       final position = await windowManager.getPosition();
       final box = await Hive.openBox<dynamic>(_boxName);
       await box.putAll({
-        _keyWidth:  size.width,
+        _keyWidth: size.width,
         _keyHeight: size.height,
-        _keyX:      position.dx,
-        _keyY:      position.dy,
+        _keyX: position.dx,
+        _keyY: position.dy,
       });
     } catch (e) {
       // Non-fatal — next launch simply uses the default size.
@@ -90,10 +90,10 @@ class WindowManagerService with WindowListener {
   Future<void> _restoreWindowState() async {
     try {
       final box = await Hive.openBox<dynamic>(_boxName);
-      final w = box.get(_keyWidth)  as double?;
+      final w = box.get(_keyWidth) as double?;
       final h = box.get(_keyHeight) as double?;
-      final x = box.get(_keyX)      as double?;
-      final y = box.get(_keyY)      as double?;
+      final x = box.get(_keyX) as double?;
+      final y = box.get(_keyY) as double?;
 
       if (w != null && h != null) {
         // Clamp to minimum size so a corrupted value never hides the window.

@@ -32,12 +32,11 @@ class LyricLineWidget extends StatelessWidget {
     final targetOpacity = isActive
         ? 1.0
         : isPast
-            ? 0.35
-            : 0.60;
+        ? 0.35
+        : 0.60;
 
     final targetFontSize = isActive ? 28.0 : 22.0;
-    final targetWeight =
-        isActive ? FontWeight.w700 : FontWeight.w400;
+    final targetWeight = isActive ? FontWeight.w700 : FontWeight.w400;
     final targetColor = Colors.white.withValues(alpha: targetOpacity);
 
     Widget line = AnimatedDefaultTextStyle(
@@ -56,14 +55,8 @@ class LyricLineWidget extends StatelessWidget {
         curve: Curves.easeInOut,
         alignment: Alignment.centerLeft,
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: 28.0,
-            vertical: 10.0,
-          ),
-          child: Text(
-            text,
-            maxLines: null,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 10.0),
+          child: Text(text, maxLines: null),
         ),
       ),
     );
@@ -73,12 +66,7 @@ class LyricLineWidget extends StatelessWidget {
       line = line
           .animate(delay: Duration(milliseconds: 60 * index))
           .fadeIn(duration: 350.ms, curve: Curves.easeOut)
-          .slideY(
-            begin: 0.15,
-            end: 0,
-            duration: 350.ms,
-            curve: Curves.easeOut,
-          );
+          .slideY(begin: 0.15, end: 0, duration: 350.ms, curve: Curves.easeOut);
     }
 
     return line;

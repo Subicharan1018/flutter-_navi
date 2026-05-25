@@ -44,12 +44,12 @@ Future<void> main() async {
   if (PlatformUtils.supportsWindowManager) {
     await windowManager.ensureInitialized();
     const options = WindowOptions(
-      title:           'NaviVibe',
-      size:            Size(1280, 800),
-      minimumSize:     Size(900, 600),
-      center:          true,
+      title: 'NaviVibe',
+      size: Size(1280, 800),
+      minimumSize: Size(900, 600),
+      center: true,
       backgroundColor: Colors.transparent,
-      titleBarStyle:   TitleBarStyle.normal,
+      titleBarStyle: TitleBarStyle.normal,
     );
     await windowManager.waitUntilReadyToShow(options, () async {
       await windowManager.show();
@@ -72,10 +72,10 @@ Future<void> main() async {
         replayGainService: container.read(replayGainProvider),
       ),
       config: const AudioServiceConfig(
-        androidNotificationChannelId:   'com.navivibe.audio',
+        androidNotificationChannelId: 'com.navivibe.audio',
         androidNotificationChannelName: 'NaviVibe',
-        androidNotificationOngoing:     false,
-        androidStopForegroundOnPause:   false,
+        androidNotificationOngoing: false,
+        androidStopForegroundOnPause: false,
       ),
     );
   } catch (e, st) {
@@ -89,10 +89,12 @@ Future<void> main() async {
   // PERF-15: Pre-load the fluid background shader.
   unawaited(FluidShaderLoader.instance.load());
 
-  runApp(UncontrolledProviderScope(
-    container: container,
-    child: const MyMusicPlayerApp(),
-  ));
+  runApp(
+    UncontrolledProviderScope(
+      container: container,
+      child: const MyMusicPlayerApp(),
+    ),
+  );
 }
 
 class MyMusicPlayerApp extends ConsumerWidget {
@@ -100,7 +102,7 @@ class MyMusicPlayerApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode   = ref.watch(themeModeProvider);
+    final mode = ref.watch(themeModeProvider);
     final tokens = ThemeVariants.of(mode);
 
     // Route: show LoginScreen on first launch, AppScaffold if already logged in.

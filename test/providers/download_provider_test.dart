@@ -8,36 +8,7 @@ import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/offline_service.dart';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:navivibe/services/subsonic_service.dart';
-Song makeSong({
-  String id = '1',
-  String title = 'Test Song',
-  String artist = 'Artist',
-  String album = 'Album',
-  String genre = 'Rock',
-  String composer = 'Bach',
-  int duration = 200,
-  int track = 1,
-  int year = 2024,
-  bool starred = false,
-  int playCount = 0,
-  int rating = 0,
-  double dynamicWeight = 1.0,
-}) => Song(
-  id: id,
-  title: title,
-  artist: artist,
-  album: album,
-  genre: genre,
-  composer: composer,
-  coverArt: '',
-  duration: duration,
-  track: track,
-  year: year,
-  starred: starred,
-  playCount: playCount,
-  rating: rating,
-  dynamicWeight: dynamicWeight,
-);
+import '../helpers/test_utils.dart';
 
 class MockOfflineService extends Mock implements OfflineService {
   final List<String> preDownloadedIds;
@@ -89,8 +60,9 @@ void main() {
     setUp(() {
       mockSubsonicService = MockSubsonicService();
       mockConnectivity = MockConnectivity();
-      when(() => mockConnectivity.checkConnectivity())
-          .thenAnswer((_) async => [ConnectivityResult.wifi]);
+      when(
+        () => mockConnectivity.checkConnectivity(),
+      ).thenAnswer((_) async => [ConnectivityResult.wifi]);
     });
 
     test('initial state is seeded from OfflineService', () async {
@@ -106,7 +78,7 @@ void main() {
 
       container.read(downloadStateProvider);
       await Future<void>.delayed(Duration.zero); // wait for microtask
-      
+
       final stateAfter = container.read(downloadStateProvider);
       expect(stateAfter, isNotEmpty);
       expect(stateAfter['123']?.status, equals(SongDownloadStatus.downloaded));

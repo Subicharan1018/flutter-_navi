@@ -240,9 +240,12 @@ graphify is registered as an MCP server in both Claude Code and Gemini CLI.
 Use structured graph access via: `query_graph`, `get_node`, `get_neighbors`, `shortest_path`
 Graph location: `graphify-out/graph.json`
 
-## graphify Integration Rules
-- ALWAYS read `graphify-out/GRAPH_REPORT.md` before reading any source files or running grep.
-- If `graphify-out/wiki/index.md` exists, navigate it instead of reading raw files.
-- For cross-module questions, prefer `/graphify query`, `/graphify path`, `/graphify explain` over grep.
-- After modifying code, run `graphify update .` to keep graph current.
-- Never read `graphify-out/graph.json` directly — it is 925KB+ and will blow context limits. Use MCP queries instead.
+## graphify
+
+This project has a knowledge graph at graphify-out/ with god nodes, community structure, and cross-file relationships.
+
+Rules:
+- For codebase questions, first run `graphify query "<question>"` when graphify-out/graph.json exists. Use `graphify path "<A>" "<B>"` for relationships and `graphify explain "<concept>"` for focused concepts. These return a scoped subgraph, usually much smaller than GRAPH_REPORT.md or raw grep output.
+- If graphify-out/wiki/index.md exists, use it for broad navigation instead of raw source browsing.
+- Read graphify-out/GRAPH_REPORT.md only for broad architecture review or when query/path/explain do not surface enough context.
+- After modifying code, run `graphify update .` to keep the graph current (AST-only, no API cost).

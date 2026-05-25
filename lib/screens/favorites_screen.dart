@@ -32,8 +32,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     final topPad = MediaQuery.of(context).padding.top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: ThemeTokens.of(context).isLight 
-          ? SystemUiOverlayStyle.dark 
+      value: ThemeTokens.of(context).isLight
+          ? SystemUiOverlayStyle.dark
           : SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: ThemeTokens.of(context).bgBase,
@@ -78,8 +78,13 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 ),
                 error: (e, _) => SliverFillRemaining(
                   child: Center(
-                    child: Text('Could not load favorites',
-                        style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 14)),
+                    child: Text(
+                      'Could not load favorites',
+                      style: TextStyle(
+                        color: ThemeTokens.of(context).textMuted,
+                        fontSize: 14,
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -105,21 +110,18 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     }
 
     return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          final song = songs[index];
-          return SongTile(
-            song: song,
-            onTap: () {
-              ref.read(playerProvider.notifier).setQueue(songs, index);
-            },
-          )
-          .animate(delay: (index * 18).clamp(0, 280).ms)
-          .fadeIn(duration: 350.ms)
-          .slideX(begin: 0.03, end: 0, curve: Curves.easeOutCubic);
-        },
-        childCount: songs.length,
-      ),
+      delegate: SliverChildBuilderDelegate((context, index) {
+        final song = songs[index];
+        return SongTile(
+              song: song,
+              onTap: () {
+                ref.read(playerProvider.notifier).setQueue(songs, index);
+              },
+            )
+            .animate(delay: (index * 18).clamp(0, 280).ms)
+            .fadeIn(duration: 350.ms)
+            .slideX(begin: 0.03, end: 0, curve: Curves.easeOutCubic);
+      }, childCount: songs.length),
     );
   }
 
@@ -143,33 +145,30 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           crossAxisSpacing: 14,
           childAspectRatio: 0.78,
         ),
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final album = albums[index];
-            return _AlbumCard(
-              album: album,
-              onTap: () async {
-                try {
-                  final svc = ref.read(subsonicServiceProvider);
-                  final songs = await svc.getAlbum(album.id);
-                  if (context.mounted) {
-                    ref.read(playerProvider.notifier).setQueue(songs, 0);
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final album = albums[index];
+          return _AlbumCard(
+                album: album,
+                onTap: () async {
+                  try {
+                    final svc = ref.read(subsonicServiceProvider);
+                    final songs = await svc.getAlbum(album.id);
+                    if (context.mounted) {
+                      ref.read(playerProvider.notifier).setQueue(songs, 0);
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not play album: $e')),
+                      );
+                    }
                   }
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not play album: $e')),
-                    );
-                  }
-                }
-              },
-            )
-            .animate(delay: (index * 40).clamp(0, 320).ms)
-            .fadeIn(duration: 400.ms)
-            .scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1));
-          },
-          childCount: albums.length,
-        ),
+                },
+              )
+              .animate(delay: (index * 40).clamp(0, 320).ms)
+              .fadeIn(duration: 400.ms)
+              .scale(begin: const Offset(0.96, 0.96), end: const Offset(1, 1));
+        }, childCount: albums.length),
       ),
     );
   }
@@ -206,7 +205,8 @@ class _FavoritesHeader extends StatelessWidget {
           Row(
             children: [
               Container(
-                width: 6, height: 6,
+                width: 6,
+                height: 6,
                 decoration: BoxDecoration(
                   color: ThemeTokens.of(context).accent,
                   shape: BoxShape.circle,
@@ -267,7 +267,11 @@ class _FilterPill extends StatelessWidget {
   final String title;
   final bool isSelected;
   final VoidCallback onTap;
-  const _FilterPill({required this.title, required this.isSelected, required this.onTap});
+  const _FilterPill({
+    required this.title,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -281,7 +285,9 @@ class _FilterPill extends StatelessWidget {
           curve: Curves.easeOutCubic,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 9),
           decoration: BoxDecoration(
-            color: isSelected ? ThemeTokens.of(context).accent : ThemeTokens.of(context).bgElevated,
+            color: isSelected
+                ? ThemeTokens.of(context).accent
+                : ThemeTokens.of(context).bgElevated,
             borderRadius: BorderRadius.circular(20),
           ),
           child: Text(
@@ -289,7 +295,11 @@ class _FilterPill extends StatelessWidget {
             style: TextStyle(
               fontSize: 13,
               fontWeight: FontWeight.w600,
-              color: isSelected ? (ThemeTokens.of(context).isLight ? Colors.white : Colors.black) : ThemeTokens.of(context).textPrimary,
+              color: isSelected
+                  ? (ThemeTokens.of(context).isLight
+                        ? Colors.white
+                        : Colors.black)
+                  : ThemeTokens.of(context).textPrimary,
             ),
           ),
         ),
@@ -333,48 +343,62 @@ class _AlbumCard extends ConsumerWidget {
                 child: coverUrl != null
                     ? CachedNetworkImage(
                         imageUrl: coverUrl,
-                        cacheKey: 'fav_album_${album.coverArt.isNotEmpty ? album.coverArt : album.id}',
+                        cacheKey:
+                            'fav_album_${album.coverArt.isNotEmpty ? album.coverArt : album.id}',
                         fit: BoxFit.cover,
                         width: double.infinity,
                         placeholder: (_, __) => Container(
                           color: ThemeTokens.of(context).bgElevated,
                           child: Center(
-                            child: Icon(Icons.album_rounded,
-                                color: ThemeTokens.of(context).textMuted, size: 40),
+                            child: Icon(
+                              Icons.album_rounded,
+                              color: ThemeTokens.of(context).textMuted,
+                              size: 40,
+                            ),
                           ),
                         ),
                         errorWidget: (_, __, ___) => Container(
                           color: ThemeTokens.of(context).bgElevated,
                           child: Center(
-                            child: Icon(Icons.album_rounded,
-                                color: ThemeTokens.of(context).textMuted, size: 40),
+                            child: Icon(
+                              Icons.album_rounded,
+                              color: ThemeTokens.of(context).textMuted,
+                              size: 40,
+                            ),
                           ),
                         ),
                       )
                     : Center(
-                        child: Icon(Icons.album_rounded,
-                            color: ThemeTokens.of(context).textMuted, size: 40),
+                        child: Icon(
+                          Icons.album_rounded,
+                          color: ThemeTokens.of(context).textMuted,
+                          size: 40,
+                        ),
                       ),
               ),
             ),
             SizedBox(height: 8),
             // Title
-            Text(album.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: ThemeTokens.of(context).textPrimary,
-                )),
+            Text(
+              album.name,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w600,
+                color: ThemeTokens.of(context).textPrimary,
+              ),
+            ),
             SizedBox(height: 2),
-            Text(album.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 11,
-                  color: ThemeTokens.of(context).textSecondary,
-                )),
+            Text(
+              album.artist,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: TextStyle(
+                fontSize: 11,
+                color: ThemeTokens.of(context).textSecondary,
+              ),
+            ),
           ],
         ),
       ),
@@ -399,8 +423,13 @@ class _EmptyState extends StatelessWidget {
         children: [
           Icon(icon, color: ThemeTokens.of(context).textMuted, size: 48),
           SizedBox(height: 16),
-          Text(message,
-              style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
+          Text(
+            message,
+            style: TextStyle(
+              color: ThemeTokens.of(context).textMuted,
+              fontSize: 15,
+            ),
+          ),
         ],
       ),
     );

@@ -28,8 +28,7 @@ abstract final class PlatformUtils {
   static bool get isMacOS => !kIsWeb && Platform.isMacOS;
 
   /// True on Android and iOS.
-  static bool get isMobile =>
-      !kIsWeb && (Platform.isAndroid || Platform.isIOS);
+  static bool get isMobile => !kIsWeb && (Platform.isAndroid || Platform.isIOS);
 
   /// True only on Android.
   static bool get isAndroid => !kIsWeb && Platform.isAndroid;

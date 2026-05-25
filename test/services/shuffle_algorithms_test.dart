@@ -19,7 +19,8 @@ import 'dart:math';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/services/shuffle_algorithms.dart';
 import 'package:navivibe/models/song.dart';
-import 'package:navivibe/providers/settings_provider.dart' show ShufflePreference;
+import 'package:navivibe/providers/settings_provider.dart'
+    show ShufflePreference;
 
 // ── Test data factory ─────────────────────────────────────────────────────────
 
@@ -35,31 +36,32 @@ Song _song({
   int playCount = 0,
   int rating = 0,
   double dynamicWeight = 1.0,
-}) =>
-    Song(
-      id: id,
-      title: '$title $id',
-      artist: artist,
-      album: album,
-      genre: genre,
-      composer: composer,
-      coverArt: '',
-      duration: 200,
-      track: track,
-      year: 2024,
-      starred: starred,
-      playCount: playCount,
-      rating: rating,
-      dynamicWeight: dynamicWeight,
-    );
+}) => Song(
+  id: id,
+  title: '$title $id',
+  artist: artist,
+  album: album,
+  genre: genre,
+  composer: composer,
+  coverArt: '',
+  duration: 200,
+  track: track,
+  year: 2024,
+  starred: starred,
+  playCount: playCount,
+  rating: rating,
+  dynamicWeight: dynamicWeight,
+);
 
-List<Song> _makePool(int count, {String genre = 'Rock', String composer = 'Comp'}) {
-  return List.generate(count, (i) => _song(
-    id: '$i',
-    genre: genre,
-    composer: composer,
-    track: i + 1,
-  ));
+List<Song> _makePool(
+  int count, {
+  String genre = 'Rock',
+  String composer = 'Comp',
+}) {
+  return List.generate(
+    count,
+    (i) => _song(id: '$i', genre: genre, composer: composer, track: i + 1),
+  );
 }
 
 List<Song> _makeMixedPool() {
@@ -68,8 +70,8 @@ List<Song> _makeMixedPool() {
     _song(id: '2', genre: 'Jazz', composer: 'Bach', album: 'Album A'),
     _song(id: '3', genre: 'Rock', composer: 'Mozart', album: 'Album B'),
     _song(id: '4', genre: 'Jazz', composer: 'Mozart', album: 'Album B'),
-    _song(id: '5', genre: 'Pop',  composer: 'Bach', album: 'Album C'),
-    _song(id: '6', genre: 'Pop',  composer: 'Mozart', album: 'Album C'),
+    _song(id: '5', genre: 'Pop', composer: 'Bach', album: 'Album C'),
+    _song(id: '6', genre: 'Pop', composer: 'Mozart', album: 'Album C'),
     _song(id: '7', genre: 'Rock', composer: 'Chopin', album: 'Album D'),
     _song(id: '8', genre: 'Jazz', composer: 'Chopin', album: 'Album D'),
   ];
@@ -80,10 +82,16 @@ List<Song> _makeMixedPool() {
 Set<String> _ids(List<Song> songs) => songs.map((s) => s.id).toSet();
 
 void _assertNoDuplicatesOrMissing(List<Song> input, List<Song> output) {
-  expect(output.length, input.length,
-      reason: 'Output length must match input length');
-  expect(_ids(output), _ids(input),
-      reason: 'Output must contain exactly the same song IDs as input');
+  expect(
+    output.length,
+    input.length,
+    reason: 'Output length must match input length',
+  );
+  expect(
+    _ids(output),
+    _ids(input),
+    reason: 'Output must contain exactly the same song IDs as input',
+  );
 }
 
 bool _listEquals(List<String> a, List<String> b) {
@@ -135,8 +143,11 @@ void main() {
           break;
         }
       }
-      expect(foundDifferent, isTrue,
-          reason: 'Shuffle should produce a different order from the input');
+      expect(
+        foundDifferent,
+        isTrue,
+        reason: 'Shuffle should produce a different order from the input',
+      );
     });
   });
 
@@ -177,10 +188,14 @@ void main() {
     test('spreads same-genre songs apart', () {
       // 4 Rock + 4 Jazz
       final pool = [
-        _song(id: '1', genre: 'Rock'), _song(id: '2', genre: 'Rock'),
-        _song(id: '3', genre: 'Rock'), _song(id: '4', genre: 'Rock'),
-        _song(id: '5', genre: 'Jazz'), _song(id: '6', genre: 'Jazz'),
-        _song(id: '7', genre: 'Jazz'), _song(id: '8', genre: 'Jazz'),
+        _song(id: '1', genre: 'Rock'),
+        _song(id: '2', genre: 'Rock'),
+        _song(id: '3', genre: 'Rock'),
+        _song(id: '4', genre: 'Rock'),
+        _song(id: '5', genre: 'Jazz'),
+        _song(id: '6', genre: 'Jazz'),
+        _song(id: '7', genre: 'Jazz'),
+        _song(id: '8', genre: 'Jazz'),
       ];
 
       // Count back-to-back same-genre occurrences over many runs.
@@ -197,8 +212,11 @@ void main() {
       }
       // Perfect interleaving → 0. Allow generous 30% margin.
       final maxAllowed = (runs * 7 * 0.3).round();
-      expect(totalBackToBack, lessThan(maxAllowed),
-          reason: 'Dithered shuffle should spread same-genre songs apart');
+      expect(
+        totalBackToBack,
+        lessThan(maxAllowed),
+        reason: 'Dithered shuffle should spread same-genre songs apart',
+      );
     });
   });
 
@@ -257,12 +275,14 @@ void main() {
     });
 
     test('starred songs appear earlier on average', () {
-      final starredSongs = List.generate(5, (i) => _song(
-        id: 'star_$i', starred: true, playCount: 50, rating: 5,
-      ));
-      final normalSongs = List.generate(15, (i) => _song(
-        id: 'normal_$i', starred: false, playCount: 0, rating: 0,
-      ));
+      final starredSongs = List.generate(
+        5,
+        (i) => _song(id: 'star_$i', starred: true, playCount: 50, rating: 5),
+      );
+      final normalSongs = List.generate(
+        15,
+        (i) => _song(id: 'normal_$i', starred: false, playCount: 0, rating: 0),
+      );
       final pool = [...starredSongs, ...normalSongs];
 
       double totalStarredPos = 0;
@@ -281,30 +301,45 @@ void main() {
       final avgStarredPos = totalStarredPos / (runs * starredSongs.length);
       final avgNormalPos = totalNormalPos / (runs * normalSongs.length);
 
-      expect(avgStarredPos, lessThan(avgNormalPos),
-          reason: 'Starred/high-weight songs should appear earlier on average');
+      expect(
+        avgStarredPos,
+        lessThan(avgNormalPos),
+        reason: 'Starred/high-weight songs should appear earlier on average',
+      );
     });
 
     test('songWeight formula is correct', () {
       // Base: dynamicWeight clamped to [0.1, 10.0]
-      expect(songWeight(_song(id: '1', dynamicWeight: 1.0)), closeTo(1.0, 0.01));
+      expect(
+        songWeight(_song(id: '1', dynamicWeight: 1.0)),
+        closeTo(1.0, 0.01),
+      );
 
       // Starred: ×2
-      expect(songWeight(_song(id: '1', dynamicWeight: 1.0, starred: true)),
-          closeTo(2.0, 0.01));
+      expect(
+        songWeight(_song(id: '1', dynamicWeight: 1.0, starred: true)),
+        closeTo(2.0, 0.01),
+      );
 
       // Rating 5: +(5-1)/4 = +1.0
-      expect(songWeight(_song(id: '1', dynamicWeight: 1.0, rating: 5)),
-          closeTo(2.0, 0.01));
+      expect(
+        songWeight(_song(id: '1', dynamicWeight: 1.0, rating: 5)),
+        closeTo(2.0, 0.01),
+      );
 
       // PlayCount 100: +(100/100).clamp(0,1) = +1.0
-      expect(songWeight(_song(id: '1', dynamicWeight: 1.0, playCount: 100)),
-          closeTo(2.0, 0.01));
+      expect(
+        songWeight(_song(id: '1', dynamicWeight: 1.0, playCount: 100)),
+        closeTo(2.0, 0.01),
+      );
 
       // Clamping: dynamicWeight of 20.0 clamps to 10.0
       final clamped = songWeight(_song(id: '1', dynamicWeight: 20.0));
-      expect(clamped, closeTo(10.0, 0.01),
-          reason: 'dynamicWeight should clamp to 10.0');
+      expect(
+        clamped,
+        closeTo(10.0, 0.01),
+        reason: 'dynamicWeight should clamp to 10.0',
+      );
     });
 
     test('handles zero dynamicWeight (clamped to 0.1)', () {
@@ -344,12 +379,18 @@ void main() {
         final albumB = result.where((s) => s.album == 'Album B').toList();
 
         for (int i = 1; i < albumA.length; i++) {
-          expect(albumA[i].track, greaterThan(albumA[i - 1].track),
-              reason: 'Album A tracks should be in ascending order');
+          expect(
+            albumA[i].track,
+            greaterThan(albumA[i - 1].track),
+            reason: 'Album A tracks should be in ascending order',
+          );
         }
         for (int i = 1; i < albumB.length; i++) {
-          expect(albumB[i].track, greaterThan(albumB[i - 1].track),
-              reason: 'Album B tracks should be in ascending order');
+          expect(
+            albumB[i].track,
+            greaterThan(albumB[i - 1].track),
+            reason: 'Album B tracks should be in ascending order',
+          );
         }
       }
     });
@@ -373,8 +414,11 @@ void main() {
         String? currentAlbum;
         for (final song in result) {
           if (song.album != currentAlbum) {
-            expect(seen.contains(song.album), isFalse,
-                reason: 'Album "${song.album}" appeared non-contiguously');
+            expect(
+              seen.contains(song.album),
+              isFalse,
+              reason: 'Album "${song.album}" appeared non-contiguously',
+            );
             if (currentAlbum != null) seen.add(currentAlbum);
             currentAlbum = song.album;
           }
@@ -407,8 +451,11 @@ void main() {
           break;
         }
       }
-      expect(foundDifferentOrder, isTrue,
-          reason: 'shuffleTracks=true should randomize track order');
+      expect(
+        foundDifferentOrder,
+        isTrue,
+        reason: 'shuffleTracks=true should randomize track order',
+      );
     });
   });
 
@@ -445,10 +492,14 @@ void main() {
         }
       }
       final avgRecentPos = totalRecentPos / (runs * recentIds.length);
-      final avgOtherPos = totalOtherPos / (runs * (pool.length - recentIds.length));
+      final avgOtherPos =
+          totalOtherPos / (runs * (pool.length - recentIds.length));
 
-      expect(avgRecentPos, greaterThan(avgOtherPos),
-          reason: 'Recently played songs should be pushed toward the end');
+      expect(
+        avgRecentPos,
+        greaterThan(avgOtherPos),
+        reason: 'Recently played songs should be pushed toward the end',
+      );
     });
 
     test('handles empty recentIds (no dampening applied)', () {

@@ -25,13 +25,13 @@ class _FadeScaleRoute<T> extends PageRouteBuilder<T> {
   final WidgetBuilder _builder;
 
   _FadeScaleRoute({required WidgetBuilder builder})
-      : _builder = builder,
-        super(
-          transitionDuration: AppRouteTransitions.forwardDuration,
-          reverseTransitionDuration: AppRouteTransitions.reverseDuration,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              builder(context),
-        );
+    : _builder = builder,
+      super(
+        transitionDuration: AppRouteTransitions.forwardDuration,
+        reverseTransitionDuration: AppRouteTransitions.reverseDuration,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            builder(context),
+      );
 
   // One CurvedAnimation for the lifetime of this route.
   late final CurvedAnimation _curved = CurvedAnimation(
@@ -67,15 +67,15 @@ class _SlideUpRoute<T> extends PageRouteBuilder<T> {
   final WidgetBuilder _builder;
 
   _SlideUpRoute({required WidgetBuilder builder})
-      : _builder = builder,
-        super(
-          opaque: false,
-          barrierColor: Colors.transparent,
-          transitionDuration: AppRouteTransitions.forwardDuration,
-          reverseTransitionDuration: AppRouteTransitions.reverseDuration,
-          pageBuilder: (context, animation, secondaryAnimation) =>
-              builder(context),
-        );
+    : _builder = builder,
+      super(
+        opaque: false,
+        barrierColor: Colors.transparent,
+        transitionDuration: AppRouteTransitions.forwardDuration,
+        reverseTransitionDuration: AppRouteTransitions.reverseDuration,
+        pageBuilder: (context, animation, secondaryAnimation) =>
+            builder(context),
+      );
 
   late final CurvedAnimation _curved = CurvedAnimation(
     parent: animation!,

@@ -28,12 +28,18 @@ enum AppThemeMode {
 extension AppThemeModeLabel on AppThemeMode {
   String get label {
     switch (this) {
-      case AppThemeMode.spotify:    return 'Spotify';
-      case AppThemeMode.aura:       return 'Aura';
-      case AppThemeMode.frost:      return 'Frost';
-      case AppThemeMode.neumorphic: return 'Neumorphic';
-      case AppThemeMode.analog:     return 'Analog';
-      case AppThemeMode.zen:        return 'Zen';
+      case AppThemeMode.spotify:
+        return 'Spotify';
+      case AppThemeMode.aura:
+        return 'Aura';
+      case AppThemeMode.frost:
+        return 'Frost';
+      case AppThemeMode.neumorphic:
+        return 'Neumorphic';
+      case AppThemeMode.analog:
+        return 'Analog';
+      case AppThemeMode.zen:
+        return 'Zen';
     }
   }
 
@@ -66,15 +72,15 @@ class AppThemeTokens {
   final AppThemeMode mode;
 
   // ── Background layers (darkest → brightest) ─────────────────────────────────
-  final Color bgBase;       // scaffold / page background
-  final Color bgSurface;    // cards, sheets
-  final Color bgElevated;   // popovers, tooltips
-  final Color bgOverlay;    // modal scrims
+  final Color bgBase; // scaffold / page background
+  final Color bgSurface; // cards, sheets
+  final Color bgElevated; // popovers, tooltips
+  final Color bgOverlay; // modal scrims
 
   // ── Brand / accent ────────────────────────────────────────────────────────
-  final Color accent;       // primary interactive colour
-  final Color accentDim;    // muted accent (disabled, inactive)
-  final Color gold;         // stars / favourites
+  final Color accent; // primary interactive colour
+  final Color accentDim; // muted accent (disabled, inactive)
+  final Color gold; // stars / favourites
 
   // ── Text ──────────────────────────────────────────────────────────────────
   final Color textPrimary;
@@ -89,11 +95,12 @@ class AppThemeTokens {
   final Color glassBorder;
 
   // ── Neumorphic shadows (used by Neumorphic theme) ─────────────────────────
-  final Color neuLight;     // bright-side shadow colour
-  final Color neuDark;      // dark-side shadow colour
+  final Color neuLight; // bright-side shadow colour
+  final Color neuDark; // dark-side shadow colour
 
   // ── Typography ────────────────────────────────────────────────────────────
-  final TextStyle Function(double size, FontWeight weight, Color color) textStyle;
+  final TextStyle Function(double size, FontWeight weight, Color color)
+  textStyle;
 
   const AppThemeTokens({
     required this.mode,
@@ -116,14 +123,14 @@ class AppThemeTokens {
   });
 
   // ── Convenience text styles ───────────────────────────────────────────────
-  TextStyle get headingLg    => textStyle(28, FontWeight.w700, textPrimary);
-  TextStyle get headingMd    => textStyle(22, FontWeight.w700, textPrimary);
-  TextStyle get headingSm    => textStyle(16, FontWeight.w700, textPrimary);
-  TextStyle get bodyMd       => textStyle(14, FontWeight.w400, textPrimary);
-  TextStyle get bodySm       => textStyle(12, FontWeight.w400, textSecondary);
-  TextStyle get labelMd      => textStyle(11, FontWeight.w600, textSecondary);
-  TextStyle get technicalSm  => textStyle(14, FontWeight.w500, textSecondary);
-  TextStyle get technicalXs  => textStyle(12, FontWeight.w400, textMuted);
+  TextStyle get headingLg => textStyle(28, FontWeight.w700, textPrimary);
+  TextStyle get headingMd => textStyle(22, FontWeight.w700, textPrimary);
+  TextStyle get headingSm => textStyle(16, FontWeight.w700, textPrimary);
+  TextStyle get bodyMd => textStyle(14, FontWeight.w400, textPrimary);
+  TextStyle get bodySm => textStyle(12, FontWeight.w400, textSecondary);
+  TextStyle get labelMd => textStyle(11, FontWeight.w600, textSecondary);
+  TextStyle get technicalSm => textStyle(14, FontWeight.w500, textSecondary);
+  TextStyle get technicalXs => textStyle(12, FontWeight.w400, textMuted);
 
   /// Whether this theme uses a light background
   bool get isLight => ThemeVariants._isLight(mode);
@@ -142,152 +149,169 @@ class ThemeVariants {
   ThemeVariants._();
 
   static bool _isLight(AppThemeMode m) =>
-      m == AppThemeMode.neumorphic || m == AppThemeMode.zen || m == AppThemeMode.analog;
+      m == AppThemeMode.neumorphic ||
+      m == AppThemeMode.zen ||
+      m == AppThemeMode.analog;
 
   // ── Spotify ─────────────────────────────────────────────────────────────────
   static AppThemeTokens spotify() => AppThemeTokens(
     mode: AppThemeMode.spotify,
-    bgBase:        const Color(0xFF000000),
-    bgSurface:     const Color(0xFF121212),
-    bgElevated:    const Color(0xFF181818),
-    bgOverlay:     const Color(0xFF282828),
-    accent:        const Color(0xFF1DB954),
-    accentDim:     const Color(0xFF158A3E),
-    gold:          const Color(0xFFE8C547),
-    textPrimary:   const Color(0xFFFFFFFF),
+    bgBase: const Color(0xFF000000),
+    bgSurface: const Color(0xFF121212),
+    bgElevated: const Color(0xFF181818),
+    bgOverlay: const Color(0xFF282828),
+    accent: const Color(0xFF1DB954),
+    accentDim: const Color(0xFF158A3E),
+    gold: const Color(0xFFE8C547),
+    textPrimary: const Color(0xFFFFFFFF),
     textSecondary: const Color(0xFFB3B3B3),
-    textMuted:     const Color(0xFF7F7F7F),
-    outline:       const Color(0xFF2A2A2A),
-    glassBg:       const Color(0xCC121212),
-    glassBorder:   const Color(0x28FFFFFF),
-    neuLight:      const Color(0xFF282828),
-    neuDark:       const Color(0xFF000000),
-    textStyle: (size, weight, color) => GoogleFonts.inter(
-      fontSize: size, fontWeight: weight, color: color),
+    textMuted: const Color(0xFF7F7F7F),
+    outline: const Color(0xFF2A2A2A),
+    glassBg: const Color(0xCC121212),
+    glassBorder: const Color(0x28FFFFFF),
+    neuLight: const Color(0xFF282828),
+    neuDark: const Color(0xFF000000),
+    textStyle: (size, weight, color) =>
+        GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color),
   );
 
   // ── Aura — deep black + dynamic gradients ────────────────────────────────
   static AppThemeTokens aura() => AppThemeTokens(
     mode: AppThemeMode.aura,
-    bgBase:        const Color(0xFF030303),
-    bgSurface:     const Color(0xFF0D0D0D),
-    bgElevated:    const Color(0xFF141414),
-    bgOverlay:     const Color(0xFF1A1A2E),
+    bgBase: const Color(0xFF030303),
+    bgSurface: const Color(0xFF0D0D0D),
+    bgElevated: const Color(0xFF141414),
+    bgOverlay: const Color(0xFF1A1A2E),
     // Purple-pink accent: aura vibe
-    accent:        const Color(0xFFBB86FC),
-    accentDim:     const Color(0xFF7B54A8),
-    gold:          const Color(0xFFFFD700),
-    textPrimary:   const Color(0xFFF0EEFF),
+    accent: const Color(0xFFBB86FC),
+    accentDim: const Color(0xFF7B54A8),
+    gold: const Color(0xFFFFD700),
+    textPrimary: const Color(0xFFF0EEFF),
     textSecondary: const Color(0xFFAA99CC),
-    textMuted:     const Color(0xFF665588),
-    outline:       const Color(0xFF1E1E30),
-    glassBg:       const Color(0xAA0D0D1A),
-    glassBorder:   const Color(0x33BB86FC),
-    neuLight:      const Color(0xFF1A1A2E),
-    neuDark:       const Color(0xFF000000),
+    textMuted: const Color(0xFF665588),
+    outline: const Color(0xFF1E1E30),
+    glassBg: const Color(0xAA0D0D1A),
+    glassBorder: const Color(0x33BB86FC),
+    neuLight: const Color(0xFF1A1A2E),
+    neuDark: const Color(0xFF000000),
     textStyle: (size, weight, color) => GoogleFonts.spaceMono(
-      fontSize: size * 0.95, fontWeight: weight, color: color),
+      fontSize: size * 0.95,
+      fontWeight: weight,
+      color: color,
+    ),
   );
 
   // ── Frost — glassmorphism ─────────────────────────────────────────────────
   static AppThemeTokens frost() => AppThemeTokens(
     mode: AppThemeMode.frost,
-    bgBase:        const Color(0xFF0A1628),
-    bgSurface:     const Color(0x4DFFFFFF),   // translucent white glass
-    bgElevated:    const Color(0x66FFFFFF),
-    bgOverlay:     const Color(0x33FFFFFF),
-    accent:        const Color(0xFF64D2FF),   // ice blue
-    accentDim:     const Color(0xFF3BA8D8),
-    gold:          const Color(0xFFFFE066),
-    textPrimary:   const Color(0xFFFFFFFF),
+    bgBase: const Color(0xFF0A1628),
+    bgSurface: const Color(0x4DFFFFFF), // translucent white glass
+    bgElevated: const Color(0x66FFFFFF),
+    bgOverlay: const Color(0x33FFFFFF),
+    accent: const Color(0xFF64D2FF), // ice blue
+    accentDim: const Color(0xFF3BA8D8),
+    gold: const Color(0xFFFFE066),
+    textPrimary: const Color(0xFFFFFFFF),
     textSecondary: const Color(0xCCFFFFFF),
-    textMuted:     const Color(0x88FFFFFF),
-    outline:       const Color(0x33FFFFFF),
-    glassBg:       const Color(0x55FFFFFF),
-    glassBorder:   const Color(0x55FFFFFF),
-    neuLight:      const Color(0x55FFFFFF),
-    neuDark:       const Color(0x330A1628),
-    textStyle: (size, weight, color) => GoogleFonts.nunito(
-      fontSize: size, fontWeight: weight, color: color),
+    textMuted: const Color(0x88FFFFFF),
+    outline: const Color(0x33FFFFFF),
+    glassBg: const Color(0x55FFFFFF),
+    glassBorder: const Color(0x55FFFFFF),
+    neuLight: const Color(0x55FFFFFF),
+    neuDark: const Color(0x330A1628),
+    textStyle: (size, weight, color) =>
+        GoogleFonts.nunito(fontSize: size, fontWeight: weight, color: color),
   );
 
   // ── Neumorphic — soft-UI light ────────────────────────────────────────────
   static AppThemeTokens neumorphic() => AppThemeTokens(
     mode: AppThemeMode.neumorphic,
-    bgBase:        const Color(0xFFE0E5EC),
-    bgSurface:     const Color(0xFFE8EDF4),
-    bgElevated:    const Color(0xFFF0F4FA),
-    bgOverlay:     const Color(0xFFD8DDE8),
-    accent:        const Color(0xFF4A90D9),   // calm blue
-    accentDim:     const Color(0xFF2D6BAD),
-    gold:          const Color(0xFFD4A017),
-    textPrimary:   const Color(0xFF2C3E50),
+    bgBase: const Color(0xFFE0E5EC),
+    bgSurface: const Color(0xFFE8EDF4),
+    bgElevated: const Color(0xFFF0F4FA),
+    bgOverlay: const Color(0xFFD8DDE8),
+    accent: const Color(0xFF4A90D9), // calm blue
+    accentDim: const Color(0xFF2D6BAD),
+    gold: const Color(0xFFD4A017),
+    textPrimary: const Color(0xFF2C3E50),
     textSecondary: const Color(0xFF5D7A8C),
-    textMuted:     const Color(0xFF8FA8B8),
-    outline:       const Color(0xFFCDD3DE),
-    glassBg:       const Color(0xCCE0E5EC),
-    glassBorder:   const Color(0x44FFFFFF),
-    neuLight:      const Color(0xFFFFFFFF),   // key for neumorphic shadows
-    neuDark:       const Color(0xFFA3B1C6),
-    textStyle: (size, weight, color) => GoogleFonts.dmSans(
-      fontSize: size, fontWeight: weight, color: color),
+    textMuted: const Color(0xFF8FA8B8),
+    outline: const Color(0xFFCDD3DE),
+    glassBg: const Color(0xCCE0E5EC),
+    glassBorder: const Color(0x44FFFFFF),
+    neuLight: const Color(0xFFFFFFFF), // key for neumorphic shadows
+    neuDark: const Color(0xFFA3B1C6),
+    textStyle: (size, weight, color) =>
+        GoogleFonts.dmSans(fontSize: size, fontWeight: weight, color: color),
   );
 
   // ── Analog / Vinyl — warm retro ──────────────────────────────────────────
   static AppThemeTokens analog() => AppThemeTokens(
     mode: AppThemeMode.analog,
-    bgBase:        const Color(0xFFF5ECD7),   // aged cream
-    bgSurface:     const Color(0xFFEDE0C4),
-    bgElevated:    const Color(0xFFDED0B0),
-    bgOverlay:     const Color(0xFF3D2B1F),   // dark wood for overlays
-    accent:        const Color(0xFFB5451B),   // oxide red / vinyl groove
-    accentDim:     const Color(0xFF8A3315),
-    gold:          const Color(0xFFC8960C),
-    textPrimary:   const Color(0xFF1C1008),
+    bgBase: const Color(0xFFF5ECD7), // aged cream
+    bgSurface: const Color(0xFFEDE0C4),
+    bgElevated: const Color(0xFFDED0B0),
+    bgOverlay: const Color(0xFF3D2B1F), // dark wood for overlays
+    accent: const Color(0xFFB5451B), // oxide red / vinyl groove
+    accentDim: const Color(0xFF8A3315),
+    gold: const Color(0xFFC8960C),
+    textPrimary: const Color(0xFF1C1008),
     textSecondary: const Color(0xFF5C3D2E),
-    textMuted:     const Color(0xFF9E7B5A),
-    outline:       const Color(0xFFCAB896),
-    glassBg:       const Color(0xCCEDE0C4),
-    glassBorder:   const Color(0x44B5451B),
-    neuLight:      const Color(0xFFFFF8E8),
-    neuDark:       const Color(0xFFB09070),
+    textMuted: const Color(0xFF9E7B5A),
+    outline: const Color(0xFFCAB896),
+    glassBg: const Color(0xCCEDE0C4),
+    glassBorder: const Color(0x44B5451B),
+    neuLight: const Color(0xFFFFF8E8),
+    neuDark: const Color(0xFFB09070),
     textStyle: (size, weight, color) => GoogleFonts.playfairDisplay(
-      fontSize: size, fontWeight: weight, color: color),
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+    ),
   );
 
   // ── Zen — ultra-minimalist, typography-led ────────────────────────────────
   static AppThemeTokens zen() => AppThemeTokens(
     mode: AppThemeMode.zen,
-    bgBase:        const Color(0xFFFAFAF8),   // near-white
-    bgSurface:     const Color(0xFFF0F0EE),
-    bgElevated:    const Color(0xFFE8E8E4),
-    bgOverlay:     const Color(0xFF111111),
-    accent:        const Color(0xFF111111),   // pure black accent
-    accentDim:     const Color(0xFF555555),
-    gold:          const Color(0xFF222222),   // even stars are monochrome
-    textPrimary:   const Color(0xFF0A0A0A),
+    bgBase: const Color(0xFFFAFAF8), // near-white
+    bgSurface: const Color(0xFFF0F0EE),
+    bgElevated: const Color(0xFFE8E8E4),
+    bgOverlay: const Color(0xFF111111),
+    accent: const Color(0xFF111111), // pure black accent
+    accentDim: const Color(0xFF555555),
+    gold: const Color(0xFF222222), // even stars are monochrome
+    textPrimary: const Color(0xFF0A0A0A),
     textSecondary: const Color(0xFF444444),
-    textMuted:     const Color(0xFF888888),
-    outline:       const Color(0xFFDDDDDD),
-    glassBg:       const Color(0xCCFAFAF8),
-    glassBorder:   const Color(0x22000000),
-    neuLight:      const Color(0xFFFFFFFF),
-    neuDark:       const Color(0xFFCCCCCC),
+    textMuted: const Color(0xFF888888),
+    outline: const Color(0xFFDDDDDD),
+    glassBg: const Color(0xCCFAFAF8),
+    glassBorder: const Color(0x22000000),
+    neuLight: const Color(0xFFFFFFFF),
+    neuDark: const Color(0xFFCCCCCC),
     // Scale clamped to 1.08× (was 1.15×) to prevent card text overflow.
     textStyle: (size, weight, color) => GoogleFonts.cormorantGaramond(
-      fontSize: size * 1.08, fontWeight: weight, color: color,
-      letterSpacing: weight == FontWeight.w700 ? -0.5 : 0.2),
+      fontSize: size * 1.08,
+      fontWeight: weight,
+      color: color,
+      letterSpacing: weight == FontWeight.w700 ? -0.5 : 0.2,
+    ),
   );
 
   // ── Factory ───────────────────────────────────────────────────────────────
   static AppThemeTokens of(AppThemeMode mode) {
     switch (mode) {
-      case AppThemeMode.spotify:    return spotify();
-      case AppThemeMode.aura:       return aura();
-      case AppThemeMode.frost:      return frost();
-      case AppThemeMode.neumorphic: return neumorphic();
-      case AppThemeMode.analog:     return analog();
-      case AppThemeMode.zen:        return zen();
+      case AppThemeMode.spotify:
+        return spotify();
+      case AppThemeMode.aura:
+        return aura();
+      case AppThemeMode.frost:
+        return frost();
+      case AppThemeMode.neumorphic:
+        return neumorphic();
+      case AppThemeMode.analog:
+        return analog();
+      case AppThemeMode.zen:
+        return zen();
     }
   }
 }
@@ -300,11 +324,7 @@ class ThemeVariants {
 class ThemeTokens extends InheritedWidget {
   final AppThemeTokens tokens;
 
-  const ThemeTokens({
-    super.key,
-    required this.tokens,
-    required super.child,
-  });
+  const ThemeTokens({super.key, required this.tokens, required super.child});
 
   static AppThemeTokens of(BuildContext context) {
     final w = context.dependOnInheritedWidgetOfExactType<ThemeTokens>();
@@ -323,23 +343,23 @@ class ThemeTokens extends InheritedWidget {
 
 class AppTheme {
   // ── Legacy static colours (Spotify defaults, kept for backward compat) ────
-  static const Color spotifyGreen  = Color(0xFF1DB954);
-  static const Color electricBlue  = Color(0xFF1DB954);
-  static const Color goldAccent    = Color(0xFFE8C547);
+  static const Color spotifyGreen = Color(0xFF1DB954);
+  static const Color electricBlue = Color(0xFF1DB954);
+  static const Color goldAccent = Color(0xFFE8C547);
 
   static const Color coreBackground = Color(0xFF000000);
-  static const Color surfaceLevel   = Color(0xFF121212);
-  static const Color cardSurface    = Color(0xFF181818);
-  static const Color topLevel       = Color(0xFF282828);
-  static const Color outlineColor   = Color(0xFF2A2A2A);
+  static const Color surfaceLevel = Color(0xFF121212);
+  static const Color cardSurface = Color(0xFF181818);
+  static const Color topLevel = Color(0xFF282828);
+  static const Color outlineColor = Color(0xFF2A2A2A);
 
-  static const Color textPrimary   = Color(0xFFFFFFFF);
+  static const Color textPrimary = Color(0xFFFFFFFF);
   static const Color textSecondary = Color(0xFFB3B3B3);
-  static const Color textMuted     = Color(0xFF7F7F7F);
+  static const Color textMuted = Color(0xFF7F7F7F);
 
   static const Color glassBackground = Color(0xCC121212);
-  static const Color glassBorder     = Color(0x28FFFFFF);
-  static const Color glassShadow     = Color(0x66000000);
+  static const Color glassBorder = Color(0x28FFFFFF);
+  static const Color glassShadow = Color(0x66000000);
 
   static const LinearGradient greenGradient = LinearGradient(
     colors: [Color(0xFF1DB954), Color(0xFF158A3E)],
@@ -349,24 +369,48 @@ class AppTheme {
 
   // ── Legacy text styles (Spotify) ─────────────────────────────────────────
   static TextStyle get technicalSm => GoogleFonts.inter(
-        fontSize: 14, fontWeight: FontWeight.w500, color: textSecondary);
+    fontSize: 14,
+    fontWeight: FontWeight.w500,
+    color: textSecondary,
+  );
   static TextStyle get technicalXs => GoogleFonts.inter(
-        fontSize: 12, fontWeight: FontWeight.w400, color: textMuted);
-  static TextStyle get headingLg   => GoogleFonts.inter(
-        fontSize: 28, fontWeight: FontWeight.w700,
-        color: textPrimary, letterSpacing: -0.5);
-  static TextStyle get headingMd   => GoogleFonts.inter(
-        fontSize: 22, fontWeight: FontWeight.w700,
-        color: textPrimary, letterSpacing: -0.3);
-  static TextStyle get headingSm   => GoogleFonts.inter(
-        fontSize: 16, fontWeight: FontWeight.w700, color: textPrimary);
-  static TextStyle get bodyMd      => GoogleFonts.inter(
-        fontSize: 14, fontWeight: FontWeight.w400, color: textPrimary);
-  static TextStyle get bodySm      => GoogleFonts.inter(
-        fontSize: 12, fontWeight: FontWeight.w400, color: textSecondary);
-  static TextStyle get labelMd     => GoogleFonts.inter(
-        fontSize: 11, fontWeight: FontWeight.w600,
-        color: textSecondary, letterSpacing: 1.2);
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textMuted,
+  );
+  static TextStyle get headingLg => GoogleFonts.inter(
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    color: textPrimary,
+    letterSpacing: -0.5,
+  );
+  static TextStyle get headingMd => GoogleFonts.inter(
+    fontSize: 22,
+    fontWeight: FontWeight.w700,
+    color: textPrimary,
+    letterSpacing: -0.3,
+  );
+  static TextStyle get headingSm => GoogleFonts.inter(
+    fontSize: 16,
+    fontWeight: FontWeight.w700,
+    color: textPrimary,
+  );
+  static TextStyle get bodyMd => GoogleFonts.inter(
+    fontSize: 14,
+    fontWeight: FontWeight.w400,
+    color: textPrimary,
+  );
+  static TextStyle get bodySm => GoogleFonts.inter(
+    fontSize: 12,
+    fontWeight: FontWeight.w400,
+    color: textSecondary,
+  );
+  static TextStyle get labelMd => GoogleFonts.inter(
+    fontSize: 11,
+    fontWeight: FontWeight.w600,
+    color: textSecondary,
+    letterSpacing: 1.2,
+  );
 
   // ── Legacy darkTheme (Spotify, kept for backward compat) ──────────────────
   static ThemeData get darkTheme => buildTheme(AppThemeMode.spotify);
@@ -418,15 +462,19 @@ class AppTheme {
         thumbColor: mode == AppThemeMode.zen ? t.accent : t.textPrimary,
         overlayColor: Colors.transparent,
         thumbShape: RoundSliderThumbShape(
-          enabledThumbRadius: mode == AppThemeMode.neumorphic ? 9 : 6),
+          enabledThumbRadius: mode == AppThemeMode.neumorphic ? 9 : 6,
+        ),
       ),
 
       chipTheme: ChipThemeData(
         backgroundColor: t.bgOverlay,
         selectedColor: t.accent,
         labelStyle: t.textStyle(13, FontWeight.w500, t.textPrimary),
-        secondaryLabelStyle: t.textStyle(13, FontWeight.w500,
-            t.isLight ? Colors.white : Colors.black),
+        secondaryLabelStyle: t.textStyle(
+          13,
+          FontWeight.w500,
+          t.isLight ? Colors.white : Colors.black,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         shape: const StadiumBorder(),
         side: BorderSide.none,
@@ -474,11 +522,13 @@ class _CupertinoClickableState extends State<CupertinoClickable>
   void initState() {
     super.initState();
     _controller = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 100));
-    _scaleAnimation =
-        Tween<double>(begin: 1.0, end: widget.scaleFactor).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
+      vsync: this,
+      duration: const Duration(milliseconds: 100),
     );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: widget.scaleFactor,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override

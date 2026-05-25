@@ -22,17 +22,23 @@ enum _ShuffleSource { smart, playlist, allSongs }
 extension _SourceExt on _ShuffleSource {
   String get label {
     switch (this) {
-      case _ShuffleSource.smart:    return 'Smart';
-      case _ShuffleSource.playlist: return 'Playlist';
-      case _ShuffleSource.allSongs: return 'All Songs';
+      case _ShuffleSource.smart:
+        return 'Smart';
+      case _ShuffleSource.playlist:
+        return 'Playlist';
+      case _ShuffleSource.allSongs:
+        return 'All Songs';
     }
   }
 
   String get apiValue {
     switch (this) {
-      case _ShuffleSource.smart:    return 'smart';
-      case _ShuffleSource.playlist: return 'playlist';
-      case _ShuffleSource.allSongs: return 'all_songs';
+      case _ShuffleSource.smart:
+        return 'smart';
+      case _ShuffleSource.playlist:
+        return 'playlist';
+      case _ShuffleSource.allSongs:
+        return 'all_songs';
     }
   }
 }
@@ -59,18 +65,18 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   }
 
   void _fetchRecommendations() {
-    ref.read(shuffleQueueProvider.notifier).fetchNext(
-          source: _selectedSource.apiValue,
-        );
+    ref
+        .read(shuffleQueueProvider.notifier)
+        .fetchNext(source: _selectedSource.apiValue);
   }
 
   Future<void> _enqueueSong(RecommendedSong song) async {
     try {
       final allSongs = await ref.read(allSongsProvider.future);
       final localSong = allSongs.cast<dynamic>().firstWhere(
-            (s) => s.title.toLowerCase() == song.title.toLowerCase(),
-            orElse: () => null,
-          );
+        (s) => s.title.toLowerCase() == song.title.toLowerCase(),
+        orElse: () => null,
+      );
 
       if (localSong != null) {
         await ref.read(playerProvider.notifier).addToQueue(localSong as Song);
@@ -86,9 +92,9 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Error adding song: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Error adding song: $e')));
     }
   }
 
@@ -99,9 +105,10 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     setState(() => _isApplyingQueue = true);
 
     try {
-      final queueState    = ref.read(shuffleQueueProvider);
-      final recommendations =
-          queueState.allSongs.whereType<RecommendedSong>().toList();
+      final queueState = ref.read(shuffleQueueProvider);
+      final recommendations = queueState.allSongs
+          .whereType<RecommendedSong>()
+          .toList();
 
       if (recommendations.isEmpty) {
         _showSnackBar('No recommendations — tap refresh first');
@@ -131,9 +138,9 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
       if (!mounted) return;
       // Navigate to Now Playing screen instead of popping to a black screen
-      Navigator.of(context).push(
-        MaterialPageRoute(builder: (_) => const NowPlayingScreen()),
-      );
+      Navigator.of(
+        context,
+      ).push(MaterialPageRoute(builder: (_) => const NowPlayingScreen()));
     } catch (e, st) {
       debugPrint('[SmartShuffle] _applyAiShuffle error: $e\n$st');
       _showSnackBar('Failed to apply shuffle — please try again');
@@ -144,8 +151,9 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
   void _showSnackBar(String message) {
     if (!mounted) return;
-    ScaffoldMessenger.of(context)
-        .showSnackBar(SnackBar(content: Text(message)));
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
   }
 
   void _showModelStatus() {
@@ -158,17 +166,20 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final theme      = Theme.of(context);
-    final cs         = theme.colorScheme;
+    final theme = Theme.of(context);
+    final cs = theme.colorScheme;
     final queueState = ref.watch(shuffleQueueProvider);
-    final songs      = queueState.allSongs.whereType<RecommendedSong>().toList();
+    final songs = queueState.allSongs.whereType<RecommendedSong>().toList();
 
     return Scaffold(
       appBar: AppBar(
         title: const Text('Smart Shuffle'),
         actions: [
           IconButton(
-            icon: Icon(Icons.info_outline_rounded, color: Theme.of(context).colorScheme.onSurface),
+            icon: Icon(
+              Icons.info_outline_rounded,
+              color: Theme.of(context).colorScheme.onSurface,
+            ),
             tooltip: 'Model Status',
             onPressed: _showModelStatus,
           ),
@@ -188,8 +199,11 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               color: cs.surfaceContainerHigh,
               child: Row(
                 children: [
-                  Icon(Icons.schedule_rounded,
-                      size: 13, color: cs.onSurfaceVariant),
+                  Icon(
+                    Icons.schedule_rounded,
+                    size: 13,
+                    color: cs.onSurfaceVariant,
+                  ),
                   const SizedBox(width: 4),
                   Text(
                     [
@@ -198,8 +212,9 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
                       if (queueState.lastWeather != null)
                         queueState.lastWeather!,
                     ].join(' · '),
-                    style: theme.textTheme.labelSmall
-                        ?.copyWith(color: cs.onSurfaceVariant),
+                    style: theme.textTheme.labelSmall?.copyWith(
+                      color: cs.onSurfaceVariant,
+                    ),
                   ),
                 ],
               ),
@@ -236,8 +251,9 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
                       color: selected
                           ? cs.onSecondaryContainer
                           : cs.onSurfaceVariant,
-                      fontWeight:
-                          selected ? FontWeight.w600 : FontWeight.normal,
+                      fontWeight: selected
+                          ? FontWeight.w600
+                          : FontWeight.normal,
                     ),
                     showCheckmark: false, // icon-free, just color change
                   ),
@@ -361,8 +377,10 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           const SizedBox(height: 16),
           Text('No recommendations yet', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text('Tap refresh to fetch Smart Shuffle results',
-              style: theme.textTheme.bodySmall),
+          Text(
+            'Tap refresh to fetch Smart Shuffle results',
+            style: theme.textTheme.bodySmall,
+          ),
         ],
       ),
     );

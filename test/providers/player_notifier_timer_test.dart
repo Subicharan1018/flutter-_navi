@@ -41,34 +41,34 @@ Song _song({
   String title = 'Song',
   String artist = 'Artist',
   int duration = 200,
-}) =>
-    Song(
-      id: id,
-      title: '$title $id',
-      artist: artist,
-      album: 'Album',
-      genre: 'Rock',
-      composer: 'Comp',
-      coverArt: '',
-      duration: duration,
-      track: 1,
-      year: 2024,
-    );
+}) => Song(
+  id: id,
+  title: '$title $id',
+  artist: artist,
+  album: 'Album',
+  genre: 'Rock',
+  composer: 'Comp',
+  coverArt: '',
+  duration: duration,
+  track: 1,
+  year: 2024,
+);
 
 // ── Mock classes ──────────────────────────────────────────────────────────────
 
 class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
 
-class MockListeningEventCollector extends Mock implements ListeningEventCollector {}
+class MockListeningEventCollector extends Mock
+    implements ListeningEventCollector {}
 
 class MockSubsonicService extends SubsonicService {
   MockSubsonicService(PlaylistCacheService cache)
-      : super(
-          serverUrl: 'https://test.example.com',
-          username: 'test',
-          password: 'test',
-          cache: cache,
-        );
+    : super(
+        serverUrl: 'https://test.example.com',
+        username: 'test',
+        password: 'test',
+        cache: cache,
+      );
 }
 
 class ControlledAudioPlayer extends Fake implements AudioPlayer {
@@ -108,8 +108,7 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
       _playbackEventController.stream;
 
   @override
-  Stream<PlayerState> get playerStateStream =>
-      _playerStateController.stream;
+  Stream<PlayerState> get playerStateStream => _playerStateController.stream;
 
   @override
   Stream<ProcessingState> get processingStateStream =>
@@ -181,8 +180,11 @@ class TestAudioHandler extends AudioHandler {
   TestAudioHandler(super.subsonicService, {super.player});
 
   @override
-  Future<void> setQueue(List<Song> songs, int startIndex,
-      {List<Song>? unshuffledSongs}) async {
+  Future<void> setQueue(
+    List<Song> songs,
+    int startIndex, {
+    List<Song>? unshuffledSongs,
+  }) async {
     currentQueue = List<Song>.from(songs);
   }
 }
@@ -195,15 +197,25 @@ void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     registerFallbackValue(
-      Song(id: '', title: '', artist: '', album: '', coverArt: '', duration: 0, track: 0, year: 0),
+      Song(
+        id: '',
+        title: '',
+        artist: '',
+        album: '',
+        coverArt: '',
+        duration: 0,
+        track: 0,
+        year: 0,
+      ),
     );
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-            const MethodChannel('dev.fluttercommunity.plus/connectivity'),
-            (MethodCall methodCall) async {
-      return ['wifi'];
-    });
+          const MethodChannel('dev.fluttercommunity.plus/connectivity'),
+          (MethodCall methodCall) async {
+            return ['wifi'];
+          },
+        );
 
     SharedPreferences.setMockInitialValues({});
     final dir = Directory.systemTemp.createTempSync('hive_test_timer');
@@ -289,43 +301,45 @@ void main() {
   });
 
   group('BUG 4 — Post-shuffle index correctness', () {
-    test('history does not duplicate the same song on repeated index events',
-        () async {
-      // This is the existing test from shuffle_test.dart — verifies that
-      // the player state correctly tracks index after shuffle operations.
-      final mockCache = MockPlaylistCacheService();
-      final mockService = MockSubsonicService(mockCache);
-      final mockPlayer = ControlledAudioPlayer();
-      final handler = TestAudioHandler(mockService, player: mockPlayer);
+    test(
+      'history does not duplicate the same song on repeated index events',
+      () async {
+        // This is the existing test from shuffle_test.dart — verifies that
+        // the player state correctly tracks index after shuffle operations.
+        final mockCache = MockPlaylistCacheService();
+        final mockService = MockSubsonicService(mockCache);
+        final mockPlayer = ControlledAudioPlayer();
+        final handler = TestAudioHandler(mockService, player: mockPlayer);
 
-      final mockCollector = MockListeningEventCollector();
-      final container = ProviderContainer(
-        overrides: [
-          audioHandlerProvider.overrideWithValue(handler),
-          subsonicServiceProvider.overrideWithValue(mockService),
-          listenerCollectorProvider.overrideWithValue(mockCollector),
-        ],
-      );
-      addTearDown(container.dispose);
+        final mockCollector = MockListeningEventCollector();
+        final container = ProviderContainer(
+          overrides: [
+            audioHandlerProvider.overrideWithValue(handler),
+            subsonicServiceProvider.overrideWithValue(mockService),
+            listenerCollectorProvider.overrideWithValue(mockCollector),
+          ],
+        );
+        addTearDown(container.dispose);
 
-      final notifier = container.read(playerProvider.notifier);
-      final songs = [
-        _song(id: '1', title: 'First'),
-        _song(id: '2', title: 'Second'),
-      ];
+        final notifier = container.read(playerProvider.notifier);
+        final songs = [
+          _song(id: '1', title: 'First'),
+          _song(id: '2', title: 'Second'),
+        ];
 
-      await notifier.setQueue(songs, 0);
-      mockPlayer.setMockPosition(const Duration(seconds: 5));
-      await Future.delayed(const Duration(milliseconds: 50));
-      await mockPlayer.emitCurrentIndex(1);
-      await mockPlayer.emitCurrentIndex(1); // duplicate
+        await notifier.setQueue(songs, 0);
+        mockPlayer.setMockPosition(const Duration(seconds: 5));
+        await Future.delayed(const Duration(milliseconds: 50));
+        await mockPlayer.emitCurrentIndex(1);
+        await mockPlayer.emitCurrentIndex(1); // duplicate
 
-      // Should only have one history entry, not two.
-      expect(
-        container.read(playerProvider).historySongs.map((song) => song.id),
-        ['1'],
-      );
-    });
+        // Should only have one history entry, not two.
+        expect(
+          container.read(playerProvider).historySongs.map((song) => song.id),
+          ['1'],
+        );
+      },
+    );
   });
 
   group('BUG 5 — _persistState deduplication', () {
@@ -349,8 +363,11 @@ void main() {
       }
 
       // Only ONE persist call should have been made.
-      expect(persistCount, 1,
-          reason: 'Persist should only fire once per 5-second boundary');
+      expect(
+        persistCount,
+        1,
+        reason: 'Persist should only fire once per 5-second boundary',
+      );
 
       // Simulate ticks around 10-second mark.
       for (final ms in [9800, 10000, 10200, 10400]) {
@@ -392,8 +409,11 @@ void main() {
       }
 
       simulateTick(0);
-      expect(persistCount, 0,
-          reason: 'Position 0 should not trigger persist (guard: posSec > 0)');
+      expect(
+        persistCount,
+        0,
+        reason: 'Position 0 should not trigger persist (guard: posSec > 0)',
+      );
     });
   });
 }

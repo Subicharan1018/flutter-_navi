@@ -34,10 +34,13 @@ class HiveBoxes {
     // Secure encryption for sensitive data (credentials)
     final encryptionKey = await _getEncryptionKey();
 
-    auth         = await Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(encryptionKey));
-    session      = await Hive.openBox(_sessionBox);
-    prefs        = await Hive.openBox(_prefsBox);
-    audio        = await Hive.openBox(_audioBox);
+    auth = await Hive.openBox(
+      _authBox,
+      encryptionCipher: HiveAesCipher(encryptionKey),
+    );
+    session = await Hive.openBox(_sessionBox);
+    prefs = await Hive.openBox(_prefsBox);
+    audio = await Hive.openBox(_audioBox);
     shuffleCache = await Hive.openBox('shuffle_cache');
 
     // One-time migration from SharedPreferences → Hive
@@ -49,7 +52,10 @@ class HiveBoxes {
     final encodedKey = await storage.read(key: 'hive_encryption_key');
     if (encodedKey == null) {
       final key = Hive.generateSecureKey();
-      await storage.write(key: 'hive_encryption_key', value: base64UrlEncode(key));
+      await storage.write(
+        key: 'hive_encryption_key',
+        value: base64UrlEncode(key),
+      );
       return key;
     }
     return base64Url.decode(encodedKey);
@@ -77,8 +83,9 @@ class HiveBoxes {
   static const kShuffleAlgorithm = 'shuffleAlgorithm';
   static const kShufflePreference = 'shufflePreference';
   static const kAutoplayPreference = 'autoplay_enabled';
-  static const kUploadApiUrl = 'uploadApiUrl';           // legacy — kept for migration
-  static const kListeningApiUrl = 'listeningApiUrl';     // legacy — kept for migration
+  static const kUploadApiUrl = 'uploadApiUrl'; // legacy — kept for migration
+  static const kListeningApiUrl =
+      'listeningApiUrl'; // legacy — kept for migration
   static const kApiBaseUrl = 'api_base_url';
   static const kLoggingPort = 'logging_port';
   static const kUploadPort = 'upload_port';
@@ -131,33 +138,74 @@ class HiveBoxes {
       await _migrateString(sp, 'shuffleAlgorithm', prefs, kShuffleAlgorithm);
       await _migrateString(sp, 'shufflePreference', prefs, kShufflePreference);
       await _migrateString(sp, 'uploadApiUrl', prefs, kUploadApiUrl);
-      
+
       // Migration: listening API defaults to upload API if it wasn't set yet.
-      if (!prefs.containsKey(kListeningApiUrl) && prefs.containsKey(kUploadApiUrl)) {
+      if (!prefs.containsKey(kListeningApiUrl) &&
+          prefs.containsKey(kUploadApiUrl)) {
         await prefs.put(kListeningApiUrl, prefs.get(kUploadApiUrl));
       }
 
       await _migrateString(sp, 'uploadDirectory', prefs, kUploadDirectory);
-      await _migrateBool(sp, 'dataCollectionEnabled', prefs, kDataCollectionEnabled);
-      await _migrateString(sp, 'analytics_upload_schedule', prefs, kAnalyticsUploadSchedule);
-      await _migrateString(sp, 'analytics_last_upload', prefs, kAnalyticsLastUpload);
+      await _migrateBool(
+        sp,
+        'dataCollectionEnabled',
+        prefs,
+        kDataCollectionEnabled,
+      );
+      await _migrateString(
+        sp,
+        'analytics_upload_schedule',
+        prefs,
+        kAnalyticsUploadSchedule,
+      );
+      await _migrateString(
+        sp,
+        'analytics_last_upload',
+        prefs,
+        kAnalyticsLastUpload,
+      );
       await _migrateBool(sp, 'cache_images_enabled', prefs, kImageCacheEnabled);
       await _migrateBool(sp, 'cache_music_enabled', prefs, kMusicCacheEnabled);
       await _migrateBool(sp, 'cache_bpm_enabled', prefs, kBpmCacheEnabled);
-      await _migrateBool(sp, 'recommendations_enabled', prefs, kRecommendationsEnabled);
+      await _migrateBool(
+        sp,
+        'recommendations_enabled',
+        prefs,
+        kRecommendationsEnabled,
+      );
 
       // Audio — transcoding
       await _migrateBool(sp, 'transcoding_enabled', audio, kTranscodingEnabled);
-      await _migrateBool(sp, 'transcoding_smart_enabled', audio, kSmartSwitchEnabled);
+      await _migrateBool(
+        sp,
+        'transcoding_smart_enabled',
+        audio,
+        kSmartSwitchEnabled,
+      );
       await _migrateInt(sp, 'transcoding_wifi_bitrate', audio, kWifiBitrate);
-      await _migrateInt(sp, 'transcoding_mobile_bitrate', audio, kMobileBitrate);
+      await _migrateInt(
+        sp,
+        'transcoding_mobile_bitrate',
+        audio,
+        kMobileBitrate,
+      );
       await _migrateString(sp, 'transcoding_format', audio, kTranscodeFormat);
-      await _migrateInt(sp, 'transcoding_connection_type', audio, kConnectionType);
+      await _migrateInt(
+        sp,
+        'transcoding_connection_type',
+        audio,
+        kConnectionType,
+      );
 
       // Audio — replay gain
       await _migrateInt(sp, 'replay_gain_mode', audio, kReplayGainMode);
       await _migrateDouble(sp, 'replay_gain_preamp', audio, kPreampGain);
-      await _migrateBool(sp, 'replay_gain_prevent_clipping', audio, kPreventClipping);
+      await _migrateBool(
+        sp,
+        'replay_gain_prevent_clipping',
+        audio,
+        kPreventClipping,
+      );
       await _migrateDouble(sp, 'replay_gain_fallback', audio, kFallbackGain);
 
       // Search history
@@ -185,7 +233,12 @@ class HiveBoxes {
     }
   }
 
-  static Future<void> _migrateString(SharedPreferences sp, String spKey, Box box, String hiveKey) async {
+  static Future<void> _migrateString(
+    SharedPreferences sp,
+    String spKey,
+    Box box,
+    String hiveKey,
+  ) async {
     final val = sp.getString(spKey);
     if (val != null) {
       await box.put(hiveKey, val);
@@ -193,7 +246,12 @@ class HiveBoxes {
     }
   }
 
-  static Future<void> _migrateBool(SharedPreferences sp, String spKey, Box box, String hiveKey) async {
+  static Future<void> _migrateBool(
+    SharedPreferences sp,
+    String spKey,
+    Box box,
+    String hiveKey,
+  ) async {
     final val = sp.getBool(spKey);
     if (val != null) {
       await box.put(hiveKey, val);
@@ -201,7 +259,12 @@ class HiveBoxes {
     }
   }
 
-  static Future<void> _migrateInt(SharedPreferences sp, String spKey, Box box, String hiveKey) async {
+  static Future<void> _migrateInt(
+    SharedPreferences sp,
+    String spKey,
+    Box box,
+    String hiveKey,
+  ) async {
     final val = sp.getInt(spKey);
     if (val != null) {
       await box.put(hiveKey, val);
@@ -209,7 +272,12 @@ class HiveBoxes {
     }
   }
 
-  static Future<void> _migrateDouble(SharedPreferences sp, String spKey, Box box, String hiveKey) async {
+  static Future<void> _migrateDouble(
+    SharedPreferences sp,
+    String spKey,
+    Box box,
+    String hiveKey,
+  ) async {
     final val = sp.getDouble(spKey);
     if (val != null) {
       await box.put(hiveKey, val);

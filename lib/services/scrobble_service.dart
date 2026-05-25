@@ -54,10 +54,7 @@ class ScrobbleService {
   ///
   /// [song] and [playedDuration] are optional for backward compatibility with
   /// existing call sites that only have a song ID.
-  void submit(
-    String songId, {
-    Song? song,
-  }) async {
+  void submit(String songId, {Song? song}) async {
     if (await _isOffline()) return;
 
     // ── Subsonic scrobble ────────────────────────────────────────────────────
@@ -69,10 +66,7 @@ class ScrobbleService {
       final coverArtUrl = song.coverArt.isNotEmpty
           ? _api.getCoverArtUrl(song.coverArt)
           : null;
-      unawaited(_listeningLog.logPlay(
-        song: song,
-        coverArtUrl: coverArtUrl,
-      ));
+      unawaited(_listeningLog.logPlay(song: song, coverArtUrl: coverArtUrl));
     }
   }
 }

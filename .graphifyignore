@@ -4,3 +4,8 @@ scratch.dart
 graphify-out/
 *.json
 helpers/
+graphify_queries_output.md
+*.md
+*.py
+linux/
+android/

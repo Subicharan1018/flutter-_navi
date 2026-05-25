@@ -7,7 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../models/song.dart';
-import '../providers/settings_provider.dart';  // subsonicServiceProvider + settingsProvider
+import '../providers/settings_provider.dart'; // subsonicServiceProvider + settingsProvider
 
 // =============================================================================
 // ListeningLogService
@@ -61,11 +61,11 @@ class ListeningLogService {
     String? webdavUser,
     String? webdavPass,
     String logPath = '/listening-log',
-  })  : _client = client,
-        _baseUrl = baseUrl,
-        _webdavUser = webdavUser,
-        _webdavPass = webdavPass,
-        _logPath = logPath;
+  }) : _client = client,
+       _baseUrl = baseUrl,
+       _webdavUser = webdavUser,
+       _webdavPass = webdavPass,
+       _logPath = logPath;
 
   // ---------------------------------------------------------------------------
   // Public API
@@ -79,10 +79,7 @@ class ListeningLogService {
   ///
   /// [coverArtUrl] is the fully-resolved cover art URL (built by the caller
   /// from SubsonicService.getCoverArtUrl). Optional — omitted if null.
-  Future<void> logPlay({
-    required Song song,
-    String? coverArtUrl,
-  }) async {
+  Future<void> logPlay({required Song song, String? coverArtUrl}) async {
     if (_baseUrl == null || _baseUrl.isEmpty) {
       debugPrint('[ListeningLog] ⏭ No server URL configured — skipping');
       return;
@@ -126,7 +123,9 @@ class ListeningLogService {
     for (final rawEntry in raw) {
       final entry = _QueueEntry.fromString(rawEntry);
       if (entry.retries >= _kMaxRetries) {
-        debugPrint('[ListeningLog] 🗑 Dropping entry after $_kMaxRetries retries');
+        debugPrint(
+          '[ListeningLog] 🗑 Dropping entry after $_kMaxRetries retries',
+        );
         continue; // drop exhausted entry
       }
 
@@ -141,7 +140,9 @@ class ListeningLogService {
     }
 
     await prefs.setStringList(_kQueueKey, remaining);
-    debugPrint('[ListeningLog] Queue after flush: ${remaining.length} remaining');
+    debugPrint(
+      '[ListeningLog] Queue after flush: ${remaining.length} remaining',
+    );
   }
 
   // ---------------------------------------------------------------------------
@@ -202,11 +203,7 @@ class ListeningLogService {
       }
 
       final response = await _client
-          .post(
-            uri,
-            headers: headers,
-            body: jsonEncode(payload),
-          )
+          .post(uri, headers: headers, body: jsonEncode(payload))
           .timeout(const Duration(seconds: 10));
 
       final ok = response.statusCode >= 200 && response.statusCode < 300;
@@ -233,12 +230,16 @@ class ListeningLogService {
       if (queue.length >= _kMaxQueueSize) {
         final excess = queue.length - _kMaxQueueSize + 1;
         queue = queue.sublist(excess);
-        debugPrint('[ListeningLog] ⚠ Queue full — dropped $excess oldest entries');
+        debugPrint(
+          '[ListeningLog] ⚠ Queue full — dropped $excess oldest entries',
+        );
       }
 
       queue.add(entry.serialize());
       await prefs.setStringList(_kQueueKey, queue);
-      debugPrint('[ListeningLog] 📦 Queued failed log (queue size: ${queue.length})');
+      debugPrint(
+        '[ListeningLog] 📦 Queued failed log (queue size: ${queue.length})',
+      );
     } catch (e) {
       debugPrint('[ListeningLog] ❌ Failed to queue log: $e');
     }
@@ -256,7 +257,11 @@ final listeningLogServiceProvider = Provider<ListeningLogService>((ref) {
   return ListeningLogService(
     client: subsonic.client,
     baseUrl: settings.loggingApiUrl.isEmpty ? null : settings.loggingApiUrl,
-    webdavUser: settings.webdavUsername.isEmpty ? null : settings.webdavUsername,
-    webdavPass: settings.webdavPassword.isEmpty ? null : settings.webdavPassword,
+    webdavUser: settings.webdavUsername.isEmpty
+        ? null
+        : settings.webdavUsername,
+    webdavPass: settings.webdavPassword.isEmpty
+        ? null
+        : settings.webdavPassword,
   );
 });

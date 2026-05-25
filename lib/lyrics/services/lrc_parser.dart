@@ -16,8 +16,7 @@ class LrcParser {
 
   /// Parses an LRC-formatted string into [SyncedLyrics].
   /// Delegates to [SyncedLyrics.fromLrc] from the integrated GitHub code.
-  static SyncedLyrics parseLrc(String lrc) =>
-      SyncedLyrics.fromLrc(lrc);
+  static SyncedLyrics parseLrc(String lrc) => SyncedLyrics.fromLrc(lrc);
 
   /// Wraps plain text (one line per newline) into a [SyncedLyrics] with
   /// all timestamps set to [Duration.zero].

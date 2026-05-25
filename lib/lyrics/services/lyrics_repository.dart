@@ -23,11 +23,9 @@ class LyricsRepository {
   final SubsonicService _subsonic;
   final LrcLibService _lrcLib;
 
-  LyricsRepository({
-    required SubsonicService subsonic,
-    LrcLibService? lrcLib,
-  })  : _subsonic = subsonic,
-        _lrcLib = lrcLib ?? LrcLibService();
+  LyricsRepository({required SubsonicService subsonic, LrcLibService? lrcLib})
+    : _subsonic = subsonic,
+      _lrcLib = lrcLib ?? LrcLibService();
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
@@ -65,7 +63,8 @@ class LyricsRepository {
               rawText: rawText,
             );
             debugPrint(
-                '[LyricsRepository] OpenSubsonic hit (${result.type.name}) for "${song.title}"');
+              '[LyricsRepository] OpenSubsonic hit (${result.type.name}) for "${song.title}"',
+            );
             await _cache(song.id, result);
             return result;
           }
@@ -79,7 +78,8 @@ class LyricsRepository {
     final lrcLibResult = await _lrcLib.fetch(song);
     await _cache(song.id, lrcLibResult);
     debugPrint(
-        '[LyricsRepository] LRCLIB result (${lrcLibResult.type.name}) for "${song.title}"');
+      '[LyricsRepository] LRCLIB result (${lrcLibResult.type.name}) for "${song.title}"',
+    );
     return lrcLibResult;
   }
 
@@ -87,7 +87,10 @@ class LyricsRepository {
   /// This avoids a separate serialisation format — we just write an LRC string
   /// that the existing [LrcParser.parseLrc] can restore on cache-hit.
   static String _structuredLinesToLrc(
-      List<dynamic> lines, int offsetMs, bool synced) {
+    List<dynamic> lines,
+    int offsetMs,
+    bool synced,
+  ) {
     if (!synced) {
       // Plain text — one line per entry
       return lines
@@ -111,8 +114,6 @@ class LyricsRepository {
     }
     return buf.toString().trim();
   }
-
-
 
   // ── Cache helpers ──────────────────────────────────────────────────────────
 

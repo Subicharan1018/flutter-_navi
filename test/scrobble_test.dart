@@ -21,20 +21,33 @@ import 'package:navivibe/services/listening_log_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
 
 class MockSubsonicService extends Mock implements SubsonicService {}
+
 class MockConnectivity extends Mock implements Connectivity {}
+
 class MockScrobbleService extends Mock implements ScrobbleService {}
+
 class MockListeningLogService extends Mock implements ListeningLogService {}
+
 class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
-class MockListeningEventCollector extends Mock implements ListeningEventCollector {}
+
+class MockListeningEventCollector extends Mock
+    implements ListeningEventCollector {}
 
 class ControlledAudioPlayer extends Fake implements AudioPlayer {
-  final StreamController<int?> _currentIndexController = StreamController<int?>.broadcast(sync: true);
-  final StreamController<Duration> _positionController = StreamController<Duration>.broadcast(sync: true);
-  final StreamController<bool> _playingController = StreamController<bool>.broadcast(sync: true);
-  final StreamController<LoopMode> _loopModeController = StreamController<LoopMode>.broadcast(sync: true);
-  final StreamController<PlaybackEvent> _playbackEventController = StreamController<PlaybackEvent>.broadcast(sync: true);
-  final StreamController<PlayerState> _playerStateController = StreamController<PlayerState>.broadcast(sync: true);
-  final StreamController<ProcessingState> _processingStateController = StreamController<ProcessingState>.broadcast(sync: true);
+  final StreamController<int?> _currentIndexController =
+      StreamController<int?>.broadcast(sync: true);
+  final StreamController<Duration> _positionController =
+      StreamController<Duration>.broadcast(sync: true);
+  final StreamController<bool> _playingController =
+      StreamController<bool>.broadcast(sync: true);
+  final StreamController<LoopMode> _loopModeController =
+      StreamController<LoopMode>.broadcast(sync: true);
+  final StreamController<PlaybackEvent> _playbackEventController =
+      StreamController<PlaybackEvent>.broadcast(sync: true);
+  final StreamController<PlayerState> _playerStateController =
+      StreamController<PlayerState>.broadcast(sync: true);
+  final StreamController<ProcessingState> _processingStateController =
+      StreamController<ProcessingState>.broadcast(sync: true);
 
   int? _currentIndex = -1;
   Duration _mockPosition = Duration.zero;
@@ -66,13 +79,15 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   Stream<LoopMode> get loopModeStream => _loopModeController.stream;
 
   @override
-  Stream<PlaybackEvent> get playbackEventStream => _playbackEventController.stream;
+  Stream<PlaybackEvent> get playbackEventStream =>
+      _playbackEventController.stream;
 
   @override
   Stream<PlayerState> get playerStateStream => _playerStateController.stream;
 
   @override
-  Stream<ProcessingState> get processingStateStream => _processingStateController.stream;
+  Stream<ProcessingState> get processingStateStream =>
+      _processingStateController.stream;
 
   @override
   int? get currentIndex => _currentIndex;
@@ -98,7 +113,11 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
 class TestAudioHandler extends AudioHandler {
   TestAudioHandler(super.subsonicService, {super.player});
   @override
-  Future<void> setQueue(List<Song> songs, int startIndex, {List<Song>? unshuffledSongs}) async {
+  Future<void> setQueue(
+    List<Song> songs,
+    int startIndex, {
+    List<Song>? unshuffledSongs,
+  }) async {
     currentQueue = List<Song>.from(songs);
   }
 }
@@ -113,11 +132,20 @@ void main() {
     HiveBoxes.session = await Hive.openBox('session');
     HiveBoxes.prefs = await Hive.openBox('prefs');
     HiveBoxes.audio = await Hive.openBox('audio');
-    
+
     registerFallbackValue(Uri());
     registerFallbackValue(Duration.zero);
     registerFallbackValue(
-      Song(id: '', title: '', artist: '', album: '', coverArt: '', duration: 0, track: 0, year: 0),
+      Song(
+        id: '',
+        title: '',
+        artist: '',
+        album: '',
+        coverArt: '',
+        duration: 0,
+        track: 0,
+        year: 0,
+      ),
     );
   });
 
@@ -137,10 +165,12 @@ void main() {
     });
 
     test('nowPlaying submits with submission=false when online', () async {
-      when(() => mockConnectivity.checkConnectivity())
-          .thenAnswer((_) async => [ConnectivityResult.wifi]);
-      when(() => mockApi.scrobble(any(), submission: any(named: 'submission')))
-          .thenAnswer((_) async => {});
+      when(
+        () => mockConnectivity.checkConnectivity(),
+      ).thenAnswer((_) async => [ConnectivityResult.wifi]);
+      when(
+        () => mockApi.scrobble(any(), submission: any(named: 'submission')),
+      ).thenAnswer((_) async => {});
 
       scrobbleService.nowPlaying('song123');
       await Future.delayed(Duration.zero); // allow unawaited futures
@@ -150,10 +180,12 @@ void main() {
     });
 
     test('submit submits with submission=true when online', () async {
-      when(() => mockConnectivity.checkConnectivity())
-          .thenAnswer((_) async => [ConnectivityResult.mobile]);
-      when(() => mockApi.scrobble(any(), submission: any(named: 'submission')))
-          .thenAnswer((_) async => {});
+      when(
+        () => mockConnectivity.checkConnectivity(),
+      ).thenAnswer((_) async => [ConnectivityResult.mobile]);
+      when(
+        () => mockApi.scrobble(any(), submission: any(named: 'submission')),
+      ).thenAnswer((_) async => {});
 
       scrobbleService.submit('song456');
       await Future.delayed(Duration.zero);
@@ -163,15 +195,18 @@ void main() {
     });
 
     test('does NOT submit if offline', () async {
-      when(() => mockConnectivity.checkConnectivity())
-          .thenAnswer((_) async => [ConnectivityResult.none]);
-          
+      when(
+        () => mockConnectivity.checkConnectivity(),
+      ).thenAnswer((_) async => [ConnectivityResult.none]);
+
       scrobbleService.submit('song789');
       scrobbleService.nowPlaying('song789');
       await Future.delayed(Duration.zero);
 
       verify(() => mockConnectivity.checkConnectivity()).called(2);
-      verifyNever(() => mockApi.scrobble(any(), submission: any(named: 'submission')));
+      verifyNever(
+        () => mockApi.scrobble(any(), submission: any(named: 'submission')),
+      );
     });
   });
 
@@ -205,10 +240,19 @@ void main() {
 
     test('Threshold triggers at 50% for short songs', () async {
       final notifier = container.read(playerProvider.notifier);
-      final song = Song(id: 's1', title: 'A', artist: 'B', album: 'C', coverArt: '', duration: 120, track: 1, year: 2024);
-      
+      final song = Song(
+        id: 's1',
+        title: 'A',
+        artist: 'B',
+        album: 'C',
+        coverArt: '',
+        duration: 120,
+        track: 1,
+        year: 2024,
+      );
+
       await notifier.setQueue([song], 0);
-      
+
       // new song start triggers nowPlaying
       await mockPlayer.emitCurrentIndex(0);
       await Future.delayed(Duration.zero);
@@ -222,10 +266,9 @@ void main() {
       // Cross threshold
       mockPlayer.setMockPosition(const Duration(seconds: 61));
       await Future.delayed(Duration.zero);
-      verify(() => mockScrobble.submit(
-        's1',
-        song: any(named: 'song'),
-      )).called(1);
+      verify(
+        () => mockScrobble.submit('s1', song: any(named: 'song')),
+      ).called(1);
 
       // Ensure it doesn't submit twice
       mockPlayer.setMockPosition(const Duration(seconds: 70));
@@ -233,38 +276,70 @@ void main() {
       verifyNever(() => mockScrobble.submit(any()));
     });
 
-    test('Threshold capped at 4 minutes for long songs', skip: 'Requires wall-clock time manipulation', () async {
-      final notifier = container.read(playerProvider.notifier);
-      final song = Song(id: 'long', title: 'A', artist: 'B', album: 'C', coverArt: '', duration: 600, track: 1, year: 2024); // 10 minutes
-      
-      await notifier.setQueue([song], 0);
-      await mockPlayer.emitCurrentIndex(0);
-      
-      // 50% would be 5 minutes, but threshold is 4 mins (240s)
-      mockPlayer.setMockPosition(const Duration(seconds: 230));
-      await Future.delayed(Duration.zero);
-      verifyNever(() => mockScrobble.submit(any()));
+    test(
+      'Threshold capped at 4 minutes for long songs',
+      skip: 'Requires wall-clock time manipulation',
+      () async {
+        final notifier = container.read(playerProvider.notifier);
+        final song = Song(
+          id: 'long',
+          title: 'A',
+          artist: 'B',
+          album: 'C',
+          coverArt: '',
+          duration: 600,
+          track: 1,
+          year: 2024,
+        ); // 10 minutes
 
-      mockPlayer.setMockPosition(const Duration(seconds: 241));
-      await Future.delayed(Duration.zero);
-      verify(() => mockScrobble.submit(
-        'long',
-        song: any(named: 'song'),
-      )).called(1);
-    });
-    
+        await notifier.setQueue([song], 0);
+        await mockPlayer.emitCurrentIndex(0);
+
+        // 50% would be 5 minutes, but threshold is 4 mins (240s)
+        mockPlayer.setMockPosition(const Duration(seconds: 230));
+        await Future.delayed(Duration.zero);
+        verifyNever(() => mockScrobble.submit(any()));
+
+        mockPlayer.setMockPosition(const Duration(seconds: 241));
+        await Future.delayed(Duration.zero);
+        verify(
+          () => mockScrobble.submit('long', song: any(named: 'song')),
+        ).called(1);
+      },
+    );
+
     test('Skips before threshold do not trigger submission', () async {
       final notifier = container.read(playerProvider.notifier);
-      final song1 = Song(id: 's1', title: 'A', artist: 'B', album: 'C', coverArt: '', duration: 100, track: 1, year: 2024);
-      final song2 = Song(id: 's2', title: 'D', artist: 'B', album: 'C', coverArt: '', duration: 100, track: 2, year: 2024);
-      
+      final song1 = Song(
+        id: 's1',
+        title: 'A',
+        artist: 'B',
+        album: 'C',
+        coverArt: '',
+        duration: 100,
+        track: 1,
+        year: 2024,
+      );
+      final song2 = Song(
+        id: 's2',
+        title: 'D',
+        artist: 'B',
+        album: 'C',
+        coverArt: '',
+        duration: 100,
+        track: 2,
+        year: 2024,
+      );
+
       await notifier.setQueue([song1, song2], 0);
       await mockPlayer.emitCurrentIndex(0);
       verify(() => mockScrobble.nowPlaying('s1')).called(1);
-      
-      mockPlayer.setMockPosition(const Duration(seconds: 10)); // Before 50s threshold
+
+      mockPlayer.setMockPosition(
+        const Duration(seconds: 10),
+      ); // Before 50s threshold
       await Future.delayed(Duration.zero);
-      
+
       // User skips
       await mockPlayer.emitCurrentIndex(1);
       await Future.delayed(Duration.zero);

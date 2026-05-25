@@ -19,8 +19,7 @@ class SyncedLyrics {
   bool get isEmpty => lines.isEmpty;
   bool get isNotEmpty => lines.isNotEmpty;
 
-  static final _wordTagRegex =
-      RegExp(r'<(\d{1,2}):(\d{2})[.:]?(\d{2,3})>');
+  static final _wordTagRegex = RegExp(r'<(\d{1,2}):(\d{2})[.:]?(\d{2,3})>');
 
   static List<WordSegment> _parseWordSegments(String rawText) {
     final segments = <WordSegment>[];
@@ -30,13 +29,12 @@ class SyncedLyrics {
       final minutes = int.parse(m.group(1)!);
       final seconds = int.parse(m.group(2)!);
       final msStr = m.group(3)!;
-      final ms =
-          msStr.length == 2 ? int.parse(msStr) * 10 : int.parse(msStr);
-      final ts =
-          Duration(minutes: minutes, seconds: seconds, milliseconds: ms);
+      final ms = msStr.length == 2 ? int.parse(msStr) * 10 : int.parse(msStr);
+      final ts = Duration(minutes: minutes, seconds: seconds, milliseconds: ms);
       final textStart = m.end;
-      final textEnd =
-          i + 1 < matches.length ? matches[i + 1].start : rawText.length;
+      final textEnd = i + 1 < matches.length
+          ? matches[i + 1].start
+          : rawText.length;
       final segText = rawText.substring(textStart, textEnd).trim();
       if (segText.isNotEmpty) {
         segments.add(WordSegment(timestamp: ts, text: segText));
@@ -71,9 +69,10 @@ class SyncedLyrics {
         continue;
       }
 
-      final regex =
-          RegExp(r'\[(\d{1,2}):(\d{2})[:.](\\d{2,3}|\d{2,3})\](.*)',
-              dotAll: true);
+      final regex = RegExp(
+        r'\[(\d{1,2}):(\d{2})[:.](\\d{2,3}|\d{2,3})\](.*)',
+        dotAll: true,
+      );
       final match = regex.firstMatch(trimmed);
 
       if (match != null) {
@@ -97,11 +96,13 @@ class SyncedLyrics {
               .trim();
           if (cleanText.isNotEmpty) {
             final wordSegs = _parseWordSegments(rawText);
-            lines.add(LyricLine(
-              timestamp: lineTimestamp,
-              text: cleanText,
-              words: wordSegs.isNotEmpty ? wordSegs : null,
-            ));
+            lines.add(
+              LyricLine(
+                timestamp: lineTimestamp,
+                text: cleanText,
+                words: wordSegs.isNotEmpty ? wordSegs : null,
+              ),
+            );
           }
         } else {
           final text = rawText.trim();
@@ -129,7 +130,6 @@ class SyncedLyrics {
       }).toList(),
     );
   }
-
 
   /// Builds [SyncedLyrics] from an OpenSubsonic `structuredLyrics` line array.
   ///
@@ -165,7 +165,6 @@ class SyncedLyrics {
   }
 
   int getCurrentLineIndex(Duration position) {
-
     if (lines.isEmpty) return -1;
     if (position < lines.first.timestamp) return -1;
     for (int i = lines.length - 1; i >= 0; i--) {

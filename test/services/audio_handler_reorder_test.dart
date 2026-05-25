@@ -21,11 +21,11 @@ import 'package:navivibe/models/song.dart';
 import 'package:navivibe/services/audio_handler.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
-import 'package:navivibe/providers/settings_provider.dart' show ShufflePreference;
+import 'package:navivibe/providers/settings_provider.dart'
+    show ShufflePreference;
 import 'dart:io';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:navivibe/core/hive_boxes.dart';
-
 
 // ── Test data factory ─────────────────────────────────────────────────────────
 
@@ -37,19 +37,18 @@ Song _song({
   String genre = 'Rock',
   String composer = 'Comp',
   int track = 1,
-}) =>
-    Song(
-      id: id,
-      title: '$title $id',
-      artist: artist,
-      album: album,
-      genre: genre,
-      composer: composer,
-      coverArt: '',
-      duration: 200,
-      track: track,
-      year: 2024,
-    );
+}) => Song(
+  id: id,
+  title: '$title $id',
+  artist: artist,
+  album: album,
+  genre: genre,
+  composer: composer,
+  coverArt: '',
+  duration: 200,
+  track: track,
+  year: 2024,
+);
 
 // ── Mock classes ──────────────────────────────────────────────────────────────
 
@@ -57,7 +56,12 @@ class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
 
 class MockSubsonicService extends SubsonicService {
   MockSubsonicService(PlaylistCacheService cache)
-      : super(serverUrl: 'https://test.example.com', username: 'test', password: 'test', cache: cache);
+    : super(
+        serverUrl: 'https://test.example.com',
+        username: 'test',
+        password: 'test',
+        cache: cache,
+      );
 }
 
 class MockAudioPlayer extends Fake implements AudioPlayer {
@@ -92,8 +96,7 @@ class MockAudioPlayer extends Fake implements AudioPlayer {
       _playbackEventController.stream;
 
   @override
-  Stream<PlayerState> get playerStateStream =>
-      _playerStateController.stream;
+  Stream<PlayerState> get playerStateStream => _playerStateController.stream;
 
   @override
   Stream<ProcessingState> get processingStateStream =>
@@ -149,7 +152,9 @@ class TestAudioHandler extends AudioHandler {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
-    final dir = Directory.systemTemp.createTempSync('hive_test_audio_handler_reorder');
+    final dir = Directory.systemTemp.createTempSync(
+      'hive_test_audio_handler_reorder',
+    );
     Hive.init(dir.path);
     HiveBoxes.auth = await Hive.openBox('auth');
     HiveBoxes.session = await Hive.openBox('session');
@@ -226,23 +231,29 @@ void main() {
       expect(shuffledIds, equals(originalIds));
     });
 
-    test('merge shuffle interleaves genres (no consecutive same genre)', () async {
-      final songs = [
-        _song(id: '1', genre: 'Rock', composer: 'Comp1'),
-        _song(id: '2', genre: 'Rock', composer: 'Comp1'),
-        _song(id: '3', genre: 'Jazz', composer: 'Comp2'),
-        _song(id: '4', genre: 'Jazz', composer: 'Comp2'),
-      ];
-      await handler.setQueue(songs, 0);
-      await handler.mergeShuffle(ShufflePreference.genre);
+    test(
+      'merge shuffle interleaves genres (no consecutive same genre)',
+      () async {
+        final songs = [
+          _song(id: '1', genre: 'Rock', composer: 'Comp1'),
+          _song(id: '2', genre: 'Rock', composer: 'Comp1'),
+          _song(id: '3', genre: 'Jazz', composer: 'Comp2'),
+          _song(id: '4', genre: 'Jazz', composer: 'Comp2'),
+        ];
+        await handler.setQueue(songs, 0);
+        await handler.mergeShuffle(ShufflePreference.genre);
 
-      // With 2 groups of 2, merge-shuffle should produce alternating genres.
-      // The anchor (index 0) stays, so check from index 1 onward.
-      final result = handler.testQueue;
-      expect(result[0].id, '1'); // anchor stays
-      expect(result[1].genre, isNot(equals(result[0].genre)),
-          reason: 'First transition should alternate genre');
-    });
+        // With 2 groups of 2, merge-shuffle should produce alternating genres.
+        // The anchor (index 0) stays, so check from index 1 onward.
+        final result = handler.testQueue;
+        expect(result[0].id, '1'); // anchor stays
+        expect(
+          result[1].genre,
+          isNot(equals(result[0].genre)),
+          reason: 'First transition should alternate genre',
+        );
+      },
+    );
 
     test('dithered position shuffle preserves all songs', () async {
       final songs = List.generate(

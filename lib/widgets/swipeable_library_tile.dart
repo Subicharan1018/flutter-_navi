@@ -22,15 +22,20 @@ class SwipeableLibraryTile extends ConsumerWidget {
     super.key,
     required this.dismissKey,
     required this.child,
+
     /// Called when user swipes right. Should add the relevant song(s) to queue.
     required this.onSwipeRight,
+
     /// Null = right-swipe only (albums, playlists). Non-null = also enable
     /// left-swipe for favorite toggle on song tiles.
     this.onSwipeLeft,
+
     /// Whether the item is already starred — drives the left icon.
     this.isStarred = false,
+
     /// Label shown below the right-swipe icon (e.g. "Queue").
     this.rightLabel = 'Queue',
+
     /// Label shown below the left-swipe icon.
     this.leftLabel,
   });
@@ -93,7 +98,9 @@ class SwipeableLibraryTile extends ConsumerWidget {
     messenger.clearSnackBars();
     messenger.showSnackBar(
       SnackBar(
-        content: Text(wasStarred ? 'Removed from favorites' : 'Added to favorites'),
+        content: Text(
+          wasStarred ? 'Removed from favorites' : 'Added to favorites',
+        ),
         duration: const Duration(seconds: 3),
         behavior: SnackBarBehavior.floating,
         action: SnackBarAction(

@@ -1,604 +1,674 @@
-# Graph Report - flutter-_navi  (2026-05-23)
+# Graph Report - flutter-_navi  (2026-05-25)
 
 ## Corpus Check
-- 172 files · ~278,580 words
+- 140 files · ~266,582 words
 - Verdict: corpus is large enough that graph structure adds value.
 
 ## Summary
-- 1792 nodes · 3093 edges · 135 communities (127 shown, 8 thin omitted)
-- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS · INFERRED: 3 edges (avg confidence: 0.8)
+- 2206 nodes · 2066 edges · 141 communities (119 shown, 22 thin omitted)
+- Extraction: 100% EXTRACTED · 0% INFERRED · 0% AMBIGUOUS
 - Token cost: 0 input · 0 output
 
 ## Graph Freshness
-- Built from commit: `b8fa33dd`
+- Built from commit: `5621b41b`
 - Run `git rev-parse HEAD` and compare to check if the graph is stale.
 - Run `graphify update .` after code changes (no API cost).
 
 ## Community Hubs (Navigation)
-- [[_COMMUNITY_dartasync  dartio  ..helperstest_utils.dart|dart:async / dart:io / ../helpers/test_utils.dart]]
-- [[_COMMUNITY_..featuresai_shuffleuiai_shuffle_screen.dart  ShuffleStatsResponse  AlbumStat|../features/ai_shuffle/ui/ai_shuffle_screen.dart / ShuffleStatsResponse / AlbumStat]]
-- [[_COMMUNITY_..datamodelsprofile_response.dart  ....datamodelsrecommended_song.dart  ..datamodelssession_status_response.dart|../data/models/profile_response.dart / ../../data/models/recommended_song.dart / ../data/models/session_status_response.dart]]
-- [[_COMMUNITY_..corepalette_cache.dart  _AppleMusicThumb  _AudioQualityStrip|../core/palette_cache.dart / _AppleMusicThumb / _AudioQualityStrip]]
-- [[_COMMUNITY_....datamodelshealth_response.dart  AiShuffleScreen  _AiShuffleScreenState|../../data/models/health_response.dart / AiShuffleScreen / _AiShuffleScreenState]]
-- [[_COMMUNITY_..coreapp_exception.dart  AppException  AuthException|../core/app_exception.dart / AppException / AuthException]]
-- [[_COMMUNITY_CLAUDE.md  10. Testing Rules  11. Surprising Connections|CLAUDE.md / 10. Testing Rules / 11. Surprising Connections]]
-- [[_COMMUNITY_favorites_screen.dart  _buildAlbumsGrid  _buildSongsList|favorites_screen.dart / _buildAlbumsGrid / _buildSongsList]]
-- [[_COMMUNITY_analog  AnimatedContainer  AppTheme|analog / AnimatedContainer / AppTheme]]
-- [[_COMMUNITY_1.4 Common Flutter Illogical Patterns — Full Reference  Async State Races  AutoplayLookahead Guard — Growing Set|1.4 Common Flutter Illogical Patterns — Full Reference / Async State Races / Autoplay/Lookahead Guard — Growing Set]]
-- [[_COMMUNITY_ArtistAffinityCompanion  ArtistAffinityEntity  copyWithCompanion|ArtistAffinityCompanion / ArtistAffinityEntity / copyWithCompanion]]
-- [[_COMMUNITY_..coreapp_constants.dart  applyShuffleAlgorithm  _applySmartLocalAlgorithm|../core/app_constants.dart / applyShuffleAlgorithm / _applySmartLocalAlgorithm]]
-- [[_COMMUNITY_..controllerslyrics_controller.dart  initState  _buildBody|../controllers/lyrics_controller.dart / initState / _buildBody]]
-- [[_COMMUNITY_dartffi  AnalyticsStats  _buildCsv|dart:ffi / AnalyticsStats / _buildCsv]]
-- [[_COMMUNITY_Playlist  CustomScrollView  _DailyListeningChart|Playlist / CustomScrollView / _DailyListeningChart]]
-- [[_COMMUNITY_add_to_playlist_dialog.dart  ......coretheme.dart  edit_playlist_screen.dart|add_to_playlist_dialog.dart / ../../../core/theme.dart / edit_playlist_screen.dart]]
-- [[_COMMUNITY_Spacer  _buildItem  _confirmDelete|Spacer / _buildItem / _confirmDelete]]
-- [[_COMMUNITY_cancelBackgroundDownload  downloadSongs  File|cancelBackgroundDownload / downloadSongs / File]]
-- [[_COMMUNITY_..featuresai_shuffleuihome_stats_widget.dart  AnimatedOpacity  _artGradient|../features/ai_shuffle/ui/home_stats_widget.dart / AnimatedOpacity / _artGradient]]
-- [[_COMMUNITY__AddSongsRow  _CircleIconButton  _CollapsedTitle|_AddSongsRow / _CircleIconButton / _CollapsedTitle]]
-- [[_COMMUNITY_CupertinoActionSheetAction  DropdownMenuItem  _SettingsDivider|CupertinoActionSheetAction / DropdownMenuItem / _SettingsDivider]]
-- [[_COMMUNITY_context.md  🏗️ 1. Core Architecture & Isolate Rules  🔊 2. Audio Engine & Shuffle Specifications|context.md / 🏗️ 1. Core Architecture & Isolate Rules / 🔊 2. Audio Engine & Shuffle Specifications]]
-- [[_COMMUNITY_dartconvert  _cache  _structuredLinesToLrc|dart:convert / _cache / _structuredLinesToLrc]]
-- [[_COMMUNITY_..corenavigation_transitions.dart  _AlbumThumb  didChangeDependencies|../core/navigation_transitions.dart / _AlbumThumb / didChangeDependencies]]
-- [[_COMMUNITY_Function  _buildSectionTitle  _buildTable|Function / _buildSectionTitle / _buildTable]]
-- [[_COMMUNITY_..coreconstants.dart  ..databaseapp_database.dart  getString|../core/constants.dart / ../database/app_database.dart / getString]]
-- [[_COMMUNITY__applyReplayGain  commitSmartLocalOrder  currentQueue|_applyReplayGain / commitSmartLocalOrder / currentQueue]]
-- [[_COMMUNITY_1.2 Code Quality Non-Negotiables  codedart ( ❌ NEVER — non-reactive, stale data)  codedart ( ❌ NEVER in new files)|1.2 Code Quality Non-Negotiables / code:dart (// ❌ NEVER — non-reactive, stale data) / code:dart (// ❌ NEVER in new files)]]
-- [[_COMMUNITY_BUG 5 `_persistState` Timer Fires Multiple Times Per 5s Boundary ✅ (Approved)  BUG 6 `PaletteCache` Has No Size Limit ✅ (Approved)  BUG 7 Synchronous `File.existsSync()` Per Song on Main Thread ✅ (Approved)|BUG 5: `_persistState` Timer Fires Multiple Times Per 5s Boundary ✅ (Approved) / BUG 6: `PaletteCache` Has No Size Limit ✅ (Approved) / BUG 7: Synchronous `File.existsSync()` Per Song on Main Thread ✅ (Approved)]]
-- [[_COMMUNITY_ClipRRect  CustomPaint  formatDuration|ClipRRect / CustomPaint / formatDuration]]
-- [[_COMMUNITY_codeblock16 (User presses Next →)  codedart ( ❌ ILLOGICAL — does not check if index is still valid afte)  codedart ( ✅ CORRECT — re-read state after every await)|code:block16 (User presses Next →) / code:dart (// ❌ ILLOGICAL — does not check if index is still valid afte) / code:dart (// ✅ CORRECT — re-read state after every await)]]
-- [[_COMMUNITY_1.1 Before Writing Any Code  1.3 The Music Player Logic Test — Spot Every Illogical Behaviour  codeblock1 (BUILD → SELF-AUDIT → TEST)|1.1 Before Writing Any Code / 1.3 The Music Player Logic Test — Spot Every Illogical Behaviour / code:block1 (BUILD → SELF-AUDIT → TEST)]]
-- [[_COMMUNITY_BUG 1 `_trackChangeTimer` Empty Callback ✅ (Approved)  codedart (_trackChangeTimer = Timer(const Duration(milliseconds 200),)  BUG-001 `_trackChangeTimer` Missing MountedDispose Guard|BUG 1: `_trackChangeTimer` Empty Callback ✅ (Approved) / code:dart (_trackChangeTimer = Timer(const Duration(milliseconds: 200),) / BUG-001: `_trackChangeTimer` Missing Mounted/Dispose Guard]]
-- [[_COMMUNITY_ARCHITECTURE.md  🧠 Advanced Shuffle Algorithms  🔊 Audio Engine Details|ARCHITECTURE.md / 🧠 Advanced Shuffle Algorithms / 🔊 Audio Engine Details]]
-- [[_COMMUNITY_fl_register_plugins()  generated_plugin_registrant.h  my_application.h|fl_register_plugins() / generated_plugin_registrant.h / my_application.h]]
-- [[_COMMUNITY_..fluid_background.dart  didUpdateWidget  FluidBackground|../fluid_background.dart / didUpdateWidget / FluidBackground]]
-- [[_COMMUNITY_dartcollection  player_provider.dart (BUG 1 — timer)  player_provider.dart (BUG 4 — stale currentIndex)|dart:collection / player_provider.dart (BUG 1 — timer) / player_provider.dart (BUG 4 — stale currentIndex)]]
-- [[_COMMUNITY_cache_settings_service.dart  ........corehive_boxes.dart  _loadHistory|cache_settings_service.dart / ../../../../core/hive_boxes.dart / _loadHistory]]
-- [[_COMMUNITY_dartmath  _QueueEntry  _queueFailedLog|dart:math / _QueueEntry / _queueFailedLog]]
-- [[_COMMUNITY_SliverToBoxAdapter  SliverPadding  _NewReleaseCard|SliverToBoxAdapter / SliverPadding / _NewReleaseCard]]
-- [[_COMMUNITY_1. CODE QUALITY  2. ARCHITECTURE & DESIGN  3. PERFORMANCE|1. CODE QUALITY / 2. ARCHITECTURE & DESIGN / 3. PERFORMANCE]]
-- [[_COMMUNITY_LyricsState  _subscribeToPosition  SongDownloadState|LyricsState / _subscribeToPosition / SongDownloadState]]
-- [[_COMMUNITY_NaviVibe Architecture & Security Audit Report  Section 10 What Is Done Well  Section 1 Executive Summary|NaviVibe Architecture & Security Audit Report / Section 10: What Is Done Well / Section 1: Executive Summary]]
-- [[_COMMUNITY_1. File Changes  codeyaml (flutter)  codedart (class _AppleMusicPainter extends CustomPainter { … })|1. File Changes / code:yaml (flutter:) / code:dart (class _AppleMusicPainter extends CustomPainter { … })]]
-- [[_COMMUNITY_SongMetadataEntity  UserFeedback  close|SongMetadataEntity / UserFeedback / close]]
-- [[_COMMUNITY_AppDatabase  MigrationStrategy  app_database.dart|AppDatabase / MigrationStrategy / app_database.dart]]
-- [[_COMMUNITY__loadFromHive  getLabel  _initConnectivityWatcher|_loadFromHive / getLabel / _initConnectivityWatcher]]
-- [[_COMMUNITY_AS  CAST  _queryReplay|AS / CAST / _queryReplay]]
-- [[_COMMUNITY_HiveBoxes  _migrateBool  _migrateDouble|HiveBoxes / _migrateBool / _migrateDouble]]
-- [[_COMMUNITY_Audit Checklist  Error Handling  File Consistency|Audit Checklist / Error Handling / File Consistency]]
-- [[_COMMUNITY_🤝 Contributing  🚀 Getting Started  ✨ Key Features|🤝 Contributing / 🚀 Getting Started / ✨ Key Features]]
-- [[_COMMUNITY_3. Shader Uniform Layout Reference  4. Why `shouldRepaint` Returns `true` Every Frame  5. Impeller vs. Skia Notes|3. Shader Uniform Layout Reference / 4. Why `shouldRepaint` Returns `true` Every Frame / 5. Impeller vs. Skia Notes]]
-- [[_COMMUNITY_toString  getCurrentLineIndex  LyricLine|toString / getCurrentLineIndex / LyricLine]]
-- [[_COMMUNITY_calculateVolumeMultiplier  getFallbackGain  getMode|calculateVolumeMultiplier / getFallbackGain / getMode]]
-- [[_COMMUNITY__cacheBPM  _estimateBPMFromGenre  _getCachedBPM|_cacheBPM / _estimateBPMFromGenre / _getCachedBPM]]
-- [[_COMMUNITY_MapEntry  addPlay  calculateSongScore|MapEntry / addPlay / calculateSongScore]]
-- [[_COMMUNITY_AppRouteTransitions  buildTransitions  _FadeScaleRoute|AppRouteTransitions / buildTransitions / _FadeScaleRoute]]
-- [[_COMMUNITY_G_DECLARE_DERIVABLE_TYPE()  fl_message_codec.h  fl_method_codec.h|G_DECLARE_DERIVABLE_TYPE() / fl_message_codec.h / fl_method_codec.h]]
-- [[_COMMUNITY_codedart ( Required a regression test that reproduces the exact bug)  Minimum Test Coverage Per Task  Phase 3 TEST — Mandatory Test Plan Per Task|code:dart (// Required: a regression test that reproduces the exact bug) / Minimum Test Coverage Per Task / Phase 3: TEST — Mandatory Test Plan Per Task]]
-- [[_COMMUNITY_AudioHandler Performance  MODIFY audio_handler.dart(filedSubi_projectflutter-_navilibservicesaudio_handler.dart)  MODIFY palette_cache.dart(filedSubi_projectflutter-_navilibcorepalette_cache.dart)|AudioHandler Performance / [MODIFY] [audio_handler.dart](file:///d:/Subi_project/flutter-_navi/lib/services/audio_handler.dart) / [MODIFY] [palette_cache.dart](file:///d:/Subi_project/flutter-_navi/lib/core/palette_cache.dart)]]
-- [[_COMMUNITY_BUG 2 `_playedDuration` Drift & Scrobble Logic ⚠️ (Reworked)  codedart (Duration _accumulatedListenTime = Duration.zero;   replace)  codedart (player.playingStream.listen((playing) {)|BUG 2: `_playedDuration` Drift & Scrobble Logic ⚠️ (Reworked) / code:dart (Duration _accumulatedListenTime = Duration.zero;  // replace) / code:dart (player.playingStream.listen((playing) {)]]
-- [[_COMMUNITY__cacheSongs  PlaylistController  compute|_cacheSongs / PlaylistController / compute]]
-- [[_COMMUNITY_isLrcFormat  LrcParser  parseLrc|isLrcFormat / LrcParser / parseLrc]]
-- [[_COMMUNITY_GestureDetector  Column  _shortDesc|GestureDetector / Column / _shortDesc]]
-- [[_COMMUNITY_6. Extending the Shader  Adding album art texture warping (closest to real Apple Music)  codeglsl (uniform sampler2D u_albumArt;)|6. Extending the Shader / Adding album art texture warping (closest to real Apple Music) / code:glsl (uniform sampler2D u_albumArt;)]]
-- [[_COMMUNITY_query_20260513_054343_song_model_dependencies_that_cross_layer_boundarie.md  query_20260513_054650_playerprovider_listeningeventcollector_data_flow.md  Q Song model dependencies that cross layer boundaries|query_20260513_054343_song_model_dependencies_that_cross_layer_boundarie.md / query_20260513_054650_playerprovider_listeningeventcollector_data_flow.md / Q: Song model dependencies that cross layer boundaries]]
-- [[_COMMUNITY_PlaylistCache  SearchHistory  playlist_cache_table.dart|PlaylistCache / SearchHistory / playlist_cache_table.dart]]
-- [[_COMMUNITY_SEC-001 Service Call Directly from UI Widget  SEC-002 Hardcoded Fallback Credentials  SEC-003 Sensitive URLs in Production Logs|SEC-001: Service Call Directly from UI Widget / SEC-002: Hardcoded Fallback Credentials / SEC-003: Sensitive URLs in Production Logs]]
-- [[_COMMUNITY_BUG 3 Shuffle Rebuild Performance ⚠️ (Reworked — Simplified)  codedart (Futurevoid _updateQueueAfterAnchor(int anchorIndex) async )  codedart ( Pre-computes offline paths for all songs in the queue.)|BUG 3: Shuffle Rebuild Performance ⚠️ (Reworked — Simplified) / code:dart (Future<void> _updateQueueAfterAnchor(int anchorIndex) async ) / code:dart (/// Pre-computes offline paths for all songs in the queue.)]]
-- [[_COMMUNITY_1. Presentation Layer (`libscreens`, `libwidgets`)  2. State Management Layer (`libproviders`)  3. Service Layer (`libservices`)|1. Presentation Layer (`lib/screens`, `lib/widgets`) / 2. State Management Layer (`lib/providers`) / 3. Service Layer (`lib/services`)]]
-- [[_COMMUNITY_dartui  DecoratedBox  Stack|dart:ui / DecoratedBox / Stack]]
-- [[_COMMUNITY_G_DECLARE_INTERFACE()  fl_plugin_registry.h  fl_texture.h|G_DECLARE_INTERFACE() / fl_plugin_registry.h / fl_texture.h]]
-- [[_COMMUNITY_Section 5 Architecture Smells  SMELL-001 God Node Bloat  SMELL-002 Fragile Communities|Section 5: Architecture Smells / SMELL-001: God Node Bloat / SMELL-002: Fragile Communities]]
-- [[_COMMUNITY_A. Music Playback Flow  B. Offline Sync Flow  codemermaid (sequenceDiagram)|A. Music Playback Flow / B. Offline Sync Flow / code:mermaid (sequenceDiagram)]]
-- [[_COMMUNITY_codedart ( ❌ NEVER — these are build failures)  codedart ( ✅ REQUIRED — real implementation or explicit documented s)  No Placeholders|code:dart (// ❌ NEVER — these are build failures) / code:dart (// ✅ REQUIRED — real implementation or explicit documented s) / No Placeholders]]
-- [[_COMMUNITY_codedart ( ❌ NEVER — mutable model causes unpredictable state bugs)  codedart ( ✅ REQUIRED — immutable with copyWith)  Immutable Models|code:dart (// ❌ NEVER — mutable model causes unpredictable state bugs) / code:dart (// ✅ REQUIRED — immutable with copyWith) / Immutable Models]]
-- [[_COMMUNITY_Constants  constants.dart|Constants / constants.dart]]
-- [[_COMMUNITY_Album  album.dart|Album / album.dart]]
-- [[_COMMUNITY_suma.py|suma.py]]
-- [[_COMMUNITY_build.gradle.kts|build.gradle.kts]]
-- [[_COMMUNITY_settings.gradle.kts|settings.gradle.kts]]
-- [[_COMMUNITY_MainActivity|MainActivity]]
-- [[_COMMUNITY_app_constants.dart|app_constants.dart]]
-- [[_COMMUNITY_fl_application.h|fl_application.h]]
-- [[_COMMUNITY_fl_basic_message_channel.h|fl_basic_message_channel.h]]
-- [[_COMMUNITY_fl_binary_codec.h|fl_binary_codec.h]]
-- [[_COMMUNITY_fl_binary_messenger.h|fl_binary_messenger.h]]
-- [[_COMMUNITY_fl_dart_project.h|fl_dart_project.h]]
-- [[_COMMUNITY_fl_engine.h|fl_engine.h]]
-- [[_COMMUNITY_fl_event_channel.h|fl_event_channel.h]]
-- [[_COMMUNITY_fl_json_message_codec.h|fl_json_message_codec.h]]
-- [[_COMMUNITY_fl_json_method_codec.h|fl_json_method_codec.h]]
-- [[_COMMUNITY_fl_method_call.h|fl_method_call.h]]
-- [[_COMMUNITY_fl_method_channel.h|fl_method_channel.h]]
-- [[_COMMUNITY_fl_standard_method_codec.h|fl_standard_method_codec.h]]
-- [[_COMMUNITY_fl_string_codec.h|fl_string_codec.h]]
-- [[_COMMUNITY_fl_value.h|fl_value.h]]
-- [[_COMMUNITY_fl_view.h|fl_view.h]]
-- [[_COMMUNITY_flutter_linux.h|flutter_linux.h]]
-- [[_COMMUNITY_Community 99|Community 99]]
-- [[_COMMUNITY_Community 100|Community 100]]
-- [[_COMMUNITY_Community 101|Community 101]]
-- [[_COMMUNITY_Community 102|Community 102]]
-- [[_COMMUNITY_Community 103|Community 103]]
-- [[_COMMUNITY_Community 104|Community 104]]
-- [[_COMMUNITY_Community 105|Community 105]]
-- [[_COMMUNITY_Community 106|Community 106]]
-- [[_COMMUNITY_Community 107|Community 107]]
-- [[_COMMUNITY_Community 108|Community 108]]
-- [[_COMMUNITY_Community 109|Community 109]]
-- [[_COMMUNITY_Community 110|Community 110]]
-- [[_COMMUNITY_Community 111|Community 111]]
-- [[_COMMUNITY_Community 112|Community 112]]
-- [[_COMMUNITY_Community 113|Community 113]]
+- [[_COMMUNITY_Core Palette Cache Dart Core|Core Palette Cache Dart Core]]
+- [[_COMMUNITY_Database App Database Dart Core|Database App Database Dart Core]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Core Constants Dart Core|Core Constants Dart Core]]
+- [[_COMMUNITY_Dart Math Core|Dart Math Core]]
+- [[_COMMUNITY_Features Ai Shuffle Data Models|Features Ai Shuffle Data Models]]
+- [[_COMMUNITY_Favorites Screen Dart|Favorites Screen Dart]]
+- [[_COMMUNITY_Core Keyboard Shortcuts Dart Core|Core Keyboard Shortcuts Dart Core]]
+- [[_COMMUNITY_Core App Exception Dart Core|Core App Exception Dart Core]]
+- [[_COMMUNITY_Community 9|Community 9]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Data Models Contribution Graph Response|Data Models Contribution Graph Response]]
+- [[_COMMUNITY_Core Navigation Transitions Dart Core|Core Navigation Transitions Dart Core]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Controllers Lyrics Controller Dart Core|Controllers Lyrics Controller Dart Core]]
+- [[_COMMUNITY_Core App Constants Dart Core|Core App Constants Dart Core]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Edit Playlist Screen Dart|Edit Playlist Screen Dart]]
+- [[_COMMUNITY_Community 20|Community 20]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Community 22|Community 22]]
+- [[_COMMUNITY_Community 23|Community 23]]
+- [[_COMMUNITY_Dart Io Core|Dart Io Core]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Analytics Tables Playevents Core|Analytics Tables Playevents Core]]
+- [[_COMMUNITY_Dashboard Screen Bigmetric|Dashboard Screen Bigmetric]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_App Scaffold Appscaffoldstate Core|App Scaffold Appscaffoldstate Core]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Dart Convert Core|Dart Convert Core]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Community 37|Community 37]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Data Models Recommended Song Dart|Data Models Recommended Song Dart]]
+- [[_COMMUNITY_Listening Stats Screen Emptyconfigstate|Listening Stats Screen Emptyconfigstate]]
+- [[_COMMUNITY_Community 42|Community 42]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Community 45|Community 45]]
+- [[_COMMUNITY_Community 46|Community 46]]
+- [[_COMMUNITY_Lrc Parser Lrcparser Logic|Lrc Parser Lrcparser Logic]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Com Github Dart Lang Jni|Com Github Dart Lang Jni]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Fluid Background Dart Logic|Fluid Background Dart Logic]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Player Provider Playernotifier|Player Provider Playernotifier]]
+- [[_COMMUNITY_Playlist Widgets Addsongsrow|Playlist Widgets Addsongsrow]]
+- [[_COMMUNITY_Community 59|Community 59]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Community 61|Community 61]]
+- [[_COMMUNITY_Community 62|Community 62]]
+- [[_COMMUNITY_Community 63|Community 63]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Cache Settings Service Dart|Cache Settings Service Dart]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Add To Playlist Dialog Dart|Add To Playlist Dialog Dart]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Community 73|Community 73]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Community 77|Community 77]]
+- [[_COMMUNITY_Core Hive Boxes Dart Logic|Core Hive Boxes Dart Logic]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Dart Ffi Logic|Dart Ffi Logic]]
+- [[_COMMUNITY_Mini Player Albumthumb Logic|Mini Player Albumthumb Logic]]
+- [[_COMMUNITY_Fl Texture Registrar H Fl|Fl Texture Registrar H Fl]]
+- [[_COMMUNITY_Community 84|Community 84]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Dart Ui Logic|Dart Ui Logic]]
+- [[_COMMUNITY_Dart Collection Logic|Dart Collection Logic]]
+- [[_COMMUNITY_Fl Plugin Registry Fl Plugin|Fl Plugin Registry Fl Plugin]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Community 95|Community 95]]
+- [[_COMMUNITY_App Exception Appexception Logic|App Exception Appexception Logic]]
+- [[_COMMUNITY_Shuffle Exception Shuffleautherror Logic|Shuffle Exception Shuffleautherror Logic]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Login Screen Loginscreenstate|Login Screen Loginscreenstate]]
+- [[_COMMUNITY_Window Manager Service For|Window Manager Service For]]
+- [[_COMMUNITY_Next Response Nextresponse|Next Response Nextresponse]]
+- [[_COMMUNITY_Ai Shuffle Screen Aishufflescreen|Ai Shuffle Screen Aishufflescreen]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Main Mymusicplayerapp Logic|Main Mymusicplayerapp Logic]]
+- [[_COMMUNITY_Transcoding Service Transcodebitrate|Transcoding Service Transcodebitrate]]
+- [[_COMMUNITY_Progress Bar Glassthumbshape Logic|Progress Bar Glassthumbshape Logic]]
+- [[_COMMUNITY_Contribution Graph Contributiongraphcardstate Logic|Contribution Graph Contributiongraphcardstate Logic]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Android App Src Main Java|Android App Src Main Java]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Navigation Transitions Fadescaleroute Logic|Navigation Transitions Fadescaleroute Logic]]
+- [[_COMMUNITY_Library Provider Allsongsprovider|Library Provider Allsongsprovider]]
+- [[_COMMUNITY_Community 120|Community 120]]
+- [[_COMMUNITY_Community 121|Community 121]]
+- [[_COMMUNITY_Recommendation Service Recommendation Service|Recommendation Service Recommendation Service]]
+- [[_COMMUNITY_Listening Event Collector Analyticsstats Logic|Listening Event Collector Analyticsstats Logic]]
+- [[_COMMUNITY_Listening Log Service Queueentry|Listening Log Service Queueentry]]
+- [[_COMMUNITY_Add To Playlist Dialog Addtoplaylistdialogstate|Add To Playlist Dialog Addtoplaylistdialogstate]]
+- [[_COMMUNITY_Album Card Albumplaceholder|Album Card Albumplaceholder]]
+- [[_COMMUNITY_Options Menu Optionsmenu Logic|Options Menu Optionsmenu Logic]]
+- [[_COMMUNITY_Theme Selector Themecard Logic|Theme Selector Themecard Logic]]
+- [[_COMMUNITY_Shuffle Api Service Shuffleapiservice|Shuffle Api Service Shuffleapiservice]]
+- [[_COMMUNITY_Now Playing Shuffle Sync Test|Now Playing Shuffle Sync Test]]
+- [[_COMMUNITY_Now Playing Shuffle Sync Test|Now Playing Shuffle Sync Test]]
+- [[_COMMUNITY_Audio Handler Precompute Offline Paths|Audio Handler Precompute Offline Paths]]
+- [[_COMMUNITY_Auto Name Py Logic|Auto Name Py Logic]]
+- [[_COMMUNITY_Android App Src Main Kotlin|Android App Src Main Kotlin]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
+- [[_COMMUNITY_Home Subi Documents Flutter Navi|Home Subi Documents Flutter Navi]]
 
 ## God Nodes (most connected - your core abstractions)
-1. `package:flutter_riverpod/flutter_riverpod.dart` - 75 edges
-2. `../core/theme.dart` - 73 edges
-3. `../providers/settings_provider.dart` - 71 edges
-4. `package:flutter/material.dart` - 70 edges
-5. `../providers/player_provider.dart` - 66 edges
-6. `playlist_details_screen.dart` - 52 edges
-7. `../models/song.dart` - 44 edges
-8. `listening_stats_screen.dart` - 44 edges
-9. `subsonic_service.dart` - 43 edges
-10. `settings_screen.dart` - 40 edges
+1. `_` - 30 edges
+2. `rebuild_model.sh script` - 1 edges
+3. `run_update.sh script` - 1 edges
+4. `run_code_only.sh script` - 1 edges
+5. `run_ast_cache.sh script` - 1 edges
+6. `run_merge_update.sh script` - 1 edges
+7. `.run_graphify.sh script` - 1 edges
+8. `get_deps.sh script` - 1 edges
+9. `run_queries.sh script` - 1 edges
+10. `FluidShaderLoader` - 1 edges
 
 ## Surprising Connections (you probably didn't know these)
-- `../core/theme.dart` --defines--> `AppThemeTokens`  [EXTRACTED]
-  widgets/create_playlist_dialog.dart → core/theme.dart
-- `../core/theme.dart` --defines--> `ThemeVariants`  [EXTRACTED]
-  widgets/create_playlist_dialog.dart → core/theme.dart
-- `../core/theme.dart` --defines--> `ThemeTokens`  [EXTRACTED]
-  widgets/create_playlist_dialog.dart → core/theme.dart
-- `../core/theme.dart` --defines--> `AppTheme`  [EXTRACTED]
-  widgets/create_playlist_dialog.dart → core/theme.dart
-- `../core/theme.dart` --defines--> `CupertinoClickable`  [EXTRACTED]
-  widgets/create_playlist_dialog.dart → core/theme.dart
+- None detected - all connections are within the same source files.
 
-## Communities (135 total, 8 thin omitted)
+## Communities (141 total, 22 thin omitted)
 
-### Community 0 - "dart:async / dart:io / ../helpers/test_utils.dart"
-Cohesion: 0.07
-Nodes (56): ../core/palette_cache.dart, _AppleMusicThumb, _AudioQualityStrip, _BottomAction, build, Center, Container, didUpdateWidget (+48 more)
+### Community 0 - "Core Palette Cache Dart Core"
+Cohesion: 0.03
+Nodes (75): ../core/palette_cache.dart, _AppleMusicThumb, _AudioQualityStrip, _BottomAction, build, Center, Container, didUpdateWidget (+67 more)
 
-### Community 1 - "../features/ai_shuffle/ui/ai_shuffle_screen.dart / ShuffleStatsResponse / AlbumStat"
-Cohesion: 0.06
-Nodes (45): ../core/app_exception.dart, AppException, AuthException, NetworkException, ServerException, SubsonicApiException, TimeoutException, toString (+37 more)
+### Community 1 - "Database App Database Dart Core"
+Cohesion: 0.04
+Nodes (52): favorites_screen.dart, ../features/ai_shuffle/ui/home_stats_widget.dart, AiShuffleScreen, AnimatedOpacity, _artGradient, build, cardBg, Color (+44 more)
 
-### Community 2 - "../data/models/profile_response.dart / ../../data/models/recommended_song.dart / ../data/models/session_status_response.dart"
+### Community 2 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.04
+Nodes (46): ../features/ai_shuffle/data/models/listening_stats_response.dart, ../features/ai_shuffle/data/models/model_status_response.dart, _BigMetric, build, _CollapsedHeader, Column, Container, ContributionGraphCard (+38 more)
+
+### Community 3 - "Core Constants Dart Core"
+Cohesion: 0.04
+Nodes (45): addSongsToQueue, build, _buildAlbumSliver, _buildPlaylistSliver, _buildSongSliver, Center, _confirmDelete, Dismissible (+37 more)
+
+### Community 4 - "Dart Math Core"
 Cohesion: 0.05
-Nodes (40): ArtistAffinityCompanion, ArtistAffinityEntity, copyWith, copyWithCompanion, Function, GenreAffinityCompanion, GenreAffinityEntity, map (+32 more)
+Nodes (42): ../core/app_exception.dart, AuthException, _backgroundRefreshPlaylist, _buildStableUrl, _buildUrl, _buildWebDavUploadUri, clearCache, dispose (+34 more)
 
-### Community 3 - "../core/palette_cache.dart / _AppleMusicThumb / _AudioQualityStrip"
-Cohesion: 0.07
-Nodes (40): AlbumStat, ArtistStat, ListeningStats, _parseInt, RecentPlay, TrackStat, Expanded, AnimatedBuilder (+32 more)
+### Community 5 - "Features Ai Shuffle Data Models"
+Cohesion: 0.05
+Nodes (41): ../core/keyboard_shortcuts.dart, AppScaffold, _AppScaffoldState, build, ClipRect, Container, _DesktopScaffold, _DesktopSidebar (+33 more)
 
-### Community 4 - "../../data/models/health_response.dart / AiShuffleScreen / _AiShuffleScreenState"
-Cohesion: 0.07
-Nodes (37): _AddSongsRow, build, _CircleIconButton, ClipRRect, _CollapsedTitle, _confirmDeletePlaylist, Container, _DismissBackground (+29 more)
+### Community 6 - "Favorites Screen Dart"
+Cohesion: 0.05
+Nodes (39): _AlbumThumb, build, Container, didChangeDependencies, didUpdateWidget, dispose, _GlassShell, initState (+31 more)
 
-### Community 5 - "../core/app_exception.dart / AppException / AuthException"
-Cohesion: 0.08
-Nodes (32): Function, DownloadStateNotifier, OfflineService, _performDownload, progressOf, _set, _setFailed, statusOf (+24 more)
+### Community 7 - "Core Keyboard Shortcuts Dart Core"
+Cohesion: 0.05
+Nodes (38): AnimatedBuilder, build, Center, Consumer, Container, dispose, _EmptyConfigState, _ErrorState (+30 more)
 
-### Community 6 - "CLAUDE.md / 10. Testing Rules / 11. Surprising Connections"
+### Community 8 - "Core App Exception Dart Core"
+Cohesion: 0.05
+Nodes (38): build, _confirmDeletePlaylist, dispose, _filterSongs, _formatDuration, initState, _playAll, PlaylistDetailsScreen (+30 more)
+
+### Community 9 - "Community 9"
+Cohesion: 0.05
+Nodes (38): build, Column, CupertinoActionSheetAction, dispose, Divider, DropdownMenuItem, initState, InkWell (+30 more)
+
+### Community 10 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.05
+Nodes (36): ../core/app_constants.dart, ../features/ai_shuffle/data/models/recommended_song.dart, applyShuffleAlgorithm, _applySmartLocalAlgorithm, _clearHistory, copyWith, dispose, _drainPoolOfQueuedSongs (+28 more)
+
+### Community 11 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.06
-Nodes (32): ControlledAudioPlayer, main, MethodChannel, MockAudioHandler, MockClient, MockListeningEventCollector, MockPlaylistCacheService, MockSubsonicService (+24 more)
+Nodes (35): _applyReplayGain, _broadcastState, compute, currentQueue, Duration, _emitLinuxMediaItem, _interleave, _linuxLoadTrack (+27 more)
 
-### Community 7 - "favorites_screen.dart / _buildAlbumsGrid / _buildSongsList"
+### Community 12 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.06
-Nodes (30): _artPlaceholder, build, Container, CustomScrollView, _DailyListeningChart, _DashedLine, dispose, _EmptyReplay (+22 more)
+Nodes (33): _artPlaceholder, build, Center, Container, CustomScrollView, DailyListeningChart, DashedLine, EmptyReplay (+25 more)
 
-### Community 8 - "analog / AnimatedContainer / AppTheme"
-Cohesion: 0.08
-Nodes (28): dart:ffi, SongPair, AnalyticsStats, _buildCsv, CONFLICT, _csvField, _fileTimestamp, Function (+20 more)
+### Community 13 - "Data Models Contribution Graph Response"
+Cohesion: 0.06
+Nodes (32): _AddToPlaylistDesktopDialog, AddToPlaylistProxy, _ArtPlaceholder, build, Container, _DesktopOptionsButton, _DesktopSongTile, _DesktopSongTileState (+24 more)
 
-### Community 9 - "1.4 Common Flutter Illogical Patterns — Full Reference / Async State Races / Autoplay/Lookahead Guard — Growing Set"
+### Community 14 - "Core Navigation Transitions Dart Core"
+Cohesion: 0.06
+Nodes (31): ../features/ai_shuffle/data/models/contribution_graph_response.dart, build, _buildDayLabels, _buildGraph, _buildLegend, _buildMonthLabels, _colorForIntensity, Column (+23 more)
+
+### Community 15 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.06
+Nodes (30): ../controllers/lyrics_controller.dart, build, _buildBody, _buildError, _buildHeader, _buildShimmer, _buildSyncedList, Center (+22 more)
+
+### Community 16 - "Controllers Lyrics Controller Dart Core"
+Cohesion: 0.06
+Nodes (30): AddSongsRow, build, CircleIconButton, ClipRRect, CollapsedTitle, ColoredBox, Container, DismissBackground (+22 more)
+
+### Community 17 - "Core App Constants Dart Core"
+Cohesion: 0.06
+Nodes (30): ControlledAudioPlayer, Duration, main, MockConnectivity, MockListeningEventCollector, MockListeningLogService, MockPlaylistCacheService, MockScrobbleService (+22 more)
+
+### Community 18 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.07
-Nodes (29): ../controllers/lyrics_controller.dart, AppRouteTransitions, buildTransitions, dispose, _FadeScaleRoute, FadeTransition, SlideTransition, _SlideUpRoute (+21 more)
+Nodes (29): _AlbumCard, build, _buildAlbumsGrid, _buildSongsList, Center, _EmptyState, _FavoritesHeader, FavoritesScreen (+21 more)
 
-### Community 10 - "ArtistAffinityCompanion / ArtistAffinityEntity / copyWithCompanion"
-Cohesion: 0.09
-Nodes (26): favorites_screen.dart, _AlbumCard, build, _buildAlbumsGrid, _buildSongsList, Center, _EmptyState, _FavoritesHeader (+18 more)
-
-### Community 11 - "../core/app_constants.dart / applyShuffleAlgorithm / _applySmartLocalAlgorithm"
+### Community 19 - "Edit Playlist Screen Dart"
 Cohesion: 0.07
-Nodes (27): addSongsToQueue, build, _buildAlbumSliver, _buildItem, _buildPlaylistSliver, _buildSongSliver, Center, _confirmDelete (+19 more)
+Nodes (28): analog, AnimatedContainer, AppTheme, AppThemeTokens, aura, build, buildTheme, ClipRRect (+20 more)
 
-### Community 12 - "../controllers/lyrics_controller.dart / initState / _buildBody"
-Cohesion: 0.11
-Nodes (27): ../core/navigation_transitions.dart, _AlbumThumb, build, Container, didChangeDependencies, didUpdateWidget, dispose, _GlassShell (+19 more)
-
-### Community 13 - "dart:ffi / AnalyticsStats / _buildCsv"
-Cohesion: 0.09
-Nodes (25): ControlledAudioPlayer, main, MethodChannel, MockListeningEventCollector, MockPlaylistCacheService, MockSubsonicService, setMockPlaying, setMockPosition (+17 more)
-
-### Community 14 - "Playlist / CustomScrollView / _DailyListeningChart"
-Cohesion: 0.08
-Nodes (26): 10. Testing Rules, 11. Surprising Connections, 12. Graph Query Reference, 13. MCP Server, 1. Project Identity, 2. Development Commands, 3. Architecture Overview, 4. God Nodes (Updated) (+18 more)
-
-### Community 15 - "add_to_playlist_dialog.dart / ../../../core/theme.dart / edit_playlist_screen.dart"
+### Community 20 - "Community 20"
 Cohesion: 0.07
-Nodes (26): ../core/keyboard_shortcuts.dart, AppScaffold, _AppScaffoldState, build, ClipRect, Container, _DesktopScaffold, _DesktopSidebar (+18 more)
+Nodes (29): ArtistAffinityCompanion, ArtistAffinityEntity, copyWith, copyWithCompanion, Function, GenreAffinityCompanion, GenreAffinityEntity, map (+21 more)
 
-### Community 16 - "Spacer / _buildItem / _confirmDelete"
-Cohesion: 0.11
-Nodes (25): edit_playlist_screen.dart, dispose, initState, _NoLyricsCardState, build, Center, build, Center (+17 more)
+### Community 21 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.07
+Nodes (28): AiShuffleScreen, _AiShuffleScreenState, build, _buildEmptyState, _buildErrorState, _buildSkeletonList, Center, _fetchRecommendations (+20 more)
 
-### Community 17 - "cancelBackgroundDownload / downloadSongs / File"
-Cohesion: 0.13
-Nodes (25): build, Column, CupertinoActionSheetAction, dispose, Divider, DropdownMenuItem, initState, InkWell (+17 more)
+### Community 22 - "Community 22"
+Cohesion: 0.07
+Nodes (28): AnalyticsStats, _buildCsv, CONFLICT, _csvField, _fileTimestamp, Function, _generateUuid, getApplicationDocumentsDirectory (+20 more)
 
-### Community 18 - "../features/ai_shuffle/ui/home_stats_widget.dart / AnimatedOpacity / _artGradient"
+### Community 23 - "Community 23"
+Cohesion: 0.07
+Nodes (28): ControlledAudioPlayer, main, MethodChannel, MockListeningEventCollector, MockPlaylistCacheService, MockSubsonicService, setMockPlaying, setMockPosition (+20 more)
+
+### Community 24 - "Dart Io Core"
+Cohesion: 0.07
+Nodes (28): ControlledAudioPlayer, main, MethodChannel, MockAudioHandler, MockClient, MockListeningEventCollector, MockPlaylistCacheService, MockSubsonicService (+20 more)
+
+### Community 25 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.07
+Nodes (28): ControlledAudioPlayer, getCoverArtUrl, main, MethodChannel, MockListeningEventCollector, MockPlaylistCacheService, MockSubsonicService, setMockPlaying (+20 more)
+
+### Community 26 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.07
+Nodes (27): cancelBackgroundDownload, copyWith, downloadSongs, DownloadState, File, formatSize, _getCoverArtPath, getDownloadedCount (+19 more)
+
+### Community 27 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.07
+Nodes (27): build, Container, dispose, Function, ListTile, _onSearchChanged, Padding, _SearchHeaderDelegate (+19 more)
+
+### Community 28 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.07
+Nodes (27): ControlledAudioPlayer, main, MethodChannel, MockAudioHandler, MockClient, MockListeningEventCollector, MockPlaylistCacheService, MockSubsonicService (+19 more)
+
+### Community 29 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.07
+Nodes (27): ControlledAudioPlayer, main, MethodChannel, MockListeningEventCollector, MockPlaylistCacheService, MockSubsonicService, setMockPlaying, setMockPosition (+19 more)
+
+### Community 30 - "Analytics Tables Playevents Core"
+Cohesion: 0.07
+Nodes (26): download_provider.dart, _cacheSongs, _compareDatesAsc, compute, Connectivity, LibrarySortNotifier, _persist, PlaylistController (+18 more)
+
+### Community 31 - "Dashboard Screen Bigmetric"
+Cohesion: 0.07
+Nodes (26): BpmAnalyzerService, CacheSettingsService, copyWith, getString, _loadFromHive, _normalizedBaseUrl, PlaylistCacheService, ReplayGainService (+18 more)
+
+### Community 32 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.08
-Nodes (24): AnimatedOpacity, _artGradient, build, cardBg, Container, dispose, _EmptyReplayHint, _ExploreCard (+16 more)
+Nodes (24): build, MyMusicPlayerApp, OfflineService, ThemeTokens, core/hive_boxes.dart, core/theme.dart, dart:async, dart:io (+16 more)
 
-### Community 19 - "_AddSongsRow / _CircleIconButton / _CollapsedTitle"
+### Community 33 - "App Scaffold Appscaffoldstate Core"
 Cohesion: 0.08
-Nodes (25): 1.4 Common Flutter Illogical Patterns — Full Reference, Async State Races, Autoplay/Lookahead Guard — Growing Set, code:dart (// ❌ ILLOGICAL — state read before async gap may be stale af), code:dart (// ❌ ILLOGICAL — no guard), code:dart (// ❌ ILLOGICAL — rebuilds entire widget tree when ANY settin), code:dart (// ❌ ILLOGICAL — timer keeps firing after widget/notifier is), code:dart (// ❌ ILLOGICAL — subscription never cancelled) (+17 more)
+Nodes (23): build, _buildContent, _buildEmptyState, Center, Column, initState, OfflineScreen, _OfflineScreenState (+15 more)
 
-### Community 20 - "CupertinoActionSheetAction / DropdownMenuItem / _SettingsDivider"
-Cohesion: 0.12
-Nodes (18): ../helpers/test_utils.dart, Song, _interleave, interleave, MapEntry, songWeight, makeSong, Song (+10 more)
+### Community 34 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.08
+Nodes (23): ControlledAudioPlayer, main, MethodChannel, MockAudioPlayer, MockPlaylistCacheService, MockSubsonicService, setMockPosition, TestAudioHandler (+15 more)
 
-### Community 21 - "context.md / 🏗️ 1. Core Architecture & Isolate Rules / 🔊 2. Audio Engine & Shuffle Specifications"
-Cohesion: 0.15
-Nodes (22): cancelBackgroundDownload, copyWith, downloadSongs, DownloadState, File, formatSize, _getCoverArtPath, getDownloadedCount (+14 more)
-
-### Community 22 - "dart:convert / _cache / _structuredLinesToLrc"
+### Community 35 - "Dart Convert Core"
 Cohesion: 0.09
-Nodes (22): _applyReplayGain, _broadcastState, compute, currentQueue, Duration, _emitLinuxMediaItem, _interleave, _linuxLoadTrack (+14 more)
+Nodes (21): build, ClipRRect, CustomPaint, dispose, formatDuration, getPreferredSize, _GlassThumbShape, _handleSeek (+13 more)
 
-### Community 23 - "../core/navigation_transitions.dart / _AlbumThumb / didChangeDependencies"
-Cohesion: 0.09
-Nodes (23): ../core/theme.dart, analog, AnimatedContainer, AppTheme, AppThemeTokens, aura, build, buildTheme (+15 more)
+### Community 36 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.10
+Nodes (20): build, GestureDetector, initState, _NewReleaseCard, NewReleasesScreen, _NewReleasesScreenState, _onAlbumTap, Positioned (+12 more)
 
-### Community 24 - "Function / _buildSectionTitle / _buildTable"
-Cohesion: 0.13
-Nodes (22): Padding, build, Container, dispose, Function, ListTile, _onSearchChanged, Padding (+14 more)
+### Community 37 - "Community 37"
+Cohesion: 0.10
+Nodes (19): build, Column, Container, dispose, initState, _inputDecoration, isLoggedIn, LoginScreen (+11 more)
 
-### Community 25 - "../core/constants.dart / ../database/app_database.dart / getString"
-Cohesion: 0.1
-Nodes (19): build, DecoratedBox, LyricsBackground, Stack, build, dispose, EditPlaylistScreen, _EditPlaylistScreenState (+11 more)
+### Community 38 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.10
+Nodes (19): build, dispose, initState, _monthLabel, Positioned, ReplayScreen, _ReplayScreenState, _weekLabel (+11 more)
 
-### Community 26 - "_applyReplayGain / commitSmartLocalOrder / currentQueue"
-Cohesion: 0.1
-Nodes (21): ../core/app_constants.dart, applyShuffleAlgorithm, _applySmartLocalAlgorithm, _clearHistory, copyWith, dispose, _drainPoolOfQueuedSongs, _init (+13 more)
+### Community 39 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.10
+Nodes (19): _buildContainer, Function, main, MockConnectivity, MockOfflineService, MockSubsonicService, ProviderContainer, unawaited (+11 more)
 
-### Community 27 - "1.2 Code Quality Non-Negotiables / code:dart (// ❌ NEVER — non-reactive, stale data) / code:dart (// ❌ NEVER in new files)"
-Cohesion: 0.15
-Nodes (21): ../core/constants.dart, BpmAnalyzerService, CacheSettingsService, copyWith, getString, _normalizedBaseUrl, PlaylistCacheService, ReplayGainService (+13 more)
-
-### Community 28 - "BUG 5: `_persistState` Timer Fires Multiple Times Per 5s Boundary ✅ (Approved) / BUG 6: `PaletteCache` Has No Size Limit ✅ (Approved) / BUG 7: Synchronous `File.existsSync()` Per Song on Main Thread ✅ (Approved)"
-Cohesion: 0.1
-Nodes (19): _fakeSong, ListeningLogService, main, _makeService, MockHttpClient, _stubPost, _stubPostTimeout, ControlledAudioPlayer (+11 more)
-
-### Community 29 - "ClipRRect / CustomPaint / formatDuration"
-Cohesion: 0.1
-Nodes (20): ../features/ai_shuffle/ui/ai_shuffle_screen.dart, AiShuffleScreen, _AiShuffleScreenState, build, _buildEmptyState, _buildErrorState, _buildSkeletonList, Center (+12 more)
-
-### Community 30 - "code:block16 (User presses Next →) / code:dart (// ❌ ILLOGICAL — does not check if index is still valid afte) / code:dart (// ✅ CORRECT — re-read state after every await)"
-Cohesion: 0.13
-Nodes (17): cache_settings_service.dart, ../core/hive_boxes.dart, _loadHistory, SearchHistoryNotifier, BpmAnalyzerService, _cacheBPM, _estimateBPMFromGenre, _getCachedBPM (+9 more)
-
-### Community 31 - "1.1 Before Writing Any Code / 1.3 The Music Player Logic Test — Spot Every Illogical Behaviour / code:block1 (BUILD → SELF-AUDIT → TEST)"
-Cohesion: 0.17
-Nodes (15): dart:convert, LrcLibService, LyricsResult, _cache, LyricsRepository, _structuredLinesToLrc, ListeningStatsNotifier, PlaylistCacheService (+7 more)
-
-### Community 32 - "BUG 1: `_trackChangeTimer` Empty Callback ✅ (Approved) / code:dart (_trackChangeTimer = Timer(const Duration(milliseconds: 200),) / BUG-001: `_trackChangeTimer` Missing Mounted/Dispose Guard"
-Cohesion: 0.1
-Nodes (19): ClipRRect, build, ClipRRect, CustomPaint, dispose, formatDuration, getPreferredSize, _GlassThumbShape (+11 more)
-
-### Community 33 - "ARCHITECTURE.md / 🧠 Advanced Shuffle Algorithms / 🔊 Audio Engine Details"
-Cohesion: 0.1
-Nodes (19): AddSongsRow, build, CircleIconButton, ClipRRect, CollapsedTitle, Container, DismissBackground, DownloadAllButton (+11 more)
-
-### Community 34 - "fl_register_plugins() / generated_plugin_registrant.h / my_application.h"
-Cohesion: 0.13
-Nodes (17): ShuffleRepository, _BasicAuthInterceptor, call, onRequest, ShuffleApiService, ShuffleNetworkError, ShuffleServerError, _wrap (+9 more)
-
-### Community 35 - "../fluid_background.dart / didUpdateWidget / FluidBackground"
-Cohesion: 0.12
-Nodes (15): ../database/app_database.dart, PlaylistCache, SearchHistory, AS, CAST, _queryReplay, ReplayData, ReplaySong (+7 more)
-
-### Community 36 - "dart:collection / player_provider.dart (BUG 1 — timer) / player_provider.dart (BUG 4 — stale currentIndex)"
+### Community 40 - "Data Models Recommended Song Dart"
 Cohesion: 0.11
-Nodes (17): _applyReplayGain, AudioHandler, commitSmartLocalOrder, compute, currentQueue, _moveBasedReorder, _rebuildSource, refreshReplayGain (+9 more)
+Nodes (18): _BasicAuthInterceptor, call, onRequest, ShuffleApiService, ShuffleNetworkError, ShuffleServerError, _wrap, dart:convert (+10 more)
 
-### Community 37 - "cache_settings_service.dart / ../../../../core/hive_boxes.dart / _loadHistory"
-Cohesion: 0.18
-Nodes (18): dart:ui, ../fluid_background.dart, build, DecoratedBox, didUpdateWidget, dispose, FluidBackground, _FluidBackgroundState (+10 more)
+### Community 41 - "Listening Stats Screen Emptyconfigstate"
+Cohesion: 0.11
+Nodes (18): ../data/models/contribution_graph_response.dart, ../data/models/feedback_request.dart, ../data/models/listening_stats_response.dart, ../data/models/model_status_response.dart, ../data/models/next_response.dart, ../data/repositories/shuffle_repository.dart, clearQueue, copyWith (+10 more)
 
-### Community 38 - "dart:math / _QueueEntry / _queueFailedLog"
+### Community 42 - "Community 42"
+Cohesion: 0.11
+Nodes (18): build, initState, MadeForYouScreen, _MadeForYouScreenState, Positioned, Scaffold, SliverList, SliverToBoxAdapter (+10 more)
+
+### Community 43 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.11
+Nodes (18): main, MockAudioPlayer, MockPlaylistCacheService, MockSubsonicService, _song, TestAudioHandler, testQueue, dart:async (+10 more)
+
+### Community 44 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.11
+Nodes (17): dart:io, package:audio_service_mpris/audio_service_mpris.dart, package:connectivity_plus/connectivity_plus.dart, package:file_picker/file_picker.dart, _PluginRegistrant, register, package:flutter_secure_storage_windows/flutter_secure_storage_windows.dart, package:path_provider_android/path_provider_android.dart (+9 more)
+
+### Community 45 - "Community 45"
+Cohesion: 0.11
+Nodes (17): build, Divider, _getBackgroundColor, _getIcon, _getText, _getTextColor, InkWell, SafeArea (+9 more)
+
+### Community 46 - "Community 46"
+Cohesion: 0.11
+Nodes (17): AddToPlaylistDialog, _AddToPlaylistDialogState, build, Consumer, Dialog, dispose, _hasChanges, _isChecked (+9 more)
+
+### Community 47 - "Lrc Parser Lrcparser Logic"
+Cohesion: 0.11
+Nodes (17): build, DecoratedBox, didUpdateWidget, dispose, FluidBackground, _FluidBackgroundState, _FluidPainter, FluidShaderLoader (+9 more)
+
+### Community 48 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.12
+Nodes (16): _BadgeChip, build, Color, Container, dispose, _GenreChip, GestureDetector, initState (+8 more)
+
+### Community 49 - "Com Github Dart Lang Jni"
+Cohesion: 0.12
+Nodes (16): build, dispose, EditPlaylistScreen, _EditPlaylistScreenState, initState, Scaffold, ../core/theme.dart, dart:io (+8 more)
+
+### Community 50 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.12
+Nodes (16): Function, main, MockConnectivity, MockOfflineService, MockSubsonicService, ../helpers/test_utils.dart, package:connectivity_plus/connectivity_plus.dart, package:flutter_riverpod/flutter_riverpod.dart (+8 more)
+
+### Community 51 - "Fluid Background Dart Logic"
+Cohesion: 0.12
+Nodes (15): _fakeSong, ListeningLogService, main, _makeService, MockHttpClient, _stubPost, _stubPostTimeout, dart:convert (+7 more)
+
+### Community 52 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.12
+Nodes (15): ../data/repositories/shuffle_exception.dart, build, Container, dispose, initState, Scaffold, SizedBox, SmartShuffleLoginScreen (+7 more)
+
+### Community 53 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.12
+Nodes (15): AnimatedBuilder, AnimatedContainer, build, dispose, GestureDetector, initState, LiquidGlassButton, _LiquidGlassButtonState (+7 more)
+
+### Community 54 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.13
-Nodes (18): Column, build, _buildContent, _buildEmptyState, Center, Column, initState, OfflineScreen (+10 more)
+Nodes (14): copyWith, dispose, LyricsController, LyricsState, _onPosition, _subscribeToPosition, dart:async, ../models/lyric_line.dart (+6 more)
 
-### Community 39 - "SliverToBoxAdapter / SliverPadding / _NewReleaseCard"
-Cohesion: 0.12
-Nodes (15): build, LyricLineWidget, build, Center, dispose, initState, NoLyricsCard, SizedBox (+7 more)
-
-### Community 40 - "1. CODE QUALITY / 2. ARCHITECTURE & DESIGN / 3. PERFORMANCE"
-Cohesion: 0.17
-Nodes (11): fl_register_plugins(), GeneratedPluginRegistrant, first_frame_cb(), my_application_activate(), my_application_class_init(), my_application_dispose(), my_application_init(), my_application_local_command_line() (+3 more)
-
-### Community 41 - "LyricsState / _subscribeToPosition / SongDownloadState"
+### Community 55 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.13
-Nodes (16): SliverToBoxAdapter, SliverPadding, build, GestureDetector, initState, _NewReleaseCard, NewReleasesScreen, _NewReleasesScreenState (+8 more)
+Nodes (14): _cache, LyricsRepository, _structuredLinesToLrc, dart:convert, lrc_parser.dart, ../models/lyric_line.dart, ../models/lyrics_result.dart, ../../models/song.dart (+6 more)
 
-### Community 42 - "NaviVibe Architecture & Security Audit Report / Section 10: What Is Done Well / Section 1: Executive Summary"
-Cohesion: 0.12
-Nodes (16): _AddToPlaylistDesktopDialog, AddToPlaylistProxy, _ArtPlaceholder, build, _DesktopOptionsButton, _DesktopSongTile, _DesktopSongTileState, Dialog (+8 more)
-
-### Community 43 - "1. File Changes / code:yaml (flutter:) / code:dart (class _AppleMusicPainter extends CustomPainter { … })"
-Cohesion: 0.12
-Nodes (15): HiveBoxes, _migrateBool, _migrateDouble, _migrateFromSharedPreferences, _migrateInt, _migrateString, _buildTestApp, main (+7 more)
-
-### Community 44 - "SongMetadataEntity / UserFeedback / close"
-Cohesion: 0.12
-Nodes (16): 🏗️ 1. Core Architecture & Isolate Rules, 🔊 2. Audio Engine & Shuffle Specifications, 📊 3. Analytics & Intelligence (Data Integrity), 🎨 4. Design System (ThemeTokens Engine), 💾 5. Persistence & API Specification, 🧩 Core Tokens (`AppThemeTokens`), 🗄️ Database (Drift/SQLite), 🚀 Gapless Incremental Reordering (+8 more)
-
-### Community 45 - "AppDatabase / MigrationStrategy / app_database.dart"
-Cohesion: 0.12
-Nodes (15): download_provider.dart, _cacheSongs, _compareDatesAsc, compute, Connectivity, LibrarySortNotifier, _persist, PlaylistController (+7 more)
-
-### Community 46 - "_loadFromHive / getLabel / _initConnectivityWatcher"
-Cohesion: 0.12
-Nodes (14): dart:collection, audio_handler.dart, palette_cache.dart, player_provider.dart (BUG 1 — timer), player_provider.dart (BUG 2 — scrobble), player_provider.dart (BUG 4 — stale currentIndex), player_provider.dart (BUG 5 — persist dedup), Pre-flight checks (+6 more)
-
-### Community 47 - "AS / CAST / _queryReplay"
-Cohesion: 0.16
-Nodes (15): add_to_playlist_dialog.dart, AddToPlaylistDialog, _AddToPlaylistDialogState, BoxConstraints, build, Consumer, Dialog, dispose (+7 more)
-
-### Community 48 - "HiveBoxes / _migrateBool / _migrateDouble"
-Cohesion: 0.14
-Nodes (15): A. Music Playback Flow, 🔊 Audio Engine Details, B. Offline Sync Flow, code:mermaid (graph TD), code:mermaid (sequenceDiagram), code:mermaid (graph LR), code:mermaid (graph LR), code:mermaid (stateDiagram-v2) (+7 more)
-
-### Community 49 - "Audit Checklist / Error Handling / File Consistency"
-Cohesion: 0.12
-Nodes (15): 1. Project Overview, 2. High-Level Architecture, 3. Project Flow (Core Data Flows), 4. Graphify Insights & Structural Context, 5. Known Smells & Architectural Technical Debt (May 2026 Audit), 6. Development & Graphify Rules, A. Music Playback Flow, Audio Engine & Shuffle Intelligence (+7 more)
-
-### Community 50 - "🤝 Contributing / 🚀 Getting Started / ✨ Key Features"
+### Community 56 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.13
-Nodes (14): build, Column, Container, dispose, initState, _inputDecoration, isLoggedIn, LoginScreen (+6 more)
+Nodes (14): DownloadStateNotifier, OfflineService, _performDownload, progressOf, _set, _setFailed, statusOf, dart:async (+6 more)
 
-### Community 51 - "3. Shader Uniform Layout Reference / 4. Why `shouldRepaint` Returns `true` Every Frame / 5. Impeller vs. Skia Notes"
+### Community 57 - "Player Provider Playernotifier"
+Cohesion: 0.13
+Nodes (14): build, Center, dispose, ListTile, Scaffold, SongPickerScreen, _SongPickerScreenState, _toggleSong (+6 more)
+
+### Community 58 - "Playlist Widgets Addsongsrow"
+Cohesion: 0.13
+Nodes (14): ListeningLogService, _QueueEntry, _queueFailedLog, serialize, withIncrementedRetries, dart:async, dart:convert, ../models/song.dart (+6 more)
+
+### Community 59 - "Community 59"
+Cohesion: 0.13
+Nodes (14): add_to_playlist_dialog.dart, build, Container, Duration, ListTile, OptionsMenu, SnackBar, ../core/theme.dart (+6 more)
+
+### Community 60 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.14
-Nodes (14): BUG 4: `applyShuffleAlgorithm` Sets Stale `currentIndex` ✅ (Approved), BUG 5: `_persistState` Timer Fires Multiple Times Per 5s Boundary ✅ (Approved), BUG 6: `PaletteCache` Has No Size Limit ✅ (Approved), BUG 7: Synchronous `File.existsSync()` Per Song on Main Thread ✅ (Approved), Changes From Previous Plan, code:dart (import 'dart:collection';), code:dart (// BEFORE (stale):), code:dart (// New field) (+6 more)
+Nodes (13): _buildContainer, main, MockOfflineService, MockSubsonicService, ProviderContainer, helpers/test_utils.dart, package:flutter_riverpod/flutter_riverpod.dart, package:flutter_test/flutter_test.dart (+5 more)
 
-### Community 52 - "toString / getCurrentLineIndex / LyricLine"
+### Community 61 - "Community 61"
 Cohesion: 0.14
-Nodes (14): ../data/models/feedback_request.dart, ../data/models/listening_stats_response.dart, ../data/models/model_status_response.dart, ../data/models/next_response.dart, ../data/repositories/shuffle_repository.dart, ../features/ai_shuffle/logic/shuffle_providers.dart, clearQueue, copyWith (+6 more)
+Nodes (13): build, _buildErrorCard, _buildSkeleton, _buildSkeletonRow, Card, Column, HomeStatsWidget, ListTile (+5 more)
 
-### Community 53 - "calculateVolumeMultiplier / getFallbackGain / getMode"
-Cohesion: 0.16
-Nodes (14): 1.2 Code Quality Non-Negotiables, code:dart (// ❌ NEVER — non-reactive, stale data), code:dart (// ❌ NEVER in new files), code:dart (// ❌ NEVER — these are build failures), code:dart (// ✅ REQUIRED — real implementation or explicit documented s), code:dart (// ❌ NEVER), code:dart (// ✅ REQUIRED), code:dart (// ❌ NEVER — errors disappear silently) (+6 more)
+### Community 62 - "Community 62"
+Cohesion: 0.14
+Nodes (13): addPlay, calculateSongScore, getHourPreference, MapEntry, RecommendationService, _saveData, SongProfile, dart:async (+5 more)
 
-### Community 54 - "_cacheBPM / _estimateBPMFromGenre / _getCachedBPM"
+### Community 63 - "Community 63"
+Cohesion: 0.14
+Nodes (13): dispose, getLabel, _initConnectivityWatcher, _loadFromHive, _stopConnectivityWatcher, TranscodeBitrate, TranscodeFormat, TranscodingService (+5 more)
+
+### Community 64 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.14
+Nodes (13): detach, dispose, initState, onWindowClose, onWindowMoved, onWindowResized, _restoreWindowState, WindowLifecycleMixin (+5 more)
+
+### Community 65 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.14
+Nodes (13): build, Dismissible, onSwipeRight, _showFavoriteSnackbar, SnackBar, SwipeableLibraryTile, ../core/theme.dart, ../models/song.dart (+5 more)
+
+### Community 66 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.14
+Nodes (13): build, Column, Container, GestureDetector, _shortDesc, SizedBox, _ThemeCard, _ThemePreviewPill (+5 more)
+
+### Community 67 - "Cache Settings Service Dart"
 Cohesion: 0.15
-Nodes (12): ../../data/models/health_response.dart, ../data/repositories/shuffle_exception.dart, ../data/services/shuffle_api_service.dart, build, Container, dispose, initState, Scaffold (+4 more)
+Nodes (12): build, Divider, Icon, ListTile, ModelStatusSheet, SafeArea, SizedBox, Spacer (+4 more)
 
-### Community 55 - "MapEntry / addPlay / calculateSongScore"
+### Community 68 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.15
-Nodes (12): build, Divider, _getBackgroundColor, _getIcon, _getText, _getTextColor, InkWell, SafeArea (+4 more)
+Nodes (12): AS, CAST, _queryReplay, ReplayData, ReplaySong, ReplayStats, SUM, ../database/app_database.dart (+4 more)
 
-### Community 56 - "AppRouteTransitions / buildTransitions / _FadeScaleRoute"
-Cohesion: 0.26
-Nodes (11): dart:math, ListeningLogService, _QueueEntry, _queueFailedLog, serialize, withIncrementedRetries, generateUuid, listening_log_service.dart (+3 more)
-
-### Community 57 - "G_DECLARE_DERIVABLE_TYPE() / fl_message_codec.h / fl_method_codec.h"
+### Community 69 - "Add To Playlist Dialog Dart"
 Cohesion: 0.15
-Nodes (11): copyWith, dispose, LyricsController, LyricsState, _onPosition, _subscribeToPosition, copyWith, SongDownloadState (+3 more)
+Nodes (12): AlertDialog, build, CreatePlaylistDialog, _CreatePlaylistDialogState, dispose, ../core/theme.dart, dart:io, package:file_picker/file_picker.dart (+4 more)
 
-### Community 58 - "code:dart (// Required: a regression test that reproduces the exact bug) / Minimum Test Coverage Per Task / Phase 3: TEST — Mandatory Test Plan Per Task"
-Cohesion: 0.18
-Nodes (9): classify, main, main, main, ProviderScope, package:flutter_test/flutter_test.dart, package:navivibe/core/app_exception.dart, package:navivibe/core/palette_cache.dart (+1 more)
-
-### Community 59 - "AudioHandler Performance / [MODIFY] [audio_handler.dart](file:///d:/Subi_project/flutter-_navi/lib/services/audio_handler.dart) / [MODIFY] [palette_cache.dart](file:///d:/Subi_project/flutter-_navi/lib/core/palette_cache.dart)"
+### Community 70 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.15
-Nodes (13): BUG 1: `_trackChangeTimer` Empty Callback ✅ (Approved), code:dart (_trackChangeTimer = Timer(const Duration(milliseconds: 200),), BUG-001: `_trackChangeTimer` Missing Mounted/Dispose Guard, BUG-002: `_playedDuration` Drift & Scrobble Logic, BUG-003: Shuffle Rebuild Performance, BUG-005: `_persistState` Timer Fires Multiple Times Per 5s Boundary, BUG-006: `PaletteCache` Has No Size Limit (Audit Correction), BUG-007: Synchronous `File.existsSync()` Per Song on Main Thread (+5 more)
+Nodes (12): _buildTestApp, main, ProviderScope, package:navivibe/core/theme.dart, package:navivibe/providers/replay_provider.dart, package:navivibe/screens/replay_screen.dart, dart:io, package:flutter/material.dart (+4 more)
 
-### Community 60 - "BUG 2: `_playedDuration` Drift & Scrobble Logic ⚠️ (Reworked) / code:dart (Duration _accumulatedListenTime = Duration.zero;  // replace) / code:dart (player.playingStream.listen((playing) {)"
-Cohesion: 0.15
-Nodes (13): code:block16 (User presses Next →), code:dart (// ❌ ILLOGICAL — does not check if index is still valid afte), code:dart (// ✅ CORRECT — re-read state after every await), code:block19 (User enables shuffle →), code:dart (// ❌ ILLOGICAL — uses savedIndex captured before shuffle), code:dart (// ✅ CORRECT — read index AFTER shuffle from the player itse), code:block22 (Song starts →), code:dart (// ❌ ILLOGICAL — scrobbles on EVERY tick after threshold) (+5 more)
-
-### Community 61 - "_cacheSongs / PlaylistController / compute"
+### Community 71 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.17
-Nodes (11): detach, dispose, initState, onWindowClose, onWindowMoved, onWindowResized, _restoreWindowState, WindowLifecycleMixin (+3 more)
+Nodes (11): HiveBoxes, _migrateBool, _migrateDouble, _migrateFromSharedPreferences, _migrateInt, _migrateString, dart:convert, package:flutter/foundation.dart (+3 more)
 
-### Community 62 - "isLrcFormat / LrcParser / parseLrc"
+### Community 72 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.17
-Nodes (11): ControlledAudioPlayer, getCoverArtUrl, main, MethodChannel, MockListeningEventCollector, MockPlaylistCacheService, MockSubsonicService, setMockPlaying (+3 more)
+Nodes (11): ShuffleRepository, ../models/contribution_graph_response.dart, ../models/feedback_request.dart, ../models/health_response.dart, ../models/listening_history_response.dart, ../models/listening_stats_response.dart, ../models/model_status_response.dart, ../models/next_response.dart (+3 more)
 
-### Community 64 - "6. Extending the Shader / Adding album art texture warping (closest to real Apple Music) / code:glsl (uniform sampler2D u_albumArt;)"
-Cohesion: 0.2
-Nodes (10): ../features/ai_shuffle/data/models/recommended_song.dart, NextResponse, _parseInt, QueueContext, AudioFeatures, _parseDouble, _parseInt, RecommendedSong (+2 more)
+### Community 73 - "Community 73"
+Cohesion: 0.17
+Nodes (11): build, dispose, initState, PlainTextView, _PlainTextViewState, Stack, _startTeleprompter, dart:async (+3 more)
 
-### Community 65 - "query_20260513_054343_song_model_dependencies_that_cross_layer_boundarie.md / query_20260513_054650_playerprovider_listeningeventcollector_data_flow.md / Q: Song model dependencies that cross layer boundaries"
-Cohesion: 0.18
-Nodes (10): build, initState, MadeForYouScreen, _MadeForYouScreenState, Positioned, Scaffold, SliverList, SliverToBoxAdapter (+2 more)
+### Community 74 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.17
+Nodes (11): cache_settings_service.dart, BpmAnalyzerService, _cacheBPM, _estimateBPMFromGenre, _getCachedBPM, getCachedCount, initialize, isCached (+3 more)
 
-### Community 66 - "PlaylistCache / SearchHistory / playlist_cache_table.dart"
-Cohesion: 0.18
-Nodes (10): ../../data/models/recommended_song.dart, build, Card, _Chip, Container, _genreColor, _genreLabel, RecommendationCard (+2 more)
+### Community 75 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.17
+Nodes (11): nowPlaying, ScrobbleService, submit, dart:async, ../models/song.dart, package:connectivity_plus/connectivity_plus.dart, package:flutter_riverpod/flutter_riverpod.dart, ../providers/download_provider.dart (+3 more)
 
-### Community 67 - "SEC-001: Service Call Directly from UI Widget / SEC-002: Hardcoded Fallback Credentials / SEC-003: Sensitive URLs in Production Logs"
-Cohesion: 0.18
-Nodes (11): ../features/ai_shuffle/ui/home_stats_widget.dart, build, _buildErrorCard, _buildSkeleton, _buildSkeletonRow, Card, Column, HomeStatsWidget (+3 more)
+### Community 76 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.17
+Nodes (11): AlbumCard, _AlbumPlaceholder, build, Container, Semantics, ../core/theme.dart, ../models/album.dart, package:cached_network_image/cached_network_image.dart (+3 more)
 
-### Community 68 - "BUG 3: Shuffle Rebuild Performance ⚠️ (Reworked — Simplified) / code:dart (Future<void> _updateQueueAfterAnchor(int anchorIndex) async ) / code:dart (/// Pre-computes offline paths for all songs in the queue.)"
-Cohesion: 0.18
-Nodes (10): _loadFromHive, dispose, getLabel, _initConnectivityWatcher, _loadFromHive, _stopConnectivityWatcher, TranscodeBitrate, TranscodeFormat (+2 more)
+### Community 77 - "Community 77"
+Cohesion: 0.20
+Nodes (9): build, FocusScope, NaviKeyboardShortcuts, SingleActivator, package:flutter/material.dart, package:flutter_riverpod/flutter_riverpod.dart, package:flutter/services.dart, ../providers/player_provider.dart (+1 more)
 
-### Community 69 - "1. Presentation Layer (`lib/screens`, `lib/widgets`) / 2. State Management Layer (`lib/providers`) / 3. Service Layer (`lib/services`)"
-Cohesion: 0.18
-Nodes (10): GestureDetector, build, Column, Container, GestureDetector, _shortDesc, SizedBox, _ThemeCard (+2 more)
+### Community 78 - "Core Hive Boxes Dart Logic"
+Cohesion: 0.20
+Nodes (9): AppDatabase, MigrationStrategy, package:drift/drift.dart, package:flutter/foundation.dart, package:drift_flutter/drift_flutter.dart, tables/analytics_tables.dart, tables/playlist_cache_table.dart, tables/recommendation_tables.dart (+1 more)
 
-### Community 70 - "dart:ui / DecoratedBox / Stack"
-Cohesion: 0.2
-Nodes (9): build, Divider, Icon, ListTile, ModelStatusSheet, SafeArea, SizedBox, Spacer (+1 more)
+### Community 79 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.20
+Nodes (9): build, Center, dispose, initState, NoLyricsCard, _NoLyricsCardState, SizedBox, package:flutter_animate/flutter_animate.dart (+1 more)
 
-### Community 71 - "G_DECLARE_INTERFACE() / fl_plugin_registry.h / fl_texture.h"
-Cohesion: 0.2
-Nodes (9): dart:io, MyMusicPlayerApp, OfflineService, ThemeTokens, ../main.dart, package:audio_service/audio_service.dart, package:audio_service_mpris/audio_service_mpris.dart, package:just_audio_media_kit/just_audio_media_kit.dart (+1 more)
+### Community 80 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.20
+Nodes (9): calculateVolumeMultiplier, getFallbackGain, getMode, getModeDescription, getPreampGain, getPreventClipping, ReplayGainService, ../core/hive_boxes.dart (+1 more)
 
-### Community 72 - "Section 5: Architecture Smells / SMELL-001: God Node Bloat / SMELL-002: Fragile Communities"
-Cohesion: 0.31
-Nodes (9): build, Container, Duration, ListTile, OptionsMenu, SnackBar, ../../../models/download_state.dart, options_menu.dart (+1 more)
+### Community 81 - "Dart Ffi Logic"
+Cohesion: 0.20
+Nodes (9): dart:ffi, main, pumpMicrotasks, package:drift/native.dart, package:navivibe/database/app_database.dart, package:sqlite3/open.dart, ../helpers/test_utils.dart, package:flutter_test/flutter_test.dart (+1 more)
 
-### Community 73 - "A. Music Playback Flow / B. Offline Sync Flow / code:mermaid (sequenceDiagram)"
-Cohesion: 0.2
-Nodes (9): 1. CODE QUALITY, 2. ARCHITECTURE & DESIGN, 3. PERFORMANCE, 4. AUDIO / PLAYBACK SPECIFIC, 5. UI / UX, 6. DATA & PERSISTENCE, 7. SECURITY, 8. TESTABILITY (+1 more)
+### Community 82 - "Mini Player Albumthumb Logic"
+Cohesion: 0.20
+Nodes (9): _assertNoDuplicatesOrMissing, _listEquals, main, _song, dart:math, package:flutter_test/flutter_test.dart, package:navivibe/models/song.dart, package:navivibe/providers/settings_provider.dart (+1 more)
 
-### Community 74 - "code:dart (// ❌ NEVER — these are build failures) / code:dart (// ✅ REQUIRED — real implementation or explicit documented s) / No Placeholders"
-Cohesion: 0.2
-Nodes (9): code:block1 (BUILD → SELF-AUDIT → TEST), code:block47 (STEP 1: READ), code:block48 (## Task Audit: [Task Name]), Flutter Production Build & Audit Skill, Full Task Execution Flow, Phase 2: SELF-AUDIT — Mandatory After Every Task, Post-Task Audit Report Format, Purpose (+1 more)
-
-### Community 75 - "code:dart (// ❌ NEVER — mutable model causes unpredictable state bugs) / code:dart (// ✅ REQUIRED — immutable with copyWith) / Immutable Models"
-Cohesion: 0.36
-Nodes (8): calculateVolumeMultiplier, getFallbackGain, getMode, getModeDescription, getPreampGain, getPreventClipping, ReplayGainService, replay_gain_service.dart
-
-### Community 76 - "Constants / constants.dart"
+### Community 83 - "Fl Texture Registrar H Fl"
 Cohesion: 0.22
-Nodes (8): dart:async, build, dispose, initState, PlainTextView, _PlainTextViewState, Stack, _startTeleprompter
+Nodes (8): AppRouteTransitions, buildTransitions, dispose, _FadeScaleRoute, FadeTransition, SlideTransition, _SlideUpRoute, package:flutter/material.dart
 
-### Community 77 - "Album / album.dart"
+### Community 84 - "Community 84"
 Cohesion: 0.22
-Nodes (8): MapEntry, addPlay, calculateSongScore, getHourPreference, MapEntry, RecommendationService, _saveData, SongProfile
+Nodes (8): LrcLibService, LyricsResult, dart:convert, lrc_parser.dart, ../models/lyrics_result.dart, ../../models/song.dart, package:flutter/foundation.dart, package:http/http.dart
 
-### Community 78 - "suma.py"
+### Community 85 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.22
-Nodes (9): 1. File Changes, code:yaml (flutter:), code:dart (class _AppleMusicPainter extends CustomPainter { … }), code:dart (import '../widgets/fluid_background.dart';), code:dart (// ── OLD ──────────────────────────────────────────────────), `lib/screens/now_playing_screen.dart`, Modified files, New files (+1 more)
+Nodes (8): build, PlaylistMenuSheet, SafeArea, SizedBox, ../../../core/theme.dart, ../../edit_playlist_screen.dart, ../../../models/playlist.dart, package:flutter/material.dart
 
-### Community 79 - "build.gradle.kts"
-Cohesion: 0.22
-Nodes (8): 🤝 Contributing, 🚀 Getting Started, ✨ Key Features, 📄 License, 🎵 Overview, Prerequisites, 📸 Screenshots, 🛠️ Tech Stack
-
-### Community 80 - "settings.gradle.kts"
-Cohesion: 0.22
-Nodes (8): NaviVibe Architecture & Security Audit Report, Section 10: What Is Done Well, Section 1: Executive Summary, Section 2: Community Name Corrections, Section 6: Dependency Health, Section 7: Lyrics Feature Status, Section 8: Recommended Fix Order, Section 9: Token Efficiency Impact
-
-### Community 81 - "MainActivity"
+### Community 86 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.25
-Nodes (7): build, Dismissible, onSwipeRight, _showFavoriteSnackbar, SnackBar, SwipeableLibraryTile, swipe_action_background.dart
+Nodes (7): interleave, MapEntry, songWeight, dart:math, ../models/song.dart, package:flutter/foundation.dart, ../providers/settings_provider.dart
 
-### Community 82 - "app_constants.dart"
+### Community 87 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.25
+Nodes (7): build, Container, _DesktopDialogTitleBar, Dialog, dart:math, package:flutter/material.dart, ../utils/platform_utils.dart
+
+### Community 88 - "Dart Ui Logic"
+Cohesion: 0.25
+Nodes (7): AppException, AuthException, NetworkException, ServerException, SubsonicApiException, TimeoutException, toString
+
+### Community 89 - "Dart Collection Logic"
+Cohesion: 0.25
+Nodes (7): dart:collection, clear, _evictIfNeeded, hasColorsFor, PaletteCache, update, package:flutter/material.dart
+
+### Community 90 - "Fl Plugin Registry Fl Plugin"
 Cohesion: 0.25
 Nodes (7): ShuffleAuthError, ShuffleEmptyResponse, ShuffleException, ShuffleNetworkError, ShuffleNotConfigured, ShuffleServerError, toString
 
-### Community 83 - "fl_application.h"
+### Community 91 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.25
-Nodes (7): AppDatabase, MigrationStrategy, package:drift_flutter/drift_flutter.dart, tables/analytics_tables.dart, tables/playlist_cache_table.dart, tables/recommendation_tables.dart, tables/search_history_table.dart
+Nodes (7): build, DecoratedBox, LyricsBackground, Stack, dart:ui, package:cached_network_image/cached_network_image.dart, package:flutter/material.dart
 
-### Community 84 - "fl_basic_message_channel.h"
-Cohesion: 0.43
-Nodes (7): isLrcFormat, LrcParser, parseLrc, parsePlain, RegExp, lrc_parser.dart, ../models/lyric_line.dart
-
-### Community 85 - "fl_binary_codec.h"
+### Community 92 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.25
-Nodes (7): 3. Shader Uniform Layout Reference, 4. Why `shouldRepaint` Returns `true` Every Frame, 5. Impeller vs. Skia Notes, 7. Checklist, code:block1 (Old (_AppleMusicPainter)    New (FluidBackground)), Fluid Background – Fragment Shader Migration Guide, Overview
+Nodes (7): ListeningStatsNotifier, dart:convert, ../models/listening_stats.dart, package:flutter/foundation.dart, package:flutter_riverpod/flutter_riverpod.dart, package:http/http.dart, ../providers/settings_provider.dart
 
-### Community 86 - "fl_binary_messenger.h"
+### Community 93 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.25
-Nodes (8): Audit Checklist, Error Handling, File Consistency, Logic Correctness, Resource Management, State Management, Test Readiness, UI Correctness
+Nodes (7): areAllCachesDisabled, areAllCachesEnabled, CacheSettingsService, getBpmCacheEnabled, getImageCacheEnabled, getMusicCacheEnabled, ../core/hive_boxes.dart
 
-### Community 87 - "fl_dart_project.h"
+### Community 94 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.25
+Nodes (7): CachedPlaylistResult, PlaylistCacheService, dart:convert, ../database/app_database.dart, ../models/song.dart, package:drift/drift.dart, package:flutter/foundation.dart
+
+### Community 95 - "Community 95"
 Cohesion: 0.29
-Nodes (7): AudioHandler Performance, [MODIFY] [audio_handler.dart](file:///d:/Subi_project/flutter-_navi/lib/services/audio_handler.dart), [MODIFY] [palette_cache.dart](file:///d:/Subi_project/flutter-_navi/lib/core/palette_cache.dart), [MODIFY] [player_provider.dart](file:///d:/Subi_project/flutter-_navi/lib/providers/player_provider.dart), PaletteCache LRU Expansion, PlayerNotifier Timer & State Fixes, Proposed Changes Summary
+Nodes (6): PlayEvents, SongMetadata, SongPairs, SongWeights, UserFeedback, package:drift/drift.dart
 
-### Community 88 - "fl_engine.h"
+### Community 96 - "App Exception Appexception Logic"
 Cohesion: 0.29
-Nodes (7): BUG 2: `_playedDuration` Drift & Scrobble Logic ⚠️ (Reworked), code:dart (Duration _accumulatedListenTime = Duration.zero;  // replace), code:dart (player.playingStream.listen((playing) {), code:dart (// Threshold 1: position-based (50% of track)), code:dart (_accumulatedListenTime = Duration.zero;), Last.fm Scrobble Spec, Revised Fix — Dual-Threshold with Transition Tracking
+Nodes (6): AlbumStat, ArtistStat, ListeningStats, _parseInt, RecentPlay, TrackStat
 
-### Community 89 - "fl_event_channel.h"
+### Community 97 - "Shuffle Exception Shuffleautherror Logic"
 Cohesion: 0.29
-Nodes (7): code:dart (// Required: a regression test that reproduces the exact bug), Minimum Test Coverage Per Task, Phase 3: TEST — Mandatory Test Plan Per Task, Test Setup Template, Test Type Matrix, 2. One-time Shader Pre-load (optional but recommended), code:dart (void main() async {)
+Nodes (6): isLrcFormat, LrcParser, parseLrc, parsePlain, RegExp, ../models/lyric_line.dart
 
-### Community 90 - "fl_json_message_codec.h"
+### Community 98 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.29
+Nodes (6): copyWith, dirHiveKey, fieldHiveKey, LibrarySortPreference, toggleField, package:flutter/foundation.dart
+
+### Community 99 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.29
+Nodes (6): ReplayUploadService, uploadData, dart:convert, package:flutter/foundation.dart, package:flutter_riverpod/flutter_riverpod.dart, ../providers/settings_provider.dart
+
+### Community 100 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.29
+Nodes (6): build, Container, SizedBox, SwipeActionBackground, ../core/theme.dart, package:flutter/material.dart
+
+### Community 101 - "Login Screen Loginscreenstate"
+Cohesion: 0.29
+Nodes (6): main, ../helpers/test_utils.dart, package:flutter_test/flutter_test.dart, package:navivibe/models/song.dart, package:navivibe/providers/settings_provider.dart, package:navivibe/services/shuffle_algorithms.dart
+
+### Community 102 - "Window Manager Service For"
 Cohesion: 0.33
-Nodes (5): build, FocusScope, NaviKeyboardShortcuts, SingleActivator, ../utils/platform_utils.dart
+Nodes (5): AudioFeatures, _parseDouble, _parseInt, RecommendedSong, SongScores
 
-### Community 91 - "fl_json_method_codec.h"
+### Community 103 - "Next Response Nextresponse"
 Cohesion: 0.33
-Nodes (5): copyWith, dirHiveKey, fieldHiveKey, LibrarySortPreference, toggleField
+Nodes (5): getCurrentLineIndex, LyricLine, SyncedLyrics, toString, WordSegment
 
-### Community 92 - "fl_method_call.h"
+### Community 104 - "Ai Shuffle Screen Aishufflescreen"
 Cohesion: 0.33
-Nodes (5): nowPlaying, ScrobbleService, submit, package:connectivity_plus/connectivity_plus.dart, package:flutter_riverpod/flutter_riverpod.dart
+Nodes (5): _loadHistory, SearchHistoryNotifier, ../core/hive_boxes.dart, package:flutter_riverpod/flutter_riverpod.dart, settings_provider.dart
 
-### Community 94 - "fl_standard_method_codec.h"
+### Community 105 - "Home Subi Documents Flutter Navi"
 Cohesion: 0.33
-Nodes (6): 6. Extending the Shader, Adding album art texture warping (closest to real Apple Music), code:glsl (uniform sampler2D u_albumArt;), code:dart (shader.setImageSampler(0, albumArtImage); // ui.Image), code:glsl (vec4 artColor = texture(u_albumArt, warpUV);), Tuning blob count / speed
+Nodes (5): main, ProviderScope, package:flutter/material.dart, package:flutter_riverpod/flutter_riverpod.dart, package:flutter_test/flutter_test.dart
 
-### Community 95 - "fl_string_codec.h"
-Cohesion: 0.27
-Nodes (6): code:dart (// ❌ NEVER — mutable model causes unpredictable state bugs), code:dart (// ✅ REQUIRED — immutable with copyWith), code:dart (// ❌ NEVER — crashes when server returns int instead of doub), code:dart (// ✅ REQUIRED — handles int, double, String-encoded numbers,), Immutable Models, No Unsafe Casts
+### Community 106 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.40
+Nodes (4): classify, main, package:navivibe/core/app_exception.dart, package:flutter_test/flutter_test.dart
 
-### Community 96 - "fl_value.h"
-Cohesion: 0.4
-Nodes (4): Q: Song model dependencies that cross layer boundaries, Answer, Q: PlayerProvider ListeningEventCollector data flow, Source Nodes
+### Community 107 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.40
+Nodes (4): ArtistAffinity, GenreAffinity, RecommendationProfiles, package:drift/drift.dart
 
-### Community 97 - "fl_view.h"
-Cohesion: 0.4
+### Community 108 - "Main Mymusicplayerapp Logic"
+Cohesion: 0.40
 Nodes (4): HealthResponse, _parseDouble, _parseInt, WeatherInfo
 
-### Community 98 - "flutter_linux.h"
-Cohesion: 0.4
+### Community 109 - "Transcoding Service Transcodebitrate"
+Cohesion: 0.40
 Nodes (4): ListeningHistoryResponse, _parseDouble, _parseInt, PlayHistoryItem
 
-### Community 99 - "Community 99"
-Cohesion: 0.4
-Nodes (4): build, Container, _DesktopDialogTitleBar, Dialog
+### Community 110 - "Progress Bar Glassthumbshape Logic"
+Cohesion: 0.40
+Nodes (4): NextResponse, _parseInt, QueueContext, recommended_song.dart
 
-### Community 100 - "Community 100"
-Cohesion: 0.4
-Nodes (5): 🧠 Advanced Shuffle Algorithms, 🔊 Audio Engine & Shuffle Intelligence, code:mermaid (graph TD), 🚀 Gapless Reordering (The "Shuffle-Gap" Fix), 🎼 Smart Weighting Formula
+### Community 111 - "Contribution Graph Contributiongraphcardstate Logic"
+Cohesion: 0.40
+Nodes (4): build, LyricLineWidget, package:flutter_animate/flutter_animate.dart, package:flutter/material.dart
 
-### Community 101 - "Community 101"
-Cohesion: 0.4
-Nodes (5): 1. Presentation Layer (`lib/screens`, `lib/widgets`), 2. State Management Layer (`lib/providers`), 3. Service Layer (`lib/services`), 4. Data Layer (`lib/database`, `lib/models`), 📦 Component Breakdown
+### Community 112 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.40
+Nodes (4): SearchHistoryService, ../database/app_database.dart, package:drift/drift.dart, package:flutter/foundation.dart
 
-### Community 102 - "Community 102"
-Cohesion: 0.4
-Nodes (5): SEC-001: Service Call Directly from UI Widget, SEC-002: Hardcoded Fallback Credentials, SEC-003: Sensitive URLs in Production Logs, SEC-004: Additional Security Issues (Storage & HTTPS), Section 4: Security Report
+### Community 113 - "Android App Src Main Java"
+Cohesion: 0.40
+Nodes (4): main, package:navivibe/core/palette_cache.dart, package:flutter/material.dart, package:flutter_test/flutter_test.dart
 
-### Community 103 - "Community 103"
-Cohesion: 0.4
-Nodes (5): BUG 3: Shuffle Rebuild Performance ⚠️ (Reworked — Simplified), code:dart (Future<void> _updateQueueAfterAnchor(int anchorIndex) async ), code:dart (/// Pre-computes offline paths for all songs in the queue.), Revised Fix — Optimize The Existing Rebuild Path, Why "Batched Moves" Was Dropped
+### Community 114 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.40
+Nodes (4): buildFromFull, main, package:flutter_test/flutter_test.dart, package:navivibe/models/song.dart
 
-### Community 104 - "Community 104"
-Cohesion: 0.5
+### Community 115 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.50
+Nodes (3): ContributionDay, ContributionGraphResponse, _parseInt
+
+### Community 116 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.50
 Nodes (3): ListeningStatsResponse, _parseDouble, _parseInt
 
-### Community 105 - "Community 105"
-Cohesion: 0.5
+### Community 117 - "Home Subi Documents Flutter Navi"
+Cohesion: 0.50
 Nodes (3): ModelStatusResponse, _parseDouble, _parseInt
 
-### Community 106 - "Community 106"
-Cohesion: 0.5
-Nodes (4): Section 5: Architecture Smells, SMELL-001: God Node Bloat, SMELL-002: Fragile Communities, SMELL-003: ListeningEventCollector Responsibility Creep
-
-### Community 107 - "Community 107"
-Cohesion: 0.67
-Nodes (3): 1.1 Before Writing Any Code, 1.3 The Music Player Logic Test — Spot Every Illogical Behaviour, Phase 1: BUILD — Production-Only Standards
+### Community 118 - "Navigation Transitions Fadescaleroute Logic"
+Cohesion: 0.50
+Nodes (3): generateUuid, dart:math, package:shared_preferences/shared_preferences.dart
 
 ## Knowledge Gaps
-- **1064 isolated node(s):** `AppThemeTokens`, `ThemeVariants`, `ThemeTokens`, `AppTheme`, `CupertinoClickable` (+1059 more)
+- **2066 isolated node(s):** `rebuild_model.sh script`, `run_update.sh script`, `run_code_only.sh script`, `run_ast_cache.sh script`, `run_merge_update.sh script` (+2061 more)
   These have ≤1 connection - possible missing edges or undocumented components.
-- **8 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
+- **22 thin communities (<3 nodes) omitted from report** — run `graphify query` to explore isolated nodes.
 
 ## Suggested Questions
 _Questions this graph is uniquely positioned to answer:_
 
-- **Why does `package:flutter_riverpod/flutter_riverpod.dart` connect `fl_method_call.h` to `dart:async / dart:io / ../helpers/test_utils.dart`, `../core/palette_cache.dart / _AppleMusicThumb / _AudioQualityStrip`, `../../data/models/health_response.dart / AiShuffleScreen / _AiShuffleScreenState`, `../core/app_exception.dart / AppException / AuthException`, `CLAUDE.md / 10. Testing Rules / 11. Surprising Connections`, `favorites_screen.dart / _buildAlbumsGrid / _buildSongsList`, `1.4 Common Flutter Illogical Patterns — Full Reference / Async State Races / Autoplay/Lookahead Guard — Growing Set`, `ArtistAffinityCompanion / ArtistAffinityEntity / copyWithCompanion`, `../core/app_constants.dart / applyShuffleAlgorithm / _applySmartLocalAlgorithm`, `../controllers/lyrics_controller.dart / initState / _buildBody`, `dart:ffi / AnalyticsStats / _buildCsv`, `add_to_playlist_dialog.dart / ../../../core/theme.dart / edit_playlist_screen.dart`, `Spacer / _buildItem / _confirmDelete`, `cancelBackgroundDownload / downloadSongs / File`, `../features/ai_shuffle/ui/home_stats_widget.dart / AnimatedOpacity / _artGradient`, `Function / _buildSectionTitle / _buildTable`, `../core/constants.dart / ../database/app_database.dart / getString`, `_applyReplayGain / commitSmartLocalOrder / currentQueue`, `1.2 Code Quality Non-Negotiables / code:dart (// ❌ NEVER — non-reactive, stale data) / code:dart (// ❌ NEVER in new files)`, `BUG 5: `_persistState` Timer Fires Multiple Times Per 5s Boundary ✅ (Approved) / BUG 6: `PaletteCache` Has No Size Limit ✅ (Approved) / BUG 7: Synchronous `File.existsSync()` Per Song on Main Thread ✅ (Approved)`, `ClipRRect / CustomPaint / formatDuration`, `code:block16 (User presses Next →) / code:dart (// ❌ ILLOGICAL — does not check if index is still valid afte) / code:dart (// ✅ CORRECT — re-read state after every await)`, `1.1 Before Writing Any Code / 1.3 The Music Player Logic Test — Spot Every Illogical Behaviour / code:block1 (BUILD → SELF-AUDIT → TEST)`, `ARCHITECTURE.md / 🧠 Advanced Shuffle Algorithms / 🔊 Audio Engine Details`, `../fluid_background.dart / didUpdateWidget / FluidBackground`, `dart:math / _QueueEntry / _queueFailedLog`, `LyricsState / _subscribeToPosition / SongDownloadState`, `NaviVibe Architecture & Security Audit Report / Section 10: What Is Done Well / Section 1: Executive Summary`, `1. File Changes / code:yaml (flutter:) / code:dart (class _AppleMusicPainter extends CustomPainter { … })`, `AppDatabase / MigrationStrategy / app_database.dart`, `AS / CAST / _queryReplay`, `🤝 Contributing / 🚀 Getting Started / ✨ Key Features`, `toString / getCurrentLineIndex / LyricLine`, `_cacheBPM / _estimateBPMFromGenre / _getCachedBPM`, `MapEntry / addPlay / calculateSongScore`, `AppRouteTransitions / buildTransitions / _FadeScaleRoute`, `G_DECLARE_DERIVABLE_TYPE() / fl_message_codec.h / fl_method_codec.h`, `code:dart (// Required: a regression test that reproduces the exact bug) / Minimum Test Coverage Per Task / Phase 3: TEST — Mandatory Test Plan Per Task`, `isLrcFormat / LrcParser / parseLrc`, `query_20260513_054343_song_model_dependencies_that_cross_layer_boundarie.md / query_20260513_054650_playerprovider_listeningeventcollector_data_flow.md / Q: Song model dependencies that cross layer boundaries`, `SEC-001: Service Call Directly from UI Widget / SEC-002: Hardcoded Fallback Credentials / SEC-003: Sensitive URLs in Production Logs`, `1. Presentation Layer (`lib/screens`, `lib/widgets`) / 2. State Management Layer (`lib/providers`) / 3. Service Layer (`lib/services`)`, `dart:ui / DecoratedBox / Stack`, `G_DECLARE_INTERFACE() / fl_plugin_registry.h / fl_texture.h`, `Section 5: Architecture Smells / SMELL-001: God Node Bloat / SMELL-002: Fragile Communities`, `MainActivity`, `fl_json_message_codec.h`?**
-  _High betweenness centrality (0.134) - this node is a cross-community bridge._
-- **Why does `package:flutter/material.dart` connect `SliverToBoxAdapter / SliverPadding / _NewReleaseCard` to `dart:async / dart:io / ../helpers/test_utils.dart`, `../core/palette_cache.dart / _AppleMusicThumb / _AudioQualityStrip`, `../../data/models/health_response.dart / AiShuffleScreen / _AiShuffleScreenState`, `favorites_screen.dart / _buildAlbumsGrid / _buildSongsList`, `1.4 Common Flutter Illogical Patterns — Full Reference / Async State Races / Autoplay/Lookahead Guard — Growing Set`, `ArtistAffinityCompanion / ArtistAffinityEntity / copyWithCompanion`, `../core/app_constants.dart / applyShuffleAlgorithm / _applySmartLocalAlgorithm`, `../controllers/lyrics_controller.dart / initState / _buildBody`, `add_to_playlist_dialog.dart / ../../../core/theme.dart / edit_playlist_screen.dart`, `Spacer / _buildItem / _confirmDelete`, `cancelBackgroundDownload / downloadSongs / File`, `../features/ai_shuffle/ui/home_stats_widget.dart / AnimatedOpacity / _artGradient`, `../core/navigation_transitions.dart / _AlbumThumb / didChangeDependencies`, `Function / _buildSectionTitle / _buildTable`, `../core/constants.dart / ../database/app_database.dart / getString`, `ClipRRect / CustomPaint / formatDuration`, `BUG 1: `_trackChangeTimer` Empty Callback ✅ (Approved) / code:dart (_trackChangeTimer = Timer(const Duration(milliseconds: 200),) / BUG-001: `_trackChangeTimer` Missing Mounted/Dispose Guard`, `ARCHITECTURE.md / 🧠 Advanced Shuffle Algorithms / 🔊 Audio Engine Details`, `cache_settings_service.dart / ../../../../core/hive_boxes.dart / _loadHistory`, `dart:math / _QueueEntry / _queueFailedLog`, `LyricsState / _subscribeToPosition / SongDownloadState`, `NaviVibe Architecture & Security Audit Report / Section 10: What Is Done Well / Section 1: Executive Summary`, `1. File Changes / code:yaml (flutter:) / code:dart (class _AppleMusicPainter extends CustomPainter { … })`, `_loadFromHive / getLabel / _initConnectivityWatcher`, `AS / CAST / _queryReplay`, `🤝 Contributing / 🚀 Getting Started / ✨ Key Features`, `_cacheBPM / _estimateBPMFromGenre / _getCachedBPM`, `MapEntry / addPlay / calculateSongScore`, `code:dart (// Required: a regression test that reproduces the exact bug) / Minimum Test Coverage Per Task / Phase 3: TEST — Mandatory Test Plan Per Task`, `_cacheSongs / PlaylistController / compute`, `query_20260513_054343_song_model_dependencies_that_cross_layer_boundarie.md / query_20260513_054650_playerprovider_listeningeventcollector_data_flow.md / Q: Song model dependencies that cross layer boundaries`, `PlaylistCache / SearchHistory / playlist_cache_table.dart`, `SEC-001: Service Call Directly from UI Widget / SEC-002: Hardcoded Fallback Credentials / SEC-003: Sensitive URLs in Production Logs`, `BUG 3: Shuffle Rebuild Performance ⚠️ (Reworked — Simplified) / code:dart (Future<void> _updateQueueAfterAnchor(int anchorIndex) async ) / code:dart (/// Pre-computes offline paths for all songs in the queue.)`, `1. Presentation Layer (`lib/screens`, `lib/widgets`) / 2. State Management Layer (`lib/providers`) / 3. Service Layer (`lib/services`)`, `dart:ui / DecoratedBox / Stack`, `G_DECLARE_INTERFACE() / fl_plugin_registry.h / fl_texture.h`, `Section 5: Architecture Smells / SMELL-001: God Node Bloat / SMELL-002: Fragile Communities`, `Constants / constants.dart`, `MainActivity`, `fl_json_message_codec.h`, `Community 99`?**
-  _High betweenness centrality (0.103) - this node is a cross-community bridge._
-- **Why does `../providers/player_provider.dart` connect `_applyReplayGain / commitSmartLocalOrder / currentQueue` to `dart:async / dart:io / ../helpers/test_utils.dart`, `../../data/models/health_response.dart / AiShuffleScreen / _AiShuffleScreenState`, `favorites_screen.dart / _buildAlbumsGrid / _buildSongsList`, `1.4 Common Flutter Illogical Patterns — Full Reference / Async State Races / Autoplay/Lookahead Guard — Growing Set`, `ArtistAffinityCompanion / ArtistAffinityEntity / copyWithCompanion`, `../core/app_constants.dart / applyShuffleAlgorithm / _applySmartLocalAlgorithm`, `../controllers/lyrics_controller.dart / initState / _buildBody`, `cancelBackgroundDownload / downloadSongs / File`, `../features/ai_shuffle/ui/home_stats_widget.dart / AnimatedOpacity / _artGradient`, `dart:convert / _cache / _structuredLinesToLrc`, `Function / _buildSectionTitle / _buildTable`, `../core/constants.dart / ../database/app_database.dart / getString`, `1.2 Code Quality Non-Negotiables / code:dart (// ❌ NEVER — non-reactive, stale data) / code:dart (// ❌ NEVER in new files)`, `ClipRRect / CustomPaint / formatDuration`, `code:block16 (User presses Next →) / code:dart (// ❌ ILLOGICAL — does not check if index is still valid afte) / code:dart (// ✅ CORRECT — re-read state after every await)`, `1.1 Before Writing Any Code / 1.3 The Music Player Logic Test — Spot Every Illogical Behaviour / code:block1 (BUILD → SELF-AUDIT → TEST)`, `dart:math / _QueueEntry / _queueFailedLog`, `LyricsState / _subscribeToPosition / SongDownloadState`, `NaviVibe Architecture & Security Audit Report / Section 10: What Is Done Well / Section 1: Executive Summary`, `toString / getCurrentLineIndex / LyricLine`, `AppRouteTransitions / buildTransitions / _FadeScaleRoute`, `G_DECLARE_DERIVABLE_TYPE() / fl_message_codec.h / fl_method_codec.h`, `6. Extending the Shader / Adding album art texture warping (closest to real Apple Music) / code:glsl (uniform sampler2D u_albumArt;)`, `query_20260513_054343_song_model_dependencies_that_cross_layer_boundarie.md / query_20260513_054650_playerprovider_listeningeventcollector_data_flow.md / Q: Song model dependencies that cross layer boundaries`, `G_DECLARE_INTERFACE() / fl_plugin_registry.h / fl_texture.h`, `Section 5: Architecture Smells / SMELL-001: God Node Bloat / SMELL-002: Fragile Communities`, `Constants / constants.dart`, `MainActivity`, `fl_json_message_codec.h`, `fl_method_call.h`?**
-  _High betweenness centrality (0.054) - this node is a cross-community bridge._
-- **What connects `AppThemeTokens`, `ThemeVariants`, `ThemeTokens` to the rest of the system?**
-  _1064 weakly-connected nodes found - possible documentation gaps or missing edges._
-- **Should `dart:async / dart:io / ../helpers/test_utils.dart` be split into smaller, more focused modules?**
-  _Cohesion score 0.07 - nodes in this community are weakly interconnected._
-- **Should `../features/ai_shuffle/ui/ai_shuffle_screen.dart / ShuffleStatsResponse / AlbumStat` be split into smaller, more focused modules?**
-  _Cohesion score 0.06 - nodes in this community are weakly interconnected._
-- **Should `../data/models/profile_response.dart / ../../data/models/recommended_song.dart / ../data/models/session_status_response.dart` be split into smaller, more focused modules?**
-  _Cohesion score 0.05 - nodes in this community are weakly interconnected._
+- **What connects `rebuild_model.sh script`, `run_update.sh script`, `run_code_only.sh script` to the rest of the system?**
+  _2066 weakly-connected nodes found - possible documentation gaps or missing edges._
+- **Should `Core Palette Cache Dart Core` be split into smaller, more focused modules?**
+  _Cohesion score 0.02631578947368421 - nodes in this community are weakly interconnected._
+- **Should `Database App Database Dart Core` be split into smaller, more focused modules?**
+  _Cohesion score 0.03773584905660377 - nodes in this community are weakly interconnected._
+- **Should `Home Subi Documents Flutter Navi` be split into smaller, more focused modules?**
+  _Cohesion score 0.0425531914893617 - nodes in this community are weakly interconnected._
+- **Should `Core Constants Dart Core` be split into smaller, more focused modules?**
+  _Cohesion score 0.043478260869565216 - nodes in this community are weakly interconnected._
+- **Should `Dart Math Core` be split into smaller, more focused modules?**
+  _Cohesion score 0.046511627906976744 - nodes in this community are weakly interconnected._
+- **Should `Features Ai Shuffle Data Models` be split into smaller, more focused modules?**
+  _Cohesion score 0.047619047619047616 - nodes in this community are weakly interconnected._

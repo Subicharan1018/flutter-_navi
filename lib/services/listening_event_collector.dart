@@ -26,7 +26,10 @@ const double _kMinPairDurationSec = 5.0;
 String _csvField(dynamic value) {
   if (value == null) return '';
   final s = value is bool ? value.toString() : value.toString();
-  if (s.contains(',') || s.contains('"') || s.contains('\n') || s.contains('\r')) {
+  if (s.contains(',') ||
+      s.contains('"') ||
+      s.contains('\n') ||
+      s.contains('\r')) {
     return '"${s.replaceAll('"', '""')}"';
   }
   return s;
@@ -73,7 +76,7 @@ class ListeningEventCollector {
   DateTime _lastStartTime = DateTime(1970);
 
   ListeningEventCollector(this._db, {DateTime Function()? clock})
-      : _now = clock ?? DateTime.now;
+    : _now = clock ?? DateTime.now;
 
   // ──────────────────────────────────────────────────────────────────────────
   // Core event lifecycle
@@ -95,7 +98,9 @@ class ListeningEventCollector {
     final fingerprint = '${song.id}@$queuePosition';
     if (fingerprint == _lastStartFingerprint &&
         now.difference(_lastStartTime).inMilliseconds < 500) {
-      debugPrint('[Analytics] ⏭ Rapid duplicate for "${song.title}" — collapsed');
+      debugPrint(
+        '[Analytics] ⏭ Rapid duplicate for "${song.title}" — collapsed',
+      );
       return;
     }
 
@@ -104,7 +109,9 @@ class ListeningEventCollector {
         _openEvent != null &&
         _openEvent!.queuePosition == queuePosition &&
         _openEvent!.songId == song.id) {
-      debugPrint('[Analytics] ⏭ Self-transition for "${song.title}" — ignoring');
+      debugPrint(
+        '[Analytics] ⏭ Self-transition for "${song.title}" — ignoring',
+      );
       return;
     }
 
@@ -116,7 +123,11 @@ class ListeningEventCollector {
     PlayEvent? closedEvent;
     final Song? effectivePrev = prevSong ?? _currentSong;
     if (_openEvent != null && effectivePrev != null) {
-      closedEvent = _closeEvent(effectivePrev, positionAtSwitch, _currentRepeatCount);
+      closedEvent = _closeEvent(
+        effectivePrev,
+        positionAtSwitch,
+        _currentRepeatCount,
+      );
     }
     _currentRepeatCount = 0;
 
@@ -124,13 +135,17 @@ class ListeningEventCollector {
     final gap = now.difference(_lastPlayTime);
     if (gap > _kSessionTimeout) {
       _sessionId = _generateUuid();
-      debugPrint('[Analytics] 🔑 New session (gap ${gap.inMinutes}min) → $_sessionId');
+      debugPrint(
+        '[Analytics] 🔑 New session (gap ${gap.inMinutes}min) → $_sessionId',
+      );
     }
     _lastPlayTime = now;
 
     // Abort if superseded by a newer call arriving during the above work.
     if (mySeq != _processingSeq) {
-      debugPrint('[Analytics] ⏭ Superseded — aborting start for "${song.title}"');
+      debugPrint(
+        '[Analytics] ⏭ Superseded — aborting start for "${song.title}"',
+      );
       return;
     }
 
@@ -143,8 +158,10 @@ class ListeningEventCollector {
       shuffleActive: shuffleActive,
     );
 
-    debugPrint('[Analytics] ⏺ Started: "${song.title}" '
-        '(ctx=$sourceContext, q=$queuePosition, shuffle=$shuffleActive)');
+    debugPrint(
+      '[Analytics] ⏺ Started: "${song.title}" '
+      '(ctx=$sourceContext, q=$queuePosition, shuffle=$shuffleActive)',
+    );
 
     // Record co-play pair only when the previous play was substantial.
     if (effectivePrev != null &&
@@ -171,25 +188,32 @@ class ListeningEventCollector {
   void onSongRepeated() => _currentRepeatCount++;
 
   void recordSuggestFeedback(Song song, bool isMore) {
-    _db.into(_db.userFeedback).insert(UserFeedbackCompanion.insert(
-      songId: song.id,
-      feedbackType: isMore ? 'suggest_more' : 'suggest_less',
-      ts: _now().millisecondsSinceEpoch,
-      sessionId: _sessionId,
-    )).catchError((e) {
-      debugPrint('[Analytics] ❌ recordSuggestFeedback: $e');
-      return 0;
-    });
+    _db
+        .into(_db.userFeedback)
+        .insert(
+          UserFeedbackCompanion.insert(
+            songId: song.id,
+            feedbackType: isMore ? 'suggest_more' : 'suggest_less',
+            ts: _now().millisecondsSinceEpoch,
+            sessionId: _sessionId,
+          ),
+        )
+        .catchError((e) {
+          debugPrint('[Analytics] ❌ recordSuggestFeedback: $e');
+          return 0;
+        });
   }
 
   void persistWeight(String songId, double weight) {
-    _db.into(_db.songWeights).insertOnConflictUpdate(SongWeightsCompanion.insert(
-      songId: songId,
-      weight: Value(weight),
-    )).catchError((e) {
-      debugPrint('[Analytics] ❌ persistWeight: $e');
-      return 0;
-    });
+    _db
+        .into(_db.songWeights)
+        .insertOnConflictUpdate(
+          SongWeightsCompanion.insert(songId: songId, weight: Value(weight)),
+        )
+        .catchError((e) {
+          debugPrint('[Analytics] ❌ persistWeight: $e');
+          return 0;
+        });
   }
 
   Future<Map<String, double>> loadWeights() async {
@@ -205,14 +229,18 @@ class ListeningEventCollector {
   Future<AnalyticsStats> getStats() async {
     try {
       return AnalyticsStats(
-        playEvents:      await _db.playEvents.count().getSingle(),
-        uniqueSongs:     await _db.songMetadata.count().getSingle(),
-        songPairs:       await _db.songPairs.count().getSingle(),
+        playEvents: await _db.playEvents.count().getSingle(),
+        uniqueSongs: await _db.songMetadata.count().getSingle(),
+        songPairs: await _db.songPairs.count().getSingle(),
         feedbackActions: await _db.userFeedback.count().getSingle(),
       );
     } catch (_) {
       return const AnalyticsStats(
-          playEvents: 0, uniqueSongs: 0, songPairs: 0, feedbackActions: 0);
+        playEvents: 0,
+        uniqueSongs: 0,
+        songPairs: 0,
+        feedbackActions: 0,
+      );
     }
   }
 
@@ -225,9 +253,9 @@ class ListeningEventCollector {
   Future<Map<String, String>> exportCsv() async {
     try {
       return {
-        'play_events.csv':   await _buildPlayEventsCsv(),
+        'play_events.csv': await _buildPlayEventsCsv(),
         'song_metadata.csv': await _buildSongMetadataCsv(),
-        'song_pairs.csv':    await _buildSongPairsCsv(),
+        'song_pairs.csv': await _buildSongPairsCsv(),
         'user_feedback.csv': await _buildUserFeedbackCsv(),
       };
     } catch (e) {
@@ -260,9 +288,11 @@ class ListeningEventCollector {
       final filename = '${stem}_$timestamp.csv';
       final file = await _writeFile('${dir.path}/$filename', entry.value);
       paths.add(file.path);
-      debugPrint('[Analytics] 📁 ${file.path} '
-          '(${(entry.value.length / 1024).toStringAsFixed(1)} KB, '
-          '${entry.value.split('\n').length - 1} rows)');
+      debugPrint(
+        '[Analytics] 📁 ${file.path} '
+        '(${(entry.value.length / 1024).toStringAsFixed(1)} KB, '
+        '${entry.value.split('\n').length - 1} rows)',
+      );
     }
     return paths;
   }
@@ -275,9 +305,9 @@ class ListeningEventCollector {
   Future<Map<String, List<Map<String, dynamic>>>> exportJson() async {
     try {
       return {
-        'play_events':   await _fetchPlayEventsRaw(),
+        'play_events': await _fetchPlayEventsRaw(),
         'song_metadata': await _fetchSongMetadataRaw(),
-        'song_pairs':    await _fetchSongPairsRaw(),
+        'song_pairs': await _fetchSongPairsRaw(),
         'user_feedback': await _fetchUserFeedbackRaw(),
       };
     } catch (e) {
@@ -292,17 +322,18 @@ class ListeningEventCollector {
 
   Future<void> deleteDataOlderThan(DateTime threshold) async {
     final ts = threshold.millisecondsSinceEpoch;
-    await (_db.delete(_db.playEvents)
-          ..where((t) => t.tsStart.isSmallerThanValue(ts)))
-        .go();
+    await (_db.delete(
+      _db.playEvents,
+    )..where((t) => t.tsStart.isSmallerThanValue(ts))).go();
   }
 
   /// Purges noise events: sub-threshold duration AND marked as skipped.
   Future<int> purgeNoiseEvents() async {
-    return (_db.delete(_db.playEvents)
-          ..where((t) =>
+    return (_db.delete(_db.playEvents)..where(
+          (t) =>
               t.playDurSec.isSmallerThanValue(_kMinPlayDurationSec.toInt()) &
-              t.skipBefore50.equals(true)))
+              t.skipBefore50.equals(true),
+        ))
         .go();
   }
 
@@ -329,65 +360,79 @@ class ListeningEventCollector {
     final wallClock = _now().difference(event.timestampStart);
     final effectiveDuration =
         (playedDuration == Duration.zero && wallClock > Duration.zero)
-            ? wallClock
-            : playedDuration;
+        ? wallClock
+        : playedDuration;
 
     event.close(effectiveDuration, song.duration, repeats: repeats);
     _openEvent = null;
 
     if (event.playDurationSec < _kMinPlayDurationSec) {
-      debugPrint('[Analytics] 🗑 Discarded short event: "${song.title}" '
-          '(${event.playDurationSec.toStringAsFixed(1)}s < ${_kMinPlayDurationSec}s)');
+      debugPrint(
+        '[Analytics] 🗑 Discarded short event: "${song.title}" '
+        '(${event.playDurationSec.toStringAsFixed(1)}s < ${_kMinPlayDurationSec}s)',
+      );
       return event;
     }
 
     _writeEvent(event);
-    debugPrint('[Analytics] ✅ Persisted: "${song.title}" '
-        '(${event.playDurationSec.toStringAsFixed(1)}s, '
-        'skip=${event.skipBeforeEnd}, repeats=${event.repeatCount})');
+    debugPrint(
+      '[Analytics] ✅ Persisted: "${song.title}" '
+      '(${event.playDurationSec.toStringAsFixed(1)}s, '
+      'skip=${event.skipBeforeEnd}, repeats=${event.repeatCount})',
+    );
     return event;
   }
 
   void _writeEvent(PlayEvent event) {
-    _db.into(_db.playEvents).insertOnConflictUpdate(PlayEventsCompanion.insert(
-      playId: event.playId,
-      songId: event.songId,
-      sessionId: event.sessionId,
-      tsStart: event.timestampStart.millisecondsSinceEpoch,
-      tsEnd: Value(event.timestampEnd?.millisecondsSinceEpoch),
-      playDurSec: Value(event.playDurationSec.toInt()),
-      skipBefore50: Value(event.skipBeforeEnd),
-      skipPositionPct: Value(event.skipPositionPct),
-      repeatCount: Value(event.repeatCount),
-      queuePosition: Value(event.queuePosition),
-      shuffleActive: Value(event.shuffleActive),
-      sourceContext: event.sourceContext,
-      hourOfDay: event.hourOfDay,
-      dayOfWeek: event.dayOfWeek,
-    )).catchError((e) {
-      debugPrint('[Analytics] ❌ writeEvent: $e');
-      return 0;
-    });
+    _db
+        .into(_db.playEvents)
+        .insertOnConflictUpdate(
+          PlayEventsCompanion.insert(
+            playId: event.playId,
+            songId: event.songId,
+            sessionId: event.sessionId,
+            tsStart: event.timestampStart.millisecondsSinceEpoch,
+            tsEnd: Value(event.timestampEnd?.millisecondsSinceEpoch),
+            playDurSec: Value(event.playDurationSec.toInt()),
+            skipBefore50: Value(event.skipBeforeEnd),
+            skipPositionPct: Value(event.skipPositionPct),
+            repeatCount: Value(event.repeatCount),
+            queuePosition: Value(event.queuePosition),
+            shuffleActive: Value(event.shuffleActive),
+            sourceContext: event.sourceContext,
+            hourOfDay: event.hourOfDay,
+            dayOfWeek: event.dayOfWeek,
+          ),
+        )
+        .catchError((e) {
+          debugPrint('[Analytics] ❌ writeEvent: $e');
+          return 0;
+        });
   }
 
   void _upsertSongMetadata(Song song) {
-    _db.into(_db.songMetadata).insertOnConflictUpdate(SongMetadataCompanion.insert(
-      songId: song.id,
-      trackName: song.title,
-      artistName: song.artist,
-      albumName: song.album,
-      genre: Value(song.genre.isEmpty ? null : song.genre),
-      composer: Value(song.composer.isEmpty ? null : song.composer),
-      durationSec: song.duration,
-      year: Value(song.year > 0 ? song.year : null),
-      playCount: Value(song.playCount),
-      rating: Value(song.rating),
-      starred: Value(song.starred),
-      updatedAt: _now().millisecondsSinceEpoch,
-    )).catchError((e) {
-      debugPrint('[Analytics] ❌ upsertSongMetadata: $e');
-      return 0;
-    });
+    _db
+        .into(_db.songMetadata)
+        .insertOnConflictUpdate(
+          SongMetadataCompanion.insert(
+            songId: song.id,
+            trackName: song.title,
+            artistName: song.artist,
+            albumName: song.album,
+            genre: Value(song.genre.isEmpty ? null : song.genre),
+            composer: Value(song.composer.isEmpty ? null : song.composer),
+            durationSec: song.duration,
+            year: Value(song.year > 0 ? song.year : null),
+            playCount: Value(song.playCount),
+            rating: Value(song.rating),
+            starred: Value(song.starred),
+            updatedAt: _now().millisecondsSinceEpoch,
+          ),
+        )
+        .catchError((e) {
+          debugPrint('[Analytics] ❌ upsertSongMetadata: $e');
+          return 0;
+        });
   }
 
   void _recordPair({
@@ -395,7 +440,9 @@ class ListeningEventCollector {
     required String currentSongId,
     required String transitionType,
   }) {
-    _db.customStatement('''
+    _db
+        .customStatement(
+          '''
       INSERT INTO song_pairs (prev_song_id, current_song_id, transition_type,
                               play_count, last_seen)
       VALUES (?, ?, ?, 1, ?)
@@ -403,14 +450,17 @@ class ListeningEventCollector {
       DO UPDATE SET
         play_count = play_count + 1,
         last_seen  = excluded.last_seen
-    ''', [
-      prevSongId,
-      currentSongId,
-      transitionType,
-      _now().millisecondsSinceEpoch,
-    ]).catchError((e) {
-      debugPrint('[Analytics] ❌ recordPair: $e');
-    });
+    ''',
+          [
+            prevSongId,
+            currentSongId,
+            transitionType,
+            _now().millisecondsSinceEpoch,
+          ],
+        )
+        .catchError((e) {
+          debugPrint('[Analytics] ❌ recordPair: $e');
+        });
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -421,62 +471,78 @@ class ListeningEventCollector {
 
   Future<List<Map<String, dynamic>>> _fetchPlayEventsRaw() async {
     final rows = await _db.select(_db.playEvents).get();
-    return rows.map((r) => <String, dynamic>{
-      'play_id':           r.playId,
-      'song_id':           r.songId,
-      'session_id':        r.sessionId,
-      'ts_start':          r.tsStart,
-      'ts_end':            r.tsEnd,
-      'play_dur_sec':      r.playDurSec,
-      'skip_before_50':    r.skipBefore50,
-      'skip_position_pct': r.skipPositionPct,
-      'repeat_count':      r.repeatCount,
-      'queue_position':    r.queuePosition,
-      'shuffle_active':    r.shuffleActive,
-      'source_context':    r.sourceContext,
-      'hour_of_day':       r.hourOfDay,
-      'day_of_week':       r.dayOfWeek,
-    }).toList();
+    return rows
+        .map(
+          (r) => <String, dynamic>{
+            'play_id': r.playId,
+            'song_id': r.songId,
+            'session_id': r.sessionId,
+            'ts_start': r.tsStart,
+            'ts_end': r.tsEnd,
+            'play_dur_sec': r.playDurSec,
+            'skip_before_50': r.skipBefore50,
+            'skip_position_pct': r.skipPositionPct,
+            'repeat_count': r.repeatCount,
+            'queue_position': r.queuePosition,
+            'shuffle_active': r.shuffleActive,
+            'source_context': r.sourceContext,
+            'hour_of_day': r.hourOfDay,
+            'day_of_week': r.dayOfWeek,
+          },
+        )
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> _fetchSongMetadataRaw() async {
     final rows = await _db.select(_db.songMetadata).get();
-    return rows.map((r) => <String, dynamic>{
-      'song_id':      r.songId,
-      'track_name':   r.trackName,
-      'artist_name':  r.artistName,
-      'album_name':   r.albumName,
-      'genre':        r.genre,
-      'composer':     r.composer,
-      'duration_sec': r.durationSec,
-      'year':         r.year,
-      'play_count':   r.playCount,
-      'rating':       r.rating,
-      'starred':      r.starred,
-      'updated_at':   r.updatedAt,
-    }).toList();
+    return rows
+        .map(
+          (r) => <String, dynamic>{
+            'song_id': r.songId,
+            'track_name': r.trackName,
+            'artist_name': r.artistName,
+            'album_name': r.albumName,
+            'genre': r.genre,
+            'composer': r.composer,
+            'duration_sec': r.durationSec,
+            'year': r.year,
+            'play_count': r.playCount,
+            'rating': r.rating,
+            'starred': r.starred,
+            'updated_at': r.updatedAt,
+          },
+        )
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> _fetchSongPairsRaw() async {
     final rows = await _db.select(_db.songPairs).get();
-    return rows.map((r) => <String, dynamic>{
-      'prev_song_id':    r.prevSongId,
-      'current_song_id': r.currentSongId,
-      'transition_type': r.transitionType,
-      'play_count':      r.playCount,
-      'last_seen':       r.lastSeen,
-    }).toList();
+    return rows
+        .map(
+          (r) => <String, dynamic>{
+            'prev_song_id': r.prevSongId,
+            'current_song_id': r.currentSongId,
+            'transition_type': r.transitionType,
+            'play_count': r.playCount,
+            'last_seen': r.lastSeen,
+          },
+        )
+        .toList();
   }
 
   Future<List<Map<String, dynamic>>> _fetchUserFeedbackRaw() async {
     final rows = await _db.select(_db.userFeedback).get();
-    return rows.map((r) => <String, dynamic>{
-      'id':            r.id,
-      'song_id':       r.songId,
-      'feedback_type': r.feedbackType,
-      'ts':            r.ts,
-      'session_id':    r.sessionId,
-    }).toList();
+    return rows
+        .map(
+          (r) => <String, dynamic>{
+            'id': r.id,
+            'song_id': r.songId,
+            'feedback_type': r.feedbackType,
+            'ts': r.ts,
+            'session_id': r.sessionId,
+          },
+        )
+        .toList();
   }
 
   // ──────────────────────────────────────────────────────────────────────────
@@ -487,28 +553,49 @@ class ListeningEventCollector {
 
   Future<String> _buildPlayEventsCsv() async {
     const headers = [
-      'play_id', 'song_id', 'session_id',
-      'ts_start', 'ts_end', 'play_dur_sec',
-      'skip_before_50', 'skip_position_pct',
-      'repeat_count', 'queue_position', 'shuffle_active',
-      'source_context', 'hour_of_day', 'day_of_week',
+      'play_id',
+      'song_id',
+      'session_id',
+      'ts_start',
+      'ts_end',
+      'play_dur_sec',
+      'skip_before_50',
+      'skip_position_pct',
+      'repeat_count',
+      'queue_position',
+      'shuffle_active',
+      'source_context',
+      'hour_of_day',
+      'day_of_week',
     ];
     return _buildCsv(headers, await _fetchPlayEventsRaw());
   }
 
   Future<String> _buildSongMetadataCsv() async {
     const headers = [
-      'song_id', 'track_name', 'artist_name', 'album_name',
-      'genre', 'composer', 'duration_sec', 'year',
-      'play_count', 'rating', 'starred', 'updated_at',
+      'song_id',
+      'track_name',
+      'artist_name',
+      'album_name',
+      'genre',
+      'composer',
+      'duration_sec',
+      'year',
+      'play_count',
+      'rating',
+      'starred',
+      'updated_at',
     ];
     return _buildCsv(headers, await _fetchSongMetadataRaw());
   }
 
   Future<String> _buildSongPairsCsv() async {
     const headers = [
-      'prev_song_id', 'current_song_id', 'transition_type',
-      'play_count', 'last_seen',
+      'prev_song_id',
+      'current_song_id',
+      'transition_type',
+      'play_count',
+      'last_seen',
     ];
     return _buildCsv(headers, await _fetchSongPairsRaw());
   }

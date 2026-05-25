@@ -58,8 +58,8 @@ class SongTile extends ConsumerWidget {
     // ---------------------------------------------------------------------------
     // FIX 3 — Static cacheKey isolates the disk/memory cache from the URL.
     // ---------------------------------------------------------------------------
-    final String coverId      = song.coverArt.isNotEmpty ? song.coverArt : song.id;
-    final String imageUrl     = service.getCoverArtUrl(coverId);
+    final String coverId = song.coverArt.isNotEmpty ? song.coverArt : song.id;
+    final String imageUrl = service.getCoverArtUrl(coverId);
     final String imageCacheKey = 'cover_$coverId';
 
     if (PlatformUtils.isDesktop) {
@@ -126,7 +126,7 @@ class _DesktopSongTileState extends ConsumerState<_DesktopSongTile> {
 
   void _showContextMenu(BuildContext context) {
     final renderBox = context.findRenderObject() as RenderBox?;
-    final position  = renderBox != null
+    final position = renderBox != null
         ? RelativeRect.fromLTRB(
             _lastTapPosition.dx,
             _lastTapPosition.dy,
@@ -141,13 +141,33 @@ class _DesktopSongTileState extends ConsumerState<_DesktopSongTile> {
       color: ThemeTokens.of(context).bgSurface,
       shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
       items: [
-        _menuItem(context, 'play_now',    Icons.play_arrow_rounded,     'Play Now'),
-        _menuItem(context, 'play_next',   Icons.playlist_play_rounded,  'Play Next'),
-        _menuItem(context, 'add_queue',   Icons.queue_music_rounded,    'Add to Queue'),
-        _menuItem(context, 'add_playlist',Icons.playlist_add_rounded,   'Add to Playlist'),
+        _menuItem(context, 'play_now', Icons.play_arrow_rounded, 'Play Now'),
+        _menuItem(
+          context,
+          'play_next',
+          Icons.playlist_play_rounded,
+          'Play Next',
+        ),
+        _menuItem(
+          context,
+          'add_queue',
+          Icons.queue_music_rounded,
+          'Add to Queue',
+        ),
+        _menuItem(
+          context,
+          'add_playlist',
+          Icons.playlist_add_rounded,
+          'Add to Playlist',
+        ),
         if (widget.playlistId != null)
-          _menuItem(context, 'remove',    Icons.delete_outline_rounded, 'Remove from Playlist',
-                    color: Colors.redAccent),
+          _menuItem(
+            context,
+            'remove',
+            Icons.delete_outline_rounded,
+            'Remove from Playlist',
+            color: Colors.redAccent,
+          ),
       ],
     ).then((value) {
       if (!mounted || value == null) return;
@@ -210,7 +230,7 @@ class _DesktopSongTileState extends ConsumerState<_DesktopSongTile> {
       label: '${widget.song.title} by ${widget.song.artist}',
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
-        onExit:  (_) => setState(() => _hovered = false),
+        onExit: (_) => setState(() => _hovered = false),
         cursor: SystemMouseCursors.click,
         child: GestureDetector(
           // Right-click → context menu
@@ -226,7 +246,8 @@ class _DesktopSongTileState extends ConsumerState<_DesktopSongTile> {
                 ? tokens.textPrimary.withValues(alpha: 0.06)
                 : Colors.transparent,
             child: Tooltip(
-              message: '${widget.song.title} — double-click to play, right-click for options',
+              message:
+                  '${widget.song.title} — double-click to play, right-click for options',
               waitDuration: const Duration(milliseconds: 700),
               child: _TileContent(
                 song: widget.song,
@@ -286,7 +307,8 @@ class _TileContent extends StatelessWidget {
               memCacheWidth: 150,
               memCacheHeight: 150,
               placeholder: (context, url) => const _ArtPlaceholder(size: 48),
-              errorWidget: (context, url, error) => const _ArtPlaceholder(size: 48),
+              errorWidget: (context, url, error) =>
+                  const _ArtPlaceholder(size: 48),
             ),
           ),
           const SizedBox(width: 12),
@@ -343,8 +365,11 @@ class _MobileOptionsButton extends StatelessWidget {
     return IconButton(
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(),
-      icon: Icon(Icons.more_horiz_rounded,
-          color: ThemeTokens.of(context).textSecondary, size: 20),
+      icon: Icon(
+        Icons.more_horiz_rounded,
+        color: ThemeTokens.of(context).textSecondary,
+        size: 20,
+      ),
       onPressed: () {
         showPlatformSheet(
           context: context,
@@ -372,8 +397,11 @@ class _DesktopOptionsButton extends StatelessWidget {
       child: IconButton(
         padding: EdgeInsets.zero,
         constraints: const BoxConstraints(),
-        icon: Icon(Icons.more_horiz_rounded,
-            color: ThemeTokens.of(context).textSecondary, size: 20),
+        icon: Icon(
+          Icons.more_horiz_rounded,
+          color: ThemeTokens.of(context).textSecondary,
+          size: 20,
+        ),
         onPressed: onShowMenu,
       ),
     );
@@ -452,9 +480,17 @@ class _DownloadBadge extends ConsumerWidget {
           ),
         );
       case SongDownloadStatus.downloaded:
-        return Icon(Icons.arrow_circle_down_rounded, size: 14, color: tokens.accent);
+        return Icon(
+          Icons.arrow_circle_down_rounded,
+          size: 14,
+          color: tokens.accent,
+        );
       case SongDownloadStatus.failed:
-        return const Icon(Icons.error_outline_rounded, size: 14, color: Colors.redAccent);
+        return const Icon(
+          Icons.error_outline_rounded,
+          size: 14,
+          color: Colors.redAccent,
+        );
     }
   }
 }
@@ -473,8 +509,11 @@ class _ArtPlaceholder extends StatelessWidget {
       width: size,
       height: size,
       color: ThemeTokens.of(context).bgElevated,
-      child: Icon(Icons.music_note_rounded,
-          color: ThemeTokens.of(context).textMuted, size: 24),
+      child: Icon(
+        Icons.music_note_rounded,
+        color: ThemeTokens.of(context).textMuted,
+        size: 24,
+      ),
     );
   }
 }

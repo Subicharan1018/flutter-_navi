@@ -636,6 +636,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       ),
     );
   }
+
   void _setSleepTimer(int? minutes) {
     _sleepTimer?.cancel();
     _sleepCountdownTimer?.cancel();
@@ -860,72 +861,80 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       ),
                     ),
                     Expanded(
-                      child: LayoutBuilder(builder: (ctx, constraints) {
-                        final artSize = min(
-                          constraints.maxWidth * 0.85,
-                          constraints.maxHeight * 0.95,
-                        ).clamp(160.0, 340.0);
-                        return Center(
-                          child: SizedBox(
-                            width: artSize,
-                            height: artSize,
-                            child: AnimatedScale(
-                              scale: playerState.isPlaying ? 1.0 : 0.93,
-                              duration: const Duration(milliseconds: 450),
-                              curve: Curves.easeInOutCubic,
-                              child: Container(
-                                decoration: BoxDecoration(
-                                  borderRadius: BorderRadius.circular(18),
-                                  boxShadow: [
-                                    BoxShadow(
-                                      color: ThemeTokens.of(context)
-                                          .bgBase
-                                          .withValues(alpha: 0.70),
-                                      blurRadius: 44,
-                                      spreadRadius: 4,
-                                      offset: const Offset(0, 18),
-                                    ),
-                                    if (_blobColors.length > 1)
+                      child: LayoutBuilder(
+                        builder: (ctx, constraints) {
+                          final artSize = min(
+                            constraints.maxWidth * 0.85,
+                            constraints.maxHeight * 0.95,
+                          ).clamp(160.0, 340.0);
+                          return Center(
+                            child: SizedBox(
+                              width: artSize,
+                              height: artSize,
+                              child: AnimatedScale(
+                                scale: playerState.isPlaying ? 1.0 : 0.93,
+                                duration: const Duration(milliseconds: 450),
+                                curve: Curves.easeInOutCubic,
+                                child: Container(
+                                  decoration: BoxDecoration(
+                                    borderRadius: BorderRadius.circular(18),
+                                    boxShadow: [
                                       BoxShadow(
-                                        color: _blobColors[1].withValues(alpha: 0.35),
-                                        blurRadius: 60,
-                                        offset: const Offset(0, 10),
+                                        color: ThemeTokens.of(
+                                          context,
+                                        ).bgBase.withValues(alpha: 0.70),
+                                        blurRadius: 44,
+                                        spreadRadius: 4,
+                                        offset: const Offset(0, 18),
                                       ),
-                                  ],
-                                ),
-                                child: ClipRRect(
-                                  borderRadius: BorderRadius.circular(18),
-                                  child: CachedNetworkImage(
-                                    imageUrl: imageUrl,
-                                    cacheKey: cacheKey,
-                                    fit: BoxFit.cover,
-                                    placeholder: (_, __) => Container(
-                                      color:
-                                          ThemeTokens.of(context).bgSurface,
-                                      child: Icon(
-                                        Icons.music_note_rounded,
-                                        size: 80,
-                                        color:
-                                            ThemeTokens.of(context).textMuted,
+                                      if (_blobColors.length > 1)
+                                        BoxShadow(
+                                          color: _blobColors[1].withValues(
+                                            alpha: 0.35,
+                                          ),
+                                          blurRadius: 60,
+                                          offset: const Offset(0, 10),
+                                        ),
+                                    ],
+                                  ),
+                                  child: ClipRRect(
+                                    borderRadius: BorderRadius.circular(18),
+                                    child: CachedNetworkImage(
+                                      imageUrl: imageUrl,
+                                      cacheKey: cacheKey,
+                                      fit: BoxFit.cover,
+                                      placeholder: (_, __) => Container(
+                                        color: ThemeTokens.of(
+                                          context,
+                                        ).bgSurface,
+                                        child: Icon(
+                                          Icons.music_note_rounded,
+                                          size: 80,
+                                          color: ThemeTokens.of(
+                                            context,
+                                          ).textMuted,
+                                        ),
                                       ),
-                                    ),
-                                    errorWidget: (_, __, ___) => Container(
-                                      color:
-                                          ThemeTokens.of(context).bgSurface,
-                                      child: Icon(
-                                        Icons.music_note_rounded,
-                                        size: 80,
-                                        color:
-                                            ThemeTokens.of(context).textMuted,
+                                      errorWidget: (_, __, ___) => Container(
+                                        color: ThemeTokens.of(
+                                          context,
+                                        ).bgSurface,
+                                        child: Icon(
+                                          Icons.music_note_rounded,
+                                          size: 80,
+                                          color: ThemeTokens.of(
+                                            context,
+                                          ).textMuted,
+                                        ),
                                       ),
                                     ),
                                   ),
                                 ),
                               ),
                             ),
-                          ),
-                        );
-                      }),
+                          );
+                        },
+                      ),
                     ),
 
                     Padding(
@@ -1207,10 +1216,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                             onTap: () => showPlatformSheet(
                               context: context,
                               title: 'Lyrics',
-                              builder: (_) => LyricsView(
-                                song: song,
-                                imageUrl: imageUrl,
-                              ),
+                              builder: (_) =>
+                                  LyricsView(song: song, imageUrl: imageUrl),
                             ),
                           ),
                         ],
@@ -1486,10 +1493,8 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                       padding: const EdgeInsets.only(bottom: 120),
                       itemCount: upNext.length,
                       onReorder: (oldIdx, newIdx) {
-                        final qOld =
-                            playerState.currentIndex + 1 + oldIdx;
-                        final qNew =
-                            playerState.currentIndex + 1 + newIdx;
+                        final qOld = playerState.currentIndex + 1 + oldIdx;
+                        final qNew = playerState.currentIndex + 1 + newIdx;
                         notifier.reorderQueue(qOld, qNew);
                       },
                       itemBuilder: (context, i) {
@@ -1559,10 +1564,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
     // SizedBox-constrained Column instead.
     if (PlatformUtils.isDesktop) {
       return Container(
-        height: min(
-          560.0,
-          MediaQuery.of(context).size.height * 0.82,
-        ),
+        height: min(560.0, MediaQuery.of(context).size.height * 0.82),
         decoration: BoxDecoration(
           color: ThemeTokens.of(context).bgSurface,
           borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
@@ -1753,7 +1755,10 @@ class _QueueTile extends StatelessWidget {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            colors: [Colors.transparent, Colors.redAccent.withValues(alpha: 0.80)],
+            colors: [
+              Colors.transparent,
+              Colors.redAccent.withValues(alpha: 0.80),
+            ],
           ),
         ),
         child: Icon(
@@ -1862,7 +1867,9 @@ class _HistoryTile extends StatelessWidget {
               width: 16,
               height: 16,
               decoration: BoxDecoration(
-                color: ThemeTokens.of(context).bgOverlay.withValues(alpha: 0.65),
+                color: ThemeTokens.of(
+                  context,
+                ).bgOverlay.withValues(alpha: 0.65),
                 borderRadius: const BorderRadius.only(
                   topLeft: Radius.circular(4),
                   bottomRight: Radius.circular(5),

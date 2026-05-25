@@ -1,0 +1,6 @@
+#!/bin/bash
+for file in player_provider.dart navi_audio_handler.dart audio_handler.dart settings_provider.dart subsonic_service.dart song.dart offline_service.dart download_provider.dart shuffle_providers.dart lyrics_controller.dart palette_cache.dart hive_boxes.dart app_database.dart listening_event_collector.dart scrobble_service.dart; do
+    echo "--- $file ---"
+    graphify path "$file" "*" --depth 1
+    graphify path "*" "$file" --depth 1
+done

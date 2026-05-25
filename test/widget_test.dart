@@ -6,11 +6,7 @@ void main() {
   testWidgets('minimal scaffold renders without throwing', (tester) async {
     await tester.pumpWidget(
       const ProviderScope(
-        child: MaterialApp(
-          home: Scaffold(
-            body: Text('NaviVibe'),
-          ),
-        ),
+        child: MaterialApp(home: Scaffold(body: Text('NaviVibe'))),
       ),
     );
 

@@ -33,11 +33,7 @@ class LyricsBackground extends StatelessWidget {
           child: const SizedBox.expand(),
         ),
         // Dark overlay so text is always readable
-        const DecoratedBox(
-          decoration: BoxDecoration(
-            color: Color(0xA3000000),
-          ),
-        ),
+        const DecoratedBox(decoration: BoxDecoration(color: Color(0xA3000000))),
       ],
     );
   }

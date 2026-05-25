@@ -36,7 +36,9 @@ import 'helpers/test_utils.dart';
 // ---------------------------------------------------------------------------
 
 class MockOfflineService extends Mock implements OfflineService {}
+
 class MockSubsonicService extends Mock implements SubsonicService {}
+
 class MockConnectivity extends Mock implements Connectivity {}
 
 // ---------------------------------------------------------------------------
@@ -83,11 +85,13 @@ void main() {
     when(() => mockOffline.getDownloadedSongIds()).thenReturn([]);
     when(() => mockOffline.isSongDownloaded(any())).thenReturn(false);
     // Stub async file-check so _reconcileWithDisk() never throws.
-    when(() => mockOffline.isSongDownloadedAsync(any()))
-        .thenAnswer((_) async => false);
+    when(
+      () => mockOffline.isSongDownloadedAsync(any()),
+    ).thenAnswer((_) async => false);
     // Default: device has connectivity (tests override to simulate offline).
-    when(() => mockConnectivity.checkConnectivity())
-        .thenAnswer((_) async => [ConnectivityResult.wifi]);
+    when(
+      () => mockConnectivity.checkConnectivity(),
+    ).thenAnswer((_) async => [ConnectivityResult.wifi]);
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -104,9 +108,12 @@ void main() {
       () async {
         // AUDIT: Arrange — simulate a network failure (OfflineService throws).
         final song = makeSong();
-        when(() => mockOffline.downloadSong(song, mockSubsonic))
-            .thenThrow(Exception('Network unreachable'));
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+        when(
+          () => mockOffline.downloadSong(song, mockSubsonic),
+        ).thenThrow(Exception('Network unreachable'));
+        when(
+          () => mockSubsonic.getStreamUrl(any()),
+        ).thenReturn('http://server/stream');
 
         final container = _buildContainer(
           mockOffline: mockOffline,
@@ -133,37 +140,37 @@ void main() {
       },
     );
 
-    test(
-      'AUDIT: failed download stores an error message in state',
-      () async {
-        // AUDIT: The _setFailed() path should record a human-readable message
-        // (per AppException rules in GEMINI.md).
-        final song = makeSong();
-        when(() => mockOffline.downloadSong(song, mockSubsonic))
-            .thenThrow(Exception('Connection timed out'));
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+    test('AUDIT: failed download stores an error message in state', () async {
+      // AUDIT: The _setFailed() path should record a human-readable message
+      // (per AppException rules in GEMINI.md).
+      final song = makeSong();
+      when(
+        () => mockOffline.downloadSong(song, mockSubsonic),
+      ).thenThrow(Exception('Connection timed out'));
+      when(
+        () => mockSubsonic.getStreamUrl(any()),
+      ).thenReturn('http://server/stream');
 
-        final container = _buildContainer(
-          mockOffline: mockOffline,
-          mockSubsonic: mockSubsonic,
-          mockConnectivity: mockConnectivity,
-        );
-        addTearDown(container.dispose);
+      final container = _buildContainer(
+        mockOffline: mockOffline,
+        mockSubsonic: mockSubsonic,
+        mockConnectivity: mockConnectivity,
+      );
+      addTearDown(container.dispose);
 
-        await container.read(downloadStateProvider.notifier).downloadSong(song);
+      await container.read(downloadStateProvider.notifier).downloadSong(song);
 
-        final dlState = container.read(downloadStateProvider)[song.id];
-        expect(dlState, isNotNull);
-        expect(dlState!.status, SongDownloadStatus.failed);
-        // AUDIT: Error message must be non-empty so UI can display it.
-        expect(
-          dlState.errorMessage,
-          isNotNull,
-          reason: 'Failed state must include an error message for the UI',
-        );
-        expect(dlState.errorMessage!.isNotEmpty, isTrue);
-      },
-    );
+      final dlState = container.read(downloadStateProvider)[song.id];
+      expect(dlState, isNotNull);
+      expect(dlState!.status, SongDownloadStatus.failed);
+      // AUDIT: Error message must be non-empty so UI can display it.
+      expect(
+        dlState.errorMessage,
+        isNotNull,
+        reason: 'Failed state must include an error message for the UI',
+      );
+      expect(dlState.errorMessage!.isNotEmpty, isTrue);
+    });
 
     test(
       'AUDIT [BUG-DEMONSTRATES]: no Dio timeout means state stays in '
@@ -190,12 +197,16 @@ void main() {
 
         // AUDIT: The download call never completes — simulates an infinite
         // Dio request with no timeout configured.
-        when(() => mockOffline.downloadSong(
-              song,
-              mockSubsonic,
-              onProgress: any(named: 'onProgress'),
-            )).thenAnswer((_) => hangCompleter.future);
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+        when(
+          () => mockOffline.downloadSong(
+            song,
+            mockSubsonic,
+            onProgress: any(named: 'onProgress'),
+          ),
+        ).thenAnswer((_) => hangCompleter.future);
+        when(
+          () => mockSubsonic.getStreamUrl(any()),
+        ).thenReturn('http://server/stream');
 
         final container = _buildContainer(
           mockOffline: mockOffline,
@@ -247,11 +258,14 @@ void main() {
       'AUDIT: downloadSong() guard allows retry when status == failed',
       () async {
         final song = makeSong();
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+        when(
+          () => mockSubsonic.getStreamUrl(any()),
+        ).thenReturn('http://server/stream');
 
         // AUDIT: First attempt fails.
-        when(() => mockOffline.downloadSong(song, mockSubsonic))
-            .thenThrow(Exception('No route to host'));
+        when(
+          () => mockOffline.downloadSong(song, mockSubsonic),
+        ).thenThrow(Exception('No route to host'));
 
         final container = _buildContainer(
           mockOffline: mockOffline,
@@ -267,11 +281,13 @@ void main() {
         expect(notifier.statusOf(song.id), SongDownloadStatus.failed);
 
         // AUDIT: Second attempt — network is now restored, succeeds.
-        when(() => mockOffline.downloadSong(
-              song,
-              mockSubsonic,
-              onProgress: any(named: 'onProgress'),
-            )).thenAnswer((_) async => true);
+        when(
+          () => mockOffline.downloadSong(
+            song,
+            mockSubsonic,
+            onProgress: any(named: 'onProgress'),
+          ),
+        ).thenAnswer((_) async => true);
 
         // AUDIT: The guard (lines 67-72 in download_provider.dart) must NOT
         // block the retry because 'failed' is not in the blocked set.
@@ -293,14 +309,18 @@ void main() {
         // AUDIT: This is the correct guard behaviour — not the bug.
         // Prevents multi-tap from starting duplicate downloads.
         final song = makeSong();
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+        when(
+          () => mockSubsonic.getStreamUrl(any()),
+        ).thenReturn('http://server/stream');
 
         // AUDIT: Simulate a download that hasn't finished yet.
-        when(() => mockOffline.downloadSong(
-              song,
-              mockSubsonic,
-              onProgress: any(named: 'onProgress'),
-            )).thenAnswer(
+        when(
+          () => mockOffline.downloadSong(
+            song,
+            mockSubsonic,
+            onProgress: any(named: 'onProgress'),
+          ),
+        ).thenAnswer(
           (_) => Future.delayed(const Duration(milliseconds: 100), () => true),
         );
 
@@ -342,52 +362,55 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
 
   group('Group 3: User feedback gap on network failure (Bug 2)', () {
-    test(
-      'AUDIT [DOCUMENTS GAP]: failed status is set, but notification is '
-      'provider-only — no snackbar callback exists in the notifier',
-      () async {
-        // AUDIT: The notifier has no mechanism to trigger a snackbar.
-        // It sets state to failed and that's it.  The widget layer (OptionsMenu)
-        // only shows feedback if it's still mounted and watching the state.
-        //
-        // FIX (per plan): Add a snackbar in OptionsMenu's "Failed" case onTap,
-        // and optionally a callback/stream from the notifier for proactive
-        // failure notification.
+    test('AUDIT [DOCUMENTS GAP]: failed status is set, but notification is '
+        'provider-only — no snackbar callback exists in the notifier', () async {
+      // AUDIT: The notifier has no mechanism to trigger a snackbar.
+      // It sets state to failed and that's it.  The widget layer (OptionsMenu)
+      // only shows feedback if it's still mounted and watching the state.
+      //
+      // FIX (per plan): Add a snackbar in OptionsMenu's "Failed" case onTap,
+      // and optionally a callback/stream from the notifier for proactive
+      // failure notification.
 
-        final song = makeSong();
-        when(() => mockOffline.downloadSong(song, mockSubsonic))
-            .thenThrow(Exception('No internet'));
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+      final song = makeSong();
+      when(
+        () => mockOffline.downloadSong(song, mockSubsonic),
+      ).thenThrow(Exception('No internet'));
+      when(
+        () => mockSubsonic.getStreamUrl(any()),
+      ).thenReturn('http://server/stream');
 
-        final container = _buildContainer(
-          mockOffline: mockOffline,
-          mockSubsonic: mockSubsonic,
-          mockConnectivity: mockConnectivity,
-        );
-        addTearDown(container.dispose);
+      final container = _buildContainer(
+        mockOffline: mockOffline,
+        mockSubsonic: mockSubsonic,
+        mockConnectivity: mockConnectivity,
+      );
+      addTearDown(container.dispose);
 
-        await container.read(downloadStateProvider.notifier).downloadSong(song);
+      await container.read(downloadStateProvider.notifier).downloadSong(song);
 
-        // AUDIT: State is failed — but the test verifies there is no way
-        // for the notifier to trigger snackbar independently.
-        // The notifier is a pure state machine; feedback must come from widgets.
-        final dlState = container.read(downloadStateProvider)[song.id];
-        expect(dlState?.status, SongDownloadStatus.failed,
-            reason: 'State is set to failed — the only signal available');
+      // AUDIT: State is failed — but the test verifies there is no way
+      // for the notifier to trigger snackbar independently.
+      // The notifier is a pure state machine; feedback must come from widgets.
+      final dlState = container.read(downloadStateProvider)[song.id];
+      expect(
+        dlState?.status,
+        SongDownloadStatus.failed,
+        reason: 'State is set to failed — the only signal available',
+      );
 
-        // AUDIT: Document: DownloadStateNotifier has no onError callback/stream.
-        // A widget must observe the state transition and react.
-        // This is the feedback gap documented in the audit.
-        expect(
-          dlState?.errorMessage,
-          isNotNull,
-          reason:
-              'errorMessage is the only user-facing signal. '
-              'Fix: OptionsMenu must show a SnackBar when it observes '
-              'the transition from downloading → failed.',
-        );
-      },
-    );
+      // AUDIT: Document: DownloadStateNotifier has no onError callback/stream.
+      // A widget must observe the state transition and react.
+      // This is the feedback gap documented in the audit.
+      expect(
+        dlState?.errorMessage,
+        isNotNull,
+        reason:
+            'errorMessage is the only user-facing signal. '
+            'Fix: OptionsMenu must show a SnackBar when it observes '
+            'the transition from downloading → failed.',
+      );
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -403,11 +426,14 @@ void main() {
       'AUDIT: connectivity restore → retry succeeds without app restart',
       () async {
         final song = makeSong();
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+        when(
+          () => mockSubsonic.getStreamUrl(any()),
+        ).thenReturn('http://server/stream');
 
         // AUDIT: Phase 1 — app starts with no network.
-        when(() => mockOffline.downloadSong(song, mockSubsonic))
-            .thenThrow(Exception('Network unavailable'));
+        when(
+          () => mockOffline.downloadSong(song, mockSubsonic),
+        ).thenThrow(Exception('Network unavailable'));
 
         final container = _buildContainer(
           mockOffline: mockOffline,
@@ -419,16 +445,21 @@ void main() {
         final notifier = container.read(downloadStateProvider.notifier);
 
         await notifier.downloadSong(song);
-        expect(notifier.statusOf(song.id), SongDownloadStatus.failed,
-            reason: 'Phase 1: download fails on no-network');
+        expect(
+          notifier.statusOf(song.id),
+          SongDownloadStatus.failed,
+          reason: 'Phase 1: download fails on no-network',
+        );
 
         // AUDIT: Phase 2 — connectivity is restored (no app restart).
         // The user taps the "Failed — tap to retry" button in OptionsMenu.
-        when(() => mockOffline.downloadSong(
-              song,
-              mockSubsonic,
-              onProgress: any(named: 'onProgress'),
-            )).thenAnswer((_) async => true);
+        when(
+          () => mockOffline.downloadSong(
+            song,
+            mockSubsonic,
+            onProgress: any(named: 'onProgress'),
+          ),
+        ).thenAnswer((_) async => true);
 
         await notifier.downloadSong(song);
 
@@ -443,45 +474,54 @@ void main() {
       },
     );
 
-    test(
-      'AUDIT: multiple failure-retry cycles work correctly',
-      () async {
-        final song = makeSong();
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+    test('AUDIT: multiple failure-retry cycles work correctly', () async {
+      final song = makeSong();
+      when(
+        () => mockSubsonic.getStreamUrl(any()),
+      ).thenReturn('http://server/stream');
 
-        final container = _buildContainer(
-          mockOffline: mockOffline,
-          mockSubsonic: mockSubsonic,
-          mockConnectivity: mockConnectivity,
-        );
-        addTearDown(container.dispose);
+      final container = _buildContainer(
+        mockOffline: mockOffline,
+        mockSubsonic: mockSubsonic,
+        mockConnectivity: mockConnectivity,
+      );
+      addTearDown(container.dispose);
 
-        final notifier = container.read(downloadStateProvider.notifier);
+      final notifier = container.read(downloadStateProvider.notifier);
 
-        // AUDIT: Cycle 1 — fail.
-        when(() => mockOffline.downloadSong(song, mockSubsonic))
-            .thenThrow(Exception('No network'));
-        await notifier.downloadSong(song);
-        expect(notifier.statusOf(song.id), SongDownloadStatus.failed);
+      // AUDIT: Cycle 1 — fail.
+      when(
+        () => mockOffline.downloadSong(song, mockSubsonic),
+      ).thenThrow(Exception('No network'));
+      await notifier.downloadSong(song);
+      expect(notifier.statusOf(song.id), SongDownloadStatus.failed);
 
-        // AUDIT: Cycle 2 — fail again (flaky network).
-        when(() => mockOffline.downloadSong(song, mockSubsonic))
-            .thenThrow(Exception('Connection reset'));
-        await notifier.downloadSong(song);
-        expect(notifier.statusOf(song.id), SongDownloadStatus.failed,
-            reason: 'Second failure must also be handled gracefully');
+      // AUDIT: Cycle 2 — fail again (flaky network).
+      when(
+        () => mockOffline.downloadSong(song, mockSubsonic),
+      ).thenThrow(Exception('Connection reset'));
+      await notifier.downloadSong(song);
+      expect(
+        notifier.statusOf(song.id),
+        SongDownloadStatus.failed,
+        reason: 'Second failure must also be handled gracefully',
+      );
 
-        // AUDIT: Cycle 3 — succeed.
-        when(() => mockOffline.downloadSong(
-              song,
-              mockSubsonic,
-              onProgress: any(named: 'onProgress'),
-            )).thenAnswer((_) async => true);
-        await notifier.downloadSong(song);
-        expect(notifier.statusOf(song.id), SongDownloadStatus.downloaded,
-            reason: 'Eventually succeeds after repeated retries');
-      },
-    );
+      // AUDIT: Cycle 3 — succeed.
+      when(
+        () => mockOffline.downloadSong(
+          song,
+          mockSubsonic,
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).thenAnswer((_) async => true);
+      await notifier.downloadSong(song);
+      expect(
+        notifier.statusOf(song.id),
+        SongDownloadStatus.downloaded,
+        reason: 'Eventually succeeds after repeated retries',
+      );
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -493,75 +533,72 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
 
   group('Group 5: Pre-flight connectivity check gap (Bug 2)', () {
-    test(
-      'AUDIT [AFTER FIX]: with connectivity pre-check, failed state is set '
-      'immediately without invoking OfflineService',
-      () async {
-        // AUDIT: Bug 2 FIX verified — the pre-check in downloadSong() blocks
-        // the service call when offline and sets failed immediately.
-        final song = makeSong();
+    test('AUDIT [AFTER FIX]: with connectivity pre-check, failed state is set '
+        'immediately without invoking OfflineService', () async {
+      // AUDIT: Bug 2 FIX verified — the pre-check in downloadSong() blocks
+      // the service call when offline and sets failed immediately.
+      final song = makeSong();
 
-        // Simulate no connectivity.
-        when(() => mockConnectivity.checkConnectivity())
-            .thenAnswer((_) async => [ConnectivityResult.none]);
+      // Simulate no connectivity.
+      when(
+        () => mockConnectivity.checkConnectivity(),
+      ).thenAnswer((_) async => [ConnectivityResult.none]);
 
-        final container = _buildContainer(
-          mockOffline: mockOffline,
-          mockSubsonic: mockSubsonic,
-          mockConnectivity: mockConnectivity,
-        );
-        addTearDown(container.dispose);
+      final container = _buildContainer(
+        mockOffline: mockOffline,
+        mockSubsonic: mockSubsonic,
+        mockConnectivity: mockConnectivity,
+      );
+      addTearDown(container.dispose);
 
-        final notifier = container.read(downloadStateProvider.notifier);
-        await notifier.downloadSong(song);
+      final notifier = container.read(downloadStateProvider.notifier);
+      await notifier.downloadSong(song);
 
-        // AUDIT: OfflineService was NEVER called — pre-flight short-circuited.
-        verifyNever(() => mockOffline.downloadSong(any(), any()));
+      // AUDIT: OfflineService was NEVER called — pre-flight short-circuited.
+      verifyNever(() => mockOffline.downloadSong(any(), any()));
 
-        // AUDIT: State is immediately failed with a readable message.
-        final dlState = notifier.state[song.id];
-        expect(dlState?.status, SongDownloadStatus.failed);
-        expect(dlState?.errorMessage, 'No internet connection');
-      },
-    );
+      // AUDIT: State is immediately failed with a readable message.
+      final dlState = notifier.state[song.id];
+      expect(dlState?.status, SongDownloadStatus.failed);
+      expect(dlState?.errorMessage, 'No internet connection');
+    });
 
-    test(
-      'AUDIT [AFTER FIX]: offline pre-flight blocks OfflineService call '
-      '(proves the fix is active)',
-      () async {
-        // AUDIT: With the fix applied, OfflineService is NOT called when
-        // the device is offline — the pre-flight short-circuits.
-        final song = makeSong();
+    test('AUDIT [AFTER FIX]: offline pre-flight blocks OfflineService call '
+        '(proves the fix is active)', () async {
+      // AUDIT: With the fix applied, OfflineService is NOT called when
+      // the device is offline — the pre-flight short-circuits.
+      final song = makeSong();
 
-        // Simulate no connectivity.
-        when(() => mockConnectivity.checkConnectivity())
-            .thenAnswer((_) async => [ConnectivityResult.none]);
+      // Simulate no connectivity.
+      when(
+        () => mockConnectivity.checkConnectivity(),
+      ).thenAnswer((_) async => [ConnectivityResult.none]);
 
-        final container = _buildContainer(
-          mockOffline: mockOffline,
-          mockSubsonic: mockSubsonic,
-          mockConnectivity: mockConnectivity,
-        );
-        addTearDown(container.dispose);
+      final container = _buildContainer(
+        mockOffline: mockOffline,
+        mockSubsonic: mockSubsonic,
+        mockConnectivity: mockConnectivity,
+      );
+      addTearDown(container.dispose);
 
-        await container.read(downloadStateProvider.notifier).downloadSong(song);
+      await container.read(downloadStateProvider.notifier).downloadSong(song);
 
-        // AUDIT: OfflineService was NEVER called — pre-flight blocked it.
-        verifyNever(() => mockOffline.downloadSong(
-              any(),
-              any(),
-              onProgress: any(named: 'onProgress'),
-            ));
+      // AUDIT: OfflineService was NEVER called — pre-flight blocked it.
+      verifyNever(
+        () => mockOffline.downloadSong(
+          any(),
+          any(),
+          onProgress: any(named: 'onProgress'),
+        ),
+      );
 
-        // AUDIT: Result is immediately "failed" with readable message.
-        expect(
-          container.read(downloadStateProvider.notifier).statusOf(song.id),
-          SongDownloadStatus.failed,
-          reason:
-              'Pre-flight check fires immediately, no Dio hang possible.',
-        );
-      },
-    );
+      // AUDIT: Result is immediately "failed" with readable message.
+      expect(
+        container.read(downloadStateProvider.notifier).statusOf(song.id),
+        SongDownloadStatus.failed,
+        reason: 'Pre-flight check fires immediately, no Dio hang possible.',
+      );
+    });
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -575,12 +612,16 @@ void main() {
       'AUDIT: successful download → status transitions to downloaded',
       () async {
         final song = makeSong();
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
-        when(() => mockOffline.downloadSong(
-              song,
-              mockSubsonic,
-              onProgress: any(named: 'onProgress'),
-            )).thenAnswer((_) async => true);
+        when(
+          () => mockSubsonic.getStreamUrl(any()),
+        ).thenReturn('http://server/stream');
+        when(
+          () => mockOffline.downloadSong(
+            song,
+            mockSubsonic,
+            onProgress: any(named: 'onProgress'),
+          ),
+        ).thenAnswer((_) async => true);
 
         final container = _buildContainer(
           mockOffline: mockOffline,
@@ -604,40 +645,45 @@ void main() {
       },
     );
 
-    test(
-      'AUDIT: progress is emitted during download (0 → 1)',
-      () async {
-        final song = makeSong();
-        when(() => mockSubsonic.getStreamUrl(any())).thenReturn('http://server/stream');
+    test('AUDIT: progress is emitted during download (0 → 1)', () async {
+      final song = makeSong();
+      when(
+        () => mockSubsonic.getStreamUrl(any()),
+      ).thenReturn('http://server/stream');
 
-        // AUDIT: Simulate a download that fires the progress callback.
-        when(() => mockOffline.downloadSong(
-              song,
-              mockSubsonic,
-              onProgress: any(named: 'onProgress'),
-            )).thenAnswer((invocation) async {
-          final onProgress =
-              invocation.namedArguments[const Symbol('onProgress')] as Function(double)?;
-          onProgress?.call(0.5);
-          return true;
-        });
+      // AUDIT: Simulate a download that fires the progress callback.
+      when(
+        () => mockOffline.downloadSong(
+          song,
+          mockSubsonic,
+          onProgress: any(named: 'onProgress'),
+        ),
+      ).thenAnswer((invocation) async {
+        final onProgress =
+            invocation.namedArguments[const Symbol('onProgress')]
+                as Function(double)?;
+        onProgress?.call(0.5);
+        return true;
+      });
 
-        final container = _buildContainer(
-          mockOffline: mockOffline,
-          mockSubsonic: mockSubsonic,
-          mockConnectivity: mockConnectivity,
-        );
-        addTearDown(container.dispose);
+      final container = _buildContainer(
+        mockOffline: mockOffline,
+        mockSubsonic: mockSubsonic,
+        mockConnectivity: mockConnectivity,
+      );
+      addTearDown(container.dispose);
 
-        await container.read(downloadStateProvider.notifier).downloadSong(song);
+      await container.read(downloadStateProvider.notifier).downloadSong(song);
 
-        // AUDIT: Final state is downloaded with progress = 1.0.
-        final dlState = container.read(downloadStateProvider)[song.id];
-        expect(dlState?.status, SongDownloadStatus.downloaded);
-        expect(dlState?.progress, 1.0,
-            reason: 'Progress must be 1.0 after successful download');
-      },
-    );
+      // AUDIT: Final state is downloaded with progress = 1.0.
+      final dlState = container.read(downloadStateProvider)[song.id];
+      expect(dlState?.status, SongDownloadStatus.downloaded);
+      expect(
+        dlState?.progress,
+        1.0,
+        reason: 'Progress must be 1.0 after successful download',
+      );
+    });
   });
 }
 

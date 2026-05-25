@@ -98,8 +98,7 @@ class ShuffleRepository {
 
   Future<ListeningStatsResponse> getListeningStats({
     String period = 'weekly',
-  }) =>
-      _api.getListeningStats(period: period);
+  }) => _api.getListeningStats(period: period);
 
   Future<ListeningHistoryResponse> getListeningHistory({
     int limit = 50,
@@ -107,16 +106,16 @@ class ShuffleRepository {
     String? artist,
     String? title,
     String period = 'all',
-  }) =>
-      _api.getListeningHistory(
-        limit: limit,
-        offset: offset,
-        artist: artist,
-        title: title,
-        period: period,
-      );
+  }) => _api.getListeningHistory(
+    limit: limit,
+    offset: offset,
+    artist: artist,
+    title: title,
+    period: period,
+  );
 
-  Future<ContributionGraphResponse> getContributionGraph() => _api.getContributionGraph();
+  Future<ContributionGraphResponse> getContributionGraph() =>
+      _api.getContributionGraph();
 
   Future<List<Map<String, dynamic>>> getComposers() => _api.getComposers();
 

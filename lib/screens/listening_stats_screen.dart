@@ -55,24 +55,31 @@ class _ListeningStatsScreenState extends ConsumerState<ListeningStatsScreen>
           width: 48,
           height: 48,
           child: IconButton(
-            icon: Icon(Icons.arrow_back_ios_new_rounded,
-                color: tokens.textPrimary, size: 20),
+            icon: Icon(
+              Icons.arrow_back_ios_new_rounded,
+              color: tokens.textPrimary,
+              size: 20,
+            ),
             onPressed: () => Navigator.pop(context),
           ),
         ),
         title: Text(
           'Listening Stats',
           style: TextStyle(
-              color: tokens.textPrimary,
-              fontWeight: FontWeight.bold,
-              fontSize: 18),
+            color: tokens.textPrimary,
+            fontWeight: FontWeight.bold,
+            fontSize: 18,
+          ),
         ),
         actions: [
           Padding(
             padding: const EdgeInsets.only(right: 8),
             child: IconButton(
-              icon: Icon(Icons.refresh_rounded,
-                  color: tokens.textMuted, size: 22),
+              icon: Icon(
+                Icons.refresh_rounded,
+                color: tokens.textMuted,
+                size: 22,
+              ),
               onPressed: _refresh,
               tooltip: 'Refresh',
             ),
@@ -153,8 +160,7 @@ class _PeriodSelector extends StatelessWidget {
                         ? (tokens.isLight ? Colors.white : Colors.black)
                         : tokens.textMuted,
                     fontSize: 13,
-                    fontWeight:
-                        isActive ? FontWeight.w700 : FontWeight.w500,
+                    fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
               ),
@@ -180,9 +186,10 @@ class _StatsBody extends StatelessWidget {
     return Consumer(
       builder: (context, ref, _) {
         final period =
-            (context.findAncestorStateOfType<_ListeningStatsScreenState>()
-                    ?._period) ??
-                'weekly';
+            (context
+                .findAncestorStateOfType<_ListeningStatsScreenState>()
+                ?._period) ??
+            'weekly';
         return RefreshIndicator(
           color: tokens.accent,
           backgroundColor: tokens.bgSurfaceOpaque,
@@ -246,8 +253,7 @@ class _StatsBody extends StatelessWidget {
                       (ctx, i) => _RankedRow(
                         rank: i + 1,
                         title: stats.topArtists[i].artist,
-                        subtitle:
-                            '${stats.topArtists[i].playCount} plays',
+                        subtitle: '${stats.topArtists[i].playCount} plays',
                       ),
                       childCount: stats.topArtists.length,
                     ),
@@ -283,8 +289,7 @@ class _StatsBody extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: 16),
                   sliver: SliverList(
                     delegate: SliverChildBuilderDelegate(
-                      (ctx, i) =>
-                          _RecentPlayRow(play: stats.recentPlays[i]),
+                      (ctx, i) => _RecentPlayRow(play: stats.recentPlays[i]),
                       childCount: stats.recentPlays.length,
                     ),
                   ),
@@ -457,8 +462,7 @@ class _RankedRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   subtitle,
-                  style: TextStyle(
-                      color: tokens.textMuted, fontSize: 12),
+                  style: TextStyle(color: tokens.textMuted, fontSize: 12),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -501,7 +505,8 @@ class _RecentPlayRow extends StatelessWidget {
                     width: 44,
                     height: 44,
                     fit: BoxFit.cover,
-                    errorWidget: (_, __, ___) => _PlaceholderCover(tokens: tokens),
+                    errorWidget: (_, __, ___) =>
+                        _PlaceholderCover(tokens: tokens),
                   )
                 : _PlaceholderCover(tokens: tokens),
           ),
@@ -524,8 +529,7 @@ class _RecentPlayRow extends StatelessWidget {
                 const SizedBox(height: 2),
                 Text(
                   play.artist,
-                  style: TextStyle(
-                      color: tokens.textSecondary, fontSize: 12),
+                  style: TextStyle(color: tokens.textSecondary, fontSize: 12),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
@@ -554,8 +558,7 @@ class _PlaceholderCover extends StatelessWidget {
       width: 44,
       height: 44,
       color: tokens.bgElevated,
-      child: Icon(Icons.music_note_rounded,
-          color: tokens.textMuted, size: 22),
+      child: Icon(Icons.music_note_rounded, color: tokens.textMuted, size: 22),
     );
   }
 }
@@ -584,9 +587,10 @@ class _SkeletonLoaderState extends State<_SkeletonLoader>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
-    _anim = Tween<double>(begin: 0.3, end: 0.75).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+    _anim = Tween<double>(
+      begin: 0.3,
+      end: 0.75,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -618,12 +622,16 @@ class _SkeletonLoaderState extends State<_SkeletonLoader>
             _SkeletonBox(color: shimmer, height: 14, width: 100),
             const SizedBox(height: 10),
             ...List.generate(
-                4, (_) => _SkeletonBox(color: shimmer, height: 52, bottomPad: 8)),
+              4,
+              (_) => _SkeletonBox(color: shimmer, height: 52, bottomPad: 8),
+            ),
             const SizedBox(height: 16),
             _SkeletonBox(color: shimmer, height: 14, width: 100),
             const SizedBox(height: 10),
             ...List.generate(
-                4, (_) => _SkeletonBox(color: shimmer, height: 52, bottomPad: 8)),
+              4,
+              (_) => _SkeletonBox(color: shimmer, height: 52, bottomPad: 8),
+            ),
           ],
         );
       },
@@ -679,8 +687,7 @@ class _ErrorState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.cloud_off_rounded,
-                color: tokens.textMuted, size: 48),
+            Icon(Icons.cloud_off_rounded, color: tokens.textMuted, size: 48),
             const SizedBox(height: 16),
             Text(
               'Could not load stats',
@@ -693,8 +700,7 @@ class _ErrorState extends StatelessWidget {
             const SizedBox(height: 8),
             Text(
               message,
-              style:
-                  TextStyle(color: tokens.textMuted, fontSize: 13),
+              style: TextStyle(color: tokens.textMuted, fontSize: 13),
               textAlign: TextAlign.center,
             ),
             const SizedBox(height: 24),
@@ -702,12 +708,15 @@ class _ErrorState extends StatelessWidget {
               onTap: onRetry,
               child: Container(
                 padding: const EdgeInsets.symmetric(
-                    horizontal: 24, vertical: 12),
+                  horizontal: 24,
+                  vertical: 12,
+                ),
                 decoration: BoxDecoration(
                   color: tokens.accent.withValues(alpha: 0.15),
                   borderRadius: BorderRadius.circular(24),
                   border: Border.all(
-                      color: tokens.accent.withValues(alpha: 0.4)),
+                    color: tokens.accent.withValues(alpha: 0.4),
+                  ),
                 ),
                 child: Text(
                   'Try Again',
@@ -742,8 +751,11 @@ class _EmptyConfigState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.settings_ethernet_rounded,
-                color: tokens.textMuted, size: 48),
+            Icon(
+              Icons.settings_ethernet_rounded,
+              color: tokens.textMuted,
+              size: 48,
+            ),
             const SizedBox(height: 16),
             Text(
               'No Server Configured',

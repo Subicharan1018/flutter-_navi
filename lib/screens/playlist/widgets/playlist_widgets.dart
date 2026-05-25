@@ -127,26 +127,26 @@ class LoadingHeader extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             Container(
-              width: 180,
-              height: 180,
-              decoration: BoxDecoration(
-                color: tokens.bgSurface,
-                borderRadius: BorderRadius.circular(16),
-              ),
-            )
+                  width: 180,
+                  height: 180,
+                  decoration: BoxDecoration(
+                    color: tokens.bgSurface,
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .fadeIn(duration: 600.ms)
                 .then()
                 .fadeOut(duration: 600.ms),
             const SizedBox(height: 24),
             Container(
-              width: 160,
-              height: 20,
-              decoration: BoxDecoration(
-                color: tokens.bgSurface,
-                borderRadius: BorderRadius.circular(8),
-              ),
-            )
+                  width: 160,
+                  height: 20,
+                  decoration: BoxDecoration(
+                    color: tokens.bgSurface,
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                )
                 .animate(onPlay: (c) => c.repeat(reverse: true))
                 .fadeIn(duration: 600.ms, delay: 100.ms)
                 .then()
@@ -197,19 +197,20 @@ class ExpandedHeader extends ConsumerWidget {
     final dlMap = ref.watch(downloadStateProvider);
     final int totalSongs = songs.length;
     final int downloadedCount = songs
-        .where((s) =>
-            dlMap[s.id]?.status == SongDownloadStatus.downloaded)
+        .where((s) => dlMap[s.id]?.status == SongDownloadStatus.downloaded)
         .length;
     final int activeCount = songs
-        .where((s) =>
-            dlMap[s.id]?.status == SongDownloadStatus.queued ||
-            dlMap[s.id]?.status == SongDownloadStatus.downloading)
+        .where(
+          (s) =>
+              dlMap[s.id]?.status == SongDownloadStatus.queued ||
+              dlMap[s.id]?.status == SongDownloadStatus.downloading,
+        )
         .length;
-    final bool allDownloaded =
-        totalSongs > 0 && downloadedCount == totalSongs;
+    final bool allDownloaded = totalSongs > 0 && downloadedCount == totalSongs;
     final bool isActive = activeCount > 0;
-    final double dlFraction =
-        totalSongs > 0 ? (downloadedCount + activeCount / 2) / totalSongs : 0;
+    final double dlFraction = totalSongs > 0
+        ? (downloadedCount + activeCount / 2) / totalSongs
+        : 0;
 
     return Stack(
       fit: StackFit.expand,
@@ -221,12 +222,15 @@ class ExpandedHeader extends ConsumerWidget {
               imageFilter: ImageFilter.blur(sigmaX: 28, sigmaY: 28),
               child: ColorFiltered(
                 colorFilter: ColorFilter.mode(
-                    Colors.black.withValues(alpha: 0.55), BlendMode.darken),
+                  Colors.black.withValues(alpha: 0.55),
+                  BlendMode.darken,
+                ),
                 child: CachedNetworkImage(
                   imageUrl: coverImageUrl,
                   cacheKey: '${coverCacheKey}_bg',
                   fit: BoxFit.cover,
-                  errorWidget: (_, __, ___) => const ColoredBox(color: Colors.black),
+                  errorWidget: (_, __, ___) =>
+                      const ColoredBox(color: Colors.black),
                 ),
               ),
             ),
@@ -287,18 +291,30 @@ class ExpandedHeader extends ConsumerWidget {
                           cacheKey: coverCacheKey,
                           fit: BoxFit.cover,
                           placeholder: (_, __) => Container(
-                              color: tokens.bgSurface,
-                              child: Icon(Icons.music_note_rounded,
-                                  size: 72, color: tokens.textMuted)),
+                            color: tokens.bgSurface,
+                            child: Icon(
+                              Icons.music_note_rounded,
+                              size: 72,
+                              color: tokens.textMuted,
+                            ),
+                          ),
                           errorWidget: (_, __, ___) => Container(
-                              color: tokens.bgSurface,
-                              child: Icon(Icons.music_note_rounded,
-                                  size: 72, color: tokens.textMuted)),
+                            color: tokens.bgSurface,
+                            child: Icon(
+                              Icons.music_note_rounded,
+                              size: 72,
+                              color: tokens.textMuted,
+                            ),
+                          ),
                         )
                       : Container(
                           color: tokens.bgSurface,
-                          child: Icon(Icons.music_note_rounded,
-                              size: 72, color: tokens.textMuted)),
+                          child: Icon(
+                            Icons.music_note_rounded,
+                            size: 72,
+                            color: tokens.textMuted,
+                          ),
+                        ),
                 ),
               ),
               const SizedBox(height: 20),
@@ -341,16 +357,22 @@ class ExpandedHeader extends ConsumerWidget {
                     size: 52,
                     onTap: onShuffleAll,
                     filled: false,
-                    child: Icon(Icons.shuffle_rounded,
-                        color: tokens.textPrimary, size: 22),
+                    child: Icon(
+                      Icons.shuffle_rounded,
+                      color: tokens.textPrimary,
+                      size: 22,
+                    ),
                   ),
                   const SizedBox(width: 20),
                   HeaderButton(
                     size: 64,
                     onTap: onPlayAll,
                     filled: true,
-                    child: Icon(Icons.play_arrow_rounded,
-                        color: ThemeTokens.of(context).textPrimary, size: 36),
+                    child: Icon(
+                      Icons.play_arrow_rounded,
+                      color: ThemeTokens.of(context).textPrimary,
+                      size: 36,
+                    ),
                   ),
                   const SizedBox(width: 20),
                   DownloadAllButton(
@@ -406,7 +428,9 @@ class HeaderButton extends StatelessWidget {
                   end: Alignment.bottomRight,
                 )
               : null,
-          color: filled ? null : ThemeTokens.of(context).textPrimary.withValues(alpha: 0.10),
+          color: filled
+              ? null
+              : ThemeTokens.of(context).textPrimary.withValues(alpha: 0.10),
           border: filled
               ? null
               : Border.all(
@@ -448,8 +472,11 @@ class DismissBackground extends StatelessWidget {
           ],
         ),
       ),
-      child: Icon(Icons.delete_outline_rounded,
-          color: ThemeTokens.of(context).textPrimary, size: 24),
+      child: Icon(
+        Icons.delete_outline_rounded,
+        color: ThemeTokens.of(context).textPrimary,
+        size: 24,
+      ),
     );
   }
 }
@@ -476,14 +503,22 @@ class PlaylistSearchField extends StatelessWidget {
             decoration: InputDecoration(
               hintText: 'Search in playlist',
               hintStyle: TextStyle(
-                  color: tokens.textMuted.withValues(alpha: 0.6), fontSize: 15),
-              prefixIcon: Icon(Icons.search_rounded,
-                  color: tokens.textMuted, size: 18),
+                color: tokens.textMuted.withValues(alpha: 0.6),
+                fontSize: 15,
+              ),
+              prefixIcon: Icon(
+                Icons.search_rounded,
+                color: tokens.textMuted,
+                size: 18,
+              ),
               suffixIcon: value.text.isNotEmpty
                   ? GestureDetector(
                       onTap: () => controller.clear(),
-                      child: Icon(Icons.cancel_rounded,
-                          color: tokens.textMuted, size: 18),
+                      child: Icon(
+                        Icons.cancel_rounded,
+                        color: tokens.textMuted,
+                        size: 18,
+                      ),
                     )
                   : null,
               filled: true,
@@ -491,17 +526,23 @@ class PlaylistSearchField extends StatelessWidget {
               border: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.outline.withValues(alpha: 0.25), width: 0.5),
+                  color: tokens.outline.withValues(alpha: 0.25),
+                  width: 0.5,
+                ),
               ),
               enabledBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.outline.withValues(alpha: 0.25), width: 0.5),
+                  color: tokens.outline.withValues(alpha: 0.25),
+                  width: 0.5,
+                ),
               ),
               focusedBorder: OutlineInputBorder(
                 borderRadius: BorderRadius.circular(12),
                 borderSide: BorderSide(
-                    color: tokens.accent.withValues(alpha: 0.55), width: 1),
+                  color: tokens.accent.withValues(alpha: 0.55),
+                  width: 1,
+                ),
               ),
               contentPadding: const EdgeInsets.symmetric(vertical: 10),
             ),
@@ -534,7 +575,9 @@ class AddSongsRow extends StatelessWidget {
               shape: BoxShape.circle,
               color: Colors.green.withValues(alpha: 0.12),
               border: Border.all(
-                  color: Colors.green.withValues(alpha: 0.45), width: 1.5),
+                color: Colors.green.withValues(alpha: 0.45),
+                width: 1.5,
+              ),
             ),
             child: const Icon(Icons.add_rounded, color: Colors.green, size: 24),
           ),
@@ -632,10 +675,7 @@ class DownloadAllButton extends StatelessWidget {
             const SizedBox(height: 4),
             Text(
               '$downloadedCount/$totalSongs',
-              style: TextStyle(
-                color: tokens.textSecondary,
-                fontSize: 10,
-              ),
+              style: TextStyle(color: tokens.textSecondary, fontSize: 10),
             ),
           ],
         ],

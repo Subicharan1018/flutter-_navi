@@ -20,9 +20,9 @@ class ReplaySong {
   final String title;
   final String artist;
   final String albumName;
-  final int playCount;        // number of play events in the period
-  final int totalMinutesSec;  // total listening seconds in the period
-  final String? coverArtId;  // for building the cover URL via SubsonicService
+  final int playCount; // number of play events in the period
+  final int totalMinutesSec; // total listening seconds in the period
+  final String? coverArtId; // for building the cover URL via SubsonicService
 
   const ReplaySong({
     required this.songId,
@@ -68,6 +68,7 @@ class ReplayStats {
 class ReplayData {
   final List<ReplaySong> songs;
   final ReplayStats stats;
+
   /// Per-day listening seconds: key = ISO weekday (1=Mon … 7=Sun).
   final Map<int, int> dailyListening;
   const ReplayData({
@@ -97,7 +98,9 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
     // ─────────────────────────────────────────────────────────────────────
 
     // Top 10 songs by recommendation-weighted score in the given window.
-    final rows = await db.customSelect('''
+    final rows = await db
+        .customSelect(
+          '''
       WITH song_stats AS (
         SELECT
           pe.song_id,
@@ -138,10 +141,15 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
       FROM song_stats
       ORDER BY score DESC
       LIMIT 10
-    ''', variables: [Variable.withInt(fromMs), Variable.withInt(toMs)]).get();
+    ''',
+          variables: [Variable.withInt(fromMs), Variable.withInt(toMs)],
+        )
+        .get();
 
     // Stats summary
-    final statsRows = await db.customSelect('''
+    final statsRows = await db
+        .customSelect(
+          '''
       SELECT
         SUM(
           pe.repeat_count * COALESCE(sm.duration_sec, pe.play_dur_sec)
@@ -153,10 +161,15 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
       LEFT JOIN song_metadata sm ON sm.song_id = pe.song_id
       WHERE pe.ts_start >= ? AND pe.ts_start < ?
         AND pe.play_dur_sec > 0
-    ''', variables: [Variable.withInt(fromMs), Variable.withInt(toMs)]).get();
+    ''',
+          variables: [Variable.withInt(fromMs), Variable.withInt(toMs)],
+        )
+        .get();
 
     // Top genre
-    final genreRows = await db.customSelect('''
+    final genreRows = await db
+        .customSelect(
+          '''
       SELECT sm.genre,
         SUM(
           pe.repeat_count * COALESCE(sm.duration_sec, pe.play_dur_sec)
@@ -170,12 +183,17 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
       GROUP BY sm.genre
       ORDER BY total_sec DESC
       LIMIT 1
-    ''', variables: [Variable.withInt(fromMs), Variable.withInt(toMs)]).get();
+    ''',
+          variables: [Variable.withInt(fromMs), Variable.withInt(toMs)],
+        )
+        .get();
 
     // Per-day-of-week listening breakdown.
     // SQLite strftime('%w') returns 0=Sun,1=Mon…6=Sat.
     // Convert to ISO weekday: 1=Mon…7=Sun.
-    final dailyRows = await db.customSelect('''
+    final dailyRows = await db
+        .customSelect(
+          '''
       SELECT
         CAST(strftime('%w', pe.ts_start / 1000, 'unixepoch', 'localtime') AS INTEGER) AS dow,
         SUM(
@@ -187,7 +205,10 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
       WHERE pe.ts_start >= ? AND pe.ts_start < ?
         AND pe.play_dur_sec > 0
       GROUP BY dow
-    ''', variables: [Variable.withInt(fromMs), Variable.withInt(toMs)]).get();
+    ''',
+          variables: [Variable.withInt(fromMs), Variable.withInt(toMs)],
+        )
+        .get();
 
     final Map<int, int> dailyListening = {};
     for (final r in dailyRows) {
@@ -201,20 +222,32 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
       totalSec: statsRow?.read<int?>('total_sec') ?? 0,
       uniqueArtists: statsRow?.read<int?>('unique_artists') ?? 0,
       uniqueSongs: statsRow?.read<int?>('unique_songs') ?? 0,
-      topGenre: genreRows.isNotEmpty ? genreRows.first.read<String?>('genre') : null,
+      topGenre: genreRows.isNotEmpty
+          ? genreRows.first.read<String?>('genre')
+          : null,
     );
 
-    final songs = rows.map((r) => ReplaySong(
-      songId: r.read<String>('song_id'),
-      title: r.read<String?>('track_name') ?? 'Unknown',
-      artist: r.read<String?>('artist_name') ?? 'Unknown',
-      albumName: r.read<String?>('album_name') ?? '',
-      playCount: r.read<int?>('play_count') ?? 0,
-      totalMinutesSec: r.read<int?>('total_sec') ?? 0,
-      coverArtId: r.read<String>('song_id'), // Subsonic getCoverArt accepts song IDs
-    )).toList();
+    final songs = rows
+        .map(
+          (r) => ReplaySong(
+            songId: r.read<String>('song_id'),
+            title: r.read<String?>('track_name') ?? 'Unknown',
+            artist: r.read<String?>('artist_name') ?? 'Unknown',
+            albumName: r.read<String?>('album_name') ?? '',
+            playCount: r.read<int?>('play_count') ?? 0,
+            totalMinutesSec: r.read<int?>('total_sec') ?? 0,
+            coverArtId: r.read<String>(
+              'song_id',
+            ), // Subsonic getCoverArt accepts song IDs
+          ),
+        )
+        .toList();
 
-    return ReplayData(songs: songs, stats: stats, dailyListening: dailyListening);
+    return ReplayData(
+      songs: songs,
+      stats: stats,
+      dailyListening: dailyListening,
+    );
   } catch (e) {
     debugPrint('[ReplayProvider] query error: $e');
     return const ReplayData(
@@ -232,7 +265,7 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
 (int, int) _thisMonthWindow() {
   final now = DateTime.now();
   final start = DateTime(now.year, now.month, 1);
-  final end   = DateTime(now.year, now.month + 1, 1);
+  final end = DateTime(now.year, now.month + 1, 1);
   return (start.millisecondsSinceEpoch, end.millisecondsSinceEpoch);
 }
 
@@ -241,7 +274,7 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
   final now = DateTime.now();
   final monday = now.subtract(Duration(days: now.weekday - 1));
   final start = DateTime(monday.year, monday.month, monday.day);
-  final end   = start.add(const Duration(days: 7));
+  final end = start.add(const Duration(days: 7));
   return (start.millisecondsSinceEpoch, end.millisecondsSinceEpoch);
 }
 

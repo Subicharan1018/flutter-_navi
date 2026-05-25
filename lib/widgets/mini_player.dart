@@ -16,7 +16,10 @@ import '../utils/platform_utils.dart';
 // ---------------------------------------------------------------------------
 // Isolate-safe colour extraction — runs on main isolate (required by Flutter)
 // ---------------------------------------------------------------------------
-Future<Color?> _extractMiniPalette(String imageUrl, BuildContext context) async {
+Future<Color?> _extractMiniPalette(
+  String imageUrl,
+  BuildContext context,
+) async {
   try {
     final palette = await PaletteGenerator.fromImageProvider(
       CachedNetworkImageProvider(imageUrl),
@@ -24,8 +27,8 @@ Future<Color?> _extractMiniPalette(String imageUrl, BuildContext context) async 
       maximumColorCount: 5,
     );
     return palette.vibrantColor?.color ??
-           palette.dominantColor?.color ??
-           ThemeTokens.of(context).accent;
+        palette.dominantColor?.color ??
+        ThemeTokens.of(context).accent;
   } catch (_) {
     return ThemeTokens.of(context).accent;
   }
@@ -90,11 +93,11 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
   @override
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
-    final service     = ref.watch(subsonicServiceProvider);
+    final service = ref.watch(subsonicServiceProvider);
 
     if (playerState.queue.isEmpty) return SizedBox.shrink();
 
-    final song     = playerState.queue[playerState.currentIndex];
+    final song = playerState.queue[playerState.currentIndex];
     final imageUrl = service.getCoverArtUrl(song.coverArt);
 
     // Defer palette load past the current frame to avoid cascading rebuilds.
@@ -124,9 +127,9 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
           () async {
             try {
               if (vx < 0) {
-                await notifier.playNext();  // swipe left → forward
+                await notifier.playNext(); // swipe left → forward
               } else {
-                await notifier.playPrev();  // swipe right → backward
+                await notifier.playPrev(); // swipe right → backward
               }
             } catch (_) {
               // playNext/playPrev log internally; swallow here to ensure
@@ -166,112 +169,130 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                         return Stack(
                           alignment: Alignment.center,
                           children: [
-                            ...previousChildren
-                                .map((c) => IgnorePointer(child: c)),
+                            ...previousChildren.map(
+                              (c) => IgnorePointer(child: c),
+                            ),
                             if (currentChild != null) currentChild,
                           ],
                         );
                       },
                       child: KeyedSubtree(
-                        key: ValueKey(song.id), // required for animation to fire
+                        key: ValueKey(
+                          song.id,
+                        ), // required for animation to fire
                         child: Row(
-                      children: [
-                        // Album art thumbnail
-                        _AlbumThumb(imageUrl: imageUrl, themeColor: _themeColor),
-                        SizedBox(width: 12),
+                          children: [
+                            // Album art thumbnail
+                            _AlbumThumb(
+                              imageUrl: imageUrl,
+                              themeColor: _themeColor,
+                            ),
+                            SizedBox(width: 12),
 
-                        // Song info — constrained to avoid overflow
-                        Expanded(
-                          child: Column(
-                            mainAxisAlignment: MainAxisAlignment.center,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                song.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 14,
-                                  fontWeight: FontWeight.w700,
-                                  color: ThemeTokens.of(context).textPrimary,
-                                  letterSpacing: -0.2,
-                                  height: 1.2,
+                            // Song info — constrained to avoid overflow
+                            Expanded(
+                              child: Column(
+                                mainAxisAlignment: MainAxisAlignment.center,
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 14,
+                                      fontWeight: FontWeight.w700,
+                                      color: ThemeTokens.of(
+                                        context,
+                                      ).textPrimary,
+                                      letterSpacing: -0.2,
+                                      height: 1.2,
+                                    ),
+                                  ),
+                                  SizedBox(height: 3),
+                                  Text(
+                                    song.artist,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: ThemeTokens.of(
+                                        context,
+                                      ).textSecondary,
+                                      letterSpacing: 0.1,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ),
+
+                            SizedBox(width: 4),
+
+                            // Favourite — 48dp tap target
+                            Semantics(
+                              button: true,
+                              label: playerState.starredIds.contains(song.id)
+                                  ? 'Remove from favourites'
+                                  : 'Add to favourites',
+                              child: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: Icon(
+                                    playerState.starredIds.contains(song.id)
+                                        ? Icons.favorite_rounded
+                                        : Icons.favorite_border_rounded,
+                                    color:
+                                        playerState.starredIds.contains(song.id)
+                                        ? _themeColor
+                                        : ThemeTokens.of(context).textMuted,
+                                    size: 20,
+                                  ),
+                                  onPressed: () => ref
+                                      .read(playerProvider.notifier)
+                                      .toggleStar(song.id),
                                 ),
                               ),
-                              SizedBox(height: 3),
-                              Text(
-                                song.artist,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: TextStyle(
-                                  fontSize: 12,
-                                  color: ThemeTokens.of(context).textSecondary,
-                                  letterSpacing: 0.1,
+                            ),
+
+                            // Play / Pause pill
+                            _PlayButton(
+                              isPlaying: playerState.isPlaying,
+                              themeColor: _themeColor,
+                              onPressed: () {
+                                final n = ref.read(playerProvider.notifier);
+                                if (playerState.isPlaying) {
+                                  n.player.pause();
+                                } else {
+                                  n.player.play();
+                                }
+                              },
+                            ),
+
+                            // Skip — 48dp tap target
+                            Semantics(
+                              button: true,
+                              label: 'Skip to next track',
+                              child: SizedBox(
+                                width: 48,
+                                height: 48,
+                                child: IconButton(
+                                  padding: EdgeInsets.zero,
+                                  icon: Icon(
+                                    Icons.skip_next_rounded,
+                                    color: ThemeTokens.of(
+                                      context,
+                                    ).textSecondary,
+                                    size: 24,
+                                  ),
+                                  onPressed: () => ref
+                                      .read(playerProvider.notifier)
+                                      .playNext(),
                                 ),
                               ),
-                            ],
-                          ),
-                        ),
-
-                        SizedBox(width: 4),
-
-                        // Favourite — 48dp tap target
-                        Semantics(
-                          button: true,
-                          label: playerState.starredIds.contains(song.id)
-                              ? 'Remove from favourites'
-                              : 'Add to favourites',
-                          child: SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              icon: Icon(
-                                playerState.starredIds.contains(song.id)
-                                    ? Icons.favorite_rounded
-                                    : Icons.favorite_border_rounded,
-                                color: playerState.starredIds.contains(song.id)
-                                    ? _themeColor
-                                    : ThemeTokens.of(context).textMuted,
-                                size: 20,
-                              ),
-                              onPressed: () =>
-                                  ref.read(playerProvider.notifier).toggleStar(song.id),
                             ),
-                          ),
-                        ),
-
-                        // Play / Pause pill
-                        _PlayButton(
-                          isPlaying: playerState.isPlaying,
-                          themeColor: _themeColor,
-                          onPressed: () {
-                            final n = ref.read(playerProvider.notifier);
-                            if (playerState.isPlaying) {
-                              n.player.pause();
-                            } else {
-                              n.player.play();
-                            }
-                          },
-                        ),
-
-                        // Skip — 48dp tap target
-                        Semantics(
-                          button: true,
-                          label: 'Skip to next track',
-                          child: SizedBox(
-                            width: 48,
-                            height: 48,
-                            child: IconButton(
-                              padding: EdgeInsets.zero,
-                              icon: Icon(Icons.skip_next_rounded,
-                                  color: ThemeTokens.of(context).textSecondary, size: 24),
-                              onPressed: () =>
-                                  ref.read(playerProvider.notifier).playNext(),
-                            ),
-                          ),
-                        ),
-                      ],
+                          ],
                         ), // Row
                       ), // KeyedSubtree
                     ), // AnimatedSwitcher
@@ -427,11 +448,7 @@ class _NoiseLayer extends StatelessWidget {
         // Grain overlay — CustomPaint with a very low-opacity random noise pass.
         // Positioned fill so it never affects layout.
         Positioned.fill(
-          child: IgnorePointer(
-            child: CustomPaint(
-              painter: _NoisePainter(),
-            ),
-          ),
+          child: IgnorePointer(child: CustomPaint(painter: _NoisePainter())),
         ),
       ],
     );
@@ -452,7 +469,8 @@ class _NoisePainter extends CustomPainter {
     for (double y = 0; y < size.height; y += step) {
       for (double x = 0; x < size.width; x += step) {
         // Pseudo-random dot placement using a cheap bit-mix hash
-        final h = ((x * 374761393 + y * 668265263).truncate() ^ 0x9e3779b9) & 0xFFFF;
+        final h =
+            ((x * 374761393 + y * 668265263).truncate() ^ 0x9e3779b9) & 0xFFFF;
         if (h > 0xC000) {
           canvas.drawCircle(Offset(x, y), 0.5, paint);
         }
@@ -521,8 +539,11 @@ class _AlbumThumb extends StatelessWidget {
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(
                 color: ThemeTokens.of(context).bgElevated,
-                child: Icon(Icons.music_note_rounded,
-                    color: ThemeTokens.of(context).textMuted, size: 20),
+                child: Icon(
+                  Icons.music_note_rounded,
+                  color: ThemeTokens.of(context).textMuted,
+                  size: 20,
+                ),
               ),
             ),
           ),
@@ -760,10 +781,7 @@ class _ProgressPainter extends CustomPainter {
       RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, fill, h), Radius.circular(r)),
       Paint()
         ..shader = LinearGradient(
-          colors: [
-            themeColor.withValues(alpha: 0.70),
-            themeColor,
-          ],
+          colors: [themeColor.withValues(alpha: 0.70), themeColor],
         ).createShader(Rect.fromLTWH(0, 0, fill, h)),
     );
 

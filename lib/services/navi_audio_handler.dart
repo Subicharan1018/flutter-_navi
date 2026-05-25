@@ -199,8 +199,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // that passes a large future slice doesn't accidentally ask for 200 songs.
   static const int _maxServerRequestCount = 15;
 
-
-
   /// True on Linux — ConcatenatingAudioSource is not supported by
   /// just_audio_media_kit 2.1.0 in its platform-channel message form.
   static bool get _isLinux => !kIsWeb && Platform.isLinux;
@@ -208,6 +206,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ── Linux single-source bridge state ────────────────────────────────────────
   int _linuxIndex = 0;
   StreamSubscription<PlayerState>? _linuxCompletionSub;
+
   /// Mutex: true while setAudioSource() is in progress on Linux.
   /// Prevents the dual-completion-listener race (Bug 1 + Bug 3).
   bool _linuxLoading = false;
@@ -218,7 +217,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     ReplayGainService? replayGainService,
   }) : player = player ?? AudioPlayer(),
        _replayGainService = replayGainService ?? ReplayGainService() {
-    
     _listenToPlayerEvents();
 
     this.player.currentIndexStream.listen((index) {
@@ -254,7 +252,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     player.playbackEventStream.listen((event) {
       _broadcastState();
     });
-    
+
     // Sync current media item when sequence or index changes
     // (non-Linux only — on Linux we push MediaItem manually via _emitLinuxMediaItem)
     if (!_isLinux) {
@@ -278,34 +276,36 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       ProcessingState.completed: AudioProcessingState.completed,
     }[player.processingState]!;
 
-    playbackState.add(playbackState.value.copyWith(
-      controls: [
-        _shuffleAction,
-        MediaControl.skipToPrevious,
-        if (playing) MediaControl.pause else MediaControl.play,
-        MediaControl.skipToNext,
-        _repeatAction,
-      ],
-      systemActions: const {
-        MediaAction.seek,
-        MediaAction.seekForward,
-        MediaAction.seekBackward,
-      },
-      androidCompactActionIndices: const [1, 2, 3],
-      processingState: processingState,
-      playing: playing,
-      updatePosition: player.position,
-      bufferedPosition: player.bufferedPosition,
-      speed: player.speed,
-      repeatMode: const {
-        LoopMode.off: AudioServiceRepeatMode.none,
-        LoopMode.one: AudioServiceRepeatMode.one,
-        LoopMode.all: AudioServiceRepeatMode.all,
-      }[player.loopMode]!,
-      shuffleMode: player.shuffleModeEnabled
-          ? AudioServiceShuffleMode.all
-          : AudioServiceShuffleMode.none,
-    ));
+    playbackState.add(
+      playbackState.value.copyWith(
+        controls: [
+          _shuffleAction,
+          MediaControl.skipToPrevious,
+          if (playing) MediaControl.pause else MediaControl.play,
+          MediaControl.skipToNext,
+          _repeatAction,
+        ],
+        systemActions: const {
+          MediaAction.seek,
+          MediaAction.seekForward,
+          MediaAction.seekBackward,
+        },
+        androidCompactActionIndices: const [1, 2, 3],
+        processingState: processingState,
+        playing: playing,
+        updatePosition: player.position,
+        bufferedPosition: player.bufferedPosition,
+        speed: player.speed,
+        repeatMode: const {
+          LoopMode.off: AudioServiceRepeatMode.none,
+          LoopMode.one: AudioServiceRepeatMode.one,
+          LoopMode.all: AudioServiceRepeatMode.all,
+        }[player.loopMode]!,
+        shuffleMode: player.shuffleModeEnabled
+            ? AudioServiceShuffleMode.all
+            : AudioServiceShuffleMode.none,
+      ),
+    );
   }
 
   static const _shuffleAction = MediaControl(
@@ -431,7 +431,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     return {for (final song in songs) song.id: offline.getLocalPath(song.id)};
   }
 
-
   Future<void> setQueue(
     List<Song> songs,
     int startIndex, {
@@ -474,8 +473,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // just_audio_media_kit 2.1.0. Play one track at a time and advance
       // manually on completion.
       _linuxIndex = startIndex.clamp(0, _currentQueue.length - 1);
-      await _linuxLoadTrack(_linuxIndex, offlinePaths,
-          initialPosition: initialPosition);
+      await _linuxLoadTrack(
+        _linuxIndex,
+        offlinePaths,
+        initialPosition: initialPosition,
+      );
       _startLinuxCompletionListener();
       return;
     }
@@ -523,13 +525,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           );
       _emitLinuxMediaItem(index);
       _trackRecentlyPlayed(_currentQueue[index].id);
-      debugPrint('🎵 [Linux] Loaded track $index: ${_currentQueue[index].title}');
+      debugPrint(
+        '🎵 [Linux] Loaded track $index: ${_currentQueue[index].title}',
+      );
     } on PlayerInterruptedException {
       // Expected when a newer load supersedes this one (e.g. rapid Next press).
       // Safe to swallow — the newer load will complete instead.
       debugPrint('⚡ [Linux] Load interrupted (superseded by newer request)');
     } on PlayerException catch (e) {
-      debugPrint('❌ [Linux] PlayerException loading track $index: ${e.message}');
+      debugPrint(
+        '❌ [Linux] PlayerException loading track $index: ${e.message}',
+      );
       rethrow;
     } on TimeoutException catch (e) {
       debugPrint('❌ [Linux] Timeout loading track $index: $e');
@@ -542,16 +548,18 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   void _emitLinuxMediaItem(int index) {
     if (index < 0 || index >= _currentQueue.length) return;
     final song = _currentQueue[index];
-    mediaItem.add(MediaItem(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      genre: song.genre,
-      artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
-      duration: Duration(seconds: song.duration),
-      extras: {'composer': song.composer, 'isLocal': false},
-    ));
+    mediaItem.add(
+      MediaItem(
+        id: song.id,
+        title: song.title,
+        artist: song.artist,
+        album: song.album,
+        genre: song.genre,
+        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+        duration: Duration(seconds: song.duration),
+        extras: {'composer': song.composer, 'isLocal': false},
+      ),
+    );
   }
 
   void _startLinuxCompletionListener() {
@@ -675,7 +683,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // already loaded (i.e. _playlist != null). On Linux we don't use _playlist
     // so we always fall back to _rebuildSource.
     if (_isLinux) {
-
       final savedPosition = player.position;
       await _rebuildSource(anchorIndex, initialPosition: savedPosition);
       if (player.playing) player.play();
@@ -717,8 +724,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         'falling back to rebuildSource at anchor $anchorIndex',
       );
       final savedPosition = player.position;
-      await _rebuildSource(anchorIndex.clamp(0, n - 1),
-          initialPosition: savedPosition);
+      await _rebuildSource(
+        anchorIndex.clamp(0, n - 1),
+        initialPosition: savedPosition,
+      );
       if (player.playing) player.play();
       return;
     }
@@ -775,7 +784,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   Future<void> removeFromQueue(int index) async {
     if (index < 0 || index >= _currentQueue.length) return;
-    
+
     bool needsRebuild = true;
     if (_isLinux) {
       if (index < _linuxIndex) {
@@ -793,7 +802,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_playlist != null) {
       await _playlist!.removeAt(index);
     } else if (needsRebuild) {
-      await _rebuildSource(this.currentIndex.clamp(0, _currentQueue.length - 1));
+      await _rebuildSource(
+        this.currentIndex.clamp(0, _currentQueue.length - 1),
+      );
     }
   }
 
@@ -804,7 +815,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }) async {
     if (oldIndex < 0 || oldIndex >= _currentQueue.length) return;
     if (newIndex < 0 || newIndex >= _currentQueue.length) return;
-    
+
     if (_isLinux) {
       if (oldIndex == _linuxIndex) {
         _linuxIndex = newIndex;
@@ -827,8 +838,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await _playlist!.move(oldIndex, newIndex);
     }
   }
-
-
 
   // ---------------------------------------------------------------------------
   // 1. Standard Fisher-Yates
@@ -996,9 +1005,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // Clamp anchor to the unshuffled queue length — songs added/removed since
     // the last setQueue can make safeIndex exceed _unshuffledQueue.length.
     final rawIndex = _unshuffledQueue.indexWhere((s) => s.id == currentSong.id);
-    final anchorIndex =
-        (rawIndex != -1 ? rawIndex : safeIndex)
-            .clamp(0, _currentQueue.length - 1);
+    final anchorIndex = (rawIndex != -1 ? rawIndex : safeIndex).clamp(
+      0,
+      _currentQueue.length - 1,
+    );
     await _updateQueueAfterAnchor(anchorIndex);
   }
 
@@ -1049,7 +1059,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         });
 
       case ShuffleAlgorithm.smartLocal:
-        // Already handled externally via player_provider + v3 API. 
+        // Already handled externally via player_provider + v3 API.
         // Fall back to standard here if accidentally called.
         return compute(_standardShuffleIsolate, pool);
     }
@@ -1067,8 +1077,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
     }
   }
-
-
 
   Future<void> dispose() async {
     await player.stop();

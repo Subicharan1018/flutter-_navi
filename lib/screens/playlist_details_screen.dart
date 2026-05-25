@@ -18,6 +18,7 @@ import '../core/theme.dart';
 import 'song_picker_screen.dart';
 import 'edit_playlist_screen.dart';
 import 'playlist/widgets/playlist_widgets.dart';
+import 'playlist/widgets/playlist_menu_sheet.dart';
 
 // ---------------------------------------------------------------------------
 // Isolate-safe color extraction (unchanged)
@@ -46,8 +47,7 @@ class PlaylistDetailsScreen extends ConsumerStatefulWidget {
       _PlaylistDetailsScreenState();
 }
 
-class _PlaylistDetailsScreenState
-    extends ConsumerState<PlaylistDetailsScreen> {
+class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   List<Song> _songs = [];
   List<Song> _filteredSongs = [];
   bool _isLoading = true;
@@ -118,10 +118,7 @@ class _PlaylistDetailsScreenState
 
   /// Loads the cover image URL and extracts the vibrant palette colour.
   /// Runs independently of [_loadSongs] so it never blocks the song list.
-  Future<void> _loadCoverAndPalette(
-    dynamic service,
-    String coverArtId,
-  ) async {
+  Future<void> _loadCoverAndPalette(dynamic service, String coverArtId) async {
     final imageUrl = service.getCoverArtUrl(coverArtId) as String;
     final cacheKey = 'cover_$coverArtId';
 
@@ -153,10 +150,12 @@ class _PlaylistDetailsScreenState
       _filteredSongs = query.isEmpty
           ? List.of(_songs)
           : _songs
-              .where((s) =>
-                  s.title.toLowerCase().contains(query) ||
-                  s.artist.toLowerCase().contains(query))
-              .toList();
+                .where(
+                  (s) =>
+                      s.title.toLowerCase().contains(query) ||
+                      s.artist.toLowerCase().contains(query),
+                )
+                .toList();
     });
   }
 
@@ -168,8 +167,7 @@ class _PlaylistDetailsScreenState
     return '$m min';
   }
 
-  int get _totalDurationSeconds =>
-      _songs.fold(0, (sum, s) => sum + s.duration);
+  int get _totalDurationSeconds => _songs.fold(0, (sum, s) => sum + s.duration);
 
   void _playAll({bool shuffle = false}) async {
     if (_songs.isEmpty) return;
@@ -180,21 +178,27 @@ class _PlaylistDetailsScreenState
     if (isOffline) {
       final dlState = ref.read(downloadStateProvider);
       playable = _songs
-          .where((s) =>
-              dlState[s.id]?.status == SongDownloadStatus.downloaded)
+          .where((s) => dlState[s.id]?.status == SongDownloadStatus.downloaded)
           .toList();
       if (playable.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-                content: Text('No downloaded songs available offline')),
+              content: Text('No downloaded songs available offline'),
+            ),
           );
         }
         return;
       }
     }
 
-    await ref.read(playerProvider.notifier).playPlaylist(playable, shuffle: shuffle, playlistName: widget.playlist.name);
+    await ref
+        .read(playerProvider.notifier)
+        .playPlaylist(
+          playable,
+          shuffle: shuffle,
+          playlistName: widget.playlist.name,
+        );
   }
 
   Future<void> _deleteSong(int filteredIndex) async {
@@ -210,7 +214,9 @@ class _PlaylistDetailsScreenState
     try {
       final service = ref.read(subsonicServiceProvider);
       await service.updatePlaylist(
-          widget.playlist.id, songIndexToRemove: originalIndex);
+        widget.playlist.id,
+        songIndexToRemove: originalIndex,
+      );
       // Invalidate the SQLite cache so the next open fetches fresh data.
       await service.invalidatePlaylist(widget.playlist.id);
       ref.invalidate(playlistsProvider);
@@ -223,8 +229,9 @@ class _PlaylistDetailsScreenState
           _songs.insert(originalIndex, song);
           _filterSongs();
         });
-        ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text('Failed to remove song: $e')));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to remove song: $e')));
       }
     }
   }
@@ -239,20 +246,30 @@ class _PlaylistDetailsScreenState
       builder: (_) => AlertDialog(
         backgroundColor: ThemeTokens.of(context).bgSurface,
         shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16),
-            side: BorderSide(color: ThemeTokens.of(context).outline)),
-        title: Text('Delete Playlist',
-            style: TextStyle(
-                color: ThemeTokens.of(context).textPrimary, fontWeight: FontWeight.bold)),
+          borderRadius: BorderRadius.circular(16),
+          side: BorderSide(color: ThemeTokens.of(context).outline),
+        ),
+        title: Text(
+          'Delete Playlist',
+          style: TextStyle(
+            color: ThemeTokens.of(context).textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
         content: Text(
           'Delete "${widget.playlist.name}"? This cannot be undone.',
-          style: TextStyle(color: ThemeTokens.of(context).textSecondary, fontSize: 14),
+          style: TextStyle(
+            color: ThemeTokens.of(context).textSecondary,
+            fontSize: 14,
+          ),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
-                style: TextStyle(color: ThemeTokens.of(context).textPrimary)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: ThemeTokens.of(context).textPrimary),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -262,19 +279,23 @@ class _PlaylistDetailsScreenState
                     .read(subsonicServiceProvider)
                     .deletePlaylist(widget.playlist.id);
                 ref.invalidate(playlistsProvider);
-                if (mounted) Navigator.pop(context); // return to previous screen
+                if (mounted)
+                  Navigator.pop(context); // return to previous screen
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content: Text('Failed to delete playlist: $e')),
+                    SnackBar(content: Text('Failed to delete playlist: $e')),
                   );
                 }
               }
             },
-            child: Text('Delete',
-                style: TextStyle(
-                    color: Colors.redAccent, fontWeight: FontWeight.bold)),
+            child: Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -317,8 +338,11 @@ class _PlaylistDetailsScreenState
                   stretchModes: const [StretchMode.zoomBackground],
                   // Title fades in only when collapsed
                   title: CollapsedTitle(title: widget.playlist.name),
-                  titlePadding:
-                      const EdgeInsets.only(left: 56, right: 56, bottom: 14),
+                  titlePadding: const EdgeInsets.only(
+                    left: 56,
+                    right: 56,
+                    bottom: 14,
+                  ),
                   background: _isLoading
                       ? LoadingHeader(playlist: widget.playlist)
                       : ExpandedHeader(
@@ -377,7 +401,9 @@ class _PlaylistDetailsScreenState
                         Text(
                           '${_songs.length} songs • ${_formatDuration(_totalDurationSeconds)}',
                           style: TextStyle(
-                              color: tokens.textMuted, fontSize: 13),
+                            color: tokens.textMuted,
+                            fontSize: 13,
+                          ),
                         ).animate().fadeIn(duration: 300.ms),
                       SizedBox(height: 12),
                       PlaylistSearchField(controller: _searchController),
@@ -413,29 +439,33 @@ class _PlaylistDetailsScreenState
 
               // ── Song list ────────────────────────────────────────────────
               if (_isLoading)
-                const SliverFillRemaining(
-                  child: SongListSkeleton(),
-                )
+                const SliverFillRemaining(child: SongListSkeleton())
               else if (_hasError)
                 SliverFillRemaining(
                   child: Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.wifi_off_rounded,
-                            color: tokens.textMuted, size: 48),
+                        Icon(
+                          Icons.wifi_off_rounded,
+                          color: tokens.textMuted,
+                          size: 48,
+                        ),
                         SizedBox(height: 12),
-                        Text('Could not load songs',
-                            style: TextStyle(color: tokens.textSecondary)),
+                        Text(
+                          'Could not load songs',
+                          style: TextStyle(color: tokens.textSecondary),
+                        ),
                         SizedBox(height: 16),
                         TextButton(
                           onPressed: () {
                             setState(() => _isLoading = true);
                             _loadSongs();
                           },
-                          child: Text('Retry',
-                              style:
-                                  TextStyle(color: tokens.accent)),
+                          child: Text(
+                            'Retry',
+                            style: TextStyle(color: tokens.accent),
+                          ),
                         ),
                       ],
                     ),
@@ -445,8 +475,10 @@ class _PlaylistDetailsScreenState
                   _searchController.text.isNotEmpty)
                 SliverFillRemaining(
                   child: Center(
-                    child: Text('No songs match your search',
-                        style: TextStyle(color: tokens.textMuted)),
+                    child: Text(
+                      'No songs match your search',
+                      style: TextStyle(color: tokens.textMuted),
+                    ),
                   ),
                 )
               else
@@ -459,8 +491,8 @@ class _PlaylistDetailsScreenState
                     if (_searchController.text.isNotEmpty) {
                       ScaffoldMessenger.of(context).showSnackBar(
                         const SnackBar(
-                            content: Text(
-                                'Clear search to reorder songs')),
+                          content: Text('Clear search to reorder songs'),
+                        ),
                       );
                       return;
                     }
@@ -477,14 +509,14 @@ class _PlaylistDetailsScreenState
                         .read(subsonicServiceProvider)
                         .setPlaylistSongs(widget.playlist.id, songIds)
                         .catchError((e) {
-                      if (mounted) {
-                        messenger.showSnackBar(
-                          SnackBar(
-                              content:
-                                  Text('Failed to save order: $e')),
-                        );
-                      }
-                    });
+                          if (mounted) {
+                            messenger.showSnackBar(
+                              SnackBar(
+                                content: Text('Failed to save order: $e'),
+                              ),
+                            );
+                          }
+                        });
                   },
                   itemBuilder: (context, index) {
                     final song = _filteredSongs[index];
@@ -578,44 +610,11 @@ class _PlaylistDetailsScreenState
     showPlatformSheet(
       context: context,
       title: 'Playlist Options',
-      builder: (ctx) => SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const SizedBox(height: 8),
-            ListTile(
-              leading: Icon(Icons.edit_rounded,
-                  color: ThemeTokens.of(context).textPrimary),
-              title: Text('Edit Playlist',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
-              onTap: () async {
-                Navigator.pop(ctx);
-                final changed = await Navigator.push(
-                  context,
-                  MaterialPageRoute(
-                    builder: (_) =>
-                        EditPlaylistScreen(playlist: widget.playlist),
-                  ),
-                );
-                if (changed == true) _loadSongs();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.delete_outline_rounded,
-                  color: Colors.redAccent),
-              title: const Text('Delete Playlist',
-                  style: TextStyle(color: Colors.redAccent, fontSize: 15)),
-              onTap: () {
-                Navigator.pop(ctx);
-                _confirmDeletePlaylist();
-              },
-            ),
-            const SizedBox(height: 8),
-          ],
-        ),
+      builder: (ctx) => PlaylistMenuSheet(
+        playlist: widget.playlist,
+        onPlaylistEdited: _loadSongs,
+        onDeleteTapped: _confirmDeletePlaylist,
       ),
     );
   }
 }
-

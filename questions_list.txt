@@ -1,0 +1,168 @@
+1. What does player_provider.dart depend on and what depends on it?
+2. What does navi_audio_handler.dart depend on and what depends on it?
+3. What does audio_handler.dart depend on and what depends on it?
+4. What does settings_provider.dart depend on and what depends on it?
+5. What does subsonic_service.dart depend on and what depends on it?
+6. What does song.dart depend on and what depends on it?
+7. What does offline_service.dart depend on and what depends on it?
+8. What does download_provider.dart depend on and what depends on it?
+9. What does shuffle_providers.dart depend on and what depends on it?
+10. What does lyrics_controller.dart depend on and what depends on it?
+11. What does palette_cache.dart depend on and what depends on it?
+12. What does hive_boxes.dart depend on and what depends on it?
+13. What does app_database.dart depend on and what depends on it?
+14. What does listening_event_collector.dart depend on and what depends on it?
+15. What does scrobble_service.dart depend on and what depends on it?
+16. Which files have the most inbound edges (god nodes)?
+17. Which files have the most outbound edges (unstable dependents)?
+18. Which communities have cohesion below 0.1 (fragile clusters)?
+19. Are there any circular dependencies?
+20. Which providers import other providers directly?
+21. Trace the full flow from a user tapping a song to audio playing.
+22. What calls setQueue in navi_audio_handler.dart?
+23. Trace PlayerProvider.jumpTo through AudioHandler to the player.
+24. What calls _rebuildSource and what does it call?
+25. Trace skipToNext and skipToPrev full flow.
+26. What happens to currentIndex after every await in player_provider.dart?
+27. Which methods in player_provider.dart read state before an await and use it after?
+28. Is there any guard that prevents jumpTo from firing on an empty queue?
+29. What is the autoplay lookahead flow and can it fetch for the wrong song?
+30. Can two calls to setQueue overlap? What happens if they do?
+31. Trace the full shuffle toggle flow from UI button to queue reorder.
+32. What calls applyShuffleAlgorithm and what does it return?
+33. Trace _updateQueueAfterAnchor full call chain.
+34. How is currentIndex updated after shuffle reorder?
+35. Can _updateQueueAfterAnchor be called concurrently?
+36. What is _queueOpLock and where is it used? Is it used everywhere it should be?
+37. Can AI shuffle and local shuffle conflict if both triggered simultaneously?
+38. What happens to the playing song's position in queue after shuffle?
+39. Does shuffle preserve the currently playing song at index 0?
+40. Is there a debounce or lock preventing rapid shuffle toggles from corrupting state?
+41. What is the path from shuffle_algorithms.dart to player_provider.dart?
+42. What is ShuffleException and where is it caught? Where is it swallowed?
+43. Trace the full scrobble flow from song playing to API submit.
+44. What is _currentScrobbleSongId and where is it set and read?
+45. Where is _playedDuration reset and when does it reset relative to track change?
+46. Can scrobble.submit fire for the wrong song if the queue shifts during await?
+47. Does the scrobble have a one-shot guard or does it fire on every position tick?
+48. What is the path from listening_event_collector.dart to listening_log_service.dart?
+49. Trace listening_event_collector.dart full data flow.
+50. Can _accumulatedListenTime drift if playback is paused and resumed rapidly?
+51. Is there a minimum listen duration threshold before scrobbling?
+52. What happens to scrobble state if the app is killed mid-song?
+53. Find all Timer usages in player_provider.dart.
+54. Where is _trackChangeTimer created, cancelled, and guarded?
+55. Where is _persistTimer created and cancelled?
+56. Find all StreamSubscription variables and confirm each is cancelled in dispose.
+57. Find all initState methods that start timers or subscriptions.
+58. Find all dispose methods and confirm they cancel every timer and subscription started in initState.
+59. Is there any timer that is recreated without cancelling the previous instance?
+60. Are there any AnimationController instances not disposed?
+61. Are there any ChangeNotifier instances that call notifyListeners after dispose?
+62. Which providers use ref.listen or ref.watch inside async methods unsafely?
+63. Find all async methods in player_provider.dart that read state before and after await.
+64. Find all places where a captured index variable is used after an await.
+65. Find all places where queue length is assumed unchanged after an await.
+66. Find all copyWith calls that write currentIndex after an async gap.
+67. Which providers use ref.read inside an async method after an await?
+68. Can the now_playing_screen show stale song info if state updates during navigation?
+69. Is there any method that calls setState or state = after an await without checking if still mounted/active?
+70. Find every place where a local variable is captured before await and mutated after.
+71. Can autoplay fetch start for song N and complete when song N+2 is already playing?
+72. Is there any debounce on position stream processing?
+73. Trace the full offline path resolution flow.
+74. Where is File.existsSync called and is it on the main thread?
+75. Trace downloadSongs full flow in download_provider.dart.
+76. What is SongDownloadState and where does it transition?
+77. Can cancelBackgroundDownload race with an active download?
+78. What is the path from download_provider.dart to offline_service.dart?
+79. Trace offline_service.dart getLocalPath call chain.
+80. Is there a retry mechanism for failed downloads?
+81. What happens if a download is interrupted mid-file? Is the partial file cleaned up?
+82. Is connectivity checked before starting a download?
+83. Can the same song be downloaded twice simultaneously?
+84. Trace full AI shuffle flow from screen to API to queue update.
+85. How does ShuffleRepository error handling propagate to the UI?
+86. What is ShuffleException and where is it caught vs swallowed?
+87. Can AI shuffle and local shuffle write the queue simultaneously?
+88. What is the path from ai_shuffle_screen.dart to player_provider.dart?
+89. Is ShuffleQueueNotifier state ever out of sync with player_provider queue state?
+90. What happens if the AI shuffle API returns songs already in the queue?
+91. Is there duplicate deduplication in the AI shuffle queue build?
+92. Can recordPlay fire for the wrong song if tracks change during the API call?
+93. What happens if the AI shuffle API is unreachable?
+94. Trace full lyrics load flow from now_playing_screen to display.
+95. What does lyrics_controller.dart depend on and what depends on it?
+96. How does _subscribeToPosition work and is it cancelled on dispose?
+97. Can lyrics show for the wrong song if the track changes during fetch?
+98. Is there a songId guard after the lyrics fetch completes?
+99. What is LyricsState and what are all its transitions?
+100. Can plain_text_view and synced view show simultaneously?
+101. What happens to the lyrics position stream if the user seeks?
+102. Is there a fallback if lrclib returns no lyrics?
+103. Is PaletteCache size-limited and how is eviction handled?
+104. Trace palette_cache.dart full usage — who reads and writes it?
+105. Find all compute() isolate usages and what they do.
+106. Is File.existsSync ever called in a loop on the main thread?
+107. Are there any widgets that rebuild on every position tick unnecessarily?
+108. Which providers have too wide a watch scope causing full-tree rebuilds?
+109. Is there any image loading that blocks the main thread?
+110. Are there any unbounded lists or maps that grow forever?
+111. What is ReplayGainService and where is it applied in the playback chain?
+112. Is BpmAnalyzerService called synchronously anywhere?
+113. Trace Hive persistence flow — what is stored and when.
+114. What calls HiveBoxes and what does each box store?
+115. Trace app_database.dart full usage across the codebase.
+116. What is MigrationStrategy and when does it run?
+117. Trace PlaylistCacheService full flow.
+118. Is there any write to Hive that happens without error handling?
+119. Can HiveBoxes be accessed before initialization completes?
+120. Is there any state that should be persisted but is not?
+121. Is there any state that is persisted but should not be (privacy risk)?
+122. What is the path from app_database.dart to player_provider.dart?
+123. Find all hardcoded credentials or fallback URLs.
+124. Find all places where sensitive data is logged.
+125. Find all places where a service is called directly from a UI widget.
+126. Is HTTPS enforced for all API calls?
+127. Are auth tokens stored securely or in plain SharedPreferences/Hive?
+128. Is there any user input passed directly to an API without sanitization?
+129. Are there any SQL injection risks in the Drift database queries?
+130. Is there any data sent to the AI shuffle API that should not leave the device?
+131. Find all error types defined and where each is caught vs swallowed.
+132. Find all catch blocks that catch Exception or Object and do nothing.
+133. Is there any async method with no try/catch at all?
+134. What happens to the UI if subsonic_service throws during library load?
+135. What happens if navi_audio_handler throws during setQueue?
+136. Is there any error boundary at the top of the widget tree?
+137. What happens if the Hive box is corrupted on startup?
+138. Find all places where a Future is not awaited and the error is silently dropped.
+139. Which files are god nodes (more than 30 edges)?
+140. Which communities have cohesion below 0.1?
+141. Which providers import other providers directly instead of through ref?
+142. Which UI widgets import service files directly?
+143. Which models are used across all layers with no abstraction boundary?
+144. Is there any business logic inside a build() method?
+145. Is there any navigation logic inside a provider or service?
+146. Are there any magic numbers or strings that should be constants?
+147. Is there any duplicated logic between audio_handler.dart and navi_audio_handler.dart?
+148. Should navi_audio_handler.dart and audio_handler.dart be merged or clearly separated?
+149. Which critical paths have no test coverage at all?
+150. Are the existing tests testing real behavior or mocking everything away?
+151. Is the stale currentIndex bug covered by a regression test?
+152. Is the scrobble one-shot bug covered by a test?
+153. Is the _trackChangeTimer leak covered by a test?
+154. Is the PaletteCache eviction covered by a test?
+155. Which test files use MethodChannel mocks that hide real bugs?
+156. Are there any tests that pass only because timers are not real in test mode?
+157. Is there an integration test covering the full tap-to-play flow?
+158. Is there a test that catches the AI shuffle vs local shuffle conflict?
+159. Trace theme change flow from settings_provider to all screens.
+160. What depends on theme.dart? Is any screen not picking up theme changes?
+161. Can the mini_player show stale song info after a track change?
+162. Can the progress bar show the wrong position if the stream subscription leaks?
+163. Is there any hardcoded color that breaks dark mode or theme switching?
+164. Can the now_playing_screen open for the wrong song during rapid skipping?
+165. Is there any widget that calls setState after its parent is disposed?
+166. Are there any Navigator.push calls without mounted checks?
+167. Does the queue_screen stay in sync with the actual audio handler queue?
+168. Can the offline indicator show the wrong state if download status is stale?

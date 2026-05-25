@@ -22,7 +22,9 @@ import '../data/models/feedback_request.dart';
 /// Recreated automatically whenever username or password changes.
 final shuffleApiServiceProvider = Provider<ShuffleApiService>((ref) {
   final settings = ref.watch(
-    settingsProvider.select((s) => (username: s.username, password: s.password)),
+    settingsProvider.select(
+      (s) => (username: s.username, password: s.password),
+    ),
   );
   return ShuffleApiService(
     username: settings.username,
@@ -50,8 +52,9 @@ final serverHealthProvider = FutureProvider.autoDispose<HealthResponse>((ref) {
 // ---------------------------------------------------------------------------
 
 /// Fetches the current user model state from /model/status.
-final modelStatusProvider =
-    FutureProvider.autoDispose<ModelStatusResponse>((ref) {
+final modelStatusProvider = FutureProvider.autoDispose<ModelStatusResponse>((
+  ref,
+) {
   final repo = ref.watch(shuffleRepositoryProvider);
   return repo.getModelStatus();
 });
@@ -63,19 +66,20 @@ final modelStatusProvider =
 /// Fetches aggregate listening stats for [period].
 final listeningStatsProvider = FutureProvider.autoDispose
     .family<ListeningStatsResponse, String>((ref, period) {
-  final repo = ref.watch(shuffleRepositoryProvider);
-  return repo.getListeningStats(period: period);
-});
+      final repo = ref.watch(shuffleRepositoryProvider);
+      return repo.getListeningStats(period: period);
+    });
 
 // ---------------------------------------------------------------------------
 // Contribution Graph
 // ---------------------------------------------------------------------------
 
 /// Fetches the 1-year contribution graph.
-final contributionGraphProvider = FutureProvider.autoDispose<ContributionGraphResponse>((ref) {
-  final repo = ref.watch(shuffleRepositoryProvider);
-  return repo.getContributionGraph();
-});
+final contributionGraphProvider =
+    FutureProvider.autoDispose<ContributionGraphResponse>((ref) {
+      final repo = ref.watch(shuffleRepositoryProvider);
+      return repo.getContributionGraph();
+    });
 
 // ---------------------------------------------------------------------------
 // Shuffle queue notifier
@@ -106,18 +110,16 @@ class ShuffleQueueState {
     int? sessionDepth,
     String? lastContext,
     String? lastWeather,
-  }) =>
-      ShuffleQueueState(
-        batches: batches ?? this.batches,
-        isLoading: isLoading ?? this.isLoading,
-        error: error,
-        sessionDepth: sessionDepth ?? this.sessionDepth,
-        lastContext: lastContext ?? this.lastContext,
-        lastWeather: lastWeather ?? this.lastWeather,
-      );
+  }) => ShuffleQueueState(
+    batches: batches ?? this.batches,
+    isLoading: isLoading ?? this.isLoading,
+    error: error,
+    sessionDepth: sessionDepth ?? this.sessionDepth,
+    lastContext: lastContext ?? this.lastContext,
+    lastWeather: lastWeather ?? this.lastWeather,
+  );
 
-  List<dynamic> get allSongs =>
-      batches.expand((b) => b.queue).toList();
+  List<dynamic> get allSongs => batches.expand((b) => b.queue).toList();
 }
 
 class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
@@ -193,8 +195,8 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
 
 final shuffleQueueProvider =
     StateNotifierProvider<ShuffleQueueNotifier, ShuffleQueueState>((ref) {
-  return ShuffleQueueNotifier(ref.watch(shuffleRepositoryProvider));
-});
+      return ShuffleQueueNotifier(ref.watch(shuffleRepositoryProvider));
+    });
 
 // ---------------------------------------------------------------------------
 // Feedback helper — fire-and-forget

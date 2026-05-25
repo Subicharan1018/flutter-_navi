@@ -59,7 +59,9 @@ class ServerStatusBar extends ConsumerWidget {
   }
 
   Color _getBackgroundColor(
-      AsyncValue<HealthResponse> asyncValue, ThemeData theme) {
+    AsyncValue<HealthResponse> asyncValue,
+    ThemeData theme,
+  ) {
     return asyncValue.when(
       data: (health) => health.isHealthy
           ? theme.colorScheme.tertiary
@@ -81,8 +83,7 @@ class ServerStatusBar extends ConsumerWidget {
 
   IconData _getIcon(AsyncValue<HealthResponse> asyncValue) {
     return asyncValue.when(
-      data: (health) =>
-          health.isHealthy ? Icons.check_circle : Icons.error,
+      data: (health) => health.isHealthy ? Icons.check_circle : Icons.error,
       loading: () => Icons.sync,
       error: (_, __) => Icons.cloud_off,
     );
@@ -134,8 +135,9 @@ class ServerStatusBar extends ConsumerWidget {
                 ListTile(
                   leading: const Icon(Icons.cloud_outlined),
                   title: const Text('Weather Mood'),
-                  trailing:
-                      Text('${health.weather!.moodIcon} ${health.weather!.mood}'),
+                  trailing: Text(
+                    '${health.weather!.moodIcon} ${health.weather!.mood}',
+                  ),
                 ),
               ],
             ],

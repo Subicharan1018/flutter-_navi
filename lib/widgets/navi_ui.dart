@@ -4,8 +4,8 @@ import '../core/theme.dart';
 // =============================================================================
 // Spacing & Radius Scale
 // =============================================================================
-const double s4  = 4.0;
-const double s8  = 8.0;
+const double s4 = 4.0;
+const double s8 = 8.0;
 const double s12 = 12.0;
 const double s16 = 16.0;
 const double s20 = 20.0;
@@ -21,13 +21,13 @@ const BorderRadius radiusFull = BorderRadius.all(Radius.circular(999));
 // =============================================================================
 // Animation Defaults
 // =============================================================================
-const Duration kAnimFast   = Duration(milliseconds: 150);
+const Duration kAnimFast = Duration(milliseconds: 150);
 const Duration kAnimNormal = Duration(milliseconds: 250);
-const Duration kAnimSlow   = Duration(milliseconds: 400);
+const Duration kAnimSlow = Duration(milliseconds: 400);
 
 const Curve kCurveStandard = Curves.easeInOut;
-const Curve kCurveSpring   = Curves.elasticOut;
-const Curve kCurveDecel    = Curves.decelerate;
+const Curve kCurveSpring = Curves.elasticOut;
+const Curve kCurveDecel = Curves.decelerate;
 
 // =============================================================================
 // NaviCard — Base Card Component
@@ -50,7 +50,9 @@ class NaviCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final defaultBg = isDark ? Colors.white.withOpacity(0.05) : Colors.black.withOpacity(0.02);
+    final defaultBg = isDark
+        ? Colors.white.withOpacity(0.05)
+        : Colors.black.withOpacity(0.02);
 
     return AnimatedContainer(
       duration: kAnimNormal,
@@ -113,11 +115,13 @@ class _NaviSkeletonState extends State<NaviSkeleton>
   void initState() {
     super.initState();
     _ctrl = AnimationController(
-        vsync: this, duration: const Duration(milliseconds: 1200))
-      ..repeat(reverse: true);
-    _anim = Tween(begin: 0.3, end: 0.7).animate(
-      CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut),
-    );
+      vsync: this,
+      duration: const Duration(milliseconds: 1200),
+    )..repeat(reverse: true);
+    _anim = Tween(
+      begin: 0.3,
+      end: 0.7,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: Curves.easeInOut));
   }
 
   @override
@@ -174,9 +178,10 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
   void initState() {
     super.initState();
     _ctrl = AnimationController(vsync: this, duration: kAnimFast);
-    _scale = Tween(begin: 1.0, end: 0.96).animate(
-      CurvedAnimation(parent: _ctrl, curve: kCurveStandard),
-    );
+    _scale = Tween(
+      begin: 1.0,
+      end: 0.96,
+    ).animate(CurvedAnimation(parent: _ctrl, curve: kCurveStandard));
   }
 
   @override
@@ -238,12 +243,14 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
                   ),
                 )
               else
-                Text(widget.label,
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: tokens.accent,
-                      fontWeight: FontWeight.w600,
-                    )),
+                Text(
+                  widget.label,
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: tokens.accent,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
             ],
           ),
         ),

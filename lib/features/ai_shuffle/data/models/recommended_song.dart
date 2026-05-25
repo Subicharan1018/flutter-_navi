@@ -15,10 +15,10 @@ class AudioFeatures {
   });
 
   factory AudioFeatures.fromJson(Map<String, dynamic> json) => AudioFeatures(
-        energy: _parseDouble(json['energy']),
-        valence: _parseDouble(json['valence']),
-        acousticness: _parseDouble(json['acousticness']),
-      );
+    energy: _parseDouble(json['energy']),
+    valence: _parseDouble(json['valence']),
+    acousticness: _parseDouble(json['acousticness']),
+  );
 
   static double _parseDouble(dynamic v) {
     if (v is double) return v;
@@ -42,11 +42,11 @@ class SongScores {
   });
 
   factory SongScores.fromJson(Map<String, dynamic> json) => SongScores(
-        contextHistory: _parseDouble(json['context_history']),
-        audioFit: _parseDouble(json['audio_fit']),
-        composerLoyalty: _parseDouble(json['composer_loyalty']),
-        finalScore: _parseDouble(json['final']),
-      );
+    contextHistory: _parseDouble(json['context_history']),
+    audioFit: _parseDouble(json['audio_fit']),
+    composerLoyalty: _parseDouble(json['composer_loyalty']),
+    finalScore: _parseDouble(json['final']),
+  );
 
   static double _parseDouble(dynamic v) {
     if (v is double) return v;

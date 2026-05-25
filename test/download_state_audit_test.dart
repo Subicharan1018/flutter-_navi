@@ -32,6 +32,7 @@ import 'helpers/test_utils.dart';
 // ---------------------------------------------------------------------------
 
 class MockOfflineService extends Mock implements OfflineService {}
+
 class MockSubsonicService extends Mock implements SubsonicService {}
 
 // ---------------------------------------------------------------------------
@@ -43,9 +44,7 @@ class MockSubsonicService extends Mock implements SubsonicService {}
 /// are injected via provider overrides, never instantiated inside tests.
 ProviderContainer _buildContainer(MockOfflineService mockOffline) {
   return ProviderContainer(
-    overrides: [
-      offlineServiceProvider.overrideWithValue(mockOffline),
-    ],
+    overrides: [offlineServiceProvider.overrideWithValue(mockOffline)],
   );
 }
 
@@ -70,8 +69,9 @@ void main() {
     // Stub isSongDownloadedAsync so _reconcileWithDisk() returns Future<bool>
     // and never throws 'Null is not a subtype of Future<bool>'. Default: true
     // (file exists) so reconcile is a no-op in tests that don't override it.
-    when(() => mockOffline.isSongDownloadedAsync(any()))
-        .thenAnswer((_) async => true);
+    when(
+      () => mockOffline.isSongDownloadedAsync(any()),
+    ).thenAnswer((_) async => true);
   });
 
   // ══════════════════════════════════════════════════════════════════════════
@@ -83,12 +83,11 @@ void main() {
       'AUDIT: after notifier.deleteSong(), status transitions to notDownloaded',
       () async {
         // AUDIT: Arrange — seed one downloaded song.
-        when(() => mockOffline.getDownloadedSongIds())
-            .thenReturn(['song-1']);
-        when(() => mockOffline.isSongDownloaded('song-1'))
-            .thenReturn(true);
-        when(() => mockOffline.deleteSong('song-1'))
-            .thenAnswer((_) async => true);
+        when(() => mockOffline.getDownloadedSongIds()).thenReturn(['song-1']);
+        when(() => mockOffline.isSongDownloaded('song-1')).thenReturn(true);
+        when(
+          () => mockOffline.deleteSong('song-1'),
+        ).thenAnswer((_) async => true);
 
         final container = _buildContainer(mockOffline);
         addTearDown(container.dispose);
@@ -119,12 +118,14 @@ void main() {
       'AUDIT: after notifier.deleteSong(), the song ID is removed from state map',
       () async {
         // AUDIT: Arrange — seed two songs, delete only one.
-        when(() => mockOffline.getDownloadedSongIds())
-            .thenReturn(['song-1', 'song-2']);
+        when(
+          () => mockOffline.getDownloadedSongIds(),
+        ).thenReturn(['song-1', 'song-2']);
         when(() => mockOffline.isSongDownloaded('song-1')).thenReturn(true);
         when(() => mockOffline.isSongDownloaded('song-2')).thenReturn(true);
-        when(() => mockOffline.deleteSong('song-1'))
-            .thenAnswer((_) async => true);
+        when(
+          () => mockOffline.deleteSong('song-1'),
+        ).thenAnswer((_) async => true);
 
         final container = _buildContainer(mockOffline);
         addTearDown(container.dispose);
@@ -159,51 +160,53 @@ void main() {
   // ══════════════════════════════════════════════════════════════════════════
 
   group('Group 2: Cold start with stale SharedPreferences (Bug 1)', () {
-    test(
-      'AUDIT [BUG-DEMONSTRATES]: build() with ID in prefs but file missing '
-      '→ current code returns downloaded (THE BUG)',
-      () {
-        // AUDIT: Arrange — prefs says downloaded, but file is gone.
-        when(() => mockOffline.getDownloadedSongIds())
-            .thenReturn(['orphan-id']);
-        when(() => mockOffline.isSongDownloaded('orphan-id'))
-            .thenReturn(false); // file is gone!
+    test('AUDIT [BUG-DEMONSTRATES]: build() with ID in prefs but file missing '
+        '→ current code returns downloaded (THE BUG)', () {
+      // AUDIT: Arrange — prefs says downloaded, but file is gone.
+      when(() => mockOffline.getDownloadedSongIds()).thenReturn(['orphan-id']);
+      when(
+        () => mockOffline.isSongDownloaded('orphan-id'),
+      ).thenReturn(false); // file is gone!
 
-        final container = _buildContainer(mockOffline);
-        addTearDown(container.dispose);
+      final container = _buildContainer(mockOffline);
+      addTearDown(container.dispose);
 
-        final notifier = container.read(downloadStateProvider.notifier);
+      final notifier = container.read(downloadStateProvider.notifier);
 
-        // AUDIT: The CURRENT (buggy) build() does NOT call isSongDownloaded().
-        // It just seeds from the ID list.  This test documents the bug:
-        // on cold-start the badge shows "downloaded" even though the file
-        // was externally deleted.
-        //
-        // EXPECTED AFTER FIX: SongDownloadStatus.notDownloaded
-        // ACTUAL NOW (buggy): SongDownloadStatus.downloaded
-        //
-        // Once Bug 1 is fixed (build() cross-checks isSongDownloaded()),
-        // change the expectation below from .downloaded to .notDownloaded.
-        final status = notifier.statusOf('orphan-id');
-        expect(
-          status,
-          SongDownloadStatus.downloaded, // ← THIS SHOULD BE notDownloaded
-          reason:
-              'BUG-1: build() trusts SharedPreferences without file-existence '
-              'check. Fix: filter IDs through isSongDownloaded() in build().',
-        );
-      },
-    );
+      // AUDIT: The CURRENT (buggy) build() does NOT call isSongDownloaded().
+      // It just seeds from the ID list.  This test documents the bug:
+      // on cold-start the badge shows "downloaded" even though the file
+      // was externally deleted.
+      //
+      // EXPECTED AFTER FIX: SongDownloadStatus.notDownloaded
+      // ACTUAL NOW (buggy): SongDownloadStatus.downloaded
+      //
+      // Once Bug 1 is fixed (build() cross-checks isSongDownloaded()),
+      // change the expectation below from .downloaded to .notDownloaded.
+      final status = notifier.statusOf('orphan-id');
+      expect(
+        status,
+        SongDownloadStatus.downloaded, // ← THIS SHOULD BE notDownloaded
+        reason:
+            'BUG-1: build() trusts SharedPreferences without file-existence '
+            'check. Fix: filter IDs through isSongDownloaded() in build().',
+      );
+    });
 
     test(
       'AUDIT [AFTER FIX]: build() must call isSongDownloaded() for each ID',
       () async {
         // AUDIT: Arrange — prefs says two songs downloaded.
         // song-ok: file still exists. song-gone: file deleted externally.
-        when(() => mockOffline.getDownloadedSongIds())
-            .thenReturn(['song-ok', 'song-gone']);
-        when(() => mockOffline.isSongDownloadedAsync('song-ok')).thenAnswer((_) async => true);
-        when(() => mockOffline.isSongDownloadedAsync('song-gone')).thenAnswer((_) async => false);
+        when(
+          () => mockOffline.getDownloadedSongIds(),
+        ).thenReturn(['song-ok', 'song-gone']);
+        when(
+          () => mockOffline.isSongDownloadedAsync('song-ok'),
+        ).thenAnswer((_) async => true);
+        when(
+          () => mockOffline.isSongDownloadedAsync('song-gone'),
+        ).thenAnswer((_) async => false);
 
         final container = _buildContainer(mockOffline);
         addTearDown(container.dispose);
@@ -213,7 +216,7 @@ void main() {
         // for every ID in the list.  This will FAIL before the fix is applied,
         // because the current build() never calls isSongDownloaded().
         container.read(downloadStateProvider); // trigger build()
-        
+
         // Wait for scheduleMicrotask to complete
         await Future<void>.delayed(Duration.zero);
 
@@ -227,16 +230,21 @@ void main() {
     test(
       'AUDIT [AFTER FIX]: song-gone must be notDownloaded after fix',
       () async {
-        when(() => mockOffline.getDownloadedSongIds())
-            .thenReturn(['song-ok', 'song-gone']);
-        when(() => mockOffline.isSongDownloadedAsync('song-ok')).thenAnswer((_) async => true);
-        when(() => mockOffline.isSongDownloadedAsync('song-gone')).thenAnswer((_) async => false);
+        when(
+          () => mockOffline.getDownloadedSongIds(),
+        ).thenReturn(['song-ok', 'song-gone']);
+        when(
+          () => mockOffline.isSongDownloadedAsync('song-ok'),
+        ).thenAnswer((_) async => true);
+        when(
+          () => mockOffline.isSongDownloadedAsync('song-gone'),
+        ).thenAnswer((_) async => false);
 
         final container = _buildContainer(mockOffline);
         addTearDown(container.dispose);
 
         final notifier = container.read(downloadStateProvider.notifier);
-        
+
         // Wait for _reconcileWithDisk microtask
         await Future<void>.delayed(Duration.zero);
 
@@ -247,7 +255,7 @@ void main() {
           SongDownloadStatus.downloaded,
           reason: 'Existing file: should remain downloaded',
         );
-        
+
         expect(
           notifier.statusOf('song-gone'),
           SongDownloadStatus.notDownloaded,
@@ -272,12 +280,12 @@ void main() {
       'downloadStateProvider — badges remain "downloaded" after bulk clear',
       () async {
         // AUDIT: Arrange — two songs downloaded.
-        when(() => mockOffline.getDownloadedSongIds())
-            .thenReturn(['song-1', 'song-2']);
+        when(
+          () => mockOffline.getDownloadedSongIds(),
+        ).thenReturn(['song-1', 'song-2']);
         when(() => mockOffline.isSongDownloaded('song-1')).thenReturn(true);
         when(() => mockOffline.isSongDownloaded('song-2')).thenReturn(true);
-        when(() => mockOffline.deleteAllDownloads())
-            .thenAnswer((_) async {});
+        when(() => mockOffline.deleteAllDownloads()).thenAnswer((_) async {});
 
         final container = _buildContainer(mockOffline);
         addTearDown(container.dispose);
@@ -306,8 +314,9 @@ void main() {
       () async {
         // AUDIT: Arrange — start with two songs in prefs, then simulate
         // the "after fix" state where prefs is now empty (all files deleted).
-        when(() => mockOffline.getDownloadedSongIds())
-            .thenReturn(['song-1', 'song-2']);
+        when(
+          () => mockOffline.getDownloadedSongIds(),
+        ).thenReturn(['song-1', 'song-2']);
         when(() => mockOffline.isSongDownloaded('song-1')).thenReturn(true);
         when(() => mockOffline.isSongDownloaded('song-2')).thenReturn(true);
         when(() => mockOffline.deleteAllDownloads()).thenAnswer((_) async {});
@@ -371,11 +380,14 @@ void main() {
         // The DownloadStateNotifier does NOT have a reconcile() method.
         // This test simply verifies the notifier can be read without crash —
         // the reconcile() method is the FIX to add.
-        expect(notifier, isNotNull,
-            reason:
-                'Notifier exists but has no reconcile() — gap documented. '
-                'Fix: add reconcile() called from WidgetsBindingObserver '
-                'on didChangeAppLifecycleState(AppLifecycleState.resumed).');
+        expect(
+          notifier,
+          isNotNull,
+          reason:
+              'Notifier exists but has no reconcile() — gap documented. '
+              'Fix: add reconcile() called from WidgetsBindingObserver '
+              'on didChangeAppLifecycleState(AppLifecycleState.resumed).',
+        );
       },
     );
 
@@ -384,8 +396,7 @@ void main() {
       () {
         // AUDIT: Arrange — prefs says downloaded, but file is now gone
         // (simulating what happens after OS reclaims storage).
-        when(() => mockOffline.getDownloadedSongIds())
-            .thenReturn(['song-1']);
+        when(() => mockOffline.getDownloadedSongIds()).thenReturn(['song-1']);
         when(() => mockOffline.isSongDownloaded('song-1')).thenReturn(true);
 
         final container = _buildContainer(mockOffline);
@@ -429,13 +440,16 @@ void main() {
       () async {
         when(() => mockOffline.getDownloadedSongIds()).thenReturn(['song-1']);
         when(() => mockOffline.isSongDownloaded('song-1')).thenReturn(true);
-        when(() => mockOffline.deleteSong('song-1'))
-            .thenAnswer((_) async => true);
+        when(
+          () => mockOffline.deleteSong('song-1'),
+        ).thenAnswer((_) async => true);
 
         final container = _buildContainer(mockOffline);
         addTearDown(container.dispose);
 
-        await container.read(downloadStateProvider.notifier).deleteSong('song-1');
+        await container
+            .read(downloadStateProvider.notifier)
+            .deleteSong('song-1');
 
         // AUDIT: The notifier MUST delegate to the service — not implement
         // deletion itself.  This ensures the file is actually removed.

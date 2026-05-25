@@ -54,7 +54,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
               elevation: 0,
               pinned: true,
               flexibleSpace: FlexibleSpaceBar(
-                titlePadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                titlePadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 16,
+                ),
                 centerTitle: false,
                 title: Text(
                   'Search',
@@ -80,21 +83,39 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                       child: Container(
                         height: 48,
                         decoration: BoxDecoration(
-                          color: ThemeTokens.of(context).bgSurface.withValues(alpha: 0.8),
+                          color: ThemeTokens.of(
+                            context,
+                          ).bgSurface.withValues(alpha: 0.8),
                           borderRadius: BorderRadius.circular(12),
-                          border: Border.all(color: ThemeTokens.of(context).outline),
+                          border: Border.all(
+                            color: ThemeTokens.of(context).outline,
+                          ),
                         ),
                         child: TextField(
                           controller: _controller,
                           onChanged: _onSearchChanged,
-                          style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 17),
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textPrimary,
+                            fontSize: 17,
+                          ),
                           cursorColor: ThemeTokens.of(context).accent,
                           decoration: InputDecoration(
                             hintText: 'Artists, Songs, Lyrics and More',
-                            hintStyle: TextStyle(color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.6), fontSize: 15),
-                            prefixIcon: Icon(Icons.search_rounded, color: ThemeTokens.of(context).textMuted, size: 24),
+                            hintStyle: TextStyle(
+                              color: ThemeTokens.of(
+                                context,
+                              ).textMuted.withValues(alpha: 0.6),
+                              fontSize: 15,
+                            ),
+                            prefixIcon: Icon(
+                              Icons.search_rounded,
+                              color: ThemeTokens.of(context).textMuted,
+                              size: 24,
+                            ),
                             border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(vertical: 12),
+                            contentPadding: const EdgeInsets.symmetric(
+                              vertical: 12,
+                            ),
                           ),
                         ),
                       ),
@@ -137,9 +158,19 @@ class _SearchHistorySliver extends ConsumerWidget {
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.search_rounded, color: ThemeTokens.of(context).textMuted, size: 64),
+              Icon(
+                Icons.search_rounded,
+                color: ThemeTokens.of(context).textMuted,
+                size: 64,
+              ),
               SizedBox(height: 16),
-              Text('Search for music', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
+              Text(
+                'Search for music',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textMuted,
+                  fontSize: 15,
+                ),
+              ),
             ],
           ),
         ),
@@ -147,47 +178,66 @@ class _SearchHistorySliver extends ConsumerWidget {
     }
 
     return SliverList(
-      delegate: SliverChildBuilderDelegate(
-        (context, index) {
-          if (index == 0) {
-            return Padding(
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Recent Searches',
+      delegate: SliverChildBuilderDelegate((context, index) {
+        if (index == 0) {
+          return Padding(
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'Recent Searches',
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+                TextButton(
+                  onPressed: () =>
+                      ref.read(searchHistoryProvider.notifier).clearHistory(),
+                  child: Text(
+                    'Clear All',
                     style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
+                      color: ThemeTokens.of(context).accent,
+                      fontSize: 13,
                     ),
                   ),
-                  TextButton(
-                    onPressed: () => ref.read(searchHistoryProvider.notifier).clearHistory(),
-                    child: Text('Clear All', style: TextStyle(color: ThemeTokens.of(context).accent, fontSize: 13)),
-                  ),
-                ],
-              ),
-            );
-          }
-
-          final query = history[index - 1];
-          return ListTile(
-            contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-            leading: Icon(Icons.history_rounded, color: ThemeTokens.of(context).textMuted, size: 22),
-            title: Text(query, style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15)),
-            trailing: IconButton(
-              icon: Icon(Icons.close_rounded, color: ThemeTokens.of(context).textMuted, size: 18),
-              onPressed: () => ref.read(searchHistoryProvider.notifier).removeQuery(query),
+                ),
+              ],
             ),
-            onTap: () {
-              onTap(query);
-            },
           );
-        },
-        childCount: history.length + 1,
-      ),
+        }
+
+        final query = history[index - 1];
+        return ListTile(
+          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
+          leading: Icon(
+            Icons.history_rounded,
+            color: ThemeTokens.of(context).textMuted,
+            size: 22,
+          ),
+          title: Text(
+            query,
+            style: TextStyle(
+              color: ThemeTokens.of(context).textPrimary,
+              fontSize: 15,
+            ),
+          ),
+          trailing: IconButton(
+            icon: Icon(
+              Icons.close_rounded,
+              color: ThemeTokens.of(context).textMuted,
+              size: 18,
+            ),
+            onPressed: () =>
+                ref.read(searchHistoryProvider.notifier).removeQuery(query),
+          ),
+          onTap: () {
+            onTap(query);
+          },
+        );
+      }, childCount: history.length + 1),
     );
   }
 }
@@ -197,9 +247,15 @@ class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
   _SearchHeaderDelegate({required this.child});
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) {
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) {
     return Container(
-      color: ThemeTokens.of(context).bgBase.withValues(alpha: shrinkOffset > 0 ? 0.9 : 0.0),
+      color: ThemeTokens.of(
+        context,
+      ).bgBase.withValues(alpha: shrinkOffset > 0 ? 0.9 : 0.0),
       child: child,
     );
   }
@@ -229,41 +285,62 @@ class _SearchResultsSliver extends ConsumerWidget {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.sentiment_dissatisfied_rounded, color: ThemeTokens.of(context).textMuted, size: 48),
+                  Icon(
+                    Icons.sentiment_dissatisfied_rounded,
+                    color: ThemeTokens.of(context).textMuted,
+                    size: 48,
+                  ),
                   SizedBox(height: 12),
-                  Text('No results found', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 15)),
+                  Text(
+                    'No results found',
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textMuted,
+                      fontSize: 15,
+                    ),
+                  ),
                 ],
               ),
             ),
           );
         }
         return SliverList(
-          delegate: SliverChildBuilderDelegate(
-            (context, index) {
-              final song = songs[index];
-              return SongTile(
-                song: song,
-                onTap: () {
-                  ref.read(searchHistoryProvider.notifier).addQuery(query);
-                  ref.read(playerProvider.notifier).setQueue(songs.cast(), index);
-                },
-              ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, end: 0);
-            },
-            childCount: songs.length,
-          ),
+          delegate: SliverChildBuilderDelegate((context, index) {
+            final song = songs[index];
+            return SongTile(
+              song: song,
+              onTap: () {
+                ref.read(searchHistoryProvider.notifier).addQuery(query);
+                ref.read(playerProvider.notifier).setQueue(songs.cast(), index);
+              },
+            ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, end: 0);
+          }, childCount: songs.length),
         );
       },
       loading: () => SliverFillRemaining(
-        child: Center(child: CircularProgressIndicator(color: ThemeTokens.of(context).accent)),
+        child: Center(
+          child: CircularProgressIndicator(
+            color: ThemeTokens.of(context).accent,
+          ),
+        ),
       ),
       error: (e, st) => SliverFillRemaining(
         child: Center(
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              Icon(Icons.error_outline_rounded, color: Colors.redAccent, size: 48),
+              Icon(
+                Icons.error_outline_rounded,
+                color: Colors.redAccent,
+                size: 48,
+              ),
               SizedBox(height: 12),
-              Text('Error: $e', style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 13)),
+              Text(
+                'Error: $e',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textMuted,
+                  fontSize: 13,
+                ),
+              ),
             ],
           ),
         ),

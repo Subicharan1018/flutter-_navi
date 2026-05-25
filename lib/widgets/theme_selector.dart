@@ -9,17 +9,14 @@ class ThemeSelector extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final current = ref.watch(themeModeProvider);
-    final tokens  = ThemeVariants.of(current);
+    final tokens = ThemeVariants.of(current);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Text(
-            'THEME',
-            style: tokens.labelMd,
-          ),
+          child: Text('THEME', style: tokens.labelMd),
         ),
         SizedBox(
           height: 160,
@@ -33,9 +30,8 @@ class ThemeSelector extends ConsumerWidget {
               return _ThemeCard(
                 mode: mode,
                 isSelected: mode == current,
-                onTap: () => ref
-                    .read(settingsProvider.notifier)
-                    .setThemeMode(mode),
+                onTap: () =>
+                    ref.read(settingsProvider.notifier).setThemeMode(mode),
               );
             },
           ),
@@ -114,12 +110,18 @@ class _ThemeCard extends StatelessWidget {
 
   String _shortDesc(AppThemeMode m) {
     switch (m) {
-      case AppThemeMode.spotify:    return 'Classic dark';
-      case AppThemeMode.aura:       return 'Gradient mesh';
-      case AppThemeMode.frost:      return 'Glassmorphism';
-      case AppThemeMode.neumorphic: return 'Soft UI';
-      case AppThemeMode.analog:     return 'Retro vinyl';
-      case AppThemeMode.zen:        return 'Minimalist';
+      case AppThemeMode.spotify:
+        return 'Classic dark';
+      case AppThemeMode.aura:
+        return 'Gradient mesh';
+      case AppThemeMode.frost:
+        return 'Glassmorphism';
+      case AppThemeMode.neumorphic:
+        return 'Soft UI';
+      case AppThemeMode.analog:
+        return 'Retro vinyl';
+      case AppThemeMode.zen:
+        return 'Minimalist';
     }
   }
 }
@@ -166,10 +168,7 @@ class _ThemePreviewPill extends StatelessWidget {
           Container(
             width: 22,
             height: 22,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: t.accent,
-            ),
+            decoration: BoxDecoration(shape: BoxShape.circle, color: t.accent),
             child: Icon(
               Icons.play_arrow_rounded,
               size: 14,

@@ -13,8 +13,7 @@ import '../providers/settings_provider.dart';
 // Exposes AsyncValue<ListeningStats> so the UI can handle loading/error/data.
 // =============================================================================
 
-class ListeningStatsNotifier
-    extends StateNotifier<AsyncValue<ListeningStats>> {
+class ListeningStatsNotifier extends StateNotifier<AsyncValue<ListeningStats>> {
   final http.Client _client;
   final String _baseUrl;
   final String _period;
@@ -23,10 +22,10 @@ class ListeningStatsNotifier
     required http.Client client,
     required String baseUrl,
     required String period,
-  })  : _client = client,
-        _baseUrl = baseUrl,
-        _period = period,
-        super(const AsyncValue.loading()) {
+  }) : _client = client,
+       _baseUrl = baseUrl,
+       _period = period,
+       super(const AsyncValue.loading()) {
     fetch();
   }
 
@@ -67,15 +66,18 @@ class ListeningStatsNotifier
 }
 
 /// Provider family — one notifier per period string ('weekly', 'monthly', 'all').
-final listeningStatsProvider = StateNotifierProvider.family<
-    ListeningStatsNotifier, AsyncValue<ListeningStats>, String>((ref, period) {
-  // Use the computed getter: apiBaseUrl:loggingPort
-  final baseUrl = ref.watch(settingsProvider).loggingApiUrl;
-  final client = ref.watch(subsonicServiceProvider).client;
-  return ListeningStatsNotifier(
-    client: client,
-    baseUrl: baseUrl,
-    period: period,
-  );
-});
-
+final listeningStatsProvider =
+    StateNotifierProvider.family<
+      ListeningStatsNotifier,
+      AsyncValue<ListeningStats>,
+      String
+    >((ref, period) {
+      // Use the computed getter: apiBaseUrl:loggingPort
+      final baseUrl = ref.watch(settingsProvider).loggingApiUrl;
+      final client = ref.watch(subsonicServiceProvider).client;
+      return ListeningStatsNotifier(
+        client: client,
+        baseUrl: baseUrl,
+        period: period,
+      );
+    });

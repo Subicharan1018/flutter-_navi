@@ -35,18 +35,18 @@ class FeedbackRequest {
   });
 
   Map<String, dynamic> toJson() => {
-        'title': title,
-        'file_path': filePath,
-        'genre_bucket': genreBucket,
-        'composer': composer,
-        'listen_ratio': listenRatio,
-        'end_reason': endReason,
-        'session_id': sessionId,
-        'session_depth': sessionDepth,
-        'genre_streak_type': genreStreakType,
-        'genre_streak_count': genreStreakCount,
-        'weather_code': weatherCode,
-        'temperature_c': temperatureC,
-        'volume': volume,
-      };
+    'title': title,
+    'file_path': filePath,
+    'genre_bucket': genreBucket,
+    'composer': composer,
+    'listen_ratio': listenRatio,
+    'end_reason': endReason,
+    'session_id': sessionId,
+    'session_depth': sessionDepth,
+    'genre_streak_type': genreStreakType,
+    'genre_streak_count': genreStreakCount,
+    'weather_code': weatherCode,
+    'temperature_c': temperatureC,
+    'volume': volume,
+  };
 }

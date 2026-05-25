@@ -10,7 +10,8 @@ class CreatePlaylistDialog extends ConsumerStatefulWidget {
   const CreatePlaylistDialog({super.key});
 
   @override
-  ConsumerState<CreatePlaylistDialog> createState() => _CreatePlaylistDialogState();
+  ConsumerState<CreatePlaylistDialog> createState() =>
+      _CreatePlaylistDialogState();
 }
 
 class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
@@ -60,9 +61,9 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
 
       if (mounted) {
         Navigator.pop(context);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Playlist "$name" created')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Playlist "$name" created')));
       }
     } catch (e) {
       if (mounted) {
@@ -85,9 +86,10 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
       title: Text(
         'New Playlist',
         style: TextStyle(
-            color: ThemeTokens.of(context).textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 18),
+          color: ThemeTokens.of(context).textPrimary,
+          fontWeight: FontWeight.bold,
+          fontSize: 18,
+        ),
       ),
       content: Column(
         mainAxisSize: MainAxisSize.min,
@@ -109,12 +111,19 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
                   : Column(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        Icon(Icons.add_photo_alternate_outlined,
-                            color: ThemeTokens.of(context).accent, size: 28),
+                        Icon(
+                          Icons.add_photo_alternate_outlined,
+                          color: ThemeTokens.of(context).accent,
+                          size: 28,
+                        ),
                         SizedBox(height: 4),
-                        Text('Add Photo',
-                            style: TextStyle(
-                                color: ThemeTokens.of(context).textMuted, fontSize: 10)),
+                        Text(
+                          'Add Photo',
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textMuted,
+                            fontSize: 10,
+                          ),
+                        ),
                       ],
                     ),
             ),
@@ -124,17 +133,27 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
           TextField(
             controller: _nameController,
             autofocus: true,
-            style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 15),
+            style: TextStyle(
+              color: ThemeTokens.of(context).textPrimary,
+              fontSize: 15,
+            ),
             cursorColor: ThemeTokens.of(context).accent,
             decoration: InputDecoration(
               hintText: 'Playlist name',
               hintStyle: TextStyle(
-                  color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.5), fontSize: 15),
+                color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.5),
+                fontSize: 15,
+              ),
               focusedBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(color: ThemeTokens.of(context).accent)),
+                borderSide: BorderSide(color: ThemeTokens.of(context).accent),
+              ),
               enabledBorder: UnderlineInputBorder(
-                  borderSide: BorderSide(
-                      color: ThemeTokens.of(context).textMuted.withValues(alpha: 0.3))),
+                borderSide: BorderSide(
+                  color: ThemeTokens.of(
+                    context,
+                  ).textMuted.withValues(alpha: 0.3),
+                ),
+              ),
             ),
             onSubmitted: (_) => _create(),
           ),
@@ -143,8 +162,13 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
       actions: [
         TextButton(
           onPressed: () => Navigator.pop(context),
-          child: Text('Cancel',
-              style: TextStyle(color: ThemeTokens.of(context).textPrimary, fontSize: 14)),
+          child: Text(
+            'Cancel',
+            style: TextStyle(
+              color: ThemeTokens.of(context).textPrimary,
+              fontSize: 14,
+            ),
+          ),
         ),
         TextButton(
           onPressed: _isCreating ? null : _create,
@@ -153,12 +177,18 @@ class _CreatePlaylistDialogState extends ConsumerState<CreatePlaylistDialog> {
                   width: 20,
                   height: 20,
                   child: CircularProgressIndicator(
-                      strokeWidth: 2, color: ThemeTokens.of(context).accent))
-              : Text('Create',
+                    strokeWidth: 2,
+                    color: ThemeTokens.of(context).accent,
+                  ),
+                )
+              : Text(
+                  'Create',
                   style: TextStyle(
-                      color: ThemeTokens.of(context).accent,
-                      fontWeight: FontWeight.bold,
-                      fontSize: 14)),
+                    color: ThemeTokens.of(context).accent,
+                    fontWeight: FontWeight.bold,
+                    fontSize: 14,
+                  ),
+                ),
         ),
       ],
     );

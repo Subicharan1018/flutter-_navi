@@ -1,4 +1,3 @@
-
 import 'dart:convert';
 import 'dart:io';
 
@@ -21,15 +20,15 @@ class MockHttpClient extends Mock implements http.Client {}
 // =============================================================================
 
 Song _fakeSong({int durationSec = 240}) => Song(
-      id: 'song-abc123',
-      title: 'Test Song',
-      artist: 'Test Artist',
-      album: 'Test Album',
-      coverArt: 'cover-id',
-      duration: durationSec,
-      track: 1,
-      year: 2026,
-    );
+  id: 'song-abc123',
+  title: 'Test Song',
+  artist: 'Test Artist',
+  album: 'Test Album',
+  coverArt: 'cover-id',
+  duration: durationSec,
+  track: 1,
+  year: 2026,
+);
 
 ListeningLogService _makeService(
   MockHttpClient client, {
@@ -47,22 +46,24 @@ ListeningLogService _makeService(
 
 /// Stubs the mock client to return [statusCode] for any POST.
 void _stubPost(MockHttpClient client, int statusCode) {
-  when(() => client.post(
-        any(),
-        headers: any(named: 'headers'),
-        body: any(named: 'body'),
-      )).thenAnswer(
-    (_) async => http.Response('', statusCode),
-  );
+  when(
+    () => client.post(
+      any(),
+      headers: any(named: 'headers'),
+      body: any(named: 'body'),
+    ),
+  ).thenAnswer((_) async => http.Response('', statusCode));
 }
 
 /// Stubs the mock client so POST throws a [SocketException].
 void _stubPostTimeout(MockHttpClient client) {
-  when(() => client.post(
-        any(),
-        headers: any(named: 'headers'),
-        body: any(named: 'body'),
-      )).thenThrow(const SocketException('Network unreachable'));
+  when(
+    () => client.post(
+      any(),
+      headers: any(named: 'headers'),
+      body: any(named: 'body'),
+    ),
+  ).thenThrow(const SocketException('Network unreachable'));
 }
 
 // =============================================================================
@@ -87,11 +88,13 @@ void main() {
     test('1.1 — played_at is UTC ISO8601', () async {
       final client = MockHttpClient();
       Map<String, dynamic>? capturedPayload;
-      when(() => client.post(
-                any(),
-                headers: any(named: 'headers'),
-                body: any(named: 'body'),
-              )).thenAnswer((invocation) async {
+      when(
+        () => client.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      ).thenAnswer((invocation) async {
         capturedPayload =
             jsonDecode(invocation.namedArguments[#body] as String)
                 as Map<String, dynamic>;
@@ -112,11 +115,13 @@ void main() {
     test('1.2 — new schema keys present; old keys absent', () async {
       final client = MockHttpClient();
       Map<String, dynamic>? capturedPayload;
-      when(() => client.post(
-                any(),
-                headers: any(named: 'headers'),
-                body: any(named: 'body'),
-              )).thenAnswer((invocation) async {
+      when(
+        () => client.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      ).thenAnswer((invocation) async {
         capturedPayload =
             jsonDecode(invocation.namedArguments[#body] as String)
                 as Map<String, dynamic>;
@@ -139,7 +144,10 @@ void main() {
       // Optional new fields
       expect(capturedPayload!['cover_art'], 'https://server/art/cover-id');
       expect(capturedPayload!['session_id'], isNotEmpty);
-      expect(capturedPayload!['session_id'].toString().length, 36); // UUID v4 length
+      expect(
+        capturedPayload!['session_id'].toString().length,
+        36,
+      ); // UUID v4 length
       // album_id and artist_id must be null (not empty string)
       expect(capturedPayload!['album_id'], isNull);
       expect(capturedPayload!['artist_id'], isNull);
@@ -155,11 +163,13 @@ void main() {
     test('1.3 — empty album field sent as null', () async {
       final client = MockHttpClient();
       Map<String, dynamic>? capturedPayload;
-      when(() => client.post(
-                any(),
-                headers: any(named: 'headers'),
-                body: any(named: 'body'),
-              )).thenAnswer((invocation) async {
+      when(
+        () => client.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      ).thenAnswer((invocation) async {
         capturedPayload =
             jsonDecode(invocation.namedArguments[#body] as String)
                 as Map<String, dynamic>;
@@ -186,11 +196,13 @@ void main() {
     test('1.4 — cover_art is null when coverArtUrl omitted', () async {
       final client = MockHttpClient();
       Map<String, dynamic>? capturedPayload;
-      when(() => client.post(
-                any(),
-                headers: any(named: 'headers'),
-                body: any(named: 'body'),
-              )).thenAnswer((invocation) async {
+      when(
+        () => client.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      ).thenAnswer((invocation) async {
         capturedPayload =
             jsonDecode(invocation.namedArguments[#body] as String)
                 as Map<String, dynamic>;
@@ -224,7 +236,8 @@ void main() {
       // Queue format: "<retries>|<json_payload>"
       final raw = queue[0];
       final sep = raw.indexOf('|');
-      final payload = jsonDecode(raw.substring(sep + 1)) as Map<String, dynamic>;
+      final payload =
+          jsonDecode(raw.substring(sep + 1)) as Map<String, dynamic>;
       expect(payload['song_id'], 'song-abc123');
     });
 
@@ -254,18 +267,8 @@ void main() {
       final prefs = await SharedPreferences.getInstance();
       final existing = List.generate(
         500,
-        (i) => '0|${jsonEncode({
-              'song_id': 'old-$i',
-              'title': 'Old $i',
-              'artist': 'A',
-              'album': 'B',
-              'duration_s': 60,
-              'source': 'subsonic',
-              'album_id': null,
-              'artist_id': null,
-              'cover_art': null,
-              'played_at': '2026-01-01T00:00:00.000Z',
-            })}',
+        (i) =>
+            '0|${jsonEncode({'song_id': 'old-$i', 'title': 'Old $i', 'artist': 'A', 'album': 'B', 'duration_s': 60, 'source': 'subsonic', 'album_id': null, 'artist_id': null, 'cover_art': null, 'played_at': '2026-01-01T00:00:00.000Z'})}',
       );
       await prefs.setStringList('listening_log_queue', existing);
 
@@ -286,18 +289,8 @@ void main() {
       final client = MockHttpClient();
 
       final prefs = await SharedPreferences.getInstance();
-      final preQueued = '0|${jsonEncode({
-        'song_id': 'queued-song',
-        'title': 'Queued',
-        'artist': 'A',
-        'album': 'B',
-        'duration_s': 60,
-        'source': 'subsonic',
-        'album_id': null,
-        'artist_id': null,
-        'cover_art': null,
-        'played_at': '2026-01-01T00:00:00.000Z',
-      })}';
+      final preQueued =
+          '0|${jsonEncode({'song_id': 'queued-song', 'title': 'Queued', 'artist': 'A', 'album': 'B', 'duration_s': 60, 'source': 'subsonic', 'album_id': null, 'artist_id': null, 'cover_art': null, 'played_at': '2026-01-01T00:00:00.000Z'})}';
       await prefs.setStringList('listening_log_queue', [preQueued]);
 
       _stubPost(client, 200);
@@ -317,18 +310,17 @@ void main() {
     test('3.1 — No base URL → no POST and no queue entry', () async {
       final client = MockHttpClient();
 
-      final service = ListeningLogService(
-        client: client,
-        baseUrl: null,
-      );
+      final service = ListeningLogService(client: client, baseUrl: null);
 
       await service.logPlay(song: _fakeSong());
 
-      verifyNever(() => client.post(
-            any(),
-            headers: any(named: 'headers'),
-            body: any(named: 'body'),
-          ));
+      verifyNever(
+        () => client.post(
+          any(),
+          headers: any(named: 'headers'),
+          body: any(named: 'body'),
+        ),
+      );
 
       final prefs = await SharedPreferences.getInstance();
       final queue = prefs.getStringList('listening_log_queue') ?? [];
@@ -336,22 +328,27 @@ void main() {
     });
 
     // 3.2 — Network failure → POST fails, payload queued.
-    test('3.2 — Network error → POST fails, payload queued for retry', () async {
-      final client = MockHttpClient();
-      _stubPostTimeout(client);
+    test(
+      '3.2 — Network error → POST fails, payload queued for retry',
+      () async {
+        final client = MockHttpClient();
+        _stubPostTimeout(client);
 
-      final service = _makeService(client);
-      await service.logPlay(song: _fakeSong());
+        final service = _makeService(client);
+        await service.logPlay(song: _fakeSong());
 
-      verify(() => client.post(
+        verify(
+          () => client.post(
             any(),
             headers: any(named: 'headers'),
             body: any(named: 'body'),
-          )).called(1);
+          ),
+        ).called(1);
 
-      final prefs = await SharedPreferences.getInstance();
-      final queue = prefs.getStringList('listening_log_queue') ?? [];
-      expect(queue.length, 1);
-    });
+        final prefs = await SharedPreferences.getInstance();
+        final queue = prefs.getStringList('listening_log_queue') ?? [];
+        expect(queue.length, 1);
+      },
+    );
   });
 }

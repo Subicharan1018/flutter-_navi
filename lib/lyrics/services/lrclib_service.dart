@@ -24,17 +24,20 @@ class LrcLibService {
 
   Future<LyricsResult> fetch(Song song) async {
     try {
-      final uri = Uri.parse(_baseUrl).replace(queryParameters: {
-        'artist_name': song.artist,
-        'track_name': song.title,
-        if (song.album.isNotEmpty) 'album_name': song.album,
-        if (song.duration > 0) 'duration': song.duration.toString(),
-      });
+      final uri = Uri.parse(_baseUrl).replace(
+        queryParameters: {
+          'artist_name': song.artist,
+          'track_name': song.title,
+          if (song.album.isNotEmpty) 'album_name': song.album,
+          if (song.duration > 0) 'duration': song.duration.toString(),
+        },
+      );
 
       debugPrint('[LrcLibService] GET $uri');
 
-      final response =
-          await _client.get(uri).timeout(const Duration(seconds: 12));
+      final response = await _client
+          .get(uri)
+          .timeout(const Duration(seconds: 12));
 
       if (response.statusCode == 404) {
         debugPrint('[LrcLibService] 404 — no match for "${song.title}"');
@@ -43,12 +46,12 @@ class LrcLibService {
 
       if (response.statusCode != 200) {
         debugPrint(
-            '[LrcLibService] HTTP ${response.statusCode} for "${song.title}"');
+          '[LrcLibService] HTTP ${response.statusCode} for "${song.title}"',
+        );
         return LyricsResult.none();
       }
 
-      final json =
-          jsonDecode(response.body) as Map<String, dynamic>;
+      final json = jsonDecode(response.body) as Map<String, dynamic>;
 
       final synced = json['syncedLyrics'] as String?;
       if (synced != null && synced.trim().isNotEmpty) {
@@ -71,7 +74,8 @@ class LrcLibService {
       }
 
       debugPrint(
-          '[LrcLibService] Response had no lyrics content for "${song.title}"');
+        '[LrcLibService] Response had no lyrics content for "${song.title}"',
+      );
       return LyricsResult.none();
     } catch (e) {
       debugPrint('[LrcLibService] Error fetching lyrics: $e');

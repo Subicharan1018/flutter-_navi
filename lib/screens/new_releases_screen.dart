@@ -55,9 +55,9 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to load album: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to load album: $e')));
       }
     }
   }
@@ -70,94 +70,105 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
         children: [
           CustomScrollView(
             slivers: [
-          // ── App Bar ──
-          SliverAppBar(
-            pinned: true,
-            backgroundColor: ThemeTokens.of(context).bgBase,
-            surfaceTintColor: Colors.transparent,
-            leading: IconButton(
-              icon: Icon(Icons.arrow_back_ios_new_rounded,
-                  color: ThemeTokens.of(context).textPrimary, size: 20),
-              onPressed: () => Navigator.pop(context),
-            ),
-            title: Text(
-              'New Releases',
-              style: TextStyle(
-                color: ThemeTokens.of(context).textPrimary,
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                letterSpacing: -0.3,
+              // ── App Bar ──
+              SliverAppBar(
+                pinned: true,
+                backgroundColor: ThemeTokens.of(context).bgBase,
+                surfaceTintColor: Colors.transparent,
+                leading: IconButton(
+                  icon: Icon(
+                    Icons.arrow_back_ios_new_rounded,
+                    color: ThemeTokens.of(context).textPrimary,
+                    size: 20,
+                  ),
+                  onPressed: () => Navigator.pop(context),
+                ),
+                title: Text(
+                  'New Releases',
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textPrimary,
+                    fontSize: 18,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: -0.3,
+                  ),
+                ),
+                actions: [
+                  IconButton(
+                    icon: Icon(
+                      Icons.refresh_rounded,
+                      color: ThemeTokens.of(context).textSecondary,
+                      size: 24,
+                    ),
+                    onPressed: _loadAlbums,
+                  ),
+                ],
               ),
-            ),
-            actions: [
-              IconButton(
-                icon: Icon(Icons.refresh_rounded,
-                    color: ThemeTokens.of(context).textSecondary, size: 24),
-                onPressed: _loadAlbums,
-              ),
+
+              // ── Loading / Error / Album grid ──
+              if (_isLoading)
+                SliverFillRemaining(
+                  child: Center(
+                    child: CircularProgressIndicator(
+                      color: ThemeTokens.of(context).accent,
+                      strokeWidth: 2.5,
+                    ),
+                  ),
+                )
+              else if (_errorMessage.isNotEmpty)
+                SliverFillRemaining(
+                  child: Center(
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(
+                          Icons.error_outline_rounded,
+                          color: ThemeTokens.of(context).textMuted,
+                          size: 48,
+                        ),
+                        SizedBox(height: 12),
+                        Text(
+                          _errorMessage,
+                          style: TextStyle(
+                            color: ThemeTokens.of(context).textMuted,
+                            fontSize: 14,
+                          ),
+                        ),
+                        SizedBox(height: 16),
+                        TextButton(
+                          onPressed: _loadAlbums,
+                          child: Text('Retry'),
+                        ),
+                      ],
+                    ),
+                  ),
+                )
+              else
+                SliverPadding(
+                  padding: const EdgeInsets.symmetric(horizontal: 18),
+                  sliver: SliverGrid(
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 2,
+                          mainAxisSpacing: 16,
+                          crossAxisSpacing: 14,
+                          childAspectRatio: 0.75,
+                        ),
+                    delegate: SliverChildBuilderDelegate((context, index) {
+                      if (index >= _albums.length) return null;
+                      final album = _albums[index];
+                      return _NewReleaseCard(
+                        album: album,
+                        service: ref.read(subsonicServiceProvider),
+                        onTap: () => _onAlbumTap(album),
+                      );
+                    }, childCount: _albums.length),
+                  ),
+                ),
+
+              // Bottom padding for mini player
+              const SliverToBoxAdapter(child: SizedBox(height: 120)),
             ],
           ),
-
-          // ── Loading / Error / Album grid ──
-          if (_isLoading)
-            SliverFillRemaining(
-              child: Center(
-                child: CircularProgressIndicator(
-                    color: ThemeTokens.of(context).accent, strokeWidth: 2.5),
-              ),
-            )
-          else if (_errorMessage.isNotEmpty)
-            SliverFillRemaining(
-              child: Center(
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    Icon(Icons.error_outline_rounded,
-                        color: ThemeTokens.of(context).textMuted, size: 48),
-                    SizedBox(height: 12),
-                    Text(_errorMessage,
-                        style: TextStyle(
-                            color: ThemeTokens.of(context).textMuted, fontSize: 14)),
-                    SizedBox(height: 16),
-                    TextButton(
-                      onPressed: _loadAlbums,
-                      child: Text('Retry'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            SliverPadding(
-              padding: const EdgeInsets.symmetric(horizontal: 18),
-              sliver: SliverGrid(
-                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 2,
-                  mainAxisSpacing: 16,
-                  crossAxisSpacing: 14,
-                  childAspectRatio: 0.75,
-                ),
-                delegate: SliverChildBuilderDelegate(
-                  (context, index) {
-                    if (index >= _albums.length) return null;
-                    final album = _albums[index];
-                    return _NewReleaseCard(
-                      album: album,
-                      service: ref.read(subsonicServiceProvider),
-                      onTap: () => _onAlbumTap(album),
-                    );
-                  },
-                  childCount: _albums.length,
-                ),
-              ),
-            ),
-
-          // Bottom padding for mini player
-          const SliverToBoxAdapter(
-            child: SizedBox(height: 120),
-          ),
-        ],
-      ),
           // ── Mini player ────────────────────────────────────────────────
           const Positioned(
             left: 0,
@@ -203,15 +214,21 @@ class _NewReleaseCard extends StatelessWidget {
                 placeholder: (_, __) => Container(
                   color: ThemeTokens.of(context).bgElevated,
                   child: Center(
-                    child: Icon(Icons.album_rounded,
-                        size: 48, color: ThemeTokens.of(context).textMuted),
+                    child: Icon(
+                      Icons.album_rounded,
+                      size: 48,
+                      color: ThemeTokens.of(context).textMuted,
+                    ),
                   ),
                 ),
                 errorWidget: (_, __, ___) => Container(
                   color: ThemeTokens.of(context).bgElevated,
                   child: Center(
-                    child: Icon(Icons.album_rounded,
-                        size: 48, color: ThemeTokens.of(context).textMuted),
+                    child: Icon(
+                      Icons.album_rounded,
+                      size: 48,
+                      color: ThemeTokens.of(context).textMuted,
+                    ),
                   ),
                 ),
               ),

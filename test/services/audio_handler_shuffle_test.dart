@@ -5,7 +5,6 @@ import 'package:navivibe/services/shuffle_algorithms.dart';
 
 import '../helpers/test_utils.dart';
 
-
 void main() {
   List<Song> generatePool(int count) {
     return List.generate(count, (i) => makeSong(id: 's$i'));

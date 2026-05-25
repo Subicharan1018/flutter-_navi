@@ -39,7 +39,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     final filter = ref.watch(libraryFilterProvider);
     final service = ref.watch(subsonicServiceProvider);
 
-
     if (_lastFilter != filter) {
       _lastFilter = filter;
       _listAnimated = false;
@@ -58,10 +57,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
             SliverToBoxAdapter(
               child: Padding(
                 padding: EdgeInsets.fromLTRB(
-                    16, MediaQuery.of(context).padding.top + 16, 16, 8),
+                  16,
+                  MediaQuery.of(context).padding.top + 16,
+                  16,
+                  8,
+                ),
                 child: Row(
                   children: [
-                    Text('Your Library', style: ThemeTokens.of(context).headingMd),
+                    Text(
+                      'Your Library',
+                      style: ThemeTokens.of(context).headingMd,
+                    ),
                     const Spacer(),
                     Semantics(
                       button: true,
@@ -71,12 +77,17 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         height: 48,
                         child: IconButton(
                           padding: EdgeInsets.zero,
-                          icon: Icon(Icons.search_rounded,
-                              color: ThemeTokens.of(context).textPrimary, size: 24),
+                          icon: Icon(
+                            Icons.search_rounded,
+                            color: ThemeTokens.of(context).textPrimary,
+                            size: 24,
+                          ),
                           onPressed: () => Navigator.push(
-                              context,
-                              MaterialPageRoute(
-                                  builder: (_) => const SearchScreen())),
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SearchScreen(),
+                            ),
+                          ),
                         ),
                       ),
                     ),
@@ -88,8 +99,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                         height: 48,
                         child: IconButton(
                           padding: EdgeInsets.zero,
-                          icon: Icon(Icons.add_rounded,
-                              color: ThemeTokens.of(context).textPrimary, size: 28),
+                          icon: Icon(
+                            Icons.add_rounded,
+                            color: ThemeTokens.of(context).textPrimary,
+                            size: 28,
+                          ),
                           onPressed: () => showDialog(
                             context: context,
                             builder: (_) => const CreatePlaylistDialog(),
@@ -109,7 +123,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 child: ListView(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(
-                      horizontal: 16, vertical: 8),
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   children: [
                     _FilterChip(
                       label: 'All Songs',
@@ -138,7 +154,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       onTap: () {
                         Navigator.push(
                           context,
-                          MaterialPageRoute(builder: (_) => const OfflineScreen()),
+                          MaterialPageRoute(
+                            builder: (_) => const OfflineScreen(),
+                          ),
                         );
                       },
                     ),
@@ -147,36 +165,40 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
             // ── Sort chips ────────────────────────────────────────────────
-            SliverToBoxAdapter(
-              child: _SortChipRow(filter: filter),
-            ),
+            SliverToBoxAdapter(child: _SortChipRow(filter: filter)),
 
             // ── Content sliver — typed per filter (no dynamic erasure) ────
             ...switch (filter) {
               LibraryFilter.allSongs || LibraryFilter.downloaded =>
-                ref.watch(sortedSongsProvider).when(
-                  data: (songs) => songs.isEmpty
-                      ? [const SliverFillRemaining(child: _EmptyLibrary())]
-                      : [_buildSongSliver(context, songs)],
-                  loading: () => [_loadingSliver(context)],
-                  error: (e, _) => [_errorSliver(context, e)],
-                ),
+                ref
+                    .watch(sortedSongsProvider)
+                    .when(
+                      data: (songs) => songs.isEmpty
+                          ? [const SliverFillRemaining(child: _EmptyLibrary())]
+                          : [_buildSongSliver(context, songs)],
+                      loading: () => [_loadingSliver(context)],
+                      error: (e, _) => [_errorSliver(context, e)],
+                    ),
               LibraryFilter.albums =>
-                ref.watch(sortedAlbumsProvider).when(
-                  data: (albums) => albums.isEmpty
-                      ? [const SliverFillRemaining(child: _EmptyLibrary())]
-                      : [_buildAlbumSliver(context, albums, service)],
-                  loading: () => [_loadingSliver(context)],
-                  error: (e, _) => [_errorSliver(context, e)],
-                ),
+                ref
+                    .watch(sortedAlbumsProvider)
+                    .when(
+                      data: (albums) => albums.isEmpty
+                          ? [const SliverFillRemaining(child: _EmptyLibrary())]
+                          : [_buildAlbumSliver(context, albums, service)],
+                      loading: () => [_loadingSliver(context)],
+                      error: (e, _) => [_errorSliver(context, e)],
+                    ),
               LibraryFilter.playlists =>
-                ref.watch(sortedPlaylistsProvider).when(
-                  data: (playlists) => playlists.isEmpty
-                      ? [const SliverFillRemaining(child: _EmptyLibrary())]
-                      : [_buildPlaylistSliver(context, playlists, service)],
-                  loading: () => [_loadingSliver(context)],
-                  error: (e, _) => [_errorSliver(context, e)],
-                ),
+                ref
+                    .watch(sortedPlaylistsProvider)
+                    .when(
+                      data: (playlists) => playlists.isEmpty
+                          ? [const SliverFillRemaining(child: _EmptyLibrary())]
+                          : [_buildPlaylistSliver(context, playlists, service)],
+                      loading: () => [_loadingSliver(context)],
+                      error: (e, _) => [_errorSliver(context, e)],
+                    ),
             },
 
             const SliverToBoxAdapter(child: SizedBox(height: 140)),
@@ -189,17 +211,19 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // ── Loading / error slivers ─────────────────────────────────────────────
 
   Widget _loadingSliver(BuildContext context) => SliverFillRemaining(
-        child: Center(
-          child: CircularProgressIndicator(
-              color: ThemeTokens.of(context).accent, strokeWidth: 2),
-        ),
-      );
+    child: Center(
+      child: CircularProgressIndicator(
+        color: ThemeTokens.of(context).accent,
+        strokeWidth: 2,
+      ),
+    ),
+  );
 
   Widget _errorSliver(BuildContext context, Object e) => SliverFillRemaining(
-        child: Center(
-          child: Text('Error: $e', style: const TextStyle(color: Colors.redAccent)),
-        ),
-      );
+    child: Center(
+      child: Text('Error: $e', style: const TextStyle(color: Colors.redAccent)),
+    ),
+  );
 
   // ── Song sliver ─────────────────────────────────────────────────────────
   // Receives typed List<Song> — no cast, no copy.
@@ -209,41 +233,39 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     return SliverPadding(
       padding: const EdgeInsets.only(top: 8),
       sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final song = songs[index];
-            final starred = ref.watch(
-              playerProvider.select((s) => s.starredIds.contains(song.id)),
-            );
-            Widget tile = SwipeableLibraryTile(
-              dismissKey: 'song_${song.id}_$index',
-              isStarred: starred,
-              onSwipeRight: () => addSongsToQueue(
-                songs: [song],
-                notifier: ref.read(playerProvider.notifier),
-                playerState: ref.read(playerProvider),
-                context: context,
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final song = songs[index];
+          final starred = ref.watch(
+            playerProvider.select((s) => s.starredIds.contains(song.id)),
+          );
+          Widget tile = SwipeableLibraryTile(
+            dismissKey: 'song_${song.id}_$index',
+            isStarred: starred,
+            onSwipeRight: () => addSongsToQueue(
+              songs: [song],
+              notifier: ref.read(playerProvider.notifier),
+              playerState: ref.read(playerProvider),
+              context: context,
+            ),
+            onSwipeLeft: () =>
+                ref.read(playerProvider.notifier).toggleStar(song.id),
+            child: SongTile(
+              song: song,
+              // Typed List<Song> passed directly — no .cast().toList() allocation
+              onTap: () =>
+                  ref.read(playerProvider.notifier).setQueue(songs, index),
+            ),
+          );
+          if (!_listAnimated) {
+            tile = RepaintBoundary(
+              child: tile.animate().fadeIn(
+                duration: 400.ms,
+                delay: (index * 18).clamp(0, 280).ms,
               ),
-              onSwipeLeft: () =>
-                  ref.read(playerProvider.notifier).toggleStar(song.id),
-              child: SongTile(
-                song: song,
-                // Typed List<Song> passed directly — no .cast().toList() allocation
-                onTap: () => ref.read(playerProvider.notifier).setQueue(songs, index),
-              ),
             );
-            if (!_listAnimated) {
-              tile = RepaintBoundary(
-                child: tile.animate().fadeIn(
-                      duration: 400.ms,
-                      delay: (index * 18).clamp(0, 280).ms,
-                    ),
-              );
-            }
-            return tile;
-          },
-          childCount: songs.length,
-        ),
+          }
+          return tile;
+        }, childCount: songs.length),
       ),
     );
   }
@@ -251,97 +273,107 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // ── Album sliver ─────────────────────────────────────────────────────────
 
   Widget _buildAlbumSliver(
-      BuildContext context, List<Album> albums, SubsonicService service) {
+    BuildContext context,
+    List<Album> albums,
+    SubsonicService service,
+  ) {
     return SliverPadding(
       padding: const EdgeInsets.only(top: 8),
       sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final item = albums[index];
-            final coverUrl = service.getCoverArtUrl(item.coverArt);
-            Widget tile = SwipeableLibraryTile(
-              dismissKey: 'album_${item.id}_$index',
-              onSwipeRight: () async {
-                try {
-                  final songs = await service.getAlbum(item.id);
-                  if (!context.mounted) return;
-                  await addSongsToQueue(
-                    songs: songs,
-                    notifier: ref.read(playerProvider.notifier),
-                    playerState: ref.read(playerProvider),
-                    context: context,
-                    label: item.name,
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final item = albums[index];
+          final coverUrl = service.getCoverArtUrl(item.coverArt);
+          Widget tile = SwipeableLibraryTile(
+            dismissKey: 'album_${item.id}_$index',
+            onSwipeRight: () async {
+              try {
+                final songs = await service.getAlbum(item.id);
+                if (!context.mounted) return;
+                await addSongsToQueue(
+                  songs: songs,
+                  notifier: ref.read(playerProvider.notifier),
+                  playerState: ref.read(playerProvider),
+                  context: context,
+                  label: item.name,
+                );
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not load album: $e')),
                   );
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not load album: $e')),
-                    );
-                  }
                 }
-              },
-              child: Semantics(
-                button: true,
-                label: 'Album: ${item.name} by ${item.artist}',
-                child: ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  leading: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(6),
-                        color: ThemeTokens.of(context).bgElevated),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(6),
-                      child: CachedNetworkImage(
-                        imageUrl: coverUrl,
-                        cacheKey: 'cover_${item.coverArt ?? item.id}',
-                        fit: BoxFit.cover,
-                        errorWidget: (_, __, ___) => Icon(
-                            Icons.album_rounded,
-                            color: ThemeTokens.of(context).textMuted),
+              }
+            },
+            child: Semantics(
+              button: true,
+              label: 'Album: ${item.name} by ${item.artist}',
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
+                ),
+                leading: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(6),
+                    color: ThemeTokens.of(context).bgElevated,
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: CachedNetworkImage(
+                      imageUrl: coverUrl,
+                      cacheKey: 'cover_${item.coverArt ?? item.id}',
+                      fit: BoxFit.cover,
+                      errorWidget: (_, __, ___) => Icon(
+                        Icons.album_rounded,
+                        color: ThemeTokens.of(context).textMuted,
                       ),
                     ),
                   ),
-                  title: Text(item.name,
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14)),
-                  subtitle: Text('Album \u2022 ${item.artist}',
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textSecondary,
-                          fontSize: 12)),
-                  onTap: () async {
-                    try {
-                      final songs = await service.getAlbum(item.id);
-                      if (context.mounted) {
-                        ref.read(playerProvider.notifier).setQueue(songs, 0);
-                      }
-                    } catch (e) {
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          SnackBar(content: Text('Could not play album: $e')),
-                        );
-                      }
-                    }
-                  },
                 ),
+                title: Text(
+                  item.name,
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  'Album \u2022 ${item.artist}',
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                onTap: () async {
+                  try {
+                    final songs = await service.getAlbum(item.id);
+                    if (context.mounted) {
+                      ref.read(playerProvider.notifier).setQueue(songs, 0);
+                    }
+                  } catch (e) {
+                    if (context.mounted) {
+                      ScaffoldMessenger.of(context).showSnackBar(
+                        SnackBar(content: Text('Could not play album: $e')),
+                      );
+                    }
+                  }
+                },
+              ),
+            ),
+          );
+          if (!_listAnimated) {
+            tile = RepaintBoundary(
+              child: tile.animate().fadeIn(
+                duration: 400.ms,
+                delay: (index * 18).clamp(0, 280).ms,
               ),
             );
-            if (!_listAnimated) {
-              tile = RepaintBoundary(
-                child: tile.animate().fadeIn(
-                      duration: 400.ms,
-                      delay: (index * 18).clamp(0, 280).ms,
-                    ),
-              );
-            }
-            return tile;
-          },
-          childCount: albums.length,
-        ),
+          }
+          return tile;
+        }, childCount: albums.length),
       ),
     );
   }
@@ -349,93 +381,106 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // ── Playlist sliver ──────────────────────────────────────────────────────
 
   Widget _buildPlaylistSliver(
-      BuildContext context, List<Playlist> playlists, SubsonicService service) {
+    BuildContext context,
+    List<Playlist> playlists,
+    SubsonicService service,
+  ) {
     return SliverPadding(
       padding: const EdgeInsets.only(top: 8),
       sliver: SliverList(
-        delegate: SliverChildBuilderDelegate(
-          (context, index) {
-            final item = playlists[index];
-            Widget tile = SwipeableLibraryTile(
-              dismissKey: 'playlist_${item.id}_$index',
-              onSwipeRight: () async {
-                try {
-                  final songs = await service.getPlaylistSongs(item.id);
-                  if (!context.mounted) return;
-                  await addSongsToQueue(
-                    songs: songs,
-                    notifier: ref.read(playerProvider.notifier),
-                    playerState: ref.read(playerProvider),
-                    context: context,
-                    label: item.name,
+        delegate: SliverChildBuilderDelegate((context, index) {
+          final item = playlists[index];
+          Widget tile = SwipeableLibraryTile(
+            dismissKey: 'playlist_${item.id}_$index',
+            onSwipeRight: () async {
+              try {
+                final songs = await service.getPlaylistSongs(item.id);
+                if (!context.mounted) return;
+                await addSongsToQueue(
+                  songs: songs,
+                  notifier: ref.read(playerProvider.notifier),
+                  playerState: ref.read(playerProvider),
+                  context: context,
+                  label: item.name,
+                );
+              } catch (e) {
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    SnackBar(content: Text('Could not load playlist: $e')),
                   );
-                } catch (e) {
-                  if (context.mounted) {
-                    ScaffoldMessenger.of(context).showSnackBar(
-                      SnackBar(content: Text('Could not load playlist: $e')),
-                    );
-                  }
                 }
-              },
-              child: Semantics(
-                button: true,
-                label: 'Playlist: ${item.name}, ${item.songCount} songs',
-                child: ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-                  leading: Container(
-                    width: 52,
-                    height: 52,
-                    decoration: BoxDecoration(
-                      color: ThemeTokens.of(context).bgElevated,
-                      borderRadius: BorderRadius.circular(6),
-                    ),
-                    child: item.coverArt != null && item.coverArt!.isNotEmpty
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(6),
-                            child: CachedNetworkImage(
-                              imageUrl: service.getCoverArtUrl(item.coverArt),
-                              cacheKey: 'cover_${item.coverArt}',
-                              fit: BoxFit.cover,
-                              errorWidget: (_, __, ___) => Icon(
-                                  Icons.queue_music_rounded,
-                                  color: ThemeTokens.of(context).accent,
-                                  size: 24),
-                            ),
-                          )
-                        : Icon(Icons.queue_music_rounded,
-                            color: ThemeTokens.of(context).accent, size: 24),
-                  ),
-                  title: Text(item.name,
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textPrimary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14)),
-                  subtitle: Text('Playlist \u2022 ${item.songCount} songs',
-                      style: TextStyle(
-                          color: ThemeTokens.of(context).textSecondary,
-                          fontSize: 12)),
-                  onTap: () => Navigator.push(
-                      context,
-                      AppRouteTransitions.fadeScale(
-                          builder: (_) =>
-                              PlaylistDetailsScreen(playlist: item))),
-                  onLongPress: () => _showPlaylistOptions(context, item),
+              }
+            },
+            child: Semantics(
+              button: true,
+              label: 'Playlist: ${item.name}, ${item.songCount} songs',
+              child: ListTile(
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 4,
                 ),
+                leading: Container(
+                  width: 52,
+                  height: 52,
+                  decoration: BoxDecoration(
+                    color: ThemeTokens.of(context).bgElevated,
+                    borderRadius: BorderRadius.circular(6),
+                  ),
+                  child: item.coverArt != null && item.coverArt!.isNotEmpty
+                      ? ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: CachedNetworkImage(
+                            imageUrl: service.getCoverArtUrl(item.coverArt),
+                            cacheKey: 'cover_${item.coverArt}',
+                            fit: BoxFit.cover,
+                            errorWidget: (_, __, ___) => Icon(
+                              Icons.queue_music_rounded,
+                              color: ThemeTokens.of(context).accent,
+                              size: 24,
+                            ),
+                          ),
+                        )
+                      : Icon(
+                          Icons.queue_music_rounded,
+                          color: ThemeTokens.of(context).accent,
+                          size: 24,
+                        ),
+                ),
+                title: Text(
+                  item.name,
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textPrimary,
+                    fontWeight: FontWeight.w600,
+                    fontSize: 14,
+                  ),
+                ),
+                subtitle: Text(
+                  'Playlist \u2022 ${item.songCount} songs',
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textSecondary,
+                    fontSize: 12,
+                  ),
+                ),
+                onTap: () => Navigator.push(
+                  context,
+                  AppRouteTransitions.fadeScale(
+                    builder: (_) => PlaylistDetailsScreen(playlist: item),
+                  ),
+                ),
+                onLongPress: () => _showPlaylistOptions(context, item),
+              ),
+            ),
+          );
+          if (!_listAnimated) {
+            tile = RepaintBoundary(
+              child: tile.animate().fadeIn(
+                duration: 400.ms,
+                delay: (index * 18).clamp(0, 280).ms,
               ),
             );
-            if (!_listAnimated) {
-              tile = RepaintBoundary(
-                child: tile.animate().fadeIn(
-                      duration: 400.ms,
-                      delay: (index * 18).clamp(0, 280).ms,
-                    ),
-              );
-            }
-            return tile;
-          },
-          childCount: playlists.length,
-        ),
+          }
+          return tile;
+        }, childCount: playlists.length),
       ),
     );
   }
@@ -450,24 +495,33 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
           children: [
             const SizedBox(height: 8),
             ListTile(
-              leading: Icon(Icons.edit_rounded,
-                  color: ThemeTokens.of(context).textPrimary),
-              title: Text('Edit Playlist',
-                  style: TextStyle(color: ThemeTokens.of(context).textPrimary)),
+              leading: Icon(
+                Icons.edit_rounded,
+                color: ThemeTokens.of(context).textPrimary,
+              ),
+              title: Text(
+                'Edit Playlist',
+                style: TextStyle(color: ThemeTokens.of(context).textPrimary),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 Navigator.push(
-                    context,
-                    MaterialPageRoute(
-                        builder: (_) =>
-                            EditPlaylistScreen(playlist: playlist)));
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => EditPlaylistScreen(playlist: playlist),
+                  ),
+                );
               },
             ),
             ListTile(
-              leading: const Icon(Icons.delete_outline_rounded,
-                  color: Colors.redAccent),
-              title: const Text('Delete Playlist',
-                  style: TextStyle(color: Colors.redAccent)),
+              leading: const Icon(
+                Icons.delete_outline_rounded,
+                color: Colors.redAccent,
+              ),
+              title: const Text(
+                'Delete Playlist',
+                style: TextStyle(color: Colors.redAccent),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 _confirmDelete(context, playlist);
@@ -485,20 +539,25 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       context: context,
       builder: (context) => AlertDialog(
         backgroundColor: ThemeTokens.of(context).bgSurface,
-        shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(16)),
-        title: Text('Delete Playlist',
-            style: TextStyle(
-                color: ThemeTokens.of(context).textPrimary,
-                fontWeight: FontWeight.bold)),
-        content: Text('Delete "${playlist.name}"?',
-            style:
-                TextStyle(color: ThemeTokens.of(context).textSecondary)),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        title: Text(
+          'Delete Playlist',
+          style: TextStyle(
+            color: ThemeTokens.of(context).textPrimary,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+        content: Text(
+          'Delete "${playlist.name}"?',
+          style: TextStyle(color: ThemeTokens.of(context).textSecondary),
+        ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: Text('Cancel',
-                style: TextStyle(color: ThemeTokens.of(context).textPrimary)),
+            child: Text(
+              'Cancel',
+              style: TextStyle(color: ThemeTokens.of(context).textPrimary),
+            ),
           ),
           TextButton(
             onPressed: () async {
@@ -509,9 +568,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 ref.invalidate(playlistsProvider);
                 if (context.mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
-                    SnackBar(
-                        content:
-                            Text('Deleted "${playlist.name}"')),
+                    SnackBar(content: Text('Deleted "${playlist.name}"')),
                   );
                 }
               } catch (e) {
@@ -522,10 +579,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                 }
               }
             },
-            child: Text('Delete',
-                style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.bold)),
+            child: Text(
+              'Delete',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
           ),
         ],
       ),
@@ -573,39 +633,51 @@ class SwipeToDismissSongTile extends StatelessWidget {
       // eliminating accidental swipe deletions.
       confirmDismiss: (direction) async {
         return await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            backgroundColor: ThemeTokens.of(context).bgSurface,
-            shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(14)),
-            title: Text('Remove song?',
-                style: TextStyle(
+              context: context,
+              builder: (ctx) => AlertDialog(
+                backgroundColor: ThemeTokens.of(context).bgSurface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                title: Text(
+                  'Remove song?',
+                  style: TextStyle(
                     color: ThemeTokens.of(context).textPrimary,
                     fontWeight: FontWeight.bold,
-                    fontSize: 16)),
-            content: Text(
-                'This will remove the song from the playlist.',
-                style: TextStyle(
-                    color: ThemeTokens.of(context).textSecondary, fontSize: 14)),
-            actionsPadding:
-                const EdgeInsets.fromLTRB(16, 0, 16, 12),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text('Cancel',
-                    style:
-                        TextStyle(color: ThemeTokens.of(context).textPrimary)),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text('Remove',
-                    style: TextStyle(
+                    fontSize: 16,
+                  ),
+                ),
+                content: Text(
+                  'This will remove the song from the playlist.',
+                  style: TextStyle(
+                    color: ThemeTokens.of(context).textSecondary,
+                    fontSize: 14,
+                  ),
+                ),
+                actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+                actions: [
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, false),
+                    child: Text(
+                      'Cancel',
+                      style: TextStyle(
+                        color: ThemeTokens.of(context).textPrimary,
+                      ),
+                    ),
+                  ),
+                  TextButton(
+                    onPressed: () => Navigator.pop(ctx, true),
+                    child: Text(
+                      'Remove',
+                      style: TextStyle(
                         color: Colors.redAccent,
-                        fontWeight: FontWeight.bold)),
+                        fontWeight: FontWeight.bold,
+                      ),
+                    ),
+                  ),
+                ],
               ),
-            ],
-          ),
-        ) ??
+            ) ??
             false;
       },
       onDismissed: (_) => onDelete(),
@@ -617,14 +689,20 @@ class SwipeToDismissSongTile extends StatelessWidget {
         child: const Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(Icons.delete_outline_rounded,
-                color: Colors.redAccent, size: 22),
+            Icon(
+              Icons.delete_outline_rounded,
+              color: Colors.redAccent,
+              size: 22,
+            ),
             SizedBox(width: 6),
-            Text('Remove',
-                style: TextStyle(
-                    color: Colors.redAccent,
-                    fontWeight: FontWeight.w600,
-                    fontSize: 13)),
+            Text(
+              'Remove',
+              style: TextStyle(
+                color: Colors.redAccent,
+                fontWeight: FontWeight.w600,
+                fontSize: 13,
+              ),
+            ),
           ],
         ),
       ),
@@ -658,17 +736,15 @@ const _kSectionSortFields = <LibraryFilter, List<LibrarySortField>>{
     LibrarySortField.artistName,
     LibrarySortField.duration,
   ],
-  LibraryFilter.playlists: [
-    LibrarySortField.name,
-  ],
+  LibraryFilter.playlists: [LibrarySortField.name],
 };
 
 const _kSortFieldLabel = <LibrarySortField, String>{
-  LibrarySortField.name:          'Name',
+  LibrarySortField.name: 'Name',
   LibrarySortField.recentlyAdded: 'Recent',
-  LibrarySortField.playCount:     'Plays',
-  LibrarySortField.duration:      'Duration',
-  LibrarySortField.artistName:    'Artist',
+  LibrarySortField.playCount: 'Plays',
+  LibrarySortField.duration: 'Duration',
+  LibrarySortField.artistName: 'Artist',
 };
 
 class _SortChipRow extends ConsumerWidget {
@@ -703,8 +779,10 @@ class _SortChipRow extends ConsumerWidget {
                   .setSort(effectiveFilter, field),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
                 decoration: BoxDecoration(
                   color: isActive
                       ? tokens.accent.withValues(alpha: 0.15)
@@ -724,9 +802,10 @@ class _SortChipRow extends ConsumerWidget {
                       _kSortFieldLabel[field] ?? field.name,
                       style: TextStyle(
                         fontSize: 12,
-                        fontWeight: isActive ? FontWeight.w600 : FontWeight.w400,
-                        color:
-                            isActive ? tokens.accent : tokens.textSecondary,
+                        fontWeight: isActive
+                            ? FontWeight.w600
+                            : FontWeight.w400,
+                        color: isActive ? tokens.accent : tokens.textSecondary,
                       ),
                     ),
                     if (isActive) ...[
@@ -759,10 +838,11 @@ class _FilterChip extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
 
-  const _FilterChip(
-      {required this.label,
-      required this.isSelected,
-      required this.onTap});
+  const _FilterChip({
+    required this.label,
+    required this.isSelected,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -774,8 +854,7 @@ class _FilterChip extends StatelessWidget {
         child: CupertinoClickable(
           onTap: onTap,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
+            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 7),
             decoration: BoxDecoration(
               color: isSelected
                   ? ThemeTokens.of(context).accent
@@ -785,8 +864,11 @@ class _FilterChip extends StatelessWidget {
             child: Text(
               label,
               style: TextStyle(
-                color:
-                    isSelected ? (ThemeTokens.of(context).isLight ? Colors.white : Colors.black) : ThemeTokens.of(context).textPrimary,
+                color: isSelected
+                    ? (ThemeTokens.of(context).isLight
+                          ? Colors.white
+                          : Colors.black)
+                    : ThemeTokens.of(context).textPrimary,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,
               ),
@@ -811,12 +893,19 @@ class _EmptyLibrary extends StatelessWidget {
       child: Column(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          Icon(Icons.library_music_rounded,
-              color: ThemeTokens.of(context).textMuted, size: 64),
+          Icon(
+            Icons.library_music_rounded,
+            color: ThemeTokens.of(context).textMuted,
+            size: 64,
+          ),
           SizedBox(height: 16),
-          Text('Your library is empty',
-              style:
-                  TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 16)),
+          Text(
+            'Your library is empty',
+            style: TextStyle(
+              color: ThemeTokens.of(context).textMuted,
+              fontSize: 16,
+            ),
+          ),
         ],
       ),
     );

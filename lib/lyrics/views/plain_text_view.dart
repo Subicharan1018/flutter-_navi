@@ -37,8 +37,7 @@ class _PlainTextViewState extends State<PlainTextView> {
     if (lines.isEmpty || widget.song.duration <= 0) return;
 
     // Interval between advancing one line.
-    final intervalMs =
-        ((widget.song.duration * 1000) / lines.length).round();
+    final intervalMs = ((widget.song.duration * 1000) / lines.length).round();
 
     _timer = Timer.periodic(Duration(milliseconds: intervalMs), (_) {
       if (!mounted) return;
@@ -90,8 +89,7 @@ class _PlainTextViewState extends State<PlainTextView> {
           top: 12,
           right: 16,
           child: Container(
-            padding:
-                const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
             decoration: BoxDecoration(
               color: Colors.white.withValues(alpha: 0.15),
               borderRadius: BorderRadius.circular(20),

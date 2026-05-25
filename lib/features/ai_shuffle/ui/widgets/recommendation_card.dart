@@ -32,9 +32,10 @@ class _RecommendationCardState extends State<RecommendationCard>
   void initState() {
     super.initState();
     _pressCtrl = AnimationController(vsync: this, duration: kAnimFast);
-    _scale = Tween(begin: 1.0, end: 0.97).animate(
-      CurvedAnimation(parent: _pressCtrl, curve: kCurveStandard),
-    );
+    _scale = Tween(
+      begin: 1.0,
+      end: 0.97,
+    ).animate(CurvedAnimation(parent: _pressCtrl, curve: kCurveStandard));
   }
 
   @override
@@ -98,7 +99,11 @@ class _RecommendationCardState extends State<RecommendationCard>
                       alignment: Alignment.center,
                       child: Text(
                         '${widget.song.rank}',
-                        style: tokens.textStyle(12, FontWeight.w700, tokens.accent),
+                        style: tokens.textStyle(
+                          12,
+                          FontWeight.w700,
+                          tokens.accent,
+                        ),
                       ),
                     ),
                     const SizedBox(width: s12),
@@ -109,7 +114,11 @@ class _RecommendationCardState extends State<RecommendationCard>
                         children: [
                           Text(
                             widget.song.title,
-                            style: tokens.textStyle(14, FontWeight.w600, tokens.textPrimary),
+                            style: tokens.textStyle(
+                              14,
+                              FontWeight.w600,
+                              tokens.textPrimary,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -118,7 +127,11 @@ class _RecommendationCardState extends State<RecommendationCard>
                             widget.song.composer.isNotEmpty
                                 ? widget.song.composer
                                 : 'Unknown Composer',
-                            style: tokens.textStyle(12, FontWeight.w400, tokens.textSecondary),
+                            style: tokens.textStyle(
+                              12,
+                              FontWeight.w400,
+                              tokens.textSecondary,
+                            ),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                           ),
@@ -128,7 +141,10 @@ class _RecommendationCardState extends State<RecommendationCard>
                     const SizedBox(width: s8),
                     // Genre chip
                     if (widget.song.genreBucket.isNotEmpty)
-                      _GenreChip(bucket: widget.song.genreBucket, tokens: tokens),
+                      _GenreChip(
+                        bucket: widget.song.genreBucket,
+                        tokens: tokens,
+                      ),
                     if (widget.song.isColdStart) ...[
                       const SizedBox(width: s4),
                       _BadgeChip(label: 'NEW', color: tokens.accent),
@@ -143,7 +159,9 @@ class _RecommendationCardState extends State<RecommendationCard>
                         decoration: BoxDecoration(
                           color: tokens.accent.withOpacity(0.1),
                           borderRadius: radiusSm,
-                          border: Border.all(color: tokens.accent.withOpacity(0.25)),
+                          border: Border.all(
+                            color: tokens.accent.withOpacity(0.25),
+                          ),
                         ),
                         child: Icon(
                           Icons.playlist_add_rounded,
@@ -162,7 +180,8 @@ class _RecommendationCardState extends State<RecommendationCard>
                   children: [
                     Text(
                       'MATCH',
-                      style: tokens.textStyle(9, FontWeight.w600, tokens.textMuted)
+                      style: tokens
+                          .textStyle(9, FontWeight.w600, tokens.textMuted)
                           .copyWith(letterSpacing: 0.8),
                     ),
                     const SizedBox(width: s8),
@@ -174,8 +193,12 @@ class _RecommendationCardState extends State<RecommendationCard>
                           duration: kAnimSlow,
                           builder: (_, v, __) => LinearProgressIndicator(
                             value: v,
-                            backgroundColor: tokens.textPrimary.withOpacity(0.07),
-                            valueColor: AlwaysStoppedAnimation(_scoreColor(score, tokens)),
+                            backgroundColor: tokens.textPrimary.withOpacity(
+                              0.07,
+                            ),
+                            valueColor: AlwaysStoppedAnimation(
+                              _scoreColor(score, tokens),
+                            ),
                             minHeight: 5,
                           ),
                         ),
@@ -184,7 +207,11 @@ class _RecommendationCardState extends State<RecommendationCard>
                     const SizedBox(width: s8),
                     Text(
                       '${(score * 100).toStringAsFixed(0)}%',
-                      style: tokens.textStyle(11, FontWeight.w700, _scoreColor(score, tokens)),
+                      style: tokens.textStyle(
+                        11,
+                        FontWeight.w700,
+                        _scoreColor(score, tokens),
+                      ),
                     ),
                   ],
                 ),
@@ -194,7 +221,8 @@ class _RecommendationCardState extends State<RecommendationCard>
                   const SizedBox(height: s8),
                   Text(
                     widget.song.why,
-                    style: tokens.textStyle(11, FontWeight.w400, tokens.textSecondary)
+                    style: tokens
+                        .textStyle(11, FontWeight.w400, tokens.textSecondary)
                         .copyWith(fontStyle: FontStyle.italic),
                     maxLines: 2,
                     overflow: TextOverflow.ellipsis,

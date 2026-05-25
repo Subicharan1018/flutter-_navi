@@ -56,11 +56,7 @@ Future<T?> showPlatformSheet<T>({
                   children: [
                     if (title != null)
                       _DesktopDialogTitleBar(title: title, context: ctx),
-                    Flexible(
-                      child: SingleChildScrollView(
-                        child: builder(ctx),
-                      ),
-                    ),
+                    Flexible(child: SingleChildScrollView(child: builder(ctx))),
                   ],
                 ),
               ),
@@ -86,10 +82,7 @@ Future<T?> showPlatformSheet<T>({
 // ── Private desktop title bar ─────────────────────────────────────────────────
 
 class _DesktopDialogTitleBar extends StatelessWidget {
-  const _DesktopDialogTitleBar({
-    required this.title,
-    required this.context,
-  });
+  const _DesktopDialogTitleBar({required this.title, required this.context});
 
   final String title;
   final BuildContext context;
@@ -110,9 +103,9 @@ class _DesktopDialogTitleBar extends StatelessWidget {
           Expanded(
             child: Text(
               title,
-              style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w600,
-                  ),
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
             ),
           ),
           IconButton(

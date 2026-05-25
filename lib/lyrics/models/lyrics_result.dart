@@ -14,20 +14,16 @@ class LyricsResult {
   /// Stored in cache so re-parsing on cold-start is cheap and lossless.
   final String? rawText;
 
-  const LyricsResult({
-    required this.type,
-    this.lyrics,
-    this.rawText,
-  });
+  const LyricsResult({required this.type, this.lyrics, this.rawText});
 
   factory LyricsResult.none() => const LyricsResult(type: LyricsType.none);
 
   // ── Cache serialisation ──────────────────────────────────────────────────
 
   Map<String, dynamic> toJson() => {
-        'type': type.name,
-        'rawText': rawText ?? '',
-      };
+    'type': type.name,
+    'rawText': rawText ?? '',
+  };
 
   factory LyricsResult.fromJson(
     Map<String, dynamic> json,

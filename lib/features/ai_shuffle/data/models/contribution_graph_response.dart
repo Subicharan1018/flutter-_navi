@@ -7,10 +7,7 @@ class ContributionDay {
   final String date;
   final int count;
 
-  const ContributionDay({
-    required this.date,
-    required this.count,
-  });
+  const ContributionDay({required this.date, required this.count});
 
   factory ContributionDay.fromJson(Map<String, dynamic> json) {
     return ContributionDay(
@@ -30,9 +27,7 @@ class ContributionDay {
 class ContributionGraphResponse {
   final List<ContributionDay> days;
 
-  const ContributionGraphResponse({
-    required this.days,
-  });
+  const ContributionGraphResponse({required this.days});
 
   factory ContributionGraphResponse.fromJson(Map<String, dynamic> json) {
     // API returns "data", not "days"

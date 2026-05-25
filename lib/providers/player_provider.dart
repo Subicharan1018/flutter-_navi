@@ -91,7 +91,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Completer<void>? _queueOpLock;
   bool _suppressStreamEvents = false;
-  
+
   int? _pendingIndexAfterShuffle;
   Timer? _shuffleGuardTimer;
 
@@ -157,10 +157,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final repeatIdx = p.get('repeatMode', defaultValue: 0) as int;
     final loopMode =
         LoopMode.values[repeatIdx.clamp(0, LoopMode.values.length - 1)];
-    state = state.copyWith(
-      shuffleMode: shuffle,
-      repeatMode: loopMode,
-    );
+    state = state.copyWith(shuffleMode: shuffle, repeatMode: loopMode);
     // Apply to the just_audio player so audio behavior matches persisted UI
     // state. Without this, the player stays on LoopMode.off after a restart
     // even though the notification + UI correctly show repeat-one/all.
@@ -185,8 +182,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   AudioPlayer get player => _audioHandler.player;
 
-
-
   Duration _scrobbleThreshold = Duration.zero;
   bool _hasScrobbled = false;
   String? _currentScrobbleSongId;
@@ -206,7 +201,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (mediaItem == null) return;
         final index = state.queue.indexWhere((s) => s.id == mediaItem.id);
         if (index == -1) return;
-        
+
         if (_pendingIndexAfterShuffle != null) {
           if (index == _pendingIndexAfterShuffle) {
             _pendingIndexAfterShuffle = null;
@@ -223,7 +218,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             return; // Drop transient event
           }
         }
-        
+
         if (_suppressStreamEvents) return;
 
         final prevIndex = _lastKnownIndex;
@@ -335,20 +330,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           if (playing && _scrobblePlayStart == null) {
             _scrobblePlayStart = DateTime.now();
           } else if (!playing && _scrobblePlayStart != null) {
-            _scrobbleListenDuration +=
-                DateTime.now().difference(_scrobblePlayStart!);
+            _scrobbleListenDuration += DateTime.now().difference(
+              _scrobblePlayStart!,
+            );
             _scrobblePlayStart = null;
           }
           state = state.copyWith(isPlaying: playing);
         }
 
         // 2. Handle loop mode changes
-        final loopMode = const {
-          AudioServiceRepeatMode.none: LoopMode.off,
-          AudioServiceRepeatMode.one: LoopMode.one,
-          AudioServiceRepeatMode.all: LoopMode.all,
-          AudioServiceRepeatMode.group: LoopMode.all,
-        }[ps.repeatMode] ?? LoopMode.off;
+        final loopMode =
+            const {
+              AudioServiceRepeatMode.none: LoopMode.off,
+              AudioServiceRepeatMode.one: LoopMode.one,
+              AudioServiceRepeatMode.all: LoopMode.all,
+              AudioServiceRepeatMode.group: LoopMode.all,
+            }[ps.repeatMode] ??
+            LoopMode.off;
 
         if (loopMode != _lastLoopMode) {
           _lastLoopMode = loopMode;
@@ -360,7 +358,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (processingState != _lastProcessingState) {
           _lastProcessingState = processingState;
           if (processingState == AudioProcessingState.completed) {
-            if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
+            if (state.queue.isNotEmpty &&
+                state.currentIndex < state.queue.length) {
               _collector.onSongEnded(
                 state.queue[state.currentIndex],
                 player.position,
@@ -609,7 +608,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               source: 'playlist', // Always treat inline shuffle as a playlist
               playlistName: playlistName,
             );
-            
+
             // Map recommendations back to local Songs
             final resolved = <Song>[];
             for (final rec in response.queue) {
@@ -622,7 +621,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
                 resolved.add(match);
               }
             }
-            
+
             // Append any left-overs from the batch that weren't matched
             for (final s in firstBatch) {
               if (!resolved.contains(s)) resolved.add(s);
@@ -644,11 +643,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             queue: initialQueue,
             currentIndex: 0,
           );
-          await _audioHandler.setQueue(
-            initialQueue,
-            0,
-            unshuffledSongs: songs,
-          );
+          await _audioHandler.setQueue(initialQueue, 0, unshuffledSongs: songs);
           _suppressStreamEvents = false;
           player.play();
 
@@ -671,12 +666,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final finalQueue = [currentSong, ...shuffled];
           // Emit shuffleMode:true + queue in one copyWith — same guard as
           // the smartLocal branch above to prevent double applyShuffleAlgorithm.
-          state = state.copyWith(shuffleMode: true, queue: finalQueue, currentIndex: 0);
-          await _audioHandler.setQueue(
-            finalQueue,
-            0,
-            unshuffledSongs: songs,
+          state = state.copyWith(
+            shuffleMode: true,
+            queue: finalQueue,
+            currentIndex: 0,
           );
+          await _audioHandler.setQueue(finalQueue, 0, unshuffledSongs: songs);
           _suppressStreamEvents = false;
           player.play();
         }
@@ -892,7 +887,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // BUG-004 FIX (Change 1): Keep internal tracking in sync after unshuffle
       // so the stream handler uses the correct prevIndex when events resume.
       _lastKnownIndex = postIndex;
-      
+
       _pendingIndexAfterShuffle = postIndex;
       _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
         if (!mounted) return;
@@ -933,8 +928,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // BUG-004 FIX: Capture the current song by ID before shuffle, not by
       // integer index. After the shuffle await completes, the integer index
       // is stale because the queue has been reordered.
-      final preShuffleIndex =
-          _audioHandler.currentIndex;
+      final preShuffleIndex = _audioHandler.currentIndex;
       final currentSongId = preShuffleIndex < _audioHandler.currentQueue.length
           ? _audioHandler.currentQueue[preShuffleIndex].id
           : null;
@@ -967,8 +961,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // so we look up the song we were playing before shuffle by its ID.
       int postShuffleIndex = _audioHandler.currentIndex;
       if (currentSongId != null) {
-        final foundIndex = _audioHandler.currentQueue
-            .indexWhere((s) => s.id == currentSongId);
+        final foundIndex = _audioHandler.currentQueue.indexWhere(
+          (s) => s.id == currentSongId,
+        );
         if (foundIndex != -1) {
           postShuffleIndex = foundIndex;
         }
@@ -981,7 +976,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // non-smartLocal shuffle so the stream handler uses the correct prevIndex
       // when events resume after the suppression window closes.
       _lastKnownIndex = postShuffleIndex;
-      
+
       _pendingIndexAfterShuffle = postShuffleIndex;
       _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
         if (!mounted) return;
@@ -1013,12 +1008,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _isShuffling = true;
     _suppressStreamEvents = true;
 
-    final safeIndex = (_audioHandler.currentIndex)
-        .clamp(0, _audioHandler.currentQueue.length - 1);
-    final pastAndPresent =
-        List<Song>.from(_audioHandler.currentQueue.sublist(0, safeIndex + 1));
-    final future =
-        List<Song>.from(_audioHandler.currentQueue.sublist(safeIndex + 1));
+    final safeIndex = (_audioHandler.currentIndex).clamp(
+      0,
+      _audioHandler.currentQueue.length - 1,
+    );
+    final pastAndPresent = List<Song>.from(
+      _audioHandler.currentQueue.sublist(0, safeIndex + 1),
+    );
+    final future = List<Song>.from(
+      _audioHandler.currentQueue.sublist(safeIndex + 1),
+    );
     final currentSong = _audioHandler.currentQueue[safeIndex];
 
     if (future.isEmpty) {
@@ -1033,12 +1032,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       final repo = _ref.read(shuffleRepositoryProvider);
       final candidateTitles = future.map((s) => s.title).toList();
-      
+
       final response = await repo.getNext(
         source: 'playlist',
         playlistName: _currentPlaylistName,
       );
-      
+
       final resolved = <Song>[];
       for (final rec in response.queue) {
         final match = future.firstWhere(
@@ -1047,7 +1046,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         );
         if (!resolved.contains(match)) resolved.add(match);
       }
-      
+
       for (final s in future) {
         if (!resolved.contains(s)) resolved.add(s);
       }
@@ -1063,8 +1062,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         await _audioHandler.standardShuffle();
         // Use ID-based lookup to find current song's new position.
         int postShuffleIndex = safeIndex;
-        final foundIdx = _audioHandler.currentQueue
-            .indexWhere((s) => s.id == currentSong.id);
+        final foundIdx = _audioHandler.currentQueue.indexWhere(
+          (s) => s.id == currentSong.id,
+        );
         if (foundIdx != -1) postShuffleIndex = foundIdx;
         // BUG-004 FIX (Change 1 – fallback path): sync _lastKnownIndex after
         // the fallback standardShuffle so the stream handler is not stale.
@@ -1093,7 +1093,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           'during fetch ($safeIndex→$liveIndex), discarding stale order',
         );
         state = state.copyWith(
-            queue: _audioHandler.currentQueue, currentIndex: liveIndex);
+          queue: _audioHandler.currentQueue,
+          currentIndex: liveIndex,
+        );
         return;
       }
 
@@ -1119,7 +1121,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // value and the guard timer's expiry allows transient index=0 events to
       // be accepted as legitimate track changes, desyncing the UI tile.
       _lastKnownIndex = safeIndex;
-      
+
       _pendingIndexAfterShuffle = safeIndex;
       _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
         if (!mounted) return;
@@ -1142,13 +1144,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final LoopMode nextMode;
     switch (state.repeatMode) {
       case LoopMode.off:
-        nextMode = LoopMode.one;  // first tap → repeat single song
+        nextMode = LoopMode.one; // first tap → repeat single song
         break;
       case LoopMode.one:
-        nextMode = LoopMode.all;  // second tap → repeat playlist
+        nextMode = LoopMode.all; // second tap → repeat playlist
         break;
       case LoopMode.all:
-        nextMode = LoopMode.off;  // third tap → off
+        nextMode = LoopMode.off; // third tap → off
         break;
     }
     await player.setLoopMode(nextMode);
@@ -1193,22 +1195,22 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> clearAiShuffleQueue() async {
     // 1. Pause to prevent autoplay/lookahead from racing
     await player.pause();
-    
+
     // 2. Drain the pool completely
     _playlistPool = [];
-    
+
     // 3. Cancel any pending shuffle guards
     _shuffleGuardTimer?.cancel();
     _shuffleGuardTimer = null;
     _pendingIndexAfterShuffle = null;
     _suppressStreamEvents = false;
-    
+
     // 4. Stop the player
     await player.stop();
-    
+
     // 5. Clear the audio handler's source
     await _audioHandler.clearQueue();
-    
+
     // 6. Reset state
     _lastKnownIndex = 0;
     _lastFetchedForSongId = null;
@@ -1219,7 +1221,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       isPlaying: false,
       history: [],
     );
-    
+
     // 7. Persist cleared state
     _persistState();
   }
@@ -1262,7 +1264,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final fresh = similar.where((s) => !existingIds.contains(s.id)).toList();
       if (fresh.isEmpty) {
         debugPrint('[AUTOPLAY] All similar songs already in queue');
-        _lastFetchedForSongId = null;  // ← Allow retry with different seed
+        _lastFetchedForSongId = null; // ← Allow retry with different seed
         return;
       }
 
@@ -1338,8 +1340,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       );
 
       // Snapshot anchor synchronously.
-      final safeIndex = (_audioHandler.currentIndex)
-          .clamp(0, _audioHandler.currentQueue.length - 1);
+      final safeIndex = (_audioHandler.currentIndex).clamp(
+        0,
+        _audioHandler.currentQueue.length - 1,
+      );
       final pastAndPresent = List<Song>.from(
         _audioHandler.currentQueue.sublist(0, safeIndex + 1),
       );
@@ -1364,12 +1368,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           try {
             final repo = _ref.read(shuffleRepositoryProvider);
             final candidateTitles = fullFuture.map((s) => s.title).toList();
-            
+
             final response = await repo.getNext(
               source: 'playlist',
               playlistName: _currentPlaylistName,
             );
-            
+
             final resolved = <Song>[];
             for (final rec in response.queue) {
               final match = fullFuture.firstWhere(
@@ -1378,7 +1382,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               );
               if (!resolved.contains(match)) resolved.add(match);
             }
-            
+
             for (final s in fullFuture) {
               if (!resolved.contains(s)) resolved.add(s);
             }

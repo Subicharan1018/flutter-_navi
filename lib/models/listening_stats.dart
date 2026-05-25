@@ -60,9 +60,9 @@ class ArtistStat {
   const ArtistStat({required this.artist, required this.playCount});
 
   factory ArtistStat.fromJson(Map<String, dynamic> json) => ArtistStat(
-        artist: json['artist']?.toString() ?? 'Unknown Artist',
-        playCount: ListeningStats._parseInt(json['play_count']),
-      );
+    artist: json['artist']?.toString() ?? 'Unknown Artist',
+    playCount: ListeningStats._parseInt(json['play_count']),
+  );
 }
 
 /// A single album entry in the top-albums list.
@@ -78,10 +78,10 @@ class AlbumStat {
   });
 
   factory AlbumStat.fromJson(Map<String, dynamic> json) => AlbumStat(
-        album: json['album']?.toString() ?? 'Unknown Album',
-        artist: json['artist']?.toString() ?? 'Unknown Artist',
-        playCount: ListeningStats._parseInt(json['play_count']),
-      );
+    album: json['album']?.toString() ?? 'Unknown Album',
+    artist: json['artist']?.toString() ?? 'Unknown Artist',
+    playCount: ListeningStats._parseInt(json['play_count']),
+  );
 }
 
 /// A single track entry in the top-tracks list.
@@ -97,10 +97,10 @@ class TrackStat {
   });
 
   factory TrackStat.fromJson(Map<String, dynamic> json) => TrackStat(
-        title: json['title']?.toString() ?? 'Unknown Track',
-        artist: json['artist']?.toString() ?? 'Unknown Artist',
-        playCount: ListeningStats._parseInt(json['play_count']),
-      );
+    title: json['title']?.toString() ?? 'Unknown Track',
+    artist: json['artist']?.toString() ?? 'Unknown Artist',
+    playCount: ListeningStats._parseInt(json['play_count']),
+  );
 }
 
 /// A single entry in the recent-plays list.
@@ -122,13 +122,13 @@ class RecentPlay {
   });
 
   factory RecentPlay.fromJson(Map<String, dynamic> json) => RecentPlay(
-        id: ListeningStats._parseInt(json['id']),
-        playedAt: json['played_at']?.toString() ?? '',
-        title: json['title']?.toString() ?? 'Unknown Track',
-        artist: json['artist']?.toString() ?? 'Unknown Artist',
-        album: json['album']?.toString(),
-        coverArt: json['cover_art']?.toString(),
-      );
+    id: ListeningStats._parseInt(json['id']),
+    playedAt: json['played_at']?.toString() ?? '',
+    title: json['title']?.toString() ?? 'Unknown Track',
+    artist: json['artist']?.toString() ?? 'Unknown Artist',
+    album: json['album']?.toString(),
+    coverArt: json['cover_art']?.toString(),
+  );
 
   /// Returns a human-readable "time ago" string without any external package.
   String get timeAgo {

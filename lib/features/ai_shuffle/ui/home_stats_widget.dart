@@ -31,7 +31,10 @@ class HomeStatsWidget extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 8.0),
+              padding: const EdgeInsets.symmetric(
+                horizontal: 16.0,
+                vertical: 8.0,
+              ),
               child: Text(
                 period == 'weekly' ? 'Weekly Top Songs' : 'Monthly Top Songs',
                 style: theme.textTheme.titleMedium?.copyWith(
@@ -138,7 +141,11 @@ class HomeStatsWidget extends ConsumerWidget {
   }
 
   Widget _buildErrorCard(
-      BuildContext context, WidgetRef ref, String error, AppThemeTokens tokens) {
+    BuildContext context,
+    WidgetRef ref,
+    String error,
+    AppThemeTokens tokens,
+  ) {
     return Card(
       margin: const EdgeInsets.all(16.0),
       color: Theme.of(context).colorScheme.errorContainer,
@@ -146,15 +153,18 @@ class HomeStatsWidget extends ConsumerWidget {
         padding: const EdgeInsets.all(12.0),
         child: Row(
           children: [
-            Icon(Icons.error_outline,
-                color: Theme.of(context).colorScheme.onErrorContainer),
+            Icon(
+              Icons.error_outline,
+              color: Theme.of(context).colorScheme.onErrorContainer,
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Text(
                 'Failed to load stats: $error',
                 style: TextStyle(
-                    color: Theme.of(context).colorScheme.onErrorContainer,
-                    fontSize: 12),
+                  color: Theme.of(context).colorScheme.onErrorContainer,
+                  fontSize: 12,
+                ),
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
               ),
@@ -162,8 +172,7 @@ class HomeStatsWidget extends ConsumerWidget {
             TextButton(
               onPressed: () => ref.invalidate(listeningStatsProvider(period)),
               style: TextButton.styleFrom(
-                foregroundColor:
-                    Theme.of(context).colorScheme.onErrorContainer,
+                foregroundColor: Theme.of(context).colorScheme.onErrorContainer,
               ),
               child: const Text('Retry'),
             ),

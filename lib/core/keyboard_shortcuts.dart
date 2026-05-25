@@ -119,7 +119,10 @@ class NaviKeyboardShortcuts extends ConsumerWidget {
       const SingleActivator(LogicalKeyboardKey.escape): () {
         // On desktop, NowPlayingScreen is pushed via rootNavigator:true,
         // so the pop must also go to the root navigator.
-        final nav = Navigator.of(context, rootNavigator: PlatformUtils.isDesktop);
+        final nav = Navigator.of(
+          context,
+          rootNavigator: PlatformUtils.isDesktop,
+        );
         if (nav.canPop()) nav.pop();
       },
     };

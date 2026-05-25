@@ -55,9 +55,9 @@ class PlaylistCacheService {
       final encoded = await compute(_encodeSongsDrift, songs);
 
       await _db.transaction(() async {
-        await (_db.delete(_db.playlistCache)
-              ..where((t) => t.playlistId.equals(playlistId)))
-            .go();
+        await (_db.delete(
+          _db.playlistCache,
+        )..where((t) => t.playlistId.equals(playlistId))).go();
 
         await _db.batch((batch) {
           for (var i = 0; i < encoded.length; i++) {
@@ -80,9 +80,9 @@ class PlaylistCacheService {
 
   Future<void> invalidate(String playlistId) async {
     try {
-      await (_db.delete(_db.playlistCache)
-            ..where((t) => t.playlistId.equals(playlistId)))
-          .go();
+      await (_db.delete(
+        _db.playlistCache,
+      )..where((t) => t.playlistId.equals(playlistId))).go();
     } catch (e) {
       debugPrint('[PlaylistCache] invalidate error: $e');
     }

@@ -48,8 +48,9 @@ class PaletteCache {
 
   /// The four colours for the currently loaded song.
   /// Returns the fallback palette if no song has been cached yet.
-  List<Color> get colors =>
-      _currentSongId != null ? (_cache[_currentSongId!] ?? _kFallback) : _kFallback;
+  List<Color> get colors => _currentSongId != null
+      ? (_cache[_currentSongId!] ?? _kFallback)
+      : _kFallback;
 
   /// The song ID whose colours are currently active, or null if empty.
   String? get songId => _currentSongId;
@@ -66,7 +67,8 @@ class PaletteCache {
   List<Color>? getColorsFor(String id) {
     final entry = _cache.remove(id); // ← intentional LRU promotion step 1/2
     if (entry != null) {
-      _cache[id] = entry; // ← intentional LRU promotion step 2/2 (moves to tail)
+      _cache[id] =
+          entry; // ← intentional LRU promotion step 2/2 (moves to tail)
       return entry;
     }
     return null;

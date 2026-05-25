@@ -77,8 +77,11 @@ void main() {
       // Adding one more should evict the first (song_0).
       cache.update('song_new', _palette(999));
       expect(cache.length, PaletteCache.maxEntries);
-      expect(cache.hasColorsFor('song_0'), isFalse,
-          reason: 'Oldest entry should be evicted');
+      expect(
+        cache.hasColorsFor('song_0'),
+        isFalse,
+        reason: 'Oldest entry should be evicted',
+      );
       expect(cache.hasColorsFor('song_new'), isTrue);
       // Second-oldest should still be present.
       expect(cache.hasColorsFor('song_1'), isTrue);
@@ -95,10 +98,16 @@ void main() {
 
       // Now add a new entry — should evict song_1 (the new oldest), not song_0.
       cache.update('song_new', _palette(999));
-      expect(cache.hasColorsFor('song_0'), isTrue,
-          reason: 'Accessed entry should be promoted and not evicted');
-      expect(cache.hasColorsFor('song_1'), isFalse,
-          reason: 'Unpromoted oldest entry should be evicted');
+      expect(
+        cache.hasColorsFor('song_0'),
+        isTrue,
+        reason: 'Accessed entry should be promoted and not evicted',
+      );
+      expect(
+        cache.hasColorsFor('song_1'),
+        isFalse,
+        reason: 'Unpromoted oldest entry should be evicted',
+      );
     });
 
     test('update promotes existing entry on re-update', () {
@@ -136,8 +145,11 @@ void main() {
       expect(cache.colors, equals(p1));
 
       cache.update('song_2', p2);
-      expect(cache.colors, equals(p2),
-          reason: 'colors should reflect the most recently updated song');
+      expect(
+        cache.colors,
+        equals(p2),
+        reason: 'colors should reflect the most recently updated song',
+      );
     });
   });
 }

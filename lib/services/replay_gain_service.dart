@@ -1,11 +1,7 @@
 import 'dart:math';
 import '../core/hive_boxes.dart';
 
-enum ReplayGainMode {
-  off,
-  track,
-  album,
-}
+enum ReplayGainMode { off, track, album }
 
 class ReplayGainService {
   static final ReplayGainService _instance = ReplayGainService._internal();
@@ -16,7 +12,10 @@ class ReplayGainService {
   Future<void> initialize() async {}
 
   ReplayGainMode getMode() {
-    final modeIndexVal = HiveBoxes.audio.get(HiveBoxes.kReplayGainMode, defaultValue: 0);
+    final modeIndexVal = HiveBoxes.audio.get(
+      HiveBoxes.kReplayGainMode,
+      defaultValue: 0,
+    );
     final modeIndex = modeIndexVal is int ? modeIndexVal : 0;
     return ReplayGainMode.values[modeIndex.clamp(
       0,
@@ -38,7 +37,10 @@ class ReplayGainService {
   }
 
   bool getPreventClipping() {
-    final val = HiveBoxes.audio.get(HiveBoxes.kPreventClipping, defaultValue: true);
+    final val = HiveBoxes.audio.get(
+      HiveBoxes.kPreventClipping,
+      defaultValue: true,
+    );
     return val is bool ? val : true;
   }
 
@@ -47,7 +49,10 @@ class ReplayGainService {
   }
 
   double getFallbackGain() {
-    final val = HiveBoxes.audio.get(HiveBoxes.kFallbackGain, defaultValue: -6.0);
+    final val = HiveBoxes.audio.get(
+      HiveBoxes.kFallbackGain,
+      defaultValue: -6.0,
+    );
     return val is double ? val : (val is num ? val.toDouble() : -6.0);
   }
 

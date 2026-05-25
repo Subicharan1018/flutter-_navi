@@ -78,24 +78,41 @@ class TranscodingService extends ChangeNotifier {
 
   void _loadFromHive() {
     final box = HiveBoxes.audio;
-    
-    final wifiVal = box.get(HiveBoxes.kWifiBitrate, defaultValue: TranscodeBitrate.original);
+
+    final wifiVal = box.get(
+      HiveBoxes.kWifiBitrate,
+      defaultValue: TranscodeBitrate.original,
+    );
     _wifiBitrate = wifiVal is int ? wifiVal : TranscodeBitrate.original;
-    
-    final mobileVal = box.get(HiveBoxes.kMobileBitrate, defaultValue: TranscodeBitrate.kbps192);
+
+    final mobileVal = box.get(
+      HiveBoxes.kMobileBitrate,
+      defaultValue: TranscodeBitrate.kbps192,
+    );
     _mobileBitrate = mobileVal is int ? mobileVal : TranscodeBitrate.kbps192;
-    
-    _format = box.get(HiveBoxes.kTranscodeFormat, defaultValue: TranscodeFormat.mp3)?.toString() ?? TranscodeFormat.mp3;
-    
-    final enabledVal = box.get(HiveBoxes.kTranscodingEnabled, defaultValue: false);
+
+    _format =
+        box
+            .get(HiveBoxes.kTranscodeFormat, defaultValue: TranscodeFormat.mp3)
+            ?.toString() ??
+        TranscodeFormat.mp3;
+
+    final enabledVal = box.get(
+      HiveBoxes.kTranscodingEnabled,
+      defaultValue: false,
+    );
     _enabled = enabledVal is bool ? enabledVal : false;
-    
-    final smartVal = box.get(HiveBoxes.kSmartSwitchEnabled, defaultValue: false);
+
+    final smartVal = box.get(
+      HiveBoxes.kSmartSwitchEnabled,
+      defaultValue: false,
+    );
     _smartEnabled = smartVal is bool ? smartVal : false;
-    
+
     final connVal = box.get(HiveBoxes.kConnectionType, defaultValue: 0);
     final connectionIndex = connVal is int ? connVal : 0;
-    _currentConnectionType = ConnectionType.values[connectionIndex.clamp(0, ConnectionType.values.length - 1)];
+    _currentConnectionType = ConnectionType
+        .values[connectionIndex.clamp(0, ConnectionType.values.length - 1)];
 
     if (_smartEnabled) {
       _initConnectivityWatcher();
@@ -114,9 +131,9 @@ class TranscodingService extends ChangeNotifier {
       _updateConnectionType(result);
 
       _connectivitySub?.cancel();
-      _connectivitySub = Connectivity()
-          .onConnectivityChanged
-          .listen(_updateConnectionType);
+      _connectivitySub = Connectivity().onConnectivityChanged.listen(
+        _updateConnectionType,
+      );
     } finally {
       _isInitializingConnectivity = false;
     }

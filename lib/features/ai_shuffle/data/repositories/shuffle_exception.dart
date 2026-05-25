@@ -15,7 +15,8 @@ abstract class ShuffleException implements Exception {
 /// Network error talking to the shuffle server (DNS, no route, socket error).
 class ShuffleNetworkError extends ShuffleException {
   const ShuffleNetworkError([
-    super.message = 'Cannot reach shuffle.subimusic.me. Check your internet connection.',
+    super.message =
+        'Cannot reach shuffle.subimusic.me. Check your internet connection.',
   ]);
 }
 
@@ -23,13 +24,14 @@ class ShuffleNetworkError extends ShuffleException {
 class ShuffleServerError extends ShuffleException {
   final int statusCode;
   ShuffleServerError(this.statusCode)
-      : super('Shuffle server error ($statusCode)');
+    : super('Shuffle server error ($statusCode)');
 }
 
 /// The server responded with 401 — credentials are wrong or missing.
 class ShuffleAuthError extends ShuffleException {
   const ShuffleAuthError([
-    super.message = 'Shuffle server authentication failed. Check your Navidrome credentials.',
+    super.message =
+        'Shuffle server authentication failed. Check your Navidrome credentials.',
   ]);
 }
 
@@ -43,6 +45,7 @@ class ShuffleEmptyResponse extends ShuffleException {
 /// The shuffle server URL is not configured in Settings.
 class ShuffleNotConfigured extends ShuffleException {
   const ShuffleNotConfigured([
-    super.message = 'Navidrome credentials not configured. Set username and password in Settings.',
+    super.message =
+        'Navidrome credentials not configured. Set username and password in Settings.',
   ]);
 }

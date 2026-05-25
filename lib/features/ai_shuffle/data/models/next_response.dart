@@ -17,10 +17,10 @@ class QueueContext {
   });
 
   factory QueueContext.fromJson(Map<String, dynamic> json) => QueueContext(
-        bucket: json['bucket']?.toString() ?? '',
-        istHour: _parseInt(json['ist_hour']),
-        weather: json['weather']?.toString() ?? '',
-      );
+    bucket: json['bucket']?.toString() ?? '',
+    istHour: _parseInt(json['ist_hour']),
+    weather: json['weather']?.toString() ?? '',
+  );
 
   static int _parseInt(dynamic v) {
     if (v is int) return v;
@@ -73,14 +73,14 @@ class NextResponse {
   });
 
   factory NextResponse.fromJson(Map<String, dynamic> json) => NextResponse(
-        mode: json['mode']?.toString() ?? 'smart',
-        source: json['source']?.toString() ?? 'smart',
-        playlistId: json['playlist_id']?.toString(),
-        queue: (json['queue'] as List<dynamic>? ?? [])
-            .map((e) => RecommendedSong.fromJson(e as Map<String, dynamic>))
-            .toList(),
-        context: json['context'] is Map<String, dynamic>
-            ? QueueContext.fromJson(json['context'] as Map<String, dynamic>)
-            : null,
-      );
+    mode: json['mode']?.toString() ?? 'smart',
+    source: json['source']?.toString() ?? 'smart',
+    playlistId: json['playlist_id']?.toString(),
+    queue: (json['queue'] as List<dynamic>? ?? [])
+        .map((e) => RecommendedSong.fromJson(e as Map<String, dynamic>))
+        .toList(),
+    context: json['context'] is Map<String, dynamic>
+        ? QueueContext.fromJson(json['context'] as Map<String, dynamic>)
+        : null,
+  );
 }

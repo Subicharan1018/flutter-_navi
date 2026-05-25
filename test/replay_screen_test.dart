@@ -53,19 +53,18 @@ final _emptyData = const ReplayData(
 
 // Override providers to return stub data synchronously.
 final _monthlyOverride = monthlyReplayProvider.overrideWith(
-    (ref) => Future.value(_fakeData));
+  (ref) => Future.value(_fakeData),
+);
 final _weeklyOverride = weeklyReplayProvider.overrideWith(
-    (ref) => Future.value(_emptyData));
+  (ref) => Future.value(_emptyData),
+);
 
 Widget _buildTestApp({List<Override>? overrides}) {
   return ProviderScope(
     overrides: overrides ?? [_monthlyOverride, _weeklyOverride],
     child: ThemeTokens(
       tokens: ThemeVariants.spotify(),
-      child: MaterialApp(
-        theme: AppTheme.darkTheme,
-        home: const ReplayScreen(),
-      ),
+      child: MaterialApp(theme: AppTheme.darkTheme, home: const ReplayScreen()),
     ),
   );
 }
@@ -88,15 +87,25 @@ void main() {
   group('ReplaySong.listeningLabel', () {
     test('formats hours and minutes correctly', () {
       final song = ReplaySong(
-          songId: 'x', title: '', artist: '', albumName: '',
-          playCount: 1, totalMinutesSec: 3660);
+        songId: 'x',
+        title: '',
+        artist: '',
+        albumName: '',
+        playCount: 1,
+        totalMinutesSec: 3660,
+      );
       expect(song.listeningLabel, '1h 1m');
     });
 
     test('shows only minutes when under 1 hour', () {
       final song = ReplaySong(
-          songId: 'x', title: '', artist: '', albumName: '',
-          playCount: 1, totalMinutesSec: 720);
+        songId: 'x',
+        title: '',
+        artist: '',
+        albumName: '',
+        playCount: 1,
+        totalMinutesSec: 720,
+      );
       expect(song.listeningLabel, '12m');
     });
   });
@@ -105,7 +114,10 @@ void main() {
   group('ReplayStats.totalTimeLabel', () {
     test('formats total time with hours', () {
       const stats = ReplayStats(
-          totalSec: 7200, uniqueArtists: 1, uniqueSongs: 1);
+        totalSec: 7200,
+        uniqueArtists: 1,
+        uniqueSongs: 1,
+      );
       expect(stats.totalTimeLabel, '2h 0m');
     });
   });

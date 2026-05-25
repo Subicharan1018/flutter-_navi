@@ -71,12 +71,14 @@ class ListeningStatsResponse {
   static Map<String, int> _parseHeatmap(dynamic v) {
     if (v is! Map) return {};
     return Map.fromEntries(
-      v.entries.map((e) => MapEntry(
-            e.key.toString(),
-            e.value is int
-                ? e.value as int
-                : int.tryParse(e.value?.toString() ?? '') ?? 0,
-          )),
+      v.entries.map(
+        (e) => MapEntry(
+          e.key.toString(),
+          e.value is int
+              ? e.value as int
+              : int.tryParse(e.value?.toString() ?? '') ?? 0,
+        ),
+      ),
     );
   }
 }

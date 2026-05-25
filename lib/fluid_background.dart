@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart';
 
 // ── Shader loader ─────────────────────────────────────────────────────────────
 
+/// @see [FluidBackground]
+/// @dependency shader loading utility for the background community.
 class FluidShaderLoader {
   FluidShaderLoader._();
   static final FluidShaderLoader instance = FluidShaderLoader._();
@@ -15,9 +17,9 @@ class FluidShaderLoader {
   Future<ui.FragmentProgram> load() {
     _future ??= ui.FragmentProgram.fromAsset('shaders/fluid_background.frag')
         .then((p) {
-      _program = p;
-      return p;
-    });
+          _program = p;
+          return p;
+        });
     return _future!;
   }
 
@@ -26,6 +28,8 @@ class FluidShaderLoader {
 
 // ── Custom painter ────────────────────────────────────────────────────────────
 
+/// @see [FluidBackground]
+/// @dependency rendering utility for the background community.
 class _FluidPainter extends CustomPainter {
   // FIX BUG-7: The shader instance is passed in from state and reused across
   // frames. Creating a new FragmentShader every build causes GPU resource
@@ -74,17 +78,17 @@ class _FluidPainter extends CustomPainter {
 
     for (int i = 0; i < 4; i++) {
       final c = i < colors.length ? colors[i] : const Color(0xFF1A1A2E);
-      shader.setFloat(idx++, c.red   / 255.0);
+      shader.setFloat(idx++, c.red / 255.0);
       shader.setFloat(idx++, c.green / 255.0);
-      shader.setFloat(idx++, c.blue  / 255.0);
+      shader.setFloat(idx++, c.blue / 255.0);
       shader.setFloat(idx++, c.alpha / 255.0);
     }
 
     for (int i = 0; i < 4; i++) {
       final c = i < prevColors.length ? prevColors[i] : const Color(0xFF1A1A2E);
-      shader.setFloat(idx++, c.red   / 255.0);
+      shader.setFloat(idx++, c.red / 255.0);
       shader.setFloat(idx++, c.green / 255.0);
-      shader.setFloat(idx++, c.blue  / 255.0);
+      shader.setFloat(idx++, c.blue / 255.0);
       shader.setFloat(idx++, c.alpha / 255.0);
     }
 
@@ -124,18 +128,22 @@ class _FluidBackgroundState extends State<FluidBackground>
   double _elapsed = 0;
 
   List<Color> _currentColors = const [
-    Color(0xFF1A1A2E), Color(0xFF16213E),
-    Color(0xFF0F3460), Color(0xFF533483),
+    Color(0xFF1A1A2E),
+    Color(0xFF16213E),
+    Color(0xFF0F3460),
+    Color(0xFF533483),
   ];
   List<Color> _prevColors = const [
-    Color(0xFF1A1A2E), Color(0xFF16213E),
-    Color(0xFF0F3460), Color(0xFF533483),
+    Color(0xFF1A1A2E),
+    Color(0xFF16213E),
+    Color(0xFF0F3460),
+    Color(0xFF533483),
   ];
 
   double _tColor = 1.0;
   static const double _kFadeDuration = 1.5;
   double _fadeStartElapsed = 0;
-  bool   _fading = false;
+  bool _fading = false;
 
   ui.FragmentProgram? _program;
 
@@ -147,7 +155,7 @@ class _FluidBackgroundState extends State<FluidBackground>
   void initState() {
     super.initState();
     _currentColors = List.of(widget.colors);
-    _prevColors    = List.of(widget.colors);
+    _prevColors = List.of(widget.colors);
 
     _ticker = createTicker(_onTick)..start();
 
@@ -159,7 +167,7 @@ class _FluidBackgroundState extends State<FluidBackground>
         if (mounted) {
           setState(() {
             _program = p;
-            _shader  = p.fragmentShader();
+            _shader = p.fragmentShader();
           });
         }
       });
@@ -170,11 +178,11 @@ class _FluidBackgroundState extends State<FluidBackground>
   void didUpdateWidget(FluidBackground old) {
     super.didUpdateWidget(old);
     if (!listEquals(widget.colors, old.colors)) {
-      _prevColors       = _lerpedColors;
-      _currentColors    = List.of(widget.colors);
+      _prevColors = _lerpedColors;
+      _currentColors = List.of(widget.colors);
       _fadeStartElapsed = _elapsed;
-      _fading           = true;
-      _tColor           = 0.0;
+      _fading = true;
+      _tColor = 0.0;
     }
   }
 
@@ -198,7 +206,11 @@ class _FluidBackgroundState extends State<FluidBackground>
       } else {
         final t = progress < 0.5
             ? 4 * progress * progress * progress
-            : 1 - (-2 * progress + 2) * (-2 * progress + 2) * (-2 * progress + 2) / 2;
+            : 1 -
+                  (-2 * progress + 2) *
+                      (-2 * progress + 2) *
+                      (-2 * progress + 2) /
+                      2;
         _tColor = t.clamp(0.0, 1.0);
       }
     }
@@ -233,11 +245,11 @@ class _FluidBackgroundState extends State<FluidBackground>
         // FIX BUG-7: Pass the cached _shader — not _program!.fragmentShader()
         // which would allocate a new GPU buffer on every build call.
         painter: _FluidPainter(
-          shader:     _shader!,
-          time:       _elapsed,
-          colors:     _currentColors,
+          shader: _shader!,
+          time: _elapsed,
+          colors: _currentColors,
           prevColors: _prevColors,
-          tColor:     _tColor,
+          tColor: _tColor,
         ),
         size: Size.infinite,
         isComplex: false,

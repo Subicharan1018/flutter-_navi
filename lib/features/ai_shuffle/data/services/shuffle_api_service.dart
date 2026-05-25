@@ -38,18 +38,16 @@ class ShuffleApiService {
   /// All methods short-circuit with [ShuffleNetworkError] when this is true.
   final bool _unconfigured;
 
-  ShuffleApiService({
-    required String username,
-    required String password,
-  })  : _unconfigured = username.isEmpty || password.isEmpty,
-        _dio = Dio(
-          BaseOptions(
-            baseUrl: _kShuffleBaseUrl,
-            connectTimeout: const Duration(seconds: 10),
-            receiveTimeout: const Duration(seconds: 20),
-            headers: {'Accept': 'application/json'},
-          ),
-        ) {
+  ShuffleApiService({required String username, required String password})
+    : _unconfigured = username.isEmpty || password.isEmpty,
+      _dio = Dio(
+        BaseOptions(
+          baseUrl: _kShuffleBaseUrl,
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 20),
+          headers: {'Accept': 'application/json'},
+        ),
+      ) {
     if (!_unconfigured) {
       _dio.interceptors.add(_BasicAuthInterceptor(username, password));
     }
@@ -116,8 +114,7 @@ class ShuffleApiService {
           'playlist_name': playlistName,
         if (genreStreakType.isNotEmpty) 'genre_streak_type': genreStreakType,
         if (genreStreakCount > 0) 'genre_streak_count': genreStreakCount,
-        if (playedTitles.isNotEmpty)
-          'played_titles': playedTitles.join(','),
+        if (playedTitles.isNotEmpty) 'played_titles': playedTitles.join(','),
         if (recentListenRatios.isNotEmpty)
           'recent_listen_ratios': recentListenRatios,
         if (lastEndReason.isNotEmpty) 'last_end_reason': lastEndReason,
@@ -288,7 +285,7 @@ class _BasicAuthInterceptor extends Interceptor {
   final String _credentials;
 
   _BasicAuthInterceptor(String username, String password)
-      : _credentials = base64Encode(utf8.encode('$username:$password'));
+    : _credentials = base64Encode(utf8.encode('$username:$password'));
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {

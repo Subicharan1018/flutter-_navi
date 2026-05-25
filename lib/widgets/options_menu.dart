@@ -10,6 +10,7 @@ import 'add_to_playlist_dialog.dart';
 class OptionsMenu extends ConsumerWidget {
   final Song song;
   final String? playlistId;
+
   /// Called when the user confirms "Remove from Playlist".
   /// Provide this when [playlistId] is non-null (e.g. from PlaylistDetailsScreen).
   final VoidCallback? onRemoveFromPlaylist;
@@ -38,7 +39,9 @@ class OptionsMenu extends ConsumerWidget {
               width: 36,
               height: 5,
               decoration: BoxDecoration(
-                color: ThemeTokens.of(context).textPrimary.withValues(alpha: 0.2),
+                color: ThemeTokens.of(
+                  context,
+                ).textPrimary.withValues(alpha: 0.2),
                 borderRadius: BorderRadius.circular(4),
               ),
             ),
@@ -46,8 +49,7 @@ class OptionsMenu extends ConsumerWidget {
 
             // Song info header
             Padding(
-              padding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
+              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
               child: Row(
                 children: [
                   Expanded(
@@ -57,9 +59,10 @@ class OptionsMenu extends ConsumerWidget {
                         Text(
                           song.title,
                           style: TextStyle(
-                              color: ThemeTokens.of(context).textPrimary,
-                              fontSize: 15,
-                              fontWeight: FontWeight.bold),
+                            color: ThemeTokens.of(context).textPrimary,
+                            fontSize: 15,
+                            fontWeight: FontWeight.bold,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -67,7 +70,9 @@ class OptionsMenu extends ConsumerWidget {
                         Text(
                           song.artist,
                           style: TextStyle(
-                              color: ThemeTokens.of(context).textMuted, fontSize: 13),
+                            color: ThemeTokens.of(context).textMuted,
+                            fontSize: 13,
+                          ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                         ),
@@ -79,19 +84,30 @@ class OptionsMenu extends ConsumerWidget {
             ),
 
             Divider(
-                color: ThemeTokens.of(context).outline, indent: 24, endIndent: 24),
+              color: ThemeTokens.of(context).outline,
+              indent: 24,
+              endIndent: 24,
+            ),
 
             // Play Next
             ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: Icon(Icons.playlist_play_rounded,
-                  color: ThemeTokens.of(context).textPrimary, size: 24),
-              title: Text('Play Next',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 4,
+              ),
+              leading: Icon(
+                Icons.playlist_play_rounded,
+                color: ThemeTokens.of(context).textPrimary,
+                size: 24,
+              ),
+              title: Text(
+                'Play Next',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               onTap: () {
                 // Insert the song right after the current index
                 final playerState = ref.read(playerProvider);
@@ -104,34 +120,41 @@ class OptionsMenu extends ConsumerWidget {
                   // Use reorderQueue trick: add to end then move
                   notifier.addToQueue(song).then((_) {
                     final newState = ref.read(playerProvider);
-                    notifier.reorderQueue(
-                        newState.queue.length - 1, insertAt);
+                    notifier.reorderQueue(newState.queue.length - 1, insertAt);
                   });
                 }
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Playing next')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Playing next')));
               },
             ),
 
             // Add to Queue
             ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: Icon(Icons.queue_music_rounded,
-                  color: ThemeTokens.of(context).textPrimary, size: 24),
-              title: Text('Add to Queue',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 4,
+              ),
+              leading: Icon(
+                Icons.queue_music_rounded,
+                color: ThemeTokens.of(context).textPrimary,
+                size: 24,
+              ),
+              title: Text(
+                'Add to Queue',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               onTap: () {
                 ref.read(playerProvider.notifier).addToQueue(song);
                 Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  const SnackBar(content: Text('Added to queue')),
-                );
+                ScaffoldMessenger.of(
+                  context,
+                ).showSnackBar(const SnackBar(content: Text('Added to queue')));
               },
             ),
 
@@ -154,8 +177,11 @@ class OptionsMenu extends ConsumerWidget {
 
                 switch (status) {
                   case SongDownloadStatus.notDownloaded:
-                    leadingWidget = Icon(Icons.download_rounded,
-                        color: tokens.textPrimary, size: 24);
+                    leadingWidget = Icon(
+                      Icons.download_rounded,
+                      color: tokens.textPrimary,
+                      size: 24,
+                    );
                     titleText = 'Download';
                     onTapAction = () async {
                       // Fire-and-forget; menu stays open so user sees progress.
@@ -182,8 +208,11 @@ class OptionsMenu extends ConsumerWidget {
                     };
 
                   case SongDownloadStatus.queued:
-                    leadingWidget = Icon(Icons.hourglass_top_rounded,
-                        color: tokens.textMuted, size: 24);
+                    leadingWidget = Icon(
+                      Icons.hourglass_top_rounded,
+                      color: tokens.textMuted,
+                      size: 24,
+                    );
                     titleText = 'Queued…';
                     onTapAction = null;
 
@@ -202,8 +231,11 @@ class OptionsMenu extends ConsumerWidget {
                     onTapAction = null;
 
                   case SongDownloadStatus.downloaded:
-                    leadingWidget = Icon(Icons.download_done_rounded,
-                        color: tokens.accent, size: 24);
+                    leadingWidget = Icon(
+                      Icons.download_done_rounded,
+                      color: tokens.accent,
+                      size: 24,
+                    );
                     titleText = 'Downloaded';
                     // Tap to remove
                     onTapAction = () {
@@ -218,8 +250,11 @@ class OptionsMenu extends ConsumerWidget {
                     };
 
                   case SongDownloadStatus.failed:
-                    leadingWidget = Icon(Icons.error_outline_rounded,
-                        color: Colors.redAccent, size: 24);
+                    leadingWidget = Icon(
+                      Icons.error_outline_rounded,
+                      color: Colors.redAccent,
+                      size: 24,
+                    );
                     titleText = 'Failed — tap to retry';
                     onTapAction = () {
                       ref
@@ -240,8 +275,10 @@ class OptionsMenu extends ConsumerWidget {
                 }
 
                 return ListTile(
-                  contentPadding:
-                      const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 4,
+                  ),
                   leading: leadingWidget,
                   title: Text(
                     titleText,
@@ -249,8 +286,8 @@ class OptionsMenu extends ConsumerWidget {
                       color: status == SongDownloadStatus.downloaded
                           ? tokens.accent
                           : status == SongDownloadStatus.failed
-                              ? Colors.redAccent
-                              : tokens.textPrimary,
+                          ? Colors.redAccent
+                          : tokens.textPrimary,
                       fontSize: 15,
                       fontWeight: FontWeight.w500,
                     ),
@@ -263,15 +300,23 @@ class OptionsMenu extends ConsumerWidget {
             // Add to Playlist — always visible so users can add the song
             // to any other playlist regardless of context.
             ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: Icon(Icons.playlist_add_rounded,
-                  color: ThemeTokens.of(context).textPrimary, size: 24),
-              title: Text('Add to Playlist',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 4,
+              ),
+              leading: Icon(
+                Icons.playlist_add_rounded,
+                color: ThemeTokens.of(context).textPrimary,
+                size: 24,
+              ),
+              title: Text(
+                'Add to Playlist',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 showDialog(
@@ -284,15 +329,23 @@ class OptionsMenu extends ConsumerWidget {
             // Remove from Playlist — only visible when inside a playlist.
             if (playlistId != null)
               ListTile(
-                contentPadding:
-                    const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-                leading: Icon(Icons.delete_outline_rounded,
-                    color: Colors.redAccent, size: 24),
-                title: Text('Remove from Playlist',
-                    style: TextStyle(
-                        color: Colors.redAccent,
-                        fontSize: 15,
-                        fontWeight: FontWeight.w500)),
+                contentPadding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 4,
+                ),
+                leading: Icon(
+                  Icons.delete_outline_rounded,
+                  color: Colors.redAccent,
+                  size: 24,
+                ),
+                title: Text(
+                  'Remove from Playlist',
+                  style: TextStyle(
+                    color: Colors.redAccent,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
                 onTap: () {
                   Navigator.pop(context);
                   onRemoveFromPlaylist?.call();
@@ -301,15 +354,23 @@ class OptionsMenu extends ConsumerWidget {
 
             // Go to Album
             ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: Icon(Icons.album_rounded,
-                  color: ThemeTokens.of(context).textPrimary, size: 24),
-              title: Text('Go to Album',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 4,
+              ),
+              leading: Icon(
+                Icons.album_rounded,
+                color: ThemeTokens.of(context).textPrimary,
+                size: 24,
+              ),
+              title: Text(
+                'Go to Album',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               onTap: () {
                 Navigator.pop(context);
                 // TODO: navigate to album screen
@@ -317,7 +378,10 @@ class OptionsMenu extends ConsumerWidget {
             ),
 
             Divider(
-                color: ThemeTokens.of(context).outline, indent: 24, endIndent: 24),
+              color: ThemeTokens.of(context).outline,
+              indent: 24,
+              endIndent: 24,
+            ),
 
             // ----------------------------------------------------------------
             // Smart Shuffle feedback: Suggest More / Suggest Less
@@ -325,18 +389,29 @@ class OptionsMenu extends ConsumerWidget {
             // Navidrome so the YouTube Weighted algorithm picks up on it.
             // ----------------------------------------------------------------
             ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: Icon(Icons.thumb_up_alt_outlined,
-                  color: ThemeTokens.of(context).textPrimary, size: 24),
-              title: Text('Suggest More',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 4,
+              ),
+              leading: Icon(
+                Icons.thumb_up_alt_outlined,
+                color: ThemeTokens.of(context).textPrimary,
+                size: 24,
+              ),
+              title: Text(
+                'Suggest More',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               subtitle: Text(
                 'Boost this song in Smart Shuffle',
-                style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textMuted,
+                  fontSize: 12,
+                ),
               ),
               onTap: () {
                 ref
@@ -346,25 +421,37 @@ class OptionsMenu extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                        '"${song.title}" will appear more often in Smart Shuffle'),
+                      '"${song.title}" will appear more often in Smart Shuffle',
+                    ),
                   ),
                 );
               },
             ),
 
             ListTile(
-              contentPadding:
-                  const EdgeInsets.symmetric(horizontal: 24, vertical: 4),
-              leading: Icon(Icons.thumb_down_alt_outlined,
-                  color: ThemeTokens.of(context).textMuted, size: 24),
-              title: Text('Suggest Less',
-                  style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500)),
+              contentPadding: const EdgeInsets.symmetric(
+                horizontal: 24,
+                vertical: 4,
+              ),
+              leading: Icon(
+                Icons.thumb_down_alt_outlined,
+                color: ThemeTokens.of(context).textMuted,
+                size: 24,
+              ),
+              title: Text(
+                'Suggest Less',
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textPrimary,
+                  fontSize: 15,
+                  fontWeight: FontWeight.w500,
+                ),
+              ),
               subtitle: Text(
                 'Reduce this song in Smart Shuffle',
-                style: TextStyle(color: ThemeTokens.of(context).textMuted, fontSize: 12),
+                style: TextStyle(
+                  color: ThemeTokens.of(context).textMuted,
+                  fontSize: 12,
+                ),
               ),
               onTap: () {
                 ref
@@ -374,7 +461,8 @@ class OptionsMenu extends ConsumerWidget {
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(
                     content: Text(
-                        '"${song.title}" will appear less often in Smart Shuffle'),
+                      '"${song.title}" will appear less often in Smart Shuffle',
+                    ),
                   ),
                 );
               },

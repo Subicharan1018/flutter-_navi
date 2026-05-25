@@ -59,7 +59,9 @@ class _SmartShuffleLoginScreenState
       final health = await service.getHealth();
 
       // Persist the (possibly updated) credentials back to settings.
-      await ref.read(settingsProvider.notifier).saveSettings(
+      await ref
+          .read(settingsProvider.notifier)
+          .saveSettings(
             ref.read(settingsProvider).serverUrl,
             _userCtrl.text.trim(),
             _passCtrl.text,
@@ -118,8 +120,11 @@ class _SmartShuffleLoginScreenState
                     end: Alignment.bottomRight,
                   ),
                 ),
-                child: const Icon(Icons.auto_awesome_rounded,
-                    color: Colors.white, size: 36),
+                child: const Icon(
+                  Icons.auto_awesome_rounded,
+                  color: Colors.white,
+                  size: 36,
+                ),
               ),
             ),
             const SizedBox(height: 24),
@@ -189,8 +194,11 @@ class _SmartShuffleLoginScreenState
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.error_outline_rounded,
-                          color: cs.onErrorContainer, size: 18),
+                      Icon(
+                        Icons.error_outline_rounded,
+                        color: cs.onErrorContainer,
+                        size: 18,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(
@@ -213,7 +221,9 @@ class _SmartShuffleLoginScreenState
                         width: 18,
                         height: 18,
                         child: CircularProgressIndicator(
-                            strokeWidth: 2, color: cs.onPrimary),
+                          strokeWidth: 2,
+                          color: cs.onPrimary,
+                        ),
                       )
                     : const Icon(Icons.link_rounded),
                 label: Text(_isConnecting ? 'Connecting…' : 'Connect'),

@@ -54,10 +54,7 @@ enum ShuffleAlgorithm {
 // ---------------------------------------------------------------------------
 // Shuffle Preference enum
 // ---------------------------------------------------------------------------
-enum ShufflePreference {
-  composer,
-  genre,
-}
+enum ShufflePreference { composer, genre }
 
 // ---------------------------------------------------------------------------
 // Settings state
@@ -192,11 +189,7 @@ class SettingsState {
 // ---------------------------------------------------------------------------
 class SettingsNotifier extends StateNotifier<SettingsState> {
   SettingsNotifier()
-      : super(const SettingsState(
-          serverUrl: '',
-          username: '',
-          password: '',
-        )) {
+    : super(const SettingsState(serverUrl: '', username: '', password: '')) {
     _loadFromHive();
   }
 
@@ -204,17 +197,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final auth = HiveBoxes.auth;
     final p = HiveBoxes.prefs;
 
-    final algoName = p
+    final algoName =
+        p
             .get(HiveBoxes.kShuffleAlgorithm, defaultValue: 'standard')
             ?.toString() ??
         'standard';
-    final prefName = p
+    final prefName =
+        p
             .get(HiveBoxes.kShufflePreference, defaultValue: 'composer')
             ?.toString() ??
         'composer';
-    final themeName = p
-            .get(HiveBoxes.kThemeMode, defaultValue: 'spotify')
-            ?.toString() ??
+    final themeName =
+        p.get(HiveBoxes.kThemeMode, defaultValue: 'spotify')?.toString() ??
         'spotify';
 
     String getString(dynamic box, String key, String defaultValue) {
@@ -226,12 +220,9 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     // If the new kApiBaseUrl key is empty but the old kUploadApiUrl exists,
     // extract the host from it and derive default ports.
     String apiBaseUrl = p.get(HiveBoxes.kApiBaseUrl)?.toString() ?? '';
-    int loggingPort =
-        (p.get(HiveBoxes.kLoggingPort) as int?) ?? 5006;
-    int uploadPort =
-        (p.get(HiveBoxes.kUploadPort) as int?) ?? 5005;
-    int localShufflePort =
-        (p.get(HiveBoxes.kLocalShufflePort) as int?) ?? 5000;
+    int loggingPort = (p.get(HiveBoxes.kLoggingPort) as int?) ?? 5006;
+    int uploadPort = (p.get(HiveBoxes.kUploadPort) as int?) ?? 5005;
+    int localShufflePort = (p.get(HiveBoxes.kLocalShufflePort) as int?) ?? 5000;
 
     if (apiBaseUrl.isEmpty) {
       // Try to extract base from legacy uploadApiUrl (e.g. "http://server:5005")
@@ -251,7 +242,9 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             final p = Uri.parse(legacyListen).port;
             loggingPort = p > 0 ? p : 5006;
           }
-          debugPrint('[Settings] Migrated legacy URLs → base=$apiBaseUrl upload=$uploadPort logging=$loggingPort');
+          debugPrint(
+            '[Settings] Migrated legacy URLs → base=$apiBaseUrl upload=$uploadPort logging=$loggingPort',
+          );
         } catch (_) {
           // Malformed legacy URL — leave apiBaseUrl empty
         }
@@ -260,9 +253,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
     state = SettingsState(
       serverUrl: getString(
-          auth, HiveBoxes.kServerUrl, Constants.defaultServerUrl),
-      username: getString(
-          auth, HiveBoxes.kUsername, Constants.defaultUsername),
+        auth,
+        HiveBoxes.kServerUrl,
+        Constants.defaultServerUrl,
+      ),
+      username: getString(auth, HiveBoxes.kUsername, Constants.defaultUsername),
       password: auth.get(HiveBoxes.kPassword)?.toString() ?? '',
       webdavUsername: auth.get(HiveBoxes.kWebdavUsername)?.toString() ?? '',
       webdavPassword: auth.get(HiveBoxes.kWebdavPassword)?.toString() ?? '',
@@ -281,24 +276,22 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       uploadDirectory: p.get(HiveBoxes.kUploadDirectory)?.toString() ?? '',
       dataCollectionEnabled:
           p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool
-              ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true)
-                  as bool
-              : true,
+          ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) as bool
+          : true,
       analyticsUploadSchedule:
-          p.get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none')
-                  ?.toString() ??
-              'none',
-      analyticsLastUpload:
-          p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
+          p
+              .get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none')
+              ?.toString() ??
+          'none',
+      analyticsLastUpload: p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
       themeMode: AppThemeMode.values.firstWhere(
         (e) => e.name == themeName,
         orElse: () => AppThemeMode.spotify,
       ),
       meshGradientEnabled:
           p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false) is bool
-              ? p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false)
-                  as bool
-              : false,
+          ? p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false) as bool
+          : false,
       allowHttp: p.get(HiveBoxes.kAllowHttp, defaultValue: false) == true,
     );
   }
@@ -321,12 +314,15 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await auth.put(HiveBoxes.kServerUrl, url);
     await auth.put(HiveBoxes.kUsername, user);
     await auth.put(HiveBoxes.kPassword, pass);
-    if (webdavUser != null) await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
-    if (webdavPass != null) await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
+    if (webdavUser != null)
+      await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
+    if (webdavPass != null)
+      await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
     if (apiBaseUrl != null) await p.put(HiveBoxes.kApiBaseUrl, apiBaseUrl);
     if (loggingPort != null) await p.put(HiveBoxes.kLoggingPort, loggingPort);
     if (uploadPort != null) await p.put(HiveBoxes.kUploadPort, uploadPort);
-    if (localShufflePort != null) await p.put(HiveBoxes.kLocalShufflePort, localShufflePort);
+    if (localShufflePort != null)
+      await p.put(HiveBoxes.kLocalShufflePort, localShufflePort);
     if (uploadDir != null) await p.put(HiveBoxes.kUploadDirectory, uploadDir);
 
     state = state.copyWith(
@@ -409,10 +405,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 // ---------------------------------------------------------------------------
 // Providers
 // ---------------------------------------------------------------------------
-final settingsProvider =
-    StateNotifierProvider<SettingsNotifier, SettingsState>((ref) {
-  return SettingsNotifier();
-});
+final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
+  (ref) {
+    return SettingsNotifier();
+  },
+);
 
 /// Convenience provider — just the active [AppThemeMode].
 final themeModeProvider = Provider<AppThemeMode>((ref) {
@@ -441,13 +438,13 @@ final playlistCacheServiceProvider = Provider<PlaylistCacheService>((ref) {
 /// [SubsonicService] instance we need.
 final _credentialsProvider =
     Provider<({String serverUrl, String username, String password})>((ref) {
-  final s = ref.watch(settingsProvider);
-  return (
-    serverUrl: s.serverUrl,
-    username: s.username,
-    password: s.password,
-  );
-});
+      final s = ref.watch(settingsProvider);
+      return (
+        serverUrl: s.serverUrl,
+        username: s.username,
+        password: s.password,
+      );
+    });
 
 final subsonicServiceProvider = Provider<SubsonicService>((ref) {
   final creds = ref.watch(_credentialsProvider);
@@ -460,9 +457,15 @@ final subsonicServiceProvider = Provider<SubsonicService>((ref) {
     password: creds.password,
     cache: cache,
     customUploadUrl: uploadUrl.isEmpty ? null : uploadUrl,
-    customUploadDir: settings.uploadDirectory.isEmpty ? null : settings.uploadDirectory,
-    webdavUsername: settings.webdavUsername.isEmpty ? null : settings.webdavUsername,
-    webdavPassword: settings.webdavPassword.isEmpty ? null : settings.webdavPassword,
+    customUploadDir: settings.uploadDirectory.isEmpty
+        ? null
+        : settings.uploadDirectory,
+    webdavUsername: settings.webdavUsername.isEmpty
+        ? null
+        : settings.webdavUsername,
+    webdavPassword: settings.webdavPassword.isEmpty
+        ? null
+        : settings.webdavPassword,
   );
 
   ref.onDispose(service.dispose);
@@ -504,8 +507,9 @@ final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {
 });
 
 /// [RecommendationService] — play pattern tracking and personalised feeds.
-final recommendationProvider =
-    ChangeNotifierProvider<RecommendationService>((ref) {
+final recommendationProvider = ChangeNotifierProvider<RecommendationService>((
+  ref,
+) {
   final service = RecommendationService();
   service.initialize();
   return service;

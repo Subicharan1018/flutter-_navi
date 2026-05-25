@@ -44,34 +44,41 @@ Future<void> _cacheSongs(AppDatabase db, List<Song> songs) async {
 
 Future<List<Song>> _getCachedSongs(AppDatabase db) async {
   final rows = await db.select(db.songMetadata).get();
-  return rows.map((r) => Song(
-    id: r.songId,
-    title: r.trackName,
-    artist: r.artistName,
-    album: r.albumName,
-    duration: r.durationSec,
-    genre: r.genre ?? '',
-    composer: r.composer ?? '',
-    coverArt: r.songId,
-    track: 0,
-    year: r.year ?? 0,
-    playCount: r.playCount,
-    rating: r.rating,
-    starred: r.starred,
-  )).toList();
+  return rows
+      .map(
+        (r) => Song(
+          id: r.songId,
+          title: r.trackName,
+          artist: r.artistName,
+          album: r.albumName,
+          duration: r.durationSec,
+          genre: r.genre ?? '',
+          composer: r.composer ?? '',
+          coverArt: r.songId,
+          track: 0,
+          year: r.year ?? 0,
+          playCount: r.playCount,
+          rating: r.rating,
+          starred: r.starred,
+        ),
+      )
+      .toList();
 }
 
 enum LibraryFilter { allSongs, playlists, albums, downloaded }
 
-final libraryFilterProvider =
-    StateProvider<LibraryFilter>((ref) => LibraryFilter.allSongs);
+final libraryFilterProvider = StateProvider<LibraryFilter>(
+  (ref) => LibraryFilter.allSongs,
+);
 
 // ---------------------------------------------------------------------------
 // Connectivity-aware providers (Feature 3: Offline Mode)
 // ---------------------------------------------------------------------------
 
 /// Streams connectivity changes from the device radio.
-final connectivityStreamProvider = StreamProvider<List<ConnectivityResult>>((ref) {
+final connectivityStreamProvider = StreamProvider<List<ConnectivityResult>>((
+  ref,
+) {
   return Connectivity().onConnectivityChanged;
 });
 
@@ -144,25 +151,25 @@ final playlistsProvider = FutureProvider<List<Playlist>>((ref) async {
 //   → The dialog's Consumer widgets see a real loading → data transition after
 //     each toggle, giving correct checkmarks.
 // ---------------------------------------------------------------------------
-final songsInPlaylistProvider =
-    FutureProvider.autoDispose.family<List<Song>, String>((ref, playlistId) async {
-  final service = ref.watch(subsonicServiceProvider);
-  // Always fetch from network — stale cache must never win here because this
-  // provider is the source of truth for the "is this song already added?"
-  // membership check in AddToPlaylistDialog.
-  return service.getPlaylistSongs(playlistId, forceRefresh: true);
-});
+final songsInPlaylistProvider = FutureProvider.autoDispose
+    .family<List<Song>, String>((ref, playlistId) async {
+      final service = ref.watch(subsonicServiceProvider);
+      // Always fetch from network — stale cache must never win here because this
+      // provider is the source of truth for the "is this song already added?"
+      // membership check in AddToPlaylistDialog.
+      return service.getPlaylistSongs(playlistId, forceRefresh: true);
+    });
 
 final favoritesProvider =
     FutureProvider<({List<Song> songs, List<Album> albums})>((ref) async {
-  ref.keepAlive();
-  final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) {
-    return (songs: <Song>[], albums: <Album>[]);
-  }
-  final service = ref.watch(subsonicServiceProvider);
-  return service.getStarred();
-});
+      ref.keepAlive();
+      final settings = ref.watch(settingsProvider);
+      if (settings.serverUrl.isEmpty || settings.password.isEmpty) {
+        return (songs: <Song>[], albums: <Album>[]);
+      }
+      final service = ref.watch(subsonicServiceProvider);
+      return service.getStarred();
+    });
 
 final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   ref.keepAlive();
@@ -192,14 +199,16 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
     // UI gets fresh data. Previously the fire-and-forget .then() updated the
     // SQLite cache but never re-emitted to Riverpod, leaving stale data
     // visible for the entire session.
-    fetchAllSongsPaginated().then((fresh) async {
-      final sorted = await compute(_sortSongsByCreated, fresh);
-      await _cacheSongs(db, sorted);
-      // Trigger a provider re-fetch with the fresh cached data.
-      ref.invalidateSelf();
-    }).catchError((_) {
-      // Background refresh failed — stale cache is still valid.
-    });
+    fetchAllSongsPaginated()
+        .then((fresh) async {
+          final sorted = await compute(_sortSongsByCreated, fresh);
+          await _cacheSongs(db, sorted);
+          // Trigger a provider re-fetch with the fresh cached data.
+          ref.invalidateSelf();
+        })
+        .catchError((_) {
+          // Background refresh failed — stale cache is still valid.
+        });
     return compute(_sortSongsByCreated, cached);
   }
 
@@ -217,8 +226,7 @@ final libraryAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   return service.getAlbums(size: 1000);
 });
 
-final filteredLibraryProvider =
-    Provider<AsyncValue<List<dynamic>>>((ref) {
+final filteredLibraryProvider = Provider<AsyncValue<List<dynamic>>>((ref) {
   final filter = ref.watch(libraryFilterProvider);
 
   switch (filter) {
@@ -236,9 +244,12 @@ final filteredLibraryProvider =
           .where((e) => e.value.status == SongDownloadStatus.downloaded)
           .map((e) => e.key)
           .toSet();
-      return ref.watch(allSongsProvider).whenData(
-        (songs) => songs.where((s) => downloadedIds.contains(s.id)).toList(),
-      );
+      return ref
+          .watch(allSongsProvider)
+          .whenData(
+            (songs) =>
+                songs.where((s) => downloadedIds.contains(s.id)).toList(),
+          );
   }
 });
 
@@ -265,34 +276,44 @@ int _compareDatesAsc(DateTime? a, DateTime? b) {
 
 int _sortCompareSong(Song a, Song b, LibrarySortPreference pref) {
   final cmp = switch (pref.field) {
-    LibrarySortField.name          => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+    LibrarySortField.name => a.title.toLowerCase().compareTo(
+      b.title.toLowerCase(),
+    ),
     LibrarySortField.recentlyAdded => _compareDatesAsc(a.created, b.created),
-    LibrarySortField.playCount     => a.playCount.compareTo(b.playCount),
-    LibrarySortField.duration      => a.duration.compareTo(b.duration),
-    LibrarySortField.artistName    => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
+    LibrarySortField.playCount => a.playCount.compareTo(b.playCount),
+    LibrarySortField.duration => a.duration.compareTo(b.duration),
+    LibrarySortField.artistName => a.artist.toLowerCase().compareTo(
+      b.artist.toLowerCase(),
+    ),
   };
   return pref.direction == LibrarySortDirection.asc ? cmp : -cmp;
 }
 
 int _sortCompareAlbum(Album a, Album b, LibrarySortPreference pref) {
   final cmp = switch (pref.field) {
-    LibrarySortField.name          => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    LibrarySortField.name => a.name.toLowerCase().compareTo(
+      b.name.toLowerCase(),
+    ),
     LibrarySortField.recentlyAdded => 0, // Albums have no creation date
-    LibrarySortField.playCount     => 0, // Albums have no play count
-    LibrarySortField.duration      => a.duration.compareTo(b.duration),
-    LibrarySortField.artistName    => a.artist.toLowerCase().compareTo(b.artist.toLowerCase()),
+    LibrarySortField.playCount => 0, // Albums have no play count
+    LibrarySortField.duration => a.duration.compareTo(b.duration),
+    LibrarySortField.artistName => a.artist.toLowerCase().compareTo(
+      b.artist.toLowerCase(),
+    ),
   };
   return pref.direction == LibrarySortDirection.asc ? cmp : -cmp;
 }
 
 int _sortComparePlaylist(Playlist a, Playlist b, LibrarySortPreference pref) {
   final cmp = switch (pref.field) {
-    LibrarySortField.name          => a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+    LibrarySortField.name => a.name.toLowerCase().compareTo(
+      b.name.toLowerCase(),
+    ),
     // Playlists have no creation date, play count, duration, or artist field.
     LibrarySortField.recentlyAdded => 0,
-    LibrarySortField.playCount     => 0,
-    LibrarySortField.duration      => 0,
-    LibrarySortField.artistName    => 0,
+    LibrarySortField.playCount => 0,
+    LibrarySortField.duration => 0,
+    LibrarySortField.artistName => 0,
   };
   return pref.direction == LibrarySortDirection.asc ? cmp : -cmp;
 }
@@ -327,10 +348,16 @@ class LibrarySortNotifier
       final di = box.get(dummy.dirHiveKey(section.name));
       restored[section] = LibrarySortPreference(
         field: fi != null
-            ? LibrarySortField.values[(fi as int).clamp(0, LibrarySortField.values.length - 1)]
+            ? LibrarySortField.values[(fi as int).clamp(
+                0,
+                LibrarySortField.values.length - 1,
+              )]
             : LibrarySortField.name,
         direction: di != null
-            ? LibrarySortDirection.values[(di as int).clamp(0, LibrarySortDirection.values.length - 1)]
+            ? LibrarySortDirection.values[(di as int).clamp(
+                0,
+                LibrarySortDirection.values.length - 1,
+              )]
             : LibrarySortDirection.asc,
       );
     }
@@ -344,10 +371,11 @@ class LibrarySortNotifier
   }
 }
 
-final librarySortProvider = StateNotifierProvider<LibrarySortNotifier,
-    Map<LibraryFilter, LibrarySortPreference>>(
-  (_) => LibrarySortNotifier(),
-);
+final librarySortProvider =
+    StateNotifierProvider<
+      LibrarySortNotifier,
+      Map<LibraryFilter, LibrarySortPreference>
+    >((_) => LibrarySortNotifier());
 
 // ---------------------------------------------------------------------------
 // Typed sorted providers
@@ -362,8 +390,9 @@ final sortedSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
   final sortPrefs = ref.watch(librarySortProvider);
   final filter = ref.watch(libraryFilterProvider);
   // downloaded has no own key — explicitly falls back to allSongs pref
-  final effectiveSection =
-      filter == LibraryFilter.downloaded ? LibraryFilter.allSongs : filter;
+  final effectiveSection = filter == LibraryFilter.downloaded
+      ? LibraryFilter.allSongs
+      : filter;
   final pref = sortPrefs[effectiveSection] ?? const LibrarySortPreference();
 
   final AsyncValue<List<Song>> source;
@@ -375,7 +404,9 @@ final sortedSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
         .toSet();
     source = ref
         .watch(allSongsProvider)
-        .whenData((s) => s.where((song) => downloadedIds.contains(song.id)).toList());
+        .whenData(
+          (s) => s.where((song) => downloadedIds.contains(song.id)).toList(),
+        );
   } else {
     source = ref.watch(offlineAwareSongsProvider);
   }
@@ -399,9 +430,11 @@ final sortedAlbumsProvider = Provider<AsyncValue<List<Album>>>((ref) {
 /// Sorted playlists.
 final sortedPlaylistsProvider = Provider<AsyncValue<List<Playlist>>>((ref) {
   final sortPrefs = ref.watch(librarySortProvider);
-  final pref = sortPrefs[LibraryFilter.playlists] ?? const LibrarySortPreference();
+  final pref =
+      sortPrefs[LibraryFilter.playlists] ?? const LibrarySortPreference();
   return ref.watch(playlistsProvider).whenData((playlists) {
-    final sorted = [...playlists]..sort((a, b) => _sortComparePlaylist(a, b, pref));
+    final sorted = [...playlists]
+      ..sort((a, b) => _sortComparePlaylist(a, b, pref));
     return sorted;
   });
 });
@@ -443,10 +476,16 @@ class PlaylistController {
       successCount++;
     }
     for (final playlistId in removes) {
-      final freshSongs = await service.getPlaylistSongs(playlistId, forceRefresh: true);
+      final freshSongs = await service.getPlaylistSongs(
+        playlistId,
+        forceRefresh: true,
+      );
       final serverIndex = freshSongs.indexWhere((s) => s.id == songId);
       if (serverIndex >= 0) {
-        await service.updatePlaylist(playlistId, songIndexToRemove: serverIndex);
+        await service.updatePlaylist(
+          playlistId,
+          songIndexToRemove: serverIndex,
+        );
       }
       ref.invalidate(songsInPlaylistProvider(playlistId));
       successCount++;

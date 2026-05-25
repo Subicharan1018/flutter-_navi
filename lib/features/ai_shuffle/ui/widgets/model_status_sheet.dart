@@ -27,8 +27,10 @@ class ModelStatusSheet extends ConsumerWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Text('Error loading model status',
-                    style: theme.textTheme.titleMedium),
+                Text(
+                  'Error loading model status',
+                  style: theme.textTheme.titleMedium,
+                ),
                 const SizedBox(height: 8),
                 Text(e.toString(), style: theme.textTheme.bodySmall),
                 const SizedBox(height: 16),
@@ -53,12 +55,15 @@ class ModelStatusSheet extends ConsumerWidget {
                   Text(
                     'Model Status',
                     style: theme.textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.bold),
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                   const Spacer(),
                   Container(
                     padding: const EdgeInsets.symmetric(
-                        horizontal: 10, vertical: 4),
+                      horizontal: 10,
+                      vertical: 4,
+                    ),
                     decoration: BoxDecoration(
                       color: theme.colorScheme.primaryContainer,
                       borderRadius: BorderRadius.circular(20),
@@ -121,8 +126,11 @@ class ModelStatusSheet extends ConsumerWidget {
                   ),
                   child: Row(
                     children: [
-                      Icon(Icons.info_outline_rounded,
-                          color: theme.colorScheme.onErrorContainer, size: 16),
+                      Icon(
+                        Icons.info_outline_rounded,
+                        color: theme.colorScheme.onErrorContainer,
+                        size: 16,
+                      ),
                       const SizedBox(width: 8),
                       Expanded(
                         child: Text(

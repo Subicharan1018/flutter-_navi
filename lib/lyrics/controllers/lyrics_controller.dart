@@ -50,16 +50,16 @@ class LyricsController extends StateNotifier<LyricsState> {
   StreamSubscription<Duration>? _posSub;
 
   LyricsController(this._ref)
-      : super(const LyricsState(status: LyricsStatus.loading)) {
+    : super(const LyricsState(status: LyricsStatus.loading)) {
     // React to song changes.
-    _ref.listen<Song?>(
-      playerProvider.select((s) => s.currentSong),
-      (prev, next) {
-        if (next != null && next.id != (prev?.id ?? '')) {
-          _loadLyrics(next);
-        }
-      },
-    );
+    _ref.listen<Song?>(playerProvider.select((s) => s.currentSong), (
+      prev,
+      next,
+    ) {
+      if (next != null && next.id != (prev?.id ?? '')) {
+        _loadLyrics(next);
+      }
+    });
 
     // PERF: Position subscription is deferred — only started once synced
     // lyrics are loaded (see _loadLyrics). This avoids wasting frame ticks
@@ -83,7 +83,9 @@ class LyricsController extends StateNotifier<LyricsState> {
         _onPosition(position);
       });
     } catch (e) {
-      debugPrint('[LyricsController] Could not subscribe to positionStream: $e');
+      debugPrint(
+        '[LyricsController] Could not subscribe to positionStream: $e',
+      );
     }
   }
 
@@ -106,8 +108,7 @@ class LyricsController extends StateNotifier<LyricsState> {
     state = const LyricsState(status: LyricsStatus.loading);
 
     try {
-      final result =
-          await _ref.read(lyricsRepositoryProvider).getLyrics(song);
+      final result = await _ref.read(lyricsRepositoryProvider).getLyrics(song);
 
       if (!mounted) return;
 
@@ -159,5 +160,5 @@ class LyricsController extends StateNotifier<LyricsState> {
 /// autoDispose: cleaned up automatically when the lyrics sheet is dismissed.
 final lyricsControllerProvider =
     StateNotifierProvider.autoDispose<LyricsController, LyricsState>(
-  (ref) => LyricsController(ref),
-);
+      (ref) => LyricsController(ref),
+    );

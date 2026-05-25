@@ -43,7 +43,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
 
   @override
   void initState() {
-    super.initState(); // WindowLifecycleMixin.initState() attaches window listener
+    super
+        .initState(); // WindowLifecycleMixin.initState() attaches window listener
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       ref.read(replayUploadServiceProvider).performUploadIfNeeded();
@@ -66,11 +67,31 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
   }
 
   static const List<_NavItem> _items = [
-    _NavItem(icon: Icons.home_outlined,           activeIcon: Icons.home_rounded,               label: 'Home'),
-    _NavItem(icon: Icons.search_outlined,         activeIcon: Icons.search_rounded,             label: 'Search'),
-    _NavItem(icon: Icons.auto_awesome_outlined,   activeIcon: Icons.auto_awesome,               label: 'AI Shuffle'),
-    _NavItem(icon: Icons.dashboard_outlined,      activeIcon: Icons.dashboard_rounded,          label: 'Dashboard'),
-    _NavItem(icon: Icons.library_music_outlined,  activeIcon: Icons.library_music_rounded,      label: 'Library'),
+    _NavItem(
+      icon: Icons.home_outlined,
+      activeIcon: Icons.home_rounded,
+      label: 'Home',
+    ),
+    _NavItem(
+      icon: Icons.search_outlined,
+      activeIcon: Icons.search_rounded,
+      label: 'Search',
+    ),
+    _NavItem(
+      icon: Icons.auto_awesome_outlined,
+      activeIcon: Icons.auto_awesome,
+      label: 'AI Shuffle',
+    ),
+    _NavItem(
+      icon: Icons.dashboard_outlined,
+      activeIcon: Icons.dashboard_rounded,
+      label: 'Dashboard',
+    ),
+    _NavItem(
+      icon: Icons.library_music_outlined,
+      activeIcon: Icons.library_music_rounded,
+      label: 'Library',
+    ),
   ];
 
   final List<Widget> _screens = const [
@@ -83,15 +104,16 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
 
   @override
   Widget build(BuildContext context) {
-    final tokens      = ThemeTokens.of(context);
+    final tokens = ThemeTokens.of(context);
     final meshEnabled = ref.watch(settingsProvider).meshGradientEnabled;
-    final isOffline   = ref.watch(isOfflineProvider);
+    final isOffline = ref.watch(isOfflineProvider);
 
     // Wrap everything in keyboard shortcuts — only active on desktop.
     return NaviKeyboardShortcuts(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final useDesktopLayout = PlatformUtils.prefersSidebarNavigation &&
+          final useDesktopLayout =
+              PlatformUtils.prefersSidebarNavigation &&
               constraints.maxWidth >= PlatformUtils.kDesktopBreakpoint;
 
           if (useDesktopLayout) {
@@ -172,10 +194,7 @@ class _DesktopScaffold extends StatelessWidget {
     final body = Row(
       children: [
         sidebar,
-        VerticalDivider(
-          width: 1,
-          color: tokens.outline.withValues(alpha: 0.4),
-        ),
+        VerticalDivider(width: 1, color: tokens.outline.withValues(alpha: 0.4)),
         Expanded(child: content),
       ],
     );
@@ -201,10 +220,7 @@ class _DesktopScaffold extends StatelessWidget {
       );
     }
 
-    return Scaffold(
-      backgroundColor: tokens.bgBase,
-      body: body,
-    );
+    return Scaffold(backgroundColor: tokens.bgBase, body: body);
   }
 }
 
@@ -243,7 +259,11 @@ class _DesktopSidebar extends StatelessWidget {
                 padding: const EdgeInsets.fromLTRB(20, 24, 20, 8),
                 child: Row(
                   children: [
-                    Icon(Icons.graphic_eq_rounded, color: tokens.accent, size: 28),
+                    Icon(
+                      Icons.graphic_eq_rounded,
+                      color: tokens.accent,
+                      size: 28,
+                    ),
                     const SizedBox(width: 10),
                     Text(
                       'NaviVibe',
@@ -264,7 +284,7 @@ class _DesktopSidebar extends StatelessWidget {
 
               // Nav items
               ...List.generate(items.length, (i) {
-                final item   = items[i];
+                final item = items[i];
                 final active = currentIndex == i;
                 return _SidebarNavItem(
                   item: item,
@@ -322,7 +342,7 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
 
     return MouseRegion(
       onEnter: (_) => setState(() => _hovered = true),
-      onExit:  (_) => setState(() => _hovered = false),
+      onExit: (_) => setState(() => _hovered = false),
       child: GestureDetector(
         onTap: widget.onTap,
         child: AnimatedContainer(
@@ -334,8 +354,8 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
             color: active
                 ? tokens.accent.withValues(alpha: 0.15)
                 : _hovered
-                    ? tokens.textPrimary.withValues(alpha: 0.06)
-                    : Colors.transparent,
+                ? tokens.textPrimary.withValues(alpha: 0.06)
+                : Colors.transparent,
           ),
           child: Row(
             children: [
@@ -402,7 +422,7 @@ class _MobileScaffold extends StatelessWidget {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: List.generate(items.length, (i) {
-                  final item   = items[i];
+                  final item = items[i];
                   final active = currentIndex == i;
                   return Expanded(
                     child: Semantics(
@@ -421,7 +441,9 @@ class _MobileScaffold extends StatelessWidget {
                                 child: Icon(
                                   active ? item.activeIcon : item.icon,
                                   key: ValueKey(active),
-                                  color: active ? tokens.accent : tokens.textMuted,
+                                  color: active
+                                      ? tokens.accent
+                                      : tokens.textMuted,
                                   size: 24,
                                 ),
                               ),
@@ -430,8 +452,12 @@ class _MobileScaffold extends StatelessWidget {
                                 item.label,
                                 style: TextStyle(
                                   fontSize: 10,
-                                  fontWeight: active ? FontWeight.w600 : FontWeight.w400,
-                                  color: active ? tokens.accent : tokens.textMuted,
+                                  fontWeight: active
+                                      ? FontWeight.w600
+                                      : FontWeight.w400,
+                                  color: active
+                                      ? tokens.accent
+                                      : tokens.textMuted,
                                 ),
                               ),
                             ],
@@ -502,7 +528,11 @@ class _NavItem {
   final IconData icon;
   final IconData activeIcon;
   final String label;
-  const _NavItem({required this.icon, required this.activeIcon, required this.label});
+  const _NavItem({
+    required this.icon,
+    required this.activeIcon,
+    required this.label,
+  });
 }
 
 /// Non-dismissible offline banner using theme tokens.
@@ -518,7 +548,10 @@ class _OfflineBanner extends StatelessWidget {
       decoration: BoxDecoration(
         color: tokens.gold.withValues(alpha: 0.15),
         border: Border(
-          bottom: BorderSide(color: tokens.gold.withValues(alpha: 0.3), width: 0.5),
+          bottom: BorderSide(
+            color: tokens.gold.withValues(alpha: 0.3),
+            width: 0.5,
+          ),
         ),
       ),
       child: Row(

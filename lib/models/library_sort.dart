@@ -25,11 +25,10 @@ class LibrarySortPreference {
   LibrarySortPreference copyWith({
     LibrarySortField? field,
     LibrarySortDirection? direction,
-  }) =>
-      LibrarySortPreference(
-        field: field ?? this.field,
-        direction: direction ?? this.direction,
-      );
+  }) => LibrarySortPreference(
+    field: field ?? this.field,
+    direction: direction ?? this.direction,
+  );
 
   /// Flip direction if same field tapped again, otherwise reset to asc.
   LibrarySortPreference toggleField(LibrarySortField tapped) {

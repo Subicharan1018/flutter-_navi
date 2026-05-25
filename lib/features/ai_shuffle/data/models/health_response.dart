@@ -10,11 +10,11 @@ class HealthResponse {
   const HealthResponse({required this.status, this.weather});
 
   factory HealthResponse.fromJson(Map<String, dynamic> json) => HealthResponse(
-        status: json['status']?.toString() ?? 'unknown',
-        weather: json['weather'] is Map<String, dynamic>
-            ? WeatherInfo.fromJson(json['weather'] as Map<String, dynamic>)
-            : null,
-      );
+    status: json['status']?.toString() ?? 'unknown',
+    weather: json['weather'] is Map<String, dynamic>
+        ? WeatherInfo.fromJson(json['weather'] as Map<String, dynamic>)
+        : null,
+  );
 
   bool get isHealthy => status == 'ok' || status == 'healthy';
 }
@@ -36,12 +36,12 @@ class WeatherInfo {
   });
 
   factory WeatherInfo.fromJson(Map<String, dynamic> json) => WeatherInfo(
-        code: _parseInt(json['code']),
-        mood: json['mood']?.toString() ?? 'clear',
-        temperatureC: _parseDouble(json['temperature_c']),
-        humidityPct: _parseInt(json['humidity_pct']),
-        fetchedAt: json['fetched_at']?.toString() ?? '',
-      );
+    code: _parseInt(json['code']),
+    mood: json['mood']?.toString() ?? 'clear',
+    temperatureC: _parseDouble(json['temperature_c']),
+    humidityPct: _parseInt(json['humidity_pct']),
+    fetchedAt: json['fetched_at']?.toString() ?? '',
+  );
 
   /// Returns a weather emoji for the mood string.
   String get moodIcon {

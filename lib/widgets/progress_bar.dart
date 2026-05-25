@@ -4,21 +4,21 @@ import 'package:flutter/material.dart';
 // ── Design tokens ─────────────────────────────────────────────────────────────
 class _PDS {
   // Glass surface
-  static const glassWhite   = Color(0x14FFFFFF); // ~8% white
-  static const glassBorder  = Color(0x26FFFFFF); // ~15% white
+  static const glassWhite = Color(0x14FFFFFF); // ~8% white
+  static const glassBorder = Color(0x26FFFFFF); // ~15% white
   static const glassBorderH = Color(0x40FFFFFF); // ~25% white — hover
 
   // Neon gradient stops
   static const neonPurple = Color(0xFF9D4EDD); // vivid purple
   static const neonViolet = Color(0xFFBF5CF3); // mid violet
-  static const neonPink   = Color(0xFFFF2D78); // electric pink
+  static const neonPink = Color(0xFFFF2D78); // electric pink
 
   // Track
-  static const trackBg     = Color(0x1AFFFFFF); // inactive
+  static const trackBg = Color(0x1AFFFFFF); // inactive
   static const thumbShadow = Color(0x66BF5CF3);
 
   // Text
-  static const timeColor  = Color(0xAAFFFFFF);
+  static const timeColor = Color(0xAAFFFFFF);
   static const timeShadow = Color(0x44000000);
 }
 
@@ -30,9 +30,9 @@ class _NeonTrackPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    final h    = size.height;
-    final w    = size.width;
-    final r    = h / 2;
+    final h = size.height;
+    final w = size.width;
+    final r = h / 2;
     final fill = w * progress;
 
     if (fill <= 0) return;
@@ -63,10 +63,7 @@ class _NeonTrackPainter extends CustomPainter {
       ).createShader(Rect.fromLTWH(0, 0, fill, h));
 
     canvas.drawRRect(
-      RRect.fromRectAndRadius(
-        Rect.fromLTWH(0, 0, fill, h),
-        Radius.circular(r),
-      ),
+      RRect.fromRectAndRadius(Rect.fromLTWH(0, 0, fill, h), Radius.circular(r)),
       trackPaint,
     );
 
@@ -112,8 +109,8 @@ class _GlassThumbShape extends SliderComponentShape {
     required Size sizeWithOverflow,
   }) {
     final canvas = context.canvas;
-    final scale  = pulseScale.value;
-    final r      = _radius * scale;
+    final scale = pulseScale.value;
+    final r = _radius * scale;
 
     // Drop shadow + glow
     canvas.drawCircle(
@@ -135,11 +132,7 @@ class _GlassThumbShape extends SliderComponentShape {
     );
 
     // Inner frosted fill
-    canvas.drawCircle(
-      center,
-      r - 1,
-      Paint()..color = const Color(0xCCFFFFFF),
-    );
+    canvas.drawCircle(center, r - 1, Paint()..color = const Color(0xCCFFFFFF));
 
     // Specular highlight
     canvas.drawCircle(
@@ -181,9 +174,10 @@ class _ProgressBarState extends State<ProgressBar>
       vsync: this,
       duration: const Duration(milliseconds: 150),
     );
-    _pulseAnim = Tween<double>(begin: 1.0, end: 1.4).animate(
-      CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut),
-    );
+    _pulseAnim = Tween<double>(
+      begin: 1.0,
+      end: 1.4,
+    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeOut));
     _pulseAnim.addListener(() {
       _pulseScale.value = _pulseAnim.value;
     });
@@ -214,10 +208,10 @@ class _ProgressBarState extends State<ProgressBar>
       return '$minutes:${seconds.toString().padLeft(2, '0')}';
     }
 
-    final maxMs  = widget.duration.inMilliseconds > 0
+    final maxMs = widget.duration.inMilliseconds > 0
         ? widget.duration.inMilliseconds.toDouble()
         : 1.0;
-    final posMs  = widget.position.inMilliseconds.toDouble().clamp(0.0, maxMs);
+    final posMs = widget.position.inMilliseconds.toDouble().clamp(0.0, maxMs);
     final progress = maxMs > 1.0 ? posMs / maxMs : 0.0;
 
     return ClipRRect(
@@ -255,12 +249,14 @@ class _ProgressBarState extends State<ProgressBar>
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: SizedBox(
                       height: 4,
-                      child: LayoutBuilder(builder: (context, constraints) {
-                        return CustomPaint(
-                          size: Size(constraints.maxWidth, 4),
-                          painter: _NeonTrackPainter(progress: progress),
-                        );
-                      }),
+                      child: LayoutBuilder(
+                        builder: (context, constraints) {
+                          return CustomPaint(
+                            size: Size(constraints.maxWidth, 4),
+                            painter: _NeonTrackPainter(progress: progress),
+                          );
+                        },
+                      ),
                     ),
                   ),
 
@@ -270,7 +266,7 @@ class _ProgressBarState extends State<ProgressBar>
                       trackHeight: 4,
                       thumbShape: _GlassThumbShape(_pulseScale),
                       overlayShape: SliderComponentShape.noOverlay,
-                      activeTrackColor:  Colors.transparent,
+                      activeTrackColor: Colors.transparent,
                       inactiveTrackColor: Colors.transparent,
                       thumbColor: Colors.transparent,
                     ),
@@ -295,7 +291,10 @@ class _ProgressBarState extends State<ProgressBar>
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
                     _TimeLabel(text: formatDuration(widget.position)),
-                    _TimeLabel(text: '-${formatDuration(widget.duration - widget.position)}'),
+                    _TimeLabel(
+                      text:
+                          '-${formatDuration(widget.duration - widget.position)}',
+                    ),
                   ],
                 ),
               ),
@@ -321,9 +320,7 @@ class _TimeLabel extends StatelessWidget {
         fontSize: 12,
         fontWeight: FontWeight.w500,
         letterSpacing: 0.4,
-        shadows: const [
-          Shadow(color: _PDS.timeShadow, blurRadius: 4),
-        ],
+        shadows: const [Shadow(color: _PDS.timeShadow, blurRadius: 4)],
       ),
     );
   }

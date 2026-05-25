@@ -43,19 +43,18 @@ Song _song({
   String title = 'Song',
   String artist = 'Artist',
   int duration = 200,
-}) =>
-    Song(
-      id: id,
-      title: '$title $id',
-      artist: artist,
-      album: 'Album',
-      genre: 'Rock',
-      composer: 'Comp',
-      coverArt: '',
-      duration: duration,
-      track: 1,
-      year: 2024,
-    );
+}) => Song(
+  id: id,
+  title: '$title $id',
+  artist: artist,
+  album: 'Album',
+  genre: 'Rock',
+  composer: 'Comp',
+  coverArt: '',
+  duration: duration,
+  track: 1,
+  year: 2024,
+);
 
 class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
 
@@ -64,12 +63,12 @@ class MockListeningEventCollector extends Mock
 
 class MockSubsonicService extends SubsonicService {
   MockSubsonicService(PlaylistCacheService cache)
-      : super(
-          serverUrl: 'https://test.example.com',
-          username: 'test',
-          password: 'test',
-          cache: cache,
-        );
+    : super(
+        serverUrl: 'https://test.example.com',
+        username: 'test',
+        password: 'test',
+        cache: cache,
+      );
 
   @override
   String getCoverArtUrl(String? id, {int? size}) =>
@@ -231,13 +230,15 @@ void main() {
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-            const MethodChannel('dev.fluttercommunity.plus/connectivity'),
-            (MethodCall methodCall) async => ['wifi']);
+          const MethodChannel('dev.fluttercommunity.plus/connectivity'),
+          (MethodCall methodCall) async => ['wifi'],
+        );
 
     TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
         .setMockMethodCallHandler(
-            const MethodChannel('plugins.flutter.io/path_provider'),
-            (MethodCall methodCall) async => Directory.systemTemp.path);
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall methodCall) async => Directory.systemTemp.path,
+        );
 
     SharedPreferences.setMockInitialValues({});
     final dir = Directory.systemTemp.createTempSync('hive_test_nps_sync');
@@ -252,12 +253,8 @@ void main() {
   // Helper: build a container with a wired-up TestAudioHandler + controlled
   //         player.  Returns (container, notifier, mockPlayer).
   // -------------------------------------------------------------------------
-  Future<
-      (
-        ProviderContainer,
-        PlayerNotifier,
-        ControlledAudioPlayer,
-      )> buildContainer() async {
+  Future<(ProviderContainer, PlayerNotifier, ControlledAudioPlayer)>
+  buildContainer() async {
     final mockCache = MockPlaylistCacheService();
     final mockService = MockSubsonicService(mockCache);
     final mockPlayer = ControlledAudioPlayer();
@@ -272,9 +269,9 @@ void main() {
       ],
     );
 
-    container.read(settingsProvider.notifier).setShuffleAlgorithm(
-          ShuffleAlgorithm.smartLocal,
-        );
+    container
+        .read(settingsProvider.notifier)
+        .setShuffleAlgorithm(ShuffleAlgorithm.smartLocal);
 
     final notifier = container.read(playerProvider.notifier);
     return (container, notifier, mockPlayer);
@@ -370,49 +367,55 @@ void main() {
       //
       // This test verifies the state is correct at guard expiry, not that a
       // post-guard emission is suppressed (it shouldn't be — the guard is gone).
-      expect(container.read(playerProvider).currentSong?.id, '3',
-          reason: 'At guard expiry the song must still be TargetSong');
+      expect(
+        container.read(playerProvider).currentSong?.id,
+        '3',
+        reason: 'At guard expiry the song must still be TargetSong',
+      );
     });
 
     // ── Test C ───────────────────────────────────────────────────────────────
     // Early guard resolution: when the player emits the correct safeIndex
     // before the 500ms timer fires, the guard clears early and the state
     // should stay locked on the anchor.
-    test('early guard resolution: correct index clears guard and stays on anchor', () async {
-      final (container, notifier, mockPlayer) = await buildContainer();
-      addTearDown(container.dispose);
+    test(
+      'early guard resolution: correct index clears guard and stays on anchor',
+      () async {
+        final (container, notifier, mockPlayer) = await buildContainer();
+        addTearDown(container.dispose);
 
-      final songs = [
-        _song(id: '1', title: 'FirstSong'),
-        _song(id: '2', title: 'SecondSong'),
-        _song(id: '3', title: 'TargetSong'),
-        _song(id: '4', title: 'FourthSong'),
-        _song(id: '5', title: 'FifthSong'),
-      ];
+        final songs = [
+          _song(id: '1', title: 'FirstSong'),
+          _song(id: '2', title: 'SecondSong'),
+          _song(id: '3', title: 'TargetSong'),
+          _song(id: '4', title: 'FourthSong'),
+          _song(id: '5', title: 'FifthSong'),
+        ];
 
-      await notifier.setQueue(songs, 2);
-      await mockPlayer.emitCurrentIndex(2);
-      await Future.delayed(const Duration(milliseconds: 50));
+        await notifier.setQueue(songs, 2);
+        await mockPlayer.emitCurrentIndex(2);
+        await Future.delayed(const Duration(milliseconds: 50));
 
-      await notifier.applyShuffleAlgorithm();
+        await notifier.applyShuffleAlgorithm();
 
-      // Emit the correct index early (before 500ms timer).
-      await mockPlayer.emitCurrentIndex(2);
-      await Future.delayed(const Duration(milliseconds: 20));
+        // Emit the correct index early (before 500ms timer).
+        await mockPlayer.emitCurrentIndex(2);
+        await Future.delayed(const Duration(milliseconds: 20));
 
-      expect(container.read(playerProvider).currentIndex, 2);
-      expect(container.read(playerProvider).currentSong?.id, '3');
+        expect(container.read(playerProvider).currentIndex, 2);
+        expect(container.read(playerProvider).currentSong?.id, '3');
 
-      // Emit transient 0 AFTER the guard has already cleared via early match.
-      await mockPlayer.emitCurrentIndex(0);
-      await Future.delayed(const Duration(milliseconds: 10));
+        // Emit transient 0 AFTER the guard has already cleared via early match.
+        await mockPlayer.emitCurrentIndex(0);
+        await Future.delayed(const Duration(milliseconds: 10));
 
-      // After early clear, stream events are live again. Index=0 is accepted as
-      // a legitimate change (this is correct — guard is gone). The important
-      // guarantee is that the currentIndex was correctly 2 before this point.
-      // We verify the anchor was correctly maintained at the moment of early clear.
-      // (State after the subsequent 0 emission is not constrained here.)
-    });
+        // After early clear, stream events are live again. Index=0 is accepted as
+        // a legitimate change (this is correct — guard is gone). The important
+        // guarantee is that the currentIndex was correctly 2 before this point.
+        // We verify the anchor was correctly maintained at the moment of early clear.
+        // (State after the subsequent 0 emission is not constrained here.)
+      },
+    );
 
     // ── Test D ───────────────────────────────────────────────────────────────
     // Rapid reshuffle: call applyShuffleAlgorithm twice in quick succession.
@@ -440,12 +443,10 @@ void main() {
       expect(
         finalState.currentIndex,
         lessThan(finalState.queue.length),
-        reason: 'currentIndex must be a valid queue index after double reshuffle',
+        reason:
+            'currentIndex must be a valid queue index after double reshuffle',
       );
-      expect(
-        finalState.currentIndex,
-        greaterThanOrEqualTo(0),
-      );
+      expect(finalState.currentIndex, greaterThanOrEqualTo(0));
       // The anchor song (id '4') should still be somewhere in the queue.
       expect(
         finalState.queue.any((s) => s.id == '4'),
