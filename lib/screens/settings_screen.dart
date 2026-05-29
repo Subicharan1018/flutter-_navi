@@ -26,6 +26,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late TextEditingController _userController;
   late TextEditingController _passController;
   late TextEditingController _uploadDirController;
+  late TextEditingController _webdavUrlController;
   late TextEditingController _webdavUserController;
   late TextEditingController _webdavPassController;
   bool _obscurePass = true;
@@ -58,6 +59,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _passController = TextEditingController(text: settings.password);
     _uploadDirController = TextEditingController(
       text: settings.uploadDirectory,
+    );
+    _webdavUrlController = TextEditingController(
+      text: settings.webdavUrl,
     );
     _webdavUserController = TextEditingController(
       text: settings.webdavUsername,
@@ -107,6 +111,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _userController.dispose();
     _passController.dispose();
     _uploadDirController.dispose();
+    _webdavUrlController.dispose();
     _webdavUserController.dispose();
     _webdavPassController.dispose();
     super.dispose();
@@ -120,10 +125,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           settings.serverUrl,
           _userController.text.trim(),
           _passController.text,
-          apiBaseUrl: settings.apiBaseUrl,
-          loggingPort: settings.loggingPort,
-          uploadPort: settings.uploadPort,
-          localShufflePort: settings.localShufflePort,
+          webdavUrl: _webdavUrlController.text.trim(),
           uploadDir: _uploadDirController.text.trim(),
           webdavUser: _webdavUserController.text.trim(),
           webdavPass: _webdavPassController.text,
@@ -161,18 +163,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   Future<void> _syncDataToServer() async {
-    final apiBase = ref.read(settingsProvider).apiBaseUrl;
-    if (apiBase.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text(
-            'Set an API Base URL before syncing analytics to the server',
-          ),
-        ),
-      );
-      return;
-    }
-
     setState(() => _isSyncing = true);
     try {
       final uploadService = ref.read(replayUploadServiceProvider);
@@ -412,17 +402,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     size: 20,
                   ),
                   onTap: () {
-                    final base = ref.read(settingsProvider).apiBaseUrl;
-                    if (base.isEmpty) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        const SnackBar(
-                          content: Text(
-                            'Set an API Base URL first to use Listening Stats',
-                          ),
-                        ),
-                      );
-                      return;
-                    }
                     Navigator.push(
                       context,
                       MaterialPageRoute(
@@ -451,6 +430,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       fontSize: 12,
                     ),
                   ),
+                ),
+                _SettingsDivider(),
+                _SettingsInputRow(
+                  label: 'WebDAV URL',
+                  controller: _webdavUrlController,
+                  hint: 'https://dav.subimusic.me',
                 ),
                 _SettingsDivider(),
                 _SettingsInputRow(

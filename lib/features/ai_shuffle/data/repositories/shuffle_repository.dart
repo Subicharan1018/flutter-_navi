@@ -47,7 +47,7 @@ class ShuffleRepository {
   Future<NextResponse> getNext({
     String source = 'smart',
     String? playlistId,
-    int count = 16,
+    int count = 15,
     int depth = 0,
     String? playlistName,
     String genreStreakType = '',
@@ -55,6 +55,7 @@ class ShuffleRepository {
     List<String> playedTitles = const [],
     List<double> recentListenRatios = const [],
     String lastEndReason = '',
+    List<String> candidates = const [],
   }) async {
     final response = await _api.getNext(
       source: source,
@@ -67,6 +68,7 @@ class ShuffleRepository {
       playedTitles: playedTitles,
       recentListenRatios: recentListenRatios,
       lastEndReason: lastEndReason,
+      candidates: candidates,
     );
 
     if (response.queue.isEmpty) throw const ShuffleEmptyResponse();

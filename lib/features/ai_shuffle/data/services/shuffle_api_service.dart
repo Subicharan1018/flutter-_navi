@@ -94,7 +94,7 @@ class ShuffleApiService {
   Future<NextResponse> getNext({
     String source = 'smart',
     String? playlistId,
-    int count = 16,
+    int count = 15,
     int depth = 0,
     String? playlistName,
     String genreStreakType = '',
@@ -102,6 +102,7 @@ class ShuffleApiService {
     List<String> playedTitles = const [],
     List<double> recentListenRatios = const [],
     String lastEndReason = '',
+    List<String> candidates = const [],
   }) async {
     return _wrap(() async {
       final body = <String, dynamic>{
@@ -118,6 +119,7 @@ class ShuffleApiService {
         if (recentListenRatios.isNotEmpty)
           'recent_listen_ratios': recentListenRatios,
         if (lastEndReason.isNotEmpty) 'last_end_reason': lastEndReason,
+        if (candidates.isNotEmpty) 'candidates': candidates.join(','),
       };
 
       final response = await _dio.post<Map<String, dynamic>>(

@@ -68,19 +68,8 @@ class SettingsState {
   final ShuffleAlgorithm shuffleAlgorithm;
   final ShufflePreference shufflePreference;
 
-  /// Base URL for the external API server, e.g. `http://192.168.1.10`.
-  /// No trailing slash. No port. Combined with the port fields below to
-  /// build full endpoint URLs via the computed getters.
-  final String apiBaseUrl;
-
-  /// Port for the listening/telemetry FastAPI service (default 5006).
-  final int loggingPort;
-
-  /// Port for the WebDAV upload service (default 5005).
-  final int uploadPort;
-
-  /// Port for the local shuffle model server (default 5000).
-  final int localShufflePort;
+  /// Base URL for the WebDAV upload service.
+  final String webdavUrl;
 
   final String uploadDirectory;
 
@@ -104,10 +93,7 @@ class SettingsState {
     this.webdavPassword = '',
     this.shuffleAlgorithm = ShuffleAlgorithm.standard,
     this.shufflePreference = ShufflePreference.composer,
-    this.apiBaseUrl = '',
-    this.loggingPort = 5006,
-    this.uploadPort = 5005,
-    this.localShufflePort = 5000,
+    this.webdavUrl = '',
     this.uploadDirectory = '',
     this.dataCollectionEnabled = true,
     this.analyticsUploadSchedule = 'none',
@@ -119,25 +105,14 @@ class SettingsState {
 
   // ── Computed URL getters — single source of truth ───────────────────────────
 
-  String _normalizedBaseUrl() {
-    if (apiBaseUrl.isEmpty) return '';
-    if (apiBaseUrl.startsWith('http://') || apiBaseUrl.startsWith('https://')) {
-      return apiBaseUrl;
-    }
-    return 'http://$apiBaseUrl';
-  }
+  /// Full URL for the logging/telemetry service.
+  String get loggingApiUrl => 'https://shuffle.subimusic.me';
 
-  /// Full URL for the logging/telemetry service. Empty when `apiBaseUrl` unset.
-  String get loggingApiUrl =>
-      apiBaseUrl.isEmpty ? '' : '${_normalizedBaseUrl()}:$loggingPort';
+  /// Full URL for the WebDAV/upload service.
+  String get uploadApiUrl => webdavUrl;
 
-  /// Full URL for the WebDAV/upload service. Empty when `apiBaseUrl` unset.
-  String get uploadApiUrl =>
-      apiBaseUrl.isEmpty ? '' : '${_normalizedBaseUrl()}:$uploadPort';
-
-  /// Full URL for the local shuffle model server. Empty when `apiBaseUrl` unset.
-  String get localShuffleUrl =>
-      apiBaseUrl.isEmpty ? '' : '${_normalizedBaseUrl()}:$localShufflePort';
+  /// Full URL for the local shuffle model server.
+  String get localShuffleUrl => 'https://shuffle.subimusic.me';
 
   SettingsState copyWith({
     String? serverUrl,
@@ -147,10 +122,7 @@ class SettingsState {
     String? webdavPassword,
     ShuffleAlgorithm? shuffleAlgorithm,
     ShufflePreference? shufflePreference,
-    String? apiBaseUrl,
-    int? loggingPort,
-    int? uploadPort,
-    int? localShufflePort,
+    String? webdavUrl,
     String? uploadDirectory,
     bool? dataCollectionEnabled,
     String? analyticsUploadSchedule,
@@ -167,10 +139,7 @@ class SettingsState {
       webdavPassword: webdavPassword ?? this.webdavPassword,
       shuffleAlgorithm: shuffleAlgorithm ?? this.shuffleAlgorithm,
       shufflePreference: shufflePreference ?? this.shufflePreference,
-      apiBaseUrl: apiBaseUrl ?? this.apiBaseUrl,
-      loggingPort: loggingPort ?? this.loggingPort,
-      uploadPort: uploadPort ?? this.uploadPort,
-      localShufflePort: localShufflePort ?? this.localShufflePort,
+      webdavUrl: webdavUrl ?? this.webdavUrl,
       uploadDirectory: uploadDirectory ?? this.uploadDirectory,
       dataCollectionEnabled:
           dataCollectionEnabled ?? this.dataCollectionEnabled,
@@ -216,40 +185,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       return val.isEmpty ? defaultValue : val;
     }
 
-    // ── Migration: parse old full-URL fields into base URL + ports ───────────
-    // If the new kApiBaseUrl key is empty but the old kUploadApiUrl exists,
-    // extract the host from it and derive default ports.
-    String apiBaseUrl = p.get(HiveBoxes.kApiBaseUrl)?.toString() ?? '';
-    int loggingPort = (p.get(HiveBoxes.kLoggingPort) as int?) ?? 5006;
-    int uploadPort = (p.get(HiveBoxes.kUploadPort) as int?) ?? 5005;
-    int localShufflePort = (p.get(HiveBoxes.kLocalShufflePort) as int?) ?? 5000;
-
-    if (apiBaseUrl.isEmpty) {
-      // Try to extract base from legacy uploadApiUrl (e.g. "http://server:5005")
-      final legacyUpload = p.get(HiveBoxes.kUploadApiUrl)?.toString() ?? '';
-      final legacyListen = p.get(HiveBoxes.kListeningApiUrl)?.toString() ?? '';
-      final candidate = legacyUpload.isNotEmpty ? legacyUpload : legacyListen;
-      if (candidate.isNotEmpty) {
-        try {
-          final uri = Uri.parse(candidate);
-          // Strip the port to get the base URL
-          apiBaseUrl = '${uri.scheme}://${uri.host}';
-          if (legacyUpload.isNotEmpty) {
-            final p = Uri.parse(legacyUpload).port;
-            uploadPort = p > 0 ? p : 5005;
-          }
-          if (legacyListen.isNotEmpty) {
-            final p = Uri.parse(legacyListen).port;
-            loggingPort = p > 0 ? p : 5006;
-          }
-          debugPrint(
-            '[Settings] Migrated legacy URLs → base=$apiBaseUrl upload=$uploadPort logging=$loggingPort',
-          );
-        } catch (_) {
-          // Malformed legacy URL — leave apiBaseUrl empty
-        }
-      }
-    }
+    String webdavUrl = p.get(HiveBoxes.kWebdavUrl)?.toString() ?? '';
 
     state = SettingsState(
       serverUrl: getString(
@@ -269,10 +205,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         (e) => e.name == prefName,
         orElse: () => ShufflePreference.composer,
       ),
-      apiBaseUrl: apiBaseUrl,
-      loggingPort: loggingPort,
-      uploadPort: uploadPort,
-      localShufflePort: localShufflePort,
+      webdavUrl: webdavUrl,
       uploadDirectory: p.get(HiveBoxes.kUploadDirectory)?.toString() ?? '',
       dataCollectionEnabled:
           p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool
@@ -300,10 +233,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     String url,
     String user,
     String pass, {
-    String? apiBaseUrl,
-    int? loggingPort,
-    int? uploadPort,
-    int? localShufflePort,
+    String? webdavUrl,
     String? uploadDir,
     String? webdavUser,
     String? webdavPass,
@@ -318,11 +248,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
     if (webdavPass != null)
       await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
-    if (apiBaseUrl != null) await p.put(HiveBoxes.kApiBaseUrl, apiBaseUrl);
-    if (loggingPort != null) await p.put(HiveBoxes.kLoggingPort, loggingPort);
-    if (uploadPort != null) await p.put(HiveBoxes.kUploadPort, uploadPort);
-    if (localShufflePort != null)
-      await p.put(HiveBoxes.kLocalShufflePort, localShufflePort);
+    if (webdavUrl != null) await p.put(HiveBoxes.kWebdavUrl, webdavUrl);
     if (uploadDir != null) await p.put(HiveBoxes.kUploadDirectory, uploadDir);
 
     state = state.copyWith(
@@ -331,32 +257,14 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       password: pass,
       webdavUsername: webdavUser,
       webdavPassword: webdavPass,
-      apiBaseUrl: apiBaseUrl,
-      loggingPort: loggingPort,
-      uploadPort: uploadPort,
-      localShufflePort: localShufflePort,
+      webdavUrl: webdavUrl,
       uploadDirectory: uploadDir,
     );
   }
 
-  Future<void> setApiBaseUrl(String url) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kApiBaseUrl, url);
-    state = state.copyWith(apiBaseUrl: url);
-  }
-
-  Future<void> setLoggingPort(int port) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kLoggingPort, port);
-    state = state.copyWith(loggingPort: port);
-  }
-
-  Future<void> setUploadPort(int port) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kUploadPort, port);
-    state = state.copyWith(uploadPort: port);
-  }
-
-  Future<void> setLocalShufflePort(int port) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kLocalShufflePort, port);
-    state = state.copyWith(localShufflePort: port);
+  Future<void> setWebdavUrl(String url) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kWebdavUrl, url);
+    state = state.copyWith(webdavUrl: url);
   }
 
   Future<void> setShuffleAlgorithm(ShuffleAlgorithm algo) async {

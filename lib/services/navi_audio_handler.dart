@@ -436,6 +436,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     int startIndex, {
     List<Song>? unshuffledSongs,
   }) async {
+    debugPrint('🎵 [NaviAudioHandler] setQueue: ${songs.length} songs, start: $startIndex');
+    for (int i = 0; i < songs.length; i++) {
+      debugPrint('   ${i + 1}. ${songs[i].title}');
+    }
     _currentQueue = List.from(songs);
     _unshuffledQueue = List.from(unshuffledSongs ?? songs);
     await _rebuildSource(startIndex);
@@ -712,6 +716,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> _moveBasedReorder(int anchorIndex) async {
+    debugPrint('🎵 [NaviAudioHandler] _moveBasedReorder at anchor: $anchorIndex');
     final int n = _currentQueue.length;
     final int playlistLen = _playlist!.children.length;
 
@@ -986,6 +991,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     required int anchorIndex,
     bool preferMoveBasedReorder = false,
   }) async {
+    debugPrint('🎵 [NaviAudioHandler] commitSmartLocalOrder: past=${pastAndPresent.length}, future=${orderedFuture.length}');
+    for (int i = 0; i < orderedFuture.length; i++) {
+      debugPrint('   Next ${i + 1}. ${orderedFuture[i].title}');
+    }
     _currentQueue = [...pastAndPresent, ...orderedFuture];
     await _updateQueueAfterAnchor(
       anchorIndex,
@@ -1027,6 +1036,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Song? currentSong,
     String? contextName,
   }) async {
+    debugPrint('🎵 [NaviAudioHandler] computeShuffle: algorithm=$algorithm, poolSize=${pool.length}');
     switch (algorithm) {
       case ShuffleAlgorithm.standard:
         return compute(_standardShuffleIsolate, pool);

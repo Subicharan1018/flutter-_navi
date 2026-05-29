@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
+import 'package:collection/collection.dart';
 import '../models/song.dart';
 import '../services/subsonic_service.dart';
 import '../services/listening_event_collector.dart';
@@ -17,6 +18,7 @@ import '../services/scrobble_service.dart';
 import '../main.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../features/ai_shuffle/data/models/recommended_song.dart';
+import '../features/ai_shuffle/data/models/feedback_request.dart';
 
 // ---------------------------------------------------------------------------
 // Player state
@@ -189,6 +191,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   DateTime? _scrobblePlayStart;
   Duration _lastKnownPosition = Duration.zero;
   int _lastKnownIndex = 0;
+  // Ordering-independent listen ratio snapshot.
+  // Updated on every positionStream tick for the currently tracked index.
+  // Consumed (then reset) in the completion/skip handler — NOT in the media
+  // item listener — so callback ordering between streams is irrelevant.
+  Duration _positionAtCompletion = Duration.zero;
+  int _trackedIndexForCompletion = -1;
   bool _isShuffling = false;
   bool get isShuffling => _isShuffling;
   int _lastPersistSecond = -1;
@@ -236,6 +244,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (index == prevIndex && state.repeatMode != LoopMode.one) return;
 
         _lastKnownIndex = index;
+        // Track the new index for the completion snapshot.
+        // Do NOT reset _positionAtCompletion here — it must still hold the
+        // previous song's last position until the completion handler consumes it.
+        _trackedIndexForCompletion = index;
 
         if (analyticsEnabled && newSong != null) {
           final sourceCtx = _nextSourceContext;
@@ -360,11 +372,38 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           if (processingState == AudioProcessingState.completed) {
             if (state.queue.isNotEmpty &&
                 state.currentIndex < state.queue.length) {
-              _collector.onSongEnded(
-                state.queue[state.currentIndex],
-                player.position,
+              final completedSong = state.queue[state.currentIndex];
+              _collector.onSongEnded(completedSong, player.position);
+
+              // Consume the ordering-safe snapshot, then reset it.
+              // Reading _positionAtCompletion here is safe regardless of which
+              // stream (mediaItem vs processingState) fired first — the snapshot
+              // is only zeroed AFTER we read it, not in the media item listener.
+              final snapshot = _positionAtCompletion;
+              _positionAtCompletion = Duration.zero;
+              _trackedIndexForCompletion = -1;
+
+              final listenRatio = completedSong.duration > 0
+                  ? (snapshot.inSeconds / completedSong.duration).clamp(0.0, 1.0)
+                  : 1.0;
+              final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
+              shuffleNotifier.recordPlay(
+                title: completedSong.title,
+                listenRatio: listenRatio,
+                endReason: 'natural',
               );
+              sendShuffleFeedback(_ref, FeedbackRequest(
+                title:        completedSong.title,
+                filePath:     completedSong.id,
+                genreBucket:  completedSong.genre.isNotEmpty ? completedSong.genre : 'unknown',
+                composer:     completedSong.composer.isNotEmpty ? completedSong.composer : completedSong.artist,
+                listenRatio:  listenRatio,
+                endReason:    'natural',
+                sessionId:    shuffleNotifier.sessionId,
+                sessionDepth: shuffleNotifier.state.sessionDepth,
+              ));
             }
+
             // BUG-001 FIX: If there are more songs ahead, explicitly advance.
             // On Linux, the NaviAudioHandler._startLinuxCompletionListener handles
             // advancement via the single-source bridge. Calling skipToNext() here
@@ -390,6 +429,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       AudioService.position.listen((position) {
         if (_audioHandler.currentIndex == _lastKnownIndex) {
           _lastKnownPosition = position;
+        }
+        // Update the ordering-safe completion snapshot using integer index
+        // comparison (O(1), no string allocation, no Riverpod state read).
+        if (_audioHandler.currentIndex == _trackedIndexForCompletion &&
+            _trackedIndexForCompletion >= 0) {
+          _positionAtCompletion = position;
         }
         final posSec = position.inSeconds;
         if (posSec > 0 && posSec % 5 == 0 && posSec != _lastPersistSecond) {
@@ -452,6 +497,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void _clearHistory() {
     state = state.copyWith(history: []);
     _lastFetchedForSongId = null;
+    _ref.read(shuffleQueueProvider.notifier).clearQueue();
   }
 
   // ── Playlist pool helpers ─────────────────────────────────────────────────
@@ -498,17 +544,25 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // ---------------------------------------------------------------------------
 
   Future<void> setQueue(List<Song> songs, int startIndex) async {
+    debugPrint('🎵 [PlayerProvider] setQueue called with ${songs.length} songs, start: $startIndex');
     await _queueOpLock?.future;
     final completer = Completer<void>();
     _queueOpLock = completer;
     try {
-      _clearHistory();
+      _clearHistory(); // also calls shuffleNotifier.clearQueue() → _sessionId = null
+      _ref.read(shuffleQueueProvider.notifier).initSession(); // new session UUID
       _playlistPool = []; // clear pool — not a playlist-shuffle context
       _nextSourceContext = 'user_queue';
       _nextTransitionType = 'user_selected';
       _suppressStreamEvents = true;
       state = state.copyWith(queue: songs, currentIndex: startIndex);
       await _audioHandler.setQueue(songs, startIndex);
+      // Fix 2: init completion tracking for the first song, which doesn't
+      // arrive via the media item change callback.
+      if (songs.isNotEmpty) {
+        _trackedIndexForCompletion = startIndex;
+        _positionAtCompletion = Duration.zero;
+      }
       _suppressStreamEvents = false;
       if (_pendingSeekMs > 0) {
         try {
@@ -551,12 +605,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     bool shuffle = false,
     String? playlistName,
   }) async {
+    debugPrint('🎵 [PlayerProvider] playPlaylist called with ${songs.length} songs, shuffle: $shuffle, name: $playlistName');
     if (songs.isEmpty) return;
     await _queueOpLock?.future;
     final completer = Completer<void>();
     _queueOpLock = completer;
     try {
-      _clearHistory();
+      _clearHistory(); // calls shuffleNotifier.clearQueue() → _sessionId = null
+      _ref.read(shuffleQueueProvider.notifier).initSession(); // AFTER clear — new UUID
       _nextSourceContext = 'playlist';
       _nextTransitionType = 'user_selected';
       _currentPlaylistName = playlistName;
@@ -598,33 +654,50 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final firstBatch = _takeFromPool(_smartLocalBatchSize);
 
           // 3. Ask server to order the first batch relative to seed.
-          final repo = _ref.read(shuffleRepositoryProvider);
+          final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
           List<Song>? ordered;
           try {
-            // Build pseudo-playlist representation for the API
             final candidateTitles = firstBatch.map((s) => s.title).toList();
-            // Call Smart Shuffle API via v3 logic
-            final response = await repo.getNext(
-              source: 'playlist', // Always treat inline shuffle as a playlist
-              playlistName: playlistName,
+
+            shuffleNotifier.recordPlay(
+              title: currentSong.title,
+              listenRatio: 1.0,
+              endReason: 'natural',
             );
 
-            // Map recommendations back to local Songs
+            debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart, candidates: ${candidateTitles.length})');
+            // source: 'smart' because playPlaylist has no Navidrome playlistId.
+            // candidates constrains the server to score only the pool batch.
+            final response = await shuffleNotifier.fetchNext(
+              source: 'smart',
+              playlistName: playlistName,
+              candidates: candidateTitles,
+              count: firstBatch.length,
+            );
+            if (!mounted) return;
+
+            // Map recommendations back to local Songs using title+artist compound key
+            // to handle same-title remixes common in Tamil film music.
             final resolved = <Song>[];
             for (final rec in response.queue) {
-              final match = firstBatch.firstWhere(
+              final match = songs.firstWhereOrNull(
+                (s) =>
+                    s.title.toLowerCase() == rec.title.toLowerCase() &&
+                    s.artist.toLowerCase() == rec.composer.toLowerCase(),
+              ) ?? songs.firstWhereOrNull(
+                // Fallback to title-only if artist mismatch (e.g. various-artists albums)
                 (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-                orElse: () => firstBatch.first, // Fallback if name mismatches
               );
-              // Avoid duplicates (if fallback fired)
-              if (!resolved.contains(match)) {
+              if (match != null && !resolved.contains(match)) {
                 resolved.add(match);
               }
             }
 
-            // Append any left-overs from the batch that weren't matched
+            // Pad with any unmatched firstBatch songs to guarantee ~16 songs
             for (final s in firstBatch) {
-              if (!resolved.contains(s)) resolved.add(s);
+              if (!resolved.contains(s) && resolved.length < firstBatch.length) {
+                resolved.add(s);
+              }
             }
             ordered = resolved;
           } catch (e) {
@@ -644,6 +717,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             currentIndex: 0,
           );
           await _audioHandler.setQueue(initialQueue, 0, unshuffledSongs: songs);
+          // Fix 2: init completion tracking for the first song (seed at index 0).
+          _trackedIndexForCompletion = 0;
+          _positionAtCompletion = Duration.zero;
           _suppressStreamEvents = false;
           player.play();
 
@@ -688,6 +764,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void refreshShuffleUrl() {}
 
   Future<void> playNext() async {
+    debugPrint('🎵 [PlayerProvider] playNext');
     await _queueOpLock?.future;
     if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
       final currentSong = state.queue[state.currentIndex];
@@ -695,7 +772,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (_lastKnownPosition.inSeconds < 30) {
         _ref.read(recommendationProvider).trackSkip(currentSong);
       }
+
+      // Consume the ordering-safe position snapshot, then reset it.
+      final snapshot = _positionAtCompletion;
+      _positionAtCompletion = Duration.zero;
+      _trackedIndexForCompletion = -1;
+
+      final listenRatio = currentSong.duration > 0
+          ? (snapshot.inSeconds / currentSong.duration).clamp(0.0, 1.0)
+          : 0.0;
+      final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
+      shuffleNotifier.recordPlay(
+        title: currentSong.title,
+        listenRatio: listenRatio,
+        endReason: 'fwdbtn',
+      );
+      sendShuffleFeedback(_ref, FeedbackRequest(
+        title:        currentSong.title,
+        filePath:     currentSong.id,
+        genreBucket:  currentSong.genre.isNotEmpty ? currentSong.genre : 'unknown',
+        composer:     currentSong.composer.isNotEmpty ? currentSong.composer : currentSong.artist,
+        listenRatio:  listenRatio,
+        endReason:    'fwdbtn',
+        sessionId:    shuffleNotifier.sessionId,
+        sessionDepth: shuffleNotifier.state.sessionDepth,
+      ));
     }
+
     _suppressNextHistoryPush = true;
     _nextTransitionType = 'manual_next';
     _nextSourceContext = 'manual_next';
@@ -715,6 +818,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> playPrev() async {
+    debugPrint('🎵 [PlayerProvider] playPrev');
     await _queueOpLock?.future;
     try {
       if (player.position.inSeconds > 3) {
@@ -751,6 +855,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> jumpTo(int index) async {
+    debugPrint('🎵 [PlayerProvider] jumpTo: $index');
     _nextTransitionType = 'user_selected';
     _nextSourceContext = 'user_selected';
     await _jumpToInternal(index, pushHistory: true);
@@ -771,6 +876,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> addToQueue(Song song) async {
+    debugPrint('🎵 [PlayerProvider] addToQueue: ${song.title}');
     final currentQueue = List<Song>.from(state.queue)..add(song);
     state = state.copyWith(queue: currentQueue);
     await _audioHandler.addToQueue(song);
@@ -779,6 +885,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// Batch-add multiple songs — single state update → single UI rebuild.
   /// AudioHandler calls remain sequential (required by just_audio's source list).
   Future<void> addAllToQueue(List<Song> songs) async {
+    debugPrint('🎵 [PlayerProvider] addAllToQueue: ${songs.length} songs');
     if (songs.isEmpty) return;
     final currentQueue = List<Song>.from(state.queue)..addAll(songs);
     state = state.copyWith(queue: currentQueue);
@@ -788,6 +895,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> removeFromQueue(int index) async {
+    debugPrint('🎵 [PlayerProvider] removeFromQueue at index: $index');
     _suppressStreamEvents = true;
     try {
       final currentQueue = List<Song>.from(state.queue)..removeAt(index);
@@ -1030,21 +1138,31 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     List<Song>? ordered;
     try {
-      final repo = _ref.read(shuffleRepositoryProvider);
+      final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
       final candidateTitles = future.map((s) => s.title).toList();
+      final isSmartMode = _currentPlaylistName == null || _currentPlaylistName!.isEmpty;
+      debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: ${isSmartMode ? 'smart' : 'playlist'}, candidates: ${candidateTitles.length})');
 
-      final response = await repo.getNext(
-        source: 'playlist',
-        playlistName: _currentPlaylistName,
+      final response = await shuffleNotifier.fetchNext(
+        source: isSmartMode ? 'smart' : 'playlist',
+        playlistName: isSmartMode ? null : _currentPlaylistName,
+        candidates: candidateTitles,
+        count: candidateTitles.length,
       );
+      if (!mounted) return;
 
       final resolved = <Song>[];
       for (final rec in response.queue) {
-        final match = future.firstWhere(
+        final match = future.firstWhereOrNull(
+          (s) =>
+              s.title.toLowerCase() == rec.title.toLowerCase() &&
+              s.artist.toLowerCase() == rec.composer.toLowerCase(),
+        ) ?? future.firstWhereOrNull(
           (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-          orElse: () => future.first,
         );
-        if (!resolved.contains(match)) resolved.add(match);
+        if (match != null && !resolved.contains(match)) {
+          resolved.add(match);
+        }
       }
 
       for (final s in future) {
@@ -1366,21 +1484,33 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // A: HTTP — order fullFuture relative to seedSong.
         () async {
           try {
-            final repo = _ref.read(shuffleRepositoryProvider);
+            final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
             final candidateTitles = fullFuture.map((s) => s.title).toList();
+            debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart/playlist)');
 
-            final response = await repo.getNext(
-              source: 'playlist',
-              playlistName: _currentPlaylistName,
+            final isSmartMode = _currentPlaylistName == null || _currentPlaylistName!.isEmpty;
+            debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: ${isSmartMode ? 'smart' : 'playlist'}, candidates: ${candidateTitles.length})');
+
+            final response = await shuffleNotifier.fetchNext(
+              source: isSmartMode ? 'smart' : 'playlist',
+              playlistName: isSmartMode ? null : _currentPlaylistName,
+              candidates: candidateTitles,
+              count: candidateTitles.length,
             );
+            if (!mounted) return [];
 
             final resolved = <Song>[];
             for (final rec in response.queue) {
-              final match = fullFuture.firstWhere(
+              final match = fullFuture.firstWhereOrNull(
+                (s) =>
+                    s.title.toLowerCase() == rec.title.toLowerCase() &&
+                    s.artist.toLowerCase() == rec.composer.toLowerCase(),
+              ) ?? fullFuture.firstWhereOrNull(
                 (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-                orElse: () => fullFuture.first,
               );
-              if (!resolved.contains(match)) resolved.add(match);
+              if (match != null && !resolved.contains(match)) {
+                resolved.add(match);
+              }
             }
 
             for (final s in fullFuture) {

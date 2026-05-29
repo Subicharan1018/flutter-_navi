@@ -16,10 +16,10 @@ import 'dart:convert';
 // =============================================================================
 
 class HiveBoxes {
-  static const _authBox = 'auth';
-  static const _sessionBox = 'session';
-  static const _prefsBox = 'prefs';
-  static const _audioBox = 'audio';
+  static const _authBox = 'auth_v2';
+  static const _sessionBox = 'session_v2';
+  static const _prefsBox = 'prefs_v2';
+  static const _audioBox = 'audio_v2';
 
   static late Box auth;
   static late Box session;
@@ -41,7 +41,7 @@ class HiveBoxes {
     session = await Hive.openBox(_sessionBox);
     prefs = await Hive.openBox(_prefsBox);
     audio = await Hive.openBox(_audioBox);
-    shuffleCache = await Hive.openBox('shuffle_cache');
+    shuffleCache = await Hive.openBox('shuffle_cache_v2');
 
     // One-time migration from SharedPreferences → Hive
     await _migrateFromSharedPreferences();
@@ -83,13 +83,7 @@ class HiveBoxes {
   static const kShuffleAlgorithm = 'shuffleAlgorithm';
   static const kShufflePreference = 'shufflePreference';
   static const kAutoplayPreference = 'autoplay_enabled';
-  static const kUploadApiUrl = 'uploadApiUrl'; // legacy — kept for migration
-  static const kListeningApiUrl =
-      'listeningApiUrl'; // legacy — kept for migration
-  static const kApiBaseUrl = 'api_base_url';
-  static const kLoggingPort = 'logging_port';
-  static const kUploadPort = 'upload_port';
-  static const kLocalShufflePort = 'local_shuffle_port';
+  static const kWebdavUrl = 'webdavUrl';
   static const kUploadDirectory = 'uploadDirectory';
   static const kDataCollectionEnabled = 'dataCollectionEnabled';
   static const kAnalyticsUploadSchedule = 'analytics_upload_schedule';
@@ -137,13 +131,7 @@ class HiveBoxes {
       // Prefs
       await _migrateString(sp, 'shuffleAlgorithm', prefs, kShuffleAlgorithm);
       await _migrateString(sp, 'shufflePreference', prefs, kShufflePreference);
-      await _migrateString(sp, 'uploadApiUrl', prefs, kUploadApiUrl);
-
-      // Migration: listening API defaults to upload API if it wasn't set yet.
-      if (!prefs.containsKey(kListeningApiUrl) &&
-          prefs.containsKey(kUploadApiUrl)) {
-        await prefs.put(kListeningApiUrl, prefs.get(kUploadApiUrl));
-      }
+      await _migrateString(sp, 'webdavUrl', prefs, kWebdavUrl);
 
       await _migrateString(sp, 'uploadDirectory', prefs, kUploadDirectory);
       await _migrateBool(

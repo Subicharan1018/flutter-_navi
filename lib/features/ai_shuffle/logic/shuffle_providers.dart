@@ -3,6 +3,7 @@
 // =============================================================================
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:uuid/uuid.dart';
 
 import '../../../providers/settings_provider.dart';
 import '../data/services/shuffle_api_service.dart';
@@ -128,19 +129,40 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
   ShuffleQueueNotifier(this._repo) : super(const ShuffleQueueState());
 
   // Tracks played song titles for the session so they're excluded from /next.
+  // Capped at 50 to prevent unbounded growth in long sessions.
   final List<String> _playedTitles = [];
   // Recent listen ratios — last 5 songs.
   final List<double> _recentListenRatios = [];
   String _lastEndReason = '';
 
+  // Session ID — nullable; null means initSession() has not been called yet.
+  String? _sessionId;
+
+  /// Starts a new playback session, generating a fresh UUID.
+  /// Must be called AFTER clearQueue() in playPlaylist / _applyAiShuffle.
+  void initSession() {
+    _sessionId = const Uuid().v4();
+  }
+
+  /// The current session ID. Asserts in debug builds if initSession() was
+  /// never called, so forgotten call sites are caught during development.
+  String get sessionId {
+    assert(
+      _sessionId != null,
+      'shuffleNotifier.sessionId read before initSession() was called',
+    );
+    return _sessionId ?? '';
+  }
+
   /// Fetches a new batch of recommendations.
-  Future<void> fetchNext({
+  Future<NextResponse> fetchNext({
     String source = 'smart',
     String? playlistId,
-    int count = 16,
+    int count = 15,
     String? playlistName,
     String genreStreakType = '',
     int genreStreakCount = 0,
+    List<String> candidates = const [],
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -155,16 +177,18 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
         playedTitles: _playedTitles,
         recentListenRatios: _recentListenRatios,
         lastEndReason: _lastEndReason,
+        candidates: candidates,
       );
       state = state.copyWith(
         batches: [...state.batches, response],
         isLoading: false,
-        sessionDepth: state.sessionDepth + response.queue.length,
         lastContext: response.context?.bucketLabel,
         lastWeather: response.context?.weather,
       );
+      return response;
     } catch (e) {
       state = state.copyWith(isLoading: false, error: e.toString());
+      rethrow;
     }
   }
 
@@ -176,19 +200,24 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
   }) {
     if (!_playedTitles.contains(title)) {
       _playedTitles.add(title);
+      // Cap at 50 to prevent unbounded growth in long sessions.
+      if (_playedTitles.length > 50) _playedTitles.removeAt(0);
     }
     _recentListenRatios.add(listenRatio);
     if (_recentListenRatios.length > 5) {
       _recentListenRatios.removeAt(0);
     }
     _lastEndReason = endReason;
+    state = state.copyWith(sessionDepth: state.sessionDepth + 1);
   }
 
-  /// Clears the queue and resets session tracking.
+  /// Clears the queue and resets all session tracking.
+  /// Call initSession() after this to begin a new session.
   void clearQueue() {
     _playedTitles.clear();
     _recentListenRatios.clear();
     _lastEndReason = '';
+    _sessionId = null;
     state = const ShuffleQueueState();
   }
 }

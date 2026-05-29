@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:collection/collection.dart';
 
 import '../../../models/song.dart';
 import '../../../providers/player_provider.dart';
@@ -73,13 +74,16 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   Future<void> _enqueueSong(RecommendedSong song) async {
     try {
       final allSongs = await ref.read(allSongsProvider.future);
-      final localSong = allSongs.cast<dynamic>().firstWhere(
+      final localSong = allSongs.firstWhereOrNull(
+        (s) =>
+            s.title.toLowerCase() == song.title.toLowerCase() &&
+            s.artist.toLowerCase() == song.composer.toLowerCase(),
+      ) ?? allSongs.firstWhereOrNull(
         (s) => s.title.toLowerCase() == song.title.toLowerCase(),
-        orElse: () => null,
       );
 
       if (localSong != null) {
-        await ref.read(playerProvider.notifier).addToQueue(localSong as Song);
+        await ref.read(playerProvider.notifier).addToQueue(localSong);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Added "${song.title}" to queue')),
@@ -118,13 +122,13 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
       final allSongs = await ref.read(allSongsProvider.future);
       final resolved = recommendations
           .map((rec) {
-            try {
-              return allSongs.firstWhere(
-                (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-              );
-            } catch (_) {
-              return null;
-            }
+            return allSongs.firstWhereOrNull(
+              (s) =>
+                  s.title.toLowerCase() == rec.title.toLowerCase() &&
+                  s.artist.toLowerCase() == rec.composer.toLowerCase(),
+            ) ?? allSongs.firstWhereOrNull(
+              (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
+            );
           })
           .whereType<Song>()
           .toList();
@@ -133,6 +137,11 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
         _showSnackBar('None of the recommendations were found in your library');
         return;
       }
+
+      // Clean session boundary BEFORE playback starts, but AFTER capturing resolved
+      final notifier = ref.read(shuffleQueueProvider.notifier);
+      notifier.clearQueue();  // Wipes preview batches + playedTitles
+      notifier.initSession(); // Fresh sessionId for real playback
 
       await ref.read(playerProvider.notifier).setQueue(resolved, 0);
 

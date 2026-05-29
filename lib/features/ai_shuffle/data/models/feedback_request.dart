@@ -2,6 +2,8 @@
 // FeedbackRequest — payload for POST /feedback (v3.0.0)
 // =============================================================================
 
+import 'package:flutter/foundation.dart';
+
 /// Immutable model representing a single POST /feedback request body.
 class FeedbackRequest {
   final String title;
@@ -20,19 +22,31 @@ class FeedbackRequest {
 
   const FeedbackRequest({
     required this.title,
-    required this.filePath,
-    required this.genreBucket,
-    required this.composer,
     required this.listenRatio,
     required this.endReason,
-    required this.sessionId,
-    required this.sessionDepth,
+    this.filePath = '',
+    this.genreBucket = '',
+    this.composer = '',
+    this.sessionId = '',
+    this.sessionDepth = 0,
     this.genreStreakType = '',
     this.genreStreakCount = 0,
     this.weatherCode = 800,
     this.temperatureC = 25.0,
     this.volume = 1.0,
-  });
+  }) : assert(title.length > 0, 'FeedbackRequest.title must not be empty'),
+       assert(
+         listenRatio >= 0.0 && listenRatio <= 1.01,
+         'FeedbackRequest.listenRatio out of range: $listenRatio',
+       ),
+       assert(
+         kReleaseMode || genreBucket.length > 0,
+         'FeedbackRequest.genreBucket is empty — check Song.genre mapping or FLAC tag',
+       ),
+       assert(
+         kReleaseMode || composer.length > 0,
+         'FeedbackRequest.composer is empty — check Song.composer mapping or FLAC tag',
+       );
 
   Map<String, dynamic> toJson() => {
     'title': title,
