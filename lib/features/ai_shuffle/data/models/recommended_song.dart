@@ -1,5 +1,5 @@
 // =============================================================================
-// RecommendedSong — a single queue entry from the v3.0.0 Smart Shuffle server.
+// RecommendedSong — a single queue entry from the v4.0.0 Smart Shuffle server.
 // =============================================================================
 
 /// Audio features for a song.
@@ -7,17 +7,20 @@ class AudioFeatures {
   final double energy;
   final double valence;
   final double acousticness;
+  final double danceability;
 
   const AudioFeatures({
     required this.energy,
     required this.valence,
     required this.acousticness,
+    required this.danceability,
   });
 
   factory AudioFeatures.fromJson(Map<String, dynamic> json) => AudioFeatures(
     energy: _parseDouble(json['energy']),
     valence: _parseDouble(json['valence']),
     acousticness: _parseDouble(json['acousticness']),
+    danceability: _parseDouble(json['danceability']),
   );
 
   static double _parseDouble(dynamic v) {
@@ -55,7 +58,7 @@ class SongScores {
   }
 }
 
-/// One song recommendation returned by the `/next` endpoint (v3.0.0).
+/// One song recommendation returned by the `/next` endpoint (v4.0.0).
 class RecommendedSong {
   final int rank;
   final String title;
@@ -92,7 +95,12 @@ class RecommendedSong {
         composer: json['composer']?.toString() ?? '',
         audio: json['audio'] is Map<String, dynamic>
             ? AudioFeatures.fromJson(json['audio'] as Map<String, dynamic>)
-            : const AudioFeatures(energy: 0, valence: 0, acousticness: 0),
+            : const AudioFeatures(
+                energy: 0,
+                valence: 0,
+                acousticness: 0,
+                danceability: 0,
+              ),
         scores: json['scores'] is Map<String, dynamic>
             ? SongScores.fromJson(json['scores'] as Map<String, dynamic>)
             : const SongScores(

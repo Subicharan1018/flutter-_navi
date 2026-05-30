@@ -1,5 +1,5 @@
 // =============================================================================
-// ShuffleRepository — business logic layer for Smart Shuffle (v3.0.0).
+// ShuffleRepository — business logic layer for Smart Shuffle (v4.0.0).
 // =============================================================================
 
 import 'package:flutter/foundation.dart';
@@ -12,6 +12,7 @@ import '../models/model_status_response.dart';
 import '../models/listening_stats_response.dart';
 import '../models/listening_history_response.dart';
 import '../models/contribution_graph_response.dart';
+import '../models/song_deep_dive_response.dart';
 import 'shuffle_exception.dart';
 
 class ShuffleRepository {
@@ -38,6 +39,12 @@ class ShuffleRepository {
   Future<HealthResponse> getHealth() async {
     return await _api.getHealth();
   }
+
+  // ---------------------------------------------------------------------------
+  // Weather
+  // ---------------------------------------------------------------------------
+
+  Future<WeatherInfo> getWeather() => _api.getWeather();
 
   // ---------------------------------------------------------------------------
   // Next recommendation queue
@@ -121,6 +128,6 @@ class ShuffleRepository {
 
   Future<List<Map<String, dynamic>>> getComposers() => _api.getComposers();
 
-  Future<Map<String, dynamic>> getSongDeepDive({required String title}) =>
+  Future<SongDeepDiveResponse> getSongDeepDive({required String title}) =>
       _api.getSongDeepDive(title: title);
 }

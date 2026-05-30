@@ -4,8 +4,9 @@
 // Base URL: https://shuffle.subimusic.me (hardcoded — no user config needed)
 // Auth:     HTTP Basic Auth with Navidrome username:password
 //
-// Endpoints (v3.0.0):
+// Endpoints (v4.0.0):
 //   GET  /health
+//   GET  /weather
 //   POST /next
 //   POST /feedback
 //   GET  /model/status
@@ -26,6 +27,7 @@ import '../models/model_status_response.dart';
 import '../models/listening_stats_response.dart';
 import '../models/listening_history_response.dart';
 import '../models/contribution_graph_response.dart';
+import '../models/song_deep_dive_response.dart';
 import '../repositories/shuffle_exception.dart';
 
 /// The canonical base URL for the Smart Shuffle hosted service.
@@ -72,6 +74,18 @@ class ShuffleApiService {
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>('/health');
       return HealthResponse.fromJson(response.data!);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /weather
+  // ---------------------------------------------------------------------------
+
+  /// Returns current weather. No auth required.
+  Future<WeatherInfo> getWeather() async {
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>('/weather');
+      return WeatherInfo.fromJson(response.data!);
     });
   }
 
@@ -239,13 +253,13 @@ class ShuffleApiService {
   // ---------------------------------------------------------------------------
 
   /// Returns the full history for a single song across all context buckets.
-  Future<Map<String, dynamic>> getSongDeepDive({required String title}) async {
+  Future<SongDeepDiveResponse> getSongDeepDive({required String title}) async {
     return _wrap(() async {
       final response = await _dio.get<Map<String, dynamic>>(
         '/listening-log/song',
         queryParameters: {'title': title},
       );
-      return response.data!;
+      return SongDeepDiveResponse.fromJson(response.data!);
     });
   }
 
@@ -291,7 +305,9 @@ class _BasicAuthInterceptor extends Interceptor {
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
-    options.headers['Authorization'] = 'Basic $_credentials';
+    if (options.path != '/health' && options.path != '/weather') {
+      options.headers['Authorization'] = 'Basic $_credentials';
+    }
     super.onRequest(options, handler);
   }
 }

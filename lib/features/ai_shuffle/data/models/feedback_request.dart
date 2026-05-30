@@ -1,5 +1,5 @@
 // =============================================================================
-// FeedbackRequest — payload for POST /feedback (v3.0.0)
+// FeedbackRequest — payload for POST /feedback (v4.0.0)
 // =============================================================================
 
 import 'package:flutter/foundation.dart';
