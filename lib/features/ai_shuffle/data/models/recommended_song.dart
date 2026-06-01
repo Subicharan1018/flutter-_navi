@@ -68,12 +68,24 @@ class RecommendedSong {
   final AudioFeatures audio;
   final SongScores scores;
 
+  // New fields from predict endpoints
+  final String? artist;
+  final String? album;
+  final double? tempo;
+  final double? tempoNorm;
+  
+  // Legacy fields mapped from scores if needed
+  final double? historyScore;
+  final double? audioFitScore;
+  final double? composerScore;
+  final double? finalScore;
+
   /// Human-readable explanation of why this song was chosen.
   final String why;
 
   // Legacy fields kept for display compatibility
-  String get artist => composer;
-  String get album => genreBucket;
+  String get legacyArtist => artist ?? composer;
+  String get legacyAlbum => album ?? genreBucket;
 
   const RecommendedSong({
     required this.rank,
@@ -84,6 +96,14 @@ class RecommendedSong {
     required this.audio,
     required this.scores,
     required this.why,
+    this.artist,
+    this.album,
+    this.tempo,
+    this.tempoNorm,
+    this.historyScore,
+    this.audioFitScore,
+    this.composerScore,
+    this.finalScore,
   });
 
   factory RecommendedSong.fromJson(Map<String, dynamic> json) =>
@@ -111,6 +131,44 @@ class RecommendedSong {
               ),
         why: json['why']?.toString() ?? '',
       );
+
+  static RecommendedSong fromPredictJson(Map<String, dynamic> json) {
+    final af = json['audio_features'] as Map<String, dynamic>? ?? {};
+    final sc = json['scores']        as Map<String, dynamic>? ?? {};
+
+    return RecommendedSong(
+      rank:          _parseInt(json['rank']),
+      title:         json['title']?.toString() ?? json['song_key']?.toString() ?? '',
+      // Newly available fields:
+      artist:        json['artist']   as String?,
+      album:         json['album']    as String?,
+      // Moved inside audio_features:
+      filePath:      af['file_path']  as String? ?? '',
+      genreBucket:   af['genre_bucket'] as String? ?? '',
+      audio: AudioFeatures(
+        energy:       (af['energy']       as num?)?.toDouble() ?? 0.0,
+        valence:      (af['valence']      as num?)?.toDouble() ?? 0.0,
+        acousticness: (af['acousticness'] as num?)?.toDouble() ?? 0.0,
+        danceability: (af['danceability'] as num?)?.toDouble() ?? 0.0,
+      ),
+      scores: SongScores(
+        contextHistory:  (sc['history']   as num?)?.toDouble() ?? 0.0,
+        audioFit:        (sc['audio_fit'] as num?)?.toDouble() ?? 0.0,
+        composerLoyalty: (sc['composer']  as num?)?.toDouble() ?? 0.0,
+        finalScore:      (sc['final']     as num?)?.toDouble() ?? 0.0,
+      ),
+      
+      tempo:         (af['tempo']         as num?)?.toDouble(),
+      tempoNorm:     (af['tempo_norm']    as num?)?.toDouble(),
+      composer:      json['composer']     as String? ?? '',
+      // Score keys renamed:
+      historyScore:  (sc['history']   as num?)?.toDouble() ?? 0.0,   
+      audioFitScore: (sc['audio_fit'] as num?)?.toDouble() ?? 0.0,
+      composerScore: (sc['composer']  as num?)?.toDouble() ?? 0.0,   
+      finalScore:    (sc['final']     as num?)?.toDouble() ?? 0.0,
+      why:           json['why']      as String? ?? '',
+    );
+  }
 
   static int _parseInt(dynamic v) {
     if (v is int) return v;

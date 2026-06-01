@@ -1345,6 +1345,106 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   // ---------------------------------------------------------------------------
+  // Active-playback Reshuffle — POST /next with reshuffle:true
+  //
+  // Collects every song title currently in the player queue (played + upcoming),
+  // sends them as excluded_titles to the server so none are repeated, and
+  // replaces the entire player queue with the fresh batch.
+  //
+  // Session context (depth, playedTitles, listenRatios) is preserved in
+  // ShuffleQueueNotifier — no clearQueue() is called here.
+  //
+  // [allSongs] — the caller must pass ref.read(allSongsProvider.future) so
+  //              this pure-Dart notifier doesn't need to hold a Riverpod ref
+  //              to an async provider.
+  // ---------------------------------------------------------------------------
+
+  /// Returns true if a reshuffle is currently in progress.
+  bool _isReshuffling = false;
+  bool get isReshuffling => _isReshuffling;
+
+  /// Replaces the active playback queue with a fresh 16-song batch from the
+  /// server, banning every song title that is currently in the queue.
+  ///
+  /// Throws on API or resolution failure — callers should catch and show a
+  /// snack-bar. On success, the new queue starts playing from index 0.
+  Future<void> reshuffleActiveQueue(List<Song> allSongs) async {
+    if (_isReshuffling) return;
+    _isReshuffling = true;
+    try {
+      // Ban everything in the queue so the server returns fully fresh songs.
+      final excludedTitles = state.queue.map((s) => s.title).toList();
+      if (excludedTitles.isEmpty) return;
+
+      final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
+
+      // POST /next with reshuffle:true — session depth + played_titles preserved.
+      final recommendations = await shuffleNotifier.reshuffle(
+        source: 'smart',
+        playlistName: _currentPlaylistName,
+        excludedTitlesOverride: excludedTitles,
+      );
+
+      if (!mounted) return;
+
+      // Resolve RecommendedSongs → local Song objects.
+      final resolved = <Song>[];
+      for (final rec in recommendations) {
+        final match = allSongs.firstWhereOrNull(
+              (s) =>
+          s.title.toLowerCase() == rec.title.toLowerCase() &&
+              s.artist.toLowerCase() == rec.composer.toLowerCase(),
+        ) ??
+            allSongs.firstWhereOrNull(
+                  (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
+            );
+        if (match != null && !resolved.contains(match)) {
+          resolved.add(match);
+        }
+      }
+
+      if (resolved.isEmpty) {
+        throw Exception('No reshuffled songs found in local library');
+      }
+
+      await _queueOpLock?.future;
+      final completer = Completer<void>();
+      _queueOpLock = completer;
+      _suppressStreamEvents = true;
+      try {
+        // Keep the currently playing song — only replace everything after it.
+        final currentIdx = state.currentIndex;
+        final currentSong = state.queue.isNotEmpty
+            ? state.queue[currentIdx]
+            : null;
+
+        // New queue = [current song] + fresh batch.
+        final newQueue = [
+          if (currentSong != null) currentSong,
+          ...resolved,
+        ];
+        final newCurrentIndex = currentSong != null ? 0 : 0;
+
+        state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
+
+        // Replace audio sources but seek back to current song so it keeps playing.
+        await _audioHandler.setQueue(newQueue, newCurrentIndex);
+        // The current song is now at index 0 — seek to the saved position so
+        // there is no audible gap or restart.
+        final savedPosition = player.position;
+        await player.seek(savedPosition, index: newCurrentIndex);
+        player.play();
+      } finally {
+        _suppressStreamEvents = false;
+        completer.complete();
+        if (_queueOpLock == completer) _queueOpLock = null;
+      }
+    } finally {
+      _isReshuffling = false;
+    }
+  }
+
+  // ---------------------------------------------------------------------------
   // Autoplay — Subsonic similar songs
   // ---------------------------------------------------------------------------
 

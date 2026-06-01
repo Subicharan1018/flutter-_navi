@@ -60,7 +60,7 @@ class ListeningLogService {
     String? baseUrl,
     String? webdavUser,
     String? webdavPass,
-    String logPath = '/listening-log',
+    String logPath = '/feedback',
   }) : _client = client,
        _baseUrl = baseUrl,
        _webdavUser = webdavUser,
@@ -170,11 +170,15 @@ class ListeningLogService {
       'duration_s': song.duration,
       'source': 'subsonic',
       'song_id': song.id,
-      'album_id': null,
-      'artist_id': null,
       'cover_art': coverArtUrl,
       'played_at': now.toIso8601String(),
       'session_id': sessionId,
+      
+      // Added required fields for /feedback schema
+      'composer': song.artist,
+      'listen_ratio': 1.0,
+      'end_reason': 'natural',
+      'session_depth': 1,
     };
   }
 

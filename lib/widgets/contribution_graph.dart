@@ -150,9 +150,9 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
                   height: 100,
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: Colors.red.withOpacity(0.1),
+                    color: Colors.red.withValues(alpha: 0.1),
                     borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.withOpacity(0.5)),
+                    border: Border.all(color: Colors.red.withValues(alpha: 0.5)),
                   ),
                   child: SingleChildScrollView(
                     child: Text(
@@ -327,9 +327,9 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
 
   Color _colorForIntensity(double intensity, AppThemeTokens tokens) {
     if (intensity == 0) {
-      return tokens.textPrimary.withOpacity(0.07);
+      return tokens.textPrimary.withValues(alpha: 0.07);
     }
-    return tokens.accent.withOpacity(0.2 + intensity * 0.8);
+    return tokens.accent.withValues(alpha: 0.2 + intensity * 0.8);
   }
 
   String _formatDate(DateTime date) {
@@ -451,10 +451,10 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
           ),
         ),
         const SizedBox(width: 6),
-        _LegendSquare(color: tokens.textPrimary.withOpacity(0.07)),
-        _LegendSquare(color: tokens.accent.withOpacity(0.25)),
-        _LegendSquare(color: tokens.accent.withOpacity(0.50)),
-        _LegendSquare(color: tokens.accent.withOpacity(0.75)),
+        _LegendSquare(color: tokens.textPrimary.withValues(alpha: 0.07)),
+        _LegendSquare(color: tokens.accent.withValues(alpha: 0.25)),
+        _LegendSquare(color: tokens.accent.withValues(alpha: 0.50)),
+        _LegendSquare(color: tokens.accent.withValues(alpha: 0.75)),
         _LegendSquare(color: tokens.accent),
         const SizedBox(width: 6),
         Text(
@@ -492,10 +492,10 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
         return Container(
           padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 4),
           decoration: BoxDecoration(
-            color: tokens.accent.withOpacity(0.1),
+            color: tokens.accent.withValues(alpha: 0.1),
             borderRadius: BorderRadius.circular(20),
             border: Border.all(
-              color: tokens.accent.withOpacity(0.2),
+              color: tokens.accent.withValues(alpha: 0.2),
               width: 0.5,
             ),
           ),

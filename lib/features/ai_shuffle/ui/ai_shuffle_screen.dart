@@ -1,5 +1,5 @@
 // =============================================================================
-// AiShuffleScreen — Smart Shuffle UI (v3.0.0)
+// AiShuffleScreen — Smart Shuffle UI (v4.0.0)
 // =============================================================================
 
 import 'package:flutter/material.dart';
@@ -11,38 +11,12 @@ import '../../../providers/player_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../screens/now_playing_screen.dart';
 import '../data/models/recommended_song.dart';
+import '../data/models/predict_response.dart';
 import '../logic/shuffle_providers.dart';
 import 'widgets/server_status_bar.dart';
 import 'widgets/recommendation_card.dart';
 import 'widgets/model_status_sheet.dart';
 import '../../../widgets/desktop_dialogs.dart';
-
-// Source mode options for the Smart Shuffle
-enum _ShuffleSource { smart, playlist, allSongs }
-
-extension _SourceExt on _ShuffleSource {
-  String get label {
-    switch (this) {
-      case _ShuffleSource.smart:
-        return 'Smart';
-      case _ShuffleSource.playlist:
-        return 'Playlist';
-      case _ShuffleSource.allSongs:
-        return 'All Songs';
-    }
-  }
-
-  String get apiValue {
-    switch (this) {
-      case _ShuffleSource.smart:
-        return 'smart';
-      case _ShuffleSource.playlist:
-        return 'playlist';
-      case _ShuffleSource.allSongs:
-        return 'all_songs';
-    }
-  }
-}
 
 class AiShuffleScreen extends ConsumerStatefulWidget {
   const AiShuffleScreen({super.key});
@@ -52,8 +26,6 @@ class AiShuffleScreen extends ConsumerStatefulWidget {
 }
 
 class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
-  _ShuffleSource _selectedSource = _ShuffleSource.smart;
-
   /// True while _applyAiShuffle() is resolving songs and setting the queue.
   bool _isApplyingQueue = false;
 
@@ -66,9 +38,10 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   }
 
   void _fetchRecommendations() {
-    ref
-        .read(shuffleQueueProvider.notifier)
-        .fetchNext(source: _selectedSource.apiValue);
+    final state = ref.read(predictQueueProvider);
+    ref.read(predictQueueProvider.notifier).fetchPredict(mode: state.mode);
+    // Clear any previous reshuffle batch so the predict list is shown again.
+    ref.read(shuffleQueueProvider.notifier).clearQueue();
   }
 
   Future<void> _enqueueSong(RecommendedSong song) async {
@@ -109,10 +82,12 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     setState(() => _isApplyingQueue = true);
 
     try {
-      final queueState = ref.read(shuffleQueueProvider);
-      final recommendations = queueState.allSongs
-          .whereType<RecommendedSong>()
-          .toList();
+      // After reshuffle, use the shuffle queue; otherwise use predict queue.
+      final shuffleState = ref.read(shuffleQueueProvider);
+      final predictState = ref.read(predictQueueProvider);
+      final recommendations = shuffleState.batches.isNotEmpty
+          ? shuffleState.allRecommendedSongs
+          : predictState.songs;
 
       if (recommendations.isEmpty) {
         _showSnackBar('No recommendations — tap refresh first');
@@ -158,6 +133,17 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     }
   }
 
+  /// Fetches 16 new songs from POST /next (reshuffle: true),
+  /// excluding the current visible queue. Session state is preserved.
+  Future<void> _doReshuffle() async {
+    if (_isApplyingQueue) return;
+    try {
+      await ref.read(shuffleQueueProvider.notifier).reshuffle(source: 'smart');
+    } catch (_) {
+      _showSnackBar('Reshuffle failed — please try again');
+    }
+  }
+
   void _showSnackBar(String message) {
     if (!mounted) return;
     ScaffoldMessenger.of(
@@ -177,8 +163,19 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final cs = theme.colorScheme;
-    final queueState = ref.watch(shuffleQueueProvider);
-    final songs = queueState.allSongs.whereType<RecommendedSong>().toList();
+    final shuffleState = ref.watch(shuffleQueueProvider);
+    final queueState   = ref.watch(predictQueueProvider);
+    final notifier     = ref.read(predictQueueProvider.notifier);
+
+    // After a reshuffle the shuffle queue has data — display it.
+    // Otherwise fall back to the predict queue.
+    final songs     = shuffleState.batches.isNotEmpty
+        ? shuffleState.allRecommendedSongs
+        : queueState.songs;
+    final isLoading = shuffleState.isLoading || queueState.isLoading;
+    final hasError  = shuffleState.error != null ||
+        (queueState.hasError && songs.isEmpty);
+    final errorMsg  = shuffleState.error ?? queueState.errorMessage ?? 'Error';
 
     return Scaffold(
       appBar: AppBar(
@@ -200,71 +197,46 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           const ServerStatusBar(),
 
           // ── Context info strip ─────────────────────────────────────────────
-          if (queueState.lastContext != null ||
-              queueState.lastWeather != null) ...[
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              color: cs.surfaceContainerHigh,
-              child: Row(
-                children: [
-                  Icon(
-                    Icons.schedule_rounded,
-                    size: 13,
-                    color: cs.onSurfaceVariant,
-                  ),
-                  const SizedBox(width: 4),
-                  Text(
-                    [
-                      if (queueState.lastContext != null)
-                        queueState.lastContext!,
-                      if (queueState.lastWeather != null)
-                        queueState.lastWeather!,
-                    ].join(' · '),
-                    style: theme.textTheme.labelSmall?.copyWith(
-                      color: cs.onSurfaceVariant,
-                    ),
-                  ),
-                ],
-              ),
+          if (queueState.context != null)
+            _PredictContextStrip(
+              ctx: queueState.context!,
+              mode: queueState.mode,
             ),
-          ],
 
           // ── Mode selector ──────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: Row(
-              children: _ShuffleSource.values.map((src) {
-                final selected = _selectedSource == src;
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: PredictMode.values.map((mode) {
+                final isSelected = queueState.mode == mode;
                 return Padding(
-                  padding: const EdgeInsets.only(right: 8),
+                  padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: FilterChip(
-                    label: Text(src.label),
-                    selected: selected,
+                    label: Text(mode.displayLabel),
+                    selected: isSelected,
                     onSelected: (_) {
-                      setState(() => _selectedSource = src);
-                      ref.read(shuffleQueueProvider.notifier).clearQueue();
-                      _fetchRecommendations();
+                      notifier.setMode(mode);
+                      notifier.fetchPredict(mode: mode);
                     },
-                    // FIX: Use surface-based selected color — not primary fill
                     selectedColor: cs.secondaryContainer,
                     checkmarkColor: cs.onSecondaryContainer,
                     backgroundColor: cs.surfaceContainerLow,
                     side: BorderSide(
-                      color: selected
+                      color: isSelected
                           ? cs.secondary
                           : cs.outline.withValues(alpha: 0.4),
-                      width: selected ? 1.5 : 1,
+                      width: isSelected ? 1.5 : 1,
                     ),
                     labelStyle: TextStyle(
-                      color: selected
+                      color: isSelected
                           ? cs.onSecondaryContainer
                           : cs.onSurfaceVariant,
-                      fontWeight: selected
+                      fontWeight: isSelected
                           ? FontWeight.w600
                           : FontWeight.normal,
                     ),
-                    showCheckmark: false, // icon-free, just color change
+                    showCheckmark: false,
                   ),
                 );
               }).toList(),
@@ -273,18 +245,44 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
           const SizedBox(height: 8),
 
+          // ── Fallback Warning ───────────────────────────────────────────────
+          if (queueState.context?.fallbackLevel == 3)
+            Container(
+              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: Colors.amber.withValues(alpha: 0.1),
+                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Row(children: [
+                const Icon(Icons.info_outline, color: Colors.amber, size: 18),
+                const SizedBox(width: 8),
+                Expanded(
+                  child: Text(
+                    'Using your global taste profile. '
+                    'Listen to more music in this time/season to get precise picks.',
+                    style: TextStyle(
+                      fontSize: 12,
+                      color: cs.onSurface,
+                    ),
+                  ),
+                ),
+              ]),
+            ),
+
           // ── Recommendations list ───────────────────────────────────────────
           Expanded(
             child: Builder(
               builder: (context) {
-                if (queueState.isLoading && songs.isEmpty) {
+                if (isLoading && songs.isEmpty) {
                   return _buildSkeletonList(cs);
                 }
-                if (queueState.error != null && songs.isEmpty) {
-                  return _buildErrorState(queueState.error!, cs);
+                if (hasError && songs.isEmpty) {
+                  return _buildErrorState(errorMsg, cs);
                 }
                 if (songs.isEmpty) {
-                  return _buildEmptyState(theme, cs);
+                  return _buildEmptyState(theme, cs, queueState.mode);
                 }
                 return ListView.builder(
                   itemCount: songs.length,
@@ -308,23 +306,30 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: Row(
                 children: [
+                  // Refresh — re-fetches from /predict/* and clears reshuffle state
                   IconButton.outlined(
-                    onPressed: _isApplyingQueue
+                    onPressed: _isApplyingQueue || isLoading
                         ? null
-                        : () {
-                            ref
-                                .read(shuffleQueueProvider.notifier)
-                                .clearQueue();
-                            _fetchRecommendations();
-                          },
+                        : _fetchRecommendations,
                     icon: const Icon(Icons.refresh),
                     tooltip: 'Refresh recommendations',
+                  ),
+                  const SizedBox(width: 8),
+                  // Reshuffle — calls POST /next with reshuffle: true
+                  IconButton.outlined(
+                    onPressed: _isApplyingQueue || isLoading
+                        ? null
+                        : _doReshuffle,
+                    icon: const Icon(Icons.shuffle_rounded),
+                    tooltip: 'Reshuffle queue (16 new songs)',
                   ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: FilledButton.icon(
-                      onPressed: _isApplyingQueue ? null : _applyAiShuffle,
-                      icon: _isApplyingQueue
+                      onPressed: _isApplyingQueue || isLoading
+                          ? null
+                          : _applyAiShuffle,
+                      icon: _isApplyingQueue || isLoading
                           ? const SizedBox(
                               width: 16,
                               height: 16,
@@ -333,7 +338,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
                                 color: Colors.white,
                               ),
                             )
-                          : const Icon(Icons.shuffle),
+                          : const Icon(Icons.play_arrow_rounded),
                       label: Text(
                         _isApplyingQueue ? 'Applying…' : 'Shuffle Now',
                       ),
@@ -347,6 +352,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
       ),
     );
   }
+
 
   Widget _buildSkeletonList(ColorScheme cs) {
     return ListView.builder(
@@ -377,7 +383,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     );
   }
 
-  Widget _buildEmptyState(ThemeData theme, ColorScheme cs) {
+  Widget _buildEmptyState(ThemeData theme, ColorScheme cs, PredictMode mode) {
     return Center(
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -386,9 +392,13 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           const SizedBox(height: 16),
           Text('No recommendations yet', style: theme.textTheme.titleMedium),
           const SizedBox(height: 8),
-          Text(
-            'Tap refresh to fetch Smart Shuffle results',
-            style: theme.textTheme.bodySmall,
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 32.0),
+            child: Text(
+              mode.emptyMessage,
+              style: theme.textTheme.bodySmall,
+              textAlign: TextAlign.center,
+            ),
           ),
         ],
       ),
@@ -412,6 +422,79 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _PredictContextStrip extends StatelessWidget {
+  const _PredictContextStrip({required this.ctx, required this.mode});
+
+  final PredictContext ctx;
+  final PredictMode mode;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
+      decoration: BoxDecoration(
+        color: cs.surfaceContainerHigh,
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          // Context bucket row
+          Row(children: [
+            const Icon(Icons.tune, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              ctx.bucket.split('__').map((s) => s.isEmpty ? '' : s[0].toUpperCase() + s.substring(1).toLowerCase()).join(' • '),
+              style: textTheme.labelMedium,
+            ),
+          ]),
+          const SizedBox(height: 4),
+          // Weather + temperature
+          Row(children: [
+            const Icon(Icons.cloud_outlined, size: 14),
+            const SizedBox(width: 6),
+            Text(
+              '${ctx.weatherMood.isNotEmpty ? ctx.weatherMood[0].toUpperCase() + ctx.weatherMood.substring(1).toLowerCase() : ""}'
+              '${ctx.temperatureC != null ? "  ${ctx.temperatureC!.toStringAsFixed(1)} °C" : ""}',
+              style: textTheme.labelSmall,
+            ),
+          ]),
+          const SizedBox(height: 4),
+          // Profile confidence
+          Row(children: [
+            Icon(
+              ctx.isHighConfidence ? Icons.verified : Icons.info_outline,
+              size: 14,
+              color: ctx.isHighConfidence ? Colors.green : Colors.orange,
+            ),
+            const SizedBox(width: 6),
+            Expanded(
+              child: Text(
+                ctx.fallbackDescription,
+                style: textTheme.labelSmall?.copyWith(
+                  color: ctx.isHighConfidence ? Colors.green : Colors.orange,
+                ),
+              ),
+            ),
+          ]),
+          // Show max_prior_plays badge for discovery mode
+          if (mode == PredictMode.discovery && ctx.maxPriorPlays != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Showing songs with ≤ ${ctx.maxPriorPlays} prior plays',
+              style: textTheme.labelSmall,
+            ),
+          ],
+        ],
       ),
     );
   }

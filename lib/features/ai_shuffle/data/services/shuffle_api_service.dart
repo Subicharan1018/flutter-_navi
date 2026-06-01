@@ -28,6 +28,7 @@ import '../models/listening_stats_response.dart';
 import '../models/listening_history_response.dart';
 import '../models/contribution_graph_response.dart';
 import '../models/song_deep_dive_response.dart';
+import '../models/predict_response.dart';
 import '../repositories/shuffle_exception.dart';
 
 /// The canonical base URL for the Smart Shuffle hosted service.
@@ -117,6 +118,8 @@ class ShuffleApiService {
     List<double> recentListenRatios = const [],
     String lastEndReason = '',
     List<String> candidates = const [],
+    bool reshuffle = false,
+    List<String> excludedTitles = const [],
   }) async {
     return _wrap(() async {
       final body = <String, dynamic>{
@@ -134,6 +137,9 @@ class ShuffleApiService {
           'recent_listen_ratios': recentListenRatios,
         if (lastEndReason.isNotEmpty) 'last_end_reason': lastEndReason,
         if (candidates.isNotEmpty) 'candidates': candidates.join(','),
+        // Reshuffle fields — sent as JSON array (not comma-joined)
+        if (reshuffle) 'reshuffle': true,
+        if (excludedTitles.isNotEmpty) 'excluded_titles': excludedTitles,
       };
 
       final response = await _dio.post<Map<String, dynamic>>(
@@ -143,6 +149,54 @@ class ShuffleApiService {
       );
 
       return NextResponse.fromJson(response.data!);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // Predictive Endpoints (v4.0.0)
+  // ---------------------------------------------------------------------------
+
+  /// GET /predict/always-hear
+  /// Returns personalized top-N ranked songs for the current context.
+  Future<PredictResponse> getPredictAlwaysHear({
+    int limit = 20,
+    int? weatherCode,
+  }) async {
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/predict/always-hear',
+        queryParameters: {
+          'limit': limit,
+          if (weatherCode != null) 'weather_code': weatherCode,
+        },
+      );
+      return PredictResponse.fromJson(
+        response.data!,
+        PredictMode.alwaysHear,
+      );
+    });
+  }
+
+  /// GET /predict/discovery
+  /// Returns unexplored/rarely-played songs ranked by audio taste fit.
+  Future<PredictResponse> getPredictDiscovery({
+    int limit = 20,
+    int maxPriorPlays = 2,
+    int? weatherCode,
+  }) async {
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/predict/discovery',
+        queryParameters: {
+          'limit': limit,
+          'max_prior_plays': maxPriorPlays,
+          if (weatherCode != null) 'weather_code': weatherCode,
+        },
+      );
+      return PredictResponse.fromJson(
+        response.data!,
+        PredictMode.discovery,
+      );
     });
   }
 

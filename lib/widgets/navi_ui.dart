@@ -26,7 +26,6 @@ const Duration kAnimNormal = Duration(milliseconds: 250);
 const Duration kAnimSlow = Duration(milliseconds: 400);
 
 const Curve kCurveStandard = Curves.easeInOut;
-const Curve kCurveSpring = Curves.elasticOut;
 const Curve kCurveDecel = Curves.decelerate;
 
 // =============================================================================
@@ -51,8 +50,8 @@ class NaviCard extends StatelessWidget {
     final tokens = ThemeTokens.of(context);
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final defaultBg = isDark
-        ? Colors.white.withOpacity(0.05)
-        : Colors.black.withOpacity(0.02);
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.02);
 
     return AnimatedContainer(
       duration: kAnimNormal,
@@ -60,17 +59,9 @@ class NaviCard extends StatelessWidget {
         color: color ?? defaultBg,
         borderRadius: radiusMd,
         border: Border.all(
-          color: tokens.textPrimary.withOpacity(0.08),
+          color: tokens.textPrimary.withValues(alpha: 0.08),
           width: 0.5,
         ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.white.withOpacity(0.04),
-            offset: const Offset(0, 1),
-            blurRadius: 0,
-            spreadRadius: -1,
-          ),
-        ],
       ),
       child: Material(
         color: Colors.transparent,
@@ -139,7 +130,7 @@ class _NaviSkeletonState extends State<NaviSkeleton>
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(
-          color: tokens.textPrimary.withOpacity(_anim.value * 0.1),
+          color: tokens.textPrimary.withValues(alpha: _anim.value * 0.1),
           borderRadius: widget.borderRadius ?? radiusSm,
         ),
       ),
@@ -214,13 +205,13 @@ class _LiquidGlassButtonState extends State<LiquidGlassButton>
           padding: const EdgeInsets.symmetric(horizontal: s24),
           decoration: BoxDecoration(
             borderRadius: radiusFull,
-            color: tokens.accent.withOpacity(0.12),
-            border: Border.all(color: tokens.accent.withOpacity(0.4)),
+            color: tokens.accent.withValues(alpha: 0.12),
+            border: Border.all(color: tokens.accent.withValues(alpha: 0.4)),
             boxShadow: _pressed
                 ? []
                 : [
                     BoxShadow(
-                      color: tokens.accent.withOpacity(0.2),
+                      color: tokens.accent.withValues(alpha: 0.2),
                       blurRadius: 12,
                       offset: const Offset(0, 4),
                     ),

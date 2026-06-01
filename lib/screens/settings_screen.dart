@@ -155,7 +155,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Export failed: $e')));
+        ).showSnackBar(SnackBar(content: Text('Export failed. Check available storage and try again.')));
       }
     } finally {
       if (mounted) setState(() => _isExporting = false);
@@ -181,7 +181,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
-        ).showSnackBar(SnackBar(content: Text('Sync failed: $e')));
+        ).showSnackBar(SnackBar(content: Text('Sync failed. Check your WebDAV credentials and try again.')));
       }
     } finally {
       if (mounted) setState(() => _isSyncing = false);
@@ -225,7 +225,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         if (mounted) {
           ScaffoldMessenger.of(
             context,
-          ).showSnackBar(SnackBar(content: Text('Upload failed: $e')));
+          ).showSnackBar(SnackBar(content: Text('Upload failed. Check your connection and try again.')));
         }
       } finally {
         if (mounted) setState(() => _isUploading = false);
@@ -295,16 +295,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Server connection
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'SERVER CONNECTION',
+              title: 'Server',
               children: [
                 _SettingsInputRow(
-                  label: 'Username',
+                  title: 'Username',
                   controller: _userController,
                   hint: 'User',
                 ),
                 _SettingsDivider(),
                 _SettingsInputRow(
-                  label: 'Password',
+                  title: 'Password',
                   controller: _passController,
                   hint: '••••••••',
                   obscure: _obscurePass,
@@ -312,8 +312,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       setState(() => _obscurePass = !_obscurePass),
                 ),
                 _SettingsDivider(),
-                _SettingsToggleRow(
-                  label: 'Allow HTTP connection (Insecure)',
+                SettingsToggleRow(
+                  title: 'Allow HTTP connection (Insecure)',
                   value: settings.allowHttp,
                   onChanged: (v) {
                     ref.read(settingsProvider.notifier).setAllowHttp(v);
@@ -327,7 +327,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Cloud actions
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'CLOUD ACTIONS',
+              title: 'Files',
               children: [
                 ListTile(
                   contentPadding: const EdgeInsets.symmetric(horizontal: 16),
@@ -367,10 +367,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Advanced Upload
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'API SERVER',
+              title: 'Upload server',
               children: [
                 _SettingsInputRow(
-                  label: 'Remote Dir',
+                  title: 'Upload folder',
                   controller: _uploadDirController,
                   hint: '/DATA/Media/Music',
                 ),
@@ -418,7 +418,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // WebDAV Credentials
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'WEBDAV CREDENTIALS',
+              title: 'Sync account',
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(16, 10, 16, 2),
@@ -433,19 +433,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 _SettingsDivider(),
                 _SettingsInputRow(
-                  label: 'WebDAV URL',
+                  title: 'WebDAV URL',
                   controller: _webdavUrlController,
                   hint: 'https://dav.subimusic.me',
                 ),
                 _SettingsDivider(),
                 _SettingsInputRow(
-                  label: 'WD Username',
+                  title: 'Username',
                   controller: _webdavUserController,
                   hint: 'webdav-user',
                 ),
                 _SettingsDivider(),
                 _SettingsInputRow(
-                  label: 'WD Password',
+                  title: 'Password',
                   controller: _webdavPassController,
                   hint: '••••••••',
                   obscure: _obscureWebdavPass,
@@ -457,11 +457,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             SizedBox(height: 32),
 
             _SettingsGroup(
-              title: 'PREFERENCES',
+              title: 'Preferences',
               children: [
                 // Smart Shuffle Algorithm
                 _SettingsDropdownRow<ShuffleAlgorithm>(
-                  label: 'Shuffle Algorithm',
+                  title: 'Shuffle Algorithm',
                   value: settings.shuffleAlgorithm,
                   items: ShuffleAlgorithm.values,
                   onChanged: (v) {
@@ -478,7 +478,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     settings.shuffleAlgorithm ==
                         ShuffleAlgorithm.mergeShuffle) ...[
                   _SettingsDropdownRow<ShufflePreference>(
-                    label: 'Balanced Grouping',
+                    title: 'Balanced Grouping',
                     value: settings.shufflePreference,
                     items: ShufflePreference.values,
                     onChanged: (v) {
@@ -514,7 +514,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Listening Intelligence
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'LISTENING INTELLIGENCE',
+              title: 'Your data',
               children: [
                 // Listening data is collected automatically via Smart Shuffle
                 // POST /feedback — no user toggle needed.
@@ -571,7 +571,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                   subtitle: Text(
-                    'Streams play_events, song_metadata, song_pairs, user_feedback to your WebDAV target',
+                    'Uploads your listening history to your WebDAV server for AI personalisation',
                     style: TextStyle(
                       color: ThemeTokens.of(context).textMuted,
                       fontSize: 12,
@@ -632,7 +632,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 _SettingsDivider(),
                 _SettingsDropdownRow<String>(
-                  label: 'Auto-Upload Schedule',
+                  title: 'Auto-Upload Schedule',
                   value: settings.analyticsUploadSchedule,
                   items: const ['none', 'weekly', 'monthly'],
                   onChanged: (v) {
@@ -651,10 +651,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Cache Management
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'CACHE MANAGEMENT',
+              title: 'Storage',
               children: [
-                _SettingsToggleRow(
-                  label: 'Image Cache',
+                SettingsToggleRow(
+                  title: 'Image Cache',
                   value: _imageCacheEnabled,
                   onChanged: (v) {
                     setState(() => _imageCacheEnabled = v);
@@ -662,8 +662,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   },
                 ),
                 _SettingsDivider(),
-                _SettingsToggleRow(
-                  label: 'Music Cache',
+                SettingsToggleRow(
+                  title: 'Music Cache',
                   value: _musicCacheEnabled,
                   onChanged: (v) {
                     setState(() => _musicCacheEnabled = v);
@@ -671,8 +671,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   },
                 ),
                 _SettingsDivider(),
-                _SettingsToggleRow(
-                  label: 'BPM Cache',
+                SettingsToggleRow(
+                  title: 'Tempo cache',
+                  subtitle: 'Pre-computes song tempo for faster AI shuffle start',
                   value: _bpmCacheEnabled,
                   onChanged: (v) {
                     setState(() => _bpmCacheEnabled = v);
@@ -687,10 +688,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Audio Quality (Transcoding)
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'AUDIO QUALITY',
+              title: 'Audio quality',
               children: [
-                _SettingsToggleRow(
-                  label: 'Transcoding',
+                SettingsToggleRow(
+                  title: 'Transcoding',
                   value: _transcodingEnabled,
                   onChanged: (v) {
                     setState(() => _transcodingEnabled = v);
@@ -700,7 +701,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 if (_transcodingEnabled) ...[
                   _SettingsDivider(),
                   _SettingsNavRow(
-                    label: 'Wi-Fi Bitrate',
+                    title: 'Wi-Fi Bitrate',
                     value: TranscodeBitrate.getLabel(_wifiBitrate),
                     onTap: () => _showBitrateSelector(
                       title: 'Wi-Fi Bitrate',
@@ -713,7 +714,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   _SettingsDivider(),
                   _SettingsNavRow(
-                    label: 'Mobile Bitrate',
+                    title: 'Mobile Bitrate',
                     value: TranscodeBitrate.getLabel(_mobileBitrate),
                     onTap: () => _showBitrateSelector(
                       title: 'Mobile Bitrate',
@@ -726,13 +727,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ),
                   _SettingsDivider(),
                   _SettingsNavRow(
-                    label: 'Format',
+                    title: 'Format',
                     value: TranscodeFormat.getLabel(_transcodeFormat),
                     onTap: () => _showFormatSelector(),
                   ),
                   _SettingsDivider(),
-                  _SettingsToggleRow(
-                    label: 'Smart Switch',
+                  SettingsToggleRow(
+                    title: 'Auto quality switch',
+                    subtitle: 'Automatically selects Wi-Fi or mobile bitrate by connection',
                     value: _smartSwitchEnabled,
                     onChanged: (v) {
                       setState(() => _smartSwitchEnabled = v);
@@ -748,11 +750,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Replay Gain
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'REPLAY GAIN',
+              title: 'Volume normalisation',
               children: [
                 _SettingsNavRow(
-                  label: 'Mode',
-                  value: _replayGainMode.name.toUpperCase(),
+                  title: 'Mode',
+                  value: switch (_replayGainMode) {
+                              ReplayGainMode.off   => 'Off',
+                              ReplayGainMode.track => 'By track',
+                              ReplayGainMode.album => 'By album',
+                            },
                   onTap: () => _showReplayGainModeSelector(),
                 ),
                 if (_replayGainMode != ReplayGainMode.off) ...[
@@ -794,8 +800,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     },
                   ),
                   _SettingsDivider(),
-                  _SettingsToggleRow(
-                    label: 'Prevent Clipping',
+                  SettingsToggleRow(
+                    title: 'Prevent Clipping',
                     value: _preventClipping,
                     onChanged: (v) {
                       setState(() => _preventClipping = v);
@@ -812,7 +818,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
                         Text(
-                          'Fallback Gain',
+                          'Fallback gain',
                           style: TextStyle(
                             color: ThemeTokens.of(context).textPrimary,
                             fontSize: 15,
@@ -848,10 +854,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // Recommendations
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'RECOMMENDATIONS',
+              title: 'Recommendations',
               children: [
-                _SettingsToggleRow(
-                  label: 'Enabled',
+                SettingsToggleRow(
+                  title: 'Enabled',
                   value: _recommendationsEnabled,
                   onChanged: (v) {
                     setState(() => _recommendationsEnabled = v);
@@ -860,7 +866,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
                 _SettingsDivider(),
                 _SettingsNavRow(
-                  label: 'Listening Stats',
+                  title: 'Listening Stats',
                   value:
                       '${ref.read(recommendationProvider).profiles.length} songs',
                 ),
@@ -925,11 +931,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             // About
             // ----------------------------------------------------------------
             _SettingsGroup(
-              title: 'ABOUT',
+              title: 'About',
               children: [
-                _SettingsNavRow(label: 'Version', value: '1.0.0'),
+                _SettingsNavRow(title: 'Version', value: '1.0.0'),
                 _SettingsDivider(),
-                _SettingsNavRow(label: 'Terms of Service'),
+                _SettingsNavRow(title: 'Terms of Service'),
               ],
             ),
             SizedBox(height: 120),
@@ -1023,7 +1029,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     showCupertinoModalPopup(
       context: context,
       builder: (ctx) => CupertinoActionSheet(
-        title: Text('Replay Gain Mode'),
+        title: Text('Volume normalisation mode'),
         actions: ReplayGainMode.values.map((m) {
           return CupertinoActionSheetAction(
             onPressed: () {
@@ -1091,7 +1097,7 @@ class _SettingsGroup extends StatelessWidget {
 }
 
 class _SettingsInputRow extends StatelessWidget {
-  final String label;
+  final String title;
   final TextEditingController controller;
   final String hint;
   final bool obscure;
@@ -1099,7 +1105,7 @@ class _SettingsInputRow extends StatelessWidget {
   final TextInputType? keyboardType;
 
   const _SettingsInputRow({
-    required this.label,
+    required this.title,
     required this.controller,
     required this.hint,
     this.obscure = false,
@@ -1117,7 +1123,7 @@ class _SettingsInputRow extends StatelessWidget {
           SizedBox(
             width: 100,
             child: Text(
-              label,
+              title,
               style: TextStyle(color: tokens.textPrimary, fontSize: 15),
             ),
           ),
@@ -1161,13 +1167,16 @@ class _SettingsInputRow extends StatelessWidget {
   }
 }
 
-class _SettingsToggleRow extends StatelessWidget {
-  final String label;
+class SettingsToggleRow extends StatelessWidget {
+  final String title;
+  final String? subtitle;
   final bool value;
   final ValueChanged<bool> onChanged;
 
-  const _SettingsToggleRow({
-    required this.label,
+  const SettingsToggleRow({
+    super.key,
+    required this.title,
+    this.subtitle,
     required this.value,
     required this.onChanged,
   });
@@ -1178,15 +1187,30 @@ class _SettingsToggleRow extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
       child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Text(
-            label,
-            style: TextStyle(color: tokens.textPrimary, fontSize: 15),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(title,
+                  style: TextStyle(color: tokens.textPrimary, fontSize: 15)),
+                if (subtitle != null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 2),
+                    child: Text(subtitle!,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                          color: tokens.textMuted, fontSize: 12)),
+                  ),
+              ],
+            ),
           ),
           CupertinoSwitch(
             value: value,
-            activeTrackColor: tokens.accent,
+            activeColor: tokens.accent,
             onChanged: onChanged,
           ),
         ],
@@ -1196,13 +1220,13 @@ class _SettingsToggleRow extends StatelessWidget {
 }
 
 class _SettingsDropdownRow<T> extends StatelessWidget {
-  final String label;
+  final String title;
   final T value;
   final List<T> items;
   final ValueChanged<T?> onChanged;
 
   const _SettingsDropdownRow({
-    required this.label,
+    required this.title,
     required this.value,
     required this.items,
     required this.onChanged,
@@ -1217,7 +1241,7 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         children: [
           Text(
-            label,
+            title,
             style: TextStyle(color: tokens.textPrimary, fontSize: 15),
           ),
           DropdownButton<T>(
@@ -1273,11 +1297,11 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
 }
 
 class _SettingsNavRow extends StatelessWidget {
-  final String label;
+  final String title;
   final String? value;
   final VoidCallback? onTap;
 
-  const _SettingsNavRow({required this.label, this.value, this.onTap});
+  const _SettingsNavRow({required this.title, this.value, this.onTap});
 
   @override
   Widget build(BuildContext context) {
@@ -1290,7 +1314,7 @@ class _SettingsNavRow extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             Text(
-              label,
+              title,
               style: TextStyle(color: tokens.textPrimary, fontSize: 15),
             ),
             Row(

@@ -60,6 +60,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
     final weeklyAsync = ref.watch(weeklyReplayProvider);
     final topPad = MediaQuery.of(context).padding.top;
     final tokens = ThemeTokens.of(context);
+    final disableAnim = MediaQuery.of(context).disableAnimations;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: tokens.isLight
@@ -85,165 +86,173 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                 slivers: [
                   // ── Greeting header ─────────────────────────────────────────
                   SliverToBoxAdapter(
-                    child:
-                        _HomeHeader(
-                              greeting: _greet(),
-                              topPad: topPad,
-                              onSettings: () => Navigator.push(
-                                context,
-                                MaterialPageRoute(
-                                  builder: (_) => const SettingsScreen(),
-                                ),
-                              ),
-                            )
-                            .animate()
-                            .fadeIn(duration: 500.ms)
-                            .slideY(
-                              begin: -0.04,
-                              end: 0,
-                              curve: Curves.easeOutCubic,
+                    child: Builder(
+                      builder: (context) {
+                        final header = _HomeHeader(
+                          greeting: _greet(),
+                          topPad: topPad,
+                          onSettings: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const SettingsScreen(),
                             ),
+                          ),
+                        );
+                        return disableAnim
+                            ? header
+                            : header.animate()
+                                .fadeIn(duration: 500.ms)
+                                .slideY(
+                                  begin: -0.04,
+                                  end: 0,
+                                  curve: Curves.easeOutCubic,
+                                );
+                      },
+                    ),
                   ),
 
                   // ── Explore cards ────────────────────────────────────────────
                   SliverToBoxAdapter(child: _SectionLabel(title: 'Explore')),
                   SliverToBoxAdapter(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Builder(
-                        builder: (context) {
-                          // Compute theme-aware accent/bg combinations so that
-                          // every theme (Neumorphic, Zen, Analog, Frost, etc.)
-                          // renders the Explore cards with proper contrast instead
-                          // of the hardcoded dark green/red/blue that look black
-                          // on all non-Spotify dark themes.
-                          final t = ThemeTokens.of(context);
+                    child: (() {
+                      final child = Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 16),
+                        child: Builder(
+                          builder: (context) {
+                            // Compute theme-aware accent/bg combinations so that
+                            // every theme (Neumorphic, Zen, Analog, Frost, etc.)
+                            // renders the Explore cards with proper contrast instead
+                            // of the hardcoded dark green/red/blue that look black
+                            // on all non-Spotify dark themes.
+                            final t = ThemeTokens.of(context);
 
-                          // Spotify brand green; other themes use accent.
-                          final greenAccent = t.mode == AppThemeMode.spotify
-                              ? const Color(0xFF1DB954)
-                              : t.accent;
-                          final roseAccent = t.mode == AppThemeMode.spotify
-                              ? const Color(0xFFF43F5E)
-                              : Color.lerp(
-                                  t.accent,
-                                  const Color(0xFFF43F5E),
-                                  0.55,
-                                )!;
-                          final blueAccent = t.mode == AppThemeMode.spotify
-                              ? const Color(0xFF3B82F6)
-                              : Color.lerp(
-                                  t.accent,
-                                  const Color(0xFF3B82F6),
-                                  0.55,
-                                )!;
+                            // Spotify brand green; other themes use accent.
+                            final greenAccent = t.mode == AppThemeMode.spotify
+                                ? const Color(0xFF1DB954)
+                                : t.accent;
+                            final roseAccent = t.mode == AppThemeMode.spotify
+                                ? const Color(0xFFF43F5E)
+                                : Color.lerp(
+                                    t.accent,
+                                    const Color(0xFFF43F5E),
+                                    0.55,
+                                  )!;
+                            final blueAccent = t.mode == AppThemeMode.spotify
+                                ? const Color(0xFF3B82F6)
+                                : Color.lerp(
+                                    t.accent,
+                                    const Color(0xFF3B82F6),
+                                    0.55,
+                                  )!;
 
-                          // bgColor: 14% accent overlaid on bgBase (dark themes)
-                          // or 8% accent overlaid on bgSurface (light themes).
-                          Color cardBg(Color accent) => t.isLight
-                              ? Color.alphaBlend(
-                                  accent.withValues(alpha: 0.10),
-                                  t.bgSurface,
-                                )
-                              : Color.alphaBlend(
-                                  accent.withValues(alpha: 0.16),
-                                  t.bgBase,
-                                );
+                            // bgColor: 14% accent overlaid on bgBase (dark themes)
+                            // or 8% accent overlaid on bgSurface (light themes).
+                            Color cardBg(Color accent) => t.isLight
+                                ? Color.alphaBlend(
+                                    accent.withValues(alpha: 0.10),
+                                    t.bgSurface,
+                                  )
+                                : Color.alphaBlend(
+                                    accent.withValues(alpha: 0.16),
+                                    t.bgBase,
+                                  );
 
-                          final purpleAccent = t.mode == AppThemeMode.spotify
-                              ? const Color(0xFF9333EA)
-                              : Color.lerp(
-                                  t.accent,
-                                  const Color(0xFF9333EA),
-                                  0.55,
-                                )!;
+                            final purpleAccent = t.mode == AppThemeMode.spotify
+                                ? const Color(0xFF9333EA)
+                                : Color.lerp(
+                                    t.accent,
+                                    const Color(0xFF9333EA),
+                                    0.55,
+                                  )!;
 
-                          return Column(
-                            children: [
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _ExploreCard(
-                                      key: const Key('explore_made_for_you'),
-                                      label: 'CURATED',
-                                      title: 'Made\nFor You',
-                                      icon: Icons.auto_awesome_rounded,
-                                      color: greenAccent,
-                                      bgColor: cardBg(greenAccent),
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const MadeForYouScreen(),
+                            return Column(
+                              children: [
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _ExploreCard(
+                                        key: const Key('explore_made_for_you'),
+                                        height: 140,
+                                        title: 'Made\nFor You',
+                                        icon: Icons.auto_awesome_rounded,
+                                        color: greenAccent,
+                                        bgColor: cardBg(greenAccent),
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const MadeForYouScreen(),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: _ExploreCard(
-                                      key: const Key('explore_ai_shuffle'),
-                                      label: 'SERVER',
-                                      title: 'AI\nShuffle',
-                                      icon: Icons.auto_awesome,
-                                      color: purpleAccent,
-                                      bgColor: cardBg(purpleAccent),
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const AiShuffleScreen(),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: _ExploreCard(
+                                        key: const Key('explore_ai_shuffle'),
+                                        height: 140,
+                                        title: 'AI\nShuffle',
+                                        icon: Icons.auto_awesome,
+                                        color: purpleAccent,
+                                        bgColor: cardBg(purpleAccent),
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const AiShuffleScreen(),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                              SizedBox(height: 8),
-                              Row(
-                                children: [
-                                  Expanded(
-                                    child: _ExploreCard(
-                                      key: const Key('explore_favorites'),
-                                      label: 'SAVED',
-                                      title: 'Your\nFavorites',
-                                      icon: Icons.favorite_rounded,
-                                      color: roseAccent,
-                                      bgColor: cardBg(roseAccent),
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const FavoritesScreen(),
+                                  ],
+                                ),
+                                SizedBox(height: 8),
+                                Row(
+                                  children: [
+                                    Expanded(
+                                      child: _ExploreCard(
+                                        key: const Key('explore_favorites'),
+                                        height: 100,
+                                        title: 'Your\nFavorites',
+                                        icon: Icons.favorite_rounded,
+                                        color: roseAccent,
+                                        bgColor: cardBg(roseAccent),
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const FavoritesScreen(),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                  SizedBox(width: 8),
-                                  Expanded(
-                                    child: _ExploreCard(
-                                      key: const Key('explore_new_releases'),
-                                      label: 'FRESH',
-                                      title: 'New\nReleases',
-                                      icon: Icons.new_releases_rounded,
-                                      color: blueAccent,
-                                      bgColor: cardBg(blueAccent),
-                                      onTap: () => Navigator.push(
-                                        context,
-                                        MaterialPageRoute(
-                                          builder: (_) =>
-                                              const NewReleasesScreen(),
+                                    SizedBox(width: 8),
+                                    Expanded(
+                                      child: _ExploreCard(
+                                        key: const Key('explore_new_releases'),
+                                        height: 100,
+                                        title: 'New\nReleases',
+                                        icon: Icons.new_releases_rounded,
+                                        color: blueAccent,
+                                        bgColor: cardBg(blueAccent),
+                                        onTap: () => Navigator.push(
+                                          context,
+                                          MaterialPageRoute(
+                                            builder: (_) =>
+                                                const NewReleasesScreen(),
+                                          ),
                                         ),
                                       ),
                                     ),
-                                  ),
-                                ],
-                              ),
-                            ],
-                          );
-                        },
-                      ),
-                    ).animate(delay: 80.ms).fadeIn(duration: 400.ms),
+                                  ],
+                                ),
+                              ],
+                            );
+                          },
+                        ),
+                      );
+                      return disableAnim ? child : child.animate(delay: 80.ms).fadeIn(duration: 400.ms);
+                    }()),
                   ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 4)),
@@ -254,7 +263,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                     child: playlistsAsync.when(
                       data: (playlists) {
                         if (playlists.isEmpty) return SizedBox();
-                        return _QuickPlayGrid(
+                        final grid = _QuickPlayGrid(
                           items: playlists.take(6).toList(),
                           onTap: (pl) async {
                             final svc = ref.read(subsonicServiceProvider);
@@ -270,14 +279,15 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
                                     content: Text(
-                                      'Could not play "${pl.name}": $e',
+                                      'Could not load "${pl.name}". Check your connection.',
                                     ),
                                   ),
                                 );
                               }
                             }
                           },
-                        ).animate(delay: 100.ms).fadeIn(duration: 400.ms);
+                        );
+                        return disableAnim ? grid : grid.animate(delay: 100.ms).fadeIn(duration: 400.ms);
                       },
                       loading: () => const _ShimmerGrid(),
                       error: (_, __) => SizedBox(),
@@ -375,8 +385,6 @@ class _HomeHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(greeting.toUpperCase(), style: tokens.labelMd),
-                SizedBox(height: 6),
                 Text('Home', style: tokens.headingLg),
               ],
             ),
@@ -408,7 +416,7 @@ class _HomeHeader extends StatelessWidget {
 // =============================================================================
 
 class _ExploreCard extends StatelessWidget {
-  final String label;
+  final double height;
   final String title;
   final IconData icon;
   final Color color;
@@ -417,7 +425,7 @@ class _ExploreCard extends StatelessWidget {
 
   const _ExploreCard({
     super.key,
-    required this.label,
+    required this.height,
     required this.title,
     required this.icon,
     required this.color,
@@ -434,7 +442,7 @@ class _ExploreCard extends StatelessWidget {
       child: GestureDetector(
         onTap: onTap,
         child: Container(
-          height: 120,
+          height: height,
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(14),
@@ -462,18 +470,6 @@ class _ExploreCard extends StatelessWidget {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   mainAxisAlignment: MainAxisAlignment.end,
                   children: [
-                    Text(
-                      label,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        fontSize: 9,
-                        fontWeight: FontWeight.w600,
-                        color: color,
-                        letterSpacing: 1.5,
-                      ),
-                    ),
-                    SizedBox(height: 4),
                     Text(
                       title,
                       maxLines: 2,
@@ -524,6 +520,16 @@ class _QuickPlayGrid extends StatelessWidget {
   Widget build(BuildContext context) {
     if (items.isEmpty) return SizedBox();
 
+    final t = ThemeTokens.of(context);
+    final palette = [
+      t.accent,
+      t.gold,
+      Color.lerp(t.accent, t.gold, 0.5) ?? t.accent,
+      Color.lerp(t.accent, t.bgElevated, 0.35) ?? t.accent,
+      Color.lerp(t.gold, t.accentDim, 0.4) ?? t.gold,
+      t.accentDim,
+    ];
+
     // Build 2-column grid rows of equal-height tiles
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
@@ -545,6 +551,7 @@ class _QuickPlayGrid extends StatelessWidget {
                             padding: EdgeInsets.only(left: c == 1 ? 8 : 0),
                             child: _QuickTile(
                               playlist: items[i],
+                              accentColor: palette[i % 6],
                               index: i,
                               onTap: () => onTap(items[i]),
                             ),
@@ -563,30 +570,22 @@ class _QuickPlayGrid extends StatelessWidget {
 
 class _QuickTile extends ConsumerWidget {
   final Playlist playlist;
+  final Color accentColor;
   final int index;
   final VoidCallback onTap;
   const _QuickTile({
     required this.playlist,
+    required this.accentColor,
     required this.index,
     required this.onTap,
   });
-
-  static const _colors = [
-    Color(0xFF1DB954),
-    Color(0xFF3B82F6),
-    Color(0xFFF43F5E),
-    Color(0xFF10B981),
-    Color(0xFFA855F7),
-    Color(0xFF22D3EE),
-  ];
-  Color get _ac => _colors[index % _colors.length];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final svc = ref.watch(subsonicServiceProvider);
     final tokens = ThemeTokens.of(context);
 
-    return Semantics(
+    final tile = Semantics(
           button: true,
           label: 'Play playlist: ${playlist.name}',
           child: GestureDetector(
@@ -597,7 +596,7 @@ class _QuickTile extends ConsumerWidget {
                 color: tokens.bgSurface,
                 borderRadius: BorderRadius.circular(10),
                 border: Border.all(
-                  color: _ac.withValues(alpha: 0.12),
+                  color: accentColor.withValues(alpha: 0.12),
                   width: 0.7,
                 ),
               ),
@@ -617,8 +616,8 @@ class _QuickTile extends ConsumerWidget {
                             decoration: BoxDecoration(
                               gradient: LinearGradient(
                                 colors: [
-                                  _ac.withValues(alpha: 0.8),
-                                  _ac.withValues(alpha: 0.3),
+                                  accentColor.withValues(alpha: 0.8),
+                                  accentColor.withValues(alpha: 0.3),
                                 ],
                               ),
                             ),
@@ -650,18 +649,22 @@ class _QuickTile extends ConsumerWidget {
                     margin: const EdgeInsets.only(right: 10),
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: _ac.withValues(alpha: 0.15),
+                      color: accentColor.withValues(alpha: 0.15),
                     ),
-                    child: Icon(Icons.play_arrow_rounded, color: _ac, size: 16),
+                    child: Icon(Icons.play_arrow_rounded, color: accentColor, size: 16),
                   ),
                 ],
               ),
             ),
           ),
-        )
-        .animate(delay: (index * 40).clamp(0, 200).ms)
-        .fadeIn(duration: 350.ms)
-        .slideX(begin: 0.04, end: 0, curve: Curves.easeOutCubic);
+        );
+    
+    final disableAnim = MediaQuery.of(context).disableAnimations;
+    return disableAnim 
+      ? tile 
+      : tile.animate(delay: (index * 40).clamp(0, 200).ms)
+            .fadeIn(duration: 350.ms)
+            .slideX(begin: 0.04, end: 0, curve: Curves.easeOutCubic);
   }
 }
 

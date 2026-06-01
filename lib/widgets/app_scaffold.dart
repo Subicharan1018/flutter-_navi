@@ -267,12 +267,7 @@ class _DesktopSidebar extends StatelessWidget {
                     const SizedBox(width: 10),
                     Text(
                       'NaviVibe',
-                      style: TextStyle(
-                        fontSize: 20,
-                        fontWeight: FontWeight.w800,
-                        color: tokens.textPrimary,
-                        letterSpacing: -0.5,
-                      ),
+                      style: tokens.textStyle(20, FontWeight.w800, tokens.textPrimary),
                     ),
                   ],
                 ),
@@ -302,10 +297,9 @@ class _DesktopSidebar extends StatelessWidget {
                 child: Text(
                   'Space: play/pause  ·  ←→: skip',
                   style: TextStyle(
-                    fontSize: 10,
-                    color: tokens.textMuted.withValues(alpha: 0.6),
-                  ),
-                ),
+                  fontSize: 12,
+                  color: tokens.textMuted,
+                ),  ),
               ),
             ],
           ),

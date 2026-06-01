@@ -13,6 +13,7 @@ import 'package:marquee/marquee.dart';
 import 'package:just_audio/just_audio.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../providers/library_provider.dart';
 import '../core/theme.dart';
 import '../core/palette_cache.dart';
 import '../fluid_background.dart';
@@ -115,19 +116,53 @@ List<Color> _intsToColors(List<int> v) => v.map((i) => Color(i)).toList();
 // 2. SMALL REUSABLE WIDGETS
 // =============================================================================
 
-class _SoundBar extends StatefulWidget {
+class StaticBars extends StatelessWidget {
   final bool isPlaying;
   final Color color;
-  const _SoundBar({
+
+  const StaticBars({
+    super.key,
     required this.isPlaying,
     this.color = const Color(0x8AFFFFFF),
   });
 
   @override
-  State<_SoundBar> createState() => _SoundBarState();
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: 20,
+      height: 20,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        crossAxisAlignment: CrossAxisAlignment.end,
+        children: List.generate(4, (i) {
+          final h = isPlaying ? [12.0, 8.0, 16.0, 6.0][i] : 6.1;
+          return Container(
+            width: 2.5,
+            height: h,
+            decoration: BoxDecoration(
+              color: color,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          );
+        }),
+      ),
+    );
+  }
 }
 
-class _SoundBarState extends State<_SoundBar>
+class SoundBar extends StatefulWidget {
+  final bool isPlaying;
+  final Color color;
+  const SoundBar({
+    required this.isPlaying,
+    this.color = const Color(0x8AFFFFFF),
+  });
+
+  @override
+  State<SoundBar> createState() => _SoundBarState();
+}
+
+class _SoundBarState extends State<SoundBar>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   final _rng = math.Random();
@@ -142,7 +177,17 @@ class _SoundBarState extends State<_SoundBar>
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
-    )..repeat();
+    );
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    if (MediaQuery.of(context).disableAnimations) {
+      _ctrl.stop();
+    } else {
+      _ctrl.repeat();
+    }
   }
 
   @override
@@ -153,6 +198,12 @@ class _SoundBarState extends State<_SoundBar>
 
   @override
   Widget build(BuildContext context) {
+    if (MediaQuery.of(context).disableAnimations) {
+      return StaticBars(
+        isPlaying: widget.isPlaying,
+        color: widget.color,
+      );
+    }
     return RepaintBoundary(
       child: SizedBox(
         width: 20,
@@ -671,6 +722,34 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     return mins > 0 ? '${mins}m' : '${secs}s';
   }
 
+  // ── Active-playback Reshuffle ────────────────────────────────────────────
+
+  bool _isReshuffling = false;
+
+  Future<void> _doActiveReshuffle() async {
+    if (_isReshuffling) return;
+    setState(() => _isReshuffling = true);
+    try {
+      final allSongs = await ref.read(allSongsProvider.future);
+      if (!mounted) return;
+      await ref.read(playerProvider.notifier).reshuffleActiveQueue(allSongs);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Queue reshuffled — fresh songs incoming!'),
+          duration: Duration(seconds: 2),
+        ),
+      );
+    } catch (e) {
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Reshuffle failed: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _isReshuffling = false);
+    }
+  }
+
   // ── Smart-shuffle dialog ─────────────────────────────────────────────────
 
   void _showSmartShuffleDialog() {
@@ -706,7 +785,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                       : ThemeTokens.of(context).textSecondary,
                 ),
                 title: Text(
-                  algo.name.toUpperCase(),
+                  algo.name[0].toUpperCase() +
+                      algo.name.substring(1).toLowerCase(),
                   style: TextStyle(color: ThemeTokens.of(context).textPrimary),
                 ),
                 subtitle: Text(
@@ -1046,22 +1126,33 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           Semantics(
                             button: true,
                             label: isShuffleActive
-                                ? 'Disable Shuffle'
+                                ? 'Reshuffle Queue'
                                 : 'Enable Shuffle',
                             child: GestureDetector(
                               onLongPress: _showSmartShuffleDialog,
                               child: IconButton(
                                 tooltip: isShuffleActive
-                                    ? 'Disable Shuffle'
-                                    : 'Enable Shuffle',
-                                icon: Icon(
-                                  Icons.shuffle_rounded,
-                                  color: isShuffleActive
-                                      ? ThemeTokens.of(context).accent
-                                      : ThemeTokens.of(context).textSecondary,
-                                  size: 26,
-                                ),
-                                onPressed: () => notifier.toggleShuffle(),
+                                    ? 'Reshuffle'
+                                    : 'Shuffle',
+                                icon: _isReshuffling
+                                    ? SizedBox(
+                                        width: 26,
+                                        height: 26,
+                                        child: CircularProgressIndicator(
+                                          strokeWidth: 2.5,
+                                          color: ThemeTokens.of(context).accent,
+                                        ),
+                                      )
+                                    : Icon(
+                                        Icons.shuffle_rounded,
+                                        color: isShuffleActive
+                                            ? ThemeTokens.of(context).accent
+                                            : ThemeTokens.of(context).textSecondary,
+                                        size: 26,
+                                      ),
+                                onPressed: isShuffleActive
+                                    ? (_isReshuffling ? null : _doActiveReshuffle)
+                                    : () => notifier.toggleShuffle(),
                               ),
                             ),
                           ),
@@ -1150,10 +1241,19 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                         children: [
                           _BottomAction(
-                            icon: _SoundBar(
-                              isPlaying: playerState.isPlaying,
-                              color: ThemeTokens.of(context).textSecondary,
-                            ),
+                            icon: MediaQuery.of(context).disableAnimations
+                                ? StaticBars(
+                                    isPlaying: playerState.isPlaying,
+                                    color: ThemeTokens.of(
+                                      context,
+                                    ).textSecondary,
+                                  )
+                                : SoundBar(
+                                    isPlaying: playerState.isPlaying,
+                                    color: ThemeTokens.of(
+                                      context,
+                                    ).textSecondary,
+                                  ),
                             label: playerState.isPlaying ? 'Playing' : 'Paused',
                             labelColor: ThemeTokens.of(context).textMuted,
                             onTap: () {},
@@ -1191,6 +1291,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                               onTap: _showSleepTimerDialog,
                             ),
                           ),
+
                           _BottomAction(
                             icon: Icon(
                               Icons.queue_music_rounded,
@@ -1403,6 +1504,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                     ),
                   ),
                   const Spacer(),
+                  // Reshuffle button removed — use shuffle button long-press.
                   AnimatedBuilder(
                     animation: _tabs,
                     builder: (_, __) {
@@ -1594,6 +1696,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
 // =============================================================================
 // 7. QUEUE SCREEN SUB-WIDGETS
 // =============================================================================
+
 
 class _NowPlayingStrip extends StatelessWidget {
   final Song song;

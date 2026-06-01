@@ -13,6 +13,7 @@ import '../models/listening_stats_response.dart';
 import '../models/listening_history_response.dart';
 import '../models/contribution_graph_response.dart';
 import '../models/song_deep_dive_response.dart';
+import '../models/predict_response.dart';
 import 'shuffle_exception.dart';
 
 class ShuffleRepository {
@@ -63,6 +64,8 @@ class ShuffleRepository {
     List<double> recentListenRatios = const [],
     String lastEndReason = '',
     List<String> candidates = const [],
+    bool reshuffle = false,
+    List<String> excludedTitles = const [],
   }) async {
     final response = await _api.getNext(
       source: source,
@@ -76,9 +79,59 @@ class ShuffleRepository {
       recentListenRatios: recentListenRatios,
       lastEndReason: lastEndReason,
       candidates: candidates,
+      reshuffle: reshuffle,
+      excludedTitles: excludedTitles,
     );
 
     if (response.queue.isEmpty) throw const ShuffleEmptyResponse();
+    return response;
+  }
+
+  // ---------------------------------------------------------------------------
+  // Predictive Endpoints
+  // ---------------------------------------------------------------------------
+
+  /// Fetches predictions from /predict/always-hear.
+  /// Throws [ShuffleEmptyResponse] if the server returns 0 songs.
+  Future<PredictResponse> getPredictAlwaysHear({
+    int limit = 20,
+    int? weatherCode,
+  }) async {
+    final response = await _api.getPredictAlwaysHear(
+      limit: limit,
+      weatherCode: weatherCode,
+    );
+
+    if (response.isEmpty) {
+      throw const ShuffleEmptyResponse(
+        'always-hear returned 0 predictions. '
+        'Listen to more music to build your profile.',
+      );
+    }
+
+    return response;
+  }
+
+  /// Fetches discovery songs from /predict/discovery.
+  /// Throws [ShuffleEmptyResponse] if the discovery pool is empty.
+  Future<PredictResponse> getPredictDiscovery({
+    int limit = 20,
+    int maxPriorPlays = 2,
+    int? weatherCode,
+  }) async {
+    final response = await _api.getPredictDiscovery(
+      limit: limit,
+      maxPriorPlays: maxPriorPlays,
+      weatherCode: weatherCode,
+    );
+
+    if (response.isEmpty) {
+      throw const ShuffleEmptyResponse(
+        'discovery pool is empty. '
+        'Try increasing max_prior_plays or adding more songs.',
+      );
+    }
+
     return response;
   }
 

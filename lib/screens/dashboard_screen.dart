@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
-import 'dart:ui';
 import 'dart:math' as math;
 
 import '../core/theme.dart';
@@ -107,23 +106,15 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     _MetricsRow(stats: stats, tokens: tokens),
                     const SizedBox(height: s24),
 
-                    _Label(text: 'When you listen', tokens: tokens),
-                    const SizedBox(height: s12),
                     HourlyHeatmap(heatmapData: stats.hourlyHeatmap),
                     const SizedBox(height: s24),
 
-                    _Label(text: 'Genre breakdown', tokens: tokens),
-                    const SizedBox(height: s12),
                     GenreRadarChart(genres: stats.genreBreakdown),
                     const SizedBox(height: s24),
 
-                    _Label(text: 'Year activity', tokens: tokens),
-                    const SizedBox(height: s12),
                     const ContributionGraphCard(),
                     const SizedBox(height: s24),
 
-                    _Label(text: 'Listening trend', tokens: tokens),
-                    const SizedBox(height: s12),
                     ListeningLineChart(
                       spots: _buildLineSpots(stats),
                       labels: _buildLineLabels(stats),
@@ -140,8 +131,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
                     _TopTracksList(tracks: stats.topTracks),
                     const SizedBox(height: s24),
 
-                    _Label(text: 'AI engine', tokens: tokens),
-                    const SizedBox(height: s12),
                     modelAsync.when(
                       data: (m) => ModelStatusCard(status: m),
                       loading: () => const NaviSkeleton(height: 140),
@@ -256,7 +245,7 @@ class _Label extends StatelessWidget {
         Expanded(
           child: Container(
             height: 0.5,
-            color: tokens.textPrimary.withOpacity(0.1),
+            color: tokens.textPrimary.withValues(alpha: 0.1),
           ),
         ),
       ],
@@ -287,7 +276,7 @@ class _CollapsedHeader extends StatelessWidget {
         Container(
           padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
           decoration: BoxDecoration(
-            border: Border.all(color: tokens.accent.withOpacity(0.4), width: 1),
+            border: Border.all(color: tokens.accent.withValues(alpha: 0.4), width: 1),
             borderRadius: BorderRadius.circular(4),
           ),
           child: Text(
@@ -330,7 +319,7 @@ class _ExpandedHeader extends StatelessWidget {
             fontSize: 30,
             fontWeight: FontWeight.w900,
             color: tokens.textPrimary,
-            letterSpacing: -1.5,
+            letterSpacing: -0.8,
             height: 1.0,
           ),
         ),
@@ -394,10 +383,10 @@ class _MetricsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skipRate = (stats.skipRate * 100).toInt();
-    Color skipColor = const Color(0xFF1DB954);
-    if (skipRate > 20)
-      skipColor = const Color(0xFFFF6B6B);
-    else if (skipRate >= 10)
+    Color skipColor = tokens.accent;
+    if (skipRate > 20) {
+      skipColor = Theme.of(context).colorScheme.error;
+    } else if (skipRate >= 10)
       skipColor = const Color(0xFFFFD700);
 
     return Column(
@@ -417,7 +406,7 @@ class _MetricsRow extends StatelessWidget {
               Container(
                 width: 0.5,
                 margin: const EdgeInsets.symmetric(vertical: 8),
-                color: tokens.textPrimary.withOpacity(0.1),
+                color: tokens.textPrimary.withValues(alpha: 0.1),
               ),
               Expanded(
                 child: _BigMetric(
@@ -430,7 +419,7 @@ class _MetricsRow extends StatelessWidget {
             ],
           ),
         ),
-        Container(height: 0.5, color: tokens.textPrimary.withOpacity(0.08)),
+        Container(height: 0.5, color: tokens.textPrimary.withValues(alpha: 0.08)),
         // ── Secondary pair ──────────────────────────────────────────────
         IntrinsicHeight(
           child: Row(
@@ -446,7 +435,7 @@ class _MetricsRow extends StatelessWidget {
               Container(
                 width: 0.5,
                 margin: const EdgeInsets.symmetric(vertical: 6),
-                color: tokens.textPrimary.withOpacity(0.1),
+                color: tokens.textPrimary.withValues(alpha: 0.1),
               ),
               Expanded(
                 child: _SmallMetric(
@@ -503,7 +492,7 @@ class _BigMetric extends StatelessWidget {
                 fontSize: 42,
                 fontWeight: FontWeight.w900,
                 color: tokens.textPrimary,
-                letterSpacing: -2.0,
+                letterSpacing: -1.0,
                 height: 1.0,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ),
@@ -664,12 +653,12 @@ class HourlyHeatmap extends StatelessWidget {
                       mainAxisAlignment: MainAxisAlignment.end,
                       children: [
                         AnimatedContainer(
-                          duration: kAnimSlow,
+                          duration: MediaQuery.of(context).disableAnimations ? Duration.zero : kAnimSlow,
                           height: barH,
                           decoration: BoxDecoration(
                             color: isPeak
                                 ? tokens.accent
-                                : tokens.accent.withOpacity(
+                                : tokens.accent.withValues(alpha:
                                     0.12 + intensity * 0.60,
                                   ),
                             borderRadius: const BorderRadius.vertical(
@@ -748,7 +737,7 @@ class GenreRadarChart extends StatelessWidget {
                 radarBackgroundColor: Colors.transparent,
                 borderData: FlBorderData(show: false),
                 gridBorderData: BorderSide(
-                  color: tokens.textPrimary.withOpacity(0.07),
+                  color: tokens.textPrimary.withValues(alpha: 0.07),
                   width: 0.5,
                 ),
                 tickBorderData: const BorderSide(color: Colors.transparent),
@@ -765,7 +754,7 @@ class GenreRadarChart extends StatelessWidget {
                 ),
                 dataSets: [
                   RadarDataSet(
-                    fillColor: tokens.accent.withOpacity(0.10),
+                    fillColor: tokens.accent.withValues(alpha: 0.10),
                     borderColor: tokens.accent,
                     borderWidth: 1.5,
                     entryRadius: 2.5,
@@ -812,11 +801,11 @@ class GenreRadarChart extends StatelessWidget {
                           child: LinearProgressIndicator(
                             value: rel,
                             minHeight: 3,
-                            backgroundColor: tokens.textPrimary.withOpacity(
+                            backgroundColor: tokens.textPrimary.withValues(alpha:
                               0.06,
                             ),
                             valueColor: AlwaysStoppedAnimation(
-                              tokens.accent.withOpacity(1.0 - i * 0.13),
+                              tokens.accent.withValues(alpha: 1.0 - i * 0.13),
                             ),
                           ),
                         ),
@@ -951,7 +940,7 @@ class ListeningLineChart extends StatelessWidget {
                   show: true,
                   drawVerticalLine: false,
                   getDrawingHorizontalLine: (_) => FlLine(
-                    color: tokens.textPrimary.withOpacity(0.04),
+                    color: tokens.textPrimary.withValues(alpha: 0.04),
                     strokeWidth: 0.5,
                   ),
                 ),
@@ -973,8 +962,9 @@ class ListeningLineChart extends StatelessWidget {
                       interval: (spots.length / 4).ceilToDouble(),
                       getTitlesWidget: (val, _) {
                         final idx = val.toInt();
-                        if (idx < 0 || idx >= labels.length)
+                        if (idx < 0 || idx >= labels.length) {
                           return const SizedBox.shrink();
+                        }
                         return Padding(
                           padding: const EdgeInsets.only(top: 6.0),
                           child: Text(
@@ -1007,8 +997,8 @@ class ListeningLineChart extends StatelessWidget {
                       show: true,
                       gradient: LinearGradient(
                         colors: [
-                          tokens.accent.withOpacity(0.12),
-                          tokens.accent.withOpacity(0.0),
+                          tokens.accent.withValues(alpha: 0.12),
+                          tokens.accent.withValues(alpha: 0.0),
                         ],
                         begin: Alignment.topCenter,
                         end: Alignment.bottomCenter,
@@ -1043,7 +1033,7 @@ class _PingingDotPainter extends FlDotPainter {
       offsetInCanvas,
       6,
       Paint()
-        ..color = color.withOpacity(0.3)
+        ..color = color.withValues(alpha: 0.3)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 1.5,
     );
@@ -1106,10 +1096,10 @@ class ModelStatusCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: Colors.green.withOpacity(0.10),
+                  color: tokens.accent.withValues(alpha: 0.10),
                   borderRadius: radiusFull,
                   border: Border.all(
-                    color: Colors.green.withOpacity(0.25),
+                    color: tokens.accent.withValues(alpha: 0.25),
                     width: 0.5,
                   ),
                 ),
@@ -1119,8 +1109,8 @@ class ModelStatusCard extends StatelessWidget {
                     Container(
                       width: 5,
                       height: 5,
-                      decoration: const BoxDecoration(
-                        color: Colors.green,
+                      decoration: BoxDecoration(
+                        color: tokens.accent,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -1195,7 +1185,7 @@ class ModelStatusCard extends StatelessWidget {
             borderRadius: radiusFull,
             child: LinearProgressIndicator(
               value: progress,
-              backgroundColor: tokens.textPrimary.withOpacity(0.07),
+              backgroundColor: tokens.textPrimary.withValues(alpha: 0.07),
               valueColor: AlwaysStoppedAnimation(
                 progress > 0.8 ? Colors.orange : tokens.accent,
               ),
@@ -1220,7 +1210,7 @@ class _VD extends StatelessWidget {
   Widget build(BuildContext context) => Container(
     width: 0.5,
     margin: const EdgeInsets.symmetric(horizontal: s8),
-    color: tokens.textPrimary.withOpacity(0.1),
+    color: tokens.textPrimary.withValues(alpha: 0.1),
   );
 }
 
@@ -1261,7 +1251,7 @@ class _MS extends StatelessWidget {
 
 class _TopArtistsList extends StatelessWidget {
   final List<Map<String, dynamic>> artists;
-  const _TopArtistsList({super.key, required this.artists});
+  const _TopArtistsList({required this.artists});
 
   @override
   Widget build(BuildContext context) {
@@ -1290,14 +1280,14 @@ class _TopArtistsList extends StatelessWidget {
             ? const Color(0xFFCCCCCC)
             : i == 2
             ? const Color(0xFFCD7F32)
-            : tokens.textMuted.withOpacity(0.5);
+            : tokens.textMuted.withValues(alpha: 0.5);
 
         return Container(
           padding: const EdgeInsets.symmetric(vertical: 11),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: tokens.textPrimary.withOpacity(0.05),
+                color: tokens.textPrimary.withValues(alpha: 0.05),
                 width: 0.5,
               ),
             ),
@@ -1323,10 +1313,10 @@ class _TopArtistsList extends StatelessWidget {
                 width: 34,
                 height: 34,
                 decoration: BoxDecoration(
-                  color: tokens.accent.withOpacity(0.10),
+                  color: tokens.accent.withValues(alpha: 0.10),
                   borderRadius: BorderRadius.circular(6),
                   border: Border.all(
-                    color: tokens.accent.withOpacity(0.15),
+                    color: tokens.accent.withValues(alpha: 0.15),
                     width: 0.5,
                   ),
                 ),
@@ -1365,9 +1355,9 @@ class _TopArtistsList extends StatelessWidget {
                         builder: (_, v, __) => LinearProgressIndicator(
                           value: v,
                           minHeight: 2,
-                          backgroundColor: tokens.textPrimary.withOpacity(0.05),
+                          backgroundColor: tokens.textPrimary.withValues(alpha: 0.05),
                           valueColor: AlwaysStoppedAnimation(
-                            tokens.accent.withOpacity(0.4 + ratio * 0.6),
+                            tokens.accent.withValues(alpha: 0.4 + ratio * 0.6),
                           ),
                         ),
                       ),
@@ -1407,7 +1397,7 @@ class _TopArtistsList extends StatelessWidget {
 
 class _TopTracksList extends StatelessWidget {
   final List<Map<String, dynamic>> tracks;
-  const _TopTracksList({super.key, required this.tracks});
+  const _TopTracksList({required this.tracks});
 
   @override
   Widget build(BuildContext context) {
@@ -1449,7 +1439,7 @@ class _TopTracksList extends StatelessWidget {
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: tokens.textPrimary.withOpacity(0.05),
+                color: tokens.textPrimary.withValues(alpha: 0.05),
                 width: 0.5,
               ),
             ),
@@ -1515,7 +1505,7 @@ class _TopTracksList extends StatelessWidget {
                             child: LinearProgressIndicator(
                               value: ratio,
                               minHeight: 2,
-                              backgroundColor: tokens.textPrimary.withOpacity(
+                              backgroundColor: tokens.textPrimary.withValues(alpha:
                                 0.05,
                               ),
                               valueColor: AlwaysStoppedAnimation(ratioColor),

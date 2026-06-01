@@ -81,6 +81,8 @@ class NextResponse {
   final String? playlistId;
   final List<RecommendedSong> queue;
   final QueueContext? context;
+  /// True when the server confirms this was a reshuffle response.
+  final bool reshuffle;
 
   // Alias for compatibility with existing code that reads `.songs`
   List<RecommendedSong> get songs => queue;
@@ -91,6 +93,7 @@ class NextResponse {
     this.playlistId,
     required this.queue,
     this.context,
+    this.reshuffle = false,
   });
 
   factory NextResponse.fromJson(Map<String, dynamic> json) => NextResponse(
@@ -103,5 +106,6 @@ class NextResponse {
     context: json['context'] is Map<String, dynamic>
         ? QueueContext.fromJson(json['context'] as Map<String, dynamic>)
         : null,
+    reshuffle: json['reshuffle'] as bool? ?? false,
   );
 }

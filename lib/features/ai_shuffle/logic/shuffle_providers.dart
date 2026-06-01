@@ -14,6 +14,9 @@ import '../data/models/model_status_response.dart';
 import '../data/models/listening_stats_response.dart';
 import '../data/models/contribution_graph_response.dart';
 import '../data/models/feedback_request.dart';
+import '../data/models/predict_response.dart';
+import '../data/models/recommended_song.dart';
+import '../data/repositories/shuffle_exception.dart';
 
 // ---------------------------------------------------------------------------
 // Core infrastructure providers
@@ -121,6 +124,10 @@ class ShuffleQueueState {
   );
 
   List<dynamic> get allSongs => batches.expand((b) => b.queue).toList();
+
+  /// Typed version of allSongs — used by reshuffle and _applyAiShuffle.
+  List<RecommendedSong> get allRecommendedSongs =>
+      batches.expand((b) => b.queue).toList();
 }
 
 class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
@@ -220,6 +227,74 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
     _sessionId = null;
     state = const ShuffleQueueState();
   }
+
+  /// Fetches a fresh 16-song batch from POST /next (reshuffle: true),
+  /// excluding all currently visible queue titles so the server won't repeat them.
+  ///
+  /// Session state is preserved:
+  ///   - [_playedTitles]         kept — session is ongoing
+  ///   - [state.sessionDepth]    kept — not incremented on reshuffle
+  ///   - [_recentListenRatios]   kept
+  ///
+  /// The resulting batch REPLACES state.batches (not appended).
+  /// Fetches a fresh batch with reshuffle:true.
+  ///
+  /// [excludedTitlesOverride] — when provided (by [PlayerNotifier.reshuffleActiveQueue]),
+  /// these titles are sent as the ban list instead of the preview batch in
+  /// state.batches.  The state update (batches replacement) is skipped when
+  /// called this way so the preview UI is left unchanged.
+  Future<List<RecommendedSong>> reshuffle({
+    String source = 'smart',
+    String? playlistId,
+    String? playlistName,
+    String genreStreakType = '',
+    int genreStreakCount = 0,
+    List<String> candidates = const [],
+    List<String>? excludedTitlesOverride,
+  }) async {
+    // When called from the preview UI, ban titles the user can currently see.
+    // When called from PlayerNotifier, ban the active playback queue instead.
+    final excludedTitles = excludedTitlesOverride ??
+        state.batches.expand((b) => b.queue).map((s) => s.title).toList();
+
+    final isPreviewCall = excludedTitlesOverride == null;
+
+    if (isPreviewCall) {
+      state = state.copyWith(isLoading: true, error: null);
+    }
+    try {
+      final response = await _repo.getNext(
+        source: source,
+        playlistId: playlistId,
+        count: 16,
+        depth: state.sessionDepth, // preserved — session is still ongoing
+        playlistName: playlistName,
+        genreStreakType: genreStreakType,
+        genreStreakCount: genreStreakCount,
+        playedTitles: _playedTitles, // internal — no UI leakage
+        recentListenRatios: _recentListenRatios,
+        lastEndReason: _lastEndReason,
+        candidates: candidates,
+        reshuffle: true,
+        excludedTitles: excludedTitles,
+      );
+      if (isPreviewCall) {
+        // REPLACE — reshuffle is not an append for the preview UI.
+        state = state.copyWith(
+          batches: [response],
+          isLoading: false,
+          lastContext: response.context?.bucketLabel,
+          lastWeather: response.context?.weather,
+        );
+      }
+      return response.queue;
+    } catch (e) {
+      if (isPreviewCall) {
+        state = state.copyWith(isLoading: false, error: e.toString());
+      }
+      rethrow;
+    }
+  }
 }
 
 final shuffleQueueProvider =
@@ -235,3 +310,112 @@ final shuffleQueueProvider =
 void sendShuffleFeedback(Ref ref, FeedbackRequest request) {
   ref.read(shuffleRepositoryProvider).postFeedback(request);
 }
+
+// ---------------------------------------------------------------------------
+// Predictive Endpoints (v4.0.0) — Used by AI Shuffle Screen
+// ---------------------------------------------------------------------------
+
+enum PredictStatus { initial, loading, loaded, error }
+
+class PredictQueueState {
+  const PredictQueueState({
+    this.status = PredictStatus.initial,
+    this.songs = const [],
+    this.context,
+    this.mode = PredictMode.alwaysHear,
+    this.errorMessage,
+  });
+
+  final PredictStatus status;
+  final List<RecommendedSong> songs;
+  final PredictContext? context;       // null until first successful load
+  final PredictMode mode;
+  final String? errorMessage;
+
+  bool get isLoading  => status == PredictStatus.loading;
+  bool get isLoaded   => status == PredictStatus.loaded;
+  bool get hasError   => status == PredictStatus.error;
+  bool get isEmpty    => isLoaded && songs.isEmpty;
+
+  PredictQueueState copyWith({
+    PredictStatus? status,
+    List<RecommendedSong>? songs,
+    PredictContext? context,
+    PredictMode? mode,
+    String? errorMessage,
+  }) {
+    return PredictQueueState(
+      status:       status       ?? this.status,
+      songs:        songs        ?? this.songs,
+      context:      context      ?? this.context,
+      mode:         mode         ?? this.mode,
+      errorMessage: errorMessage,
+    );
+  }
+}
+
+class PredictQueueNotifier extends StateNotifier<PredictQueueState> {
+  PredictQueueNotifier(this._repository)
+      : super(const PredictQueueState());
+
+  final ShuffleRepository _repository;
+
+  /// Call this when the user taps "Shuffle Now" or switches the mode chip.
+  Future<void> fetchPredict({required PredictMode mode}) async {
+    // Show loading, preserving the selected mode immediately so the chip
+    // stays highlighted before results arrive.
+    state = state.copyWith(
+      status: PredictStatus.loading,
+      mode: mode,
+      errorMessage: null,
+    );
+
+    try {
+      final PredictResponse response;
+
+      switch (mode) {
+        case PredictMode.alwaysHear:
+          response = await _repository.getPredictAlwaysHear(limit: 20);
+        case PredictMode.discovery:
+          response = await _repository.getPredictDiscovery(
+            limit: 20,
+            maxPriorPlays: 2,
+          );
+      }
+
+      state = state.copyWith(
+        status:  PredictStatus.loaded,
+        songs:   response.songs,
+        context: response.requestContext,
+        mode:    response.mode,
+      );
+    } on ShuffleEmptyResponse catch (e) {
+      state = state.copyWith(
+        status:       PredictStatus.error,
+        songs:        [],
+        errorMessage: e.message,
+      );
+    } on ShuffleAuthError {
+      state = state.copyWith(
+        status:       PredictStatus.error,
+        errorMessage: 'Session expired. Please log in again.',
+      );
+    } catch (e) {
+      state = state.copyWith(
+        status:       PredictStatus.error,
+        errorMessage: 'Could not load recommendations: $e',
+      );
+    }
+  }
+
+  /// Convenience: switch mode without a full reload until the user
+  /// taps "Shuffle Now". Just updates the chip highlight.
+  void setMode(PredictMode mode) {
+    state = state.copyWith(mode: mode);
+  }
+}
+
+final predictQueueProvider =
+    StateNotifierProvider<PredictQueueNotifier, PredictQueueState>((ref) {
+  return PredictQueueNotifier(ref.watch(shuffleRepositoryProvider));
+});
