@@ -10,10 +10,13 @@
 //   POST /next
 //   POST /feedback
 //   GET  /model/status
+//   GET  /predict/always-hear
+//   GET  /predict/discovery
 //   GET  /listening-log/stats
 //   GET  /listening-log/history
 //   GET  /listening-log/composers
 //   GET  /listening-log/song
+//   GET  /listening-log/contribution-graph
 // =============================================================================
 
 import 'dart:convert';
@@ -96,7 +99,7 @@ class ShuffleApiService {
 
   /// Fetches the next shuffle queue.
   ///
-  /// [source] — 'smart' | 'playlist' | 'all_songs'
+  /// [source] — 'smart' | 'playlist' | 'all_songs' | 'candidates'
   /// [playlistId] — Navidrome playlist ID (triggers playlist mode)
   /// [count] — number of songs to return
   /// [depth] — session depth (affects exploration)
@@ -132,11 +135,13 @@ class ShuffleApiService {
           'playlist_name': playlistName,
         if (genreStreakType.isNotEmpty) 'genre_streak_type': genreStreakType,
         if (genreStreakCount > 0) 'genre_streak_count': genreStreakCount,
-        if (playedTitles.isNotEmpty) 'played_titles': playedTitles.join(','),
+        // Sent as a JSON array (not comma-joined) so titles containing commas are
+        // not corrupted — matches recent_listen_ratios / excluded_titles encoding.
+        if (playedTitles.isNotEmpty) 'played_titles': playedTitles,
         if (recentListenRatios.isNotEmpty)
           'recent_listen_ratios': recentListenRatios,
         if (lastEndReason.isNotEmpty) 'last_end_reason': lastEndReason,
-        if (candidates.isNotEmpty) 'candidates': candidates.join(','),
+        if (candidates.isNotEmpty) 'candidates': candidates,
         // Reshuffle fields — sent as JSON array (not comma-joined)
         if (reshuffle) 'reshuffle': true,
         if (excludedTitles.isNotEmpty) 'excluded_titles': excludedTitles,

@@ -1179,12 +1179,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
       final candidateTitles = future.map((s) => s.title).toList();
-      final isSmartMode = _currentPlaylistName == null || _currentPlaylistName!.isEmpty;
-      debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: ${isSmartMode ? 'smart' : 'playlist'}, candidates: ${candidateTitles.length})');
+      debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart, candidates: ${candidateTitles.length})');
 
+      // source is always 'smart': the app has no Navidrome playlist_id here, so
+      // playlist isolation is enforced by `candidates`. playlist_name only sets the
+      // server-side genre streak and is passed regardless of mode.
       final response = await shuffleNotifier.fetchNext(
-        source: isSmartMode ? 'smart' : 'playlist',
-        playlistName: isSmartMode ? null : _currentPlaylistName,
+        source: 'smart',
+        playlistName: _currentPlaylistName,
         candidates: candidateTitles,
         count: candidateTitles.length,
       );
@@ -1630,14 +1632,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           try {
             final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
             final candidateTitles = fullFuture.map((s) => s.title).toList();
-            debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart/playlist)');
+            debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart, candidates: ${candidateTitles.length})');
 
-            final isSmartMode = _currentPlaylistName == null || _currentPlaylistName!.isEmpty;
-            debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: ${isSmartMode ? 'smart' : 'playlist'}, candidates: ${candidateTitles.length})');
-
+            // source is always 'smart': the app has no Navidrome playlist_id here, so
+            // playlist isolation is enforced by `candidates`. playlist_name only sets the
+            // server-side genre streak and is passed regardless of mode.
             final response = await shuffleNotifier.fetchNext(
-              source: isSmartMode ? 'smart' : 'playlist',
-              playlistName: isSmartMode ? null : _currentPlaylistName,
+              source: 'smart',
+              playlistName: _currentPlaylistName,
               candidates: candidateTitles,
               count: candidateTitles.length,
             );

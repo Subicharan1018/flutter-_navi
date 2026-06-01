@@ -56,6 +56,12 @@ class _SmartShuffleLoginScreenState
         username: _userCtrl.text.trim(),
         password: _passCtrl.text,
       );
+
+      // /health is public (no auth) and returns 200 for any credentials, so it
+      // cannot validate a login. Hit an authenticated endpoint first — it throws
+      // ShuffleAuthError on bad credentials.
+      await service.getModelStatus();
+
       final health = await service.getHealth();
 
       // Persist the (possibly updated) credentials back to settings.
@@ -82,6 +88,12 @@ class _SmartShuffleLoginScreenState
         _isConnecting = false;
       });
     } on ShuffleNetworkError catch (e) {
+      setState(() {
+        _error = e.message;
+        _isConnecting = false;
+      });
+    } on ShuffleServerError catch (e) {
+      // e.g. model not yet built for a brand-new user, or other 4xx/5xx.
       setState(() {
         _error = e.message;
         _isConnecting = false;
