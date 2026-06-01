@@ -92,7 +92,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String? _lastFetchedForSongId;
 
   Completer<void>? _queueOpLock;
-  bool _suppressStreamEvents = false;
+  // RC-2: replaced single bool with two concerns:
+  // _suppressDepth: reentrant counter for synchronous suppress blocks.
+  // _shuffleSettling: single logical 500ms post-shuffle window.
+  int _suppressDepth = 0;
+  bool _shuffleSettling = false;
+  bool get _suppressEvents => _suppressDepth > 0 || _shuffleSettling;
 
   int? _pendingIndexAfterShuffle;
   Timer? _shuffleGuardTimer;
@@ -215,7 +220,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             _pendingIndexAfterShuffle = null;
             _shuffleGuardTimer?.cancel();
             _shuffleGuardTimer = null;
-            _suppressStreamEvents = false;
+            _shuffleSettling = false;
             // BUG-004 FIX (Change 3): Sync internal tracking variable when the
             // guard resolves early (player emits the correct index before the
             // 500ms timer fires). Without this, _lastKnownIndex stays at a
@@ -227,7 +232,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           }
         }
 
-        if (_suppressStreamEvents) return;
+        if (_suppressEvents) return;
 
         final prevIndex = _lastKnownIndex;
         final positionAtSwitch = _lastKnownPosition;
@@ -333,7 +338,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     _subscriptions.add(
       _audioHandler.playbackState.listen((ps) async {
-        if (_suppressStreamEvents) return;
+        if (_suppressEvents) return;
 
         // 1. Handle playing state changes
         final playing = ps.playing;
@@ -410,9 +415,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             // would cause a race with _linuxLoadTrack ("Loading interrupted").
             if (!PlatformUtils.isLinux &&
                 state.currentIndex < state.queue.length - 1) {
-              _suppressStreamEvents = true;
-              await _audioHandler.skipToNext();
-              _suppressStreamEvents = false;
+              _suppressDepth++;
+              try {
+                await _audioHandler.skipToNext();
+              } finally {
+                _suppressDepth--;
+              }
               return;
             }
 
@@ -554,16 +562,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _playlistPool = []; // clear pool — not a playlist-shuffle context
       _nextSourceContext = 'user_queue';
       _nextTransitionType = 'user_selected';
-      _suppressStreamEvents = true;
-      state = state.copyWith(queue: songs, currentIndex: startIndex);
-      await _audioHandler.setQueue(songs, startIndex);
-      // Fix 2: init completion tracking for the first song, which doesn't
-      // arrive via the media item change callback.
-      if (songs.isNotEmpty) {
-        _trackedIndexForCompletion = startIndex;
-        _positionAtCompletion = Duration.zero;
+      _suppressDepth++;
+      try {
+        state = state.copyWith(queue: songs, currentIndex: startIndex);
+        await _audioHandler.setQueue(songs, startIndex);
+        // Fix 2: init completion tracking for the first song, which doesn't
+        // arrive via the media item change callback.
+        if (songs.isNotEmpty) {
+          _trackedIndexForCompletion = startIndex;
+          _positionAtCompletion = Duration.zero;
+        }
+      } finally {
+        _suppressDepth--;
       }
-      _suppressStreamEvents = false;
       if (_pendingSeekMs > 0) {
         try {
           await player.seek(Duration(milliseconds: _pendingSeekMs));
@@ -572,7 +583,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       player.play();
     } finally {
-      _suppressStreamEvents = false;
       completer.complete();
       if (_queueOpLock == completer) _queueOpLock = null;
     }
@@ -622,14 +632,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // ── Non-shuffle: load all songs, play from index 0 ──────────────────
       if (!shuffle) {
         _playlistPool = [];
-        _suppressStreamEvents = true;
-        state = state.copyWith(
-          shuffleMode: false,
-          queue: songs,
-          currentIndex: 0,
-        );
-        await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
-        _suppressStreamEvents = false;
+        _suppressDepth++;
+        try {
+          state = state.copyWith(
+            shuffleMode: false,
+            queue: songs,
+            currentIndex: 0,
+          );
+          await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
+        } finally {
+          _suppressDepth--;
+        }
         player.play();
         return;
       }
@@ -638,7 +651,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // Without this, Riverpod listeners that watch shuffleMode react to the
       // state change and call applyShuffleAlgorithm(), firing a second /next
       // request with the wrong playlist context (kuthu instead of melody).
-      _suppressStreamEvents = true;
+      _shuffleSettling = true;
       _isShuffling = true;
 
       try {
@@ -720,7 +733,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           // Fix 2: init completion tracking for the first song (seed at index 0).
           _trackedIndexForCompletion = 0;
           _positionAtCompletion = Duration.zero;
-          _suppressStreamEvents = false;
+          _shuffleSettling = false;
           player.play();
 
           // 5. Remove anything we just queued from the pool (safety drain).
@@ -748,14 +761,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             currentIndex: 0,
           );
           await _audioHandler.setQueue(finalQueue, 0, unshuffledSongs: songs);
-          _suppressStreamEvents = false;
+          _shuffleSettling = false;
           player.play();
         }
       } finally {
         _isShuffling = false;
+        // Safety: ensure _shuffleSettling is cleared if any branch exited early
+        // (e.g. !mounted or stale lock check) without explicitly clearing it.
+        _shuffleSettling = false;
       }
     } finally {
-      _suppressStreamEvents = false;
       completer.complete();
       if (_queueOpLock == completer) _queueOpLock = null;
     }
@@ -877,9 +892,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> addToQueue(Song song) async {
     debugPrint('🎵 [PlayerProvider] addToQueue: ${song.title}');
-    final currentQueue = List<Song>.from(state.queue)..add(song);
-    state = state.copyWith(queue: currentQueue);
-    await _audioHandler.addToQueue(song);
+    await _queueOpLock?.future;
+    final completer = Completer<void>();
+    _queueOpLock = completer;
+    try {
+      final currentQueue = List<Song>.from(state.queue)..add(song);
+      state = state.copyWith(queue: currentQueue);
+      await _audioHandler.addToQueue(song);
+    } finally {
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
+    }
   }
 
   /// Batch-add multiple songs — single state update → single UI rebuild.
@@ -887,16 +910,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> addAllToQueue(List<Song> songs) async {
     debugPrint('🎵 [PlayerProvider] addAllToQueue: ${songs.length} songs');
     if (songs.isEmpty) return;
-    final currentQueue = List<Song>.from(state.queue)..addAll(songs);
-    state = state.copyWith(queue: currentQueue);
-    for (final song in songs) {
-      await _audioHandler.addToQueue(song);
+    await _queueOpLock?.future;
+    final completer = Completer<void>();
+    _queueOpLock = completer;
+    try {
+      final currentQueue = List<Song>.from(state.queue)..addAll(songs);
+      state = state.copyWith(queue: currentQueue);
+      for (final song in songs) {
+        await _audioHandler.addToQueue(song);
+      }
+    } finally {
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
     }
   }
 
   Future<void> removeFromQueue(int index) async {
     debugPrint('🎵 [PlayerProvider] removeFromQueue at index: $index');
-    _suppressStreamEvents = true;
+    await _queueOpLock?.future;
+    final completer = Completer<void>();
+    _queueOpLock = completer;
+    _suppressDepth++;
     try {
       final currentQueue = List<Song>.from(state.queue)..removeAt(index);
       int newIndex = state.currentIndex;
@@ -908,12 +942,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       state = state.copyWith(queue: currentQueue, currentIndex: newIndex);
       await _audioHandler.removeFromQueue(index);
     } finally {
-      _suppressStreamEvents = false;
+      _suppressDepth--;
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
     }
   }
 
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
-    _suppressStreamEvents = true;
+    await _queueOpLock?.future;
+    final completer = Completer<void>();
+    _queueOpLock = completer;
+    _suppressDepth++;
     try {
       final currentQueue = List<Song>.from(state.queue);
       final item = currentQueue.removeAt(oldIndex);
@@ -933,7 +972,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         isShuffleMode: state.shuffleMode,
       );
     } finally {
-      _suppressStreamEvents = false;
+      _suppressDepth--;
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
     }
   }
 
@@ -983,7 +1024,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final completer = Completer<void>();
     _queueOpLock = completer;
     _isShuffling = true;
-    _suppressStreamEvents = true;
+    _shuffleSettling = true;
     _playlistPool = []; // clear pool on unshuffle
     try {
       await _audioHandler.unshuffle();
@@ -1005,12 +1046,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // has a correct prevIndex. Without this, a transient index=0 from
         // just_audio is accepted as a legitimate track change.
         //
-        // ACCEPTED TRADE-OFF: _suppressStreamEvents stays true for 500ms after
+        // ACCEPTED TRADE-OFF: _shuffleSettling stays true for 500ms after
         // unshuffle. Any play/pause taps within that window are dropped. This
         // is intentional to prevent stale just_audio stream events from racing
         // with the new queue order. The 500ms window is imperceptible to users.
         _lastKnownIndex = state.currentIndex;
-        _suppressStreamEvents = false;
+        _shuffleSettling = false;
       });
     } finally {
       _isShuffling = false;
@@ -1031,7 +1072,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final completer = Completer<void>();
     _queueOpLock = completer;
     _isShuffling = true;
-    _suppressStreamEvents = true;
+    _shuffleSettling = true;
     try {
       // BUG-004 FIX: Capture the current song by ID before shuffle, not by
       // integer index. After the shuffle await completes, the integer index
@@ -1090,12 +1131,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (!mounted) return;
         _pendingIndexAfterShuffle = null;
         // BUG-004 FIX (Change 2): Sync _lastKnownIndex on timer expiry.
-        // ACCEPTED TRADE-OFF: _suppressStreamEvents stays true for 500ms after
+        // ACCEPTED TRADE-OFF: _shuffleSettling stays true for 500ms after
         // each shuffle algorithm runs. This suppresses play/pause events in
         // that window — intentional to block transient just_audio emissions
         // that arrive while move-based reordering settles.
         _lastKnownIndex = state.currentIndex;
-        _suppressStreamEvents = false;
+        _shuffleSettling = false;
       });
     } finally {
       _isShuffling = false;
@@ -1114,7 +1155,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final outerCompleter = Completer<void>();
     _queueOpLock = outerCompleter;
     _isShuffling = true;
-    _suppressStreamEvents = true;
+    _shuffleSettling = true;
 
     final safeIndex = (_audioHandler.currentIndex).clamp(
       0,
@@ -1130,7 +1171,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     if (future.isEmpty) {
       _isShuffling = false;
-      _suppressStreamEvents = false;
+      _shuffleSettling = false;
       outerCompleter.complete();
       if (_queueOpLock == outerCompleter) _queueOpLock = null;
       return;
@@ -1193,7 +1234,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           _pendingIndexAfterShuffle = null;
           // BUG-004 FIX (Change 2 – fallback timer): re-sync on expiry.
           _lastKnownIndex = state.currentIndex;
-          _suppressStreamEvents = false;
+          _shuffleSettling = false;
         });
       } finally {
         _isShuffling = false;
@@ -1249,7 +1290,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // because it was set from safeIndex (the anchor) and not mutated during
         // the suppression window.
         _lastKnownIndex = state.currentIndex;
-        _suppressStreamEvents = false;
+        _shuffleSettling = false;
       });
     } finally {
       _isShuffling = false;
@@ -1321,7 +1362,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _shuffleGuardTimer?.cancel();
     _shuffleGuardTimer = null;
     _pendingIndexAfterShuffle = null;
-    _suppressStreamEvents = false;
+    // Hard player reset — clear both suppression mechanisms.
+    _suppressDepth = 0;
+    _shuffleSettling = false;
 
     // 4. Stop the player
     await player.stop();
@@ -1410,7 +1453,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _queueOpLock?.future;
       final completer = Completer<void>();
       _queueOpLock = completer;
-      _suppressStreamEvents = true;
+      _suppressDepth++;
       try {
         // Keep the currently playing song — only replace everything after it.
         final currentIdx = state.currentIndex;
@@ -1435,7 +1478,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         await player.seek(savedPosition, index: newCurrentIndex);
         player.play();
       } finally {
-        _suppressStreamEvents = false;
+        _suppressDepth--;
         completer.complete();
         if (_queueOpLock == completer) _queueOpLock = null;
       }
@@ -1623,9 +1666,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           }
         }(),
         // B: Append new batch to ConcatenatingAudioSource.
+        // State is NOT written here — the handler is the single source of truth
+        // for the queue during concurrent fetch. State is synced from
+        // _audioHandler.currentQueue in the success path and fallback below.
         _audioHandler.addAllToQueue(batch).then((_) {
-          final newQueue = [...state.queue, ...batch];
-          state = state.copyWith(queue: newQueue);
           debugPrint('[SMART LOCAL] Appended ${batch.length} songs from pool');
           return null;
         }),
@@ -1637,6 +1681,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // Server unreachable: batch already appended in random pool order.
         // Acceptable fallback — Markov ordering will apply on next rebuild.
         debugPrint('[SMART LOCAL] HTTP failed; batch appended unordered');
+        // Sync state from the handler since branch B no longer writes state.
+        state = state.copyWith(queue: _audioHandler.currentQueue);
         _drainPoolOfQueuedSongs();
         return;
       }
