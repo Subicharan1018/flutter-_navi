@@ -906,7 +906,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   /// Batch-add multiple songs — single state update → single UI rebuild.
-  /// AudioHandler calls remain sequential (required by just_audio's source list).
+  /// Uses the handler's batch method for a single platform-channel round trip.
   Future<void> addAllToQueue(List<Song> songs) async {
     debugPrint('🎵 [PlayerProvider] addAllToQueue: ${songs.length} songs');
     if (songs.isEmpty) return;
@@ -916,9 +916,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     try {
       final currentQueue = List<Song>.from(state.queue)..addAll(songs);
       state = state.copyWith(queue: currentQueue);
-      for (final song in songs) {
-        await _audioHandler.addToQueue(song);
-      }
+      await _audioHandler.addAllToQueue(songs);
     } finally {
       completer.complete();
       if (_queueOpLock == completer) _queueOpLock = null;
@@ -1510,7 +1508,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       debugPrint('[AUTOPLAY] Fetching similar songs for: ${seedSong.title}');
 
       final indexBeforeFetch = state.currentIndex;
-      final queueLenBeforeFetch = state.queue.length;
 
       final similar = await _subsonicService.getSimilarSongs(
         seedSong.id,
@@ -1529,6 +1526,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
 
+      // Capture boundary synchronously at append time (same tick as newQueue
+      // construction) so it accurately reflects the first freshly-appended
+      // song regardless of any concurrent queue mutations during the fetch.
+      final lenBeforeAppend = state.queue.length;
       final newQueue = [...state.queue, ...fresh];
       state = state.copyWith(queue: newQueue);
       await _audioHandler.addAllToQueue(fresh);
@@ -1538,13 +1539,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       );
 
       final currentIndexNow = state.currentIndex;
-      final wasAtEnd = currentIndexNow >= queueLenBeforeFetch - 1;
+      final wasAtEnd = currentIndexNow >= lenBeforeAppend - 1;
       final userNavigatedAway = currentIndexNow < indexBeforeFetch;
 
       if (wasAtEnd && !userNavigatedAway) {
         // Give just_audio a frame to process the new source items
         await Future.delayed(const Duration(milliseconds: 50));
-        final nextIndex = queueLenBeforeFetch;
+        final nextIndex = lenBeforeAppend;
         if (nextIndex < state.queue.length) {
           await player.seek(Duration.zero, index: nextIndex);
           await player.play();

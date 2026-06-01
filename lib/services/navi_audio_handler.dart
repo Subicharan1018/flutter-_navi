@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:collection';
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
@@ -25,7 +26,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   ConcatenatingAudioSource? _playlist;
 
   static const int _recencyWindow = 20;
-  final Set<String> _recentlyPlayedIds = {};
+  final LinkedHashSet<String> _recentlyPlayedIds = LinkedHashSet<String>();
 
   // The server enforces count=15 but we also cap it here so any caller
   // that passes a large future slice doesn't accidentally ask for 200 songs.
@@ -39,6 +40,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   int _linuxIndex = 0;
   StreamSubscription<PlayerState>? _linuxCompletionSub;
 
+  /// Holds all long-lived stream subscriptions so dispose() can cancel them.
+  final List<StreamSubscription<dynamic>> _subscriptions = [];
+
   /// Mutex: true while setAudioSource() is in progress on Linux.
   /// Prevents the dual-completion-listener race (Bug 1 + Bug 3).
   bool _linuxLoading = false;
@@ -51,14 +55,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
        _replayGainService = replayGainService ?? ReplayGainService() {
     _listenToPlayerEvents();
 
-    this.player.currentIndexStream.listen((index) {
+    _subscriptions.add(this.player.currentIndexStream.listen((index) {
       // On Linux we manage index ourselves — ignore just_audio's index stream
       if (!_isLinux && index != null && index < _currentQueue.length) {
         _trackRecentlyPlayed(_currentQueue[index].id);
       }
-    });
+    }));
 
-    this.player.playbackEventStream.listen(
+    _subscriptions.add(this.player.playbackEventStream.listen(
       (event) {},
       onError: (Object e, StackTrace stackTrace) {
         debugPrint('❌ [NaviAudioHandler] Stream error: $e');
@@ -66,9 +70,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           debugPrint('   Code: ${e.code}  Message: ${e.message}');
         }
       },
-    );
+    ));
 
-    this.player.playerStateStream.listen(
+    _subscriptions.add(this.player.playerStateStream.listen(
       (state) {
         if (state.processingState == ProcessingState.completed) {
           debugPrint('ℹ️ [NaviAudioHandler] Processing state: completed');
@@ -77,24 +81,24 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       onError: (Object e, StackTrace st) {
         debugPrint('❌ [NaviAudioHandler] Player state error: $e');
       },
-    );
+    ));
   }
 
   void _listenToPlayerEvents() {
-    player.playbackEventStream.listen((event) {
+    _subscriptions.add(player.playbackEventStream.listen((event) {
       _broadcastState();
-    });
+    }));
 
     // Sync current media item when sequence or index changes
     // (non-Linux only — on Linux we push MediaItem manually via _emitLinuxMediaItem)
     if (!_isLinux) {
-      player.sequenceStateStream.listen((sequenceState) {
+      _subscriptions.add(player.sequenceStateStream.listen((sequenceState) {
         if (sequenceState?.currentSource == null) return;
         final source = sequenceState!.currentSource!;
         if (source.tag is MediaItem) {
           mediaItem.add(source.tag as MediaItem);
         }
-      });
+      }));
     }
   }
 
@@ -209,9 +213,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   List<Song> get unshuffledQueue => _unshuffledQueue;
 
   void _trackRecentlyPlayed(String songId) {
-    _recentlyPlayedIds.add(songId);
+    _recentlyPlayedIds.remove(songId); // drop stale position if present
+    _recentlyPlayedIds.add(songId);    // re-insert at the most-recent tail
     if (_recentlyPlayedIds.length > _recencyWindow) {
-      _recentlyPlayedIds.remove(_recentlyPlayedIds.first);
+      _recentlyPlayedIds.remove(_recentlyPlayedIds.first); // evict least-recent
     }
   }
 
@@ -435,6 +440,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> _linuxSkipToNext() async {
+    final wasPlaying = player.playing;
     if (_currentQueue.isEmpty) return;
     int next = _linuxIndex + 1;
     if (next >= _currentQueue.length) {
@@ -446,10 +452,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
     await _linuxLoadTrack(next, offlinePaths);
-    if (player.playing) await player.play();
+    if (wasPlaying) await player.play();
   }
 
   Future<void> _linuxSkipToPrevious() async {
+    final wasPlaying = player.playing;
     if (_currentQueue.isEmpty) return;
     // If more than 3 seconds in, restart current track
     if (player.position.inSeconds > 3) {
@@ -467,7 +474,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
     await _linuxLoadTrack(prev, offlinePaths);
-    if (player.playing) await player.play();
+    if (wasPlaying) await player.play();
   }
 
   /// Current index — Linux uses _linuxIndex, other platforms use player.currentIndex
@@ -490,11 +497,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// controls) land on the correct track on Linux single-source mode.
   @override
   Future<void> skipToQueueItem(int index) async {
+    final wasPlaying = player.playing;
     if (index < 0 || index >= _currentQueue.length) return;
     if (_isLinux) {
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
       await _linuxLoadTrack(index, offlinePaths);
-      if (player.playing) await player.play();
+      if (wasPlaying) await player.play();
     } else {
       await player.seek(Duration.zero, index: index);
     }
@@ -917,6 +925,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> dispose() async {
+    for (final s in _subscriptions) {
+      await s.cancel();
+    }
+    _subscriptions.clear();
+    await _linuxCompletionSub?.cancel();
+    _linuxCompletionSub = null;
     await player.stop();
     await player.dispose();
   }
