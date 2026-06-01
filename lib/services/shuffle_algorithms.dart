@@ -1,11 +1,10 @@
 // ---------------------------------------------------------------------------
 // shuffle_algorithms.dart
 //
-// Public top-level shuffle isolate workers extracted from audio_handler.dart.
-// These are marked @visibleForTesting so that test files can call them
-// directly without going through compute() or AudioHandler.
+// Single source of truth for all shuffle isolate workers used in production
+// by NaviAudioHandler (via compute()) and exercised directly by tests.
 //
-// ISOLATE RULES (same as audio_handler.dart):
+// ISOLATE RULES:
 //   1. All functions MUST be top-level — no closures, no instance methods.
 //   2. Song contains only plain value types → isolate-safe.
 //   3. ShufflePreference is passed as its raw index (int).
@@ -13,7 +12,6 @@
 // ---------------------------------------------------------------------------
 
 import 'dart:math';
-import 'package:flutter/foundation.dart' show visibleForTesting;
 import '../models/song.dart';
 import '../providers/settings_provider.dart' show ShufflePreference;
 
@@ -28,7 +26,6 @@ import '../providers/settings_provider.dart' show ShufflePreference;
 ///   × 2.0   if starred
 ///   + (rating − 1) / 4.0   if rated  (0–1 additive bonus)
 ///   + (playCount / 100).clamp(0, 1)   (0–1 additive bonus)
-@visibleForTesting
 double songWeight(Song song) {
   double w = song.dynamicWeight.clamp(0.1, 10.0);
   if (song.starred) w *= 2.0;
@@ -42,7 +39,6 @@ double songWeight(Song song) {
 // ---------------------------------------------------------------------------
 
 /// Shuffles [rest] using a standard Fisher-Yates pass.
-@visibleForTesting
 List<Song> standardShuffleIsolate(List<Song> rest) {
   final list = List<Song>.from(rest);
   list.shuffle();
@@ -57,7 +53,6 @@ List<Song> standardShuffleIsolate(List<Song> rest) {
 /// Args map keys:
 ///   'songs' → List<Song>
 ///   'pref'  → int  (ShufflePreference.index)
-@visibleForTesting
 List<Song> ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List);
   final prefIndex = args['pref'] as int;
@@ -66,12 +61,13 @@ List<Song> ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
   final int total = songs.length;
 
   // Group songs by key (genre or composer).
-  final Map<String, List<Song>> groups = {};
+  // Null is used for empty keys to avoid colliding with a real value named "Unknown".
+  final Map<String?, List<Song>> groups = {};
   for (final song in songs) {
     final key = preference == ShufflePreference.composer
         ? song.composer
         : song.genre;
-    groups.putIfAbsent(key.isNotEmpty ? key : 'Unknown', () => []).add(song);
+    groups.putIfAbsent(key.isNotEmpty ? key : null, () => []).add(song);
   }
 
   // Shuffle within each group so internal order is also random.
@@ -103,7 +99,6 @@ List<Song> ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
 
 /// Interleaves [smaller] into [larger] at evenly distributed positions.
 /// This is the core primitive of merge-shuffle.
-@visibleForTesting
 List<Song> interleave(List<Song> larger, List<Song> smaller, Random random) {
   if (larger.length < smaller.length) {
     return interleave(smaller, larger, random);
@@ -135,7 +130,6 @@ List<Song> interleave(List<Song> larger, List<Song> smaller, Random random) {
 /// Args map keys:
 ///   'songs' → List<Song>
 ///   'pref'  → int  (ShufflePreference.index)
-@visibleForTesting
 List<Song> mergeShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List);
   final prefIndex = args['pref'] as int;
@@ -143,12 +137,13 @@ List<Song> mergeShuffleIsolate(Map<String, dynamic> args) {
   final random = Random();
 
   // Group and shuffle internally.
-  final Map<String, List<Song>> groups = {};
+  // Null is used for empty keys to avoid colliding with a real value named "Unknown".
+  final Map<String?, List<Song>> groups = {};
   for (final song in songs) {
     final key = preference == ShufflePreference.composer
         ? song.composer
         : song.genre;
-    groups.putIfAbsent(key.isNotEmpty ? key : 'Unknown', () => []).add(song);
+    groups.putIfAbsent(key.isNotEmpty ? key : null, () => []).add(song);
   }
   for (final list in groups.values) {
     list.shuffle(random);
@@ -175,14 +170,15 @@ List<Song> mergeShuffleIsolate(Map<String, dynamic> args) {
 /// Worker for weighted shuffle — O(n log n).
 /// Receives [pool] (all songs except current) and returns them in weighted
 /// random order using the Efraimidis-Spirakis key trick.
-@visibleForTesting
 List<Song> weightedShuffleIsolate(List<Song> pool) {
   final random = Random();
 
   final keyed = pool.map((song) {
     final w = songWeight(song);
     final r = random.nextDouble().clamp(1e-10, 1.0);
-    final key = exp(log(r) / w);
+    // Log-space key: log(r)/w == log(r^(1/w)); monotonic with exp(...), so
+    // sort order is identical but distinct keys avoid underflow to 0.0.
+    final key = log(r) / w;
     return MapEntry(song, key);
   }).toList();
 
@@ -198,17 +194,16 @@ List<Song> weightedShuffleIsolate(List<Song> pool) {
 /// Args map keys:
 ///   'songs'         → List<Song>
 ///   'shuffleTracks' → bool  (shuffle tracks within each album if true)
-@visibleForTesting
 List<Song> albumAwareShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List);
   final shuffleTracks = args['shuffleTracks'] as bool? ?? false;
   final random = Random();
 
   // Group by album name.
-  final Map<String, List<Song>> albums = {};
+  // Null is used for empty album to avoid colliding with a real album named "Unknown".
+  final Map<String?, List<Song>> albums = {};
   for (final song in songs) {
-    final key = song.album.isNotEmpty ? song.album : 'Unknown';
-    albums.putIfAbsent(key, () => []).add(song);
+    albums.putIfAbsent(song.album.isNotEmpty ? song.album : null, () => []).add(song);
   }
 
   for (final list in albums.values) {
@@ -232,7 +227,6 @@ List<Song> albumAwareShuffleIsolate(Map<String, dynamic> args) {
 /// Args map keys:
 ///   'songs'     → List<Song>
 ///   'recentIds' → List<String>  (song IDs played recently in this session)
-@visibleForTesting
 List<Song> recencyDampenedShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List);
   final recentIds = Set<String>.from(args['recentIds'] as List);
@@ -243,7 +237,9 @@ List<Song> recencyDampenedShuffleIsolate(Map<String, dynamic> args) {
     if (recentIds.contains(song.id)) w *= 0.1;
     w = w.clamp(0.01, 100.0);
     final r = random.nextDouble().clamp(1e-10, 1.0);
-    final key = exp(log(r) / w);
+    // Log-space key: log(r)/w == log(r^(1/w)); monotonic with exp(...), so
+    // sort order is identical but distinct keys avoid underflow to 0.0.
+    final key = log(r) / w;
     return MapEntry(song, key);
   }).toList();
 

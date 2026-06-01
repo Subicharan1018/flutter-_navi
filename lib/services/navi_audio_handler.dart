@@ -1,6 +1,5 @@
 import 'dart:async';
 import 'dart:io' show Platform;
-import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
@@ -11,174 +10,7 @@ import '../providers/settings_provider.dart';
 import '../offline_service.dart';
 import 'dart:convert';
 import 'package:http/http.dart' as http;
-
-// ---------------------------------------------------------------------------
-// ISOLATE HELPERS — pure functions, no platform-channel contact
-// ---------------------------------------------------------------------------
-
-double _songWeight(Song song) {
-  double w = song.dynamicWeight.clamp(0.1, 10.0);
-  if (song.starred) w *= 2.0;
-  if (song.rating > 0) w += (song.rating - 1) / 4.0;
-  w += (song.playCount / 100.0).clamp(0.0, 1.0);
-  return w;
-}
-
-// ---------------------------------------------------------------------------
-// ALGORITHM 1 — Standard Fisher-Yates
-// ---------------------------------------------------------------------------
-List<Song> _standardShuffleIsolate(List<Song> rest) {
-  rest.shuffle();
-  return rest;
-}
-
-// ---------------------------------------------------------------------------
-// ALGORITHM 2 — Dithered Position Shuffle
-// ---------------------------------------------------------------------------
-List<Song> _ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
-  final songs = List<Song>.from(args['songs'] as List<Song>);
-  final prefIndex = args['pref'] as int;
-  final preference = ShufflePreference.values[prefIndex];
-  final random = Random();
-  final int total = songs.length;
-
-  final Map<String, List<Song>> groups = {};
-  for (final song in songs) {
-    final key = preference == ShufflePreference.composer
-        ? song.composer
-        : song.genre;
-    groups.putIfAbsent(key.isNotEmpty ? key : 'Unknown', () => []).add(song);
-  }
-  for (final list in groups.values) {
-    list.shuffle(random);
-  }
-
-  final List<MapEntry<Song, double>> scored = [];
-  for (final bucket in groups.values) {
-    final double spacing = total / bucket.length.toDouble();
-    final double offset = random.nextDouble() * spacing;
-    for (int i = 0; i < bucket.length; i++) {
-      final double dither = (random.nextDouble() - 0.5) * spacing * 0.1;
-      final double position = offset + (i * spacing) + dither;
-      scored.add(MapEntry(bucket[i], position));
-    }
-  }
-  scored.sort((a, b) => a.value.compareTo(b.value));
-  return scored.map((e) => e.key).toList();
-}
-
-// ---------------------------------------------------------------------------
-// ALGORITHM 3 — Merge-Shuffle
-// ---------------------------------------------------------------------------
-List<Song> _interleave(List<Song> larger, List<Song> smaller, Random random) {
-  if (larger.length < smaller.length) {
-    return _interleave(smaller, larger, random);
-  }
-  if (smaller.isEmpty) return larger;
-  if (larger.isEmpty) return smaller;
-
-  final int n = larger.length;
-  final int m = smaller.length;
-  final List<Song> result = [];
-  int largerIndex = 0;
-  final double partSize = n / (m + 1);
-
-  for (int i = 0; i < m; i++) {
-    final int end = ((i + 1) * partSize).round().clamp(largerIndex, n);
-    result.addAll(larger.sublist(largerIndex, end));
-    result.add(smaller[i]);
-    largerIndex = end;
-  }
-  if (largerIndex < n) result.addAll(larger.sublist(largerIndex));
-  return result;
-}
-
-List<Song> _mergeShuffleIsolate(Map<String, dynamic> args) {
-  final songs = List<Song>.from(args['songs'] as List<Song>);
-  final prefIndex = args['pref'] as int;
-  final preference = ShufflePreference.values[prefIndex];
-  final random = Random();
-
-  final Map<String, List<Song>> groups = {};
-  for (final song in songs) {
-    final key = preference == ShufflePreference.composer
-        ? song.composer
-        : song.genre;
-    groups.putIfAbsent(key.isNotEmpty ? key : 'Unknown', () => []).add(song);
-  }
-  for (final list in groups.values) {
-    list.shuffle(random);
-  }
-
-  final buckets = groups.values.toList()
-    ..sort((a, b) => a.length.compareTo(b.length));
-  if (buckets.isEmpty) return songs;
-
-  List<Song> result = List<Song>.from(buckets[0]);
-  for (int i = 1; i < buckets.length; i++) {
-    result = _interleave(result, List<Song>.from(buckets[i]), random);
-  }
-  return result;
-}
-
-// ---------------------------------------------------------------------------
-// ALGORITHM 4 — Weighted Shuffle (Efraimidis-Spirakis)
-// ---------------------------------------------------------------------------
-List<Song> _weightedShuffleIsolate(List<Song> pool) {
-  final random = Random();
-  final keyed = pool.map((song) {
-    final w = _songWeight(song);
-    final r = random.nextDouble().clamp(1e-10, 1.0);
-    final key = exp(log(r) / w);
-    return MapEntry(song, key);
-  }).toList();
-  keyed.sort((a, b) => b.value.compareTo(a.value));
-  return keyed.map((e) => e.key).toList();
-}
-
-// ---------------------------------------------------------------------------
-// ALGORITHM 5 — Album-Aware Shuffle
-// ---------------------------------------------------------------------------
-List<Song> _albumAwareShuffleIsolate(Map<String, dynamic> args) {
-  final songs = List<Song>.from(args['songs'] as List<Song>);
-  final shuffleTracks = args['shuffleTracks'] as bool? ?? false;
-  final random = Random();
-
-  final Map<String, List<Song>> albums = {};
-  for (final song in songs) {
-    final key = song.album.isNotEmpty ? song.album : 'Unknown';
-    albums.putIfAbsent(key, () => []).add(song);
-  }
-  for (final list in albums.values) {
-    if (shuffleTracks) {
-      list.shuffle(random);
-    } else {
-      list.sort((a, b) => a.track.compareTo(b.track));
-    }
-  }
-  final albumKeys = albums.keys.toList()..shuffle(random);
-  return albumKeys.expand((key) => albums[key]!).toList();
-}
-
-// ---------------------------------------------------------------------------
-// ALGORITHM 6 — Recency-Dampened Weighted Shuffle
-// ---------------------------------------------------------------------------
-List<Song> _recencyDampenedShuffleIsolate(Map<String, dynamic> args) {
-  final songs = List<Song>.from(args['songs'] as List<Song>);
-  final recentIds = Set<String>.from(args['recentIds'] as List);
-  final random = Random();
-
-  final keyed = songs.map((song) {
-    double w = _songWeight(song);
-    if (recentIds.contains(song.id)) w *= 0.1;
-    w = w.clamp(0.01, 100.0);
-    final r = random.nextDouble().clamp(1e-10, 1.0);
-    final key = exp(log(r) / w);
-    return MapEntry(song, key);
-  }).toList();
-  keyed.sort((a, b) => b.value.compareTo(a.value));
-  return keyed.map((e) => e.key).toList();
-}
+import 'shuffle_algorithms.dart';
 
 // ---------------------------------------------------------------------------
 // AudioHandler
@@ -854,7 +686,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-    final shuffled = await compute(_standardShuffleIsolate, future);
+    final shuffled = await compute(standardShuffleIsolate, future);
     _currentQueue = [...pastAndPresent, ...shuffled];
     await _updateQueueAfterAnchor(safeIndex);
   }
@@ -871,7 +703,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
     final result = await compute(
-      _ditheredPositionShuffleIsolate,
+      ditheredPositionShuffleIsolate,
       <String, dynamic>{'songs': future, 'pref': preference.index},
     );
     debugPrint('✅ [SHUFFLE] Dithered result: ${result.length} songs');
@@ -893,7 +725,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-    final result = await compute(_mergeShuffleIsolate, <String, dynamic>{
+    final result = await compute(mergeShuffleIsolate, <String, dynamic>{
       'songs': future,
       'pref': preference.index,
     });
@@ -913,7 +745,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-    final shuffled = await compute(_weightedShuffleIsolate, future);
+    final shuffled = await compute(weightedShuffleIsolate, future);
     _currentQueue = [...pastAndPresent, ...shuffled];
     await _updateQueueAfterAnchor(safeIndex);
   }
@@ -933,7 +765,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
-    final result = await compute(_albumAwareShuffleIsolate, <String, dynamic>{
+    final result = await compute(albumAwareShuffleIsolate, <String, dynamic>{
       'songs': future,
       'shuffleTracks': shuffleTracksWithinAlbum,
     });
@@ -957,7 +789,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final future = _currentQueue.sublist(safeIndex + 1);
     if (future.isEmpty) return;
     final result = await compute(
-      _recencyDampenedShuffleIsolate,
+      recencyDampenedShuffleIsolate,
       <String, dynamic>{
         'songs': future,
         'recentIds': _recentlyPlayedIds.toList(),
@@ -1039,31 +871,31 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint('🎵 [NaviAudioHandler] computeShuffle: algorithm=$algorithm, poolSize=${pool.length}');
     switch (algorithm) {
       case ShuffleAlgorithm.standard:
-        return compute(_standardShuffleIsolate, pool);
+        return compute(standardShuffleIsolate, pool);
 
       case ShuffleAlgorithm.spotify:
-        return compute(_ditheredPositionShuffleIsolate, <String, dynamic>{
+        return compute(ditheredPositionShuffleIsolate, <String, dynamic>{
           'songs': pool,
           'pref': preference.index,
         });
 
       case ShuffleAlgorithm.youtube:
-        return compute(_weightedShuffleIsolate, pool);
+        return compute(weightedShuffleIsolate, pool);
 
       case ShuffleAlgorithm.albumAware:
-        return compute(_albumAwareShuffleIsolate, <String, dynamic>{
+        return compute(albumAwareShuffleIsolate, <String, dynamic>{
           'songs': pool,
           'shuffleTracks': albumShuffleTracks,
         });
 
       case ShuffleAlgorithm.mergeShuffle:
-        return compute(_mergeShuffleIsolate, <String, dynamic>{
+        return compute(mergeShuffleIsolate, <String, dynamic>{
           'songs': pool,
           'pref': preference.index,
         });
 
       case ShuffleAlgorithm.recencyDampened:
-        return compute(_recencyDampenedShuffleIsolate, <String, dynamic>{
+        return compute(recencyDampenedShuffleIsolate, <String, dynamic>{
           'songs': pool,
           'recentIds': _recentlyPlayedIds.toList(),
         });
@@ -1071,7 +903,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       case ShuffleAlgorithm.smartLocal:
         // Already handled externally via player_provider + v3 API.
         // Fall back to standard here if accidentally called.
-        return compute(_standardShuffleIsolate, pool);
+        return compute(standardShuffleIsolate, pool);
     }
   }
 
