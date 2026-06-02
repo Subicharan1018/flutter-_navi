@@ -40,12 +40,14 @@ const _kShuffleBaseUrl = 'https://shuffle.subimusic.me';
 class ShuffleApiService {
   final Dio _dio;
 
-  /// True when no credentials have been configured.
-  /// All methods short-circuit with [ShuffleNetworkError] when this is true.
-  final bool _unconfigured;
+  /// Supplier called on every request to get the current credentials.
+  /// Returns `(username, password)`. When either is empty the interceptor
+  /// skips adding the Authorization header so the server can return 401
+  /// rather than the app crashing or silently sending bad auth.
+  final (String, String) Function() _credentialsSupplier;
 
   ShuffleApiService({required String username, required String password})
-    : _unconfigured = username.isEmpty || password.isEmpty,
+    : _credentialsSupplier = (() => (username, password)),
       _dio = Dio(
         BaseOptions(
           baseUrl: _kShuffleBaseUrl,
@@ -54,9 +56,32 @@ class ShuffleApiService {
           headers: {'Accept': 'application/json'},
         ),
       ) {
-    if (!_unconfigured) {
-      _dio.interceptors.add(_BasicAuthInterceptor(username, password));
+    _dio.interceptors.add(_BasicAuthInterceptor(_credentialsSupplier));
+    if (kDebugMode) {
+      _dio.interceptors.add(
+        LogInterceptor(
+          requestBody: false,
+          responseBody: false,
+          logPrint: (obj) => debugPrint('[ShuffleApi] $obj'),
+        ),
+      );
     }
+  }
+
+  // Named constructor that accepts a live credentials supplier — used by
+  // shuffleApiServiceProvider so auth is always taken from the latest
+  // SettingsState rather than from a snapshot captured at construction time.
+  ShuffleApiService.withSupplier((String, String) Function() credentialsSupplier)
+    : _credentialsSupplier = credentialsSupplier,
+      _dio = Dio(
+        BaseOptions(
+          baseUrl: _kShuffleBaseUrl,
+          connectTimeout: const Duration(seconds: 10),
+          receiveTimeout: const Duration(seconds: 20),
+          headers: {'Accept': 'application/json'},
+        ),
+      ) {
+    _dio.interceptors.add(_BasicAuthInterceptor(_credentialsSupplier));
     if (kDebugMode) {
       _dio.interceptors.add(
         LogInterceptor(
@@ -356,16 +381,21 @@ class ShuffleApiService {
 // Basic Auth interceptor
 // ---------------------------------------------------------------------------
 
+/// Reads credentials dynamically on each request so settings loaded after
+/// construction (e.g. from Hive at app startup) are always honoured.
 class _BasicAuthInterceptor extends Interceptor {
-  final String _credentials;
+  final (String, String) Function() _supplier;
 
-  _BasicAuthInterceptor(String username, String password)
-    : _credentials = base64Encode(utf8.encode('$username:$password'));
+  _BasicAuthInterceptor(this._supplier);
 
   @override
   void onRequest(RequestOptions options, RequestInterceptorHandler handler) {
     if (options.path != '/health' && options.path != '/weather') {
-      options.headers['Authorization'] = 'Basic $_credentials';
+      final (username, password) = _supplier();
+      if (username.isNotEmpty && password.isNotEmpty) {
+        options.headers['Authorization'] =
+            'Basic ${base64Encode(utf8.encode('$username:$password'))}';
+      }
     }
     super.onRequest(options, handler);
   }

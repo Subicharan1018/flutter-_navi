@@ -202,6 +202,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   // item listener — so callback ordering between streams is irrelevant.
   Duration _positionAtCompletion = Duration.zero;
   int _trackedIndexForCompletion = -1;
+  // True after processingState==completed sends natural-completion feedback.
+  // Prevents double-fire in mediaItem.listen when the completed-state handler
+  // already covered the song (Linux all tracks; non-Linux last track/edge cases).
+  bool _naturalFeedbackSent = false;
   bool _isShuffling = false;
   bool get isShuffling => _isShuffling;
   int _lastPersistSecond = -1;
@@ -259,6 +263,43 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final transCtx = _nextTransitionType;
           _nextSourceContext = 'autoplay';
           _nextTransitionType = 'autoplay';
+
+          // ── Natural-completion feedback (autoplay transition) ──────────────
+          // Two-path architecture:
+          //   PRIMARY:  processingState==completed handler fires first and sets
+          //             _naturalFeedbackSent=true. This covers:
+          //               • Linux — all tracks (single-source bridge always goes
+          //                 through completed).
+          //               • All platforms — last track in queue.
+          //               • Non-Linux — any edge case where completed fires.
+          //   FALLBACK: This block, for Android mid-queue tracks where
+          //             ConcatenatingAudioSource advances WITHOUT emitting
+          //             ProcessingState.completed, so the primary path never
+          //             runs. The _naturalFeedbackSent guard prevents
+          //             double-firing when the primary path already fired.
+          if (transCtx == 'autoplay' && prevSong != null && !_naturalFeedbackSent) {
+            final listenRatio = prevSong.duration > 0
+                ? (positionAtSwitch.inSeconds / prevSong.duration).clamp(0.0, 1.0)
+                : 1.0;
+            final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
+            shuffleNotifier.recordPlay(
+              title: prevSong.title,
+              listenRatio: listenRatio,
+              endReason: 'natural',
+            );
+            sendShuffleFeedback(_ref, FeedbackRequest(
+              title:        prevSong.title,
+              filePath:     prevSong.id,
+              genreBucket:  prevSong.genre.isNotEmpty ? prevSong.genre : 'unknown',
+              composer:     prevSong.composer.isNotEmpty ? prevSong.composer : prevSong.artist,
+              listenRatio:  listenRatio,
+              endReason:    'natural',
+              sessionId:    shuffleNotifier.sessionId,
+              sessionDepth: shuffleNotifier.state.sessionDepth,
+            ));
+          }
+          // Reset for the next track regardless of which path fired.
+          _naturalFeedbackSent = false;
 
           _trackChangeTimer?.cancel();
           final capturedPrev = prevSong;
@@ -375,10 +416,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (processingState != _lastProcessingState) {
           _lastProcessingState = processingState;
           if (processingState == AudioProcessingState.completed) {
+            // ── Natural completion feedback ───────────────────────────────────
+            // Send shuffle feedback for ALL natural track completions here,
+            // regardless of position in queue. This is the only safe location
+            // because on non-Linux the subsequent skipToNext() call is wrapped
+            // in _suppressDepth++, which causes mediaItem.listen (the previous
+            // home for mid-queue feedback) to be suppressed and silently skip
+            // the sendShuffleFeedback call.
             if (state.queue.isNotEmpty &&
                 state.currentIndex < state.queue.length) {
               final completedSong = state.queue[state.currentIndex];
-              _collector.onSongEnded(completedSong, player.position);
 
               // Consume the ordering-safe snapshot, then reset it.
               // Reading _positionAtCompletion here is safe regardless of which
@@ -392,6 +439,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
                   ? (snapshot.inSeconds / completedSong.duration).clamp(0.0, 1.0)
                   : 1.0;
               final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
+
+              // Primary path: send feedback and mark it sent so the
+              // mediaItem.listen fallback path skips this song.
+              _naturalFeedbackSent = true;
+              _collector.onSongEnded(completedSong, player.position);
               shuffleNotifier.recordPlay(
                 title: completedSong.title,
                 listenRatio: listenRatio,

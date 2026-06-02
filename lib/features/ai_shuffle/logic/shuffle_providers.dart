@@ -2,6 +2,7 @@
 // shuffle_providers.dart — Riverpod providers for Smart Shuffle (v3.0.0).
 // =============================================================================
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
@@ -23,17 +24,15 @@ import '../data/repositories/shuffle_exception.dart';
 // ---------------------------------------------------------------------------
 
 /// Creates the API service using Navidrome credentials from settings.
-/// Recreated automatically whenever username or password changes.
+/// Uses [ShuffleApiService.withSupplier] so the Dio interceptor reads
+/// credentials on every request — not at construction time. This ensures
+/// credentials loaded from Hive after the first render are always used
+/// correctly, preventing 401s during the app startup window.
 final shuffleApiServiceProvider = Provider<ShuffleApiService>((ref) {
-  final settings = ref.watch(
-    settingsProvider.select(
-      (s) => (username: s.username, password: s.password),
-    ),
-  );
-  return ShuffleApiService(
-    username: settings.username,
-    password: settings.password,
-  );
+  return ShuffleApiService.withSupplier(() {
+    final s = ref.read(settingsProvider);
+    return (s.username, s.password);
+  });
 });
 
 /// Repository built on top of the API service.
@@ -160,6 +159,11 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
     );
     return _sessionId ?? '';
   }
+
+  /// True when a session UUID has been assigned via [initSession].
+  /// Use this to guard [sendShuffleFeedback] calls so they are only sent
+  /// during an active AI-shuffle session (not for ad-hoc setQueue playback).
+  bool get hasActiveSession => _sessionId != null && _sessionId!.isNotEmpty;
 
   /// Fetches a new batch of recommendations.
   Future<NextResponse> fetchNext({
@@ -307,7 +311,18 @@ final shuffleQueueProvider =
 // ---------------------------------------------------------------------------
 
 /// Call this to send feedback without waiting for a result.
+/// No-ops when no active session exists (i.e. initSession() was never
+/// called for the current playback context), preventing unauthenticated
+/// 401 requests for ad-hoc / non-AI-shuffle playback.
 void sendShuffleFeedback(Ref ref, FeedbackRequest request) {
+  final notifier = ref.read(shuffleQueueProvider.notifier);
+  if (!notifier.hasActiveSession) {
+    debugPrint(
+      '[ShuffleFeedback] Skipped — no active session '
+      '(title: ${request.title})',
+    );
+    return;
+  }
   ref.read(shuffleRepositoryProvider).postFeedback(request);
 }
 
