@@ -145,7 +145,12 @@ class SubsonicService {
       'c': Constants.defaultClient,
       'f': 'json',
     };
-    if (params != null) queryParams.addAll(params);
+    if (params != null) {
+      queryParams.addAll(params);
+      if (params['f'] == '') {
+        queryParams.remove('f');
+      }
+    }
 
     final uri = Uri.parse('$serverUrl/$endpoint');
     return uri.replace(queryParameters: queryParams).toString();
@@ -163,7 +168,12 @@ class SubsonicService {
       'c': Constants.defaultClient,
       'f': 'json',
     };
-    if (params != null) queryParams.addAll(params);
+    if (params != null) {
+      queryParams.addAll(params);
+      if (params['f'] == '') {
+        queryParams.remove('f');
+      }
+    }
 
     final uri = Uri.parse('$serverUrl/$endpoint');
     return uri.replace(queryParameters: queryParams).toString();
@@ -175,14 +185,14 @@ class SubsonicService {
 
   /// Stream URL — fresh salt per call (correct: each stream request is unique).
   String getStreamUrl(String songId) =>
-      _buildUrl('stream.view', {'id': songId});
+      _buildUrl('stream.view', {'id': songId, 'f': ''});
 
   /// Cover-art URL — **stable** salt so the URL never changes for a given ID.
   /// This is what allows CachedNetworkImage to serve from disk/memory cache
   /// instead of re-downloading on every widget rebuild or list scroll.
   String getCoverArtUrl(String? coverArtId, {int? size}) {
     if (coverArtId == null || coverArtId.isEmpty) return '';
-    final params = {'id': coverArtId};
+    final params = {'id': coverArtId, 'f': ''};
     if (size != null) params['size'] = size.toString();
     return _buildStableUrl('getCoverArt.view', params);
   }
