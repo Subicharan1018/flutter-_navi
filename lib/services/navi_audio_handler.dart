@@ -47,6 +47,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Prevents the dual-completion-listener race (Bug 1 + Bug 3).
   bool _linuxLoading = false;
 
+  /// Timer to detect stuck playback in loading or buffering state.
+  Timer? _stuckTimer;
+
   NaviAudioHandler(
     this.subsonicService, {
     AudioPlayer? player,
@@ -68,6 +71,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         debugPrint('❌ [NaviAudioHandler] Stream error: $e');
         if (e is PlayerException) {
           debugPrint('   Code: ${e.code}  Message: ${e.message}');
+          // Trigger immediate recovery on playback exceptions.
+          _recoverStuckPlayer();
         }
       },
     ));
@@ -76,6 +81,26 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       (state) {
         if (state.processingState == ProcessingState.completed) {
           debugPrint('ℹ️ [NaviAudioHandler] Processing state: completed');
+        }
+
+        final isStuckState = state.playing &&
+            (state.processingState == ProcessingState.loading ||
+             state.processingState == ProcessingState.buffering);
+
+        if (isStuckState) {
+          if (_stuckTimer == null) {
+            debugPrint('⏳ [NaviAudioHandler] Player entered buffering/loading. Starting 15s stuck timer.');
+            _stuckTimer = Timer(const Duration(seconds: 15), () async {
+              _stuckTimer = null;
+              await _recoverStuckPlayer();
+            });
+          }
+        } else {
+          if (_stuckTimer != null) {
+            debugPrint('✅ [NaviAudioHandler] Player left buffering/loading. Stuck timer cleared.');
+            _stuckTimer!.cancel();
+            _stuckTimer = null;
+          }
         }
       },
       onError: (Object e, StackTrace st) {
@@ -434,8 +459,36 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
 
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-      await _linuxLoadTrack(next, offlinePaths);
-      if (!player.playing) await player.play();
+      try {
+        await _linuxLoadTrack(next, offlinePaths);
+        if (!player.playing) await player.play();
+      } catch (e) {
+        // Network glitch or timeout loading the next track — retry once after
+        // a short delay instead of silently freezing the player.
+        debugPrint('❌ [Linux] Failed to load next track ($e). Retrying in 2s…');
+        await Future.delayed(const Duration(seconds: 2));
+        // Re-check queue is still valid after the delay.
+        if (next < _currentQueue.length) {
+          try {
+            final retryPaths = await _precomputeOfflinePaths(_currentQueue);
+            await _linuxLoadTrack(next, retryPaths);
+            if (!player.playing) await player.play();
+          } catch (e2) {
+            debugPrint('❌ [Linux] Retry also failed ($e2). Skipping to next…');
+            // Try the track after that to avoid permanent freeze.
+            final fallback = next + 1;
+            if (fallback < _currentQueue.length) {
+              final fallbackPaths = await _precomputeOfflinePaths(_currentQueue);
+              try {
+                await _linuxLoadTrack(fallback, fallbackPaths);
+                if (!player.playing) await player.play();
+              } catch (_) {
+                debugPrint('❌ [Linux] Fallback also failed. Player stopped.');
+              }
+            }
+          }
+        }
+      }
     });
   }
 
@@ -924,7 +977,47 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  Future<void> _recoverStuckPlayer() async {
+    final int index = currentIndex;
+    final Duration pos = player.position;
+    final bool wasPlaying = player.playing;
+
+    debugPrint('⚠️ [NaviAudioHandler] Stuck player detected at track index $index, position $pos. Attempting recovery...');
+
+    try {
+      // 1. Stop player to close hung network connections/decoders
+      await player.stop();
+      await Future.delayed(const Duration(seconds: 1));
+
+      // 2. Re-resolve paths and reload source
+      if (_isLinux) {
+        final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+        await _linuxLoadTrack(index, offlinePaths, initialPosition: pos);
+      } else {
+        await _rebuildSource(index, initialPosition: pos);
+      }
+
+      // 3. Resume if it was playing
+      if (wasPlaying) {
+        await player.play();
+      }
+      debugPrint('✅ [NaviAudioHandler] Stuck player recovery successful!');
+    } catch (e) {
+      debugPrint('❌ [NaviAudioHandler] Stuck player recovery failed: $e. Skipping to next track...');
+      try {
+        await skipToNext();
+        if (wasPlaying) {
+          await player.play();
+        }
+      } catch (e2) {
+        debugPrint('❌ [NaviAudioHandler] Skip to next track also failed: $e2. Player stopped.');
+      }
+    }
+  }
+
   Future<void> dispose() async {
+    _stuckTimer?.cancel();
+    _stuckTimer = null;
     for (final s in _subscriptions) {
       await s.cancel();
     }

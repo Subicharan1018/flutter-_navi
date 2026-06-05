@@ -311,9 +311,8 @@ final shuffleQueueProvider =
 // ---------------------------------------------------------------------------
 
 /// Call this to send feedback without waiting for a result.
-/// No-ops when no active session exists (i.e. initSession() was never
-/// called for the current playback context), preventing unauthenticated
-/// 401 requests for ad-hoc / non-AI-shuffle playback.
+/// No-ops if initSession() was never called (cold-start edge case before
+/// any song plays). All normal playback paths call initSession() first.
 void sendShuffleFeedback(Ref ref, FeedbackRequest request) {
   final notifier = ref.read(shuffleQueueProvider.notifier);
   if (!notifier.hasActiveSession) {

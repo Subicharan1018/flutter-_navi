@@ -113,12 +113,14 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
         return;
       }
 
-      // Clean session boundary BEFORE playback starts, but AFTER capturing resolved
+      // Clean preview batches BEFORE playback starts
       final notifier = ref.read(shuffleQueueProvider.notifier);
       notifier.clearQueue();  // Wipes preview batches + playedTitles
-      notifier.initSession(); // Fresh sessionId for real playback
 
       await ref.read(playerProvider.notifier).setQueue(resolved, 0);
+
+      // Fresh sessionId for real playback AFTER setQueue clears history
+      notifier.initSession();
 
       if (!mounted) return;
       // Navigate to Now Playing screen instead of popping to a black screen

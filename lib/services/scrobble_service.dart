@@ -62,11 +62,7 @@ class ScrobbleService {
 
     // ── Listening log ────────────────────────────────────────────────────────
     if (song != null) {
-      // Resolve the full cover art URL using the existing SubsonicService client.
-      final coverArtUrl = song.coverArt.isNotEmpty
-          ? _api.getCoverArtUrl(song.coverArt)
-          : null;
-      unawaited(_listeningLog.logPlay(song: song, coverArtUrl: coverArtUrl));
+      unawaited(_listeningLog.logPlay(song: song));
     }
   }
 }

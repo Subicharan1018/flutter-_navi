@@ -610,7 +610,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _queueOpLock = completer;
     try {
       _clearHistory(); // also calls shuffleNotifier.clearQueue() → _sessionId = null
-      _ref.read(shuffleQueueProvider.notifier).initSession(); // new session UUID
+      _ref.read(shuffleQueueProvider.notifier).initSession(); // start session so feedback fires
       _playlistPool = []; // clear pool — not a playlist-shuffle context
       _nextSourceContext = 'user_queue';
       _nextTransitionType = 'user_selected';
@@ -673,8 +673,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final completer = Completer<void>();
     _queueOpLock = completer;
     try {
-      _clearHistory(); // calls shuffleNotifier.clearQueue() → _sessionId = null
-      _ref.read(shuffleQueueProvider.notifier).initSession(); // AFTER clear — new UUID
+      _clearHistory();
       _nextSourceContext = 'playlist';
       _nextTransitionType = 'user_selected';
       _currentPlaylistName = playlistName;
@@ -685,6 +684,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (!shuffle) {
         _playlistPool = [];
         _suppressDepth++;
+        _ref.read(shuffleQueueProvider.notifier).initSession(); // session for feedback
         try {
           state = state.copyWith(
             shuffleMode: false,
@@ -720,6 +720,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
           // 3. Ask server to order the first batch relative to seed.
           final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
+          shuffleNotifier.initSession(); // Fix: Ensure session exists for feedback
           List<Song>? ordered;
           try {
             final candidateTitles = firstBatch.map((s) => s.title).toList();

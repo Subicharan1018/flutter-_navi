@@ -75,7 +75,7 @@ Future<void> main() async {
         androidNotificationChannelId: 'com.navivibe.audio',
         androidNotificationChannelName: 'NaviVibe',
         androidNotificationOngoing: false,
-        androidStopForegroundOnPause: false,
+        androidStopForegroundOnPause: true,
       ),
     );
   } catch (e, st) {

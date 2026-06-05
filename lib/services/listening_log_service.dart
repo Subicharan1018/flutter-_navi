@@ -45,6 +45,8 @@ class _QueueEntry {
   _QueueEntry withIncrementedRetries() => _QueueEntry(retries + 1, payload);
 }
 
+enum _PostResult { ok, authError, networkError }
+
 class ListeningLogService {
   final http.Client _client;
   final String? _baseUrl;
@@ -77,9 +79,13 @@ class ListeningLogService {
   /// If [_baseUrl] is not configured the call is a silent no-op.
   /// On network failure the payload is persisted to the retry queue.
   ///
-  /// [coverArtUrl] is the fully-resolved cover art URL (built by the caller
-  /// from SubsonicService.getCoverArtUrl). Optional — omitted if null.
-  Future<void> logPlay({required Song song, String? coverArtUrl}) async {
+  /// Posts a listening log entry to the FastAPI server.
+  ///
+  /// Call this fire-and-forget (via [unawaited]) from the scrobble path.
+  /// If [_baseUrl] is not configured the call is a silent no-op.
+  /// On network failure the payload is persisted to the retry queue.
+  /// Auth failures (401) are logged but NOT queued — they indicate wrong creds.
+  Future<void> logPlay({required Song song}) async {
     if (_baseUrl == null || _baseUrl.isEmpty) {
       debugPrint('[ListeningLog] ⏭ No server URL configured — skipping');
       return;
@@ -94,15 +100,16 @@ class ListeningLogService {
 
     final payload = _buildPayload(
       song: song,
-      coverArtUrl: coverArtUrl,
       now: now,
       sessionId: _sessionId,
     );
 
-    final success = await _post(payload);
-    if (!success) {
+    final result = await _post(payload);
+    if (result == _PostResult.networkError) {
       await _queueFailedLog(payload);
     }
+    // Auth failures (401) are not queued — they will never succeed with the
+    // same credentials. They surface as a debugPrint warning instead.
   }
 
   /// Retries all queued payloads. Call this on app foreground.
@@ -130,10 +137,13 @@ class ListeningLogService {
       }
 
       final payload = jsonDecode(entry.payload) as Map<String, dynamic>;
-      final success = await _post(payload);
-      if (success) {
+      final result = await _post(payload);
+      if (result == _PostResult.ok) {
         debugPrint('[ListeningLog] ✅ Flushed queued entry');
         // don't add to remaining — it's done
+      } else if (result == _PostResult.authError) {
+        debugPrint('[ListeningLog] ⚠️ Dropping queued entry — auth failed (401)');
+        // Drop auth failures: they'll never succeed with the same credentials.
       } else {
         remaining.add(entry.withIncrementedRetries().serialize());
       }
@@ -161,23 +171,15 @@ class ListeningLogService {
     required Song song,
     required DateTime now,
     required String sessionId,
-    String? coverArtUrl,
   }) {
+    // Matches POST /feedback schema (api_refernce.md).
+    // Only fields the server actually uses are sent.
     return {
       'title': song.title,
-      'artist': song.artist,
-      'album': song.album.isEmpty ? null : song.album,
-      'duration_s': song.duration,
-      'source': 'subsonic',
-      'song_id': song.id,
-      'cover_art': coverArtUrl,
-      'played_at': now.toIso8601String(),
-      'session_id': sessionId,
-      
-      // Added required fields for /feedback schema
-      'composer': song.artist,
+      'composer': song.composer.isNotEmpty ? song.composer : song.artist,
       'listen_ratio': 1.0,
       'end_reason': 'natural',
+      'session_id': sessionId,
       'session_depth': 1,
     };
   }
@@ -188,7 +190,7 @@ class ListeningLogService {
   // HTTP POST
   // ---------------------------------------------------------------------------
 
-  Future<bool> _post(Map<String, dynamic> payload) async {
+  Future<_PostResult> _post(Map<String, dynamic> payload) async {
     try {
       final uri = Uri.parse(
         '${_baseUrl!.replaceAll(RegExp(r'/+$'), '')}$_logPath',
@@ -210,12 +212,18 @@ class ListeningLogService {
           .post(uri, headers: headers, body: jsonEncode(payload))
           .timeout(const Duration(seconds: 10));
 
-      final ok = response.statusCode >= 200 && response.statusCode < 300;
       debugPrint('[ListeningLog] POST $uri → ${response.statusCode}');
-      return ok;
+      if (response.statusCode >= 200 && response.statusCode < 300) {
+        return _PostResult.ok;
+      }
+      if (response.statusCode == 401) {
+        debugPrint('[ListeningLog] ⚠️ 401 — check Navidrome credentials in Settings');
+        return _PostResult.authError;
+      }
+      return _PostResult.networkError;
     } catch (e) {
       debugPrint('[ListeningLog] ❌ POST failed: $e');
-      return false;
+      return _PostResult.networkError;
     }
   }
 
@@ -261,11 +269,9 @@ final listeningLogServiceProvider = Provider<ListeningLogService>((ref) {
   return ListeningLogService(
     client: subsonic.client,
     baseUrl: settings.loggingApiUrl.isEmpty ? null : settings.loggingApiUrl,
-    webdavUser: settings.webdavUsername.isEmpty
-        ? null
-        : settings.webdavUsername,
-    webdavPass: settings.webdavPassword.isEmpty
-        ? null
-        : settings.webdavPassword,
+    // The shuffle server uses Navidrome Basic Auth (username:password),
+    // NOT the WebDAV credentials. Use the primary Navidrome creds here.
+    webdavUser: settings.username.isEmpty ? null : settings.username,
+    webdavPass: settings.password.isEmpty ? null : settings.password,
   );
 });
