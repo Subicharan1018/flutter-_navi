@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 import 'dart:math' as math;
 
+
 import '../core/theme.dart';
+import '../providers/library_provider.dart';
+
 import '../widgets/navi_ui.dart';
 import '../widgets/contribution_graph.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
@@ -100,44 +104,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             statsAsync.when(
               data: (stats) => SliverPadding(
                 padding: const EdgeInsets.fromLTRB(s16, s20, s16, 0),
-                sliver: SliverList(
-                  delegate: SliverChildListDelegate([
-                    // Metrics
-                    _MetricsRow(stats: stats, tokens: tokens),
-                    const SizedBox(height: s24),
-
-                    HourlyHeatmap(heatmapData: stats.hourlyHeatmap),
-                    const SizedBox(height: s24),
-
-                    GenreRadarChart(genres: stats.genreBreakdown),
-                    const SizedBox(height: s24),
-
-                    const ContributionGraphCard(),
-                    const SizedBox(height: s24),
-
-                    ListeningLineChart(
-                      spots: _buildLineSpots(stats),
-                      labels: _buildLineLabels(stats),
-                    ),
-                    const SizedBox(height: s24),
-
-                    _Label(text: 'Top artists', tokens: tokens),
-                    const SizedBox(height: s12),
-                    _TopArtistsList(artists: stats.topArtists),
-                    const SizedBox(height: s24),
-
-                    _Label(text: 'Top tracks', tokens: tokens),
-                    const SizedBox(height: s12),
-                    _TopTracksList(tracks: stats.topTracks),
-                    const SizedBox(height: s24),
-
-                    modelAsync.when(
-                      data: (m) => ModelStatusCard(status: m),
-                      loading: () => const NaviSkeleton(height: 140),
-                      error: (_, __) => const SizedBox.shrink(),
-                    ),
-                    const SizedBox(height: 48),
-                  ]),
+                sliver: SliverToBoxAdapter(
+                  child: LayoutBuilder(
+                    builder: (context, constraints) {
+                      final isWide = constraints.maxWidth > 950;
+                      if (isWide) {
+                        return _buildWideLayout(stats, modelAsync, tokens);
+                      } else {
+                        return _buildNarrowLayout(stats, modelAsync, tokens);
+                      }
+                    },
+                  ),
                 ),
               ),
               loading: () => SliverPadding(
@@ -186,6 +163,154 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildWideLayout(
+    ListeningStatsResponse stats,
+    AsyncValue<ModelStatusResponse> modelAsync,
+    AppThemeTokens tokens,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // Row 1: Metrics on Left (4), Listening over time (Line Chart) on Right (6)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              flex: 4,
+              child: _MetricsRow(stats: stats, tokens: tokens),
+            ),
+            const SizedBox(width: s24),
+            Expanded(
+              flex: 6,
+              child: ListeningLineChart(
+                spots: _buildLineSpots(stats),
+                labels: _buildLineLabels(stats),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: s24),
+
+        // Row 2: Listening Hours (Heatmap) on Left, Genre Mix (Radar) on Right
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: HourlyHeatmap(heatmapData: stats.hourlyHeatmap),
+            ),
+            const SizedBox(width: s24),
+            Expanded(
+              child: GenreRadarChart(genres: stats.genreBreakdown),
+            ),
+          ],
+        ),
+        const SizedBox(height: s24),
+
+        // Row 3: Top Artists side-by-side with Top Tracks
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(
+              child: PremiumCard(
+                padding: const EdgeInsets.all(s20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Label(text: 'Top artists', tokens: tokens),
+                    const SizedBox(height: s12),
+                    _TopArtistsList(artists: stats.topArtists),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(width: s24),
+            Expanded(
+              child: PremiumCard(
+                padding: const EdgeInsets.all(s20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    _Label(text: 'Top tracks', tokens: tokens),
+                    const SizedBox(height: s12),
+                    _TopTracksList(tracks: stats.topTracks),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: s24),
+
+        // Row 4: Consistency (Contribution Graph) on Left (65), AI Model Status on Right (35)
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Expanded(
+              flex: 65,
+              child: ContributionGraphCard(),
+            ),
+            const SizedBox(width: s24),
+            Expanded(
+              flex: 35,
+              child: modelAsync.when(
+                data: (m) => ModelStatusCard(status: m),
+                loading: () => const NaviSkeleton(height: 140),
+                error: (_, __) => const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 48),
+      ],
+    );
+  }
+
+  Widget _buildNarrowLayout(
+    ListeningStatsResponse stats,
+    AsyncValue<ModelStatusResponse> modelAsync,
+    AppThemeTokens tokens,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _MetricsRow(stats: stats, tokens: tokens),
+        const SizedBox(height: s24),
+
+        HourlyHeatmap(heatmapData: stats.hourlyHeatmap),
+        const SizedBox(height: s24),
+
+        GenreRadarChart(genres: stats.genreBreakdown),
+        const SizedBox(height: s24),
+
+        const ContributionGraphCard(),
+        const SizedBox(height: s24),
+
+        ListeningLineChart(
+          spots: _buildLineSpots(stats),
+          labels: _buildLineLabels(stats),
+        ),
+        const SizedBox(height: s24),
+
+        _Label(text: 'Top artists', tokens: tokens),
+        const SizedBox(height: s12),
+        _TopArtistsList(artists: stats.topArtists),
+        const SizedBox(height: s24),
+
+        _Label(text: 'Top tracks', tokens: tokens),
+        const SizedBox(height: s12),
+        _TopTracksList(tracks: stats.topTracks),
+        const SizedBox(height: s24),
+
+        modelAsync.when(
+          data: (m) => ModelStatusCard(status: m),
+          loading: () => const NaviSkeleton(height: 140),
+          error: (_, __) => const SizedBox.shrink(),
+        ),
+        const SizedBox(height: 48),
+      ],
     );
   }
 
@@ -264,7 +389,7 @@ class _CollapsedHeader extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
         Text(
-          'Dashboard',
+          'Listening insights',
           style: TextStyle(
             fontSize: 17,
             fontWeight: FontWeight.w900,
@@ -299,28 +424,45 @@ class _ExpandedHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final mode = tokens.mode;
+    
+    TextStyle titleStyle;
+    if (mode == AppThemeMode.zen) {
+      titleStyle = tokens.textStyle(28, FontWeight.w400, tokens.textPrimary).copyWith(
+        letterSpacing: -0.5,
+        height: 1.1,
+      );
+    } else if (mode == AppThemeMode.analog) {
+      titleStyle = tokens.textStyle(28, FontWeight.w800, tokens.textPrimary).copyWith(
+        letterSpacing: -0.5,
+        height: 1.1,
+      );
+    } else {
+      titleStyle = TextStyle(
+        fontSize: 28,
+        fontWeight: FontWeight.w900,
+        color: tokens.textPrimary,
+        letterSpacing: -0.8,
+        height: 1.1,
+      );
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Listening intelligence',
+          'Listening insights',
+          style: titleStyle,
+        ),
+        const SizedBox(height: 3),
+        Text(
+          'Your library footprint and sonic patterns',
           style: TextStyle(
-            fontSize: 10,
+            fontSize: 11,
             fontWeight: FontWeight.w500,
             color: tokens.textMuted,
-            letterSpacing: 0.2,
-          ),
-        ),
-        const SizedBox(height: 2),
-        Text(
-          'Dashboard',
-          style: TextStyle(
-            fontSize: 30,
-            fontWeight: FontWeight.w900,
-            color: tokens.textPrimary,
-            letterSpacing: -0.8,
-            height: 1.0,
+            letterSpacing: 0.1,
           ),
         ),
       ],
@@ -338,37 +480,161 @@ class _PeriodSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    return Row(
-      children: StatsPeriod.values.map((p) {
-        final isSelected = p == selected;
-        return Padding(
-          padding: const EdgeInsets.only(right: s8),
-          child: GestureDetector(
-            onTap: () => onChanged(p),
-            child: AnimatedContainer(
-              duration: kAnimNormal,
-              padding: const EdgeInsets.symmetric(horizontal: s16, vertical: 9),
-              decoration: BoxDecoration(
-                color: isSelected ? tokens.accent : Colors.transparent,
-                borderRadius: radiusFull,
-                border: Border.all(
-                  color: isSelected ? tokens.accent : tokens.outline,
-                  width: 1,
-                ),
-              ),
-              child: Text(
-                p.label,
-                style: TextStyle(
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  color: isSelected ? tokens.bgBase : tokens.textSecondary,
-                  letterSpacing: 0.1,
-                ),
-              ),
-            ),
+    final mode = tokens.mode;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    BorderRadius trackRadius = BorderRadius.circular(20);
+    BorderRadius capsuleRadius = BorderRadius.circular(18);
+    Color trackColor = isDark
+        ? Colors.white.withValues(alpha: 0.05)
+        : Colors.black.withValues(alpha: 0.03);
+    Color capsuleColor = tokens.accent;
+    List<BoxShadow> capsuleShadow = [
+      BoxShadow(
+        color: tokens.accent.withValues(alpha: 0.25),
+        blurRadius: 6,
+        offset: const Offset(0, 2),
+      ),
+    ];
+    BoxBorder? trackBorder = Border.all(
+      color: tokens.textPrimary.withValues(alpha: 0.05),
+      width: 0.5,
+    );
+
+    switch (mode) {
+      case AppThemeMode.spotify:
+        trackColor = const Color(0xFF181818);
+        capsuleColor = tokens.accent;
+        capsuleShadow = [];
+        trackBorder = Border.all(color: tokens.outline, width: 1);
+        break;
+      case AppThemeMode.aura:
+        trackColor = tokens.bgElevated;
+        capsuleColor = tokens.accent;
+        capsuleShadow = [
+          BoxShadow(
+            color: tokens.accent.withValues(alpha: 0.35),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
           ),
-        );
-      }).toList(),
+        ];
+        break;
+      case AppThemeMode.frost:
+        trackColor = Colors.white.withValues(alpha: 0.06);
+        capsuleColor = Colors.white.withValues(alpha: 0.2);
+        trackBorder = Border.all(color: tokens.glassBorder, width: 0.5);
+        capsuleShadow = [];
+        break;
+      case AppThemeMode.neumorphic:
+        trackColor = tokens.bgOverlay;
+        capsuleColor = tokens.bgBase;
+        capsuleShadow = [
+          BoxShadow(
+            color: tokens.neuDark.withValues(alpha: 0.6),
+            offset: const Offset(2, 2),
+            blurRadius: 4,
+          ),
+          BoxShadow(
+            color: tokens.neuLight,
+            offset: const Offset(-2, -2),
+            blurRadius: 4,
+          ),
+        ];
+        trackRadius = BorderRadius.circular(12);
+        capsuleRadius = BorderRadius.circular(10);
+        trackBorder = null;
+        break;
+      case AppThemeMode.analog:
+        trackColor = tokens.bgElevated.withValues(alpha: 0.5);
+        capsuleColor = tokens.accent;
+        capsuleShadow = [
+          BoxShadow(
+            color: tokens.accent.withValues(alpha: 0.2),
+            blurRadius: 4,
+            offset: const Offset(0, 2),
+          ),
+        ];
+        trackBorder = Border.all(color: tokens.outline.withValues(alpha: 0.5), width: 1);
+        break;
+      case AppThemeMode.zen:
+        trackColor = tokens.bgSurface;
+        capsuleColor = tokens.textPrimary;
+        capsuleShadow = [];
+        trackRadius = BorderRadius.zero;
+        capsuleRadius = BorderRadius.zero;
+        trackBorder = Border.all(color: tokens.textPrimary, width: 1);
+        break;
+    }
+
+    return Container(
+      height: 40,
+      padding: const EdgeInsets.all(2),
+      decoration: BoxDecoration(
+        color: trackColor,
+        borderRadius: trackRadius,
+        border: trackBorder,
+      ),
+      child: LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
+          final tabWidth = width / StatsPeriod.values.length;
+          final selectedIndex = StatsPeriod.values.indexOf(selected);
+
+          return Stack(
+            children: [
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 250),
+                curve: Curves.easeOutQuart,
+                left: selectedIndex * tabWidth,
+                width: tabWidth,
+                height: 36,
+                child: Container(
+                  decoration: BoxDecoration(
+                    color: capsuleColor,
+                    borderRadius: capsuleRadius,
+                    boxShadow: capsuleShadow,
+                  ),
+                ),
+              ),
+              Row(
+                children: StatsPeriod.values.asMap().entries.map((entry) {
+                  final idx = entry.key;
+                  final p = entry.value;
+                  final isSelected = idx == selectedIndex;
+
+                  Color textColor;
+                  if (isSelected) {
+                    textColor = mode == AppThemeMode.zen 
+                        ? tokens.bgBase 
+                        : (mode == AppThemeMode.frost ? tokens.textPrimary : tokens.bgBase);
+                  } else {
+                    textColor = tokens.textSecondary;
+                  }
+
+                  return Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onChanged(p),
+                      child: Center(
+                        child: AnimatedDefaultTextStyle(
+                          duration: const Duration(milliseconds: 200),
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w700,
+                            color: textColor,
+                            letterSpacing: 0.1,
+                          ),
+                          child: Text(p.label),
+                        ),
+                      ),
+                    ),
+                  );
+                }).toList(),
+              ),
+            ],
+          );
+        },
+      ),
     );
   }
 }
@@ -386,129 +652,202 @@ class _MetricsRow extends StatelessWidget {
     Color skipColor = tokens.accent;
     if (skipRate > 20) {
       skipColor = Theme.of(context).colorScheme.error;
-    } else if (skipRate >= 10)
+    } else if (skipRate >= 10) {
       skipColor = const Color(0xFFFFD700);
+    }
 
-    return Column(
+    return GridView.count(
+      crossAxisCount: 2,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      crossAxisSpacing: s16,
+      mainAxisSpacing: s16,
+      childAspectRatio: 1.45,
       children: [
-        // ── Primary pair: big editorial numbers ────────────────────────
-        IntrinsicHeight(
-          child: Row(
-            children: [
-              Expanded(
-                child: _BigMetric(
-                  value: stats.totalPlays,
-                  label: 'Plays',
-                  accent: tokens.accent,
-                  tokens: tokens,
-                ),
-              ),
-              Container(
-                width: 0.5,
-                margin: const EdgeInsets.symmetric(vertical: 8),
-                color: tokens.textPrimary.withValues(alpha: 0.1),
-              ),
-              Expanded(
-                child: _BigMetric(
-                  value: stats.totalMinutes,
-                  label: 'Minutes',
-                  accent: const Color(0xFF64D2FF),
-                  tokens: tokens,
-                ),
-              ),
-            ],
-          ),
+        _MetricCard(
+          label: 'Plays',
+          value: _fmtValue(stats.totalPlays),
+          rawNumber: stats.totalPlays,
+          subtitle: 'tracks streamed',
+          icon: Icons.play_arrow_rounded,
+          accent: tokens.accent,
+          tokens: tokens,
         ),
-        Container(height: 0.5, color: tokens.textPrimary.withValues(alpha: 0.08)),
-        // ── Secondary pair ──────────────────────────────────────────────
-        IntrinsicHeight(
-          child: Row(
-            children: [
-              Expanded(
-                child: _SmallMetric(
-                  value: '$skipRate%',
-                  label: 'Skip rate',
-                  valueColor: skipColor,
-                  tokens: tokens,
-                ),
-              ),
-              Container(
-                width: 0.5,
-                margin: const EdgeInsets.symmetric(vertical: 6),
-                color: tokens.textPrimary.withValues(alpha: 0.1),
-              ),
-              Expanded(
-                child: _SmallMetric(
-                  value: stats.streakDays > 3
-                      ? '${stats.streakDays} 🔥'
-                      : '${stats.streakDays}d',
-                  label: 'Streak',
-                  valueColor: stats.streakDays > 3
-                      ? const Color(0xFF1DB954)
-                      : tokens.textPrimary,
-                  tokens: tokens,
-                ),
-              ),
-            ],
-          ),
+        _MetricCard(
+          label: 'Minutes',
+          value: _fmtValue(stats.totalMinutes),
+          rawNumber: stats.totalMinutes,
+          subtitle: 'total airtime',
+          icon: Icons.headset_rounded,
+          accent: const Color(0xFF64D2FF),
+          tokens: tokens,
+        ),
+        _MetricCard(
+          label: 'Skip rate',
+          value: '$skipRate%',
+          subtitle: 'tracks skipped',
+          icon: Icons.skip_next_rounded,
+          accent: skipColor,
+          tokens: tokens,
+        ),
+        _MetricCard(
+          label: 'Streak',
+          value: stats.streakDays > 3 ? '${stats.streakDays}d 🔥' : '${stats.streakDays}d',
+          subtitle: 'consecutive days',
+          icon: Icons.local_fire_department_rounded,
+          accent: stats.streakDays > 3 ? const Color(0xFFFF9500) : tokens.textPrimary,
+          tokens: tokens,
         ),
       ],
     );
   }
+
+  String _fmtValue(int v) {
+    if (v >= 1000) {
+      final k = v / 1000;
+      return '${k.toStringAsFixed(k.truncateToDouble() == k ? 0 : 1)}k';
+    }
+    return v.toString();
+  }
 }
 
-class _BigMetric extends StatelessWidget {
-  final int value;
+class _MetricCard extends StatefulWidget {
   final String label;
+  final String value;
+  final int? rawNumber;
+  final String subtitle;
+  final IconData icon;
   final Color accent;
   final AppThemeTokens tokens;
-  const _BigMetric({
-    required this.value,
+
+  const _MetricCard({
     required this.label,
+    required this.value,
+    this.rawNumber,
+    required this.subtitle,
+    required this.icon,
     required this.accent,
     required this.tokens,
   });
 
   @override
+  State<_MetricCard> createState() => _MetricCardState();
+}
+
+class _MetricCardState extends State<_MetricCard> {
+  bool _isPressed = false;
+
+  @override
   Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(0, 0, 0, s16),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Container(
-            width: 28,
-            height: 2,
-            decoration: BoxDecoration(color: accent, borderRadius: radiusFull),
-          ),
-          const SizedBox(height: s8),
-          TweenAnimationBuilder<int>(
-            tween: IntTween(begin: 0, end: value),
-            duration: const Duration(milliseconds: 900),
-            curve: Curves.easeOutCubic,
-            builder: (_, val, __) => Text(
-              _fmt(val),
-              style: TextStyle(
-                fontSize: 42,
+    final tokens = widget.tokens;
+    final mode = tokens.mode;
+
+    final numberStyle = mode == AppThemeMode.zen
+        ? tokens.textStyle(32, FontWeight.w400, tokens.textPrimary).copyWith(
+              letterSpacing: -1.0,
+              height: 1.0,
+            )
+        : (mode == AppThemeMode.analog
+            ? tokens.textStyle(30, FontWeight.w800, tokens.textPrimary).copyWith(
+                  letterSpacing: -0.5,
+                  height: 1.0,
+                )
+            : TextStyle(
+                fontSize: 32,
                 fontWeight: FontWeight.w900,
                 color: tokens.textPrimary,
                 letterSpacing: -1.0,
                 height: 1.0,
                 fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              ));
+
+    Widget content = PremiumCard(
+      padding: const EdgeInsets.all(s16),
+      child: Stack(
+        children: [
+          Positioned(
+            right: -10,
+            bottom: -10,
+            child: Icon(
+              widget.icon,
+              size: 72,
+              color: widget.accent.withValues(alpha: 0.04),
             ),
           ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: tokens.textMuted,
-              letterSpacing: 0.2,
-            ),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    widget.label,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w600,
+                      color: tokens.textMuted,
+                      letterSpacing: 0.2,
+                    ),
+                  ),
+                  Container(
+                    width: 6,
+                    height: 6,
+                    decoration: BoxDecoration(
+                      color: widget.accent,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
+              ),
+              const SizedBox(height: s8),
+              Expanded(
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: widget.rawNumber != null
+                      ? TweenAnimationBuilder<int>(
+                          tween: IntTween(begin: 0, end: widget.rawNumber!),
+                          duration: const Duration(milliseconds: 900),
+                          curve: Curves.easeOutCubic,
+                          builder: (_, val, __) => Text(
+                            _fmt(val),
+                            style: numberStyle,
+                          ),
+                        )
+                      : Text(
+                          widget.value,
+                          style: numberStyle,
+                        ),
+                ),
+              ),
+              const SizedBox(height: s4),
+              Text(
+                widget.subtitle,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: tokens.textMuted.withValues(alpha: 0.8),
+                ),
+              ),
+            ],
           ),
         ],
+      ),
+    );
+
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _isPressed = true),
+      onTapUp: (_) => setState(() => _isPressed = false),
+      onTapCancel: () => setState(() => _isPressed = false),
+      onTap: () {},
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: AnimatedScale(
+          duration: const Duration(milliseconds: 150),
+          scale: _isPressed ? 0.96 : 1.0,
+          curve: Curves.easeOutBack,
+          child: content,
+        ),
       ),
     );
   }
@@ -522,73 +861,39 @@ class _BigMetric extends StatelessWidget {
   }
 }
 
-class _SmallMetric extends StatelessWidget {
-  final String value;
-  final String label;
-  final Color valueColor;
-  final AppThemeTokens tokens;
-  const _SmallMetric({
-    required this.value,
-    required this.label,
-    required this.valueColor,
-    required this.tokens,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: s12),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            value,
-            style: TextStyle(
-              fontSize: 26,
-              fontWeight: FontWeight.w900,
-              color: valueColor,
-              letterSpacing: -1.0,
-              height: 1.0,
-              fontFeatures: const [FontFeature.tabularFigures()],
-            ),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            label,
-            style: TextStyle(
-              fontSize: 11,
-              fontWeight: FontWeight.w500,
-              color: tokens.textMuted,
-              letterSpacing: 0.2,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
 // ── Hourly Heatmap ────────────────────────────────────────────────────────────
 
-class HourlyHeatmap extends StatelessWidget {
+class HourlyHeatmap extends StatefulWidget {
   final Map<String, int> heatmapData;
   const HourlyHeatmap({super.key, required this.heatmapData});
 
   @override
+  State<HourlyHeatmap> createState() => _HourlyHeatmapState();
+}
+
+class _HourlyHeatmapState extends State<HourlyHeatmap> {
+  int? _selectedHour;
+
+  @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final maxCount = heatmapData.values.fold(0, (a, b) => a > b ? a : b);
+    final mode = tokens.mode;
+    final maxCount = widget.heatmapData.values.fold(0, (a, b) => a > b ? a : b);
     if (maxCount == 0) return const SizedBox.shrink();
 
     int peakHour = 0;
-    heatmapData.forEach((hour, count) {
+    widget.heatmapData.forEach((hour, count) {
       if (count == maxCount) peakHour = int.parse(hour);
     });
-    final amPm = peakHour >= 12 ? 'pm' : 'am';
-    final displayHour = peakHour % 12 == 0 ? 12 : peakHour % 12;
 
-    return NaviCard(
-      // More vertical padding so this card breathes
+    final displayHour = _selectedHour ?? peakHour;
+    final amPm = displayHour >= 12 ? 'pm' : 'am';
+    final hr12 = displayHour % 12 == 0 ? 12 : displayHour % 12;
+    
+    final displayCount = widget.heatmapData[displayHour.toString()] ?? 0;
+    final labelText = _selectedHour != null ? 'plays' : 'peak hour';
+
+    return PremiumCard(
       padding: const EdgeInsets.fromLTRB(s20, s20, s20, s20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -611,17 +916,41 @@ class HourlyHeatmap extends StatelessWidget {
                 crossAxisAlignment: CrossAxisAlignment.end,
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Text(
-                    '$displayHour$amPm',
-                    style: TextStyle(
-                      fontSize: 26,
-                      fontWeight: FontWeight.w900,
-                      color: tokens.accent,
-                      letterSpacing: -1,
-                    ),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (_selectedHour != null) ...[
+                        Text(
+                          '$displayCount ',
+                          style: TextStyle(
+                            fontSize: 26,
+                            fontWeight: FontWeight.w900,
+                            color: tokens.accent,
+                            letterSpacing: -1,
+                          ),
+                        ),
+                        Text(
+                          'at ',
+                          style: TextStyle(
+                            fontSize: 12,
+                            fontWeight: FontWeight.w500,
+                            color: tokens.textMuted,
+                          ),
+                        ),
+                      ],
+                      Text(
+                        '$hr12$amPm',
+                        style: TextStyle(
+                          fontSize: 26,
+                          fontWeight: FontWeight.w900,
+                          color: _selectedHour != null ? tokens.textPrimary : tokens.accent,
+                          letterSpacing: -1,
+                        ),
+                      ),
+                    ],
                   ),
                   Text(
-                    'peak hour',
+                    labelText,
                     style: TextStyle(
                       fontSize: 10,
                       fontWeight: FontWeight.w500,
@@ -632,59 +961,124 @@ class HourlyHeatmap extends StatelessWidget {
               ),
             ],
           ),
-          // More space before bars
           const SizedBox(height: s24),
-          // Taller bars — 110px instead of 68px
           SizedBox(
             height: 110,
             child: Row(
               crossAxisAlignment: CrossAxisAlignment.end,
               children: List.generate(24, (hour) {
-                final count = heatmapData[hour.toString()] ?? 0;
+                final count = widget.heatmapData[hour.toString()] ?? 0;
                 final intensity = maxCount > 0 ? count / maxCount : 0.0;
-                // Min bar height 8px, max 80px — much more readable range
                 final barH = 8.0 + intensity * 72.0;
                 final isPeak = hour == peakHour;
+                final isSelected = hour == _selectedHour;
+
+                BorderRadius barRadius = const BorderRadius.vertical(top: Radius.circular(3));
+                BoxDecoration? decoration;
+
+                if (mode == AppThemeMode.zen) {
+                  barRadius = BorderRadius.zero;
+                  decoration = BoxDecoration(
+                    color: isSelected 
+                        ? tokens.textPrimary 
+                        : tokens.textPrimary.withValues(alpha: 0.12 + intensity * 0.6),
+                    border: Border.all(
+                      color: tokens.textPrimary,
+                      width: isSelected ? 1.0 : 0.5,
+                    ),
+                  );
+                } else if (mode == AppThemeMode.aura) {
+                  barRadius = BorderRadius.circular(4);
+                  decoration = BoxDecoration(
+                    borderRadius: barRadius,
+                    gradient: LinearGradient(
+                      colors: [
+                        tokens.accent.withValues(alpha: 0.15),
+                        tokens.accent.withValues(
+                          alpha: isSelected ? 1.0 : (0.2 + intensity * 0.7),
+                        ),
+                      ],
+                      begin: Alignment.bottomCenter,
+                      end: Alignment.topCenter,
+                    ),
+                    boxShadow: isSelected || isPeak
+                        ? [
+                            BoxShadow(
+                              color: tokens.accent.withValues(alpha: 0.3),
+                              blurRadius: 4,
+                              spreadRadius: 0.5,
+                            )
+                          ]
+                        : null,
+                  );
+                } else if (mode == AppThemeMode.analog) {
+                  barRadius = BorderRadius.circular(6);
+                  decoration = BoxDecoration(
+                    color: isSelected
+                        ? tokens.accent
+                        : tokens.accent.withValues(alpha: 0.18 + intensity * 0.65),
+                    borderRadius: barRadius,
+                    border: Border.all(
+                      color: tokens.outline.withValues(alpha: 0.3),
+                      width: 0.5,
+                    ),
+                  );
+                } else {
+                  decoration = BoxDecoration(
+                    color: isSelected
+                        ? tokens.accent
+                        : (isPeak
+                            ? tokens.accent
+                            : tokens.accent.withValues(alpha: 0.12 + intensity * 0.60)),
+                    borderRadius: barRadius,
+                  );
+                }
 
                 return Expanded(
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 1.2),
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.end,
-                      children: [
-                        AnimatedContainer(
-                          duration: MediaQuery.of(context).disableAnimations ? Duration.zero : kAnimSlow,
-                          height: barH,
-                          decoration: BoxDecoration(
-                            color: isPeak
-                                ? tokens.accent
-                                : tokens.accent.withValues(alpha:
-                                    0.12 + intensity * 0.60,
-                                  ),
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(3),
-                            ),
+                    child: GestureDetector(
+                      onTap: () {
+                        setState(() {
+                          if (_selectedHour == hour) {
+                            _selectedHour = null;
+                          } else {
+                            _selectedHour = hour;
+                          }
+                        });
+                      },
+                      child: Column(
+                        mainAxisAlignment: MainAxisAlignment.end,
+                        children: [
+                          AnimatedContainer(
+                            duration: MediaQuery.of(context).disableAnimations
+                                ? Duration.zero
+                                : kAnimNormal,
+                            height: barH,
+                            decoration: decoration,
                           ),
-                        ),
-                        const SizedBox(height: 6),
-                        if (hour % 6 == 0)
-                          Text(
-                            hour == 0
-                                ? '12a'
-                                : hour == 12
-                                ? '12p'
-                                : hour < 12
-                                ? '${hour}a'
-                                : '${hour - 12}p',
-                            style: TextStyle(
-                              color: isPeak ? tokens.accent : tokens.textMuted,
-                              fontSize: 9,
-                              fontWeight: FontWeight.w600,
-                            ),
-                          )
-                        else
-                          const SizedBox(height: 11),
-                      ],
+                          const SizedBox(height: 6),
+                          if (hour % 6 == 0)
+                            Text(
+                              hour == 0
+                                  ? '12a'
+                                  : hour == 12
+                                      ? '12p'
+                                      : hour < 12
+                                          ? '${hour}a'
+                                          : '${hour - 12}p',
+                              style: TextStyle(
+                                color: isSelected
+                                    ? tokens.accent
+                                    : (isPeak ? tokens.accent : tokens.textMuted),
+                                fontSize: 9,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            )
+                          else
+                            const SizedBox(height: 11),
+                        ],
+                      ),
                     ),
                   ),
                 );
@@ -712,7 +1106,7 @@ class GenreRadarChart extends StatelessWidget {
     final maxPct = top.fold(0.0, (a, b) => math.max(a, _double(b['pct'])));
     if (maxPct == 0) return const SizedBox.shrink();
 
-    return NaviCard(
+    return PremiumCard(
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -852,6 +1246,7 @@ class ListeningLineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
+    final mode = tokens.mode;
 
     bool isUp = true;
     double pctChange = 0.0;
@@ -865,7 +1260,7 @@ class ListeningLineChart extends StatelessWidget {
     }
 
     if (spots.length < 2) {
-      return NaviCard(
+      return PremiumCard(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -894,7 +1289,7 @@ class ListeningLineChart extends StatelessWidget {
 
     final trendColor = isUp ? const Color(0xFF1DB954) : const Color(0xFFFF6B6B);
 
-    return NaviCard(
+    return PremiumCard(
       padding: EdgeInsets.zero,
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -936,6 +1331,46 @@ class ListeningLineChart extends StatelessWidget {
             height: 140,
             child: LineChart(
               LineChartData(
+                lineTouchData: LineTouchData(
+                  touchTooltipData: LineTouchTooltipData(
+                    getTooltipColor: (touchedSpot) => tokens.bgSurfaceOpaque,
+                    tooltipBorder: BorderSide(
+                      color: tokens.textPrimary.withValues(alpha: 0.1),
+                      width: 0.8,
+                    ),
+                    tooltipBorderRadius: mode == AppThemeMode.zen 
+                        ? BorderRadius.zero 
+                        : BorderRadius.circular(8.0),
+                    getTooltipItems: (touchedSpots) {
+                      return touchedSpots.map((touchedSpot) {
+                        final idx = touchedSpot.x.toInt();
+                        if (idx < 0 || idx >= labels.length) return null;
+                        final dateStr = labels[idx];
+                        final val = touchedSpot.y.toInt();
+                        
+                        return LineTooltipItem(
+                          '$dateStr\n',
+                          TextStyle(
+                            color: tokens.textMuted,
+                            fontSize: 10,
+                            fontWeight: FontWeight.w500,
+                          ),
+                          children: [
+                            TextSpan(
+                              text: '$val ${val == 1 ? 'play' : 'plays'}',
+                              style: TextStyle(
+                                color: mode == AppThemeMode.zen ? tokens.textPrimary : tokens.accent,
+                                fontSize: 12,
+                                fontWeight: FontWeight.bold,
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList();
+                    },
+                  ),
+                  handleBuiltInTouches: true,
+                ),
                 gridData: FlGridData(
                   show: true,
                   drawVerticalLine: false,
@@ -1063,7 +1498,7 @@ class ModelStatusCard extends StatelessWidget {
         : 1.0;
     final isActive = progress < 1.0 || status.unprocessedEvents > 0;
 
-    return NaviCard(
+    return PremiumCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -1274,6 +1709,11 @@ class _TopArtistsList extends StatelessWidget {
         final ratio = maxPlays > 0 ? plays / maxPlays : 0.0;
         final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
+        // Derive high-end visual gradient colors for artist avatar from name hash
+        final hue = (name.hashCode.abs() % 360).toDouble();
+        final color1 = HSLColor.fromAHSL(1.0, hue, 0.65, 0.40).toColor();
+        final color2 = HSLColor.fromAHSL(1.0, (hue + 40) % 360, 0.70, 0.25).toColor();
+
         final rankColor = i == 0
             ? const Color(0xFFFFD700)
             : i == 1
@@ -1283,54 +1723,69 @@ class _TopArtistsList extends StatelessWidget {
             : tokens.textMuted.withValues(alpha: 0.5);
 
         return Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: tokens.textPrimary.withValues(alpha: 0.05),
+                color: tokens.textPrimary.withValues(alpha: 0.04),
                 width: 0.5,
               ),
             ),
           ),
           child: Row(
             children: [
+              // Stylized Rank Number
               SizedBox(
-                width: 26,
+                width: 28,
                 child: Text(
                   '${i + 1}',
                   style: TextStyle(
-                    fontSize: i == 0 ? 20 : 14,
+                    fontSize: i == 0 ? 22 : 15,
                     fontWeight: FontWeight.w900,
                     color: rankColor,
                     letterSpacing: -0.5,
+                    fontStyle: FontStyle.italic,
                     height: 1,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
               const SizedBox(width: s8),
+              // Circular Artist Gradient Avatar
               Container(
-                width: 34,
-                height: 34,
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: tokens.accent.withValues(alpha: 0.10),
-                  borderRadius: BorderRadius.circular(6),
+                  shape: BoxShape.circle,
+                  gradient: LinearGradient(
+                    colors: [color1, color2],
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                  ),
                   border: Border.all(
-                    color: tokens.accent.withValues(alpha: 0.15),
+                    color: tokens.textPrimary.withValues(alpha: 0.1),
                     width: 0.5,
                   ),
+                  boxShadow: [
+                    BoxShadow(
+                      color: color1.withValues(alpha: 0.15),
+                      blurRadius: 6,
+                      spreadRadius: 1,
+                    )
+                  ],
                 ),
                 alignment: Alignment.center,
                 child: Text(
                   initial,
-                  style: TextStyle(
-                    color: tokens.accent,
+                  style: const TextStyle(
+                    color: Colors.white,
                     fontWeight: FontWeight.w800,
                     fontSize: 14,
                   ),
                 ),
               ),
               const SizedBox(width: s12),
+              // Artist Name & Track count bar
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1340,7 +1795,7 @@ class _TopArtistsList extends StatelessWidget {
                       style: TextStyle(
                         color: tokens.textPrimary,
                         fontWeight: FontWeight.w600,
-                        fontSize: 13,
+                        fontSize: 13.5,
                         letterSpacing: -0.2,
                       ),
                       maxLines: 1,
@@ -1354,10 +1809,10 @@ class _TopArtistsList extends StatelessWidget {
                         duration: kAnimSlow,
                         builder: (_, v, __) => LinearProgressIndicator(
                           value: v,
-                          minHeight: 2,
-                          backgroundColor: tokens.textPrimary.withValues(alpha: 0.05),
+                          minHeight: 3,
+                          backgroundColor: tokens.textPrimary.withValues(alpha: 0.04),
                           valueColor: AlwaysStoppedAnimation(
-                            tokens.accent.withValues(alpha: 0.4 + ratio * 0.6),
+                            tokens.accent.withValues(alpha: 0.3 + ratio * 0.7),
                           ),
                         ),
                       ),
@@ -1395,12 +1850,12 @@ class _TopArtistsList extends StatelessWidget {
 
 // ── Top Tracks ────────────────────────────────────────────────────────────────
 
-class _TopTracksList extends StatelessWidget {
+class _TopTracksList extends ConsumerWidget {
   final List<Map<String, dynamic>> tracks;
   const _TopTracksList({required this.tracks});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final tokens = ThemeTokens.of(context);
     if (tracks.isEmpty) return const SizedBox.shrink();
 
@@ -1424,7 +1879,8 @@ class _TopTracksList extends StatelessWidget {
         final plays = t['play_count'] as int? ?? 0;
 
         final hue = (title.hashCode.abs() % 360).toDouble();
-        final hsl = HSLColor.fromAHSL(1.0, hue, 0.60, 0.36).toColor();
+        final color1 = HSLColor.fromAHSL(1.0, hue, 0.60, 0.36).toColor();
+        final color2 = HSLColor.fromAHSL(1.0, (hue + 45) % 360, 0.65, 0.20).toColor();
 
         final ratioRaw = t['avg_listen_ratio'];
         final ratio = ratioRaw is num ? ratioRaw.toDouble() : 1.0;
@@ -1434,46 +1890,75 @@ class _TopTracksList extends StatelessWidget {
             ? const Color(0xFFFFD700)
             : const Color(0xFFFF6B6B);
 
+        final coverUrlAsync = ref.watch(songCoverUrlProvider('$title|$artist'));
+
+        final rankColor = i == 0
+            ? const Color(0xFFFFD700)
+            : i == 1
+            ? const Color(0xFFCCCCCC)
+            : i == 2
+            ? const Color(0xFFCD7F32)
+            : tokens.textMuted.withValues(alpha: 0.5);
+
         return Container(
-          padding: const EdgeInsets.symmetric(vertical: 11),
+          padding: const EdgeInsets.symmetric(vertical: 12),
           decoration: BoxDecoration(
             border: Border(
               bottom: BorderSide(
-                color: tokens.textPrimary.withValues(alpha: 0.05),
+                color: tokens.textPrimary.withValues(alpha: 0.04),
                 width: 0.5,
               ),
             ),
           ),
           child: Row(
             children: [
+              // Stylized Rank Number
               SizedBox(
-                width: 20,
+                width: 28,
                 child: Text(
                   '${i + 1}',
                   style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textMuted,
+                    fontSize: i == 0 ? 22 : 15,
+                    fontWeight: FontWeight.w900,
+                    color: rankColor,
+                    letterSpacing: -0.5,
+                    fontStyle: FontStyle.italic,
+                    height: 1,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
               const SizedBox(width: s8),
+              // Rounded Square Album Art with Double Rim Highlight (Double-Bezel concept)
               Container(
                 width: 38,
                 height: 38,
                 decoration: BoxDecoration(
-                  color: hsl,
                   borderRadius: BorderRadius.circular(6),
+                  border: Border.all(
+                    color: tokens.textPrimary.withValues(alpha: 0.08),
+                    width: 0.5,
+                  ),
                 ),
-                alignment: Alignment.center,
-                child: const Icon(
-                  Icons.music_note_rounded,
-                  color: Colors.white70,
-                  size: 17,
+                padding: const EdgeInsets.all(2),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: coverUrlAsync.when(
+                    data: (url) => url != null && url.isNotEmpty
+                        ? CachedNetworkImage(
+                            imageUrl: url,
+                            fit: BoxFit.cover,
+                            placeholder: (_, __) => _placeholder(color1, color2),
+                            errorWidget: (_, __, ___) => _placeholder(color1, color2),
+                          )
+                        : _placeholder(color1, color2),
+                    loading: () => _placeholder(color1, color2),
+                    error: (_, __) => _placeholder(color1, color2),
+                  ),
                 ),
               ),
               const SizedBox(width: s12),
+              // Song Info and listen ratio bar
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1504,10 +1989,8 @@ class _TopTracksList extends StatelessWidget {
                             borderRadius: radiusFull,
                             child: LinearProgressIndicator(
                               value: ratio,
-                              minHeight: 2,
-                              backgroundColor: tokens.textPrimary.withValues(alpha:
-                                0.05,
-                              ),
+                              minHeight: 3,
+                              backgroundColor: tokens.textPrimary.withValues(alpha: 0.04),
                               valueColor: AlwaysStoppedAnimation(ratioColor),
                             ),
                           ),
@@ -1526,7 +2009,6 @@ class _TopTracksList extends StatelessWidget {
                   ],
                 ),
               ),
-              const SizedBox(width: s12),
               Column(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: [
@@ -1550,6 +2032,24 @@ class _TopTracksList extends StatelessWidget {
           ),
         );
       }).toList(),
+    );
+  }
+
+  Widget _placeholder(Color c1, Color c2) {
+    return Container(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [c1, c2],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      alignment: Alignment.center,
+      child: const Icon(
+        Icons.music_note_rounded,
+        color: Colors.white70,
+        size: 16,
+      ),
     );
   }
 }

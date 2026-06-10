@@ -19,6 +19,7 @@ import '../main.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../features/ai_shuffle/data/models/recommended_song.dart';
 import '../features/ai_shuffle/data/models/feedback_request.dart';
+import 'library_provider.dart';
 
 // ---------------------------------------------------------------------------
 // Player state
@@ -319,6 +320,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               queuePosition: capturedIdx,
               shuffleActive: capturedShuffle,
             );
+            // Refresh the home screen recently-played carousel.
+            _ref.invalidate(recentlyPlayedSongsProvider);
           });
 
           _hasScrobbled = false;

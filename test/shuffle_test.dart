@@ -6,7 +6,7 @@ import 'package:navivibe/core/hive_boxes.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:navivibe/services/audio_handler.dart';
+import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
@@ -15,7 +15,7 @@ import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
-class TestAudioHandler extends AudioHandler {
+class TestAudioHandler extends NaviAudioHandler {
   TestAudioHandler(super.subsonicService, {super.player});
 
   @override

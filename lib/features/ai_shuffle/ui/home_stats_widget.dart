@@ -1,8 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../core/theme.dart';
+import '../../../providers/library_provider.dart';
 import '../logic/shuffle_providers.dart';
+
 
 /// Shows top songs for the given [period] from the Smart Shuffle stats API.
 /// Migrated to listeningStatsProvider (v3.0.0).
@@ -47,18 +50,29 @@ class HomeStatsWidget extends ConsumerWidget {
               final title = songMap['title']?.toString() ?? 'Unknown';
               final artist = songMap['artist']?.toString() ?? 'Unknown';
               final playCount = songMap['play_count']?.toString() ?? '0';
+              final coverUrlAsync = ref.watch(songCoverUrlProvider('$title|$artist'));
 
               return ListTile(
                 dense: true,
                 contentPadding: const EdgeInsets.symmetric(horizontal: 16.0),
-                leading: Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: tokens.bgElevated,
-                    borderRadius: BorderRadius.circular(4),
+                leading: ClipRRect(
+                  borderRadius: BorderRadius.circular(4),
+                  child: SizedBox(
+                    width: 40,
+                    height: 40,
+                    child: coverUrlAsync.when(
+                      data: (url) => url != null && url.isNotEmpty
+                          ? CachedNetworkImage(
+                              imageUrl: url,
+                              fit: BoxFit.cover,
+                              placeholder: (_, __) => _placeholder(tokens),
+                              errorWidget: (_, __, ___) => _placeholder(tokens),
+                            )
+                          : _placeholder(tokens),
+                      loading: () => _placeholder(tokens),
+                      error: (_, __) => _placeholder(tokens),
+                    ),
                   ),
-                  child: Icon(Icons.music_note, color: tokens.textMuted),
                 ),
                 title: Text(
                   title,
@@ -85,6 +99,14 @@ class HomeStatsWidget extends ConsumerWidget {
           ],
         );
       },
+    );
+  }
+
+  Widget _placeholder(AppThemeTokens tokens) {
+    return Container(
+      color: tokens.bgElevated,
+      alignment: Alignment.center,
+      child: Icon(Icons.music_note_rounded, color: tokens.textMuted, size: 20),
     );
   }
 

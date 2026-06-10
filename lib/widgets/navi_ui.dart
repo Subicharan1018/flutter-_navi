@@ -31,6 +31,9 @@ const Curve kCurveDecel = Curves.decelerate;
 // =============================================================================
 // NaviCard — Base Card Component
 // =============================================================================
+// =============================================================================
+// NaviCard — Base Card Component
+// =============================================================================
 class NaviCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets? padding;
@@ -73,6 +76,219 @@ class NaviCard extends StatelessWidget {
             child: child,
           ),
         ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// PremiumCard — Double-Bezel, Neumorphic, or Stark Brutalist card layout
+// =============================================================================
+class PremiumCard extends StatelessWidget {
+  final Widget child;
+  final EdgeInsetsGeometry? padding;
+  final VoidCallback? onTap;
+  final Color? color;
+
+  const PremiumCard({
+    super.key,
+    required this.child,
+    this.padding,
+    this.onTap,
+    this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    final mode = tokens.mode;
+
+    Widget current;
+
+    switch (mode) {
+      case AppThemeMode.zen:
+        // Stark Zen layout: sharp corners, thin black border, no shadow
+        current = Container(
+          padding: padding ?? const EdgeInsets.all(s20),
+          decoration: BoxDecoration(
+            color: color ?? tokens.bgBase,
+            border: Border.all(color: tokens.textPrimary, width: 1.0),
+          ),
+          child: child,
+        );
+        break;
+
+      case AppThemeMode.neumorphic:
+        // Neumorphic extruded soft surface
+        current = Container(
+          padding: padding ?? const EdgeInsets.all(s20),
+          decoration: BoxDecoration(
+            color: color ?? tokens.bgBase,
+            borderRadius: BorderRadius.circular(16),
+            boxShadow: [
+              BoxShadow(
+                color: tokens.neuDark.withValues(alpha: 0.5),
+                offset: const Offset(6, 6),
+                blurRadius: 14,
+              ),
+              BoxShadow(
+                color: tokens.neuLight,
+                offset: const Offset(-6, -6),
+                blurRadius: 14,
+              ),
+            ],
+          ),
+          child: child,
+        );
+        break;
+
+      case AppThemeMode.frost:
+        // Frost Double-Bezel: Frosted glass panel inside a transparent border rim
+        final outerRadius = BorderRadius.circular(28);
+        final innerRadius = BorderRadius.circular(22); // 28 - 6
+        current = Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: Colors.white.withValues(alpha: 0.03),
+            borderRadius: outerRadius,
+            border: Border.all(
+              color: Colors.white.withValues(alpha: 0.08),
+              width: 0.5,
+            ),
+          ),
+          child: ClipRRect(
+            borderRadius: innerRadius,
+            child: Container(
+              padding: padding ?? const EdgeInsets.all(s20),
+              decoration: BoxDecoration(
+                color: color ?? tokens.glassBg,
+                borderRadius: innerRadius,
+                border: Border.all(color: tokens.glassBorder, width: 0.8),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.15),
+                    blurRadius: 16,
+                    spreadRadius: -4,
+                  ),
+                ],
+              ),
+              child: child,
+            ),
+          ),
+        );
+        break;
+
+      case AppThemeMode.aura:
+        // Aura Double-Bezel: OLED card inside a glowing neon accent highlight border rim
+        final outerRadius = BorderRadius.circular(28);
+        final innerRadius = BorderRadius.circular(22);
+        current = Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: tokens.bgSurface.withValues(alpha: 0.4),
+            borderRadius: outerRadius,
+            border: Border.all(
+              color: tokens.accent.withValues(alpha: 0.15),
+              width: 0.8,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: tokens.accent.withValues(alpha: 0.03),
+                blurRadius: 12,
+                spreadRadius: -2,
+              ),
+            ],
+          ),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(s20),
+            decoration: BoxDecoration(
+              color: color ?? tokens.bgSurface,
+              borderRadius: innerRadius,
+              border: Border.all(
+                color: tokens.textPrimary.withValues(alpha: 0.06),
+                width: 0.5,
+              ),
+            ),
+            child: child,
+          ),
+        );
+        break;
+
+      case AppThemeMode.analog:
+        // Warm retro vinyl card with double border
+        final outerRadius = BorderRadius.circular(24);
+        final innerRadius = BorderRadius.circular(18);
+        current = Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: tokens.bgSurface.withValues(alpha: 0.5),
+            borderRadius: outerRadius,
+            border: Border.all(
+              color: tokens.outline.withValues(alpha: 0.3),
+              width: 0.8,
+            ),
+          ),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(s20),
+            decoration: BoxDecoration(
+              color: color ?? tokens.bgSurface,
+              borderRadius: innerRadius,
+              border: Border.all(
+                color: tokens.outline.withValues(alpha: 0.5),
+                width: 0.5,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: tokens.outline.withValues(alpha: 0.10),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: child,
+          ),
+        );
+        break;
+
+      case AppThemeMode.spotify:
+      default:
+        // Spotify Double-Bezel: base dark surface inside slightly offset outer border rim
+        final outerRadius = BorderRadius.circular(24);
+        final innerRadius = BorderRadius.circular(18);
+        current = Container(
+          padding: const EdgeInsets.all(6),
+          decoration: BoxDecoration(
+            color: tokens.textPrimary.withValues(alpha: 0.02),
+            borderRadius: outerRadius,
+            border: Border.all(
+              color: tokens.textPrimary.withValues(alpha: 0.04),
+              width: 0.5,
+            ),
+          ),
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(s20),
+            decoration: BoxDecoration(
+              color: color ?? tokens.bgSurface,
+              borderRadius: innerRadius,
+              border: Border.all(
+                color: tokens.textPrimary.withValues(alpha: 0.08),
+                width: 0.5,
+              ),
+            ),
+            child: child,
+          ),
+        );
+        break;
+    }
+
+    if (onTap == null) return current;
+
+    return GestureDetector(
+      onTap: onTap,
+      behavior: HitTestBehavior.opaque,
+      child: MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: current,
       ),
     );
   }

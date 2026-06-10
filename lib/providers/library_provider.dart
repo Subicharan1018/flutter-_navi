@@ -17,6 +17,39 @@ import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 // Metadata Caching helpers (using AppDatabase/Drift)
 // ---------------------------------------------------------------------------
 
+/// Looks up a cached song's cover art URL by title and artist.
+/// Returns null if not found in the local database.
+final songCoverUrlProvider = FutureProvider.autoDispose
+    .family<String?, String>((ref, key) async {
+  final parts = key.split('|');
+  if (parts.length < 2) return null;
+  final title = parts[0];
+  final artist = parts[1];
+
+  final db = ref.watch(appDatabaseProvider);
+
+  // Try exact match first
+  var match = await (db.select(db.songMetadata)
+        ..where((t) => t.trackName.equals(title) & t.artistName.equals(artist))
+        ..limit(1))
+      .getSingleOrNull();
+
+  // Fallback to title-only match if exact match fails
+  if (match == null) {
+    match = await (db.select(db.songMetadata)
+          ..where((t) => t.trackName.equals(title))
+          ..limit(1))
+        .getSingleOrNull();
+  }
+
+  if (match != null) {
+    final coverId = match.songId;
+    return ref.read(subsonicServiceProvider).getCoverArtUrl(coverId);
+  }
+  return null;
+});
+
+
 Future<void> _cacheSongs(AppDatabase db, List<Song> songs) async {
   await db.batch((batch) {
     for (final song in songs) {
@@ -118,6 +151,61 @@ final recentlyPlayedAlbumsProvider = FutureProvider<List<Album>>((ref) async {
   if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
   final service = ref.watch(subsonicServiceProvider);
   return service.getRecentlyPlayedAlbums();
+});
+
+/// Recently played unique tracks, sourced from the local Drift DB.
+/// Joins play_events with song_metadata, ordered by tsStart DESC,
+/// deduplicates by songId, and returns at most 30 results.
+final recentlyPlayedSongsProvider = FutureProvider<List<Song>>((ref) async {
+  final db = ref.watch(appDatabaseProvider);
+  // Fetch the 150 most-recent play events so we can de-duplicate by songId
+  // down to 30 distinct tracks without a complex SQL window query.
+  final events = await (db.select(db.playEvents)
+        ..orderBy([(t) => OrderingTerm.desc(t.tsStart)])
+        ..limit(150))
+      .get();
+
+  final seenIds = <String>{};
+  final uniqueIds = <String>[];
+  for (final e in events) {
+    if (seenIds.add(e.songId)) {
+      uniqueIds.add(e.songId);
+      if (uniqueIds.length >= 30) break;
+    }
+  }
+  if (uniqueIds.isEmpty) return [];
+
+  final metaRows = await (db.select(db.songMetadata)
+        ..where((t) => t.songId.isIn(uniqueIds)))
+      .get();
+
+  // Build a lookup by songId for O(1) access
+  final metaById = {for (final r in metaRows) r.songId: r};
+
+  // Return songs in the same order as uniqueIds (most-recently-played first)
+  final songs = <Song>[];
+  for (final id in uniqueIds) {
+    final meta = metaById[id];
+    if (meta == null) continue;
+    songs.add(
+      Song(
+        id: meta.songId,
+        title: meta.trackName,
+        artist: meta.artistName,
+        album: meta.albumName,
+        duration: meta.durationSec,
+        genre: meta.genre ?? '',
+        composer: meta.composer ?? '',
+        coverArt: meta.songId, // Subsonic uses songId as the cover art key
+        track: 0,
+        year: meta.year ?? 0,
+        playCount: meta.playCount,
+        rating: meta.rating,
+        starred: meta.starred,
+      ),
+    );
+  }
+  return songs;
 });
 
 final frequentAlbumsProvider = FutureProvider<List<Album>>((ref) async {

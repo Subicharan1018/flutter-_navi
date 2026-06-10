@@ -38,6 +38,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   // ── Linux single-source bridge state ────────────────────────────────────────
   int _linuxIndex = 0;
+  int _linuxTargetIndex = 0;
+  int _linuxLoadGeneration = 0;
   StreamSubscription<PlayerState>? _linuxCompletionSub;
 
   /// Holds all long-lived stream subscriptions so dispose() can cancel them.
@@ -323,6 +325,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _linuxCompletionSub?.cancel();
       _linuxCompletionSub = null;
       _linuxIndex = 0;
+      _linuxTargetIndex = 0;
     }
   }
 
@@ -339,6 +342,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // just_audio_media_kit 2.1.0. Play one track at a time and advance
       // manually on completion.
       final start = startIndex.clamp(0, _currentQueue.length - 1);
+      _linuxTargetIndex = start;
       await _linuxLoadTrack(
         start,
         offlinePaths,
@@ -373,12 +377,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Duration? initialPosition,
   }) async {
     if (index < 0 || index >= _currentQueue.length) return;
-    // Mutex: if a load is already in progress, cancel this one.
-    // This prevents the dual-completion-listener race.
-    if (_linuxLoading) {
-      debugPrint('⚡ [Linux] Load skipped (already loading track $_linuxIndex)');
-      return;
-    }
+    final generation = ++_linuxLoadGeneration;
     _linuxLoading = true;
     try {
       final source = _toSourceWithPaths(_currentQueue[index], offlinePaths);
@@ -389,6 +388,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             onTimeout: () =>
                 throw TimeoutException('[Linux] _linuxLoadTrack timed out'),
           );
+      if (generation != _linuxLoadGeneration) {
+        debugPrint('⚡ [Linux] Load for track $index superseded by generation $_linuxLoadGeneration');
+        return;
+      }
       _linuxIndex = index;
       _emitLinuxMediaItem(index);
       _trackRecentlyPlayed(_currentQueue[index].id);
@@ -408,7 +411,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       debugPrint('❌ [Linux] Timeout loading track $index: $e');
       rethrow;
     } finally {
-      _linuxLoading = false;
+      if (generation == _linuxLoadGeneration) {
+        _linuxLoading = false;
+      }
     }
   }
 
@@ -434,8 +439,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _linuxCompletionSub = player.playerStateStream.listen((state) async {
       if (state.processingState != ProcessingState.completed) return;
       // Guard: if PlayerNotifier or a manual skip already kicked off a load,
-      // don't double-advance. The mutex in _linuxLoadTrack will reject the
-      // second call anyway, but checking here avoids the index increment.
+      // don't double-advance.
       if (_linuxLoading) {
         debugPrint('⚡ [Linux] Completion skipped (load already in progress)');
         return;
@@ -449,7 +453,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
 
-      int next = _linuxIndex + 1;
+      int next = _linuxTargetIndex + 1;
       if (next >= _currentQueue.length) {
         if (player.loopMode == LoopMode.all) {
           next = 0; // wrap around
@@ -458,6 +462,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         }
       }
 
+      _linuxTargetIndex = next;
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
       try {
         await _linuxLoadTrack(next, offlinePaths);
@@ -495,7 +500,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> _linuxSkipToNext() async {
     final wasPlaying = player.playing;
     if (_currentQueue.isEmpty) return;
-    int next = _linuxIndex + 1;
+    int next = _linuxTargetIndex + 1;
     if (next >= _currentQueue.length) {
       if (player.loopMode == LoopMode.all) {
         next = 0;
@@ -503,9 +508,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
     }
+    _linuxTargetIndex = next;
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
     await _linuxLoadTrack(next, offlinePaths);
-    if (wasPlaying) await player.play();
+    if (wasPlaying && !player.playing) await player.play();
   }
 
   Future<void> _linuxSkipToPrevious() async {
@@ -516,7 +522,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await player.seek(Duration.zero);
       return;
     }
-    int prev = _linuxIndex - 1;
+    int prev = _linuxTargetIndex - 1;
     if (prev < 0) {
       if (player.loopMode == LoopMode.all) {
         prev = _currentQueue.length - 1;
@@ -525,9 +531,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
     }
+    _linuxTargetIndex = prev;
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
     await _linuxLoadTrack(prev, offlinePaths);
-    if (wasPlaying) await player.play();
+    if (wasPlaying && !player.playing) await player.play();
   }
 
   /// Current index — Linux uses _linuxIndex, other platforms use player.currentIndex
@@ -539,6 +546,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> jumpToIndex(int index) async {
     if (index < 0 || index >= _currentQueue.length) return;
     if (_isLinux) {
+      _linuxTargetIndex = index;
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
       await _linuxLoadTrack(index, offlinePaths);
     } else {
@@ -553,9 +561,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final wasPlaying = player.playing;
     if (index < 0 || index >= _currentQueue.length) return;
     if (_isLinux) {
+      _linuxTargetIndex = index;
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
       await _linuxLoadTrack(index, offlinePaths);
-      if (wasPlaying) await player.play();
+      if (wasPlaying && !player.playing) await player.play();
     } else {
       await player.seek(Duration.zero, index: index);
     }
@@ -687,6 +696,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       } else if (index > _linuxIndex) {
         needsRebuild = false; // Currently playing track is unaffected
       }
+
+      if (index < _linuxTargetIndex) {
+        _linuxTargetIndex--;
+      }
+      _linuxTargetIndex = _linuxTargetIndex.clamp(0, _currentQueue.length - 2 >= 0 ? _currentQueue.length - 2 : 0);
     }
 
     final song = _currentQueue.removeAt(index);
@@ -717,6 +731,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _linuxIndex--;
       } else if (oldIndex > _linuxIndex && newIndex <= _linuxIndex) {
         _linuxIndex++;
+      }
+
+      if (oldIndex == _linuxTargetIndex) {
+        _linuxTargetIndex = newIndex;
+      } else if (oldIndex < _linuxTargetIndex && newIndex >= _linuxTargetIndex) {
+        _linuxTargetIndex--;
+      } else if (oldIndex > _linuxTargetIndex && newIndex <= _linuxTargetIndex) {
+        _linuxTargetIndex++;
       }
     }
 

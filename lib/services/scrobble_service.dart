@@ -6,31 +6,34 @@ import '../models/song.dart';
 import '../providers/settings_provider.dart';
 import '../providers/download_provider.dart';
 import 'subsonic_service.dart';
-import 'listening_log_service.dart';
 
 // =============================================================================
 // ScrobbleService
 //
-// Handles Subsonic scrobble calls (now-playing + submission) alongside the new
-// slim listening-log POST to the WebDAV endpoint.
+// Handles Subsonic scrobble calls (now-playing + submission).
 //
-// Both calls are fire-and-forget (unawaited) so they never block playback.
+// Feedback to the shuffle/ML model (POST /feedback) is handled separately by
+// sendShuffleFeedback() in player_provider.dart — NOT here. The old
+// ListeningLogService.logPlay() call was removed because it duplicated the
+// POST /feedback request with hardcoded inaccurate data (listen_ratio: 1.0,
+// end_reason: 'natural' regardless of actual user behavior).
+//
+// Both scrobble calls are fire-and-forget (unawaited) so they never block
+// playback.
 // =============================================================================
 
 final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
   return ScrobbleService(
     ref.watch(subsonicServiceProvider),
     ref.watch(connectivityProvider),
-    ref.watch(listeningLogServiceProvider),
   );
 });
 
 class ScrobbleService {
   final SubsonicService _api;
   final Connectivity _connectivity;
-  final ListeningLogService _listeningLog;
 
-  ScrobbleService(this._api, this._connectivity, this._listeningLog);
+  ScrobbleService(this._api, this._connectivity);
 
   Future<bool> _isOffline() async {
     final results = await _connectivity.checkConnectivity();
@@ -46,23 +49,15 @@ class ScrobbleService {
   }
 
   /// Submits a completed play of [songId] to the Subsonic scrobble endpoint
-  /// (submission=true) **and** posts a slim listening-log entry to the WebDAV
-  /// server.
+  /// (submission=true).
   ///
-  /// Both network calls are fire-and-forget. The listening log is silently
-  /// queued for retry if the POST fails.
-  ///
-  /// [song] and [playedDuration] are optional for backward compatibility with
-  /// existing call sites that only have a song ID.
+  /// Fire-and-forget — swallows all errors and does nothing if offline.
+  /// The [song] parameter is retained for API compatibility with existing
+  /// call sites but is no longer used for listening-log submission.
   void submit(String songId, {Song? song}) async {
     if (await _isOffline()) return;
 
     // ── Subsonic scrobble ────────────────────────────────────────────────────
     unawaited(_api.scrobble(songId, submission: true));
-
-    // ── Listening log ────────────────────────────────────────────────────────
-    if (song != null) {
-      unawaited(_listeningLog.logPlay(song: song));
-    }
   }
 }
