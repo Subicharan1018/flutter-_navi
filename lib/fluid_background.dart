@@ -144,6 +144,7 @@ class _FluidBackgroundState extends State<FluidBackground>
   static const double _kFadeDuration = 1.5;
   double _fadeStartElapsed = 0;
   bool _fading = false;
+  double _lastRepaintElapsed = 0;
 
   ui.FragmentProgram? _program;
 
@@ -213,9 +214,18 @@ class _FluidBackgroundState extends State<FluidBackground>
                       2;
         _tColor = t.clamp(0.0, 1.0);
       }
+      // Color fade needs full-rate updates for smooth transition.
+      setState(() {});
+      _lastRepaintElapsed = _elapsed;
+      return;
     }
 
-    setState(() {});
+    // Background fluid animation: cap to ~30fps to halve GPU cost.
+    // Animated backgrounds don't need 60fps — the difference is imperceptible.
+    if (_elapsed - _lastRepaintElapsed >= 1 / 30) {
+      _lastRepaintElapsed = _elapsed;
+      setState(() {});
+    }
   }
 
   List<Color> get _lerpedColors => List.generate(

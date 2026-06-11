@@ -48,8 +48,8 @@ class AlbumCard extends ConsumerWidget {
                   width: 160,
                   height: 160,
                   fit: BoxFit.cover,
-                  memCacheWidth: 400,
-                  memCacheHeight: 400,
+                  memCacheWidth: 200,
+                  memCacheHeight: 200,
                   placeholder: (context, url) => const _AlbumPlaceholder(),
                   errorWidget: (context, url, error) =>
                       const _AlbumPlaceholder(),

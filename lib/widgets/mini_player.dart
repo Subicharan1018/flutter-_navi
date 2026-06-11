@@ -398,8 +398,7 @@ class _GlassShell extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
         child: BackdropFilter(
-          // Higher blur + saturation boost = richer frosted-glass look
-          filter: ImageFilter.blur(sigmaX: 26, sigmaY: 26),
+          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
           child: Container(
             decoration: BoxDecoration(
               // Directional gradient overlay: brighter top-left, darker bottom-right

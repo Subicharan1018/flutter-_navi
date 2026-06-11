@@ -1720,6 +1720,8 @@ class _NowPlayingStrip extends StatelessWidget {
               cacheKey: key,
               width: 44,
               height: 44,
+              memCacheWidth: 132,
+              memCacheHeight: 132,
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
                 width: 44,
@@ -1881,6 +1883,8 @@ class _QueueTile extends StatelessWidget {
             cacheKey: key,
             width: 44,
             height: 44,
+            memCacheWidth: 132,
+            memCacheHeight: 132,
             fit: BoxFit.cover,
             errorWidget: (_, __, ___) => Container(
               width: 44,
@@ -1950,6 +1954,8 @@ class _HistoryTile extends StatelessWidget {
               cacheKey: key,
               width: 44,
               height: 44,
+              memCacheWidth: 132,
+              memCacheHeight: 132,
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
                 width: 44,

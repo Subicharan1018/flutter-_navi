@@ -112,7 +112,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _listenToPlayerEvents() {
-    _subscriptions.add(player.playbackEventStream.listen((event) {
+    // Broadcast state only on discrete player state changes (play/pause,
+    // processingState). audio_service interpolates seekbar position between
+    // updates, so we don't need to push on every position tick (~5/s).
+    // Previously this subscribed to playbackEventStream which fires on
+    // position updates and caused _broadcastState() to run 5+ times/second.
+    _subscriptions.add(player.playerStateStream.listen((_) {
       _broadcastState();
     }));
 
