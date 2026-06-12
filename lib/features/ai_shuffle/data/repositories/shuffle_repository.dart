@@ -66,6 +66,7 @@ class ShuffleRepository {
     List<String> candidates = const [],
     bool reshuffle = false,
     List<String> excludedTitles = const [],
+    String seedTitle = '',
   }) async {
     final response = await _api.getNext(
       source: source,
@@ -81,6 +82,7 @@ class ShuffleRepository {
       candidates: candidates,
       reshuffle: reshuffle,
       excludedTitles: excludedTitles,
+      seedTitle: seedTitle,
     );
 
     if (response.queue.isEmpty) throw const ShuffleEmptyResponse();
@@ -145,6 +147,18 @@ class ShuffleRepository {
       await _api.postFeedback(request);
     } catch (e) {
       debugPrint('[ShuffleRepo] feedback error (ignored): $e');
+    }
+  }
+
+  /// Reports impression feedback (shown vs. played). Best-effort telemetry.
+  Future<void> postImpressions({
+    required List<String> shown,
+    required List<String> played,
+  }) async {
+    try {
+      await _api.postImpressions(shown: shown, played: played);
+    } catch (e) {
+      debugPrint('[ShuffleRepo] impressions error (ignored): $e');
     }
   }
 

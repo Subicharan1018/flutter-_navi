@@ -1698,6 +1698,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               playlistName: _currentPlaylistName,
               candidates: candidateTitles,
               count: candidateTitles.length,
+              // Seed the pairing chain from the song playing now, so transitions
+              // are ordered relative to it (robust to played_titles dedup).
+              seedTitle: seedSong.title,
             );
             if (!mounted) return [];
 

@@ -1595,6 +1595,12 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                       padding: const EdgeInsets.only(bottom: 120),
                       itemCount: upNext.length,
                       onReorder: (oldIdx, newIdx) {
+                        // ReorderableListView reports newIndex as the slot the
+                        // item would occupy *before* it is removed, so dragging
+                        // downward is off by one. Without this adjustment the
+                        // song lands one slot too low ("pushed below").
+                        if (newIdx > oldIdx) newIdx -= 1;
+                        if (newIdx == oldIdx) return;
                         final qOld = playerState.currentIndex + 1 + oldIdx;
                         final qNew = playerState.currentIndex + 1 + newIdx;
                         notifier.reorderQueue(qOld, qNew);
@@ -1603,7 +1609,9 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                         final s = upNext[i];
                         final qIdx = playerState.currentIndex + 1 + i;
                         return _QueueTile(
-                          key: ValueKey('nxt_${s.id}_$i'),
+                          // Key off the absolute queue index so it stays unique
+                          // even if the same song appears twice in the queue.
+                          key: ValueKey('nxt_${s.id}_$qIdx'),
                           song: s,
                           service: service,
                           onTap: () {

@@ -137,6 +137,10 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
   // Tracks played song titles for the session so they're excluded from /next.
   // Capped at 50 to prevent unbounded growth in long sessions.
   final List<String> _playedTitles = [];
+  // Every title surfaced to the user this session (impression feedback). On
+  // session end we report shown-vs-played so songs shown but never played are
+  // demoted on the next model rebuild. Capped to bound memory.
+  final Set<String> _shownTitles = {};
   // Recent listen ratios — last 5 songs.
   final List<double> _recentListenRatios = [];
   String _lastEndReason = '';
@@ -174,6 +178,7 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
     String genreStreakType = '',
     int genreStreakCount = 0,
     List<String> candidates = const [],
+    String seedTitle = '',
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
@@ -189,7 +194,10 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
         recentListenRatios: _recentListenRatios,
         lastEndReason: _lastEndReason,
         candidates: candidates,
+        seedTitle: seedTitle,
       );
+      // Track surfaced titles for impression feedback (shown-but-not-played).
+      _recordShown(response.queue.map((s) => s.title));
       state = state.copyWith(
         batches: [...state.batches, response],
         isLoading: false,
@@ -222,9 +230,33 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
     state = state.copyWith(sessionDepth: state.sessionDepth + 1);
   }
 
+  /// Records titles surfaced to the user (deduped, memory-bounded).
+  void _recordShown(Iterable<String> titles) {
+    for (final t in titles) {
+      final title = t.trim();
+      if (title.isNotEmpty) _shownTitles.add(title);
+    }
+    // Bound memory on very long sessions.
+    if (_shownTitles.length > 400) {
+      _shownTitles.remove(_shownTitles.first);
+    }
+  }
+
+  /// Reports impression feedback (shown vs. played) for the session, then clears
+  /// the shown set. Fire-and-forget — never throws, never blocks playback.
+  Future<void> flushImpressions() async {
+    if (_shownTitles.isEmpty) return;
+    final shown = _shownTitles.toList();
+    final played = List<String>.from(_playedTitles);
+    _shownTitles.clear();
+    await _repo.postImpressions(shown: shown, played: played);
+  }
+
   /// Clears the queue and resets all session tracking.
   /// Call initSession() after this to begin a new session.
   void clearQueue() {
+    // Flush impressions for the ending session before state is wiped.
+    flushImpressions();
     _playedTitles.clear();
     _recentListenRatios.clear();
     _lastEndReason = '';

@@ -149,6 +149,9 @@ curl -u admin:pass -X POST https://shuffle.subimusic.me/next \
 | `played_titles` | string/array | `""` | Titles played this session (excluded from queue) |
 | `recent_listen_ratios` | array | `[]` | Last N listen ratios (0.0–1.0) |
 | `last_end_reason` | string | `""` | Why the last song ended (`natural`, `fwdbtn`, etc.) |
+| `seed_title` | string | `""` | The song playing **now** — the pairing chain is ordered from it (falls back to the last `played_titles` entry). Sent by the app during smart-local refill. |
+
+**Queue intelligence (v3.2 / v3.3):** ordering also follows the learned **session energy arc** (energy curve per time arc), keeps **composer diversity** in adjacent slots, **skip-** and **impression-demotes** songs you keep skipping / scrolling past, and uses **Thompson-sampled exploration** for the `explore` slot so discovery wanders across good-fit unheard songs. All of this is server-side; the client just renders the queue and the `why` strings, which now note any skip/impression adjustment.
 
 **Response:**
 ```json
@@ -461,6 +464,25 @@ curl -u admin:pass -X POST https://shuffle.subimusic.me/feedback \
 
 > [!TIP]
 > The model automatically rebuilds when you accumulate 50 new unprocessed plays. The scheduler checks every 60 seconds.
+
+---
+
+### POST /feedback/impressions — Record shown-vs-played
+
+Reports which recommended titles were **surfaced** (`shown`) and which were actually **played**. Songs shown repeatedly but never played are demoted on the next rebuild. The app sends this when a shuffle session ends (on `clearQueue`). Best-effort — failures never affect playback.
+
+```bash
+curl -u admin:pass -X POST https://shuffle.subimusic.me/feedback/impressions \
+  -H "Content-Type: application/json" \
+  -d '{ "shown": ["Naani Koni","Azhage","Idhu Varai"], "played": ["Naani Koni"] }'
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `shown` | array/string | **Required.** Titles surfaced this session |
+| `played` | array/string | Subset of `shown` the user actually played |
+
+**Response:** `{ "ok": true, "recorded": 3 }`
 
 ---
 

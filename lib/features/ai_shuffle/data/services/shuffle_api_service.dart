@@ -148,12 +148,16 @@ class ShuffleApiService {
     List<String> candidates = const [],
     bool reshuffle = false,
     List<String> excludedTitles = const [],
+    String seedTitle = '',
   }) async {
     return _wrap(() async {
       final body = <String, dynamic>{
         'source': source,
         'count': count,
         'depth': depth,
+        // Explicit pairing-chain seed: the song playing now, so the server
+        // chains transitions from it regardless of played_titles dedup.
+        if (seedTitle.isNotEmpty) 'seed_title': seedTitle,
         if (playlistId != null && playlistId.isNotEmpty)
           'playlist_id': playlistId,
         if (playlistName != null && playlistName.isNotEmpty)
@@ -243,6 +247,29 @@ class ShuffleApiService {
         options: Options(contentType: 'application/json'),
       );
     });
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST /feedback/impressions
+  // ---------------------------------------------------------------------------
+
+  /// Records which recommended titles were surfaced ([shown]) and which the
+  /// user actually played ([played]). Songs repeatedly shown but never played
+  /// are demoted on the next model rebuild. Fire-and-forget; never throws.
+  Future<void> postImpressions({
+    required List<String> shown,
+    required List<String> played,
+  }) async {
+    if (shown.isEmpty) return;
+    try {
+      await _dio.post<void>(
+        '/feedback/impressions',
+        data: {'shown': shown, 'played': played},
+        options: Options(contentType: 'application/json'),
+      );
+    } catch (_) {
+      // Telemetry only — swallow errors so playback is never affected.
+    }
   }
 
   // ---------------------------------------------------------------------------
