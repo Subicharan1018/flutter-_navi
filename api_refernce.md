@@ -151,7 +151,7 @@ curl -u admin:pass -X POST https://shuffle.subimusic.me/next \
 | `last_end_reason` | string | `""` | Why the last song ended (`natural`, `fwdbtn`, etc.) |
 | `seed_title` | string | `""` | The song playing **now** — the pairing chain is ordered from it (falls back to the last `played_titles` entry). Sent by the app during smart-local refill. |
 
-**Queue intelligence (v3.2 / v3.3):** ordering also follows the learned **session energy arc** (energy curve per time arc), keeps **composer diversity** in adjacent slots, **skip-** and **impression-demotes** songs you keep skipping / scrolling past, and uses **Thompson-sampled exploration** for the `explore` slot so discovery wanders across good-fit unheard songs. All of this is server-side; the client just renders the queue and the `why` strings, which now note any skip/impression adjustment.
+**Queue intelligence (v3.2 / v3.3):** ordering uses **second-order pairings** (`p(C | A, B)` — what you play after a *pair* of songs, falling back to the single-song pairing), follows the learned **session energy arc** (energy curve per time arc), keeps **composer diversity** in adjacent slots, **skip-** and **impression-demotes** songs you keep skipping / scrolling past, and uses **Thompson-sampled exploration** for the `explore` slot so discovery wanders across good-fit unheard songs. Pairing weight was raised (0.15 → 0.30) after an offline backtest showed it improves next-song accuracy. All of this is server-side; the client renders the queue and the `why` strings, which now note any skip/impression adjustment and the pairing `order`.
 
 **Response:**
 ```json
@@ -195,7 +195,7 @@ curl -u admin:pass -X POST https://shuffle.subimusic.me/next \
         "final": 0.984
       },
       "starter": true,
-      "pairing": { "follows": "Anbil Avan", "times_followed": 9, "p": 0.1475 },
+      "pairing": { "follows": "Anbil Avan", "times_followed": 9, "p": 0.1475, "order": 1 },
       "explore": false,
       "why": "Session starter — you've opened 7 evening sessions with this song (5% of starts). Played 8 times in night__summer with avg ratio 0.81. Audio fit 0.98 vs night__summer__stormy taste profile (n=138, fallback_level=1)."
     }
@@ -209,7 +209,7 @@ curl -u admin:pass -X POST https://shuffle.subimusic.me/next \
 > |---|---|---|
 > | `starter` | bool | This song is your pinned session opener. |
 > | `explore` | bool | This is the queue's single never-played exploration pick. |
-> | `pairing` | object? | Present when placed next to a song it historically follows: `{ follows, times_followed, p }`. |
+> | `pairing` | object? | Present when placed next to a song it historically follows: `{ follows, times_followed, p, order }`. `order` is `1` (unigram `p(this\|prev)`) or `2` (second-order `p(this\|prev2,prev)` — a sharper two-song-combo match, surfaced in the card as "2-song combo"). |
 >
 > Mid-session, send `played_titles` **in play order** — the pairing chain is seeded from the last title.
 

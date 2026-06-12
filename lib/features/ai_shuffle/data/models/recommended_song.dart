@@ -70,16 +70,25 @@ class SongPairing {
   /// p(this | previous) — 0..1 transition probability out of `follows`.
   final double probability;
 
+  /// Transition order (server v3.3): 1 = unigram p(this | prev),
+  /// 2 = second-order p(this | prev2, prev) — a sharper two-song-context match.
+  final int order;
+
   const SongPairing({
     required this.follows,
     required this.timesFollowed,
     required this.probability,
+    this.order = 1,
   });
+
+  /// True when this pairing was learned from the previous *two* songs.
+  bool get isSecondOrder => order >= 2;
 
   factory SongPairing.fromJson(Map<String, dynamic> json) => SongPairing(
     follows: json['follows']?.toString() ?? '',
     timesFollowed: RecommendedSong._parseInt(json['times_followed']),
     probability: RecommendedSong._parseDouble(json['p']),
+    order: json['order'] == null ? 1 : RecommendedSong._parseInt(json['order']),
   );
 }
 

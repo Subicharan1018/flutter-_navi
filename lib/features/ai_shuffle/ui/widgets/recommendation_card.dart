@@ -240,8 +240,11 @@ class _RecommendationCardState extends State<RecommendationCard>
                       const SizedBox(width: s4),
                       Expanded(
                         child: Text(
-                          'Pairs after "${widget.song.pairing!.follows}" '
-                          '· ${widget.song.pairing!.timesFollowed}× in your sessions',
+                          widget.song.pairing!.isSecondOrder
+                              ? 'Pairs after "${widget.song.pairing!.follows}" '
+                                    '(2-song combo) · ${widget.song.pairing!.timesFollowed}× in your sessions'
+                              : 'Pairs after "${widget.song.pairing!.follows}" '
+                                    '· ${widget.song.pairing!.timesFollowed}× in your sessions',
                           style: tokens.textStyle(
                             10,
                             FontWeight.w500,
