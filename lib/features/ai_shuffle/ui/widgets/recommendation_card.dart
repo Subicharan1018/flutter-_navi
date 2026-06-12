@@ -139,13 +139,24 @@ class _RecommendationCardState extends State<RecommendationCard>
                       ),
                     ),
                     const SizedBox(width: s8),
+                    // Starter badge — habitual session opener (v3.1)
+                    if (widget.song.isStarter) ...[
+                      _BadgeChip(
+                        label: '▶ STARTER',
+                        color: const Color(0xFF4ADE80),
+                      ),
+                      const SizedBox(width: s4),
+                    ],
                     // Genre chip
                     if (widget.song.genreBucket.isNotEmpty)
                       _GenreChip(
                         bucket: widget.song.genreBucket,
                         tokens: tokens,
                       ),
-                    if (widget.song.isColdStart) ...[
+                    if (widget.song.isExplore) ...[
+                      const SizedBox(width: s4),
+                      _BadgeChip(label: 'EXPLORE', color: const Color(0xFF64D2FF)),
+                    ] else if (widget.song.isColdStart) ...[
                       const SizedBox(width: s4),
                       _BadgeChip(label: 'NEW', color: tokens.accent),
                     ],
@@ -215,6 +226,34 @@ class _RecommendationCardState extends State<RecommendationCard>
                     ),
                   ],
                 ),
+
+                // ── Pairing indicator (v3.1) ──────────────────────────────────
+                if (widget.song.pairing != null) ...[
+                  const SizedBox(height: s8),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.link_rounded,
+                        size: 13,
+                        color: tokens.accent.withOpacity(0.8),
+                      ),
+                      const SizedBox(width: s4),
+                      Expanded(
+                        child: Text(
+                          'Pairs after "${widget.song.pairing!.follows}" '
+                          '· ${widget.song.pairing!.timesFollowed}× in your sessions',
+                          style: tokens.textStyle(
+                            10,
+                            FontWeight.w500,
+                            tokens.accent.withOpacity(0.9),
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
 
                 // ── Why caption ───────────────────────────────────────────────
                 if (widget.song.why.isNotEmpty) ...[

@@ -103,6 +103,16 @@ class ModelStatusSheet extends ConsumerWidget {
               value: status.composersTracked.toString(),
             ),
             _StatTile(
+              icon: Icons.link_rounded,
+              label: 'Songs with Pairings',
+              value: status.songsWithPairings.toString(),
+            ),
+            _StatTile(
+              icon: Icons.play_circle_outline_rounded,
+              label: 'Starter Contexts',
+              value: status.starterContexts.toString(),
+            ),
+            _StatTile(
               icon: Icons.pending_actions_rounded,
               label: 'Unprocessed Events',
               value: status.unprocessedEvents.toString(),

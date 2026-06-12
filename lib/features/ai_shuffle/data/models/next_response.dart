@@ -74,6 +74,38 @@ class QueueContext {
   }
 }
 
+/// The habitual session opener the server pinned to the top of the queue
+/// (server v3.1). Null when no starter was applied (e.g. mid-session).
+class SessionStarter {
+  final String title;
+  final String timeArc;
+  final int sessionsStarted;
+  final double share;
+
+  const SessionStarter({
+    required this.title,
+    required this.timeArc,
+    required this.sessionsStarted,
+    required this.share,
+  });
+
+  factory SessionStarter.fromJson(Map<String, dynamic> json) => SessionStarter(
+    title: json['title']?.toString() ?? '',
+    timeArc: json['time_arc']?.toString() ?? '',
+    sessionsStarted: QueueContext._parseInt(json['sessions_started']),
+    share: QueueContext._parseDouble(json['share']),
+  );
+
+  /// "evening" → "Evening"; "__global__" → "any time".
+  String get timeArcLabel {
+    if (timeArc == '__global__' || timeArc.isEmpty) return 'any time';
+    return timeArc
+        .split('_')
+        .map((w) => w.isEmpty ? '' : w[0].toUpperCase() + w.substring(1))
+        .join(' ');
+  }
+}
+
 /// Full response from the `/next` recommendation endpoint (v4.0.0).
 class NextResponse {
   final String mode;
@@ -83,6 +115,8 @@ class NextResponse {
   final QueueContext? context;
   /// True when the server confirms this was a reshuffle response.
   final bool reshuffle;
+  /// The pinned session opener, when the server applied one.
+  final SessionStarter? sessionStarter;
 
   // Alias for compatibility with existing code that reads `.songs`
   List<RecommendedSong> get songs => queue;
@@ -94,6 +128,7 @@ class NextResponse {
     required this.queue,
     this.context,
     this.reshuffle = false,
+    this.sessionStarter,
   });
 
   factory NextResponse.fromJson(Map<String, dynamic> json) => NextResponse(
@@ -107,5 +142,8 @@ class NextResponse {
         ? QueueContext.fromJson(json['context'] as Map<String, dynamic>)
         : null,
     reshuffle: json['reshuffle'] as bool? ?? false,
+    sessionStarter: json['session_starter'] is Map<String, dynamic>
+        ? SessionStarter.fromJson(json['session_starter'] as Map<String, dynamic>)
+        : null,
   );
 }

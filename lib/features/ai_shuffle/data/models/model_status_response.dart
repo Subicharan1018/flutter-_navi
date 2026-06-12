@@ -13,6 +13,11 @@ class ModelStatusResponse {
   final int unprocessedEvents;
   final double modelSizeMb;
   final int rebuildThreshold;
+  // ── Session model (server v3.1) ───────────────────────────────────────────
+  /// Number of songs with at least one learned pairing.
+  final int songsWithPairings;
+  /// Number of time-of-day contexts that have learned session starters.
+  final int starterContexts;
 
   const ModelStatusResponse({
     required this.username,
@@ -24,6 +29,8 @@ class ModelStatusResponse {
     required this.unprocessedEvents,
     required this.modelSizeMb,
     required this.rebuildThreshold,
+    this.songsWithPairings = 0,
+    this.starterContexts = 0,
   });
 
   factory ModelStatusResponse.fromJson(Map<String, dynamic> json) =>
@@ -37,6 +44,8 @@ class ModelStatusResponse {
         unprocessedEvents: _parseInt(json['unprocessed_events']),
         modelSizeMb: _parseDouble(json['model_size_mb']),
         rebuildThreshold: _parseInt(json['rebuild_threshold']),
+        songsWithPairings: _parseInt(json['songs_with_pairings']),
+        starterContexts: _parseInt(json['starter_contexts']),
       );
 
   static int _parseInt(dynamic v) {

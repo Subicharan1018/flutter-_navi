@@ -156,6 +156,12 @@ curl -u admin:pass -X POST https://shuffle.subimusic.me/next \
   "mode": "smart",
   "source": "smart",
   "playlist_id": null,
+  "session_starter": {
+    "title": "Kaarkuzhal Kadavaiye",
+    "time_arc": "evening",
+    "sessions_started": 7,
+    "share": 0.0526
+  },
   "context": {
     "bucket": "night__summer__stormy",
     "base_bucket": "night__summer",
@@ -185,11 +191,24 @@ curl -u admin:pass -X POST https://shuffle.subimusic.me/next \
         "composer_loyalty": 1.0,
         "final": 0.984
       },
-      "why": "Played 8 times in night__summer with avg ratio 0.81. Audio fit 0.98 vs night__summer__stormy taste profile (n=138, fallback_level=1)."
+      "starter": true,
+      "pairing": { "follows": "Anbil Avan", "times_followed": 9, "p": 0.1475 },
+      "explore": false,
+      "why": "Session starter — you've opened 7 evening sessions with this song (5% of starts). Played 8 times in night__summer with avg ratio 0.81. Audio fit 0.98 vs night__summer__stormy taste profile (n=138, fallback_level=1)."
     }
   ]
 }
 ```
+
+> **v3.1 session model** — at the start of a session (`depth = 0`, empty `played_titles`) the server pins your habitual opener for that time-of-day to rank 1 and returns it in the top-level `session_starter` object (`null` when none was applied). The queue is then re-ordered so learned song pairings sit adjacent. Per-song flags:
+>
+> | Field | Type | Description |
+> |---|---|---|
+> | `starter` | bool | This song is your pinned session opener. |
+> | `explore` | bool | This is the queue's single never-played exploration pick. |
+> | `pairing` | object? | Present when placed next to a song it historically follows: `{ follows, times_followed, p }`. |
+>
+> Mid-session, send `played_titles` **in play order** — the pairing chain is seeded from the last title.
 
 ### Context Object Fields
 
@@ -229,16 +248,17 @@ When you haven't listened to enough songs in a specific `time__season__weather` 
 
 ---
 
-### GET /predict/always-hear — Contextual predictions
+### GET /predict/always-hear — What you always hear at this time
 
-Returns a personalized list of top N songs the user has historically played, scored and ranked specifically for the current time of day, season, and weather context.
+Returns the songs you **always hear in the current context** — ranked specifically for the current time of day, season, and weather. **(v3.1: the context now drives the ranking — earlier builds returned the same list regardless of context.)**
 
-The engine scores every song ever played by the user using a three-signal fusion model:
-1. **Contextual History (45%)**: Play completeness (listen ratio) decay-weighted over time ($T_{1/2} = 90$ days) for the specific time slot/season.
-2. **Audio Taste Fit (35%)**: Learned audio features (Gaussian probability density) vs the context's taste profile.
-3. **Composer Loyalty (20%)**: Historical preference for the track's composer.
+Loyalty formula (weights tunable via `AH_WEIGHT_*`):
+1. **ContextFit (35%)**: effective plays blended across the exact / `time__season` / time-only / global context levels, normalised. A song you only play in this context outranks one you play everywhere.
+2. **CompletionAvg (30%)**: average listen ratio (quality of listens).
+3. **RecencyDecay (20%)**: `0.5^(days_since_last_listen / 30)` — a true recency signal.
+4. **FreqNorm (15%)**: log-normalised global play count.
 
-Only songs with at least 1 raw play event ever are included.
+Songs with fewer than 3 raw plays **or** completion average below 0.4 are excluded. The `scores` block now carries `loyalty`, `completion_avg`, `freq_norm`, `context_fit`, `context_spread`, `recency_decay` (no `final`/`audio_fit`); `context_stats` adds `days_since_play`.
 
 ```bash
 # Basic request (default limit = 20)
@@ -293,21 +313,25 @@ Cache-Control: max-age=900
         "file_path": "/DATA/Media/Music/3/Nee Paartha Vizhigal.flac"
       },
       "scores": {
-        "history": 0.6588,
-        "audio_fit": 0.7334,
-        "composer": 1.0,
-        "final": 0.7531
+        "loyalty": 0.8981,
+        "completion_avg": 0.86,
+        "freq_norm": 0.74,
+        "context_fit": 1.0,
+        "context_spread": 0.6,
+        "recency_decay": 0.98
       },
       "context_stats": {
-        "exact_plays": 0,
-        "exact_avg_ratio": 0.0,
-        "exact_effective": 3.68,
+        "raw_plays": 41,
+        "n_contexts": 3,
+        "days_since_play": 1,
+        "exact_plays": 12,
+        "exact_avg_ratio": 0.84,
+        "exact_effective": 6.9,
         "season_effective": 4.67,
         "global_effective": 6.51,
-        "raw_global_plays": 9,
         "fallback_level": 0
       },
-      "why": "Audio profile matches your late_morning summer cloudy taste (energy 0.68±0.17, acousticness 0.27±0.21, n=137 plays in profile). Effective plays in this exact context: 3.7 (global effective: 6.5)."
+      "why": "You always hear this in 'late_morning summer cloudy' — context fit 1.00 (effective plays here: 6.9), completion 0.86 over 41 plays, last heard 1 days ago."
     }
   ]
 }
@@ -455,11 +479,15 @@ curl -u admin:pass https://shuffle.subimusic.me/model/status
   "songs_in_library": 466,
   "composers_tracked": 187,
   "context_buckets": 12,
+  "songs_with_pairings": 242,
+  "starter_contexts": 6,
   "unprocessed_events": 1,
   "model_size_mb": 14.2,
   "rebuild_threshold": 50
 }
 ```
+
+> `songs_with_pairings` and `starter_contexts` (v3.1) report the size of the learned session model — how many songs have at least one learned follow-on pairing, and how many time-of-day contexts have habitual session starters.
 
 ---
 

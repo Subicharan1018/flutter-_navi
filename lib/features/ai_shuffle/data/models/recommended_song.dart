@@ -58,6 +58,31 @@ class SongScores {
   }
 }
 
+/// A learned song-to-song pairing (server v3.1). Present on `/next` queue
+/// entries that were placed adjacent to the song they historically follow.
+class SongPairing {
+  /// The title this song habitually follows in the user's sessions.
+  final String follows;
+
+  /// How many times this transition was observed.
+  final int timesFollowed;
+
+  /// p(this | previous) — 0..1 transition probability out of `follows`.
+  final double probability;
+
+  const SongPairing({
+    required this.follows,
+    required this.timesFollowed,
+    required this.probability,
+  });
+
+  factory SongPairing.fromJson(Map<String, dynamic> json) => SongPairing(
+    follows: json['follows']?.toString() ?? '',
+    timesFollowed: RecommendedSong._parseInt(json['times_followed']),
+    probability: RecommendedSong._parseDouble(json['p']),
+  );
+}
+
 /// One song recommendation returned by the `/next` endpoint (v4.0.0).
 class RecommendedSong {
   final int rank;
@@ -79,6 +104,35 @@ class RecommendedSong {
   final double? audioFitScore;
   final double? composerScore;
   final double? finalScore;
+
+  // ── Session-aware fields (server v3.1) ────────────────────────────────────
+  /// True when this song is the user's habitual session opener for this
+  /// time-of-day (only set on `/next` at the start of a session).
+  final bool isStarter;
+
+  /// True when this song is the queue's single "exploration" pick
+  /// (never played before, chosen by audio fit).
+  final bool isExplore;
+
+  /// Set when this song was ordered next to the song it historically follows.
+  final SongPairing? pairing;
+
+  // ── /predict/always-hear loyalty fields (server v3.1) ─────────────────────
+  /// Overall loyalty score for this context (0..1). Drives the MATCH bar in
+  /// Always-Hear mode (there is no `final` score for that endpoint anymore).
+  final double? loyalty;
+
+  /// How concentrated this song is in the *current* context (0..1).
+  final double? contextFit;
+
+  /// Average listen completion ratio (0..1).
+  final double? completionAvg;
+
+  /// Recency signal — 0.5^(days_since_last_listen / 30), 0..1.
+  final double? recencyDecay;
+
+  /// Days since the song was last genuinely played (null if unknown).
+  final int? daysSincePlay;
 
   /// Human-readable explanation of why this song was chosen.
   final String why;
@@ -104,6 +158,14 @@ class RecommendedSong {
     this.audioFitScore,
     this.composerScore,
     this.finalScore,
+    this.isStarter = false,
+    this.isExplore = false,
+    this.pairing,
+    this.loyalty,
+    this.contextFit,
+    this.completionAvg,
+    this.recencyDecay,
+    this.daysSincePlay,
   });
 
   factory RecommendedSong.fromJson(Map<String, dynamic> json) =>
@@ -130,11 +192,34 @@ class RecommendedSong {
                 finalScore: 0,
               ),
         why: json['why']?.toString() ?? '',
+        isStarter: json['starter'] == true,
+        isExplore: json['explore'] == true,
+        pairing: json['pairing'] is Map<String, dynamic>
+            ? SongPairing.fromJson(json['pairing'] as Map<String, dynamic>)
+            : null,
       );
 
   static RecommendedSong fromPredictJson(Map<String, dynamic> json) {
     final af = json['audio_features'] as Map<String, dynamic>? ?? {};
     final sc = json['scores']        as Map<String, dynamic>? ?? {};
+    final cs = json['context_stats'] as Map<String, dynamic>? ?? {};
+
+    // always-hear (v3.1) scores: {loyalty, completion_avg, freq_norm,
+    //   context_fit, context_spread, recency_decay} — no `final`/`audio_fit`.
+    // discovery scores: {audio_fit, composer, final}.
+    // Fall back across both shapes so the MATCH bar stays meaningful.
+    final loyalty       = (sc['loyalty']        as num?)?.toDouble();
+    final contextFit    = (sc['context_fit']    as num?)?.toDouble();
+    final completionAvg = (sc['completion_avg'] as num?)?.toDouble();
+    final recencyDecay  = (sc['recency_decay']  as num?)?.toDouble();
+    final overall = (sc['final'] as num?)?.toDouble()
+        ?? loyalty
+        ?? 0.0;
+    // For Always-Hear, "audio fit" in the score breakdown best maps to
+    // context fit; Discovery keeps its real audio_fit.
+    final audioFit = (sc['audio_fit'] as num?)?.toDouble()
+        ?? contextFit
+        ?? 0.0;
 
     return RecommendedSong(
       rank:          _parseInt(json['rank']),
@@ -153,19 +238,27 @@ class RecommendedSong {
       ),
       scores: SongScores(
         contextHistory:  (sc['history']   as num?)?.toDouble() ?? 0.0,
-        audioFit:        (sc['audio_fit'] as num?)?.toDouble() ?? 0.0,
+        audioFit:        audioFit,
         composerLoyalty: (sc['composer']  as num?)?.toDouble() ?? 0.0,
-        finalScore:      (sc['final']     as num?)?.toDouble() ?? 0.0,
+        finalScore:      overall,
       ),
-      
+
       tempo:         (af['tempo']         as num?)?.toDouble(),
       tempoNorm:     (af['tempo_norm']    as num?)?.toDouble(),
       composer:      json['composer']     as String? ?? '',
       // Score keys renamed:
-      historyScore:  (sc['history']   as num?)?.toDouble() ?? 0.0,   
-      audioFitScore: (sc['audio_fit'] as num?)?.toDouble() ?? 0.0,
-      composerScore: (sc['composer']  as num?)?.toDouble() ?? 0.0,   
-      finalScore:    (sc['final']     as num?)?.toDouble() ?? 0.0,
+      historyScore:  (sc['history']   as num?)?.toDouble() ?? 0.0,
+      audioFitScore: audioFit,
+      composerScore: (sc['composer']  as num?)?.toDouble() ?? 0.0,
+      finalScore:    overall,
+      // v3.1 loyalty signals
+      loyalty:       loyalty,
+      contextFit:    contextFit,
+      completionAvg: completionAvg,
+      recencyDecay:  recencyDecay,
+      daysSincePlay: cs['days_since_play'] == null
+          ? null
+          : _parseInt(cs['days_since_play']),
       why:           json['why']      as String? ?? '',
     );
   }
@@ -176,6 +269,13 @@ class RecommendedSong {
     return int.tryParse(v?.toString() ?? '') ?? 0;
   }
 
+  static double _parseDouble(dynamic v) {
+    if (v is double) return v;
+    if (v is int) return v.toDouble();
+    return double.tryParse(v?.toString() ?? '') ?? 0.0;
+  }
+
   /// Shows a cold-start badge when the model has low confidence.
-  bool get isColdStart => scores.finalScore < 0.4;
+  /// Exploration picks are inherently low-score, so don't flag those.
+  bool get isColdStart => !isExplore && scores.finalScore < 0.4;
 }

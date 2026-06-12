@@ -12,6 +12,7 @@ import '../../../providers/library_provider.dart';
 import '../../../screens/now_playing_screen.dart';
 import '../data/models/recommended_song.dart';
 import '../data/models/predict_response.dart';
+import '../data/models/next_response.dart';
 import '../logic/shuffle_providers.dart';
 import 'widgets/server_status_bar.dart';
 import 'widgets/recommendation_card.dart';
@@ -174,6 +175,11 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     final songs     = shuffleState.batches.isNotEmpty
         ? shuffleState.allRecommendedSongs
         : queueState.songs;
+
+    // Session starter pinned by the server (v3.1), if any.
+    final sessionStarter = shuffleState.batches
+        .map((b) => b.sessionStarter)
+        .firstWhereOrNull((s) => s != null);
     final isLoading = shuffleState.isLoading || queueState.isLoading;
     final hasError  = shuffleState.error != null ||
         (queueState.hasError && songs.isEmpty);
@@ -197,6 +203,10 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
         children: [
           // ── Server status bar ──────────────────────────────────────────────
           const ServerStatusBar(),
+
+          // ── Session starter banner ─────────────────────────────────────────
+          if (sessionStarter != null)
+            _SessionStarterBanner(starter: sessionStarter),
 
           // ── Context info strip ─────────────────────────────────────────────
           if (queueState.context != null)
@@ -424,6 +434,67 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SessionStarterBanner extends StatelessWidget {
+  const _SessionStarterBanner({required this.starter});
+
+  final SessionStarter starter;
+
+  @override
+  Widget build(BuildContext context) {
+    final cs = Theme.of(context).colorScheme;
+    final textTheme = Theme.of(context).textTheme;
+    const accent = Color(0xFF4ADE80);
+
+    return Container(
+      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+      decoration: BoxDecoration(
+        color: accent.withValues(alpha: 0.10),
+        border: Border.all(color: accent.withValues(alpha: 0.35)),
+        borderRadius: BorderRadius.circular(12),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.play_circle_fill_rounded, color: accent, size: 20),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Your ${starter.timeArcLabel} opener',
+                  style: textTheme.labelSmall?.copyWith(
+                    color: accent,
+                    fontWeight: FontWeight.w700,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  starter.title,
+                  style: textTheme.bodyMedium?.copyWith(
+                    color: cs.onSurface,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(width: 8),
+          Text(
+            'started ${starter.sessionsStarted}×',
+            style: textTheme.labelSmall?.copyWith(
+              color: cs.onSurfaceVariant,
+            ),
+          ),
+        ],
       ),
     );
   }
