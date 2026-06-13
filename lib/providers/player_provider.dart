@@ -303,6 +303,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               composer:     prevSong.composer.isNotEmpty ? prevSong.composer : prevSong.artist,
               listenRatio:  listenRatio,
               endReason:    'natural',
+              durationS:    prevSong.duration,
               sessionId:    shuffleNotifier.sessionId,
               sessionDepth: shuffleNotifier.state.sessionDepth,
             ));
@@ -476,6 +477,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
                 composer:     completedSong.composer.isNotEmpty ? completedSong.composer : completedSong.artist,
                 listenRatio:  listenRatio,
                 endReason:    'natural',
+                durationS:    completedSong.duration,
                 sessionId:    shuffleNotifier.sessionId,
                 sessionDepth: shuffleNotifier.state.sessionDepth,
               ));
@@ -882,6 +884,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         composer:     currentSong.composer.isNotEmpty ? currentSong.composer : currentSong.artist,
         listenRatio:  listenRatio,
         endReason:    'fwdbtn',
+        durationS:    currentSong.duration,
         sessionId:    shuffleNotifier.sessionId,
         sessionDepth: shuffleNotifier.state.sessionDepth,
       ));

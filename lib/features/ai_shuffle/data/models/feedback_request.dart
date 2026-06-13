@@ -12,6 +12,7 @@ class FeedbackRequest {
   final String composer;
   final double listenRatio;
   final String endReason;
+  final int durationS;
   final String sessionId;
   final int sessionDepth;
   final String genreStreakType;
@@ -24,6 +25,7 @@ class FeedbackRequest {
     required this.title,
     required this.listenRatio,
     required this.endReason,
+    this.durationS = 0,
     this.filePath = '',
     this.genreBucket = '',
     this.composer = '',
@@ -55,6 +57,7 @@ class FeedbackRequest {
     'composer': composer,
     'listen_ratio': listenRatio,
     'end_reason': endReason,
+    'duration_s': durationS,
     'session_id': sessionId,
     'session_depth': sessionDepth,
     'genre_streak_type': genreStreakType,
