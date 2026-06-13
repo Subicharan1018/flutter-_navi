@@ -17,7 +17,6 @@ import '../utils/platform_utils.dart';
 import '../services/scrobble_service.dart';
 import '../main.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
-import '../features/ai_shuffle/data/models/recommended_song.dart';
 import '../features/ai_shuffle/data/models/feedback_request.dart';
 import 'library_provider.dart';
 
