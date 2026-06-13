@@ -503,7 +503,7 @@ class _PeriodSelector extends StatelessWidget {
 
     switch (mode) {
       case AppThemeMode.spotify:
-        trackColor = const Color(0xFF181818);
+        trackColor = tokens.bgElevated;
         capsuleColor = tokens.accent;
         capsuleShadow = [];
         trackBorder = Border.all(color: tokens.outline, width: 1);
@@ -649,11 +649,11 @@ class _MetricsRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final skipRate = (stats.skipRate * 100).toInt();
-    Color skipColor = tokens.accent;
+    Color skipColor = tokens.positive;
     if (skipRate > 20) {
-      skipColor = Theme.of(context).colorScheme.error;
+      skipColor = tokens.danger;
     } else if (skipRate >= 10) {
-      skipColor = const Color(0xFFFFD700);
+      skipColor = tokens.warning;
     }
 
     return GridView.count(
@@ -679,7 +679,7 @@ class _MetricsRow extends StatelessWidget {
           rawNumber: stats.totalMinutes,
           subtitle: 'total airtime',
           icon: Icons.headset_rounded,
-          accent: const Color(0xFF64D2FF),
+          accent: tokens.accent,
           tokens: tokens,
         ),
         _MetricCard(
@@ -695,7 +695,7 @@ class _MetricsRow extends StatelessWidget {
           value: stats.streakDays > 3 ? '${stats.streakDays}d 🔥' : '${stats.streakDays}d',
           subtitle: 'consecutive days',
           icon: Icons.local_fire_department_rounded,
-          accent: stats.streakDays > 3 ? const Color(0xFFFF9500) : tokens.textPrimary,
+          accent: stats.streakDays > 3 ? tokens.warning : tokens.textPrimary,
           tokens: tokens,
         ),
       ],
@@ -826,7 +826,7 @@ class _MetricCardState extends State<_MetricCard> {
                 style: TextStyle(
                   fontSize: 10,
                   fontWeight: FontWeight.w500,
-                  color: tokens.textMuted.withValues(alpha: 0.8),
+                  color: tokens.textMuted,
                 ),
               ),
             ],
@@ -845,7 +845,7 @@ class _MetricCardState extends State<_MetricCard> {
         child: AnimatedScale(
           duration: const Duration(milliseconds: 150),
           scale: _isPressed ? 0.96 : 1.0,
-          curve: Curves.easeOutBack,
+          curve: Curves.easeOut,
           child: content,
         ),
       ),
@@ -1287,7 +1287,7 @@ class ListeningLineChart extends StatelessWidget {
       );
     }
 
-    final trendColor = isUp ? const Color(0xFF1DB954) : const Color(0xFFFF6B6B);
+    final trendColor = isUp ? tokens.positive : tokens.danger;
 
     return PremiumCard(
       padding: EdgeInsets.zero,
@@ -1497,6 +1497,7 @@ class ModelStatusCard extends StatelessWidget {
           )
         : 1.0;
     final isActive = progress < 1.0 || status.unprocessedEvents > 0;
+    final statusColor = isActive ? tokens.accent : tokens.textMuted;
 
     return PremiumCard(
       child: Column(
@@ -1531,10 +1532,10 @@ class ModelStatusCard extends StatelessWidget {
                   vertical: 4,
                 ),
                 decoration: BoxDecoration(
-                  color: tokens.accent.withValues(alpha: 0.10),
+                  color: statusColor.withValues(alpha: 0.10),
                   borderRadius: radiusFull,
                   border: Border.all(
-                    color: tokens.accent.withValues(alpha: 0.25),
+                    color: statusColor.withValues(alpha: 0.25),
                     width: 0.5,
                   ),
                 ),
@@ -1545,15 +1546,15 @@ class ModelStatusCard extends StatelessWidget {
                       width: 5,
                       height: 5,
                       decoration: BoxDecoration(
-                        color: tokens.accent,
+                        color: statusColor,
                         shape: BoxShape.circle,
                       ),
                     ),
                     const SizedBox(width: 5),
                     Text(
                       isActive ? 'Active' : 'Idle',
-                      style: const TextStyle(
-                        color: Colors.green,
+                      style: TextStyle(
+                        color: statusColor,
                         fontSize: 10,
                         fontWeight: FontWeight.w700,
                       ),
@@ -1610,7 +1611,7 @@ class ModelStatusCard extends StatelessWidget {
                 style: TextStyle(
                   color: tokens.textMuted,
                   fontSize: 11,
-                  fontFamily: 'monospace',
+                  fontFeatures: const [FontFeature.tabularFigures()],
                 ),
               ),
             ],
@@ -1622,7 +1623,7 @@ class ModelStatusCard extends StatelessWidget {
               value: progress,
               backgroundColor: tokens.textPrimary.withValues(alpha: 0.07),
               valueColor: AlwaysStoppedAnimation(
-                progress > 0.8 ? Colors.orange : tokens.accent,
+                progress > 0.8 ? tokens.warning : tokens.accent,
               ),
               minHeight: 4,
             ),
@@ -1714,12 +1715,15 @@ class _TopArtistsList extends StatelessWidget {
         final color1 = HSLColor.fromAHSL(1.0, hue, 0.65, 0.40).toColor();
         final color2 = HSLColor.fromAHSL(1.0, (hue + 40) % 360, 0.70, 0.25).toColor();
 
+        // Podium ramp: gold (themed warm signal) for #1, then neutral text
+        // tones. Avoids silver/bronze literals that vanish on the light themes
+        // and bleed colour into the monochrome Zen theme.
         final rankColor = i == 0
-            ? const Color(0xFFFFD700)
+            ? tokens.gold
             : i == 1
-            ? const Color(0xFFCCCCCC)
+            ? tokens.textSecondary
             : i == 2
-            ? const Color(0xFFCD7F32)
+            ? tokens.textMuted
             : tokens.textMuted.withValues(alpha: 0.5);
 
         return Container(
@@ -1885,19 +1889,22 @@ class _TopTracksList extends ConsumerWidget {
         final ratioRaw = t['avg_listen_ratio'];
         final ratio = ratioRaw is num ? ratioRaw.toDouble() : 1.0;
         final ratioColor = ratio >= 0.8
-            ? const Color(0xFF1DB954)
+            ? tokens.positive
             : ratio >= 0.5
-            ? const Color(0xFFFFD700)
-            : const Color(0xFFFF6B6B);
+            ? tokens.warning
+            : tokens.danger;
 
         final coverUrlAsync = ref.watch(songCoverUrlProvider('$title|$artist'));
 
+        // Podium ramp: gold (themed warm signal) for #1, then neutral text
+        // tones. Avoids silver/bronze literals that vanish on the light themes
+        // and bleed colour into the monochrome Zen theme.
         final rankColor = i == 0
-            ? const Color(0xFFFFD700)
+            ? tokens.gold
             : i == 1
-            ? const Color(0xFFCCCCCC)
+            ? tokens.textSecondary
             : i == 2
-            ? const Color(0xFFCD7F32)
+            ? tokens.textMuted
             : tokens.textMuted.withValues(alpha: 0.5);
 
         return Container(

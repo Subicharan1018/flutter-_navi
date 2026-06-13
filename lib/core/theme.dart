@@ -139,6 +139,16 @@ class AppThemeTokens {
   /// and other overlays where a translucent [bgSurface] would leak the
   /// backdrop through (e.g. the Frost theme's 30% white glass surface).
   Color get bgSurfaceOpaque => Color.alphaBlend(bgSurface, bgBase);
+
+  // ── Semantic state colours ────────────────────────────────────────────────
+  // A theme-aware status vocabulary so screens never hardcode green/amber/red
+  // literals — those bleed one theme's identity across all six (e.g. Spotify
+  // green on the Analog theme). Positive maps to the live accent, warning to
+  // the warm gold signal, danger to the shared error red (matches the
+  // ColorScheme error and DESIGN.md's documented error token).
+  Color get positive => accent;
+  Color get warning => gold;
+  Color get danger => const Color(0xFFCF6679);
 }
 
 // =============================================================================

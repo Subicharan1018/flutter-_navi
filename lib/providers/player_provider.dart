@@ -370,8 +370,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (state.queue.isNotEmpty) {
           final remainingAhead = state.queue.length - 1 - index;
           if (isSmartLocal && remainingAhead <= _smartLocalRefillThreshold) {
-            // Only refill if there are songs left in the pool.
-            if (_playlistPool.isNotEmpty) {
+            // Only refill on natural playback advancement — NOT when the user
+            // jumps directly to a song near the end (jumpTo sets the transition
+            // type to 'user_selected'). Without this guard, tapping the last
+            // song in Up Next instantly regenerates the queue and reorders the
+            // songs that were already sitting ahead of it. Refill resumes when
+            // the jumped-to song finishes naturally.
+            if (_playlistPool.isNotEmpty && transitionType != 'user_selected') {
               _triggerSmartLocalFetchIfNeeded();
             }
           } else if (state.autoplayMode && !isSmartLocal) {
@@ -1645,9 +1650,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   //   5. Drain pool of anything now in queue.
   //
   // Pool enforcement: only songs originally in playlist.songs ever appear.
-  // The server cannot inject outside songs because the candidate list
-  // (fullFuture) is built entirely from _playlistPool + existingFuture,
-  // both of which came from the original playlist.
+  // The server cannot inject outside songs because the candidate list (batch)
+  // is taken entirely from _playlistPool, which came from the original
+  // playlist. Songs already queued ahead (existingFuture) are preserved in
+  // place and never sent to the server for reordering.
   // ---------------------------------------------------------------------------
 
   void _triggerSmartLocalFetchIfNeeded() {
@@ -1690,16 +1696,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
 
-      // Full future = songs already ahead + new batch.
-      final fullFuture = [...existingFuture, ...batch];
+      // Order ONLY the new batch. Songs already queued ahead (existingFuture)
+      // keep their exact position — they must never be pushed below freshly
+      // generated songs. Seed the batch ordering off the last already-queued
+      // song so transitions chain cleanly from what the listener will actually
+      // hear next; fall back to the current song when nothing is queued ahead.
+      final seedForBatch = existingFuture.isNotEmpty
+          ? existingFuture.last
+          : seedSong;
 
       // Concurrent: HTTP ordering fetch + playlist append.
       final results = await Future.wait([
-        // A: HTTP — order fullFuture relative to seedSong.
+        // A: HTTP — order the batch relative to seedForBatch, then place it
+        //    strictly after the existing upcoming songs.
         () async {
           try {
             final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
-            final candidateTitles = fullFuture.map((s) => s.title).toList();
+            final candidateTitles = batch.map((s) => s.title).toList();
             debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart, candidates: ${candidateTitles.length})');
 
             // source is always 'smart': the app has no Navidrome playlist_id here, so
@@ -1710,30 +1723,30 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               playlistName: _currentPlaylistName,
               candidates: candidateTitles,
               count: candidateTitles.length,
-              // Seed the pairing chain from the song playing now, so transitions
-              // are ordered relative to it (robust to played_titles dedup).
-              seedTitle: seedSong.title,
+              seedTitle: seedForBatch.title,
             );
             if (!mounted) return [];
 
-            final resolved = <Song>[];
+            final orderedBatch = <Song>[];
             for (final rec in response.queue) {
-              final match = fullFuture.firstWhereOrNull(
+              final match = batch.firstWhereOrNull(
                 (s) =>
                     s.title.toLowerCase() == rec.title.toLowerCase() &&
                     s.artist.toLowerCase() == rec.composer.toLowerCase(),
-              ) ?? fullFuture.firstWhereOrNull(
+              ) ?? batch.firstWhereOrNull(
                 (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
               );
-              if (match != null && !resolved.contains(match)) {
-                resolved.add(match);
+              if (match != null && !orderedBatch.contains(match)) {
+                orderedBatch.add(match);
               }
             }
 
-            for (final s in fullFuture) {
-              if (!resolved.contains(s)) resolved.add(s);
+            for (final s in batch) {
+              if (!orderedBatch.contains(s)) orderedBatch.add(s);
             }
-            return resolved;
+
+            // Existing upcoming songs stay on top, in their current order.
+            return [...existingFuture, ...orderedBatch];
           } catch (e) {
             debugPrint('[Smart Local Refill] API Error: $e');
             return null;
