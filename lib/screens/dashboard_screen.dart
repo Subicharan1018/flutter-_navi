@@ -13,6 +13,7 @@ import '../widgets/contribution_graph.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../features/ai_shuffle/data/models/listening_stats_response.dart';
 import '../features/ai_shuffle/data/models/model_status_response.dart';
+import '../features/ai_shuffle/data/models/contribution_graph_response.dart';
 
 enum StatsPeriod { weekly, monthly, all }
 
@@ -45,6 +46,26 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final statsAsync = ref.watch(listeningStatsProvider(_period.value));
     final modelAsync = ref.watch(modelStatusProvider);
     final tokens = ThemeTokens.of(context);
+
+    // The app shell sets extendBody:true, so this scroll view runs *behind* the
+    // 68px mini-player + 56px nav bar. Without this clearance the last card
+    // (AI model) sits permanently under the mini player.
+    final bottomClearance =
+        68.0 + 56.0 + s16 + MediaQuery.viewPaddingOf(context).bottom;
+
+    // "Listening over time" is driven by the contribution graph's real per-day
+    // counts (not the 20-row recent_plays sample, which made the line read as a
+    // flat zero with a single end spike). Window tracks the selected period.
+    final contribDays =
+        ref.watch(contributionGraphProvider).valueOrNull?.days ??
+        const <ContributionDay>[];
+    final lineWindow = _period == StatsPeriod.weekly
+        ? 7
+        : _period == StatsPeriod.monthly
+            ? 30
+            : 90;
+    final lineSpots = _spotsFromContribution(contribDays, lineWindow);
+    final lineLabels = _dayLabels(lineWindow);
 
     return Scaffold(
       backgroundColor: tokens.bgBase,
@@ -103,15 +124,17 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             // ── Content ──────────────────────────────────────────────────
             statsAsync.when(
               data: (stats) => SliverPadding(
-                padding: const EdgeInsets.fromLTRB(s16, s20, s16, 0),
+                padding: EdgeInsets.fromLTRB(s16, s20, s16, bottomClearance),
                 sliver: SliverToBoxAdapter(
                   child: LayoutBuilder(
                     builder: (context, constraints) {
                       final isWide = constraints.maxWidth > 950;
                       if (isWide) {
-                        return _buildWideLayout(stats, modelAsync, tokens);
+                        return _buildWideLayout(
+                          stats, modelAsync, tokens, lineSpots, lineLabels);
                       } else {
-                        return _buildNarrowLayout(stats, modelAsync, tokens);
+                        return _buildNarrowLayout(
+                          stats, modelAsync, tokens, lineSpots, lineLabels);
                       }
                     },
                   ),
@@ -170,6 +193,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     ListeningStatsResponse stats,
     AsyncValue<ModelStatusResponse> modelAsync,
     AppThemeTokens tokens,
+    List<FlSpot> lineSpots,
+    List<String> lineLabels,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -186,8 +211,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             Expanded(
               flex: 6,
               child: ListeningLineChart(
-                spots: _buildLineSpots(stats),
-                labels: _buildLineLabels(stats),
+                spots: lineSpots,
+                labels: lineLabels,
               ),
             ),
           ],
@@ -203,7 +228,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
             const SizedBox(width: s24),
             Expanded(
-              child: GenreRadarChart(genres: stats.genreBreakdown),
+              child: GenreMixCard(genres: stats.genreBreakdown),
             ),
           ],
         ),
@@ -263,7 +288,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
             ),
           ],
         ),
-        const SizedBox(height: 48),
+        const SizedBox(height: s8),
       ],
     );
   }
@@ -272,6 +297,8 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     ListeningStatsResponse stats,
     AsyncValue<ModelStatusResponse> modelAsync,
     AppThemeTokens tokens,
+    List<FlSpot> lineSpots,
+    List<String> lineLabels,
   ) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -279,18 +306,20 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         _MetricsRow(stats: stats, tokens: tokens),
         const SizedBox(height: s24),
 
+        // Group 1 — when you listen (hour of day + genre), tighter internal gap.
         HourlyHeatmap(heatmapData: stats.hourlyHeatmap),
+        const SizedBox(height: s16),
+
+        GenreMixCard(genres: stats.genreBreakdown),
         const SizedBox(height: s24),
 
-        GenreRadarChart(genres: stats.genreBreakdown),
-        const SizedBox(height: s24),
-
+        // Group 2 — activity over time (year grid + windowed trend).
         const ContributionGraphCard(),
-        const SizedBox(height: s24),
+        const SizedBox(height: s16),
 
         ListeningLineChart(
-          spots: _buildLineSpots(stats),
-          labels: _buildLineLabels(stats),
+          spots: lineSpots,
+          labels: lineLabels,
         ),
         const SizedBox(height: s24),
 
@@ -309,41 +338,33 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
           loading: () => const NaviSkeleton(height: 140),
           error: (_, __) => const SizedBox.shrink(),
         ),
-        const SizedBox(height: 48),
+        const SizedBox(height: s8),
       ],
     );
   }
 
-  List<FlSpot> _buildLineSpots(ListeningStatsResponse stats) {
+  /// One spot per day across the trailing [window] days, sourced from the
+  /// contribution graph's real per-day play counts.
+  List<FlSpot> _spotsFromContribution(List<ContributionDay> days, int window) {
+    final byDate = {for (final d in days) d.date: d.count};
     final now = DateTime.now();
-    final map = <String, int>{};
-    for (int i = 29; i >= 0; i--) {
-      final d = now.subtract(Duration(days: i));
-      final key =
-          '${d.year}-${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
-      map[key] = 0;
-    }
-    for (final play in stats.recentPlays) {
-      final playedAt = play['played_at_ist']?.toString() ?? '';
-      if (playedAt.length >= 10) {
-        final date = playedAt.substring(0, 10);
-        if (map.containsKey(date)) map[date] = map[date]! + 1;
-      }
-    }
-    final sortedKeys = map.keys.toList()..sort();
-    return List.generate(
-      sortedKeys.length,
-      (i) => FlSpot(i.toDouble(), map[sortedKeys[i]]!.toDouble()),
-    );
-  }
-
-  List<String> _buildLineLabels(ListeningStatsResponse stats) {
-    final now = DateTime.now();
-    return List.generate(30, (i) {
-      final d = now.subtract(Duration(days: 29 - i));
-      return '${d.month.toString().padLeft(2, '0')}-${d.day.toString().padLeft(2, '0')}';
+    return List.generate(window, (i) {
+      final d = now.subtract(Duration(days: window - 1 - i));
+      return FlSpot(i.toDouble(), (byDate[_isoDate(d)] ?? 0).toDouble());
     });
   }
+
+  List<String> _dayLabels(int window) {
+    final now = DateTime.now();
+    return List.generate(window, (i) {
+      final d = now.subtract(Duration(days: window - 1 - i));
+      return '${_two(d.month)}-${_two(d.day)}';
+    });
+  }
+
+  static String _isoDate(DateTime d) =>
+      '${d.year}-${_two(d.month)}-${_two(d.day)}';
+  static String _two(int n) => n.toString().padLeft(2, '0');
 }
 
 // ── Small helpers ─────────────────────────────────────────────────────────────
@@ -662,7 +683,7 @@ class _MetricsRow extends StatelessWidget {
       physics: const NeverScrollableScrollPhysics(),
       crossAxisSpacing: s16,
       mainAxisSpacing: s16,
-      childAspectRatio: 1.45,
+      childAspectRatio: 1.6,
       children: [
         _MetricCard(
           label: 'Plays',
@@ -800,11 +821,13 @@ class _MetricCardState extends State<_MetricCard> {
                   ),
                 ],
               ),
-              const SizedBox(height: s8),
-              Expanded(
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: widget.rawNumber != null
+              // Number + subtitle grouped at the bottom so they read as one
+              // unit instead of a number floating in empty space.
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  widget.rawNumber != null
                       ? TweenAnimationBuilder<int>(
                           tween: IntTween(begin: 0, end: widget.rawNumber!),
                           duration: const Duration(milliseconds: 900),
@@ -818,16 +841,16 @@ class _MetricCardState extends State<_MetricCard> {
                           widget.value,
                           style: numberStyle,
                         ),
-                ),
-              ),
-              const SizedBox(height: s4),
-              Text(
-                widget.subtitle,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: tokens.textMuted,
-                ),
+                  const SizedBox(height: 2),
+                  Text(
+                    widget.subtitle,
+                    style: TextStyle(
+                      fontSize: 10,
+                      fontWeight: FontWeight.w500,
+                      color: tokens.textMuted,
+                    ),
+                  ),
+                ],
               ),
             ],
           ),
@@ -1059,20 +1082,32 @@ class _HourlyHeatmapState extends State<HourlyHeatmap> {
                           ),
                           const SizedBox(height: 6),
                           if (hour % 6 == 0)
-                            Text(
-                              hour == 0
-                                  ? '12a'
-                                  : hour == 12
-                                      ? '12p'
-                                      : hour < 12
-                                          ? '${hour}a'
-                                          : '${hour - 12}p',
-                              style: TextStyle(
-                                color: isSelected
-                                    ? tokens.accent
-                                    : (isPeak ? tokens.accent : tokens.textMuted),
-                                fontSize: 9,
-                                fontWeight: FontWeight.w600,
+                            // The bar slot is only ~13px wide, so a 3-char label
+                            // like "12p" wraps to two lines. OverflowBox lets the
+                            // centred label render on one line, spilling into the
+                            // unlabelled neighbouring slots.
+                            SizedBox(
+                              height: 11,
+                              child: OverflowBox(
+                                maxWidth: 40,
+                                child: Text(
+                                  hour == 0
+                                      ? '12a'
+                                      : hour == 12
+                                          ? '12p'
+                                          : hour < 12
+                                              ? '${hour}a'
+                                              : '${hour - 12}p',
+                                  maxLines: 1,
+                                  softWrap: false,
+                                  style: TextStyle(
+                                    color: isSelected
+                                        ? tokens.accent
+                                        : (isPeak ? tokens.accent : tokens.textMuted),
+                                    fontSize: 9,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                                ),
                               ),
                             )
                           else
@@ -1093,9 +1128,9 @@ class _HourlyHeatmapState extends State<HourlyHeatmap> {
 
 // ── Genre Radar ───────────────────────────────────────────────────────────────
 
-class GenreRadarChart extends StatelessWidget {
+class GenreMixCard extends StatelessWidget {
   final List<Map<String, dynamic>> genres;
-  const GenreRadarChart({super.key, required this.genres});
+  const GenreMixCard({super.key, required this.genres});
 
   @override
   Widget build(BuildContext context) {
@@ -1123,49 +1158,8 @@ class GenreRadarChart extends StatelessWidget {
               ),
             ),
           ),
-          SizedBox(
-            height: 200,
-            child: RadarChart(
-              RadarChartData(
-                radarShape: RadarShape.polygon,
-                radarBackgroundColor: Colors.transparent,
-                borderData: FlBorderData(show: false),
-                gridBorderData: BorderSide(
-                  color: tokens.textPrimary.withValues(alpha: 0.07),
-                  width: 0.5,
-                ),
-                tickBorderData: const BorderSide(color: Colors.transparent),
-                tickCount: 3,
-                titleTextStyle: TextStyle(
-                  color: tokens.textSecondary,
-                  fontSize: 9,
-                  fontWeight: FontWeight.w600,
-                  letterSpacing: 0.3,
-                ),
-                getTitle: (index, angle) => RadarChartTitle(
-                  text: top[index]['genre']?.toString() ?? '',
-                  angle: angle - 90,
-                ),
-                dataSets: [
-                  RadarDataSet(
-                    fillColor: tokens.accent.withValues(alpha: 0.10),
-                    borderColor: tokens.accent,
-                    borderWidth: 1.5,
-                    entryRadius: 2.5,
-                    dataEntries: top
-                        .map(
-                          (g) => RadarEntry(
-                            value: _double(g['pct']) / maxPct * 100,
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ],
-              ),
-            ),
-          ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(s20, s8, s20, s20),
+            padding: const EdgeInsets.fromLTRB(s20, s16, s20, s20),
             child: Column(
               children: List.generate(top.length, (i) {
                 final g = top[i];
