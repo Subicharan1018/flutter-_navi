@@ -39,10 +39,13 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   }
 
   void _fetchRecommendations() {
+    // Clear any previous /next reshuffle batch FIRST so the screen never renders
+    // a stale frame of the playback engine's batches. On first open those batches
+    // are populated by playPlaylist's fetchNext (/next); clearing before fetching
+    // stops the screen from briefly showing /next data before /predict/always-hear.
+    ref.read(shuffleQueueProvider.notifier).clearQueue();
     final state = ref.read(predictQueueProvider);
     ref.read(predictQueueProvider.notifier).fetchPredict(mode: state.mode);
-    // Clear any previous reshuffle batch so the predict list is shown again.
-    ref.read(shuffleQueueProvider.notifier).clearQueue();
   }
 
   Future<void> _enqueueSong(RecommendedSong song) async {

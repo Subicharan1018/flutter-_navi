@@ -184,8 +184,21 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
 
   /// Stream URL — fresh salt per call (correct: each stream request is unique).
-  String getStreamUrl(String songId) =>
-      _buildUrl('stream.view', {'id': songId, 'f': ''});
+  ///
+  /// When [maxBitRate] (> 0) and/or [format] (not null/'raw') are supplied, the
+  /// Subsonic server transcodes the stream down to that ceiling/codec. This is
+  /// the only place those params are applied — callers (the audio handler) read
+  /// them from [TranscodingService]. Omitting both streams the original file.
+  String getStreamUrl(String songId, {int? maxBitRate, String? format}) {
+    final params = {'id': songId, 'f': ''};
+    if (maxBitRate != null && maxBitRate > 0) {
+      params['maxBitRate'] = maxBitRate.toString();
+    }
+    if (format != null && format.isNotEmpty && format != 'raw') {
+      params['format'] = format;
+    }
+    return _buildUrl('stream.view', params);
+  }
 
   /// Cover-art URL — **stable** salt so the URL never changes for a given ID.
   /// This is what allows CachedNetworkImage to serve from disk/memory cache

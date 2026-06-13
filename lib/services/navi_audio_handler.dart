@@ -7,6 +7,7 @@ import 'package:audio_service/audio_service.dart';
 import '../models/song.dart';
 import 'subsonic_service.dart';
 import 'replay_gain_service.dart';
+import 'transcoding_service.dart';
 import '../providers/settings_provider.dart';
 import '../offline_service.dart';
 import 'dart:convert';
@@ -21,6 +22,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer player;
   final SubsonicService subsonicService;
   final ReplayGainService _replayGainService;
+  final TranscodingService _transcodingService;
   List<Song> _currentQueue = [];
   List<Song> _unshuffledQueue = [];
   ConcatenatingAudioSource? _playlist;
@@ -56,8 +58,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     this.subsonicService, {
     AudioPlayer? player,
     ReplayGainService? replayGainService,
+    TranscodingService? transcodingService,
   }) : player = player ?? AudioPlayer(),
-       _replayGainService = replayGainService ?? ReplayGainService() {
+       _replayGainService = replayGainService ?? ReplayGainService(),
+       _transcodingService = transcodingService ?? TranscodingService() {
     _listenToPlayerEvents();
 
     _subscriptions.add(this.player.currentIndexStream.listen((index) {
@@ -256,7 +260,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final localPath = OfflineService().getLocalPath(song.id);
     final streamUri = localPath != null
         ? Uri.parse('file://$localPath')
-        : Uri.parse(subsonicService.getStreamUrl(song.id));
+        : Uri.parse(subsonicService.getStreamUrl(
+            song.id,
+            maxBitRate: _transcodingService.getCurrentBitrate(),
+            format: _transcodingService.getCurrentFormat(),
+          ));
 
     return AudioSource.uri(
       streamUri,
@@ -277,7 +285,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final localPath = offlinePaths[song.id];
     final streamUri = localPath != null
         ? Uri.parse('file://$localPath')
-        : Uri.parse(subsonicService.getStreamUrl(song.id));
+        : Uri.parse(subsonicService.getStreamUrl(
+            song.id,
+            maxBitRate: _transcodingService.getCurrentBitrate(),
+            format: _transcodingService.getCurrentFormat(),
+          ));
 
     return AudioSource.uri(
       streamUri,

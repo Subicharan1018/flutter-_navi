@@ -1,0 +1,159 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-06-13T00:00:00Z",
+  "title": "Design System: NaviVibe",
+  "extensions": {
+    "colorMeta": {
+      "accent": {
+        "role": "primary",
+        "displayName": "Vibrant Green (Spotify default; per-theme override)",
+        "canonical": "#1DB954",
+        "themeOverrides": {
+          "aura": "#BB86FC",
+          "frost": "#64D2FF",
+          "neumorphic": "#4A90D9",
+          "analog": "#B5451B",
+          "zen": "#111111"
+        },
+        "tonalRamp": ["#06270F", "#0B4019", "#105C24", "#158A3E", "#1DB954", "#3FCB6F", "#74DD98", "#B3EFC8"]
+      },
+      "gold": {
+        "role": "tertiary",
+        "displayName": "Gold (favourites & ratings)",
+        "canonical": "#E8C547",
+        "tonalRamp": ["#3A2E0A", "#5C4910", "#8A6E18", "#B89322", "#E8C547", "#EFD473", "#F4E29F", "#FAF1CF"]
+      },
+      "bg-base": {
+        "role": "neutral",
+        "displayName": "Bg Base (scaffold)",
+        "canonical": "#000000",
+        "tonalRamp": ["#000000", "#0A0A0A", "#121212", "#181818", "#282828", "#3A3A3A", "#5C5C5C", "#7F7F7F"]
+      },
+      "text-secondary": {
+        "role": "neutral",
+        "displayName": "Text Secondary (artist / metadata)",
+        "canonical": "#B3B3B3",
+        "tonalRamp": ["#2A2A2A", "#444444", "#5C5C5C", "#7F7F7F", "#999999", "#B3B3B3", "#CCCCCC", "#FFFFFF"]
+      }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display", "purpose": "Screen titles and the largest Now Playing track title." },
+      "headline": { "displayName": "Headline", "purpose": "Section headers (Recently Played, Made For You)." },
+      "title": { "displayName": "Title", "purpose": "Song-row titles, card titles, dialog headers." },
+      "body": { "displayName": "Body", "purpose": "Descriptions and secondary prose; cap 65-75ch." },
+      "label": { "displayName": "Label", "purpose": "Nav captions and technical metadata; the only widened tracking." }
+    },
+    "shadows": [
+      { "name": "neu-resting", "value": "6px 6px 14px rgba(163,177,198,0.6), -6px -6px 14px #ffffff", "purpose": "Neumorphic surface at rest (NeuBox). The entire Neumorphic identity." },
+      { "name": "neu-pressed", "value": "2px 2px 6px rgba(163,177,198,0.6), -2px -2px 6px #ffffff", "purpose": "Neumorphic surface pressed (NeuBox)." },
+      { "name": "glass-ambient", "value": "0 8px 20px -4px rgba(0,0,0,0.25)", "purpose": "Diffuse drop under frosted panels (GlassBox, Frost theme)." }
+    ],
+    "motion": [
+      { "name": "press-scale", "value": "100ms ease-in-out, scale 1.0 -> 0.97", "purpose": "CupertinoClickable touch feedback on every tappable element." },
+      { "name": "state-fast", "value": "150ms", "purpose": "Compact state changes (NeuBox, selection)." },
+      { "name": "state-standard", "value": "200-250ms cubic-bezier easeOutCubic", "purpose": "Default for transitions, reveals, expansions." },
+      { "name": "mini-swipe", "value": "50ms slide", "purpose": "Mini-player swipe-to-switch acknowledgement." }
+    ],
+    "breakpoints": [
+      { "name": "portrait", "value": "structural — collapse to single column, mini player docked" },
+      { "name": "landscape", "value": "structural — high-density two-pane, queue alongside Now Playing" }
+    ]
+  },
+  "components": [
+    {
+      "name": "Primary Play Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The canonical primary action — accent circle with a centered glyph, used for play across the app.",
+      "html": "<button class=\"ds-play\" aria-label=\"Play\"><svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\"><path d=\"M8 5v14l11-7z\" fill=\"#000000\"/></svg></button>",
+      "css": ".ds-play { display:inline-grid; place-items:center; width:56px; height:56px; border:none; border-radius:999px; background:#1DB954; cursor:pointer; transition:transform .1s ease-in-out, background .2s; } .ds-play:hover { background:#3FCB6F; } .ds-play:active { transform:scale(.97); } .ds-play:focus-visible { outline:2px solid #1DB954; outline-offset:3px; }"
+    },
+    {
+      "name": "Pill Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Stadium primary action with accent fill and black ink.",
+      "html": "<button class=\"ds-pill\">Shuffle Play</button>",
+      "css": ".ds-pill { font-family:Inter,system-ui,sans-serif; font-weight:700; font-size:14px; color:#000; background:#1DB954; border:none; border-radius:999px; padding:12px 32px; cursor:pointer; transition:transform .1s ease-in-out, background .2s; } .ds-pill:hover { background:#3FCB6F; } .ds-pill:active { transform:scale(.97); } .ds-pill:disabled { background:#158A3E; color:#7F7F7F; cursor:not-allowed; }"
+    },
+    {
+      "name": "Filter Chip",
+      "kind": "chip",
+      "refersTo": "chip",
+      "description": "Genre / library facet filter. Selected state inverts to accent fill.",
+      "html": "<div class=\"ds-chips\"><button class=\"ds-chip ds-chip--on\">All</button><button class=\"ds-chip\">Albums</button><button class=\"ds-chip\">Artists</button></div>",
+      "css": ".ds-chips { display:flex; gap:8px; } .ds-chip { font-family:Inter,system-ui,sans-serif; font-weight:500; font-size:13px; color:#fff; background:#282828; border:none; border-radius:999px; padding:6px 12px; cursor:pointer; transition:background .2s, transform .1s ease-in-out; } .ds-chip:active { transform:scale(.97); } .ds-chip--on { background:#1DB954; color:#000; } .ds-chip:focus-visible { outline:2px solid #1DB954; outline-offset:2px; }"
+    },
+    {
+      "name": "Song Row",
+      "kind": "card",
+      "refersTo": "song-row",
+      "description": "The atomic library/queue row — cover thumb, title, artist, duration. Cover-first hierarchy.",
+      "html": "<div class=\"ds-row\"><div class=\"ds-row__art\"></div><div class=\"ds-row__meta\"><span class=\"ds-row__title\">Midnight City</span><span class=\"ds-row__artist\">M83</span></div><span class=\"ds-row__dur\">4:03</span></div>",
+      "css": ".ds-row { display:flex; align-items:center; gap:12px; padding:8px 16px; border-radius:8px; background:transparent; cursor:pointer; transition:background .15s; } .ds-row:hover { background:#181818; } .ds-row__art { width:44px; height:44px; border-radius:6px; flex:none; background:linear-gradient(135deg,#533483,#0F3460); } .ds-row__meta { display:flex; flex-direction:column; min-width:0; flex:1; } .ds-row__title { font-family:Inter,system-ui,sans-serif; font-weight:700; font-size:16px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .ds-row__artist { font-family:Inter,system-ui,sans-serif; font-weight:400; font-size:14px; color:#B3B3B3; } .ds-row__dur { font-family:Inter,system-ui,sans-serif; font-size:12px; color:#7F7F7F; flex:none; }"
+    },
+    {
+      "name": "Album Card",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Library grid tile — large cover, title, subtitle. The atmosphere starts here.",
+      "html": "<div class=\"ds-album\"><div class=\"ds-album__art\"></div><span class=\"ds-album__title\">Hurry Up, We're Dreaming</span><span class=\"ds-album__sub\">M83 · 2011</span></div>",
+      "css": ".ds-album { display:flex; flex-direction:column; gap:8px; width:160px; padding:12px; border-radius:16px; background:#121212; cursor:pointer; transition:background .2s, transform .1s ease-in-out; } .ds-album:hover { background:#181818; } .ds-album:active { transform:scale(.98); } .ds-album__art { aspect-ratio:1; border-radius:12px; background:linear-gradient(135deg,#1A1A2E,#533483); } .ds-album__title { font-family:Inter,system-ui,sans-serif; font-weight:700; font-size:16px; color:#fff; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; } .ds-album__sub { font-family:Inter,system-ui,sans-serif; font-size:12px; color:#B3B3B3; }"
+    },
+    {
+      "name": "Progress Slider",
+      "kind": "custom",
+      "refersTo": "button-primary",
+      "description": "Now Playing scrubber — SliderTheme+Slider only, matched to the mini player. Custom painters forbidden.",
+      "html": "<div class=\"ds-slider\"><div class=\"ds-slider__track\"><div class=\"ds-slider__fill\"></div><div class=\"ds-slider__thumb\"></div></div><div class=\"ds-slider__times\"><span>1:24</span><span>4:03</span></div></div>",
+      "css": ".ds-slider { display:flex; flex-direction:column; gap:6px; } .ds-slider__track { position:relative; height:4px; border-radius:999px; background:rgba(255,255,255,.1); } .ds-slider__fill { position:absolute; inset:0 65% 0 0; border-radius:999px; background:#1DB954; } .ds-slider__thumb { position:absolute; left:35%; top:50%; width:12px; height:12px; border-radius:999px; background:#fff; transform:translate(-50%,-50%); box-shadow:0 1px 4px rgba(0,0,0,.4); } .ds-slider__times { display:flex; justify-content:space-between; font-family:Inter,system-ui,sans-serif; font-size:12px; color:#7F7F7F; }"
+    },
+    {
+      "name": "Bottom Navigation",
+      "kind": "nav",
+      "refersTo": "card",
+      "description": "Flat bottom nav over bg-base, zero elevation. Accent marks the selected destination.",
+      "html": "<nav class=\"ds-nav\"><button class=\"ds-nav__item ds-nav__item--on\"><svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\"><path d=\"M12 3l9 8h-3v9h-4v-6h-4v6H6v-9H3z\" fill=\"currentColor\"/></svg><span>Home</span></button><button class=\"ds-nav__item\"><svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\"><path d=\"M21 21l-5.2-5.2a7 7 0 10-1.4 1.4L21 21zM5 10a5 5 0 1110 0 5 5 0 01-10 0z\" fill=\"currentColor\"/></svg><span>Search</span></button><button class=\"ds-nav__item\"><svg viewBox=\"0 0 24 24\" width=\"22\" height=\"22\"><path d=\"M4 6h16v2H4zm0 5h16v2H4zm0 5h10v2H4z\" fill=\"currentColor\"/></svg><span>Library</span></button></nav>",
+      "css": ".ds-nav { display:flex; justify-content:space-around; background:#000; padding:8px 0; } .ds-nav__item { display:flex; flex-direction:column; align-items:center; gap:4px; background:none; border:none; cursor:pointer; color:#7F7F7F; font-family:Inter,system-ui,sans-serif; font-weight:500; font-size:11px; transition:color .15s; } .ds-nav__item span { letter-spacing:.2px; } .ds-nav__item--on { color:#1DB954; } .ds-nav__item:focus-visible { outline:2px solid #1DB954; outline-offset:2px; border-radius:6px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "The Album as Atmosphere",
+    "overview": "The cover is the light source. NaviVibe extracts a four-color palette from each album's artwork (PaletteCache) and lets it breathe behind Now Playing through a custom fluid fragment shader. The interface dissolves into the song's own world — covers, titles, and playback affordances lead; chrome recedes. This atmosphere is delivered through six fully-committed themes (Spotify, Aura, Frost, Neumorphic, Analog, Zen) that re-skin the entire surface, held together by one discipline: every widget reads ThemeTokens.of(context) and never hardcodes a color. The system rejects hardcoded brand colors, overloaded nested cards, and AI-scaffolding. A private library elevated to commercial-streaming polish — not a SaaS dashboard wearing a music skin.",
+    "keyCharacteristics": [
+      "Theme-agnostic by contract — all color/type flows through ThemeTokens.of(context).",
+      "Cover-first hierarchy — album art drives both layout focus and the live palette.",
+      "Atmospheric depth — fluid shaders and album-derived color, not flat fills, behind playback.",
+      "Tactile, restrained motion — press-scale feedback, 150-250ms state transitions, easeOutCubic.",
+      "Dense but breathable — library and queue carry many rows; spacing rhythm keeps them legible."
+    ],
+    "rules": [
+      { "name": "The Themability Rule", "body": "Every color comes from ThemeTokens.of(context). Hardcoding any hex in a widget is forbidden. A color the tokens don't expose means a new token on AppThemeTokens applied to all six themes — never a literal.", "section": "colors" },
+      { "name": "The One Accent Rule", "body": "The accent marks primary action, current selection, and live state. Forbidden as decoration, gradient fill, or divider. Its scarcity is what makes a playing track read instantly.", "section": "colors" },
+      { "name": "The No-Cross-Bleed Rule", "body": "A theme's identity is total. Spotify green on Analog, Aura purple on Zen, glass on Neumorphic are all prohibited. If a screen looks the same across two themes, the screen is wrong.", "section": "colors" },
+      { "name": "The Fixed-Scale Rule", "body": "Type sizes are fixed px, not clamp(). A title that shrinks inside a sidebar or mini-player looks broken, not responsive.", "section": "typography" },
+      { "name": "The One-Face-Per-Theme Rule", "body": "Each theme uses a single family across all weights. Contrast comes from weight (400/600/700), not from mixing families.", "section": "typography" },
+      { "name": "The Tonal-First Rule", "body": "On dark themes, depth is lightness, not shadow. Reach for bgElevated/bgOverlay before a BoxShadow. Shadows belong to Neumorphic and Frost only.", "section": "elevation" },
+      { "name": "The Pressed-State Rule", "body": "State must be felt, not just colored — neumorphic surfaces invert their shadow, tappable elements scale to 0.97.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do read every color, text style, and radius from ThemeTokens.of(context); a new color means a new token applied to all six themes.",
+      "Do lead every layout with cover art, then title, then artist, then playback affordances.",
+      "Do drive Now Playing atmosphere from the album-derived PaletteCache palette and the fluid shader.",
+      "Do keep state transitions 150-250ms on easeOutCubic/easeOut; respect MediaQuery.disableAnimations and prefers-reduced-motion.",
+      "Do express touch physically — CupertinoClickable press-scale, NeuBox shadow inversion.",
+      "Do hold body and placeholder text at >=4.5:1 contrast; use textSecondary for placeholders, never textMuted.",
+      "Do use SliderTheme + Slider for the Now Playing progress bar, matching the mini player."
+    ],
+    "donts": [
+      "Don't hardcode colors. No generic green/blue gradients, no Spotify-green override on a non-Spotify theme.",
+      "Don't let a theme's identity bleed into another — Aura purple on Zen, glass on Neumorphic, green on Analog.",
+      "Don't overload screens with nested cards or generic decorative borders.",
+      "Don't add fake eyebrows, numbered section markers, or generic marketing copy that carries no information.",
+      "Don't use a border-left/border-right greater than 1px as a colored accent stripe.",
+      "Don't use the accent as decoration, a card-fill gradient, or a divider — primary action, selection, and live state only.",
+      "Don't replace the progress bar with _NeonTrackPainter or _GlassThumbShape, and don't import shadows into the flat dark themes.",
+      "Don't use fluid clamp() type scales; the px scale is fixed for product-UI consistency."
+    ]
+  }
+}

@@ -75,6 +75,7 @@ Future<void> main() async {
       builder: () => NaviAudioHandler(
         container.read(subsonicServiceProvider),
         replayGainService: container.read(replayGainProvider),
+        transcodingService: container.read(transcodingProvider),
       ),
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.navivibe.audio',
@@ -88,6 +89,7 @@ Future<void> main() async {
     globalAudioHandler = NaviAudioHandler(
       container.read(subsonicServiceProvider),
       replayGainService: container.read(replayGainProvider),
+      transcodingService: container.read(transcodingProvider),
     );
   }
 

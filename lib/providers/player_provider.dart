@@ -259,11 +259,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // previous song's last position until the completion handler consumes it.
         _trackedIndexForCompletion = index;
 
+        // Capture source/transition context in the outer scope and reset to
+        // 'autoplay' here — UNCONDITIONALLY. The autoplay guard below needs the
+        // transition type, and the reset must happen even when analytics is off
+        // (otherwise a 'user_selected' start would never clear, permanently
+        // suppressing autoplay on natural advancement for analytics-off users).
+        final sourceContext = _nextSourceContext;
+        final transitionType = _nextTransitionType;
+        _nextSourceContext = 'autoplay';
+        _nextTransitionType = 'autoplay';
+
         if (analyticsEnabled && newSong != null) {
-          final sourceCtx = _nextSourceContext;
-          final transCtx = _nextTransitionType;
-          _nextSourceContext = 'autoplay';
-          _nextTransitionType = 'autoplay';
+          final sourceCtx = sourceContext;
+          final transCtx = transitionType;
 
           // ── Natural-completion feedback (autoplay transition) ──────────────
           // Two-path architecture:
@@ -367,8 +375,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               _triggerSmartLocalFetchIfNeeded();
             }
           } else if (state.autoplayMode && !isSmartLocal) {
+            // Only pre-fetch on natural playback advancement — NOT when the user
+            // jumps directly to a song (setQueue / jumpTo set the transition type
+            // to 'user_selected'). Without this guard, tapping the last song in a
+            // list instantly appends a freshly-generated radio queue right after it.
             final queueLen = state.queue.length;
-            if (index >= queueLen - 3) {
+            if (index >= queueLen - 3 && transitionType != 'user_selected') {
               _triggerAutoplayIfNeeded();
             }
           }
