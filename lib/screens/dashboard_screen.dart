@@ -304,34 +304,34 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         _MetricsRow(stats: stats, tokens: tokens),
-        const SizedBox(height: s24),
+        const SizedBox(height: s16),
 
         // Group 1 — when you listen (hour of day + genre), tighter internal gap.
         HourlyHeatmap(heatmapData: stats.hourlyHeatmap),
-        const SizedBox(height: s16),
+        const SizedBox(height: s12),
 
         GenreMixCard(genres: stats.genreBreakdown),
-        const SizedBox(height: s24),
+        const SizedBox(height: s16),
 
         // Group 2 — activity over time (year grid + windowed trend).
         const ContributionGraphCard(),
-        const SizedBox(height: s16),
+        const SizedBox(height: s12),
 
         ListeningLineChart(
           spots: lineSpots,
           labels: lineLabels,
         ),
-        const SizedBox(height: s24),
+        const SizedBox(height: s16),
 
         _Label(text: 'Top artists', tokens: tokens),
-        const SizedBox(height: s12),
+        const SizedBox(height: s8),
         _TopArtistsList(artists: stats.topArtists),
-        const SizedBox(height: s24),
+        const SizedBox(height: s16),
 
         _Label(text: 'Top tracks', tokens: tokens),
-        const SizedBox(height: s12),
+        const SizedBox(height: s8),
         _TopTracksList(tracks: stats.topTracks),
-        const SizedBox(height: s24),
+        const SizedBox(height: s16),
 
         modelAsync.when(
           data: (m) => ModelStatusCard(status: m),
@@ -677,48 +677,62 @@ class _MetricsRow extends StatelessWidget {
       skipColor = tokens.warning;
     }
 
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      crossAxisSpacing: s16,
-      mainAxisSpacing: s16,
-      childAspectRatio: 1.6,
+    final cards = [
+      _MetricCard(
+        label: 'Plays',
+        value: _fmtValue(stats.totalPlays),
+        rawNumber: stats.totalPlays,
+        subtitle: 'tracks streamed',
+        icon: Icons.play_arrow_rounded,
+        accent: tokens.accent,
+        tokens: tokens,
+      ),
+      _MetricCard(
+        label: 'Minutes',
+        value: _fmtValue(stats.totalMinutes),
+        rawNumber: stats.totalMinutes,
+        subtitle: 'total airtime',
+        icon: Icons.headset_rounded,
+        accent: tokens.accent,
+        tokens: tokens,
+      ),
+      _MetricCard(
+        label: 'Skip rate',
+        value: '$skipRate%',
+        subtitle: 'tracks skipped',
+        icon: Icons.skip_next_rounded,
+        accent: skipColor,
+        tokens: tokens,
+      ),
+      _MetricCard(
+        label: 'Streak',
+        value: stats.streakDays > 3 ? '${stats.streakDays}d 🔥' : '${stats.streakDays}d',
+        subtitle: 'consecutive days',
+        icon: Icons.local_fire_department_rounded,
+        accent: stats.streakDays > 3 ? tokens.warning : tokens.textPrimary,
+        tokens: tokens,
+      ),
+    ];
+
+    // Content-sized rows (IntrinsicHeight + stretch) instead of a fixed
+    // childAspectRatio grid: cards grow to fit their content, so nothing can
+    // overflow, and paired cards stay equal height.
+    Widget row(Widget a, Widget b) => IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Expanded(child: a),
+              const SizedBox(width: s12),
+              Expanded(child: b),
+            ],
+          ),
+        );
+
+    return Column(
       children: [
-        _MetricCard(
-          label: 'Plays',
-          value: _fmtValue(stats.totalPlays),
-          rawNumber: stats.totalPlays,
-          subtitle: 'tracks streamed',
-          icon: Icons.play_arrow_rounded,
-          accent: tokens.accent,
-          tokens: tokens,
-        ),
-        _MetricCard(
-          label: 'Minutes',
-          value: _fmtValue(stats.totalMinutes),
-          rawNumber: stats.totalMinutes,
-          subtitle: 'total airtime',
-          icon: Icons.headset_rounded,
-          accent: tokens.accent,
-          tokens: tokens,
-        ),
-        _MetricCard(
-          label: 'Skip rate',
-          value: '$skipRate%',
-          subtitle: 'tracks skipped',
-          icon: Icons.skip_next_rounded,
-          accent: skipColor,
-          tokens: tokens,
-        ),
-        _MetricCard(
-          label: 'Streak',
-          value: stats.streakDays > 3 ? '${stats.streakDays}d 🔥' : '${stats.streakDays}d',
-          subtitle: 'consecutive days',
-          icon: Icons.local_fire_department_rounded,
-          accent: stats.streakDays > 3 ? tokens.warning : tokens.textPrimary,
-          tokens: tokens,
-        ),
+        row(cards[0], cards[1]),
+        const SizedBox(height: s12),
+        row(cards[2], cards[3]),
       ],
     );
   }
@@ -782,35 +796,36 @@ class _MetricCardState extends State<_MetricCard> {
                 fontFeatures: const [FontFeature.tabularFigures()],
               ));
 
+    final numberWidget = widget.rawNumber != null
+        ? TweenAnimationBuilder<int>(
+            tween: IntTween(begin: 0, end: widget.rawNumber!),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (_, val, __) => Text(_fmt(val), style: numberStyle, maxLines: 1),
+          )
+        : Text(widget.value, style: numberStyle, maxLines: 1);
+
     Widget content = PremiumCard(
-      padding: const EdgeInsets.all(s16),
+      padding: const EdgeInsets.all(14),
       child: Stack(
         children: [
           Positioned(
-            right: -10,
-            bottom: -10,
+            right: -8,
+            bottom: -14,
             child: Icon(
               widget.icon,
-              size: 72,
-              color: widget.accent.withValues(alpha: 0.04),
+              size: 64,
+              color: widget.accent.withValues(alpha: 0.05),
             ),
           ),
+          // mainAxisSize.min → the card grows to fit content (can't overflow);
+          // FittedBox keeps even a wide value ("12.8k") inside its width.
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            mainAxisSize: MainAxisSize.min,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Text(
-                    widget.label,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w600,
-                      color: tokens.textMuted,
-                      letterSpacing: 0.2,
-                    ),
-                  ),
                   Container(
                     width: 6,
                     height: 6,
@@ -819,38 +834,38 @@ class _MetricCardState extends State<_MetricCard> {
                       shape: BoxShape.circle,
                     ),
                   ),
-                ],
-              ),
-              // Number + subtitle grouped at the bottom so they read as one
-              // unit instead of a number floating in empty space.
-              Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  widget.rawNumber != null
-                      ? TweenAnimationBuilder<int>(
-                          tween: IntTween(begin: 0, end: widget.rawNumber!),
-                          duration: const Duration(milliseconds: 900),
-                          curve: Curves.easeOutCubic,
-                          builder: (_, val, __) => Text(
-                            _fmt(val),
-                            style: numberStyle,
-                          ),
-                        )
-                      : Text(
-                          widget.value,
-                          style: numberStyle,
-                        ),
-                  const SizedBox(height: 2),
-                  Text(
-                    widget.subtitle,
-                    style: TextStyle(
-                      fontSize: 10,
-                      fontWeight: FontWeight.w500,
-                      color: tokens.textMuted,
+                  const SizedBox(width: 6),
+                  Expanded(
+                    child: Text(
+                      widget.label,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 10,
+                        fontWeight: FontWeight.w600,
+                        color: tokens.textMuted,
+                        letterSpacing: 0.3,
+                      ),
                     ),
                   ),
                 ],
+              ),
+              const SizedBox(height: 10),
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: numberWidget,
+              ),
+              const SizedBox(height: 2),
+              Text(
+                widget.subtitle,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: tokens.textMuted,
+                ),
               ),
             ],
           ),
@@ -1653,19 +1668,25 @@ class _MS extends StatelessWidget {
   Widget build(BuildContext context) => Expanded(
     child: Column(
       children: [
-        Text(
-          value,
-          style: TextStyle(
-            fontSize: 17,
-            fontWeight: FontWeight.w800,
-            color: tokens.textPrimary,
-            letterSpacing: -0.5,
-            fontFeatures: const [FontFeature.tabularFigures()],
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            value,
+            maxLines: 1,
+            style: TextStyle(
+              fontSize: 17,
+              fontWeight: FontWeight.w800,
+              color: tokens.textPrimary,
+              letterSpacing: -0.5,
+              fontFeatures: const [FontFeature.tabularFigures()],
+            ),
           ),
         ),
         const SizedBox(height: 3),
         Text(
           label,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
           style: TextStyle(
             color: tokens.textMuted,
             fontSize: 10,
