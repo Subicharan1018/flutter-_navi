@@ -183,10 +183,22 @@ class _SoundBarState extends State<SoundBar>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    if (MediaQuery.of(context).disableAnimations) {
-      _ctrl.stop();
+    _syncAnimation();
+  }
+
+  @override
+  void didUpdateWidget(SoundBar old) {
+    super.didUpdateWidget(old);
+    _syncAnimation();
+  }
+
+  /// Run the bar animation only while actually playing — stopping it on pause
+  /// avoids 60fps AnimatedBuilder rebuilds for bars that render flat anyway.
+  void _syncAnimation() {
+    if (MediaQuery.of(context).disableAnimations || !widget.isPlaying) {
+      if (_ctrl.isAnimating) _ctrl.stop();
     } else {
-      _ctrl.repeat();
+      if (!_ctrl.isAnimating) _ctrl.repeat();
     }
   }
 
@@ -894,7 +906,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           body: Stack(
             fit: StackFit.expand,
             children: [
-              FluidBackground(colors: _blobColors),
+              FluidBackground(
+                colors: _blobColors,
+                isPlaying: playerState.isPlaying,
+              ),
               SafeArea(
                 child: Column(
                   children: [
@@ -982,6 +997,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                     child: CachedNetworkImage(
                                       imageUrl: imageUrl,
                                       cacheKey: cacheKey,
+                                      // Cap the decoded bitmap (display is ≤340dp;
+                                      // 1024px covers 3x DPR). Without this, a
+                                      // 3000px hi-res cover decodes full-res into
+                                      // RAM. Width-only keeps the aspect ratio.
+                                      memCacheWidth: 1024,
                                       fit: BoxFit.cover,
                                       placeholder: (_, __) => Container(
                                         color: ThemeTokens.of(
@@ -1392,9 +1412,13 @@ class _PositionStreamState extends State<_PositionStream> {
       });
       return;
     }
-    // Only update if pos is meaningful — never overwrite a non-zero cache
-    // with a transient zero emitted during source switching.
-    if (pos > Duration.zero || _lastKnown == Duration.zero) {
+    // Never overwrite a non-zero cache with a transient zero emitted during
+    // source switching.
+    if (pos == Duration.zero && _lastKnown != Duration.zero) return;
+    // Throttle: positionStream fires ~5×/s; the bar needs no sub-second
+    // resolution. Rebuild only on the first real tick or a ≥500ms move.
+    if (_lastKnown == Duration.zero ||
+        (pos - _lastKnown).abs() >= const Duration(milliseconds: 500)) {
       setState(() => _lastKnown = pos);
     }
   }
@@ -1778,14 +1802,14 @@ class _NowPlayingStrip extends StatelessWidget {
   }
 }
 
-class _MiniSoundBars extends StatefulWidget {
+class _MiniSoundBars extends ConsumerStatefulWidget {
   const _MiniSoundBars();
 
   @override
-  State<_MiniSoundBars> createState() => _MiniSoundBarsState();
+  ConsumerState<_MiniSoundBars> createState() => _MiniSoundBarsState();
 }
 
-class _MiniSoundBarsState extends State<_MiniSoundBars>
+class _MiniSoundBarsState extends ConsumerState<_MiniSoundBars>
     with SingleTickerProviderStateMixin {
   late AnimationController _ctrl;
   final _rng = math.Random();
@@ -1797,10 +1821,11 @@ class _MiniSoundBarsState extends State<_MiniSoundBars>
     for (int i = 0; i < 3; i++) {
       _phases.add(_rng.nextDouble() * math.pi * 2);
     }
+    // Started/stopped from build() based on playback — not repeating on init.
     _ctrl = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 700),
-    )..repeat();
+    );
   }
 
   @override
@@ -1811,6 +1836,15 @@ class _MiniSoundBarsState extends State<_MiniSoundBars>
 
   @override
   Widget build(BuildContext context) {
+    // Animate only while actually playing — this indicator otherwise repeats
+    // forever on a queue that may be paused, burning vsync callbacks for nothing.
+    final isPlaying = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final reduceMotion = MediaQuery.of(context).disableAnimations;
+    if (isPlaying && !reduceMotion) {
+      if (!_ctrl.isAnimating) _ctrl.repeat();
+    } else if (_ctrl.isAnimating) {
+      _ctrl.stop();
+    }
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _ctrl,

@@ -418,6 +418,20 @@ class OfflineService {
     return null;
   }
 
+  /// Async twin of [getLocalPath] — uses [File.exists] so it never blocks the
+  /// main thread. Prefer this for queue-wide resolution: building a 200-song
+  /// queue with the sync variant fires up to ~1000 blocking stat() syscalls.
+  Future<String?> getLocalPathAsync(String songId) async {
+    if (_offlineDir == null) return null;
+    for (final ext in ['flac', 'mp3', 'm4a', 'ogg']) {
+      final path = '$_offlineDir/$songId.$ext';
+      if (await File(path).exists()) return path;
+    }
+    final oldPath = '$_offlineDir/$songId.mp3';
+    if (await File(oldPath).exists()) return oldPath;
+    return null;
+  }
+
   Future<void> queueScrobble(String songId, {bool submission = true}) async {
     if (_prefs == null) await initialize();
     final scrobbles = _getPendingScrobbles();

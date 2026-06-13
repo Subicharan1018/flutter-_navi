@@ -309,7 +309,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<Map<String, String?>> _precomputeOfflinePaths(List<Song> songs) async {
     final offline = OfflineService();
     await offline.initialize(); // Ensure directory is resolved
-    return {for (final song in songs) song.id: offline.getLocalPath(song.id)};
+    // Resolve all paths asynchronously (File.exists) instead of blocking the
+    // main thread with existsSync per song — the prior approach janked queue
+    // builds for large queues.
+    final entries = await Future.wait(
+      songs.map(
+        (song) async =>
+            MapEntry(song.id, await offline.getLocalPathAsync(song.id)),
+      ),
+    );
+    return Map.fromEntries(entries);
   }
 
   Future<void> setQueue(

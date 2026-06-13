@@ -398,7 +398,10 @@ class _GlassShell extends StatelessWidget {
       child: ClipRRect(
         borderRadius: BorderRadius.circular(22),
         child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
+          // σ reduced 12→8: this filter re-samples + re-blurs the content behind
+          // the omnipresent mini player on every scroll frame. Blur cost scales
+          // ~σ², so this is ~55% less GPU work while staying clearly frosted.
+          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
           child: Container(
             decoration: BoxDecoration(
               // Directional gradient overlay: brighter top-left, darker bottom-right

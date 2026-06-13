@@ -116,7 +116,18 @@ class _FluidPainter extends CustomPainter {
 /// [FluidShaderLoader] to load the underlying fragment shader.
 class FluidBackground extends StatefulWidget {
   final List<Color> colors;
-  const FluidBackground({super.key, required this.colors});
+
+  /// When false, the steady-state fluid animation freezes (no repaints), cutting
+  /// the continuous ~30fps GPU cost to near-zero while playback is paused.
+  /// In-progress colour fades still complete (album-art changes transition even
+  /// when paused). Defaults to true so callers that don't care keep animating.
+  final bool isPlaying;
+
+  const FluidBackground({
+    super.key,
+    required this.colors,
+    this.isPlaying = true,
+  });
 
   @override
   State<FluidBackground> createState() => _FluidBackgroundState();
@@ -219,6 +230,12 @@ class _FluidBackgroundState extends State<FluidBackground>
       _lastRepaintElapsed = _elapsed;
       return;
     }
+
+    // Freeze the steady-state animation while paused — no repaints, near-zero
+    // GPU/thermal. The _fading branch above still ran (and returned), so colour
+    // transitions finish even when paused. Animation resumes the moment
+    // isPlaying flips back to true (the ticker is never stopped).
+    if (!widget.isPlaying) return;
 
     // Background fluid animation: cap to ~30fps to halve GPU cost.
     // Animated backgrounds don't need 60fps — the difference is imperceptible.

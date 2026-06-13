@@ -15,6 +15,7 @@ import '../core/theme.dart';
 import '../core/keyboard_shortcuts.dart';
 import '../providers/settings_provider.dart';
 import '../providers/library_provider.dart';
+import '../providers/player_provider.dart';
 import '../fluid_background.dart';
 import '../utils/platform_utils.dart';
 import 'mini_player.dart';
@@ -107,6 +108,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     final tokens = ThemeTokens.of(context);
     final meshEnabled = ref.watch(settingsProvider).meshGradientEnabled;
     final isOffline = ref.watch(isOfflineProvider);
+    // Only the mesh shader cares about playback. Subscribe to isPlaying only when
+    // mesh is on, so non-mesh layouts don't rebuild on every play/pause toggle.
+    final meshIsPlaying = meshEnabled
+        ? ref.watch(playerProvider.select((s) => s.isPlaying))
+        : true;
 
     // Wrap everything in keyboard shortcuts — only active on desktop.
     return NaviKeyboardShortcuts(
@@ -123,6 +129,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
               items: _items,
               screens: _screens,
               meshEnabled: meshEnabled,
+              meshIsPlaying: meshIsPlaying,
               isOffline: isOffline,
               tokens: tokens,
             );
@@ -134,6 +141,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
             items: _items,
             screens: _screens,
             meshEnabled: meshEnabled,
+            meshIsPlaying: meshIsPlaying,
             isOffline: isOffline,
             tokens: tokens,
           );
@@ -153,6 +161,7 @@ class _DesktopScaffold extends StatelessWidget {
   final List<_NavItem> items;
   final List<Widget> screens;
   final bool meshEnabled;
+  final bool meshIsPlaying;
   final bool isOffline;
   final AppThemeTokens tokens;
 
@@ -162,6 +171,7 @@ class _DesktopScaffold extends StatelessWidget {
     required this.items,
     required this.screens,
     required this.meshEnabled,
+    required this.meshIsPlaying,
     required this.isOffline,
     required this.tokens,
   });
@@ -206,6 +216,7 @@ class _DesktopScaffold extends StatelessWidget {
           children: [
             Positioned.fill(
               child: FluidBackground(
+                isPlaying: meshIsPlaying,
                 colors: [
                   tokens.bgBase,
                   Color.lerp(tokens.bgBase, tokens.accent, 0.18)!,
@@ -389,6 +400,7 @@ class _MobileScaffold extends StatelessWidget {
   final List<_NavItem> items;
   final List<Widget> screens;
   final bool meshEnabled;
+  final bool meshIsPlaying;
   final bool isOffline;
   final AppThemeTokens tokens;
 
@@ -398,6 +410,7 @@ class _MobileScaffold extends StatelessWidget {
     required this.items,
     required this.screens,
     required this.meshEnabled,
+    required this.meshIsPlaying,
     required this.isOffline,
     required this.tokens,
   });
@@ -476,6 +489,7 @@ class _MobileScaffold extends StatelessWidget {
           children: [
             Positioned.fill(
               child: FluidBackground(
+                isPlaying: meshIsPlaying,
                 colors: [
                   tokens.bgBase,
                   Color.lerp(tokens.bgBase, tokens.accent, 0.18)!,
