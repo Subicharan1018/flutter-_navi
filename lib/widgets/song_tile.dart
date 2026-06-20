@@ -304,8 +304,8 @@ class _TileContent extends StatelessWidget {
               width: 48,
               height: 48,
               fit: BoxFit.cover,
-              memCacheWidth: 150,
-              memCacheHeight: 150,
+              memCacheWidth: 96,
+              memCacheHeight: 96,
               placeholder: (context, url) => const _ArtPlaceholder(size: 48),
               errorWidget: (context, url, error) =>
                   const _ArtPlaceholder(size: 48),

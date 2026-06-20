@@ -27,92 +27,6 @@ import '../utils/platform_utils.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart' as avpb;
 
 // =============================================================================
-// 1. COLOR EXTRACTION
-// =============================================================================
-
-// CRIT-FIX: PaletteGenerator.fromImageProvider uses Flutter's image codec
-// which requires the main isolate's Flutter engine. Using Isolate.run()
-// spawns a bare Dart isolate where the codec is unavailable, causing silent
-// failures and returning the dark fallback (black gradient).
-// Fix: run directly on the main isolate; use CachedNetworkImageProvider so
-// the cached image is reused rather than re-downloaded.
-Future<List<int>> _extractPaletteIsolate(String imageUrl) async {
-  try {
-    final palette = await PaletteGenerator.fromImageProvider(
-      CachedNetworkImageProvider(imageUrl),
-      size: const Size(100, 100),
-      maximumColorCount: 32,
-    );
-
-    Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
-      final hsl = HSLColor.fromColor(base);
-      return hsl
-          .withSaturation((hsl.saturation * satMul).clamp(0.08, 1.0))
-          .withLightness((hsl.lightness * lightMul).clamp(0.04, 0.34))
-          .toColor();
-    }
-
-    Color firstNonNull(List<Color?> candidates, Color fallback) {
-      for (final c in candidates) {
-        if (c != null) return c;
-      }
-      return fallback;
-    }
-
-    final dominant = firstNonNull([
-      palette.dominantColor?.color,
-      palette.darkVibrantColor?.color,
-      palette.darkMutedColor?.color,
-      palette.vibrantColor?.color,
-      palette.mutedColor?.color,
-      palette.lightMutedColor?.color,
-    ], const Color(0xFF202022));
-
-    final dominantHsl = HSLColor.fromColor(dominant);
-    final derivedVibrant = dominantHsl
-        .withSaturation((dominantHsl.saturation + 0.25).clamp(0.20, 1.0))
-        .withLightness((dominantHsl.lightness * 0.95).clamp(0.08, 0.48))
-        .toColor();
-    final derivedAccent = dominantHsl
-        .withSaturation((dominantHsl.saturation + 0.12).clamp(0.14, 1.0))
-        .withLightness((dominantHsl.lightness * 1.18).clamp(0.12, 0.58))
-        .toColor();
-
-    final vibrant = firstNonNull([
-      palette.vibrantColor?.color,
-      palette.darkVibrantColor?.color,
-      palette.lightVibrantColor?.color,
-      palette.mutedColor?.color,
-    ], derivedVibrant);
-
-    final darkAccent = firstNonNull([
-      palette.darkMutedColor?.color,
-      palette.darkVibrantColor?.color,
-      palette.mutedColor?.color,
-      palette.dominantColor?.color,
-    ], dominant);
-
-    final lightAccent = firstNonNull([
-      palette.lightVibrantColor?.color,
-      palette.lightMutedColor?.color,
-      palette.vibrantColor?.color,
-      palette.mutedColor?.color,
-    ], derivedAccent);
-
-    return [
-      process(dominant, satMul: 1.10, lightMul: 0.44).value,
-      process(vibrant, satMul: 1.35, lightMul: 0.52).value,
-      process(darkAccent, satMul: 1.05, lightMul: 0.40).value,
-      process(lightAccent, satMul: 1.20, lightMul: 0.58).value,
-    ];
-  } catch (_) {
-    return [0xFF121212, 0xFF1D1D1D, 0xFF0B0B0B, 0xFF2A2A2A];
-  }
-}
-
-List<Color> _intsToColors(List<int> v) => v.map((i) => Color(i)).toList();
-
-// =============================================================================
 // 2. SMALL REUSABLE WIDGETS
 // =============================================================================
 
@@ -614,10 +528,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     // FIX BUG-3: Guard against re-triggering on every build for the same song.
     if (_lastExtractedSongId == songId) return;
 
-    if (PaletteCache.instance.hasColorsFor(songId)) {
+    final cached = PaletteCache.instance.getColorsFor(songId);
+    if (cached != null) {
       _lastExtractedSongId = songId;
-      if (!listEquals(_blobColors, PaletteCache.instance.colors)) {
-        setState(() => _blobColors = PaletteCache.instance.colors);
+      if (!listEquals(_blobColors, cached)) {
+        setState(() => _blobColors = cached);
       }
       return;
     }
@@ -626,11 +541,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     _lastExtractedSongId = songId;
     _inflightSongId = songId;
 
-    _extractPaletteIsolate(imageUrl)
-        .then((ints) {
+    PaletteCache.instance.extractAndCache(songId, imageUrl)
+        .then((colors) {
           if (!mounted || _inflightSongId != songId) return;
-          final colors = _intsToColors(ints);
-          PaletteCache.instance.update(songId, colors);
           setState(() => _blobColors = colors);
         })
         .catchError((_) {
@@ -1001,7 +914,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                       // 1024px covers 3x DPR). Without this, a
                                       // 3000px hi-res cover decodes full-res into
                                       // RAM. Width-only keeps the aspect ratio.
-                                      memCacheWidth: 1024,
+                                      memCacheWidth: 600,
+                                      memCacheHeight: 600,
                                       fit: BoxFit.cover,
                                       placeholder: (_, __) => Container(
                                         color: ThemeTokens.of(
@@ -1752,8 +1666,8 @@ class _NowPlayingStrip extends StatelessWidget {
               cacheKey: key,
               width: 44,
               height: 44,
-              memCacheWidth: 132,
-              memCacheHeight: 132,
+              memCacheWidth: 88,
+              memCacheHeight: 88,
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
                 width: 44,
@@ -1925,8 +1839,8 @@ class _QueueTile extends StatelessWidget {
             cacheKey: key,
             width: 44,
             height: 44,
-            memCacheWidth: 132,
-            memCacheHeight: 132,
+            memCacheWidth: 88,
+            memCacheHeight: 88,
             fit: BoxFit.cover,
             errorWidget: (_, __, ___) => Container(
               width: 44,
@@ -1996,8 +1910,8 @@ class _HistoryTile extends StatelessWidget {
               cacheKey: key,
               width: 44,
               height: 44,
-              memCacheWidth: 132,
-              memCacheHeight: 132,
+              memCacheWidth: 88,
+              memCacheHeight: 88,
               fit: BoxFit.cover,
               errorWidget: (_, __, ___) => Container(
                 width: 44,

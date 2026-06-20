@@ -137,6 +137,7 @@ class _FluidBackgroundState extends State<FluidBackground>
     with SingleTickerProviderStateMixin {
   late final Ticker _ticker;
   double _elapsed = 0;
+  double _lastTickElapsed = 0;
 
   List<Color> _currentColors = const [
     Color(0xFF1A1A2E),
@@ -169,7 +170,8 @@ class _FluidBackgroundState extends State<FluidBackground>
     _currentColors = List.of(widget.colors);
     _prevColors = List.of(widget.colors);
 
-    _ticker = createTicker(_onTick)..start();
+    _ticker = createTicker(_onTick);
+    _syncTicker();
 
     _program = FluidShaderLoader.instance.program;
     if (_program != null) {
@@ -186,6 +188,16 @@ class _FluidBackgroundState extends State<FluidBackground>
     }
   }
 
+  void _syncTicker() {
+    final shouldTick = widget.isPlaying || _fading;
+    if (shouldTick && !_ticker.isActive) {
+      _lastTickElapsed = 0.0;
+      _ticker.start();
+    } else if (!shouldTick && _ticker.isActive) {
+      _ticker.stop();
+    }
+  }
+
   @override
   void didUpdateWidget(FluidBackground old) {
     super.didUpdateWidget(old);
@@ -196,6 +208,7 @@ class _FluidBackgroundState extends State<FluidBackground>
       _fading = true;
       _tColor = 0.0;
     }
+    _syncTicker();
   }
 
   @override
@@ -208,13 +221,19 @@ class _FluidBackgroundState extends State<FluidBackground>
 
   void _onTick(Duration elapsed) {
     if (!mounted) return;
-    _elapsed = elapsed.inMicroseconds / 1e6;
+    
+    final currentElapsed = elapsed.inMicroseconds / 1e6;
+    final delta = _lastTickElapsed == 0.0 ? 0.0 : (currentElapsed - _lastTickElapsed);
+    _lastTickElapsed = currentElapsed;
+
+    _elapsed += delta;
 
     if (_fading) {
       final progress = (_elapsed - _fadeStartElapsed) / _kFadeDuration;
       if (progress >= 1.0) {
         _tColor = 1.0;
         _fading = false;
+        _syncTicker();
       } else {
         final t = progress < 0.5
             ? 4 * progress * progress * progress

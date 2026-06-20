@@ -31,6 +31,7 @@ Future<void> main() async {
   // Cap Flutter's decoded-image cache. Default is 100MB which fills fast with
   // album art. 40MB covers ~60+ full-quality album thumbs at 200px.
   PaintingBinding.instance.imageCache.maximumSizeBytes = 40 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 100;
 
   await HiveBoxes.init();
 

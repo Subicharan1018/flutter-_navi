@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io';
 
+import 'package:audio_service/audio_service.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -16,7 +17,20 @@ import 'package:just_audio/just_audio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 class TestAudioHandler extends NaviAudioHandler {
-  TestAudioHandler(super.subsonicService, {super.player});
+  TestAudioHandler(super.subsonicService, {super.player}) {
+    player.currentIndexStream.listen((index) {
+      if (index != null && index >= 0 && index < currentQueue.length) {
+        final song = currentQueue[index];
+        mediaItem.add(MediaItem(
+          id: song.id,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          duration: Duration(seconds: song.duration),
+        ));
+      }
+    });
+  }
 
   @override
   Future<void> setQueue(
@@ -88,6 +102,9 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   @override
   int? get currentIndex => _currentIndex;
 
+  @override
+  Stream<SequenceState> get sequenceStateStream => const Stream.empty();
+
   Future<void> emitCurrentIndex(int? index) async {
     _currentIndex = index;
     _currentIndexController.add(index);
@@ -153,6 +170,9 @@ class MockAudioPlayer extends Fake implements AudioPlayer {
   AudioSource? get audioSource => null;
 
   @override
+  Stream<SequenceState> get sequenceStateStream => const Stream.empty();
+
+  @override
   Future<Duration?> setAudioSource(
     AudioSource source, {
     bool preload = true,
@@ -176,6 +196,12 @@ void main() {
           (MethodCall methodCall) async {
             return ['wifi'];
           },
+        );
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall methodCall) async => Directory.systemTemp.path,
         );
 
     SharedPreferences.setMockInitialValues({});
@@ -344,10 +370,26 @@ void main() {
       ];
 
       await notifier.setQueue(songs, 0);
+      
+      handler.mediaItem.add(MediaItem(
+        id: songs[0].id,
+        album: songs[0].album,
+        title: songs[0].title,
+        artist: songs[0].artist,
+        duration: Duration(seconds: songs[0].duration),
+      ));
+      
+      // Yield to let mediaItem listener execute and set _lastKnownIndex to 0.
+      await Future.delayed(const Duration(milliseconds: 20));
+      
       mockPlayer.setMockPosition(const Duration(seconds: 5));
-      await Future.delayed(const Duration(milliseconds: 50)); // let stream emit
+      await Future.delayed(const Duration(milliseconds: 20));
+      
       await mockPlayer.emitCurrentIndex(1);
+      await Future.delayed(const Duration(milliseconds: 20));
+      
       await mockPlayer.emitCurrentIndex(1);
+      await Future.delayed(const Duration(milliseconds: 20));
 
       expect(
         container.read(playerProvider).historySongs.map((song) => song.id),

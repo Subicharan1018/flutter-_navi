@@ -96,6 +96,7 @@ class HiveBoxes {
   static const kSearchHistory = 'search_history';
   static const kRecommendationsEnabled = 'recommendations_enabled';
   static const kAllowHttp = 'allow_http';
+  static const kFluidBgEnabled = 'fluid_bg_enabled';
 
   // ---------------------------------------------------------------------------
   // Audio keys

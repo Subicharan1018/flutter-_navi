@@ -85,6 +85,10 @@ class SettingsState {
   final bool meshGradientEnabled;
   final bool allowHttp;
 
+  /// When false the fluid/mesh background animation is disabled entirely.
+  /// Useful on low-end devices to save GPU and battery.
+  final bool fluidBgEnabled;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
@@ -101,6 +105,7 @@ class SettingsState {
     this.themeMode = AppThemeMode.spotify,
     this.meshGradientEnabled = false,
     this.allowHttp = false,
+    this.fluidBgEnabled = true,
   });
 
   // ── Computed URL getters — single source of truth ───────────────────────────
@@ -130,6 +135,7 @@ class SettingsState {
     AppThemeMode? themeMode,
     bool? meshGradientEnabled,
     bool? allowHttp,
+    bool? fluidBgEnabled,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -149,6 +155,7 @@ class SettingsState {
       themeMode: themeMode ?? this.themeMode,
       meshGradientEnabled: meshGradientEnabled ?? this.meshGradientEnabled,
       allowHttp: allowHttp ?? this.allowHttp,
+      fluidBgEnabled: fluidBgEnabled ?? this.fluidBgEnabled,
     );
   }
 }
@@ -226,6 +233,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           ? p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false) as bool
           : false,
       allowHttp: p.get(HiveBoxes.kAllowHttp, defaultValue: false) == true,
+      fluidBgEnabled:
+          p.get(HiveBoxes.kFluidBgEnabled, defaultValue: true) is bool
+          ? p.get(HiveBoxes.kFluidBgEnabled, defaultValue: true) as bool
+          : true,
     );
   }
 
@@ -307,6 +318,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setAllowHttp(bool allow) async {
     await HiveBoxes.prefs.put(HiveBoxes.kAllowHttp, allow);
     state = state.copyWith(allowHttp: allow);
+  }
+
+  /// Persists and applies the fluid background toggle.
+  Future<void> setFluidBgEnabled(bool enabled) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kFluidBgEnabled, enabled);
+    state = state.copyWith(fluidBgEnabled: enabled);
   }
 }
 

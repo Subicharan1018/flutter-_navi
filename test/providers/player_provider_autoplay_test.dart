@@ -1,5 +1,7 @@
+import 'package:audio_service/audio_service.dart';
 import 'dart:async';
 import 'dart:io';
+import 'package:rxdart/rxdart.dart';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +16,7 @@ import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:navivibe/providers/settings_provider.dart';
-import 'package:navivibe/services/audio_handler.dart';
+import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
@@ -92,6 +94,8 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   Stream<ProcessingState> get processingStateStream =>
       _processingStateController.stream;
   @override
+  Stream<SequenceState> get sequenceStateStream => const Stream.empty();
+  @override
   Stream<bool> get playingStream => _playingController.stream;
   @override
   Stream<LoopMode> get loopModeStream => _loopModeController.stream;
@@ -152,19 +156,74 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   }
 }
 
-class MockAudioHandler extends Mock implements AudioHandler {
+class MockAudioHandler extends Mock implements NaviAudioHandler {
   @override
   final player = ControlledAudioPlayer();
 
   @override
   List<Song> currentQueue = [];
 
+  final BehaviorSubject<MediaItem?> _mediaItemSubject = BehaviorSubject<MediaItem?>.seeded(null);
   @override
-  Future<void> addAllToQueue(List<Song> songs) async {}
+  BehaviorSubject<MediaItem?> get mediaItem => _mediaItemSubject;
+
+  final BehaviorSubject<PlaybackState> _playbackStateSubject = BehaviorSubject<PlaybackState>.seeded(PlaybackState());
+  @override
+  BehaviorSubject<PlaybackState> get playbackState => _playbackStateSubject;
+
+  @override
+  int get currentIndex => player.currentIndex ?? 0;
+
+  MockAudioHandler() {
+    player.playingStream.listen((playing) {
+      _playbackStateSubject.add(_playbackStateSubject.value.copyWith(playing: playing));
+    });
+    player.loopModeStream.listen((loop) {
+      final rm = const {
+        LoopMode.off: AudioServiceRepeatMode.none,
+        LoopMode.one: AudioServiceRepeatMode.one,
+        LoopMode.all: AudioServiceRepeatMode.all,
+      }[loop] ?? AudioServiceRepeatMode.none;
+      _playbackStateSubject.add(_playbackStateSubject.value.copyWith(repeatMode: rm));
+    });
+    player.processingStateStream.listen((state) {
+      final ps = const {
+        ProcessingState.idle: AudioProcessingState.idle,
+        ProcessingState.loading: AudioProcessingState.loading,
+        ProcessingState.buffering: AudioProcessingState.buffering,
+        ProcessingState.ready: AudioProcessingState.ready,
+        ProcessingState.completed: AudioProcessingState.completed,
+      }[state] ?? AudioProcessingState.idle;
+      _playbackStateSubject.add(_playbackStateSubject.value.copyWith(processingState: ps));
+    });
+    player.currentIndexStream.listen((index) {
+      if (index != null && index >= 0 && index < currentQueue.length) {
+        final song = currentQueue[index];
+        _mediaItemSubject.add(MediaItem(
+          id: song.id,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          duration: Duration(seconds: song.duration),
+        ));
+      }
+    });
+  }
+
+  @override
+  Future<void> addAllToQueue(List<Song> songs) async {
+    currentQueue.addAll(songs);
+  }
 
   @override
   Future<void> skipToNext() async {
     await player.seekToNext();
+    if (player.currentIndex != null && player.currentIndex! < currentQueue.length) {
+      _mediaItemSubject.add(MediaItem(
+        id: currentQueue[player.currentIndex!].id,
+        title: currentQueue[player.currentIndex!].title,
+      ));
+    }
   }
 
   @override
@@ -174,6 +233,13 @@ class MockAudioHandler extends Mock implements AudioHandler {
     List<Song>? unshuffledSongs,
   }) async {
     currentQueue = List<Song>.from(songs);
+    if (startIndex >= 0 && startIndex < songs.length) {
+      await player.seek(Duration.zero, index: startIndex);
+      _mediaItemSubject.add(MediaItem(
+        id: songs[startIndex].id,
+        title: songs[startIndex].title,
+      ));
+    }
   }
 
   @override

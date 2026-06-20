@@ -1,6 +1,8 @@
+import 'package:audio_service/audio_service.dart';
 import 'dart:async';
 import 'dart:io';
 
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
@@ -12,7 +14,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
-import 'package:navivibe/services/audio_handler.dart';
+import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/scrobble_service.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/providers/settings_provider.dart';
@@ -90,7 +92,15 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
       _processingStateController.stream;
 
   @override
+  Stream<SequenceState> get sequenceStateStream => const Stream.empty();
+
+  @override
   int? get currentIndex => _currentIndex;
+
+  void reset() {
+    _currentIndex = -1;
+    _mockPosition = Duration.zero;
+  }
 
   Future<void> emitCurrentIndex(int? index) async {
     _currentIndex = index;
@@ -110,8 +120,21 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   Future<void> dispose() async {}
 }
 
-class TestAudioHandler extends AudioHandler {
-  TestAudioHandler(super.subsonicService, {super.player});
+class TestAudioHandler extends NaviAudioHandler {
+  TestAudioHandler(super.subsonicService, {super.player}) {
+    player.currentIndexStream.listen((index) {
+      if (index != null && index >= 0 && index < currentQueue.length) {
+        final song = currentQueue[index];
+        mediaItem.add(MediaItem(
+          id: song.id,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          duration: Duration(seconds: song.duration),
+        ));
+      }
+    });
+  }
   @override
   Future<void> setQueue(
     List<Song> songs,
@@ -123,8 +146,19 @@ class TestAudioHandler extends AudioHandler {
 }
 
 void main() {
+  late ControlledAudioPlayer sharedPlayer;
+  late TestAudioHandler sharedHandler;
+  late MockSubsonicService sharedSubsonic;
+
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall methodCall) async => Directory.systemTemp.path,
+        );
+
     SharedPreferences.setMockInitialValues({});
     final dir = Directory.systemTemp.createTempSync('hive_test_scrobble');
     Hive.init(dir.path);
@@ -147,6 +181,14 @@ void main() {
         year: 0,
       ),
     );
+
+    sharedPlayer = ControlledAudioPlayer();
+    sharedSubsonic = MockSubsonicService();
+    sharedHandler = TestAudioHandler(sharedSubsonic, player: sharedPlayer);
+
+    await AudioService.init<NaviAudioHandler>(
+      builder: () => sharedHandler,
+    );
   });
 
   group('ScrobbleService - Offline Guards & Submissions', () {
@@ -160,7 +202,6 @@ void main() {
       scrobbleService = ScrobbleService(
         mockApi,
         mockConnectivity,
-        MockListeningLogService(),
       );
     });
 
@@ -182,25 +223,25 @@ void main() {
     test('submit submits with submission=true when online', () async {
       when(
         () => mockConnectivity.checkConnectivity(),
-      ).thenAnswer((_) async => [ConnectivityResult.mobile]);
+      ).thenAnswer((_) async => [ConnectivityResult.wifi]);
       when(
         () => mockApi.scrobble(any(), submission: any(named: 'submission')),
       ).thenAnswer((_) async => {});
 
-      scrobbleService.submit('song456');
-      await Future.delayed(Duration.zero);
+      scrobbleService.submit('song123');
+      await Future.delayed(Duration.zero); // allow unawaited futures
 
       verify(() => mockConnectivity.checkConnectivity()).called(1);
-      verify(() => mockApi.scrobble('song456', submission: true)).called(1);
+      verify(() => mockApi.scrobble('song123', submission: true)).called(1);
     });
 
-    test('does NOT submit if offline', () async {
+    test('Offline Guards & Submissions does NOT submit if offline', () async {
       when(
         () => mockConnectivity.checkConnectivity(),
       ).thenAnswer((_) async => [ConnectivityResult.none]);
 
-      scrobbleService.submit('song789');
-      scrobbleService.nowPlaying('song789');
+      scrobbleService.nowPlaying('song123');
+      scrobbleService.submit('song123');
       await Future.delayed(Duration.zero);
 
       verify(() => mockConnectivity.checkConnectivity()).called(2);
@@ -217,17 +258,18 @@ void main() {
     late ProviderContainer container;
 
     setUp(() {
-      mockPlayer = ControlledAudioPlayer();
+      mockPlayer = sharedPlayer;
+      handler = sharedHandler;
 
-      final mockService = MockSubsonicService();
-      handler = TestAudioHandler(mockService, player: mockPlayer);
+      mockPlayer.reset();
+      handler.clearQueue();
       mockScrobble = MockScrobbleService();
       final mockCollector = MockListeningEventCollector();
 
       container = ProviderContainer(
         overrides: [
-          audioHandlerProvider.overrideWithValue(handler),
-          subsonicServiceProvider.overrideWithValue(mockService),
+          audioHandlerProvider.overrideWithValue(sharedHandler),
+          subsonicServiceProvider.overrideWithValue(sharedSubsonic),
           scrobbleServiceProvider.overrideWithValue(mockScrobble),
           listenerCollectorProvider.overrideWithValue(mockCollector),
         ],

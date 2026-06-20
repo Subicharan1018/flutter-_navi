@@ -43,7 +43,10 @@ Song _song({
 
 class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
 class MockListeningEventCollector extends Mock implements ListeningEventCollector {}
-class MockSubsonicService extends Mock implements SubsonicService {}
+class MockSubsonicService extends Mock implements SubsonicService {
+  @override
+  Future<void> scrobble(String songId, {required bool submission}) async {}
+}
 class MockShuffleRepository extends Mock implements ShuffleRepository {}
 
 class ControlledAudioPlayer extends Fake implements AudioPlayer {
@@ -68,6 +71,7 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   @override Stream<PlaybackEvent> get playbackEventStream => _playbackEventController.stream;
   @override Stream<PlayerState> get playerStateStream => _playerStateController.stream;
   @override Stream<ProcessingState> get processingStateStream => _processingStateController.stream;
+  @override Stream<SequenceState> get sequenceStateStream => const Stream.empty();
   @override Stream<bool> get playingStream => _playingController.stream;
   @override Stream<LoopMode> get loopModeStream => _loopModeController.stream;
   @override Stream<Duration> get positionStream => _positionController.stream;
@@ -124,12 +128,47 @@ class MockAudioHandler extends Mock implements NaviAudioHandler {
   @override
   int get currentIndex => _player.currentIndex ?? 0;
 
+  MockAudioHandler() {
+    _player.playingStream.listen((playing) {
+      _playbackStateSubject.add(_playbackStateSubject.value.copyWith(playing: playing));
+    });
+    _player.loopModeStream.listen((loop) {
+      final rm = const {
+        LoopMode.off: AudioServiceRepeatMode.none,
+        LoopMode.one: AudioServiceRepeatMode.one,
+        LoopMode.all: AudioServiceRepeatMode.all,
+      }[loop] ?? AudioServiceRepeatMode.none;
+      _playbackStateSubject.add(_playbackStateSubject.value.copyWith(repeatMode: rm));
+    });
+    _player.processingStateStream.listen((state) {
+      final ps = const {
+        ProcessingState.idle: AudioProcessingState.idle,
+        ProcessingState.loading: AudioProcessingState.loading,
+        ProcessingState.buffering: AudioProcessingState.buffering,
+        ProcessingState.ready: AudioProcessingState.ready,
+        ProcessingState.completed: AudioProcessingState.completed,
+      }[state] ?? AudioProcessingState.idle;
+      _playbackStateSubject.add(_playbackStateSubject.value.copyWith(processingState: ps));
+    });
+    _player.currentIndexStream.listen((index) {
+      if (index != null && index >= 0 && index < currentQueue.length) {
+        final song = currentQueue[index];
+        _mediaItemSubject.add(MediaItem(
+          id: song.id,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          duration: Duration(seconds: song.duration),
+        ));
+      }
+    });
+  }
+
   @override
   Future<void> skipToNext() async {
     if (_player.currentIndex != null && _player.currentIndex! < currentQueue.length - 1) {
       final nextIdx = _player.currentIndex! + 1;
       _player.simulateIndexChange(nextIdx);
-      _mediaItemSubject.add(MediaItem(id: currentQueue[nextIdx].id, title: currentQueue[nextIdx].title));
     }
   }
 
@@ -137,7 +176,6 @@ class MockAudioHandler extends Mock implements NaviAudioHandler {
   Future<void> setQueue(List<Song> songs, int startIndex, {List<Song>? unshuffledSongs}) async {
     currentQueue = List<Song>.from(songs);
     _player.simulateIndexChange(startIndex);
-    _mediaItemSubject.add(MediaItem(id: songs[startIndex].id, title: songs[startIndex].title));
   }
 
   @override
@@ -231,6 +269,10 @@ void main() {
     final s1 = _song(id: '1');
     final s2 = _song(id: '2');
     await notifier.setQueue([s1, s2], 0);
+
+    // Emit the first song's mediaItem after setQueue completes so it isn't suppressed.
+    handler._mediaItemSubject.add(MediaItem(id: s1.id, title: s1.title));
+    await Future.delayed(const Duration(milliseconds: 10));
 
     // Simulate Android mid-queue behaviour: it never emits ProcessingState.completed
     // It just directly emits the next mediaItem

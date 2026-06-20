@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:io' show Platform;
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -122,6 +123,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   static const int _smartLocalBatchSize = 16;
   // Refill when this many songs remain ahead of the current position.
   static const int _smartLocalRefillThreshold = 3;
+  static const int _maxQueueSize = 50;
 
   Completer<void>? _smartLocalFetchCompleter;
 
@@ -506,8 +508,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
 
     Duration prevPosition = Duration.zero;
+    final positionStream = (!kIsWeb && Platform.environment.containsKey('FLUTTER_TEST'))
+        ? player.positionStream
+        : AudioService.position;
     _subscriptions.add(
-      AudioService.position.listen((position) {
+      positionStream.listen((position) {
         if (_audioHandler.currentIndex == _lastKnownIndex) {
           _lastKnownPosition = position;
         }
@@ -542,7 +547,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           if (state.isPlaying && _scrobblePlayStart != null) {
             totalListened += DateTime.now().difference(_scrobblePlayStart!);
           }
-          final positionMet = totalListened >= _scrobbleThreshold;
+          final positionMet = position >= _scrobbleThreshold;
           final fourMinMet = totalListened >= const Duration(minutes: 4);
 
           if (positionMet || fourMinMet) {
@@ -578,6 +583,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void _clearHistory() {
     state = state.copyWith(history: []);
     _lastFetchedForSongId = null;
+    _lastKnownIndex = -1;
     _ref.read(shuffleQueueProvider.notifier).clearQueue();
   }
 
@@ -1773,6 +1779,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // Sync state from the handler since branch B no longer writes state.
         state = state.copyWith(queue: _audioHandler.currentQueue);
         _drainPoolOfQueuedSongs();
+        _prunePlayedSongs();
         return;
       }
 
@@ -1785,6 +1792,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         );
         state = state.copyWith(queue: _audioHandler.currentQueue);
         _drainPoolOfQueuedSongs();
+        _prunePlayedSongs();
         return;
       }
 
@@ -1798,6 +1806,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       state = state.copyWith(queue: _audioHandler.currentQueue);
       _drainPoolOfQueuedSongs();
+      _prunePlayedSongs();
 
       debugPrint(
         '[SMART LOCAL] Refill complete. '
@@ -1810,6 +1819,37 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  void _prunePlayedSongs() {
+    if (state.queue.length <= _maxQueueSize) return;
+
+    final targetPruneCount = state.queue.length - _maxQueueSize;
+    final maxPrunableIndex = state.currentIndex - 5;
+    if (maxPrunableIndex <= 0) return;
+
+    final pruneCount = targetPruneCount < maxPrunableIndex ? targetPruneCount : maxPrunableIndex;
+    if (pruneCount <= 0) return;
+
+    debugPrint('[PRUNING] Pruning $pruneCount songs from queue of size ${state.queue.length}');
+
+    unawaited(_audioHandler.pruneRange(0, pruneCount));
+
+    final newQueue = List<Song>.from(state.queue)..removeRange(0, pruneCount);
+    final newIndex = state.currentIndex - pruneCount;
+
+    state = state.copyWith(
+      queue: newQueue,
+      currentIndex: newIndex,
+    );
+
+    _lastKnownIndex = newIndex;
+    if (_trackedIndexForCompletion != null) {
+      _trackedIndexForCompletion = (_trackedIndexForCompletion! - pruneCount).clamp(0, newQueue.length - 1);
+    }
+    if (_pendingIndexAfterShuffle != null) {
+      _pendingIndexAfterShuffle = (_pendingIndexAfterShuffle! - pruneCount).clamp(0, newQueue.length - 1);
+    }
+  }
+
   void clearHistory() => _clearHistory();
 }
 
@@ -1817,7 +1857,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 // Providers
 // ---------------------------------------------------------------------------
 final audioHandlerProvider = Provider<NaviAudioHandler>((ref) {
-  return globalAudioHandler;
+  try {
+    return globalAudioHandler;
+  } catch (_) {
+    final service = ref.watch(subsonicServiceProvider);
+    return NaviAudioHandler(service);
+  }
 });
 
 final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((

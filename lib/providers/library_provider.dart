@@ -259,6 +259,8 @@ final favoritesProvider =
       return service.getStarred();
     });
 
+DateTime? _lastRefreshTime;
+
 final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   ref.keepAlive();
   final settings = ref.watch(settingsProvider);
@@ -282,25 +284,30 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   }
 
   final cached = await _getCachedSongs(db);
+  final now = DateTime.now();
+  final shouldRefresh = _lastRefreshTime == null ||
+      now.difference(_lastRefreshTime!) > const Duration(minutes: 5);
+
   if (cached.isNotEmpty) {
-    // RC-5 FIX: After background refresh, invalidate this provider so the
-    // UI gets fresh data. Previously the fire-and-forget .then() updated the
-    // SQLite cache but never re-emitted to Riverpod, leaving stale data
-    // visible for the entire session.
-    fetchAllSongsPaginated()
-        .then((fresh) async {
-          final sorted = await compute(_sortSongsByCreated, fresh);
-          await _cacheSongs(db, sorted);
-          // Trigger a provider re-fetch with the fresh cached data.
-          ref.invalidateSelf();
-        })
-        .catchError((_) {
-          // Background refresh failed — stale cache is still valid.
-        });
+    if (shouldRefresh) {
+      _lastRefreshTime = now;
+      fetchAllSongsPaginated()
+          .then((fresh) async {
+            if (fresh.length != cached.length) {
+              final sorted = await compute(_sortSongsByCreated, fresh);
+              await _cacheSongs(db, sorted);
+              ref.invalidateSelf();
+            }
+          })
+          .catchError((_) {
+            // Background refresh failed — stale cache is still valid.
+          });
+    }
     return compute(_sortSongsByCreated, cached);
   }
 
   final songs = await fetchAllSongsPaginated();
+  _lastRefreshTime = DateTime.now();
   final sorted = await compute(_sortSongsByCreated, songs);
   await _cacheSongs(db, sorted);
   return sorted;

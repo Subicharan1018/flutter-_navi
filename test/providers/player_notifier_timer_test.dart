@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 // =============================================================================
 // player_notifier_timer_test.dart
 //
@@ -29,7 +30,7 @@ import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:navivibe/providers/settings_provider.dart';
-import 'package:navivibe/services/audio_handler.dart';
+import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
@@ -115,6 +116,9 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
       _processingStateController.stream;
 
   @override
+  Stream<SequenceState> get sequenceStateStream => const Stream.empty();
+
+  @override
   Stream<bool> get playingStream => _playingController.stream;
 
   @override
@@ -176,8 +180,21 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   Future<void> dispose() async {}
 }
 
-class TestAudioHandler extends AudioHandler {
-  TestAudioHandler(super.subsonicService, {super.player});
+class TestAudioHandler extends NaviAudioHandler {
+  TestAudioHandler(super.subsonicService, {super.player}) {
+    player.currentIndexStream.listen((index) {
+      if (index != null && index >= 0 && index < currentQueue.length) {
+        final song = currentQueue[index];
+        mediaItem.add(MediaItem(
+          id: song.id,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          duration: Duration(seconds: song.duration),
+        ));
+      }
+    });
+  }
 
   @override
   Future<void> setQueue(
@@ -215,6 +232,12 @@ void main() {
           (MethodCall methodCall) async {
             return ['wifi'];
           },
+        );
+
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (MethodCall methodCall) async => Directory.systemTemp.path,
         );
 
     SharedPreferences.setMockInitialValues({});
@@ -328,10 +351,23 @@ void main() {
         ];
 
         await notifier.setQueue(songs, 0);
+        handler.mediaItem.add(MediaItem(
+          id: songs[0].id,
+          album: songs[0].album,
+          title: songs[0].title,
+          artist: songs[0].artist,
+          duration: Duration(seconds: songs[0].duration),
+        ));
+        await Future.delayed(const Duration(milliseconds: 20));
+
         mockPlayer.setMockPosition(const Duration(seconds: 5));
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(const Duration(milliseconds: 20));
+
         await mockPlayer.emitCurrentIndex(1);
+        await Future.delayed(const Duration(milliseconds: 20));
+
         await mockPlayer.emitCurrentIndex(1); // duplicate
+        await Future.delayed(const Duration(milliseconds: 20));
 
         // Should only have one history entry, not two.
         expect(

@@ -4,35 +4,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:palette_generator/palette_generator.dart';
 import 'package:just_audio/just_audio.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../core/navigation_transitions.dart';
 import '../core/theme.dart';
+import '../core/palette_cache.dart';
 import '../utils/platform_utils.dart';
-
-// ---------------------------------------------------------------------------
-// Isolate-safe colour extraction — runs on main isolate (required by Flutter)
-// ---------------------------------------------------------------------------
-Future<Color?> _extractMiniPalette(
-  String imageUrl,
-  BuildContext context,
-) async {
-  try {
-    final palette = await PaletteGenerator.fromImageProvider(
-      CachedNetworkImageProvider(imageUrl),
-      size: const Size(40, 40),
-      maximumColorCount: 5,
-    );
-    return palette.vibrantColor?.color ??
-        palette.dominantColor?.color ??
-        ThemeTokens.of(context).accent;
-  } catch (_) {
-    return ThemeTokens.of(context).accent;
-  }
-}
 
 // =============================================================================
 // Mini Player
@@ -81,12 +60,27 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     );
   }
 
-  Future<void> _loadPalette(String imageUrl) async {
+  Future<void> _loadPalette(String songId, String imageUrl) async {
     if (_lastImageUrl == imageUrl) return;
     _lastImageUrl = imageUrl;
-    final color = await _extractMiniPalette(imageUrl, context);
-    if (mounted && color != null) {
-      setState(() => _themeColor = color);
+
+    final cached = PaletteCache.instance.getColorsFor(songId);
+    if (cached != null && cached.length > 1) {
+      if (mounted) {
+        setState(() => _themeColor = cached[1]);
+      }
+      return;
+    }
+
+    try {
+      final colors = await PaletteCache.instance.extractAndCache(songId, imageUrl);
+      if (mounted && colors.length > 1) {
+        setState(() => _themeColor = colors[1]);
+      }
+    } catch (_) {
+      if (mounted) {
+        setState(() => _themeColor = ThemeTokens.of(context).accent);
+      }
     }
   }
 
@@ -100,10 +94,16 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final song = playerState.queue[playerState.currentIndex];
     final imageUrl = service.getCoverArtUrl(song.coverArt);
 
+    // Try to instantly read the vibrant color from cache to prevent flashing
+    final cachedColors = PaletteCache.instance.getColorsFor(song.id);
+    final activeThemeColor = (cachedColors != null && cachedColors.length > 1)
+        ? cachedColors[1]
+        : _themeColor;
+
     // Defer palette load past the current frame to avoid cascading rebuilds.
     if (imageUrl != _lastImageUrl) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _loadPalette(imageUrl);
+        if (mounted) _loadPalette(song.id, imageUrl);
       });
     }
 
@@ -145,7 +145,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
         child: Padding(
           padding: const EdgeInsets.fromLTRB(12, 0, 12, 12),
           child: _GlassShell(
-            themeColor: _themeColor,
+            themeColor: activeThemeColor,
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -185,7 +185,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             // Album art thumbnail
                             _AlbumThumb(
                               imageUrl: imageUrl,
-                              themeColor: _themeColor,
+                              themeColor: activeThemeColor,
                             ),
                             SizedBox(width: 12),
 
@@ -245,7 +245,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                                         : Icons.favorite_border_rounded,
                                     color:
                                         playerState.starredIds.contains(song.id)
-                                        ? _themeColor
+                                        ? activeThemeColor
                                         : ThemeTokens.of(context).textMuted,
                                     size: 20,
                                   ),
@@ -259,7 +259,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             // Play / Pause pill
                             _PlayButton(
                               isPlaying: playerState.isPlaying,
-                              themeColor: _themeColor,
+                              themeColor: activeThemeColor,
                               onPressed: () {
                                 final n = ref.read(playerProvider.notifier);
                                 if (playerState.isPlaying) {
@@ -306,7 +306,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                   child: _MiniProgressBar(
                     player: ref.read(playerProvider.notifier).player,
                     durationSeconds: song.duration,
-                    themeColor: _themeColor,
+                    themeColor: activeThemeColor,
                   ),
                 ),
               ],
@@ -368,9 +368,10 @@ class _GlassShell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(22),
+    return RepaintBoundary(
+      child: Container(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(22),
         boxShadow: [
           // Wide soft artwork-coloured outer glow
           BoxShadow(
@@ -428,7 +429,7 @@ class _GlassShell extends StatelessWidget {
           ),
         ),
       ),
-    );
+    ),);
   }
 }
 
@@ -458,14 +459,15 @@ class _NoiseLayer extends StatelessWidget {
 }
 
 class _NoisePainter extends CustomPainter {
+  static final Paint _noisePaint = Paint()
+    ..color = Colors.white.withValues(alpha: 0.018)
+    ..strokeWidth = 1;
+
   @override
   void paint(Canvas canvas, Size size) {
     // Lightweight deterministic "noise" — draw a sparse grid of micro-dots.
     // Full random noise would require dart:math import and is more expensive;
     // this approach is zero-allocation and visually sufficient.
-    final paint = Paint()
-      ..color = Colors.white.withValues(alpha: 0.018)
-      ..strokeWidth = 1;
 
     const step = 4.0;
     for (double y = 0; y < size.height; y += step) {
@@ -474,7 +476,7 @@ class _NoisePainter extends CustomPainter {
         final h =
             ((x * 374761393 + y * 668265263).truncate() ^ 0x9e3779b9) & 0xFFFF;
         if (h > 0xC000) {
-          canvas.drawCircle(Offset(x, y), 0.5, paint);
+          canvas.drawCircle(Offset(x, y), 0.5, _noisePaint);
         }
       }
     }
@@ -538,6 +540,8 @@ class _AlbumThumb extends StatelessWidget {
               imageUrl: imageUrl,
               width: 46,
               height: 46,
+              memCacheWidth: 92,
+              memCacheHeight: 92,
               fit: BoxFit.cover,
               placeholder: (_, __) => Container(
                 color: ThemeTokens.of(context).bgElevated,

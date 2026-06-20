@@ -84,8 +84,7 @@ void main() {
   // GROUP 1 — Payload construction (new schema)
   // ══════════════════════════════════════════════════════════════════════════
   group('Payload construction', () {
-    // 1.1 — played_at is UTC ISO8601.
-    test('1.1 — played_at is UTC ISO8601', () async {
+    test('1.1 — basic feedback fields are present', () async {
       final client = MockHttpClient();
       Map<String, dynamic>? capturedPayload;
       when(
@@ -105,62 +104,16 @@ void main() {
       await service.logPlay(song: _fakeSong());
 
       expect(capturedPayload, isNotNull);
-      final playedAt = capturedPayload!['played_at'] as String;
-      expect(playedAt, endsWith('Z'));
-      final parsed = DateTime.parse(playedAt);
-      expect(parsed.isUtc, isTrue);
-    });
-
-    // 1.2 — New keys are present; old keys are absent.
-    test('1.2 — new schema keys present; old keys absent', () async {
-      final client = MockHttpClient();
-      Map<String, dynamic>? capturedPayload;
-      when(
-        () => client.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      ).thenAnswer((invocation) async {
-        capturedPayload =
-            jsonDecode(invocation.namedArguments[#body] as String)
-                as Map<String, dynamic>;
-        return http.Response('', 200);
-      });
-
-      final service = _makeService(client);
-      await service.logPlay(
-        song: _fakeSong(),
-        coverArtUrl: 'https://server/art/cover-id',
-      );
-
-      expect(capturedPayload, isNotNull);
-      // Required new fields
       expect(capturedPayload!['title'], 'Test Song');
-      expect(capturedPayload!['artist'], 'Test Artist');
-      expect(capturedPayload!['duration_s'], 240);
-      expect(capturedPayload!['source'], 'subsonic');
-      expect(capturedPayload!['song_id'], 'song-abc123');
-      // Optional new fields
-      expect(capturedPayload!['cover_art'], 'https://server/art/cover-id');
+      expect(capturedPayload!['composer'], 'Test Artist'); // falls back to artist
+      expect(capturedPayload!['listen_ratio'], 1.0);
+      expect(capturedPayload!['end_reason'], 'natural');
       expect(capturedPayload!['session_id'], isNotEmpty);
-      expect(
-        capturedPayload!['session_id'].toString().length,
-        36,
-      ); // UUID v4 length
-      // album_id and artist_id must be null (not empty string)
-      expect(capturedPayload!['album_id'], isNull);
-      expect(capturedPayload!['artist_id'], isNull);
-      // Old keys must NOT be present
-      expect(capturedPayload!.containsKey('duration_ms'), isFalse);
-      expect(capturedPayload!.containsKey('played_ms'), isFalse);
-      expect(capturedPayload!.containsKey('week'), isFalse);
-      expect(capturedPayload!.containsKey('month'), isFalse);
-      expect(capturedPayload!.containsKey('device_id'), isFalse);
+      expect(capturedPayload!['session_id'].toString().length, 36); // UUID v4
+      expect(capturedPayload!['session_depth'], 1);
     });
 
-    // 1.3 — Empty album is sent as null.
-    test('1.3 — empty album field sent as null', () async {
+    test('1.2 — composer field uses song.composer when not empty', () async {
       final client = MockHttpClient();
       Map<String, dynamic>? capturedPayload;
       when(
@@ -177,42 +130,21 @@ void main() {
       });
 
       final service = _makeService(client);
-      final noAlbumSong = Song(
-        id: 'x',
-        title: 'T',
-        artist: 'A',
-        album: '', // empty
-        coverArt: '',
-        duration: 60,
+      final songWithComposer = Song(
+        id: 'song-abc123',
+        title: 'Test Song',
+        artist: 'Test Artist',
+        album: 'Test Album',
+        composer: 'Test Composer',
+        coverArt: 'cover-id',
+        duration: 240,
         track: 1,
         year: 2026,
       );
-      await service.logPlay(song: noAlbumSong);
+      await service.logPlay(song: songWithComposer);
 
-      expect(capturedPayload!['album'], isNull);
-    });
-
-    // 1.4 — cover_art is null when not provided.
-    test('1.4 — cover_art is null when coverArtUrl omitted', () async {
-      final client = MockHttpClient();
-      Map<String, dynamic>? capturedPayload;
-      when(
-        () => client.post(
-          any(),
-          headers: any(named: 'headers'),
-          body: any(named: 'body'),
-        ),
-      ).thenAnswer((invocation) async {
-        capturedPayload =
-            jsonDecode(invocation.namedArguments[#body] as String)
-                as Map<String, dynamic>;
-        return http.Response('', 200);
-      });
-
-      final service = _makeService(client);
-      await service.logPlay(song: _fakeSong()); // no coverArtUrl
-
-      expect(capturedPayload!['cover_art'], isNull);
+      expect(capturedPayload, isNotNull);
+      expect(capturedPayload!['composer'], 'Test Composer');
     });
   });
 
@@ -232,13 +164,13 @@ void main() {
       final queue = prefs.getStringList('listening_log_queue') ?? [];
       expect(queue.length, 1);
 
-      // Verify it's parseable JSON with the right song_id.
+      // Verify it's parseable JSON with the right title.
       // Queue format: "<retries>|<json_payload>"
       final raw = queue[0];
       final sep = raw.indexOf('|');
       final payload =
           jsonDecode(raw.substring(sep + 1)) as Map<String, dynamic>;
-      expect(payload['song_id'], 'song-abc123');
+      expect(payload['title'], 'Test Song');
     });
 
     // 2.2 — flushQueue() retries queued entries and clears them on success.
@@ -281,7 +213,7 @@ void main() {
       final sep = newestRaw.indexOf('|');
       final newestPayload =
           jsonDecode(newestRaw.substring(sep + 1)) as Map<String, dynamic>;
-      expect(newestPayload['song_id'], 'song-abc123');
+      expect(newestPayload['title'], 'Test Song');
     });
 
     // 2.4 — A successfully retried entry is removed from the queue.

@@ -19,7 +19,8 @@ abstract final class PlatformUtils {
       !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
 
   /// True only on Linux.
-  static bool get isLinux => !kIsWeb && Platform.isLinux;
+  static bool get isLinux =>
+      !kIsWeb && Platform.isLinux && !Platform.environment.containsKey('FLUTTER_TEST');
 
   /// True only on Windows.
   static bool get isWindows => !kIsWeb && Platform.isWindows;

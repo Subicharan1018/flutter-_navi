@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 // =============================================================================
 // audio_handler_reorder_test.dart
 //
@@ -15,10 +16,11 @@
 // =============================================================================
 
 import 'dart:async';
+import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:navivibe/models/song.dart';
-import 'package:navivibe/services/audio_handler.dart';
+import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
 import 'package:navivibe/providers/settings_provider.dart'
@@ -26,6 +28,7 @@ import 'package:navivibe/providers/settings_provider.dart'
 import 'dart:io';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:navivibe/core/hive_boxes.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 // ── Test data factory ─────────────────────────────────────────────────────────
 
@@ -103,6 +106,9 @@ class MockAudioPlayer extends Fake implements AudioPlayer {
       _processingStateController.stream;
 
   @override
+  Stream<SequenceState> get sequenceStateStream => const Stream.empty();
+
+  @override
   int? get currentIndex => _currentIndex;
 
   @override
@@ -137,8 +143,21 @@ class MockAudioPlayer extends Fake implements AudioPlayer {
 }
 
 /// Subclass of AudioHandler that exposes internal state for testing.
-class TestAudioHandler extends AudioHandler {
-  TestAudioHandler(super.subsonicService, {super.player});
+class TestAudioHandler extends NaviAudioHandler {
+  TestAudioHandler(super.subsonicService, {super.player}) {
+    player.currentIndexStream.listen((index) {
+      if (index != null && index >= 0 && index < currentQueue.length) {
+        final song = currentQueue[index];
+        mediaItem.add(MediaItem(
+          id: song.id,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          duration: Duration(seconds: song.duration),
+        ));
+      }
+    });
+  }
 
   // Expose currentQueue for assertions.
   List<Song> get testQueue => currentQueue;
@@ -152,8 +171,19 @@ class TestAudioHandler extends AudioHandler {
 void main() {
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
+    SharedPreferences.setMockInitialValues({});
     final dir = Directory.systemTemp.createTempSync(
       'hive_test_audio_handler_reorder',
+    );
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+      const MethodChannel('plugins.flutter.io/path_provider'),
+      (call) async {
+        if (call.method == 'getApplicationDocumentsDirectory') {
+          return dir.path;
+        }
+        return null;
+      },
     );
     Hive.init(dir.path);
     HiveBoxes.auth = await Hive.openBox('auth');
@@ -188,7 +218,7 @@ void main() {
       final songs = [_song(id: '1'), _song(id: '2'), _song(id: '3')];
       await handler.setQueue(songs, 1);
 
-      expect(mockPlayer.currentIndex, 1);
+      expect(handler.currentIndex, 1);
     });
 
     test('queue preserves song data integrity', () async {

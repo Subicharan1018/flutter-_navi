@@ -10,6 +10,7 @@ class RecommendationService extends ChangeNotifier {
   static const String _skipKey = 'rec_skips';
   static const String _timeKey = 'rec_time';
   static const String _enabledKey = 'recommendations_enabled';
+  static const int _maxProfiles = 500;
 
   bool _enabled = true;
   Map<String, SongProfile> _profiles = {};
@@ -108,10 +109,18 @@ class RecommendationService extends ChangeNotifier {
           );
     }
 
+    if (_profiles.length > _maxProfiles) {
+      final sortedEntries = _profiles.entries.toList()
+        ..sort((a, b) => a.value.lastPlayed.compareTo(b.value.lastPlayed));
+      for (int i = 0; i < 100 && i < sortedEntries.length; i++) {
+        _profiles.remove(sortedEntries[i].key);
+      }
+    }
+
     _recentlyPlayed.remove(songId);
     _recentlyPlayed.insert(0, songId);
-    if (_recentlyPlayed.length > 500) {
-      _recentlyPlayed = _recentlyPlayed.take(500).toList();
+    if (_recentlyPlayed.length > 200) {
+      _recentlyPlayed = _recentlyPlayed.take(200).toList();
     }
 
     // Artist affinity — non-nullable in this project's Song model
@@ -136,6 +145,14 @@ class RecommendationService extends ChangeNotifier {
     if (!_enabled) return;
 
     _skipCounts[song.id] = (_skipCounts[song.id] ?? 0) + 1;
+
+    if (_skipCounts.length > 500) {
+      final sortedSkips = _skipCounts.entries.toList()
+        ..sort((a, b) => a.value.compareTo(b.value));
+      for (int i = 0; i < 50 && i < sortedSkips.length; i++) {
+        _skipCounts.remove(sortedSkips[i].key);
+      }
+    }
 
     _artistAffinity[song.artist] = (_artistAffinity[song.artist] ?? 0) - 0.3;
 

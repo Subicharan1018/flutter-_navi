@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 // test/screens/now_playing_shuffle_sync_test.dart
 //
 // Descoped from a full widget test to a pure provider-level test.
@@ -29,7 +30,7 @@ import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:navivibe/providers/settings_provider.dart';
-import 'package:navivibe/services/audio_handler.dart';
+import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
@@ -130,10 +131,16 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   Stream<Duration> get positionStream => _positionController.stream;
 
   @override
-  int? get currentIndex => _currentIndex;
+  Stream<SequenceState> get sequenceStateStream => const Stream.empty();
 
   @override
-  AudioSource? get audioSource => null;
+  int? get currentIndex => _currentIndex;
+
+  void reset() {
+    _currentIndex = 0;
+    _mockPosition = Duration.zero;
+    _playing = false;
+  }
 
   void setMockPosition(Duration position) {
     _mockPosition = position;
@@ -185,8 +192,21 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
 
 /// TestAudioHandler simulates a Smart Local shuffle by reversing the future
 /// queue — deterministic enough for assertions.
-class TestAudioHandler extends AudioHandler {
-  TestAudioHandler(super.subsonicService, {super.player});
+class TestAudioHandler extends NaviAudioHandler {
+  TestAudioHandler(super.subsonicService, {super.player}) {
+    player.currentIndexStream.listen((index) {
+      if (index != null && index >= 0 && index < currentQueue.length) {
+        final song = currentQueue[index];
+        mediaItem.add(MediaItem(
+          id: song.id,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          duration: Duration(seconds: song.duration),
+        ));
+      }
+    });
+  }
 
   @override
   Future<void> setQueue(
@@ -213,6 +233,10 @@ class TestAudioHandler extends AudioHandler {
 // ---------------------------------------------------------------------------
 
 void main() {
+  late ControlledAudioPlayer mockPlayer;
+  late TestAudioHandler handler;
+  late MockSubsonicService mockService;
+
   setUpAll(() async {
     TestWidgetsFlutterBinding.ensureInitialized();
     registerFallbackValue(
@@ -247,6 +271,19 @@ void main() {
     HiveBoxes.session = await Hive.openBox('session');
     HiveBoxes.prefs = await Hive.openBox('prefs');
     HiveBoxes.audio = await Hive.openBox('audio');
+
+    mockPlayer = ControlledAudioPlayer();
+    mockService = MockSubsonicService(MockPlaylistCacheService());
+    handler = TestAudioHandler(mockService, player: mockPlayer);
+
+    await AudioService.init<NaviAudioHandler>(
+      builder: () => handler,
+    );
+  });
+
+  setUp(() {
+    mockPlayer.reset();
+    handler.clearQueue();
   });
 
   // -------------------------------------------------------------------------
@@ -255,10 +292,6 @@ void main() {
   // -------------------------------------------------------------------------
   Future<(ProviderContainer, PlayerNotifier, ControlledAudioPlayer)>
   buildContainer() async {
-    final mockCache = MockPlaylistCacheService();
-    final mockService = MockSubsonicService(mockCache);
-    final mockPlayer = ControlledAudioPlayer();
-    final handler = TestAudioHandler(mockService, player: mockPlayer);
     final mockCollector = MockListeningEventCollector();
 
     final container = ProviderContainer(

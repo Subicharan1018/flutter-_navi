@@ -106,7 +106,8 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final meshEnabled = ref.watch(settingsProvider).meshGradientEnabled;
+    final settings = ref.watch(settingsProvider);
+    final meshEnabled = settings.meshGradientEnabled && settings.fluidBgEnabled;
     final isOffline = ref.watch(isOfflineProvider);
     // Only the mesh shader cares about playback. Subscribe to isPlaying only when
     // mesh is on, so non-mesh layouts don't rebuild on every play/pause toggle.

@@ -289,6 +289,20 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           padding: const EdgeInsets.symmetric(vertical: 16),
           children: [
             ThemeSelector(),
+            SizedBox(height: 16),
+            _SettingsGroup(
+              title: 'Appearance',
+              children: [
+                SettingsToggleRow(
+                  title: 'Fluid background',
+                  subtitle: 'Enable live animated background shader (disable for better performance/battery)',
+                  value: settings.fluidBgEnabled,
+                  onChanged: (v) {
+                    ref.read(settingsProvider.notifier).setFluidBgEnabled(v);
+                  },
+                ),
+              ],
+            ),
             SizedBox(height: 32),
 
             // ----------------------------------------------------------------

@@ -1,3 +1,4 @@
+import 'package:audio_service/audio_service.dart';
 import 'dart:async';
 import 'dart:io';
 
@@ -13,7 +14,7 @@ import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:navivibe/providers/settings_provider.dart';
-import 'package:navivibe/services/audio_handler.dart';
+import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
@@ -109,6 +110,9 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   @override
   AudioSource? get audioSource => null;
 
+  @override
+  Stream<SequenceState> get sequenceStateStream => const Stream.empty();
+
   void setMockPosition(Duration position) {
     _mockPosition = position;
     _positionController.add(position);
@@ -163,8 +167,21 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   Future<void> dispose() async {}
 }
 
-class TestAudioHandler extends AudioHandler {
-  TestAudioHandler(super.subsonicService, {super.player});
+class TestAudioHandler extends NaviAudioHandler {
+  TestAudioHandler(super.subsonicService, {super.player}) {
+    player.currentIndexStream.listen((index) {
+      if (index != null && index >= 0 && index < currentQueue.length) {
+        final song = currentQueue[index];
+        mediaItem.add(MediaItem(
+          id: song.id,
+          album: song.album,
+          title: song.title,
+          artist: song.artist,
+          duration: Duration(seconds: song.duration),
+        ));
+      }
+    });
+  }
 
   @override
   Future<void> setQueue(

@@ -36,7 +36,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// True on Linux — ConcatenatingAudioSource is not supported by
   /// just_audio_media_kit 2.1.0 in its platform-channel message form.
-  static bool get _isLinux => !kIsWeb && Platform.isLinux;
+  static bool get _isLinux => !kIsWeb && Platform.isLinux && !Platform.environment.containsKey('FLUTTER_TEST');
 
   // ── Linux single-source bridge state ────────────────────────────────────────
   int _linuxIndex = 0;
@@ -129,8 +129,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // (non-Linux only — on Linux we push MediaItem manually via _emitLinuxMediaItem)
     if (!_isLinux) {
       _subscriptions.add(player.sequenceStateStream.listen((sequenceState) {
-        if (sequenceState?.currentSource == null) return;
-        final source = sequenceState!.currentSource!;
+        if (sequenceState.currentSource == null) return;
+        final source = sequenceState.currentSource!;
         if (source.tag is MediaItem) {
           mediaItem.add(source.tag as MediaItem);
         }
@@ -739,6 +739,35 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await _rebuildSource(
         this.currentIndex.clamp(0, _currentQueue.length - 1),
       );
+    }
+  }
+
+  Future<void> pruneRange(int start, int end) async {
+    if (start < 0 || end > _currentQueue.length || start >= end) return;
+
+    final removedSongs = _currentQueue.sublist(start, end);
+    _currentQueue.removeRange(start, end);
+    for (final song in removedSongs) {
+      _unshuffledQueue.removeWhere((s) => s.id == song.id);
+    }
+
+    if (_isLinux) {
+      final prunedCount = end - start;
+      if (_linuxIndex >= start && _linuxIndex < end) {
+        _linuxIndex = start.clamp(0, _currentQueue.length - 1);
+      } else if (_linuxIndex >= end) {
+        _linuxIndex -= prunedCount;
+      }
+
+      if (_linuxTargetIndex >= start && _linuxTargetIndex < end) {
+        _linuxTargetIndex = start.clamp(0, _currentQueue.length - 1);
+      } else if (_linuxTargetIndex >= end) {
+        _linuxTargetIndex -= prunedCount;
+      }
+    }
+
+    if (_playlist != null) {
+      await _playlist!.removeRange(start, end);
     }
   }
 
