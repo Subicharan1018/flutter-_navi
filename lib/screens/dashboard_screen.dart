@@ -57,7 +57,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     // counts (not the 20-row recent_plays sample, which made the line read as a
     // flat zero with a single end spike). Window tracks the selected period.
     final contribDays =
-        ref.watch(contributionGraphProvider).valueOrNull?.days ??
+        ref.watch(contributionGraphProvider).asData?.value.days ??
         const <ContributionDay>[];
     final lineWindow = _period == StatsPeriod.weekly
         ? 7

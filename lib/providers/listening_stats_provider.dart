@@ -13,26 +13,26 @@ import '../providers/settings_provider.dart';
 // Exposes AsyncValue<ListeningStats> so the UI can handle loading/error/data.
 // =============================================================================
 
-class ListeningStatsNotifier extends StateNotifier<AsyncValue<ListeningStats>> {
-  final http.Client _client;
-  final String _baseUrl;
+class ListeningStatsNotifier extends Notifier<AsyncValue<ListeningStats>> {
+  // In Riverpod 3.x, family args are passed via the constructor.
+  ListeningStatsNotifier(this._period);
   final String _period;
 
-  ListeningStatsNotifier({
-    required http.Client client,
-    required String baseUrl,
-    required String period,
-  }) : _client = client,
-       _baseUrl = baseUrl,
-       _period = period,
-       super(const AsyncValue.loading()) {
-    fetch();
+  @override
+  AsyncValue<ListeningStats> build() {
+    // Kick off the initial fetch after build returns.
+    Future.microtask(() => fetch());
+    return const AsyncValue.loading();
   }
 
   /// Loads stats from the server. Sets state to loading → data or error.
   Future<void> fetch() async {
     state = const AsyncValue.loading();
-    if (_baseUrl.isEmpty) {
+    // Use the computed getter: apiBaseUrl:loggingPort
+    final baseUrl = ref.read(settingsProvider).loggingApiUrl;
+    final client = ref.read(subsonicServiceProvider).client;
+
+    if (baseUrl.isEmpty) {
       state = AsyncValue.error(
         'No server URL configured. Set the API Base URL in Settings.',
         StackTrace.current,
@@ -42,10 +42,10 @@ class ListeningStatsNotifier extends StateNotifier<AsyncValue<ListeningStats>> {
 
     try {
       final uri = Uri.parse(
-        '${_baseUrl.replaceAll(RegExp(r'/+$'), '')}/listening-log/stats',
+        '${baseUrl.replaceAll(RegExp(r'/+$'), '')}/listening-log/stats',
       ).replace(queryParameters: {'period': _period});
 
-      final response = await _client
+      final response = await client
           .get(uri, headers: {'Accept': 'application/json'})
           .timeout(const Duration(seconds: 15));
 
@@ -66,18 +66,10 @@ class ListeningStatsNotifier extends StateNotifier<AsyncValue<ListeningStats>> {
 }
 
 /// Provider family — one notifier per period string ('weekly', 'monthly', 'all').
+/// In Riverpod 3.x, family args are passed via the Notifier constructor.
 final listeningStatsProvider =
-    StateNotifierProvider.family<
+    NotifierProvider.family<
       ListeningStatsNotifier,
       AsyncValue<ListeningStats>,
       String
-    >((ref, period) {
-      // Use the computed getter: apiBaseUrl:loggingPort
-      final baseUrl = ref.watch(settingsProvider).loggingApiUrl;
-      final client = ref.watch(subsonicServiceProvider).client;
-      return ListeningStatsNotifier(
-        client: client,
-        baseUrl: baseUrl,
-        period: period,
-      );
-    });
+    >((period) => ListeningStatsNotifier(period));

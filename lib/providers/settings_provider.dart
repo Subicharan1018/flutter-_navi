@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import '../core/constants.dart';
 import '../core/hive_boxes.dart';
 import '../core/theme.dart';
@@ -432,12 +433,14 @@ final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {
 });
 
 /// [RecommendationService] — play pattern tracking and personalised feeds.
+/// MEM-OPT: initialize() is NOT called here. The service lazy-loads its data
+/// from SharedPreferences on the first call to trackSongPlay() or setEnabled().
+/// This avoids decoding 500 profiles into memory at app startup when the user
+/// never visits the Made For You screen.
 final recommendationProvider = ChangeNotifierProvider<RecommendationService>((
   ref,
 ) {
-  final service = RecommendationService();
-  service.initialize();
-  return service;
+  return RecommendationService();
 });
 
 /// Singleton [SearchHistoryService].

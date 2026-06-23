@@ -15,8 +15,8 @@ dependencies:
   audio_session: ^0.2.3
 
   # State management
-  flutter_riverpod: ^2.6.1
-  riverpod_annotation: ^2.3.5
+  flutter_riverpod: ^3.1.0
+  riverpod_annotation: ^4.0.0
 
   # Navigation — using direct Navigator push/pop throughout the app
   # go_router removed (ARCH-1): declared but never imported anywhere
@@ -28,7 +28,7 @@ dependencies:
   shared_preferences: ^2.3.1   # Legacy — being migrated to Hive CE
   flutter_secure_storage: ^10.3.1
   crypto: ^3.0.3
-  file_picker: ^8.0.3
+  file_picker: ^8.1.7
   sqflite: ^2.3.3              # Legacy — being migrated to Drift
   path: ^1.9.0
   hive_ce: ^2.6.0              # Fast key-value store (community edition)
@@ -38,7 +38,7 @@ dependencies:
   cupertino_icons: ^1.0.8
   cached_network_image: ^3.3.1
   palette_generator: ^0.3.3
-  flutter_slidable: ^3.1.2
+  flutter_slidable: ^4.0.3
   google_fonts: ^8.0.2
   animations: ^2.1.2
   flutter_animate: ^4.5.2
@@ -46,7 +46,7 @@ dependencies:
   audio_video_progress_bar: ^2.0.3
   connectivity_plus: ^7.1.1
   drift: ^2.22.1
-  drift_flutter: ^0.1.0
+  drift_flutter: ^0.2.8
   path_provider: ^2.1.5
   just_audio_media_kit: ^2.1.0
   media_kit_libs_linux: ^1.2.1
@@ -61,12 +61,12 @@ dependencies:
 dev_dependencies:
   flutter_test:
     sdk: flutter
-  flutter_lints: ^5.0.0
-  flutter_launcher_icons: ^0.13.1
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.14.4
   build_runner: ^2.4.9
-  riverpod_generator: ^2.4.3
-  custom_lint: ^0.7.6
-  riverpod_lint: ^2.3.13
+  riverpod_generator: ^4.0.0+1
+  custom_lint: ^0.8.1
+  riverpod_lint: ^3.1.0
   drift_dev: ^2.22.1
   sqlite3_flutter_libs: ^0.5.42
   mocktail: ^1.0.5

@@ -45,14 +45,13 @@ class LyricsState {
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
-class LyricsController extends StateNotifier<LyricsState> {
-  final Ref _ref;
+class LyricsController extends Notifier<LyricsState> {
   StreamSubscription<Duration>? _posSub;
 
-  LyricsController(this._ref)
-    : super(const LyricsState(status: LyricsStatus.loading)) {
+  @override
+  LyricsState build() {
     // React to song changes.
-    _ref.listen<Song?>(playerProvider.select((s) => s.currentSong), (
+    ref.listen<Song?>(playerProvider.select((s) => s.currentSong), (
       prev,
       next,
     ) {
@@ -66,11 +65,13 @@ class LyricsController extends StateNotifier<LyricsState> {
     // on position events when there are no lyrics to track.
 
     // Load lyrics for whatever is currently playing.
-    final song = _ref.read(playerProvider).currentSong;
+    final song = ref.read(playerProvider).currentSong;
     if (song != null) {
-      _loadLyrics(song);
+      // Schedule async work after build returns
+      Future.microtask(() => _loadLyrics(song));
+      return const LyricsState(status: LyricsStatus.loading);
     } else {
-      state = const LyricsState(status: LyricsStatus.empty);
+      return const LyricsState(status: LyricsStatus.empty);
     }
   }
 
@@ -78,7 +79,7 @@ class LyricsController extends StateNotifier<LyricsState> {
 
   void _subscribeToPosition() {
     try {
-      final player = _ref.read(playerProvider.notifier).player;
+      final player = ref.read(playerProvider.notifier).player;
       _posSub = player.positionStream.listen((position) {
         _onPosition(position);
       });
@@ -90,7 +91,6 @@ class LyricsController extends StateNotifier<LyricsState> {
   }
 
   void _onPosition(Duration position) {
-    if (!mounted) return;
     final lyrics = state.lyrics;
     if (lyrics == null || state.status != LyricsStatus.synced) return;
 
@@ -103,14 +103,10 @@ class LyricsController extends StateNotifier<LyricsState> {
   // ── Lyrics loading ────────────────────────────────────────────────────────
 
   Future<void> _loadLyrics(Song song) async {
-    if (!mounted) return;
-
     state = const LyricsState(status: LyricsStatus.loading);
 
     try {
-      final result = await _ref.read(lyricsRepositoryProvider).getLyrics(song);
-
-      if (!mounted) return;
+      final result = await ref.read(lyricsRepositoryProvider).getLyrics(song);
 
       switch (result.type) {
         case LyricsType.synced:
@@ -134,7 +130,6 @@ class LyricsController extends StateNotifier<LyricsState> {
       }
     } catch (e) {
       debugPrint('[LyricsController] Error loading lyrics: $e');
-      if (!mounted) return;
       state = LyricsState(
         status: LyricsStatus.error,
         errorMessage: e.toString(),
@@ -144,14 +139,8 @@ class LyricsController extends StateNotifier<LyricsState> {
 
   /// Manually trigger a reload — used by the Retry button in the error state.
   Future<void> retry() async {
-    final song = _ref.read(playerProvider).currentSong;
+    final song = ref.read(playerProvider).currentSong;
     if (song != null) await _loadLyrics(song);
-  }
-
-  @override
-  void dispose() {
-    _posSub?.cancel();
-    super.dispose();
   }
 }
 
@@ -159,6 +148,6 @@ class LyricsController extends StateNotifier<LyricsState> {
 
 /// autoDispose: cleaned up automatically when the lyrics sheet is dismissed.
 final lyricsControllerProvider =
-    StateNotifierProvider.autoDispose<LyricsController, LyricsState>(
-      (ref) => LyricsController(ref),
+    NotifierProvider.autoDispose<LyricsController, LyricsState>(
+      LyricsController.new,
     );

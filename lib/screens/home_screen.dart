@@ -936,7 +936,11 @@ class _AlbumCard extends StatelessWidget {
                       if (coverUrl != null)
                         CachedNetworkImage(
                           imageUrl: coverUrl!,
+                          cacheKey: 'cover_${album.coverArt.isNotEmpty ? album.coverArt : album.id}',
                           fit: BoxFit.cover,
+                          // 140dp card × 2x DPR = 280px; 300 gives a small headroom.
+                          memCacheWidth: 300,
+                          memCacheHeight: 300,
                           placeholder: (_, __) => _artPlaceholder(t),
                           errorWidget: (_, __, ___) => _artPlaceholder(t),
                         )
@@ -1088,7 +1092,11 @@ class _TrackCard extends StatelessWidget {
                     children: [
                       CachedNetworkImage(
                         imageUrl: coverUrl,
+                        cacheKey: 'cover_${song.coverArt.isNotEmpty ? song.coverArt : song.id}',
                         fit: BoxFit.cover,
+                        // 130dp card × 2x DPR = 260px; 280 gives headroom.
+                        memCacheWidth: 280,
+                        memCacheHeight: 280,
                         placeholder: (_, __) => _artPlaceholder(t),
                         errorWidget: (_, __, ___) => _artPlaceholder(t),
                       ),
@@ -1294,7 +1302,11 @@ class _QuickTile extends ConsumerWidget {
                 child: playlist.coverArt != null
                     ? CachedNetworkImage(
                         imageUrl: svc.getCoverArtUrl(playlist.coverArt!),
+                        cacheKey: 'cover_${playlist.coverArt}',
                         fit: BoxFit.cover,
+                        // 58dp tile × 2x DPR = 116px; 128 is a clean power of 2.
+                        memCacheWidth: 128,
+                        memCacheHeight: 128,
                       )
                     : Container(
                         decoration: BoxDecoration(

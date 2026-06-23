@@ -10,9 +10,13 @@ class RecommendationService extends ChangeNotifier {
   static const String _skipKey = 'rec_skips';
   static const String _timeKey = 'rec_time';
   static const String _enabledKey = 'recommendations_enabled';
-  static const int _maxProfiles = 500;
+  // MEM-OPT: Reduced from 500 — with a single-user library of ~600 songs,
+  // 50 profiles is more than enough and prevents the profile map from
+  // becoming a permanent 1–3 MB fixture in the process heap.
+  static const int _maxProfiles = 50;
 
   bool _enabled = true;
+  bool _initialized = false; // MEM-OPT: lazy init — only load from disk on first use
   Map<String, SongProfile> _profiles = {};
   Map<String, double> _artistAffinity = {};
   Map<String, double> _genreAffinity = {};
@@ -27,6 +31,8 @@ class RecommendationService extends ChangeNotifier {
   Map<String, SongProfile> get profiles => _profiles;
 
   Future<void> initialize() async {
+    if (_initialized) return; // idempotent
+    _initialized = true;
     final prefs = await SharedPreferences.getInstance();
     _enabled = prefs.getBool(_enabledKey) ?? true;
 
@@ -72,6 +78,7 @@ class RecommendationService extends ChangeNotifier {
   }
 
   Future<void> setEnabled(bool enabled) async {
+    if (!_initialized) await initialize();
     _enabled = enabled;
     final prefs = await SharedPreferences.getInstance();
     await prefs.setBool(_enabledKey, enabled);
@@ -83,6 +90,7 @@ class RecommendationService extends ChangeNotifier {
     int durationPlayed = 0,
     bool completed = false,
   }) async {
+    if (!_initialized) await initialize();
     if (!_enabled) return;
 
     final songId = song.id;
@@ -112,15 +120,18 @@ class RecommendationService extends ChangeNotifier {
     if (_profiles.length > _maxProfiles) {
       final sortedEntries = _profiles.entries.toList()
         ..sort((a, b) => a.value.lastPlayed.compareTo(b.value.lastPlayed));
-      for (int i = 0; i < 100 && i < sortedEntries.length; i++) {
+      // Evict oldest 20% when over the cap.
+      final evictCount = (_maxProfiles * 0.2).ceil();
+      for (int i = 0; i < evictCount && i < sortedEntries.length; i++) {
         _profiles.remove(sortedEntries[i].key);
       }
     }
 
     _recentlyPlayed.remove(songId);
     _recentlyPlayed.insert(0, songId);
-    if (_recentlyPlayed.length > 200) {
-      _recentlyPlayed = _recentlyPlayed.take(200).toList();
+    // MEM-OPT: Reduced from 200 — 30 entries is enough to suppress repeats.
+    if (_recentlyPlayed.length > 30) {
+      _recentlyPlayed = _recentlyPlayed.take(30).toList();
     }
 
     // Artist affinity — non-nullable in this project's Song model
@@ -142,14 +153,16 @@ class RecommendationService extends ChangeNotifier {
   }
 
   Future<void> trackSkip(Song song) async {
+    if (!_initialized) await initialize();
     if (!_enabled) return;
 
     _skipCounts[song.id] = (_skipCounts[song.id] ?? 0) + 1;
 
-    if (_skipCounts.length > 500) {
+    // MEM-OPT: Reduced cap from 500 to 100.
+    if (_skipCounts.length > 100) {
       final sortedSkips = _skipCounts.entries.toList()
         ..sort((a, b) => a.value.compareTo(b.value));
-      for (int i = 0; i < 50 && i < sortedSkips.length; i++) {
+      for (int i = 0; i < 20 && i < sortedSkips.length; i++) {
         _skipCounts.remove(sortedSkips[i].key);
       }
     }

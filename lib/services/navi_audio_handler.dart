@@ -47,6 +47,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Holds all long-lived stream subscriptions so dispose() can cancel them.
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
+  // MEM-OPT: Cache the offline-path lookup so Linux doesn't re-stat the
+  // filesystem on every track skip. Invalidated when the queue changes.
+  Map<String, String?>? _offlinePathsCache;
+  int _offlinePathsQueueLength = 0;
+
   /// Mutex: true while setAudioSource() is in progress on Linux.
   /// Prevents the dual-completion-listener race (Bug 1 + Bug 3).
   bool _linuxLoading = false;
@@ -307,6 +312,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<Map<String, String?>> _precomputeOfflinePaths(List<Song> songs) async {
+    // MEM-OPT: Return cached result if the queue hasn't changed.
+    if (_offlinePathsCache != null && _offlinePathsQueueLength == songs.length) {
+      return _offlinePathsCache!;
+    }
     final offline = OfflineService();
     await offline.initialize(); // Ensure directory is resolved
     // Resolve all paths asynchronously (File.exists) instead of blocking the
@@ -318,7 +327,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             MapEntry(song.id, await offline.getLocalPathAsync(song.id)),
       ),
     );
-    return Map.fromEntries(entries);
+    _offlinePathsCache = Map.fromEntries(entries);
+    _offlinePathsQueueLength = songs.length;
+    return _offlinePathsCache!;
   }
 
   Future<void> setQueue(
@@ -332,6 +343,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     _currentQueue = List.from(songs);
     _unshuffledQueue = List.from(unshuffledSongs ?? songs);
+    // MEM-OPT: Invalidate the offline paths cache when the queue is replaced.
+    _offlinePathsCache = null;
+    _offlinePathsQueueLength = 0;
     await _rebuildSource(startIndex);
     _applyReplayGain();
   }
@@ -379,13 +393,22 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
 
     // ── Non-Linux: original ConcatenatingAudioSource path ────────────────────
-    final List<AudioSource> sources = _currentQueue
+    // MEM-OPT: Cap at 100 sources. With a full album or shuffle queue of 500+
+    // songs, ConcatenatingAudioSource pre-buffers adjacent tracks and holds a
+    // MediaItem (~1 KB) per child. 100 songs = ~100 KB of tags + buffer memory.
+    // Songs beyond the cap remain in _currentQueue / PlayerState for display.
+    const int maxConcatSources = 100;
+    final effectiveStart = startIndex.clamp(0, _currentQueue.length - 1);
+    // Include the start track and as many subsequent songs as fit in the cap.
+    final endIdx = (effectiveStart + maxConcatSources).clamp(0, _currentQueue.length);
+    final sourceSongs = _currentQueue.sublist(effectiveStart, endIdx);
+    final List<AudioSource> sources = sourceSongs
         .map((song) => _toSourceWithPaths(song, offlinePaths))
         .toList();
     _playlist = ConcatenatingAudioSource(children: sources);
     await player.setAudioSource(
       _playlist!,
-      initialIndex: startIndex,
+      initialIndex: 0, // effectiveStart maps to index 0 within sources
       initialPosition: initialPosition,
     );
     if (savedLoopMode != LoopMode.off) {

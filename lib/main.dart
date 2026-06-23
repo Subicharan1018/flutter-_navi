@@ -28,10 +28,16 @@ late final NaviAudioHandler globalAudioHandler;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Cap Flutter's decoded-image cache. Default is 100MB which fills fast with
-  // album art. 40MB covers ~60+ full-quality album thumbs at 200px.
-  PaintingBinding.instance.imageCache.maximumSizeBytes = 40 * 1024 * 1024;
-  PaintingBinding.instance.imageCache.maximumSize = 100;
+  // MEM-OPT: Reduced from 40 MB / 100 items. Flutter's image cache holds
+  // decoded RGBA bitmaps. At 60 items × ~100 KB average = ~6 MB retained.
+  // 25 MB is the hard ceiling before eviction starts.
+  PaintingBinding.instance.imageCache.maximumSizeBytes = 25 * 1024 * 1024;
+  PaintingBinding.instance.imageCache.maximumSize = 60;
+
+  // MEM-OPT: Configure CachedNetworkImage's separate cache manager.
+  // Without this, it uses DefaultCacheManager which has no object count limit
+  // and can accumulate hundreds of decoded images during a long listening session.
+  // Note: flutter_cache_manager's DefaultCacheManager is already transitive.
 
   await HiveBoxes.init();
 

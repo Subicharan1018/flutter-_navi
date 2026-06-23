@@ -193,8 +193,8 @@ class _FavoritesHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final songCount = favoritesAsync.valueOrNull?.songs.length ?? 0;
-    final albumCount = favoritesAsync.valueOrNull?.albums.length ?? 0;
+    final songCount = favoritesAsync.asData?.value.songs.length ?? 0;
+    final albumCount = favoritesAsync.asData?.value.albums.length ?? 0;
 
     return Padding(
       padding: EdgeInsets.fromLTRB(20, topPad + 20, 20, 8),

@@ -282,15 +282,15 @@ Future<ReplayData> _queryReplay(AppDatabase db, int fromMs, int toMs) async {
 // Riverpod providers
 // ---------------------------------------------------------------------------
 
-final monthlyReplayProvider = FutureProvider<ReplayData>((ref) async {
-  ref.keepAlive();
+// MEM-OPT: autoDispose — replay data is only needed on the Replay screen.
+final monthlyReplayProvider = FutureProvider.autoDispose<ReplayData>((ref) async {
   final db = ref.watch(appDatabaseProvider);
   final (from, to) = _thisMonthWindow();
   return _queryReplay(db, from, to);
 });
 
-final weeklyReplayProvider = FutureProvider<ReplayData>((ref) async {
-  ref.keepAlive();
+// MEM-OPT: autoDispose — replay data is only needed on the Replay screen.
+final weeklyReplayProvider = FutureProvider.autoDispose<ReplayData>((ref) async {
   final db = ref.watch(appDatabaseProvider);
   final (from, to) = _thisWeekWindow();
   return _queryReplay(db, from, to);
