@@ -50,6 +50,10 @@ class LyricsController extends Notifier<LyricsState> {
 
   @override
   LyricsState build() {
+    ref.onDispose(() {
+      _posSub?.cancel();
+    });
+
     // React to song changes.
     ref.listen<Song?>(playerProvider.select((s) => s.currentSong), (
       prev,

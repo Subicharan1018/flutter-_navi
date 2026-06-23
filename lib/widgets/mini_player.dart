@@ -95,7 +95,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final imageUrl = service.getCoverArtUrl(song.coverArt);
 
     // Try to instantly read the vibrant color from cache to prevent flashing
-    final cachedColors = PaletteCache.instance.getColorsFor(song.id);
+    final cachedColors = PaletteCache.instance.peekColorsFor(song.id);
     final activeThemeColor = (cachedColors != null && cachedColors.length > 1)
         ? cachedColors[1]
         : _themeColor;

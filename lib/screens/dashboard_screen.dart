@@ -1970,6 +1970,8 @@ class _TopTracksList extends ConsumerWidget {
                         ? CachedNetworkImage(
                             imageUrl: url,
                             fit: BoxFit.cover,
+                            memCacheWidth: 80,
+                            memCacheHeight: 80,
                             placeholder: (_, __) => _placeholder(color1, color2),
                             errorWidget: (_, __, ___) => _placeholder(color1, color2),
                           )

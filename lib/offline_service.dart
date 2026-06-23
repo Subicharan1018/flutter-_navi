@@ -48,6 +48,8 @@ class OfflineService {
   bool get isOfflineMode => _offlineMode;
   void setOfflineMode(bool value) => _offlineMode = value;
 
+  final Set<String> _downloadedFileNames = {};
+
   final ValueNotifier<DownloadState> downloadState = ValueNotifier(
     DownloadState(),
   );
@@ -64,6 +66,19 @@ class OfflineService {
     final offlineDirectory = Directory(_offlineDir!);
     if (!await offlineDirectory.exists()) {
       await offlineDirectory.create(recursive: true);
+    }
+
+    _downloadedFileNames.clear();
+    try {
+      if (await offlineDirectory.exists()) {
+        await for (final entity in offlineDirectory.list()) {
+          if (entity is File) {
+            _downloadedFileNames.add(entity.uri.pathSegments.last);
+          }
+        }
+      }
+    } catch (e) {
+      debugPrint('Error scanning offline directory: $e');
     }
   }
 
@@ -85,8 +100,10 @@ class OfflineService {
 
   String? getLocalCoverArtPath(String songId) {
     if (_offlineDir == null) return null;
-    final path = _getCoverArtPath(songId);
-    if (File(path).existsSync()) return path;
+    final filename = '$songId.jpg';
+    if (_downloadedFileNames.contains(filename)) {
+      return '$_offlineDir/$filename';
+    }
     return null;
   }
 
@@ -94,6 +111,7 @@ class OfflineService {
     if (_offlineDir == null) await initialize();
     try {
       await File(_getLyricsPath(songId)).writeAsString(jsonEncode(data));
+      _downloadedFileNames.add('$songId.lyrics.json');
     } catch (e) {
       debugPrint('Error saving lyrics: $e');
     }
@@ -102,8 +120,9 @@ class OfflineService {
   Future<Map<String, dynamic>?> getLocalLyrics(String songId) async {
     if (_offlineDir == null) await initialize();
     try {
+      final filename = '$songId.lyrics.json';
+      if (!_downloadedFileNames.contains(filename)) return null;
       final file = File(_getLyricsPath(songId));
-      if (!file.existsSync()) return null;
       return jsonDecode(await file.readAsString()) as Map<String, dynamic>?;
     } catch (e) {
       return null;
@@ -112,18 +131,15 @@ class OfflineService {
 
   bool isSongDownloaded(String songId) {
     if (_offlineDir == null) return false;
-    final file = File(_getSongPath(songId));
-    return file.existsSync();
+    return _downloadedFileNames.contains('$songId.mp3');
   }
 
   /// Async, non-blocking variant of [isSongDownloaded].
   ///
-  /// Uses [File.exists()] instead of [File.existsSync()] so it never blocks
-  /// the main thread.  Called by [DownloadStateNotifier._reconcileWithDisk]
-  /// during the post-build reconciliation pass.
+  /// Uses the in-memory downloaded filenames set so it never blocks the main thread.
   Future<bool> isSongDownloadedAsync(String songId) async {
     if (_offlineDir == null) return false;
-    return File(_getSongPath(songId)).exists();
+    return _downloadedFileNames.contains('$songId.mp3');
   }
 
   Future<List<Song>> getDownloadedSongsMetadata() async {
@@ -203,6 +219,8 @@ class OfflineService {
         },
       );
 
+      _downloadedFileNames.add('${song.id}.mp3');
+
       final downloadedIds = getDownloadedSongIds();
       if (!downloadedIds.contains(song.id)) {
         downloadedIds.add(song.id);
@@ -212,6 +230,7 @@ class OfflineService {
       try {
         final metadataFile = File(_getSongMetadataPath(song.id));
         await metadataFile.writeAsString(jsonEncode(song.toMap()));
+        _downloadedFileNames.add('${song.id}.song.json');
       } catch (e) {
         debugPrint('Error saving song metadata: $e');
       }
@@ -225,6 +244,7 @@ class OfflineService {
           if (coverUrl.isNotEmpty) {
             final dioCover = Dio();
             await dioCover.download(coverUrl, _getCoverArtPath(song.id));
+            _downloadedFileNames.add('${song.id}.jpg');
           }
         }
       } catch (e) {
@@ -380,6 +400,14 @@ class OfflineService {
       downloadedIds.remove(songId);
       await _prefs?.setStringList(_keyDownloadedSongs, downloadedIds);
 
+      _downloadedFileNames.remove('$songId.mp3');
+      _downloadedFileNames.remove('$songId.song.json');
+      _downloadedFileNames.remove('$songId.jpg');
+      _downloadedFileNames.remove('$songId.lyrics.json');
+      _downloadedFileNames.remove('$songId.flac');
+      _downloadedFileNames.remove('$songId.m4a');
+      _downloadedFileNames.remove('$songId.ogg');
+
       return true;
     } catch (e) {
       debugPrint('Error deleting song: $e');
@@ -401,6 +429,7 @@ class OfflineService {
       }
 
       await _prefs?.setStringList(_keyDownloadedSongs, []);
+      _downloadedFileNames.clear();
     } catch (e) {
       debugPrint('Error deleting all downloads: $e');
     }
@@ -409,12 +438,16 @@ class OfflineService {
   String? getLocalPath(String songId) {
     if (_offlineDir == null) return null;
     for (final ext in ['flac', 'mp3', 'm4a', 'ogg']) {
-      final path = '$_offlineDir/$songId.$ext';
-      if (File(path).existsSync()) return path;
+      final filename = '$songId.$ext';
+      if (_downloadedFileNames.contains(filename)) {
+        return '$_offlineDir/$filename';
+      }
     }
     // Fallback to extensionless or original mp3
-    final oldPath = '$_offlineDir/$songId.mp3';
-    if (File(oldPath).existsSync()) return oldPath;
+    final oldFilename = '$songId.mp3';
+    if (_downloadedFileNames.contains(oldFilename)) {
+      return '$_offlineDir/$oldFilename';
+    }
     return null;
   }
 
@@ -424,11 +457,15 @@ class OfflineService {
   Future<String?> getLocalPathAsync(String songId) async {
     if (_offlineDir == null) return null;
     for (final ext in ['flac', 'mp3', 'm4a', 'ogg']) {
-      final path = '$_offlineDir/$songId.$ext';
-      if (await File(path).exists()) return path;
+      final filename = '$songId.$ext';
+      if (_downloadedFileNames.contains(filename)) {
+        return '$_offlineDir/$filename';
+      }
     }
-    final oldPath = '$_offlineDir/$songId.mp3';
-    if (await File(oldPath).exists()) return oldPath;
+    final oldFilename = '$songId.mp3';
+    if (_downloadedFileNames.contains(oldFilename)) {
+      return '$_offlineDir/$oldFilename';
+    }
     return null;
   }
 

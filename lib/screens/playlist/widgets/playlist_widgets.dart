@@ -229,6 +229,8 @@ class ExpandedHeader extends ConsumerWidget {
                   imageUrl: coverImageUrl,
                   cacheKey: '${coverCacheKey}_bg',
                   fit: BoxFit.cover,
+                  memCacheWidth: 200,
+                  memCacheHeight: 200,
                   errorWidget: (_, __, ___) =>
                       const ColoredBox(color: Colors.black),
                 ),
@@ -290,6 +292,8 @@ class ExpandedHeader extends ConsumerWidget {
                           imageUrl: coverImageUrl,
                           cacheKey: coverCacheKey,
                           fit: BoxFit.cover,
+                          memCacheWidth: 360,
+                          memCacheHeight: 360,
                           placeholder: (_, __) => Container(
                             color: tokens.bgSurface,
                             child: Icon(

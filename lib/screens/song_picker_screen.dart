@@ -235,6 +235,8 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                             imageUrl: service.getCoverArtUrl(song.coverArt),
                             width: 44,
                             height: 44,
+                            memCacheWidth: 88,
+                            memCacheHeight: 88,
                             fit: BoxFit.cover,
                             placeholder: (_, __) => Container(
                               color: ThemeTokens.of(context).bgSurface,

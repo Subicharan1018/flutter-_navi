@@ -326,6 +326,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                       imageUrl: coverUrl,
                       cacheKey: 'cover_${item.coverArt ?? item.id}',
                       fit: BoxFit.cover,
+                      memCacheWidth: 104,
+                      memCacheHeight: 104,
                       errorWidget: (_, __, ___) => Icon(
                         Icons.album_rounded,
                         color: ThemeTokens.of(context).textMuted,
@@ -434,6 +436,8 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             imageUrl: service.getCoverArtUrl(item.coverArt),
                             cacheKey: 'cover_${item.coverArt}',
                             fit: BoxFit.cover,
+                            memCacheWidth: 104,
+                            memCacheHeight: 104,
                             errorWidget: (_, __, ___) => Icon(
                               Icons.queue_music_rounded,
                               color: ThemeTokens.of(context).accent,

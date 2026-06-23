@@ -211,6 +211,8 @@ class _NewReleaseCard extends StatelessWidget {
                 cacheKey: cacheKey,
                 fit: BoxFit.cover,
                 width: double.infinity,
+                memCacheWidth: 350,
+                memCacheHeight: 350,
                 placeholder: (_, __) => Container(
                   color: ThemeTokens.of(context).bgElevated,
                   child: Center(

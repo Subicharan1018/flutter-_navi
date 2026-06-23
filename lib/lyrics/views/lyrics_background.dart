@@ -23,6 +23,8 @@ class LyricsBackground extends StatelessWidget {
           CachedNetworkImage(
             imageUrl: imageUrl,
             fit: BoxFit.cover,
+            memCacheWidth: 150,
+            memCacheHeight: 150,
             errorWidget: (_, __, ___) => const SizedBox.shrink(),
           ),
         // Blur

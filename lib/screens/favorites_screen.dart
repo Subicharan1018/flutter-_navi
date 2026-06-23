@@ -347,6 +347,8 @@ class _AlbumCard extends ConsumerWidget {
                             'fav_album_${album.coverArt.isNotEmpty ? album.coverArt : album.id}',
                         fit: BoxFit.cover,
                         width: double.infinity,
+                        memCacheWidth: 350,
+                        memCacheHeight: 350,
                         placeholder: (_, __) => Container(
                           color: ThemeTokens.of(context).bgElevated,
                           child: Center(

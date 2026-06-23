@@ -59,15 +59,21 @@ final _weeklyOverride = weeklyReplayProvider.overrideWith(
   (ref) => Future.value(_emptyData),
 );
 
-Widget _buildTestApp({List<Override>? overrides}) {
+Widget _buildTestApp({List<dynamic>? overrides}) {
   return ProviderScope(
-    overrides: overrides ?? [_monthlyOverride, _weeklyOverride],
+    overrides: [
+      ...?overrides,
+      if (overrides == null) ...[
+        _monthlyOverride,
+        _weeklyOverride,
+      ],
+    ],
     child: ThemeTokens(
       tokens: ThemeVariants.spotify(),
       child: MaterialApp(theme: AppTheme.darkTheme, home: const ReplayScreen()),
     ),
   );
-}
+}7-4444444456+t
 
 // ---------------------------------------------------------------------------
 // Tests

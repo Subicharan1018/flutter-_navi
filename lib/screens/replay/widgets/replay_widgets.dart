@@ -85,7 +85,7 @@ class ReplayHeader extends StatelessWidget {
 // =============================================================================
 
 class ReplayTabContent extends ConsumerWidget {
-  final ProviderBase<AsyncValue<ReplayData>> provider;
+  final dynamic provider;
   final String periodLabel;
   final String emptyLabel;
   final bool showDailyChart;
@@ -99,7 +99,8 @@ class ReplayTabContent extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final asyncData = ref.watch(provider);
+    final AsyncValue<ReplayData> asyncData =
+        ref.watch(provider) as AsyncValue<ReplayData>;
 
     return asyncData.when(
       data: (data) {
@@ -763,6 +764,8 @@ class ReplaySongRow extends ConsumerWidget {
                         imageUrl: coverUrl,
                         cacheKey: 'replay_${song.songId}',
                         fit: BoxFit.cover,
+                        memCacheWidth: 96,
+                        memCacheHeight: 96,
                         placeholder: (_, __) => _artPlaceholder(context),
                         errorWidget: (_, __, ___) => _artPlaceholder(context),
                       )

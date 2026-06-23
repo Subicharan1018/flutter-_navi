@@ -26,7 +26,11 @@ import 'playlist/widgets/playlist_menu_sheet.dart';
 Future<Color?> _extractPlaylistPalette(String imageUrl) async {
   try {
     final palette = await PaletteGenerator.fromImageProvider(
-      CachedNetworkImageProvider(imageUrl),
+      ResizeImage(
+        CachedNetworkImageProvider(imageUrl),
+        width: 150,
+        height: 150,
+      ),
       size: const Size(100, 100),
     );
     return palette.vibrantColor?.color ?? palette.dominantColor?.color;

@@ -76,6 +76,12 @@ class PaletteCache {
     return null;
   }
 
+  /// Returns cached colours for [id] WITHOUT promoting it to most-recently-used.
+  /// Returns null on a cache miss.
+  List<Color>? peekColorsFor(String id) {
+    return _cache[id];
+  }
+
   /// Store a new palette and mark [songId] as the active song.
   /// Promotes the entry to most-recently-used and evicts the oldest if needed.
   void update(String songId, List<Color> colors) {
@@ -109,7 +115,11 @@ class PaletteCache {
 
     try {
       final palette = await PaletteGenerator.fromImageProvider(
-        CachedNetworkImageProvider(imageUrl),
+        ResizeImage(
+          CachedNetworkImageProvider(imageUrl),
+          width: 120,
+          height: 120,
+        ),
         size: const Size(60, 60), // standard size for fast extraction
         maximumColorCount: 16,
       );

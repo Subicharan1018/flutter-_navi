@@ -65,6 +65,8 @@ class HomeStatsWidget extends ConsumerWidget {
                           ? CachedNetworkImage(
                               imageUrl: url,
                               fit: BoxFit.cover,
+                              memCacheWidth: 80,
+                              memCacheHeight: 80,
                               placeholder: (_, __) => _placeholder(tokens),
                               errorWidget: (_, __, ___) => _placeholder(tokens),
                             )

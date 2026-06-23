@@ -177,6 +177,8 @@ class _EditPlaylistScreenState extends ConsumerState<EditPlaylistScreen> {
                                   widget.playlist.coverArt!,
                                 ),
                                 fit: BoxFit.cover,
+                                memCacheWidth: 320,
+                                memCacheHeight: 320,
                               )
                             : Icon(
                                 Icons.music_note_rounded,
