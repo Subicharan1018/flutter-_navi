@@ -23,7 +23,7 @@ class ThemeSelector extends ConsumerWidget {
           child: ListView.separated(
             scrollDirection: Axis.horizontal,
             padding: const EdgeInsets.symmetric(horizontal: 16),
-            separatorBuilder: (_, __) => const SizedBox(width: 12),
+            separatorBuilder: (_, _) => const SizedBox(width: 12),
             itemCount: AppThemeMode.values.length,
             itemBuilder: (context, i) {
               final mode = AppThemeMode.values[i];

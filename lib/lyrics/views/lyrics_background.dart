@@ -25,7 +25,7 @@ class LyricsBackground extends StatelessWidget {
             fit: BoxFit.cover,
             memCacheWidth: 150,
             memCacheHeight: 150,
-            errorWidget: (_, __, ___) => const SizedBox.shrink(),
+            errorWidget: (_, _, _) => const SizedBox.shrink(),
           ),
         // Blur
         // PERF: reduced from σ80 to σ40 — imperceptible behind dark overlay,

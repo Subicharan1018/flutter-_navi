@@ -1,5 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
+import 'dart:io';
+
+TextStyle _font(
+  TextStyle Function() builder,
+  double size,
+  FontWeight weight,
+  Color color, [
+  double? letterSpacing,
+]) {
+  if (Platform.environment.containsKey('FLUTTER_TEST')) {
+    return TextStyle(
+      fontSize: size,
+      fontWeight: weight,
+      color: color,
+      letterSpacing: letterSpacing,
+    );
+  }
+  return builder();
+}
 
 // =============================================================================
 // AppThemeMode — enum identifying each of the five themes
@@ -182,7 +201,7 @@ class ThemeVariants {
     neuLight: const Color(0xFF282828),
     neuDark: const Color(0xFF000000),
     textStyle: (size, weight, color) =>
-        GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color),
+        _font(() => GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color), size, weight, color),
   );
 
   // ── Aura — deep black + dynamic gradients ────────────────────────────────
@@ -204,11 +223,11 @@ class ThemeVariants {
     glassBorder: const Color(0x33BB86FC),
     neuLight: const Color(0xFF1A1A2E),
     neuDark: const Color(0xFF000000),
-    textStyle: (size, weight, color) => GoogleFonts.spaceMono(
+    textStyle: (size, weight, color) => _font(() => GoogleFonts.spaceMono(
       fontSize: size * 0.95,
       fontWeight: weight,
       color: color,
-    ),
+    ), size * 0.95, weight, color),
   );
 
   // ── Frost — glassmorphism ─────────────────────────────────────────────────
@@ -230,7 +249,7 @@ class ThemeVariants {
     neuLight: const Color(0x55FFFFFF),
     neuDark: const Color(0x330A1628),
     textStyle: (size, weight, color) =>
-        GoogleFonts.nunito(fontSize: size, fontWeight: weight, color: color),
+        _font(() => GoogleFonts.nunito(fontSize: size, fontWeight: weight, color: color), size, weight, color),
   );
 
   // ── Neumorphic — soft-UI light ────────────────────────────────────────────
@@ -252,7 +271,7 @@ class ThemeVariants {
     neuLight: const Color(0xFFFFFFFF), // key for neumorphic shadows
     neuDark: const Color(0xFFA3B1C6),
     textStyle: (size, weight, color) =>
-        GoogleFonts.dmSans(fontSize: size, fontWeight: weight, color: color),
+        _font(() => GoogleFonts.dmSans(fontSize: size, fontWeight: weight, color: color), size, weight, color),
   );
 
   // ── Analog / Vinyl — warm retro ──────────────────────────────────────────
@@ -273,11 +292,11 @@ class ThemeVariants {
     glassBorder: const Color(0x44B5451B),
     neuLight: const Color(0xFFFFF8E8),
     neuDark: const Color(0xFFB09070),
-    textStyle: (size, weight, color) => GoogleFonts.playfairDisplay(
+    textStyle: (size, weight, color) => _font(() => GoogleFonts.playfairDisplay(
       fontSize: size,
       fontWeight: weight,
       color: color,
-    ),
+    ), size, weight, color),
   );
 
   // ── Zen — ultra-minimalist, typography-led ────────────────────────────────
@@ -299,12 +318,12 @@ class ThemeVariants {
     neuLight: const Color(0xFFFFFFFF),
     neuDark: const Color(0xFFCCCCCC),
     // Scale clamped to 1.08× (was 1.15×) to prevent card text overflow.
-    textStyle: (size, weight, color) => GoogleFonts.cormorantGaramond(
+    textStyle: (size, weight, color) => _font(() => GoogleFonts.cormorantGaramond(
       fontSize: size * 1.08,
       fontWeight: weight,
       color: color,
       letterSpacing: weight == FontWeight.w700 ? -0.5 : 0.2,
-    ),
+    ), size * 1.08, weight, color, weight == FontWeight.w700 ? -0.5 : 0.2),
   );
 
   // ── Factory ───────────────────────────────────────────────────────────────
@@ -378,49 +397,49 @@ class AppTheme {
   );
 
   // ── Legacy text styles (Spotify) ─────────────────────────────────────────
-  static TextStyle get technicalSm => GoogleFonts.inter(
+  static TextStyle get technicalSm => _font(() => GoogleFonts.inter(
     fontSize: 14,
     fontWeight: FontWeight.w500,
     color: textSecondary,
-  );
-  static TextStyle get technicalXs => GoogleFonts.inter(
+  ), 14, FontWeight.w500, textSecondary);
+  static TextStyle get technicalXs => _font(() => GoogleFonts.inter(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: textMuted,
-  );
-  static TextStyle get headingLg => GoogleFonts.inter(
+  ), 12, FontWeight.w400, textMuted);
+  static TextStyle get headingLg => _font(() => GoogleFonts.inter(
     fontSize: 28,
     fontWeight: FontWeight.w700,
     color: textPrimary,
     letterSpacing: -0.5,
-  );
-  static TextStyle get headingMd => GoogleFonts.inter(
+  ), 28, FontWeight.w700, textPrimary, -0.5);
+  static TextStyle get headingMd => _font(() => GoogleFonts.inter(
     fontSize: 22,
     fontWeight: FontWeight.w700,
     color: textPrimary,
     letterSpacing: -0.3,
-  );
-  static TextStyle get headingSm => GoogleFonts.inter(
+  ), 22, FontWeight.w700, textPrimary, -0.3);
+  static TextStyle get headingSm => _font(() => GoogleFonts.inter(
     fontSize: 16,
     fontWeight: FontWeight.w700,
     color: textPrimary,
-  );
-  static TextStyle get bodyMd => GoogleFonts.inter(
+  ), 16, FontWeight.w700, textPrimary);
+  static TextStyle get bodyMd => _font(() => GoogleFonts.inter(
     fontSize: 14,
     fontWeight: FontWeight.w400,
     color: textPrimary,
-  );
-  static TextStyle get bodySm => GoogleFonts.inter(
+  ), 14, FontWeight.w400, textPrimary);
+  static TextStyle get bodySm => _font(() => GoogleFonts.inter(
     fontSize: 12,
     fontWeight: FontWeight.w400,
     color: textSecondary,
-  );
-  static TextStyle get labelMd => GoogleFonts.inter(
+  ), 12, FontWeight.w400, textSecondary);
+  static TextStyle get labelMd => _font(() => GoogleFonts.inter(
     fontSize: 11,
     fontWeight: FontWeight.w600,
     color: textSecondary,
     letterSpacing: 1.2,
-  );
+  ), 11, FontWeight.w600, textSecondary, 1.2);
 
   // ── Legacy darkTheme (Spotify, kept for backward compat) ──────────────────
   static ThemeData get darkTheme => buildTheme(AppThemeMode.spotify);

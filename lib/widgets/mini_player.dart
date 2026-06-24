@@ -172,7 +172,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
                             ...previousChildren.map(
                               (c) => IgnorePointer(child: c),
                             ),
-                            if (currentChild != null) currentChild,
+                            ?currentChild,
                           ],
                         );
                       },
@@ -543,7 +543,7 @@ class _AlbumThumb extends StatelessWidget {
               memCacheWidth: 92,
               memCacheHeight: 92,
               fit: BoxFit.cover,
-              placeholder: (_, __) => Container(
+              placeholder: (_, _) => Container(
                 color: ThemeTokens.of(context).bgElevated,
                 child: Icon(
                   Icons.music_note_rounded,

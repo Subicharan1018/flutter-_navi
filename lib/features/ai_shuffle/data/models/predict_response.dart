@@ -1,6 +1,5 @@
 // lib/features/ai_shuffle/data/models/predict_response.dart
 
-import 'dart:convert';
 import 'recommended_song.dart';
 
 /// Selects which predictive endpoint to call and how to parse the response.

@@ -65,12 +65,12 @@ class _RecommendationCardState extends State<RecommendationCard>
             color: tokens.bgSurface,
             borderRadius: radiusMd,
             border: Border.all(
-              color: tokens.textPrimary.withOpacity(0.07),
+              color: tokens.textPrimary.withValues(alpha: 0.07),
               width: 0.5,
             ),
             boxShadow: [
               BoxShadow(
-                color: Colors.black.withOpacity(0.18),
+                color: Colors.black.withValues(alpha: 0.18),
                 blurRadius: 8,
                 offset: const Offset(0, 2),
               ),
@@ -89,10 +89,10 @@ class _RecommendationCardState extends State<RecommendationCard>
                       width: 30,
                       height: 30,
                       decoration: BoxDecoration(
-                        color: tokens.accent.withOpacity(0.12),
+                        color: tokens.accent.withValues(alpha: 0.12),
                         borderRadius: radiusSm,
                         border: Border.all(
-                          color: tokens.accent.withOpacity(0.3),
+                          color: tokens.accent.withValues(alpha: 0.3),
                           width: 0.5,
                         ),
                       ),
@@ -168,10 +168,10 @@ class _RecommendationCardState extends State<RecommendationCard>
                         width: 34,
                         height: 34,
                         decoration: BoxDecoration(
-                          color: tokens.accent.withOpacity(0.1),
+                          color: tokens.accent.withValues(alpha: 0.1),
                           borderRadius: radiusSm,
                           border: Border.all(
-                            color: tokens.accent.withOpacity(0.25),
+                            color: tokens.accent.withValues(alpha: 0.25),
                           ),
                         ),
                         child: Icon(
@@ -202,10 +202,10 @@ class _RecommendationCardState extends State<RecommendationCard>
                         child: TweenAnimationBuilder<double>(
                           tween: Tween(begin: 0, end: score),
                           duration: kAnimSlow,
-                          builder: (_, v, __) => LinearProgressIndicator(
+                          builder: (_, v, _) => LinearProgressIndicator(
                             value: v,
-                            backgroundColor: tokens.textPrimary.withOpacity(
-                              0.07,
+                            backgroundColor: tokens.textPrimary.withValues(
+                              alpha: 0.07,
                             ),
                             valueColor: AlwaysStoppedAnimation(
                               _scoreColor(score, tokens),
@@ -235,7 +235,7 @@ class _RecommendationCardState extends State<RecommendationCard>
                       Icon(
                         Icons.link_rounded,
                         size: 13,
-                        color: tokens.accent.withOpacity(0.8),
+                        color: tokens.accent.withValues(alpha: 0.8),
                       ),
                       const SizedBox(width: s4),
                       Expanded(
@@ -248,7 +248,7 @@ class _RecommendationCardState extends State<RecommendationCard>
                           style: tokens.textStyle(
                             10,
                             FontWeight.w500,
-                            tokens.accent.withOpacity(0.9),
+                            tokens.accent.withValues(alpha: 0.9),
                           ),
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
@@ -299,9 +299,9 @@ class _GenreChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: radiusFull,
-        border: Border.all(color: color.withOpacity(0.35), width: 0.5),
+        border: Border.all(color: color.withValues(alpha: 0.35), width: 0.5),
       ),
       child: Text(
         label,
@@ -344,9 +344,9 @@ class _BadgeChip extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
       decoration: BoxDecoration(
-        color: color.withOpacity(0.15),
+        color: color.withValues(alpha: 0.15),
         borderRadius: radiusFull,
-        border: Border.all(color: color.withOpacity(0.4), width: 0.5),
+        border: Border.all(color: color.withValues(alpha: 0.4), width: 0.5),
       ),
       child: Text(
         label,

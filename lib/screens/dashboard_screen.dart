@@ -283,7 +283,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               child: modelAsync.when(
                 data: (m) => ModelStatusCard(status: m),
                 loading: () => const NaviSkeleton(height: 140),
-                error: (_, __) => const SizedBox.shrink(),
+                error: (error, stackTrace) => const SizedBox.shrink(),
               ),
             ),
           ],
@@ -336,7 +336,7 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         modelAsync.when(
           data: (m) => ModelStatusCard(status: m),
           loading: () => const NaviSkeleton(height: 140),
-          error: (_, __) => const SizedBox.shrink(),
+          error: (error, stackTrace) => const SizedBox.shrink(),
         ),
         const SizedBox(height: s8),
       ],
@@ -801,7 +801,7 @@ class _MetricCardState extends State<_MetricCard> {
             tween: IntTween(begin: 0, end: widget.rawNumber!),
             duration: const Duration(milliseconds: 900),
             curve: Curves.easeOutCubic,
-            builder: (_, val, __) => Text(_fmt(val), style: numberStyle, maxLines: 1),
+            builder: (context, val, _) => Text(_fmt(val), style: numberStyle, maxLines: 1),
           )
         : Text(widget.value, style: numberStyle, maxLines: 1);
 
@@ -1434,7 +1434,7 @@ class ListeningLineChart extends StatelessWidget {
                     dotData: FlDotData(
                       show: true,
                       checkToShowDot: (spot, _) => spot.x == spots.last.x,
-                      getDotPainter: (spot, _, __, ___) =>
+                      getDotPainter: (spot, percent, barData, index) =>
                           _PingingDotPainter(color: tokens.accent),
                     ),
                     belowBarData: BarAreaData(
@@ -1826,7 +1826,7 @@ class _TopArtistsList extends StatelessWidget {
                       child: TweenAnimationBuilder<double>(
                         tween: Tween(begin: 0, end: ratio),
                         duration: kAnimSlow,
-                        builder: (_, v, __) => LinearProgressIndicator(
+                        builder: (context, v, _) => LinearProgressIndicator(
                           value: v,
                           minHeight: 3,
                           backgroundColor: tokens.textPrimary.withValues(alpha: 0.04),
@@ -1972,12 +1972,12 @@ class _TopTracksList extends ConsumerWidget {
                             fit: BoxFit.cover,
                             memCacheWidth: 80,
                             memCacheHeight: 80,
-                            placeholder: (_, __) => _placeholder(color1, color2),
-                            errorWidget: (_, __, ___) => _placeholder(color1, color2),
+                            placeholder: (context, url) => _placeholder(color1, color2),
+                            errorWidget: (context, url, error) => _placeholder(color1, color2),
                           )
                         : _placeholder(color1, color2),
                     loading: () => _placeholder(color1, color2),
-                    error: (_, __) => _placeholder(color1, color2),
+                    error: (error, stackTrace) => _placeholder(color1, color2),
                   ),
                 ),
               ),

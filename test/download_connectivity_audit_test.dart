@@ -213,9 +213,12 @@ void main() {
           mockSubsonic: mockSubsonic,
           mockConnectivity: mockConnectivity,
         );
-        addTearDown(() {
+        addTearDown(() async {
           // Prevent leaked async tasks before container disposal.
-          if (!hangCompleter.isCompleted) hangCompleter.complete(false);
+          if (!hangCompleter.isCompleted) {
+            hangCompleter.complete(false);
+            await Future<void>.delayed(Duration.zero);
+          }
           container.dispose();
         });
 

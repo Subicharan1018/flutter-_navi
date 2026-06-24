@@ -78,8 +78,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen>
       // Replace the login screen with AppScaffold — no back navigation
       Navigator.of(context).pushReplacement(
         PageRouteBuilder(
-          pageBuilder: (_, __, ___) => const AppScaffold(),
-          transitionsBuilder: (_, anim, __, child) =>
+          pageBuilder: (context, animation, secondaryAnimation) => const AppScaffold(),
+          transitionsBuilder: (context, anim, secondaryAnimation, child) =>
               FadeTransition(opacity: anim, child: child),
           transitionDuration: const Duration(milliseconds: 400),
         ),

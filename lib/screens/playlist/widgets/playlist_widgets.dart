@@ -231,7 +231,7 @@ class ExpandedHeader extends ConsumerWidget {
                   fit: BoxFit.cover,
                   memCacheWidth: 200,
                   memCacheHeight: 200,
-                  errorWidget: (_, __, ___) =>
+                  errorWidget: (context, url, error) =>
                       const ColoredBox(color: Colors.black),
                 ),
               ),
@@ -294,7 +294,7 @@ class ExpandedHeader extends ConsumerWidget {
                           fit: BoxFit.cover,
                           memCacheWidth: 360,
                           memCacheHeight: 360,
-                          placeholder: (_, __) => Container(
+                          placeholder: (context, url) => Container(
                             color: tokens.bgSurface,
                             child: Icon(
                               Icons.music_note_rounded,
@@ -302,7 +302,7 @@ class ExpandedHeader extends ConsumerWidget {
                               color: tokens.textMuted,
                             ),
                           ),
-                          errorWidget: (_, __, ___) => Container(
+                          errorWidget: (context, url, error) => Container(
                             color: tokens.bgSurface,
                             child: Icon(
                               Icons.music_note_rounded,

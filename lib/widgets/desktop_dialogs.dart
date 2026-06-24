@@ -37,7 +37,6 @@ Future<T?> showPlatformSheet<T>({
       context: context,
       barrierDismissible: true,
       builder: (ctx) {
-        final tokens = Theme.of(ctx).extension<Object>();
         return Dialog(
           backgroundColor: Colors.transparent,
           insetPadding: const EdgeInsets.all(24),

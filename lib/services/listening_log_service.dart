@@ -26,7 +26,7 @@ const _kMaxQueueSize = 500;
 const _kMaxRetries = 3;
 
 /// Wraps a queued entry with its retry count.
-/// Format: "<retries>|<json_payload>"
+/// Format: `"<retries>|<json_payload>"`
 class _QueueEntry {
   final int retries;
   final String payload;

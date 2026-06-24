@@ -87,7 +87,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   final NaviAudioHandler _audioHandler;
   final SubsonicService _subsonicService;
   final ListeningEventCollector _collector;
-  final Set<String> _scrobbledIds = {};
   final List<StreamSubscription> _subscriptions = [];
 
   bool _isFetchingSimilar = false;
@@ -396,9 +395,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }),
     );
 
-    bool? _lastPlaying;
-    LoopMode? _lastLoopMode;
-    AudioProcessingState? _lastProcessingState;
+    bool? lastPlaying;
+    LoopMode? lastLoopMode;
+    AudioProcessingState? lastProcessingState;
 
     _subscriptions.add(
       _audioHandler.playbackState.listen((ps) async {
@@ -406,8 +405,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
         // 1. Handle playing state changes
         final playing = ps.playing;
-        if (playing != _lastPlaying) {
-          _lastPlaying = playing;
+        if (playing != lastPlaying) {
+          lastPlaying = playing;
           if (playing && _scrobblePlayStart == null) {
             _scrobblePlayStart = DateTime.now();
           } else if (!playing && _scrobblePlayStart != null) {
@@ -429,15 +428,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             }[ps.repeatMode] ??
             LoopMode.off;
 
-        if (loopMode != _lastLoopMode) {
-          _lastLoopMode = loopMode;
+        if (loopMode != lastLoopMode) {
+          lastLoopMode = loopMode;
           state = state.copyWith(repeatMode: loopMode);
         }
 
         // 3. Handle processing state changes
         final processingState = ps.processingState;
-        if (processingState != _lastProcessingState) {
-          _lastProcessingState = processingState;
+        if (processingState != lastProcessingState) {
+          lastProcessingState = processingState;
           if (processingState == AudioProcessingState.completed) {
             // ── Natural completion feedback ───────────────────────────────────
             // Send shuffle feedback for ALL natural track completions here,
@@ -1545,7 +1544,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
         // New queue = [current song] + fresh batch.
         final newQueue = [
-          if (currentSong != null) currentSong,
+          ?currentSong,
           ...resolved,
         ];
         final newCurrentIndex = currentSong != null ? 0 : 0;
@@ -1843,8 +1842,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     );
 
     _lastKnownIndex = newIndex;
-    if (_trackedIndexForCompletion != null) {
-      _trackedIndexForCompletion = (_trackedIndexForCompletion! - pruneCount).clamp(0, newQueue.length - 1);
+    if (_trackedIndexForCompletion >= 0) {
+      _trackedIndexForCompletion = (_trackedIndexForCompletion - pruneCount).clamp(0, newQueue.length - 1);
     }
     if (_pendingIndexAfterShuffle != null) {
       _pendingIndexAfterShuffle = (_pendingIndexAfterShuffle! - pruneCount).clamp(0, newQueue.length - 1);

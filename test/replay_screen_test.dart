@@ -6,9 +6,11 @@
 import 'dart:io';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'package:google_fonts/google_fonts.dart';
 
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/providers/replay_provider.dart';
@@ -73,7 +75,7 @@ Widget _buildTestApp({List<dynamic>? overrides}) {
       child: MaterialApp(theme: AppTheme.darkTheme, home: const ReplayScreen()),
     ),
   );
-}7-4444444456+t
+}
 
 // ---------------------------------------------------------------------------
 // Tests
@@ -81,7 +83,13 @@ Widget _buildTestApp({List<dynamic>? overrides}) {
 
 void main() {
   setUpAll(() async {
+    GoogleFonts.config.allowRuntimeFetching = false;
     final dir = Directory.systemTemp.createTempSync('hive_test_replay');
+    TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
+        .setMockMethodCallHandler(
+          const MethodChannel('plugins.flutter.io/path_provider'),
+          (call) async => dir.path,
+        );
     Hive.init(dir.path);
     HiveBoxes.auth = await Hive.openBox('auth');
     HiveBoxes.session = await Hive.openBox('session');

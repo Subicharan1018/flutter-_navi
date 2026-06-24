@@ -28,12 +28,7 @@ class _ListeningStatsScreenState extends ConsumerState<ListeningStatsScreen>
     with SingleTickerProviderStateMixin {
   String _period = 'weekly';
 
-  static const _periods = ['weekly', 'monthly', 'all'];
-  static const _periodLabels = {
-    'weekly': 'Weekly',
-    'monthly': 'Monthly',
-    'all': 'All Time',
-  };
+
 
   void _refresh() {
     ref.read(listeningStatsProvider(_period).notifier).fetch();
@@ -507,7 +502,7 @@ class _RecentPlayRow extends StatelessWidget {
                     fit: BoxFit.cover,
                     memCacheWidth: 88,
                     memCacheHeight: 88,
-                    errorWidget: (_, __, ___) =>
+                    errorWidget: (context, url, error) =>
                         _PlaceholderCover(tokens: tokens),
                   )
                 : _PlaceholderCover(tokens: tokens),
@@ -606,7 +601,7 @@ class _SkeletonLoaderState extends State<_SkeletonLoader>
     final t = widget.tokens;
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) {
+      builder: (context, child) {
         final shimmer = t.bgSurface.withValues(alpha: _anim.value);
         return ListView(
           padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),

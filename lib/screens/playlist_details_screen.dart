@@ -16,7 +16,6 @@ import '../widgets/options_menu.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../core/theme.dart';
 import 'song_picker_screen.dart';
-import 'edit_playlist_screen.dart';
 import 'playlist/widgets/playlist_widgets.dart';
 import 'playlist/widgets/playlist_menu_sheet.dart';
 
@@ -283,8 +282,9 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                     .read(subsonicServiceProvider)
                     .deletePlaylist(widget.playlist.id);
                 ref.invalidate(playlistsProvider);
-                if (mounted)
+                if (mounted) {
                   Navigator.pop(context); // return to previous screen
+                }
               } catch (e) {
                 if (mounted) {
                   ScaffoldMessenger.of(context).showSnackBar(
@@ -488,7 +488,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
               else
                 SliverReorderableList(
                   itemCount: _filteredSongs.length,
-                  onReorder: (oldIndex, newIndex) {
+                  onReorderItem: (oldIndex, newIndex) {
                     // CRIT-4: Reorder is disabled when search is active because
                     // _filteredSongs indices don't map 1:1 to _songs, so
                     // oldIndex/newIndex would remove the wrong server entry.
@@ -500,7 +500,6 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                       );
                       return;
                     }
-                    if (newIndex > oldIndex) newIndex -= 1;
                     setState(() {
                       final item = _songs.removeAt(oldIndex);
                       _songs.insert(newIndex, item);

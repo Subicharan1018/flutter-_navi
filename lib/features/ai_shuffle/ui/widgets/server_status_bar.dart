@@ -67,7 +67,7 @@ class ServerStatusBar extends ConsumerWidget {
           ? theme.colorScheme.tertiary
           : theme.colorScheme.error,
       loading: () => theme.colorScheme.surfaceContainerHighest,
-      error: (_, __) => theme.colorScheme.error,
+      error: (_, _) => theme.colorScheme.error,
     );
   }
 
@@ -77,7 +77,7 @@ class ServerStatusBar extends ConsumerWidget {
           ? theme.colorScheme.onTertiary
           : theme.colorScheme.onError,
       loading: () => theme.colorScheme.onSurfaceVariant,
-      error: (_, __) => theme.colorScheme.onError,
+      error: (_, _) => theme.colorScheme.onError,
     );
   }
 
@@ -85,7 +85,7 @@ class ServerStatusBar extends ConsumerWidget {
     return asyncValue.when(
       data: (health) => health.isHealthy ? Icons.check_circle : Icons.error,
       loading: () => Icons.sync,
-      error: (_, __) => Icons.cloud_off,
+      error: (_, _) => Icons.cloud_off,
     );
   }
 
@@ -100,7 +100,7 @@ class ServerStatusBar extends ConsumerWidget {
         return 'Smart Shuffle Online';
       },
       loading: () => 'Checking server…',
-      error: (_, __) => 'Tap to reconnect',
+      error: (_, _) => 'Tap to reconnect',
     );
   }
 

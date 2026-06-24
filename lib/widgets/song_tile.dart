@@ -170,7 +170,7 @@ class _DesktopSongTileState extends ConsumerState<_DesktopSongTile> {
           ),
       ],
     ).then((value) {
-      if (!mounted || value == null) return;
+      if (!context.mounted || value == null) return;
       final notifier = ref.read(playerProvider.notifier);
       switch (value) {
         case 'play_now':

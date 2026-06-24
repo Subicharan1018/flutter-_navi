@@ -238,10 +238,10 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                             memCacheWidth: 88,
                             memCacheHeight: 88,
                             fit: BoxFit.cover,
-                            placeholder: (_, __) => Container(
+                            placeholder: (context, url) => Container(
                               color: ThemeTokens.of(context).bgSurface,
                             ),
-                            errorWidget: (_, __, ___) => Container(
+                            errorWidget: (context, url, error) => Container(
                               color: ThemeTokens.of(context).bgSurface,
                               child: Icon(
                                 Icons.music_note_rounded,

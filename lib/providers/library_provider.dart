@@ -36,12 +36,10 @@ final songCoverUrlProvider = FutureProvider.autoDispose
       .getSingleOrNull();
 
   // Fallback to title-only match if exact match fails
-  if (match == null) {
-    match = await (db.select(db.songMetadata)
-          ..where((t) => t.trackName.equals(title))
-          ..limit(1))
-        .getSingleOrNull();
-  }
+  match ??= await (db.select(db.songMetadata)
+        ..where((t) => t.trackName.equals(title))
+        ..limit(1))
+      .getSingleOrNull();
 
   if (match != null) {
     final coverId = match.songId;
@@ -121,7 +119,7 @@ final isOfflineProvider = Provider<bool>((ref) {
   final connectivity = ref.watch(connectivityStreamProvider);
   return connectivity.when(
     data: (results) => results.contains(ConnectivityResult.none),
-    error: (_, __) => false,
+    error: (_, _) => false,
     loading: () => false,
   );
 });

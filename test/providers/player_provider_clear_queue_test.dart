@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use
 import 'package:audio_service/audio_service.dart';
 import 'dart:async';
 import 'dart:io';
@@ -220,11 +221,7 @@ void main() {
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(
         const MethodChannel('plugins.flutter.io/path_provider'),
-        (call) async {
-          if (call.method == 'getApplicationDocumentsDirectory')
-            return tempDir.path;
-          return null;
-        },
+        (call) async => tempDir.path,
       );
   TestDefaultBinaryMessengerBinding.instance.defaultBinaryMessenger
       .setMockMethodCallHandler(

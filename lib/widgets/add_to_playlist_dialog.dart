@@ -246,7 +246,7 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                     return ListView.separated(
                       shrinkWrap: true,
                       itemCount: playlists.length,
-                      separatorBuilder: (_, __) => Divider(
+                      separatorBuilder: (context, index) => Divider(
                         color: ThemeTokens.of(context).outline,
                         height: 1,
                       ),
@@ -324,7 +324,7 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                                   ),
                                 ),
                               ),
-                              error: (_, __) => ListTile(
+                              error: (error, stackTrace) => ListTile(
                                 title: Text(
                                   pl.name,
                                   style: ThemeTokens.of(context).bodyMd,

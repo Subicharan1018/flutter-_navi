@@ -22,11 +22,8 @@ class AppRouteTransitions {
 // ---------------------------------------------------------------------------
 
 class _FadeScaleRoute<T> extends PageRouteBuilder<T> {
-  final WidgetBuilder _builder;
-
   _FadeScaleRoute({required WidgetBuilder builder})
-    : _builder = builder,
-      super(
+    : super(
         transitionDuration: AppRouteTransitions.forwardDuration,
         reverseTransitionDuration: AppRouteTransitions.reverseDuration,
         pageBuilder: (context, animation, secondaryAnimation) =>
@@ -64,11 +61,8 @@ class _FadeScaleRoute<T> extends PageRouteBuilder<T> {
 }
 
 class _SlideUpRoute<T> extends PageRouteBuilder<T> {
-  final WidgetBuilder _builder;
-
   _SlideUpRoute({required WidgetBuilder builder})
-    : _builder = builder,
-      super(
+    : super(
         opaque: false,
         barrierColor: Colors.transparent,
         transitionDuration: AppRouteTransitions.forwardDuration,

@@ -203,7 +203,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                                 .fadeIn(duration: 400.ms);
                       },
                       loading: () => const _ShimmerGrid(),
-                      error: (_, __) => const SizedBox(),
+                      error: (error, stackTrace) => const SizedBox(),
                     ),
                   ),
 
@@ -858,7 +858,7 @@ class _AlbumCarousel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return albumsAsync.when(
       loading: () => const _ShimmerReel(),
-      error: (_, __) => const _EmptyCarouselHint(
+      error: (error, stackTrace) => const _EmptyCarouselHint(
         icon: Icons.album_rounded,
         text: 'No recent albums — start playing something!',
       ),
@@ -941,8 +941,8 @@ class _AlbumCard extends StatelessWidget {
                           // 140dp card × 2x DPR = 280px; 300 gives a small headroom.
                           memCacheWidth: 300,
                           memCacheHeight: 300,
-                          placeholder: (_, __) => _artPlaceholder(t),
-                          errorWidget: (_, __, ___) => _artPlaceholder(t),
+                          placeholder: (context, url) => _artPlaceholder(t),
+                          errorWidget: (context, url, error) => _artPlaceholder(t),
                         )
                       else
                         _artPlaceholder(t),
@@ -1019,7 +1019,7 @@ class _TrackCarousel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return tracksAsync.when(
       loading: () => const _ShimmerReel(),
-      error: (_, __) => const _EmptyCarouselHint(
+      error: (error, stackTrace) => const _EmptyCarouselHint(
         icon: Icons.music_note_rounded,
         text: 'No history yet — start listening!',
       ),
@@ -1097,8 +1097,8 @@ class _TrackCard extends StatelessWidget {
                         // 130dp card × 2x DPR = 260px; 280 gives headroom.
                         memCacheWidth: 280,
                         memCacheHeight: 280,
-                        placeholder: (_, __) => _artPlaceholder(t),
-                        errorWidget: (_, __, ___) => _artPlaceholder(t),
+                        placeholder: (context, url) => _artPlaceholder(t),
+                        errorWidget: (context, url, error) => _artPlaceholder(t),
                       ),
                       // Play overlay
                       Positioned(
@@ -1363,41 +1363,19 @@ class _QuickTile extends ConsumerWidget {
 }
 
 // =============================================================================
-// Section label with optional "See All"
+// Section label
 // =============================================================================
 
 class _SectionLabel extends StatelessWidget {
   final String title;
-  final VoidCallback? onSeeAll;
-  const _SectionLabel({required this.title, this.onSeeAll});
+  const _SectionLabel({required this.title});
 
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          Expanded(child: Text(title, style: tokens.headingSm)),
-          if (onSeeAll != null)
-            Semantics(
-              button: true,
-              label: 'See all $title',
-              child: GestureDetector(
-                onTap: onSeeAll,
-                child: Text(
-                  'See all',
-                  style: TextStyle(
-                    fontSize: 12,
-                    fontWeight: FontWeight.w500,
-                    color: tokens.accent,
-                  ),
-                ),
-              ),
-            ),
-        ],
-      ),
+      child: Text(title, style: tokens.headingSm),
     );
   }
 }

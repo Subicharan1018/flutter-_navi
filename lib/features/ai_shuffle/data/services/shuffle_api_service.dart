@@ -201,7 +201,7 @@ class ShuffleApiService {
         '/predict/always-hear',
         queryParameters: {
           'limit': limit,
-          if (weatherCode != null) 'weather_code': weatherCode,
+          'weather_code': ?weatherCode,
         },
       );
       return PredictResponse.fromJson(
@@ -224,7 +224,7 @@ class ShuffleApiService {
         queryParameters: {
           'limit': limit,
           'max_prior_plays': maxPriorPlays,
-          if (weatherCode != null) 'weather_code': weatherCode,
+          'weather_code': ?weatherCode,
         },
       );
       return PredictResponse.fromJson(

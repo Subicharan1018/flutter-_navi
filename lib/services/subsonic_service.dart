@@ -53,7 +53,6 @@ class SubsonicService {
   late final String _coverArtToken;
 
   static const int _webDavMaxAttempts = 3;
-  static const int _webDavChunkSize = 64 * 1024;
 
   SubsonicService({
     required String serverUrl,

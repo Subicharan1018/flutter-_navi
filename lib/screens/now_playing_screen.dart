@@ -8,7 +8,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:palette_generator/palette_generator.dart';
 import 'package:marquee/marquee.dart';
 import 'package:just_audio/just_audio.dart';
 import '../providers/player_provider.dart';
@@ -68,6 +67,7 @@ class SoundBar extends StatefulWidget {
   final bool isPlaying;
   final Color color;
   const SoundBar({
+    super.key,
     required this.isPlaying,
     this.color = const Color(0x8AFFFFFF),
   });
@@ -136,7 +136,7 @@ class _SoundBarState extends State<SoundBar>
         height: 20,
         child: AnimatedBuilder(
           animation: _ctrl,
-          builder: (_, __) => Row(
+          builder: (context, child) => Row(
             mainAxisAlignment: MainAxisAlignment.spaceEvenly,
             crossAxisAlignment: CrossAxisAlignment.end,
             children: List.generate(4, (i) {
@@ -559,7 +559,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
       title: 'Stop Audio In',
       builder: (ctx) => ValueListenableBuilder<int?>(
         valueListenable: _sleepSeconds,
-        builder: (_, remaining, __) => SafeArea(
+        builder: (context, remaining, child) => SafeArea(
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -783,7 +783,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final imageUrl = queueReady
         ? service.getCoverArtUrl(song.coverArt)
         : _lastKnownImageUrl!;
-    final cacheKey = 'cover_${song.coverArt ?? song.id}';
+    final cacheKey = 'cover_${song.coverArt.isNotEmpty ? song.coverArt : song.id}';
 
     // FIX BUG-3: Only schedule extraction when the song actually changes.
     // The guard inside _triggerPaletteExtraction makes this safe to call
@@ -917,7 +917,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                       memCacheWidth: 600,
                                       memCacheHeight: 600,
                                       fit: BoxFit.cover,
-                                      placeholder: (_, __) => Container(
+                                      placeholder: (context, url) => Container(
                                         color: ThemeTokens.of(
                                           context,
                                         ).bgSurface,
@@ -929,7 +929,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                           ).textMuted,
                                         ),
                                       ),
-                                      errorWidget: (_, __, ___) => Container(
+                                      errorWidget: (context, url, error) => Container(
                                         color: ThemeTokens.of(
                                           context,
                                         ).bgSurface,
@@ -1208,7 +1208,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                           ),
                           ValueListenableBuilder<int?>(
                             valueListenable: _sleepSeconds,
-                            builder: (_, remaining, __) => _BottomAction(
+                            builder: (context, remaining, child) => _BottomAction(
                               icon: Icon(
                                 Icons.bedtime_outlined,
                                 color: remaining != null
@@ -1445,7 +1445,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                   // Reshuffle button removed — use shuffle button long-press.
                   AnimatedBuilder(
                     animation: _tabs,
-                    builder: (_, __) {
+                    builder: (context, child) {
                       if (_tabs.index != 1 || history.isEmpty) {
                         return const SizedBox.shrink();
                       }
@@ -1532,12 +1532,7 @@ class _QueueScreenState extends ConsumerState<QueueScreen>
                   : ReorderableListView.builder(
                       padding: const EdgeInsets.only(bottom: 120),
                       itemCount: upNext.length,
-                      onReorder: (oldIdx, newIdx) {
-                        // ReorderableListView reports newIndex as the slot the
-                        // item would occupy *before* it is removed, so dragging
-                        // downward is off by one. Without this adjustment the
-                        // song lands one slot too low ("pushed below").
-                        if (newIdx > oldIdx) newIdx -= 1;
+                      onReorderItem: (oldIdx, newIdx) {
                         if (newIdx == oldIdx) return;
                         final qOld = playerState.currentIndex + 1 + oldIdx;
                         final qNew = playerState.currentIndex + 1 + newIdx;
@@ -1653,7 +1648,7 @@ class _NowPlayingStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = service.getCoverArtUrl(song.coverArt);
-    final key = 'cover_${song.coverArt ?? song.id}';
+    final key = 'cover_${song.coverArt.isNotEmpty ? song.coverArt : song.id}';
     return Container(
       color: ThemeTokens.of(context).textPrimary.withValues(alpha: 0.05),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
@@ -1669,7 +1664,7 @@ class _NowPlayingStrip extends StatelessWidget {
               memCacheWidth: 88,
               memCacheHeight: 88,
               fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Container(
+              errorWidget: (context, url, error) => Container(
                 width: 44,
                 height: 44,
                 color: ThemeTokens.of(context).bgSurface,
@@ -1762,7 +1757,7 @@ class _MiniSoundBarsState extends ConsumerState<_MiniSoundBars>
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _ctrl,
-        builder: (_, __) => SizedBox(
+        builder: (context, child) => SizedBox(
           width: 18,
           height: 16,
           child: Row(
@@ -1807,7 +1802,7 @@ class _QueueTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = service.getCoverArtUrl(song.coverArt);
-    final key = 'cover_${song.coverArt ?? song.id}';
+    final key = 'cover_${song.coverArt.isNotEmpty ? song.coverArt : song.id}';
     return Dismissible(
       key: ValueKey('dis_q_${song.id}'),
       direction: DismissDirection.endToStart,
@@ -1842,7 +1837,7 @@ class _QueueTile extends StatelessWidget {
             memCacheWidth: 88,
             memCacheHeight: 88,
             fit: BoxFit.cover,
-            errorWidget: (_, __, ___) => Container(
+            errorWidget: (context, url, error) => Container(
               width: 44,
               height: 44,
               color: ThemeTokens.of(context).bgSurface,
@@ -1897,7 +1892,7 @@ class _HistoryTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final url = service.getCoverArtUrl(song.coverArt);
-    final key = 'cover_${song.coverArt ?? song.id}';
+    final key = 'cover_${song.coverArt.isNotEmpty ? song.coverArt : song.id}';
     return ListTile(
       onTap: onTap,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
@@ -1913,7 +1908,7 @@ class _HistoryTile extends StatelessWidget {
               memCacheWidth: 88,
               memCacheHeight: 88,
               fit: BoxFit.cover,
-              errorWidget: (_, __, ___) => Container(
+              errorWidget: (context, url, error) => Container(
                 width: 44,
                 height: 44,
                 color: ThemeTokens.of(context).bgSurface,

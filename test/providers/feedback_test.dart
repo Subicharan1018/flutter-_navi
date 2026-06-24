@@ -18,7 +18,6 @@ import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
-import 'package:navivibe/services/playlist_cache_service.dart';
 import 'package:navivibe/features/ai_shuffle/data/repositories/shuffle_repository.dart';
 import 'package:navivibe/features/ai_shuffle/logic/shuffle_providers.dart';
 import 'package:navivibe/features/ai_shuffle/data/models/feedback_request.dart';
@@ -114,6 +113,7 @@ class MockAudioHandler extends Mock implements NaviAudioHandler {
   final ControlledAudioPlayer _player = ControlledAudioPlayer();
   @override ControlledAudioPlayer get player => _player;
 
+  @override
   List<Song> currentQueue = [];
   final BehaviorSubject<MediaItem?> _mediaItemSubject = BehaviorSubject<MediaItem?>.seeded(null);
 
@@ -251,7 +251,6 @@ void main() {
     
     // Simulate the fallback path (mediaItem.listen) firing due to skipToNext being called
     // because processingState completed advances to next track non-Linux
-    final newIdx = handler.player.currentIndex;
     handler._mediaItemSubject.add(MediaItem(id: s2.id, title: s2.title));
     await Future.delayed(const Duration(milliseconds: 100));
 

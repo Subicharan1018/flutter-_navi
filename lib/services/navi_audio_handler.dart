@@ -1,3 +1,5 @@
+// ignore_for_file: deprecated_member_use
+
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io' show Platform;
@@ -10,8 +12,6 @@ import 'replay_gain_service.dart';
 import 'transcoding_service.dart';
 import '../providers/settings_provider.dart';
 import '../offline_service.dart';
-import 'dart:convert';
-import 'package:http/http.dart' as http;
 import 'shuffle_algorithms.dart';
 
 // ---------------------------------------------------------------------------
@@ -26,13 +26,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   List<Song> _currentQueue = [];
   List<Song> _unshuffledQueue = [];
   ConcatenatingAudioSource? _playlist;
+  int _playlistOffset = 0;
 
   static const int _recencyWindow = 20;
   final LinkedHashSet<String> _recentlyPlayedIds = LinkedHashSet<String>();
 
-  // The server enforces count=15 but we also cap it here so any caller
-  // that passes a large future slice doesn't accidentally ask for 200 songs.
-  static const int _maxServerRequestCount = 15;
+
 
   /// True on Linux — ConcatenatingAudioSource is not supported by
   /// just_audio_media_kit 2.1.0 in its platform-channel message form.
@@ -71,8 +70,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     _subscriptions.add(this.player.currentIndexStream.listen((index) {
       // On Linux we manage index ourselves — ignore just_audio's index stream
-      if (!_isLinux && index != null && index < _currentQueue.length) {
-        _trackRecentlyPlayed(_currentQueue[index].id);
+      if (!_isLinux && index != null) {
+        final globalIndex = _playlistOffset + index;
+        if (globalIndex < _currentQueue.length) {
+          _trackRecentlyPlayed(_currentQueue[globalIndex].id);
+        }
       }
     }));
 
@@ -361,6 +363,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> clearQueue() async {
     _currentQueue.clear();
     _playlist = ConcatenatingAudioSource(children: []);
+    _playlistOffset = 0;
     if (_isLinux) {
       _linuxCompletionSub?.cancel();
       _linuxCompletionSub = null;
@@ -398,7 +401,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // MediaItem (~1 KB) per child. 100 songs = ~100 KB of tags + buffer memory.
     // Songs beyond the cap remain in _currentQueue / PlayerState for display.
     const int maxConcatSources = 100;
-    final effectiveStart = startIndex.clamp(0, _currentQueue.length - 1);
+    final int effectiveStart;
+    final int initialIndex;
+    if (_currentQueue.length <= maxConcatSources) {
+      effectiveStart = 0;
+      initialIndex = startIndex.clamp(0, _currentQueue.length - 1);
+    } else {
+      effectiveStart = startIndex.clamp(0, _currentQueue.length - 1);
+      initialIndex = 0;
+    }
+    _playlistOffset = effectiveStart;
+
     // Include the start track and as many subsequent songs as fit in the cap.
     final endIdx = (effectiveStart + maxConcatSources).clamp(0, _currentQueue.length);
     final sourceSongs = _currentQueue.sublist(effectiveStart, endIdx);
@@ -408,7 +421,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _playlist = ConcatenatingAudioSource(children: sources);
     await player.setAudioSource(
       _playlist!,
-      initialIndex: 0, // effectiveStart maps to index 0 within sources
+      initialIndex: initialIndex,
       initialPosition: initialPosition,
     );
     if (savedLoopMode != LoopMode.off) {
@@ -587,7 +600,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   /// Current index — Linux uses _linuxIndex, other platforms use player.currentIndex
-  int get currentIndex => _isLinux ? _linuxIndex : (player.currentIndex ?? 0);
+  int get currentIndex => _isLinux ? _linuxIndex : (_playlistOffset + (player.currentIndex ?? 0));
 
   /// Platform-adaptive index jump.
   /// On Linux: loads the track at [index] via the single-source bridge.
@@ -650,6 +663,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           .map((song) => _toSourceWithPaths(song, offlinePaths))
           .toList();
       _playlist = ConcatenatingAudioSource(children: sources);
+      _playlistOffset = 0;
       await player.setAudioSource(
         _playlist!,
         initialIndex: anchorIndex,
@@ -702,7 +716,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       liveIds.insert(targetIdx, moved);
     }
 
-    final currentLiveIndex = this.currentIndex;
+    final currentLiveIndex = currentIndex;
     if (currentLiveIndex != anchorIndex) {
       await player.seek(player.position, index: anchorIndex);
     }
@@ -757,10 +771,18 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (unIdx != -1) _unshuffledQueue.removeAt(unIdx);
 
     if (_playlist != null) {
-      await _playlist!.removeAt(index);
+      if (_playlistOffset == 0) {
+        await _playlist!.removeAt(index);
+      } else {
+        if (index < _playlistOffset) {
+          _playlistOffset--;
+        } else if (index < _playlistOffset + _playlist!.children.length) {
+          await _playlist!.removeAt(index - _playlistOffset);
+        }
+      }
     } else if (needsRebuild) {
       await _rebuildSource(
-        this.currentIndex.clamp(0, _currentQueue.length - 1),
+        currentIndex.clamp(0, _currentQueue.length - 1),
       );
     }
   }
@@ -790,7 +812,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
 
     if (_playlist != null) {
-      await _playlist!.removeRange(start, end);
+      if (_playlistOffset == 0) {
+        await _playlist!.removeRange(start, end);
+      } else {
+        await _rebuildSource(
+          currentIndex.clamp(0, _currentQueue.length - 1),
+        );
+      }
     }
   }
 
@@ -829,7 +857,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
 
     if (_playlist != null) {
-      await _playlist!.move(oldIndex, newIndex);
+      if (_playlistOffset == 0) {
+        await _playlist!.move(oldIndex, newIndex);
+      } else {
+        final savedPosition = player.position;
+        await _rebuildSource(
+          currentIndex.clamp(0, _currentQueue.length - 1),
+          initialPosition: savedPosition,
+        );
+        if (player.playing) player.play();
+      }
     }
   }
 

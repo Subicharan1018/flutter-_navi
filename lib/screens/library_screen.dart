@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_animate/flutter_animate.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
@@ -324,11 +323,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     borderRadius: BorderRadius.circular(6),
                     child: CachedNetworkImage(
                       imageUrl: coverUrl,
-                      cacheKey: 'cover_${item.coverArt ?? item.id}',
+                      cacheKey: 'cover_${item.coverArt.isNotEmpty ? item.coverArt : item.id}',
                       fit: BoxFit.cover,
                       memCacheWidth: 104,
                       memCacheHeight: 104,
-                      errorWidget: (_, __, ___) => Icon(
+                      errorWidget: (context, url, error) => Icon(
                         Icons.album_rounded,
                         color: ThemeTokens.of(context).textMuted,
                       ),
@@ -438,7 +437,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             fit: BoxFit.cover,
                             memCacheWidth: 104,
                             memCacheHeight: 104,
-                            errorWidget: (_, __, ___) => Icon(
+                            errorWidget: (context, url, error) => Icon(
                               Icons.queue_music_rounded,
                               color: ThemeTokens.of(context).accent,
                               size: 24,

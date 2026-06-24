@@ -6,7 +6,6 @@ import '../../../providers/replay_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../core/theme.dart';
-import '../../../services/subsonic_service.dart';
 
 // =============================================================================
 // Header — clean, no waveform decoration
@@ -20,6 +19,7 @@ class ReplayHeader extends StatelessWidget {
   final VoidCallback onBack;
 
   const ReplayHeader({
+    super.key,
     required this.topPad,
     required this.tabController,
     required this.monthLabel,
@@ -91,6 +91,7 @@ class ReplayTabContent extends ConsumerWidget {
   final bool showDailyChart;
 
   const ReplayTabContent({
+    super.key,
     required this.provider,
     required this.periodLabel,
     required this.emptyLabel,
@@ -137,6 +138,7 @@ class ReplayList extends ConsumerWidget {
   final bool showDailyChart;
 
   const ReplayList({
+    super.key,
     required this.data,
     required this.periodLabel,
     required this.showDailyChart,
@@ -153,7 +155,6 @@ class ReplayList extends ConsumerWidget {
       // If we are in the ranked list, we probably want to play the whole list
       // starting from this song.
       final songIds = data.songs.map((s) => s.songId).toList();
-      final startIndex = data.songs.indexOf(song);
 
       // Fetch full song objects for the queue
       final songs = await svc.getSongs(songIds);
@@ -269,7 +270,7 @@ class ReplayList extends ConsumerWidget {
 
 class DailyListeningChart extends StatelessWidget {
   final Map<int, int> dailyListening;
-  const DailyListeningChart({required this.dailyListening});
+  const DailyListeningChart({super.key, required this.dailyListening});
 
   static const _dayLabels = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
   static const double _maxBarHeight = 180.0;
@@ -505,7 +506,7 @@ class DailyListeningChart extends StatelessWidget {
 
 class DashedLine extends StatelessWidget {
   final Color color;
-  const DashedLine({required this.color});
+  const DashedLine({super.key, required this.color});
 
   @override
   Widget build(BuildContext context) {
@@ -531,7 +532,7 @@ class DashedLine extends StatelessWidget {
 class StatsCard extends StatelessWidget {
   final ReplayStats stats;
   final String periodLabel;
-  const StatsCard({required this.stats, required this.periodLabel});
+  const StatsCard({super.key, required this.stats, required this.periodLabel});
 
   @override
   Widget build(BuildContext context) {
@@ -663,6 +664,7 @@ class InlineStatRow extends StatelessWidget {
   final String label;
 
   const InlineStatRow({
+    super.key,
     required this.icon,
     required this.value,
     required this.label,
@@ -705,6 +707,7 @@ class ReplaySongRow extends ConsumerWidget {
   final int rank;
   final VoidCallback onTap;
   const ReplaySongRow({
+    super.key,
     required this.song,
     required this.rank,
     required this.onTap,
@@ -766,8 +769,8 @@ class ReplaySongRow extends ConsumerWidget {
                         fit: BoxFit.cover,
                         memCacheWidth: 96,
                         memCacheHeight: 96,
-                        placeholder: (_, __) => _artPlaceholder(context),
-                        errorWidget: (_, __, ___) => _artPlaceholder(context),
+                        placeholder: (context, url) => _artPlaceholder(context),
+                        errorWidget: (context, url, error) => _artPlaceholder(context),
                       )
                     : _artPlaceholder(context),
               ),
@@ -856,7 +859,7 @@ class ReplaySongRow extends ConsumerWidget {
 
 class EmptyReplay extends StatelessWidget {
   final String label;
-  const EmptyReplay({required this.label});
+  const EmptyReplay({super.key, required this.label});
 
   @override
   Widget build(BuildContext context) {

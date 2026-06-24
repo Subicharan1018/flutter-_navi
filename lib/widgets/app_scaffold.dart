@@ -5,7 +5,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../screens/home_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/library_screen.dart';
-import '../screens/favorites_screen.dart';
 import '../screens/dashboard_screen.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../services/replay_upload_service.dart';

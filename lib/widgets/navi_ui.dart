@@ -251,7 +251,6 @@ class PremiumCard extends StatelessWidget {
         break;
 
       case AppThemeMode.spotify:
-      default:
         // Spotify Double-Bezel: base dark surface inside slightly offset outer border rim
         final outerRadius = BorderRadius.circular(24);
         final innerRadius = BorderRadius.circular(18);
@@ -342,7 +341,7 @@ class _NaviSkeletonState extends State<NaviSkeleton>
     final tokens = ThemeTokens.of(context);
     return AnimatedBuilder(
       animation: _anim,
-      builder: (_, __) => Container(
+      builder: (_, _) => Container(
         width: widget.width,
         height: widget.height,
         decoration: BoxDecoration(

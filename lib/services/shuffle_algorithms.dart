@@ -51,7 +51,7 @@ List<Song> standardShuffleIsolate(List<Song> rest) {
 
 /// Worker for dithered position shuffle.
 /// Args map keys:
-///   'songs' → List<Song>
+///   'songs' → `List<Song>`
 ///   'pref'  → int  (ShufflePreference.index)
 List<Song> ditheredPositionShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List);
@@ -128,7 +128,7 @@ List<Song> interleave(List<Song> larger, List<Song> smaller, Random random) {
 
 /// Worker for merge-shuffle.
 /// Args map keys:
-///   'songs' → List<Song>
+///   'songs' → `List<Song>`
 ///   'pref'  → int  (ShufflePreference.index)
 List<Song> mergeShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List);
@@ -192,7 +192,7 @@ List<Song> weightedShuffleIsolate(List<Song> pool) {
 
 /// Worker for album-aware shuffle.
 /// Args map keys:
-///   'songs'         → List<Song>
+///   'songs'         → `List<Song>`
 ///   'shuffleTracks' → bool  (shuffle tracks within each album if true)
 List<Song> albumAwareShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List);
@@ -225,8 +225,8 @@ List<Song> albumAwareShuffleIsolate(Map<String, dynamic> args) {
 
 /// Worker for recency-dampened weighted shuffle.
 /// Args map keys:
-///   'songs'     → List<Song>
-///   'recentIds' → List<String>  (song IDs played recently in this session)
+///   'songs'     → `List<Song>`
+///   'recentIds' → `List<String>`  (song IDs played recently in this session)
 List<Song> recencyDampenedShuffleIsolate(Map<String, dynamic> args) {
   final songs = List<Song>.from(args['songs'] as List);
   final recentIds = Set<String>.from(args['recentIds'] as List);

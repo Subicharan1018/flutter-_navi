@@ -16,8 +16,6 @@ import 'dart:async';
 import 'providers/settings_provider.dart';
 import 'offline_service.dart';
 import 'services/navi_audio_handler.dart';
-import 'services/subsonic_service.dart';
-import 'services/replay_gain_service.dart';
 
 // ---------------------------------------------------------------------------
 // globalAudioHandler — the single NaviAudioHandler instance shared across

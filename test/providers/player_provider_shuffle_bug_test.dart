@@ -192,7 +192,6 @@ class TestAudioHandler extends NaviAudioHandler {
     currentQueue = List<Song>.from(songs);
   }
 
-  @override
   Future<List<Song>?> computeSmartLocalOrder({
     required Song currentSong,
     required List<Song> future,

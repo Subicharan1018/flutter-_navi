@@ -1,4 +1,3 @@
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../core/constants.dart';
@@ -256,10 +255,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     await auth.put(HiveBoxes.kServerUrl, url);
     await auth.put(HiveBoxes.kUsername, user);
     await auth.put(HiveBoxes.kPassword, pass);
-    if (webdavUser != null)
+    if (webdavUser != null) {
       await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
-    if (webdavPass != null)
+    }
+    if (webdavPass != null) {
       await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
+    }
     if (webdavUrl != null) await p.put(HiveBoxes.kWebdavUrl, webdavUrl);
     if (uploadDir != null) await p.put(HiveBoxes.kUploadDirectory, uploadDir);
 

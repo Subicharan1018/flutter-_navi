@@ -78,18 +78,18 @@ class _FluidPainter extends CustomPainter {
 
     for (int i = 0; i < 4; i++) {
       final c = i < colors.length ? colors[i] : const Color(0xFF1A1A2E);
-      shader.setFloat(idx++, c.red / 255.0);
-      shader.setFloat(idx++, c.green / 255.0);
-      shader.setFloat(idx++, c.blue / 255.0);
-      shader.setFloat(idx++, c.alpha / 255.0);
+      shader.setFloat(idx++, c.r);
+      shader.setFloat(idx++, c.g);
+      shader.setFloat(idx++, c.b);
+      shader.setFloat(idx++, c.a);
     }
 
     for (int i = 0; i < 4; i++) {
       final c = i < prevColors.length ? prevColors[i] : const Color(0xFF1A1A2E);
-      shader.setFloat(idx++, c.red / 255.0);
-      shader.setFloat(idx++, c.green / 255.0);
-      shader.setFloat(idx++, c.blue / 255.0);
-      shader.setFloat(idx++, c.alpha / 255.0);
+      shader.setFloat(idx++, c.r);
+      shader.setFloat(idx++, c.g);
+      shader.setFloat(idx++, c.b);
+      shader.setFloat(idx++, c.a);
     }
 
     shader.setFloat(idx++, tColor);

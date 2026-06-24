@@ -349,7 +349,7 @@ class _AlbumCard extends ConsumerWidget {
                         width: double.infinity,
                         memCacheWidth: 350,
                         memCacheHeight: 350,
-                        placeholder: (_, __) => Container(
+                        placeholder: (context, url) => Container(
                           color: ThemeTokens.of(context).bgElevated,
                           child: Center(
                             child: Icon(
@@ -359,7 +359,7 @@ class _AlbumCard extends ConsumerWidget {
                             ),
                           ),
                         ),
-                        errorWidget: (_, __, ___) => Container(
+                        errorWidget: (context, url, error) => Container(
                           color: ThemeTokens.of(context).bgElevated,
                           child: Center(
                             child: Icon(

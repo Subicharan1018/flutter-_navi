@@ -7,7 +7,6 @@ import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/subsonic_service.dart';
-import '../services/listening_event_collector.dart';
 import '../services/replay_gain_service.dart';
 import '../services/transcoding_service.dart';
 import '../services/replay_upload_service.dart';
@@ -34,7 +33,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   bool _isUploading = false;
   bool _isExporting = false;
   bool _isSyncing = false;
-  AnalyticsStats? _analyticsStats;
 
   // ── New feature states ──
   bool _imageCacheEnabled = true;
@@ -69,8 +67,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     _webdavPassController = TextEditingController(
       text: settings.webdavPassword,
     );
-    // Load analytics row counts for the settings summary.
-    _loadStats();
     _loadNewFeatureSettings();
   }
 
@@ -101,10 +97,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
   }
 
-  Future<void> _loadStats() async {
-    final stats = await ref.read(listenerCollectorProvider).getStats();
-    if (mounted) setState(() => _analyticsStats = stats);
-  }
+
 
   @override
   void dispose() {
@@ -133,7 +126,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // Push new shuffle URL into the running AudioHandler immediately
     ref.read(playerProvider.notifier).refreshShuffleUrl();
     HapticFeedback.mediumImpact();
-    Navigator.pop(context);
+    if (mounted) {
+      Navigator.pop(context);
+    }
   }
 
   Future<void> _exportData() async {
@@ -149,7 +144,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             backgroundColor: ThemeTokens.of(context).accent,
           ),
         );
-        _loadStats(); // refresh counts
       }
     } catch (e) {
       if (mounted) {
@@ -175,7 +169,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             backgroundColor: ThemeTokens.of(context).accent,
           ),
         );
-        _loadStats();
       }
     } catch (e) {
       if (mounted) {
@@ -630,18 +623,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     ),
                   ),
                   onTap: () async {
+                    final messenger = ScaffoldMessenger.of(context);
+                    final themeTokens = ThemeTokens.of(context);
                     final purgedCount = await ref
                         .read(listenerCollectorProvider)
                         .purgeNoiseEvents();
-                    if (mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(
-                          content: Text('Purged $purgedCount junk events'),
-                          backgroundColor: ThemeTokens.of(context).accent,
-                        ),
-                      );
-                      _loadStats(); // refresh counts
-                    }
+                    messenger.showSnackBar(
+                      SnackBar(
+                        content: Text('Purged $purgedCount junk events'),
+                        backgroundColor: themeTokens.accent,
+                      ),
+                    );
                   },
                 ),
                 _SettingsDivider(),
@@ -896,6 +888,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       color: Colors.redAccent.withValues(alpha: 0.15),
                       padding: const EdgeInsets.symmetric(vertical: 10),
                       onPressed: () async {
+                        final messenger = ScaffoldMessenger.of(context);
+                        final themeTokens = ThemeTokens.of(context);
                         final confirm = await showCupertinoDialog<bool>(
                           context: context,
                           builder: (ctx) => CupertinoAlertDialog(
@@ -919,13 +913,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                         );
                         if (confirm == true) {
                           await ref.read(recommendationProvider).clearData();
+                          messenger.showSnackBar(
+                            SnackBar(
+                              content: Text('Recommendation data cleared'),
+                              backgroundColor: themeTokens.accent,
+                            ),
+                          );
                           if (mounted) {
-                            ScaffoldMessenger.of(context).showSnackBar(
-                              SnackBar(
-                                content: Text('Recommendation data cleared'),
-                                backgroundColor: ThemeTokens.of(context).accent,
-                              ),
-                            );
                             setState(() {});
                           }
                         }
@@ -1116,15 +1110,12 @@ class _SettingsInputRow extends StatelessWidget {
   final String hint;
   final bool obscure;
   final VoidCallback? onToggleObscure;
-  final TextInputType? keyboardType;
-
   const _SettingsInputRow({
     required this.title,
     required this.controller,
     required this.hint,
     this.obscure = false,
     this.onToggleObscure,
-    this.keyboardType,
   });
 
   @override
@@ -1145,7 +1136,6 @@ class _SettingsInputRow extends StatelessWidget {
             child: TextField(
               controller: controller,
               obscureText: obscure,
-              keyboardType: keyboardType,
               textAlign: TextAlign.right,
               style: TextStyle(color: tokens.textMuted, fontSize: 15),
               cursorColor: tokens.accent,
@@ -1224,7 +1214,7 @@ class SettingsToggleRow extends StatelessWidget {
           ),
           CupertinoSwitch(
             value: value,
-            activeColor: tokens.accent,
+            activeTrackColor: tokens.accent,
             onChanged: onChanged,
           ),
         ],
@@ -1286,12 +1276,13 @@ class _SettingsDropdownRow<T> extends StatelessWidget {
               } else if (item is String) {
                 if (item == 'none') {
                   name = 'Disabled';
-                } else if (item == 'weekly')
+                } else if (item == 'weekly') {
                   name = 'Weekly';
-                else if (item == 'monthly')
+                } else if (item == 'monthly') {
                   name = 'Monthly';
-                else
+                } else {
                   name = item;
+                }
               } else {
                 name = item.toString();
               }
