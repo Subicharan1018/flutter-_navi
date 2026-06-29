@@ -67,6 +67,7 @@ Future<void> _cacheSongs(AppDatabase db, List<Song> songs) async {
           playCount: Value(song.playCount),
           rating: Value(song.rating),
           starred: Value(song.starred),
+          createdAt: Value(song.created?.millisecondsSinceEpoch),
         ),
         mode: InsertMode.insertOrReplace,
       );
@@ -92,6 +93,9 @@ Future<List<Song>> _getCachedSongs(AppDatabase db) async {
           playCount: r.playCount,
           rating: r.rating,
           starred: r.starred,
+          created: r.createdAt != null
+              ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!)
+              : null,
         ),
       )
       .toList();
@@ -126,7 +130,7 @@ final isOfflineProvider = Provider<bool>((ref) {
 
 /// Wraps [allSongsProvider] and filters to downloaded-only when offline.
 /// When online, returns the full song list unchanged.
-final offlineAwareSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
+final offlineAwareSongsProvider = Provider.autoDispose<AsyncValue<List<Song>>>((ref) {
   final isOffline = ref.watch(isOfflineProvider);
   final allSongs = ref.watch(allSongsProvider);
 
@@ -262,26 +266,23 @@ final favoritesProvider =
 
 DateTime? _lastRefreshTime;
 
-final allSongsProvider = FutureProvider<List<Song>>((ref) async {
-  ref.keepAlive();
+final allSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
   final settings = ref.watch(settingsProvider);
   if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
 
   final db = ref.watch(appDatabaseProvider);
   final service = ref.watch(subsonicServiceProvider);
 
-  Future<List<Song>> fetchAllSongsPaginated() async {
-    final allSongs = <Song>[];
+  Future<void> fetchAndSyncSongs() async {
     const chunkSize = 500;
     int offset = 0;
     while (true) {
       final chunk = await service.getAllSongs(size: chunkSize, offset: offset);
       if (chunk.isEmpty) break;
-      allSongs.addAll(chunk);
+      await _cacheSongs(db, chunk);
       if (chunk.length < chunkSize) break;
       offset += chunkSize;
     }
-    return allSongs;
   }
 
   final cached = await _getCachedSongs(db);
@@ -292,32 +293,23 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   if (cached.isNotEmpty) {
     if (shouldRefresh) {
       _lastRefreshTime = now;
-      fetchAllSongsPaginated()
-          .then((fresh) async {
-            if (fresh.length != cached.length) {
-              // MEM-OPT: Sort in compute() only for fresh network data (large).
-              // For cached data below, sort inline — 600 songs sort in <5ms.
-              final sorted = await compute(_sortSongsByCreated, fresh);
-              await _cacheSongs(db, sorted);
-              ref.invalidateSelf();
-            }
+      fetchAndSyncSongs()
+          .then((_) {
+            ref.invalidateSelf();
           })
           .catchError((_) {
             // Background refresh failed — stale cache is still valid.
           });
     }
-    // MEM-OPT: Sort inline instead of spawning an isolate.
-    // Isolate round-trip serializes the full 600-song list to bytes and back,
-    // briefly doubling memory. Sorting 600 Song objects takes ~1ms on-thread.
     _sortSongsByCreated(cached);
     return cached;
   }
 
-  final songs = await fetchAllSongsPaginated();
+  await fetchAndSyncSongs();
   _lastRefreshTime = DateTime.now();
-  final sorted = await compute(_sortSongsByCreated, songs);
-  await _cacheSongs(db, sorted);
-  return sorted;
+  final fresh = await _getCachedSongs(db);
+  _sortSongsByCreated(fresh);
+  return fresh;
 });
 
 // MEM-OPT: autoDispose — library albums only held while the albums tab is open.
@@ -598,3 +590,201 @@ class PlaylistController {
 }
 
 final playlistControllerProvider = Provider((ref) => PlaylistController(ref));
+
+// ---------------------------------------------------------------------------
+// Paginated local database query pagination
+// ---------------------------------------------------------------------------
+
+final downloadedSongIdsProvider = Provider.autoDispose<Set<String>>((ref) {
+  final downloadState = ref.watch(downloadStateProvider);
+  return downloadState.entries
+      .where((e) => e.value.status == SongDownloadStatus.downloaded)
+      .map((e) => e.key)
+      .toSet();
+});
+
+class PaginatedSongsParam {
+  final LibraryFilter filter;
+  final String searchQuery;
+
+  const PaginatedSongsParam({
+    required this.filter,
+    required this.searchQuery,
+  });
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PaginatedSongsParam &&
+          runtimeType == other.runtimeType &&
+          filter == other.filter &&
+          searchQuery == other.searchQuery;
+
+  @override
+  int get hashCode => Object.hash(filter, searchQuery);
+}
+
+class PaginatedSongsState {
+  final List<Song> songs;
+  final bool hasMore;
+  final bool isLoadingMore;
+  final int offset;
+
+  const PaginatedSongsState({
+    required this.songs,
+    required this.hasMore,
+    required this.isLoadingMore,
+    required this.offset,
+  });
+
+  PaginatedSongsState copyWith({
+    List<Song>? songs,
+    bool? hasMore,
+    bool? isLoadingMore,
+    int? offset,
+  }) {
+    return PaginatedSongsState(
+      songs: songs ?? this.songs,
+      hasMore: hasMore ?? this.hasMore,
+      isLoadingMore: isLoadingMore ?? this.isLoadingMore,
+      offset: offset ?? this.offset,
+    );
+  }
+}
+
+class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
+  final Ref ref;
+  final PaginatedSongsParam arg;
+  static const int pageSize = 50;
+
+  PaginatedSongsNotifier(this.ref, this.arg)
+      : super(const PaginatedSongsState(
+          songs: [],
+          hasMore: true,
+          isLoadingMore: false,
+          offset: 0,
+        )) {
+    ref.listen(librarySortProvider, (prev, next) {
+      loadNextPage(isRefresh: true);
+    });
+    ref.listen(isOfflineProvider, (prev, next) {
+      loadNextPage(isRefresh: true);
+    });
+    if (arg.filter == LibraryFilter.downloaded || ref.read(isOfflineProvider)) {
+      ref.listen(downloadedSongIdsProvider, (prev, next) {
+        loadNextPage(isRefresh: true);
+      });
+    }
+
+    // Schedule initial load
+    Future.microtask(() => loadNextPage(isRefresh: true));
+  }
+
+  Future<void> loadNextPage({bool isRefresh = false}) async {
+    if (state.isLoadingMore || (!state.hasMore && !isRefresh)) return;
+
+    state = state.copyWith(isLoadingMore: true);
+
+    try {
+      final db = ref.read(appDatabaseProvider);
+      final sortPrefs = ref.read(librarySortProvider);
+      final isOffline = ref.read(isOfflineProvider);
+      
+      final effectiveFilter = arg.filter == LibraryFilter.downloaded
+          ? LibraryFilter.allSongs
+          : arg.filter;
+      final pref = sortPrefs[effectiveFilter] ?? const LibrarySortPreference();
+
+      final currentOffset = isRefresh ? 0 : state.offset;
+      final query = db.select(db.songMetadata);
+
+      if (arg.searchQuery.isNotEmpty) {
+        query.where((t) =>
+            t.trackName.like('%${arg.searchQuery}%') |
+            t.artistName.like('%${arg.searchQuery}%'));
+      }
+
+      if (arg.filter == LibraryFilter.downloaded || isOffline) {
+        final downloadedIds = ref.read(downloadedSongIdsProvider);
+        if (downloadedIds.isEmpty) {
+          state = state.copyWith(
+            songs: isRefresh ? [] : state.songs,
+            hasMore: false,
+            isLoadingMore: false,
+            offset: currentOffset,
+          );
+          return;
+        }
+        query.where((t) => t.songId.isIn(downloadedIds.toList()));
+      }
+
+      query.orderBy([
+        (t) {
+          final expr = _getSortExpression(t, pref.field);
+          return OrderingTerm(
+            expression: expr,
+            mode: pref.direction == LibrarySortDirection.asc
+                ? OrderingMode.asc
+                : OrderingMode.desc,
+          );
+        }
+      ]);
+
+      query.limit(pageSize, offset: currentOffset);
+
+      final rows = await query.get();
+
+      final newSongs = rows.map((r) => Song(
+        id: r.songId,
+        title: r.trackName,
+        artist: r.artistName,
+        album: r.albumName,
+        duration: r.durationSec,
+        genre: r.genre ?? '',
+        composer: r.composer ?? '',
+        coverArt: r.songId,
+        track: 0,
+        year: r.year ?? 0,
+        playCount: r.playCount,
+        rating: r.rating,
+        starred: r.starred,
+        created: r.createdAt != null
+            ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!)
+            : null,
+      )).toList();
+
+      final hasMore = newSongs.length == pageSize;
+      final nextOffset = currentOffset + newSongs.length;
+
+      state = state.copyWith(
+        songs: isRefresh ? newSongs : [...state.songs, ...newSongs],
+        hasMore: hasMore,
+        isLoadingMore: false,
+        offset: nextOffset,
+      );
+    } catch (e, stack) {
+      debugPrint('[PaginatedSongsNotifier] Error loading page: $e\n$stack');
+      state = state.copyWith(isLoadingMore: false);
+    }
+  }
+
+  Expression<Object> _getSortExpression(dynamic table, LibrarySortField field) {
+    switch (field) {
+      case LibrarySortField.name:
+        return table.trackName;
+      case LibrarySortField.recentlyAdded:
+        return table.createdAt;
+      case LibrarySortField.playCount:
+        return table.playCount;
+      case LibrarySortField.duration:
+        return table.durationSec;
+      case LibrarySortField.artistName:
+        return table.artistName;
+    }
+  }
+}
+
+final paginatedSongsProvider = StateNotifierProvider.autoDispose
+    .family<PaginatedSongsNotifier, PaginatedSongsState, PaginatedSongsParam>(
+  (ref, arg) => PaginatedSongsNotifier(ref, arg),
+);

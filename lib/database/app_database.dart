@@ -32,7 +32,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 3;
 
   @override
   MigrationStrategy get migration {
@@ -44,6 +44,13 @@ class AppDatabase extends _$AppDatabase {
         if (from < 2) {
           try {
             await m.addColumn(playEvents, playEvents.skipBefore50);
+          } catch (e) {
+            // Ignore if column already exists
+          }
+        }
+        if (from < 3) {
+          try {
+            await m.addColumn(songMetadata, songMetadata.createdAt);
           } catch (e) {
             // Ignore if column already exists
           }

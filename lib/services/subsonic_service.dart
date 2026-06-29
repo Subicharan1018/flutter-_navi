@@ -277,6 +277,26 @@ class SubsonicService {
     }
   }
 
+  Map<String, dynamic> _getMap(dynamic parent, String key) {
+    if (parent is Map) {
+      final val = parent[key];
+      if (val is Map) {
+        return Map<String, dynamic>.from(val);
+      }
+    }
+    return const <String, dynamic>{};
+  }
+
+  List<dynamic> _getList(dynamic parent, String key) {
+    if (parent is Map) {
+      final val = parent[key];
+      if (val is List) {
+        return val;
+      }
+    }
+    return const [];
+  }
+
   // ---------------------------------------------------------------------------
   // Song library
   // ---------------------------------------------------------------------------
@@ -291,9 +311,8 @@ class SubsonicService {
         'songCount': size.toString(),
         'songOffset': offset.toString(),
       });
-      final searchResult = res['searchResult3'] as Map<String, dynamic>? ?? {};
-      final rawList = (searchResult['song'] as List<dynamic>? ?? [])
-          .cast<Map<String, dynamic>>();
+      final searchResult = _getMap(res, 'searchResult3');
+      final rawList = _getList(searchResult, 'song');
       // Parse 5000 Song objects on a background isolate.
       final songs = await compute(_parseSongList, rawList);
       if (songs.length > 10) return songs;
@@ -306,12 +325,10 @@ class SubsonicService {
 
   Future<List<Song>> getRandomSongs({int size = 50}) async {
     final res = await _get('getRandomSongs.view', {'size': size.toString()});
-    final randomSongs =
-        (res['randomSongs'] as Map<String, dynamic>)['song']
-            as List<dynamic>? ??
-        [];
+    final randomSongs = _getList(_getMap(res, 'randomSongs'), 'song');
     return randomSongs
-        .map((e) => Song.fromJson(e as Map<String, dynamic>))
+        .whereType<Map>()
+        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
@@ -320,17 +337,18 @@ class SubsonicService {
       'type': 'newest',
       'size': size.toString(),
     });
-    final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album']
-            as List<dynamic>? ??
-        [];
+    final albums = _getList(_getMap(res, 'albumList2'), 'album');
     if (albums.isEmpty) return [];
 
     // PERF-4: fetch all albums concurrently instead of sequentially.
     // Clamp to 10 albums max to avoid flooding the server with requests.
     final toFetch = albums
         .take(10)
-        .map((a) => a['id']?.toString() ?? '')
+        .map((a) {
+          if (a is Map) return a['id']?.toString() ?? '';
+          return '';
+        })
+        .where((id) => id.isNotEmpty)
         .toList();
     final results = await Future.wait(toFetch.map(getAlbum));
     final allSongs = results.expand((s) => s).toList();
@@ -342,12 +360,10 @@ class SubsonicService {
       'id': songId,
       'count': count.toString(),
     });
-    final similarSongs =
-        (res['similarSongs2'] as Map<String, dynamic>)['song']
-            as List<dynamic>? ??
-        [];
+    final similarSongs = _getList(_getMap(res, 'similarSongs2'), 'song');
     return similarSongs
-        .map((e) => Song.fromJson(e as Map<String, dynamic>))
+        .whereType<Map>()
+        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
@@ -358,24 +374,20 @@ class SubsonicService {
   Future<List<Album>> getRecentlyPlayedAlbums() async {
     // BUG-31: cache removed — recentlyPlayedAlbumsProvider.keepAlive() owns it.
     final res = await _get('getAlbumList2.view', {'type': 'recent'});
-    final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album']
-            as List<dynamic>? ??
-        [];
+    final albums = _getList(_getMap(res, 'albumList2'), 'album');
     return albums
-        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+        .whereType<Map>()
+        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
   Future<List<Album>> getFrequentAlbums() async {
     // BUG-31: cache removed — frequentAlbumsProvider.keepAlive() owns it.
     final res = await _get('getAlbumList2.view', {'type': 'frequent'});
-    final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album']
-            as List<dynamic>? ??
-        [];
+    final albums = _getList(_getMap(res, 'albumList2'), 'album');
     return albums
-        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+        .whereType<Map>()
+        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
@@ -392,12 +404,10 @@ class SubsonicService {
       'size': size.toString(),
       'offset': offset.toString(),
     });
-    final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album']
-            as List<dynamic>? ??
-        [];
+    final albums = _getList(_getMap(res, 'albumList2'), 'album');
     return albums
-        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+        .whereType<Map>()
+        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
@@ -408,25 +418,25 @@ class SubsonicService {
       'offset': offset.toString(),
       'size': size.toString(),
     });
-    final albums =
-        (res['albumList2'] as Map<String, dynamic>)['album']
-            as List<dynamic>? ??
-        [];
+    final albums = _getList(_getMap(res, 'albumList2'), 'album');
     return albums
-        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+        .whereType<Map>()
+        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
   Future<List<Song>> getAlbum(String id) async {
     final res = await _get('getAlbum.view', {'id': id});
-    final songs =
-        (res['album'] as Map<String, dynamic>)['song'] as List<dynamic>? ?? [];
-    return songs.map((e) => Song.fromJson(e as Map<String, dynamic>)).toList();
+    final songs = _getList(_getMap(res, 'album'), 'song');
+    return songs
+        .whereType<Map>()
+        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
   }
 
   Future<Song> getSong(String id) async {
     final res = await _get('getSong.view', {'id': id});
-    final song = res['song'] as Map<String, dynamic>;
+    final song = _getMap(res, 'song');
     return Song.fromJson(song);
   }
 
@@ -446,14 +456,16 @@ class SubsonicService {
 
   Future<({List<Song> songs, List<Album> albums})> getStarred() async {
     final res = await _get('getStarred.view');
-    final starred = res['starred'] as Map<String, dynamic>? ?? {};
+    final starred = _getMap(res, 'starred');
 
-    final songs = (starred['song'] as List<dynamic>? ?? [])
-        .map((e) => Song.fromJson(e as Map<String, dynamic>))
+    final songs = _getList(starred, 'song')
+        .whereType<Map>()
+        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
         .toList();
 
-    final albums = (starred['album'] as List<dynamic>? ?? [])
-        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+    final albums = _getList(starred, 'album')
+        .whereType<Map>()
+        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
         .toList();
 
     return (songs: songs, albums: albums);
@@ -465,15 +477,14 @@ class SubsonicService {
 
   Future<List<Map<String, dynamic>>> getArtists() async {
     final res = await _get('getArtists.view');
-    final indexes =
-        (res['artists'] as Map<String, dynamic>)['index'] as List<dynamic>? ??
-        [];
+    final indexes = _getList(_getMap(res, 'artists'), 'index');
     final artists = <Map<String, dynamic>>[];
     for (final index in indexes) {
-      final artistList =
-          (index as Map<String, dynamic>)['artist'] as List<dynamic>? ?? [];
+      final artistList = _getList(index, 'artist');
       for (final artist in artistList) {
-        artists.add(artist as Map<String, dynamic>);
+        if (artist is Map) {
+          artists.add(Map<String, dynamic>.from(artist));
+        }
       }
     }
     return artists;
@@ -486,12 +497,10 @@ class SubsonicService {
   Future<List<Playlist>> getPlaylists() async {
     // BUG-31: _playlistsCache removed — playlistsProvider.keepAlive() owns it.
     final res = await _get('getPlaylists.view');
-    final playlists =
-        (res['playlists'] as Map<String, dynamic>)['playlist']
-            as List<dynamic>? ??
-        [];
+    final playlists = _getList(_getMap(res, 'playlists'), 'playlist');
     return playlists
-        .map((e) => Playlist.fromJson(e as Map<String, dynamic>))
+        .whereType<Map>()
+        .map((e) => Playlist.fromJson(Map<String, dynamic>.from(e)))
         .toList();
   }
 
@@ -531,14 +540,12 @@ class SubsonicService {
   /// thread, writes the result to SQLite, and returns the list.
   Future<List<Song>> _fetchAndCachePlaylist(String id) async {
     final res = await _get('getPlaylist.view', {'id': id});
-    final rawEntries =
-        (res['playlist'] as Map<String, dynamic>)['entry'] as List<dynamic>? ??
-        [];
+    final rawEntries = _getList(_getMap(res, 'playlist'), 'entry');
 
     // Parse Song objects on a background isolate to keep the UI thread free.
     final songs = await compute(
       _parseSongList,
-      rawEntries.cast<Map<String, dynamic>>(),
+      rawEntries,
     );
 
     // Persist to SQLite (fire-and-forget — don't block the caller).
@@ -662,15 +669,21 @@ class SubsonicService {
 
   Future<Map<String, List<dynamic>>> search(String query) async {
     final res = await _get('search3.view', {'query': query});
-    final searchResult = res['searchResult3'] as Map<String, dynamic>? ?? {};
-    final songs = (searchResult['song'] as List<dynamic>? ?? [])
-        .map((e) => Song.fromJson(e as Map<String, dynamic>))
+    final searchResult = _getMap(res, 'searchResult3');
+    final songs = _getList(searchResult, 'song')
+        .whereType<Map>()
+        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
         .toList();
-    final albums = (searchResult['album'] as List<dynamic>? ?? [])
-        .map((e) => Album.fromJson(e as Map<String, dynamic>))
+    final albums = _getList(searchResult, 'album')
+        .whereType<Map>()
+        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
         .toList();
-    final artists = (searchResult['artist'] as List<dynamic>? ?? [])
-        .map((e) => (e as Map<String, dynamic>)['name']?.toString() ?? '')
+    final artists = _getList(searchResult, 'artist')
+        .whereType<Map>()
+        .map((e) {
+          final m = Map<String, dynamic>.from(e);
+          return m['name']?.toString() ?? '';
+        })
         .toList();
     return {'songs': songs, 'albums': albums, 'artists': artists};
   }
@@ -730,14 +743,15 @@ class SubsonicService {
       Map<String, dynamic>? unsyncedEntry;
 
       for (final entry in structured) {
-        if (entry is! Map<String, dynamic>) continue;
-        final isSynced = entry['synced'] == true;
-        final lines = entry['line'];
+        if (entry is! Map) continue;
+        final mapEntry = Map<String, dynamic>.from(entry);
+        final isSynced = mapEntry['synced'] == true;
+        final lines = mapEntry['line'];
         if (lines == null || lines is! List || lines.isEmpty) continue;
         if (isSynced) {
-          syncedEntry ??= entry;
+          syncedEntry ??= mapEntry;
         } else {
-          unsyncedEntry ??= entry;
+          unsyncedEntry ??= mapEntry;
         }
       }
 
@@ -754,7 +768,8 @@ class SubsonicService {
       if (artist != null) params['artist'] = artist;
       if (title != null) params['title'] = title;
       final res = await _get('getLyrics.view', params);
-      return (res['lyrics'] as Map<String, dynamic>?)?['value']?.toString();
+      final lyricsMap = res['lyrics'];
+      return lyricsMap is Map ? lyricsMap['value']?.toString() : null;
     } catch (e) {
       debugPrint('Error fetching lyrics: $e');
       return null;
@@ -995,13 +1010,21 @@ class SubsonicService {
 // Top-level parse helpers — must be top-level for compute() compatibility
 // ---------------------------------------------------------------------------
 
-/// Parses raw song JSON entries into [Song] objects on a background isolate.
-List<Song> _parseSongList(List<Map<String, dynamic>> entries) {
-  return entries.map(Song.fromJson).toList();
+List<Song> _parseSongList(List<dynamic> entries) {
+  return entries
+      .whereType<Map>()
+      .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
+      .toList();
 }
+
 
 /// Decodes a raw HTTP response body string into a JSON map on a background
 /// isolate (BUG-29).  For large responses (e.g. 5,000 songs ≈ 2–5 MB) this
 /// prevents the 300–800 ms UI freeze caused by synchronous [jsonDecode].
-Map<String, dynamic> _decodeJsonBody(String body) =>
-    jsonDecode(body) as Map<String, dynamic>;
+Map<String, dynamic> _decodeJsonBody(String body) {
+  final decoded = jsonDecode(body);
+  if (decoded is Map) {
+    return Map<String, dynamic>.from(decoded);
+  }
+  throw FormatException('Decoded JSON is not a Map: $decoded');
+}

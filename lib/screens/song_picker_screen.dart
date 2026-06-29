@@ -22,18 +22,9 @@ class SongPickerScreen extends ConsumerStatefulWidget {
 class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
   String _searchQuery = '';
   final TextEditingController _searchController = TextEditingController();
-
-  // UX FIX: Local selection set — no network call until Save.
   final Set<String> _selectedSongIds = {};
   bool _isSaving = false;
 
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  // UX FIX: Toggle song selection locally.
   void _toggleSong(String songId) {
     setState(() {
       if (_selectedSongIds.contains(songId)) {
@@ -44,7 +35,6 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
     });
   }
 
-  // UX FIX: Batch-save all selected songs.
   Future<void> _save() async {
     if (_selectedSongIds.isEmpty) return;
     setState(() => _isSaving = true);
@@ -76,9 +66,38 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
     }
   }
 
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    _searchController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
+      final param = PaginatedSongsParam(
+        filter: LibraryFilter.allSongs,
+        searchQuery: _searchQuery,
+      );
+      ref.read(paginatedSongsProvider(param).notifier).loadNextPage();
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
-    final allSongsAsync = ref.watch(allSongsProvider);
+    final param = PaginatedSongsParam(
+      filter: LibraryFilter.allSongs,
+      searchQuery: _searchQuery,
+    );
+    final paginatedState = ref.watch(paginatedSongsProvider(param));
     final service = ref.watch(subsonicServiceProvider);
 
     return Scaffold(
@@ -174,147 +193,127 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
             ),
           ),
           Expanded(
-            child: allSongsAsync.when(
-              data: (songs) {
-                final filteredSongs = songs
-                    .where(
-                      (s) =>
-                          s.title.toLowerCase().contains(
-                            _searchQuery.toLowerCase(),
-                          ) ||
-                          s.artist.toLowerCase().contains(
-                            _searchQuery.toLowerCase(),
-                          ),
-                    )
-                    .toList();
-
-                if (filteredSongs.isEmpty) {
+            child: (() {
+              if (paginatedState.songs.isEmpty) {
+                if (paginatedState.isLoadingMore) {
                   return Center(
-                    child: Column(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(
-                          Icons.search_off_rounded,
-                          color: ThemeTokens.of(context).textMuted,
-                          size: 48,
-                        ),
-                        SizedBox(height: 16),
-                        Text(
-                          'No songs found',
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textMuted,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
+                    child: CircularProgressIndicator(
+                      color: ThemeTokens.of(context).accent,
                     ),
                   );
                 }
-
-                return ListView.builder(
-                  padding: const EdgeInsets.only(bottom: 80), // space for FAB
-                  itemCount: filteredSongs.length,
-                  itemBuilder: (context, index) {
-                    final song = filteredSongs[index];
-                    final isSelected = _selectedSongIds.contains(song.id);
-                    return ListTile(
-                      contentPadding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 4,
+                return Center(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Icon(
+                        Icons.search_off_rounded,
+                        color: ThemeTokens.of(context).textMuted,
+                        size: 48,
                       ),
-                      leading: Container(
-                        decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(8),
-                          border: Border.all(
-                            color: ThemeTokens.of(context).outline,
-                          ),
-                        ),
-                        child: ClipRRect(
-                          borderRadius: BorderRadius.circular(7),
-                          child: CachedNetworkImage(
-                            imageUrl: service.getCoverArtUrl(song.coverArt),
-                            width: 44,
-                            height: 44,
-                            memCacheWidth: 88,
-                            memCacheHeight: 88,
-                            fit: BoxFit.cover,
-                            placeholder: (context, url) => Container(
-                              color: ThemeTokens.of(context).bgSurface,
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              color: ThemeTokens.of(context).bgSurface,
-                              child: Icon(
-                                Icons.music_note_rounded,
-                                color: ThemeTokens.of(context).textMuted,
-                                size: 24,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                      title: Text(
-                        song.title,
+                      SizedBox(height: 16),
+                      Text(
+                        'No songs found',
                         style: TextStyle(
-                          color: ThemeTokens.of(context).textPrimary,
-                          fontWeight: FontWeight.w600,
+                          color: ThemeTokens.of(context).textMuted,
                           fontSize: 15,
                         ),
                       ),
-                      subtitle: Text(
-                        song.artist,
-                        style: TextStyle(
-                          color: ThemeTokens.of(context).textMuted,
-                          fontSize: 13,
-                        ),
-                      ),
-                      trailing: SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: IconButton(
-                          padding: EdgeInsets.zero,
-                          icon: Icon(
-                            isSelected
-                                ? Icons.check_circle_rounded
-                                : Icons.add_circle_outline_rounded,
-                            color: isSelected
-                                ? ThemeTokens.of(context).accent
-                                : ThemeTokens.of(context).textMuted,
-                            size: 24,
-                          ),
-                          // UX FIX: Toggle local selection — no network call.
-                          onPressed: () => _toggleSong(song.id),
+                    ],
+                  ),
+                );
+              }
+
+              return ListView.builder(
+                controller: _scrollController,
+                padding: const EdgeInsets.only(bottom: 80), // space for FAB
+                itemCount: paginatedState.songs.length + (paginatedState.isLoadingMore ? 1 : 0),
+                itemBuilder: (context, index) {
+                  if (index == paginatedState.songs.length) {
+                    return Padding(
+                      padding: const EdgeInsets.symmetric(vertical: 16),
+                      child: Center(
+                        child: CircularProgressIndicator(
+                          color: ThemeTokens.of(context).accent,
+                          strokeWidth: 2,
                         ),
                       ),
                     );
-                  },
-                );
-              },
-              loading: () => Center(
-                child: CircularProgressIndicator(
-                  color: ThemeTokens.of(context).accent,
-                ),
-              ),
-              error: (e, st) => Center(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Icon(
-                      Icons.error_outline_rounded,
-                      color: Colors.redAccent,
-                      size: 48,
+                  }
+                  final song = paginatedState.songs[index];
+                  final isSelected = _selectedSongIds.contains(song.id);
+                  return ListTile(
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
                     ),
-                    SizedBox(height: 12),
-                    Text(
-                      'Error: $e',
+                    leading: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(
+                          color: ThemeTokens.of(context).outline,
+                        ),
+                      ),
+                      child: ClipRRect(
+                        borderRadius: BorderRadius.circular(7),
+                        child: CachedNetworkImage(
+                          imageUrl: service.getCoverArtUrl(song.coverArt),
+                          width: 44,
+                          height: 44,
+                          memCacheWidth: 88,
+                          memCacheHeight: 88,
+                          fit: BoxFit.cover,
+                          placeholder: (context, url) => Container(
+                            color: ThemeTokens.of(context).bgSurface,
+                          ),
+                          errorWidget: (context, url, error) => Container(
+                            color: ThemeTokens.of(context).bgSurface,
+                            child: Icon(
+                              Icons.music_note_rounded,
+                              color: ThemeTokens.of(context).textMuted,
+                              size: 24,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                    title: Text(
+                      song.title,
+                      style: TextStyle(
+                        color: ThemeTokens.of(context).textPrimary,
+                        fontWeight: FontWeight.w600,
+                        fontSize: 15,
+                      ),
+                    ),
+                    subtitle: Text(
+                      song.artist,
                       style: TextStyle(
                         color: ThemeTokens.of(context).textMuted,
                         fontSize: 13,
                       ),
                     ),
-                  ],
-                ),
-              ),
-            ),
+                    trailing: SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: IconButton(
+                        padding: EdgeInsets.zero,
+                        icon: Icon(
+                          isSelected
+                              ? Icons.check_circle_rounded
+                              : Icons.add_circle_outline_rounded,
+                          color: isSelected
+                              ? ThemeTokens.of(context).accent
+                              : ThemeTokens.of(context).textMuted,
+                          size: 24,
+                        ),
+                        // UX FIX: Toggle local selection — no network call.
+                        onPressed: () => _toggleSong(song.id),
+                      ),
+                    ),
+                  );
+                },
+              );
+            })(),
           ),
         ],
       ),

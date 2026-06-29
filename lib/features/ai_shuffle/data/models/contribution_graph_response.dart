@@ -12,7 +12,7 @@ class ContributionDay {
   factory ContributionDay.fromJson(Map<String, dynamic> json) {
     return ContributionDay(
       // API field is "date_str", not "date"
-      date: json['date_str'] as String? ?? json['date'] as String? ?? '',
+      date: json['date_str']?.toString() ?? json['date']?.toString() ?? '',
       count: _parseInt(json['count']),
     );
   }
@@ -34,7 +34,7 @@ class ContributionGraphResponse {
     final list = (json['data'] ?? json['days']) as List<dynamic>? ?? [];
     return ContributionGraphResponse(
       days: list
-          .map((e) => ContributionDay.fromJson(e as Map<String, dynamic>))
+          .map((e) => ContributionDay.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
     );
   }

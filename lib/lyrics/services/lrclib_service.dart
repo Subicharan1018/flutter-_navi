@@ -51,9 +51,14 @@ class LrcLibService {
         return LyricsResult.none();
       }
 
-      final json = jsonDecode(response.body) as Map<String, dynamic>;
+      final decoded = jsonDecode(response.body);
+      if (decoded is! Map) {
+        debugPrint('[LrcLibService] Decoded JSON is not a Map: $decoded');
+        return LyricsResult.none();
+      }
+      final json = Map<String, dynamic>.from(decoded);
 
-      final synced = json['syncedLyrics'] as String?;
+      final synced = json['syncedLyrics']?.toString();
       if (synced != null && synced.trim().isNotEmpty) {
         debugPrint('[LrcLibService] Got synced lyrics for "${song.title}"');
         return LyricsResult(
@@ -63,7 +68,7 @@ class LrcLibService {
         );
       }
 
-      final plain = json['plainLyrics'] as String?;
+      final plain = json['plainLyrics']?.toString();
       if (plain != null && plain.trim().isNotEmpty) {
         debugPrint('[LrcLibService] Got plain lyrics for "${song.title}"');
         return LyricsResult(

@@ -11,8 +11,8 @@ class HealthResponse {
 
   factory HealthResponse.fromJson(Map<String, dynamic> json) => HealthResponse(
     status: json['status']?.toString() ?? 'unknown',
-    weather: json['weather'] is Map<String, dynamic>
-        ? WeatherInfo.fromJson(json['weather'] as Map<String, dynamic>)
+    weather: json['weather'] is Map
+        ? WeatherInfo.fromJson(Map<String, dynamic>.from(json['weather'] as Map))
         : null,
   );
 

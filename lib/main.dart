@@ -116,6 +116,17 @@ class MyMusicPlayerApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(themeModeProvider);
     final tokens = ThemeVariants.of(mode);
+    
+    // Reactively toggle image cache boundaries
+    final cacheSettings = ref.watch(cacheSettingsNotifierProvider);
+    if (!cacheSettings.imageCacheEnabled) {
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 0;
+      PaintingBinding.instance.imageCache.maximumSize = 0;
+      PaintingBinding.instance.imageCache.clear();
+    } else {
+      PaintingBinding.instance.imageCache.maximumSizeBytes = 25 * 1024 * 1024;
+      PaintingBinding.instance.imageCache.maximumSize = 60;
+    }
 
     // Route: show LoginScreen on first launch, AppScaffold if already logged in.
     final home = isLoggedIn() ? const AppScaffold() : const LoginScreen();

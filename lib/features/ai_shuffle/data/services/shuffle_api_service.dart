@@ -354,7 +354,8 @@ class ShuffleApiService {
       );
       final data = response.data!;
       return (data['composers'] as List<dynamic>? ?? [])
-          .whereType<Map<String, dynamic>>()
+          .whereType<Map>()
+          .map((e) => Map<String, dynamic>.from(e))
           .toList();
     });
   }

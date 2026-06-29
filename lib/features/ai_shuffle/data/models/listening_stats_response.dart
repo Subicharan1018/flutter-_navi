@@ -64,7 +64,12 @@ class ListeningStatsResponse {
   }
 
   static List<Map<String, dynamic>> _parseList(dynamic v) {
-    if (v is List) return v.whereType<Map<String, dynamic>>().toList();
+    if (v is List) {
+      return v
+          .whereType<Map>()
+          .map((m) => Map<String, dynamic>.from(m))
+          .toList();
+    }
     return [];
   }
 

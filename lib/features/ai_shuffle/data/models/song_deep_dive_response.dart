@@ -127,9 +127,9 @@ class SongDeepDiveResponse {
     title: json['title']?.toString() ?? '',
     composer: json['composer']?.toString() ?? '',
     genreBucket: json['genre_bucket']?.toString() ?? '',
-    audioFeatures: json['audio_features'] != null
+    audioFeatures: json['audio_features'] is Map
         ? DeepDiveAudioFeatures.fromJson(
-            json['audio_features'] as Map<String, dynamic>,
+            Map<String, dynamic>.from(json['audio_features'] as Map),
           )
         : const DeepDiveAudioFeatures(
             energy: 0,
@@ -140,14 +140,14 @@ class SongDeepDiveResponse {
           ),
     totalPlays: _parseInt(json['total_plays']),
     genuinePlays: _parseInt(json['genuine_plays']),
-    bestContext: json['best_context'] != null
-        ? ContextSummary.fromJson(json['best_context'] as Map<String, dynamic>)
+    bestContext: json['best_context'] is Map
+        ? ContextSummary.fromJson(Map<String, dynamic>.from(json['best_context'] as Map))
         : null,
-    worstContext: json['worst_context'] != null
-        ? ContextSummary.fromJson(json['worst_context'] as Map<String, dynamic>)
+    worstContext: json['worst_context'] is Map
+        ? ContextSummary.fromJson(Map<String, dynamic>.from(json['worst_context'] as Map))
         : null,
     contextHistory: (json['context_history'] as List<dynamic>? ?? [])
-        .map((e) => ContextHistoryItem.fromJson(e as Map<String, dynamic>))
+        .map((e) => ContextHistoryItem.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
   );
 

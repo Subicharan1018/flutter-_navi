@@ -31,16 +31,16 @@ class ListeningStats {
       totalPlays: _parseInt(json['total_plays']),
       totalMinutes: _parseInt(json['total_minutes']),
       topArtists: (json['top_artists'] as List<dynamic>? ?? [])
-          .map((e) => ArtistStat.fromJson(e as Map<String, dynamic>))
+          .map((e) => ArtistStat.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       topAlbums: (json['top_albums'] as List<dynamic>? ?? [])
-          .map((e) => AlbumStat.fromJson(e as Map<String, dynamic>))
+          .map((e) => AlbumStat.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       topTracks: (json['top_tracks'] as List<dynamic>? ?? [])
-          .map((e) => TrackStat.fromJson(e as Map<String, dynamic>))
+          .map((e) => TrackStat.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       recentPlays: (json['recent_plays'] as List<dynamic>? ?? [])
-          .map((e) => RecentPlay.fromJson(e as Map<String, dynamic>))
+          .map((e) => RecentPlay.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
     );
   }

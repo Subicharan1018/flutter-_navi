@@ -184,16 +184,16 @@ class RecommendedSong {
         filePath: json['file_path']?.toString() ?? '',
         genreBucket: json['genre_bucket']?.toString() ?? '',
         composer: json['composer']?.toString() ?? '',
-        audio: json['audio'] is Map<String, dynamic>
-            ? AudioFeatures.fromJson(json['audio'] as Map<String, dynamic>)
+        audio: json['audio'] is Map
+            ? AudioFeatures.fromJson(Map<String, dynamic>.from(json['audio'] as Map))
             : const AudioFeatures(
                 energy: 0,
                 valence: 0,
                 acousticness: 0,
                 danceability: 0,
               ),
-        scores: json['scores'] is Map<String, dynamic>
-            ? SongScores.fromJson(json['scores'] as Map<String, dynamic>)
+        scores: json['scores'] is Map
+            ? SongScores.fromJson(Map<String, dynamic>.from(json['scores'] as Map))
             : const SongScores(
                 contextHistory: 0,
                 audioFit: 0,
@@ -203,30 +203,30 @@ class RecommendedSong {
         why: json['why']?.toString() ?? '',
         isStarter: json['starter'] == true,
         isExplore: json['explore'] == true,
-        pairing: json['pairing'] is Map<String, dynamic>
-            ? SongPairing.fromJson(json['pairing'] as Map<String, dynamic>)
+        pairing: json['pairing'] is Map
+            ? SongPairing.fromJson(Map<String, dynamic>.from(json['pairing'] as Map))
             : null,
       );
 
   static RecommendedSong fromPredictJson(Map<String, dynamic> json) {
-    final af = json['audio_features'] as Map<String, dynamic>? ?? {};
-    final sc = json['scores']        as Map<String, dynamic>? ?? {};
-    final cs = json['context_stats'] as Map<String, dynamic>? ?? {};
+    final af = json['audio_features'] is Map ? Map<String, dynamic>.from(json['audio_features'] as Map) : <String, dynamic>{};
+    final sc = json['scores']        is Map ? Map<String, dynamic>.from(json['scores'] as Map)        : <String, dynamic>{};
+    final cs = json['context_stats'] is Map ? Map<String, dynamic>.from(json['context_stats'] as Map) : <String, dynamic>{};
 
     // always-hear (v3.1) scores: {loyalty, completion_avg, freq_norm,
     //   context_fit, context_spread, recency_decay} — no `final`/`audio_fit`.
     // discovery scores: {audio_fit, composer, final}.
     // Fall back across both shapes so the MATCH bar stays meaningful.
-    final loyalty       = (sc['loyalty']        as num?)?.toDouble();
-    final contextFit    = (sc['context_fit']    as num?)?.toDouble();
-    final completionAvg = (sc['completion_avg'] as num?)?.toDouble();
-    final recencyDecay  = (sc['recency_decay']  as num?)?.toDouble();
-    final overall = (sc['final'] as num?)?.toDouble()
+    final loyalty       = _parseDoubleOrNull(sc['loyalty']);
+    final contextFit    = _parseDoubleOrNull(sc['context_fit']);
+    final completionAvg = _parseDoubleOrNull(sc['completion_avg']);
+    final recencyDecay  = _parseDoubleOrNull(sc['recency_decay']);
+    final overall = _parseDoubleOrNull(sc['final'])
         ?? loyalty
         ?? 0.0;
     // For Always-Hear, "audio fit" in the score breakdown best maps to
     // context fit; Discovery keeps its real audio_fit.
-    final audioFit = (sc['audio_fit'] as num?)?.toDouble()
+    final audioFit = _parseDoubleOrNull(sc['audio_fit'])
         ?? contextFit
         ?? 0.0;
 
@@ -234,31 +234,31 @@ class RecommendedSong {
       rank:          _parseInt(json['rank']),
       title:         json['title']?.toString() ?? json['song_key']?.toString() ?? '',
       // Newly available fields:
-      artist:        json['artist']   as String?,
-      album:         json['album']    as String?,
+      artist:        _parseStringOrNull(json['artist']),
+      album:         _parseStringOrNull(json['album']),
       // Moved inside audio_features:
-      filePath:      af['file_path']  as String? ?? '',
-      genreBucket:   af['genre_bucket'] as String? ?? '',
+      filePath:      af['file_path']?.toString() ?? '',
+      genreBucket:   af['genre_bucket']?.toString() ?? '',
       audio: AudioFeatures(
-        energy:       (af['energy']       as num?)?.toDouble() ?? 0.0,
-        valence:      (af['valence']      as num?)?.toDouble() ?? 0.0,
-        acousticness: (af['acousticness'] as num?)?.toDouble() ?? 0.0,
-        danceability: (af['danceability'] as num?)?.toDouble() ?? 0.0,
+        energy:       _parseDouble(af['energy']),
+        valence:      _parseDouble(af['valence']),
+        acousticness: _parseDouble(af['acousticness']),
+        danceability: _parseDouble(af['danceability']),
       ),
       scores: SongScores(
-        contextHistory:  (sc['history']   as num?)?.toDouble() ?? 0.0,
+        contextHistory:  _parseDouble(sc['history']),
         audioFit:        audioFit,
-        composerLoyalty: (sc['composer']  as num?)?.toDouble() ?? 0.0,
+        composerLoyalty: _parseDouble(sc['composer']),
         finalScore:      overall,
       ),
 
-      tempo:         (af['tempo']         as num?)?.toDouble(),
-      tempoNorm:     (af['tempo_norm']    as num?)?.toDouble(),
-      composer:      json['composer']     as String? ?? '',
+      tempo:         _parseDoubleOrNull(af['tempo']),
+      tempoNorm:     _parseDoubleOrNull(af['tempo_norm']),
+      composer:      json['composer']?.toString() ?? '',
       // Score keys renamed:
-      historyScore:  (sc['history']   as num?)?.toDouble() ?? 0.0,
+      historyScore:  _parseDouble(sc['history']),
       audioFitScore: audioFit,
-      composerScore: (sc['composer']  as num?)?.toDouble() ?? 0.0,
+      composerScore: _parseDouble(sc['composer']),
       finalScore:    overall,
       // v3.1 loyalty signals
       loyalty:       loyalty,
@@ -267,8 +267,8 @@ class RecommendedSong {
       recencyDecay:  recencyDecay,
       daysSincePlay: cs['days_since_play'] == null
           ? null
-          : _parseInt(cs['days_since_play']),
-      why:           json['why']      as String? ?? '',
+          : _parseIntOrNull(cs['days_since_play']),
+      why:           json['why']?.toString() ?? '',
     );
   }
 
@@ -282,6 +282,23 @@ class RecommendedSong {
     if (v is double) return v;
     if (v is int) return v.toDouble();
     return double.tryParse(v?.toString() ?? '') ?? 0.0;
+  }
+
+  static String? _parseStringOrNull(dynamic v) {
+    if (v == null) return null;
+    return v.toString();
+  }
+
+  static double? _parseDoubleOrNull(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString());
+  }
+
+  static int? _parseIntOrNull(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString());
   }
 
   /// Shows a cold-start badge when the model has low confidence.

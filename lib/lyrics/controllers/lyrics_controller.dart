@@ -107,6 +107,7 @@ class LyricsController extends Notifier<LyricsState> {
   // ── Lyrics loading ────────────────────────────────────────────────────────
 
   Future<void> _loadLyrics(Song song) async {
+    _posSub?.cancel();
     state = const LyricsState(status: LyricsStatus.loading);
 
     try {

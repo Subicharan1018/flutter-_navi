@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:ui';
 import 'dart:math' show min;
 import 'dart:math' as math;
 // dart:isolate removed — PaletteGenerator.fromImageProvider requires the
@@ -15,7 +16,6 @@ import '../providers/settings_provider.dart';
 import '../providers/library_provider.dart';
 import '../core/theme.dart';
 import '../core/palette_cache.dart';
-import '../fluid_background.dart';
 import '../widgets/options_menu.dart';
 import '../models/song.dart';
 import '../services/subsonic_service.dart';
@@ -758,6 +758,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
   Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
     final notifier = ref.read(playerProvider.notifier);
+    final settings = ref.watch(settingsProvider);
     // FIX BUG-6: Use typed SubsonicService instead of dynamic.
     final service = ref.read(subsonicServiceProvider);
 
@@ -819,10 +820,28 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           body: Stack(
             fit: StackFit.expand,
             children: [
-              FluidBackground(
-                colors: _blobColors,
-                isPlaying: playerState.isPlaying,
-              ),
+              if (settings.fluidBgEnabled)
+                BlurredArtworkBackground(
+                  imageUrl: imageUrl,
+                  cacheKey: cacheKey,
+                  colors: _blobColors,
+                  isPlaying: playerState.isPlaying,
+                )
+              else
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [
+                          Color.lerp(_blobColors[0], Colors.black, 0.65)!,
+                          Colors.black,
+                        ],
+                      ),
+                    ),
+                  ),
+                ),
               SafeArea(
                 child: Column(
                   children: [
@@ -2015,6 +2034,126 @@ class _EmptyTab extends StatelessWidget {
             style: TextStyle(
               color: ThemeTokens.of(context).textMuted,
               fontSize: 15,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class BlurredArtworkBackground extends StatefulWidget {
+  final String imageUrl;
+  final String? cacheKey;
+  final List<Color> colors;
+  final bool isPlaying;
+
+  const BlurredArtworkBackground({
+    super.key,
+    required this.imageUrl,
+    this.cacheKey,
+    required this.colors,
+    required this.isPlaying,
+  });
+
+  @override
+  State<BlurredArtworkBackground> createState() => _BlurredArtworkBackgroundState();
+}
+
+class _BlurredArtworkBackgroundState extends State<BlurredArtworkBackground>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 45),
+    );
+    if (widget.isPlaying) {
+      _controller.repeat();
+    }
+  }
+
+  @override
+  void didUpdateWidget(BlurredArtworkBackground oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (widget.isPlaying != oldWidget.isPlaying) {
+      if (widget.isPlaying) {
+        _controller.repeat();
+      } else {
+        _controller.stop();
+      }
+    }
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    final overlayColor = tokens.isLight
+        ? Colors.white.withValues(alpha: 0.70)
+        : Colors.black.withValues(alpha: 0.55);
+
+    final fallbackWidget = DecoratedBox(
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            widget.colors[0],
+            widget.colors.length > 1 ? widget.colors[1] : Colors.black,
+          ],
+        ),
+      ),
+    );
+
+    return Positioned.fill(
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: AnimatedBuilder(
+              animation: _controller,
+              builder: (context, child) {
+                final angle = _controller.value * 2 * math.pi;
+                final scale = 1.35 + 0.12 * math.sin(_controller.value * 2 * math.pi);
+                return Transform.rotate(
+                  angle: angle,
+                  child: Transform.scale(
+                    scale: scale,
+                    child: child,
+                  ),
+                );
+              },
+              child: AnimatedSwitcher(
+                duration: const Duration(milliseconds: 1000),
+                child: CachedNetworkImage(
+                  key: ValueKey(widget.imageUrl),
+                  imageUrl: widget.imageUrl,
+                  cacheKey: widget.cacheKey,
+                  fit: BoxFit.cover,
+                  memCacheWidth: 600,
+                  memCacheHeight: 600,
+                  placeholder: (context, url) => fallbackWidget,
+                  errorWidget: (context, url, error) => fallbackWidget,
+                ),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: ClipRect(
+              child: BackdropFilter(
+                filter: ImageFilter.blur(sigmaX: 55, sigmaY: 55),
+                child: Container(
+                  color: overlayColor,
+                ),
+              ),
             ),
           ),
         ],

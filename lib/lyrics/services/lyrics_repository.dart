@@ -132,7 +132,9 @@ class LyricsRepository {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString('$_kCachePrefix$songId');
       if (raw == null) return null;
-      final json = jsonDecode(raw) as Map<String, dynamic>;
+      final decoded = jsonDecode(raw);
+      if (decoded is! Map) return null;
+      final json = Map<String, dynamic>.from(decoded);
       return LyricsResult.fromJson(json, _parseCached);
     } catch (e) {
       debugPrint('[LyricsRepository] Cache read error: $e');

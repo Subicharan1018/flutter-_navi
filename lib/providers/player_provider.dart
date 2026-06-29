@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:io' show Platform;
+import 'dart:io' show Platform, ProcessInfo;
 import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -321,6 +321,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
           _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
             if (!mounted) return;
+            final rssMb = ProcessInfo.currentRss / (1024 * 1024);
+            debugPrint('⚡ [Memory] RSS: ${rssMb.toStringAsFixed(2)} MB (Song: ${capturedNew.title})');
             _collector.onSongStarted(
               song: capturedNew,
               sourceContext: sourceCtx,

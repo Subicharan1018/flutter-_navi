@@ -2,7 +2,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -33,6 +32,29 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
   // PERF-5: guard prevents re-creating AnimationControllers on every rebuild.
   bool _listAnimated = false;
   LibraryFilter? _lastFilter;
+  final ScrollController _scrollController = ScrollController();
+
+  @override
+  void initState() {
+    super.initState();
+    _scrollController.addListener(_onScroll);
+  }
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  void _onScroll() {
+    final filter = ref.read(libraryFilterProvider);
+    if (filter != LibraryFilter.allSongs && filter != LibraryFilter.downloaded) return;
+
+    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
+      final param = PaginatedSongsParam(filter: filter, searchQuery: '');
+      ref.read(paginatedSongsProvider(param).notifier).loadNextPage();
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -44,6 +66,16 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       _listAnimated = false;
     }
 
+    if (!_listAnimated) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && !_listAnimated) {
+          setState(() {
+            _listAnimated = true;
+          });
+        }
+      });
+    }
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: ThemeTokens.of(context).isLight
           ? SystemUiOverlayStyle.dark
@@ -51,6 +83,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
       child: Scaffold(
         backgroundColor: ThemeTokens.of(context).bgBase,
         body: CustomScrollView(
+          controller: _scrollController,
           physics: const BouncingScrollPhysics(),
           slivers: [
             // ── Header ──────────────────────────────────────────────────────
@@ -169,16 +202,31 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
 
             // ── Content sliver — typed per filter (no dynamic erasure) ────
             ...switch (filter) {
-              LibraryFilter.allSongs || LibraryFilter.downloaded =>
-                ref
-                    .watch(sortedSongsProvider)
-                    .when(
-                      data: (songs) => songs.isEmpty
-                          ? [const SliverFillRemaining(child: _EmptyLibrary())]
-                          : [_buildSongSliver(context, songs)],
-                      loading: () => [_loadingSliver(context)],
-                      error: (e, _) => [_errorSliver(context, e)],
-                    ),
+              LibraryFilter.allSongs || LibraryFilter.downloaded => (() {
+                  final param = PaginatedSongsParam(filter: filter, searchQuery: '');
+                  final paginatedState = ref.watch(paginatedSongsProvider(param));
+                  if (paginatedState.songs.isEmpty) {
+                    if (paginatedState.isLoadingMore) {
+                      return [_loadingSliver(context)];
+                    }
+                    return [const SliverFillRemaining(child: _EmptyLibrary())];
+                  }
+                  return [
+                    _buildSongSliver(context, paginatedState.songs),
+                    if (paginatedState.isLoadingMore)
+                      SliverToBoxAdapter(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(vertical: 24),
+                          child: Center(
+                            child: CircularProgressIndicator(
+                              color: ThemeTokens.of(context).accent,
+                              strokeWidth: 2,
+                            ),
+                          ),
+                        ),
+                      ),
+                  ];
+                })(),
               LibraryFilter.albums =>
                 ref
                     .watch(sortedAlbumsProvider)
@@ -256,14 +304,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                   ref.read(playerProvider.notifier).setQueue(songs, index),
             ),
           );
-          if (!_listAnimated) {
-            tile = RepaintBoundary(
-              child: tile.animate().fadeIn(
-                duration: 400.ms,
-                delay: (index * 18).clamp(0, 280).ms,
-              ),
-            );
-          }
           return tile;
         }, childCount: songs.length),
       ),
@@ -366,14 +406,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
           );
-          if (!_listAnimated) {
-            tile = RepaintBoundary(
-              child: tile.animate().fadeIn(
-                duration: 400.ms,
-                delay: (index * 18).clamp(0, 280).ms,
-              ),
-            );
-          }
           return tile;
         }, childCount: albums.length),
       ),
@@ -475,14 +507,6 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
               ),
             ),
           );
-          if (!_listAnimated) {
-            tile = RepaintBoundary(
-              child: tile.animate().fadeIn(
-                duration: 400.ms,
-                delay: (index * 18).clamp(0, 280).ms,
-              ),
-            );
-          }
           return tile;
         }, childCount: playlists.length),
       ),

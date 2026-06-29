@@ -65,7 +65,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final settings = ref.watch(settingsProvider);
     final topPad = MediaQuery.of(context).padding.top;
     final tokens = ThemeTokens.of(context);
-    final disableAnim = MediaQuery.of(context).disableAnimations;
 
     // Parse host for subtitle
     String serverHost = '';
@@ -100,29 +99,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 slivers: [
                   // ── Greeting header ────────────────────────────────────────
                   SliverToBoxAdapter(
-                    child: Builder(builder: (ctx) {
-                      final header = _HomeHeader(
-                        greeting: _greet(),
-                        username: settings.username,
-                        serverHost: serverHost,
-                        topPad: topPad,
-                        onSettings: () => Navigator.push(
-                          ctx,
-                          MaterialPageRoute(
-                              builder: (_) => const SettingsScreen()),
-                        ),
-                      );
-                      return disableAnim
-                          ? header
-                          : header
-                              .animate()
-                              .fadeIn(duration: 500.ms)
-                              .slideY(
-                                begin: -0.04,
-                                end: 0,
-                                curve: Curves.easeOutCubic,
-                              );
-                    }),
+                    child: _HomeHeader(
+                      greeting: _greet(),
+                      username: settings.username,
+                      serverHost: serverHost,
+                      topPad: topPad,
+                      onSettings: () => Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                            builder: (_) => const SettingsScreen()),
+                      ),
+                    ),
                   ),
 
                   // ── Explore ────────────────────────────────────────────────
@@ -130,14 +117,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: _SectionLabel(title: 'Explore'),
                   ),
                   SliverToBoxAdapter(
-                    child: (() {
-                      final child = _ExploreRow();
-                      return disableAnim
-                          ? child
-                          : child
-                              .animate(delay: 60.ms)
-                              .fadeIn(duration: 400.ms);
-                    }()),
+                    child: const _ExploreRow(),
                   ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 4)),
@@ -147,18 +127,11 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: _SectionLabel(title: 'Recently Played'),
                   ),
                   SliverToBoxAdapter(
-                    child: (() {
-                      final child = _RecentlyPlayedSection(
-                        tabController: _recentlyPlayedTab,
-                        albumsAsync: recentAlbumsAsync,
-                        tracksAsync: recentTracksAsync,
-                      );
-                      return disableAnim
-                          ? child
-                          : child
-                              .animate(delay: 80.ms)
-                              .fadeIn(duration: 400.ms);
-                    }()),
+                    child: _RecentlyPlayedSection(
+                      tabController: _recentlyPlayedTab,
+                      albumsAsync: recentAlbumsAsync,
+                      tracksAsync: recentTracksAsync,
+                    ),
                   ),
 
                   const SliverToBoxAdapter(child: SizedBox(height: 4)),
@@ -171,7 +144,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                     child: playlistsAsync.when(
                       data: (playlists) {
                         if (playlists.isEmpty) return const SizedBox();
-                        final grid = _QuickPlayGrid(
+                        return _QuickPlayGrid(
                           items: playlists.take(6).toList(),
                           onTap: (pl) async {
                             final svc = ref.read(subsonicServiceProvider);
@@ -196,11 +169,6 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                             }
                           },
                         );
-                        return disableAnim
-                            ? grid
-                            : grid
-                                .animate(delay: 100.ms)
-                                .fadeIn(duration: 400.ms);
                       },
                       loading: () => const _ShimmerGrid(),
                       error: (error, stackTrace) => const SizedBox(),
@@ -357,7 +325,7 @@ class _HomeHeader extends ConsumerWidget {
                   color: tokens.bgSurface,
                   shape: BoxShape.circle,
                   border: Border.all(
-                      color: tokens.outline.withValues(alpha: 0.6), width: 0.8),
+                      color: tokens.outline.withValues(alpha: 0.6), width: 1.0),
                 ),
                 child: Icon(
                   Icons.settings_outlined,
@@ -498,12 +466,13 @@ class _ExploreCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: height,
+          clipBehavior: Clip.antiAlias,
           decoration: BoxDecoration(
             color: bgColor,
             borderRadius: BorderRadius.circular(16),
             border: Border.all(
               color: color.withValues(alpha: 0.20),
-              width: 0.8,
+              width: 1.0,
             ),
           ),
           child: Stack(
@@ -667,7 +636,7 @@ class _DefaultSegmentedControl extends StatelessWidget {
       decoration: BoxDecoration(
         color: t.bgSurface,
         borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: t.outline, width: 0.7),
+        border: Border.all(color: t.outline, width: 1.0),
       ),
       child: Row(
         children: List.generate(labels.length, (i) {
@@ -775,7 +744,7 @@ class _FrostSegmentedControl extends StatelessWidget {
                   borderRadius: BorderRadius.circular(7),
                   border: isActive
                       ? Border.all(
-                          color: t.accent.withValues(alpha: 0.5), width: 0.8)
+                          color: t.accent.withValues(alpha: 0.5), width: 1.0)
                       : null,
                 ),
                 alignment: Alignment.center,
@@ -1180,7 +1149,7 @@ class _EmptyCarouselHint extends StatelessWidget {
         decoration: BoxDecoration(
           color: t.bgSurface,
           borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: t.outline, width: 0.7),
+          border: Border.all(color: t.outline, width: 1.0),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
@@ -1289,7 +1258,7 @@ class _QuickTile extends ConsumerWidget {
             borderRadius: BorderRadius.circular(12),
             border: Border.all(
               color: accentColor.withValues(alpha: 0.14),
-              width: 0.7,
+              width: 1.0,
             ),
           ),
           clipBehavior: Clip.hardEdge,

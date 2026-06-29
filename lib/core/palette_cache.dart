@@ -114,15 +114,22 @@ class PaletteCache {
     if (existing != null) return existing;
 
     try {
+      final imageProvider = ResizeImage(
+        CachedNetworkImageProvider(imageUrl),
+        width: 120,
+        height: 120,
+      );
       final palette = await PaletteGenerator.fromImageProvider(
-        ResizeImage(
-          CachedNetworkImageProvider(imageUrl),
-          width: 120,
-          height: 120,
-        ),
+        imageProvider,
         size: const Size(60, 60), // standard size for fast extraction
         maximumColorCount: 16,
       );
+
+      try {
+        await imageProvider.evict();
+      } catch (e) {
+        debugPrint('⚠️ Error evicting palette image: $e');
+      }
 
       Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
         final hsl = HSLColor.fromColor(base);

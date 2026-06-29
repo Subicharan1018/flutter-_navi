@@ -10,6 +10,7 @@ import '../models/song.dart';
 import 'subsonic_service.dart';
 import 'replay_gain_service.dart';
 import 'transcoding_service.dart';
+import 'cache_settings_service.dart';
 import '../providers/settings_provider.dart';
 import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
@@ -289,7 +290,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   AudioSource _toSourceWithPaths(Song song, Map<String, String?> offlinePaths) {
-    final localPath = offlinePaths[song.id];
+    final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
+    final localPath = musicCacheEnabled ? offlinePaths[song.id] : null;
     final streamUri = localPath != null
         ? Uri.parse('file://$localPath')
         : Uri.parse(subsonicService.getStreamUrl(

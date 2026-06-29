@@ -136,14 +136,14 @@ class NextResponse {
     source: json['source']?.toString() ?? 'smart',
     playlistId: json['playlist_id']?.toString(),
     queue: (json['queue'] as List<dynamic>? ?? [])
-        .map((e) => RecommendedSong.fromJson(e as Map<String, dynamic>))
+        .map((e) => RecommendedSong.fromJson(Map<String, dynamic>.from(e as Map)))
         .toList(),
-    context: json['context'] is Map<String, dynamic>
-        ? QueueContext.fromJson(json['context'] as Map<String, dynamic>)
+    context: json['context'] is Map
+        ? QueueContext.fromJson(Map<String, dynamic>.from(json['context'] as Map))
         : null,
-    reshuffle: json['reshuffle'] as bool? ?? false,
-    sessionStarter: json['session_starter'] is Map<String, dynamic>
-        ? SessionStarter.fromJson(json['session_starter'] as Map<String, dynamic>)
+    reshuffle: json['reshuffle'] == true || json['reshuffle'] == 1 || json['reshuffle']?.toString().toLowerCase() == 'true',
+    sessionStarter: json['session_starter'] is Map
+        ? SessionStarter.fromJson(Map<String, dynamic>.from(json['session_starter'] as Map))
         : null,
   );
 }

@@ -60,7 +60,7 @@ class ListeningHistoryResponse {
         offset: _parseInt(json['offset']),
         limit: _parseInt(json['limit']),
         items: (json['items'] as List<dynamic>? ?? [])
-            .map((e) => PlayHistoryItem.fromJson(e as Map<String, dynamic>))
+            .map((e) => PlayHistoryItem.fromJson(Map<String, dynamic>.from(e as Map)))
             .toList(),
       );
 

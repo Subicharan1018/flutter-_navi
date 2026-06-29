@@ -973,6 +973,17 @@ class $SongMetadataTable extends SongMetadata
     type: DriftSqlType.int,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _createdAtMeta = const VerificationMeta(
+    'createdAt',
+  );
+  @override
+  late final GeneratedColumn<int> createdAt = GeneratedColumn<int>(
+    'created_at',
+    aliasedName,
+    true,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     songId,
@@ -987,6 +998,7 @@ class $SongMetadataTable extends SongMetadata
     rating,
     starred,
     updatedAt,
+    createdAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1087,6 +1099,12 @@ class $SongMetadataTable extends SongMetadata
     } else if (isInserting) {
       context.missing(_updatedAtMeta);
     }
+    if (data.containsKey('created_at')) {
+      context.handle(
+        _createdAtMeta,
+        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
+      );
+    }
     return context;
   }
 
@@ -1144,6 +1162,10 @@ class $SongMetadataTable extends SongMetadata
         DriftSqlType.int,
         data['${effectivePrefix}updated_at'],
       )!,
+      createdAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}created_at'],
+      ),
     );
   }
 
@@ -1167,6 +1189,7 @@ class SongMetadataEntity extends DataClass
   final int rating;
   final bool starred;
   final int updatedAt;
+  final int? createdAt;
   const SongMetadataEntity({
     required this.songId,
     required this.trackName,
@@ -1180,6 +1203,7 @@ class SongMetadataEntity extends DataClass
     required this.rating,
     required this.starred,
     required this.updatedAt,
+    this.createdAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1202,6 +1226,9 @@ class SongMetadataEntity extends DataClass
     map['rating'] = Variable<int>(rating);
     map['starred'] = Variable<bool>(starred);
     map['updated_at'] = Variable<int>(updatedAt);
+    if (!nullToAbsent || createdAt != null) {
+      map['created_at'] = Variable<int>(createdAt);
+    }
     return map;
   }
 
@@ -1223,6 +1250,9 @@ class SongMetadataEntity extends DataClass
       rating: Value(rating),
       starred: Value(starred),
       updatedAt: Value(updatedAt),
+      createdAt: createdAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(createdAt),
     );
   }
 
@@ -1244,6 +1274,7 @@ class SongMetadataEntity extends DataClass
       rating: serializer.fromJson<int>(json['rating']),
       starred: serializer.fromJson<bool>(json['starred']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
+      createdAt: serializer.fromJson<int?>(json['createdAt']),
     );
   }
   @override
@@ -1262,6 +1293,7 @@ class SongMetadataEntity extends DataClass
       'rating': serializer.toJson<int>(rating),
       'starred': serializer.toJson<bool>(starred),
       'updatedAt': serializer.toJson<int>(updatedAt),
+      'createdAt': serializer.toJson<int?>(createdAt),
     };
   }
 
@@ -1278,6 +1310,7 @@ class SongMetadataEntity extends DataClass
     int? rating,
     bool? starred,
     int? updatedAt,
+    Value<int?> createdAt = const Value.absent(),
   }) => SongMetadataEntity(
     songId: songId ?? this.songId,
     trackName: trackName ?? this.trackName,
@@ -1291,6 +1324,7 @@ class SongMetadataEntity extends DataClass
     rating: rating ?? this.rating,
     starred: starred ?? this.starred,
     updatedAt: updatedAt ?? this.updatedAt,
+    createdAt: createdAt.present ? createdAt.value : this.createdAt,
   );
   SongMetadataEntity copyWithCompanion(SongMetadataCompanion data) {
     return SongMetadataEntity(
@@ -1310,6 +1344,7 @@ class SongMetadataEntity extends DataClass
       rating: data.rating.present ? data.rating.value : this.rating,
       starred: data.starred.present ? data.starred.value : this.starred,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
+      createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
     );
   }
 
@@ -1327,7 +1362,8 @@ class SongMetadataEntity extends DataClass
           ..write('playCount: $playCount, ')
           ..write('rating: $rating, ')
           ..write('starred: $starred, ')
-          ..write('updatedAt: $updatedAt')
+          ..write('updatedAt: $updatedAt, ')
+          ..write('createdAt: $createdAt')
           ..write(')'))
         .toString();
   }
@@ -1346,6 +1382,7 @@ class SongMetadataEntity extends DataClass
     rating,
     starred,
     updatedAt,
+    createdAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -1362,7 +1399,8 @@ class SongMetadataEntity extends DataClass
           other.playCount == this.playCount &&
           other.rating == this.rating &&
           other.starred == this.starred &&
-          other.updatedAt == this.updatedAt);
+          other.updatedAt == this.updatedAt &&
+          other.createdAt == this.createdAt);
 }
 
 class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
@@ -1378,6 +1416,7 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
   final Value<int> rating;
   final Value<bool> starred;
   final Value<int> updatedAt;
+  final Value<int?> createdAt;
   final Value<int> rowid;
   const SongMetadataCompanion({
     this.songId = const Value.absent(),
@@ -1392,6 +1431,7 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     this.rating = const Value.absent(),
     this.starred = const Value.absent(),
     this.updatedAt = const Value.absent(),
+    this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongMetadataCompanion.insert({
@@ -1407,6 +1447,7 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     this.rating = const Value.absent(),
     this.starred = const Value.absent(),
     required int updatedAt,
+    this.createdAt = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : songId = Value(songId),
        trackName = Value(trackName),
@@ -1427,6 +1468,7 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     Expression<int>? rating,
     Expression<bool>? starred,
     Expression<int>? updatedAt,
+    Expression<int>? createdAt,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1442,6 +1484,7 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
       if (rating != null) 'rating': rating,
       if (starred != null) 'starred': starred,
       if (updatedAt != null) 'updated_at': updatedAt,
+      if (createdAt != null) 'created_at': createdAt,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1459,6 +1502,7 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     Value<int>? rating,
     Value<bool>? starred,
     Value<int>? updatedAt,
+    Value<int?>? createdAt,
     Value<int>? rowid,
   }) {
     return SongMetadataCompanion(
@@ -1474,6 +1518,7 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
       rating: rating ?? this.rating,
       starred: starred ?? this.starred,
       updatedAt: updatedAt ?? this.updatedAt,
+      createdAt: createdAt ?? this.createdAt,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1517,6 +1562,9 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     if (updatedAt.present) {
       map['updated_at'] = Variable<int>(updatedAt.value);
     }
+    if (createdAt.present) {
+      map['created_at'] = Variable<int>(createdAt.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1538,6 +1586,7 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
           ..write('rating: $rating, ')
           ..write('starred: $starred, ')
           ..write('updatedAt: $updatedAt, ')
+          ..write('createdAt: $createdAt, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4466,6 +4515,7 @@ typedef $$SongMetadataTableCreateCompanionBuilder =
       Value<int> rating,
       Value<bool> starred,
       required int updatedAt,
+      Value<int?> createdAt,
       Value<int> rowid,
     });
 typedef $$SongMetadataTableUpdateCompanionBuilder =
@@ -4482,6 +4532,7 @@ typedef $$SongMetadataTableUpdateCompanionBuilder =
       Value<int> rating,
       Value<bool> starred,
       Value<int> updatedAt,
+      Value<int?> createdAt,
       Value<int> rowid,
     });
 
@@ -4551,6 +4602,11 @@ class $$SongMetadataTableFilterComposer
 
   ColumnFilters<int> get updatedAt => $composableBuilder(
     column: $table.updatedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4623,6 +4679,11 @@ class $$SongMetadataTableOrderingComposer
     column: $table.updatedAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get createdAt => $composableBuilder(
+    column: $table.createdAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SongMetadataTableAnnotationComposer
@@ -4673,6 +4734,9 @@ class $$SongMetadataTableAnnotationComposer
 
   GeneratedColumn<int> get updatedAt =>
       $composableBuilder(column: $table.updatedAt, builder: (column) => column);
+
+  GeneratedColumn<int> get createdAt =>
+      $composableBuilder(column: $table.createdAt, builder: (column) => column);
 }
 
 class $$SongMetadataTableTableManager
@@ -4722,6 +4786,7 @@ class $$SongMetadataTableTableManager
                 Value<int> rating = const Value.absent(),
                 Value<bool> starred = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
+                Value<int?> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongMetadataCompanion(
                 songId: songId,
@@ -4736,6 +4801,7 @@ class $$SongMetadataTableTableManager
                 rating: rating,
                 starred: starred,
                 updatedAt: updatedAt,
+                createdAt: createdAt,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4752,6 +4818,7 @@ class $$SongMetadataTableTableManager
                 Value<int> rating = const Value.absent(),
                 Value<bool> starred = const Value.absent(),
                 required int updatedAt,
+                Value<int?> createdAt = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongMetadataCompanion.insert(
                 songId: songId,
@@ -4766,6 +4833,7 @@ class $$SongMetadataTableTableManager
                 rating: rating,
                 starred: starred,
                 updatedAt: updatedAt,
+                createdAt: createdAt,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

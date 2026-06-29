@@ -72,21 +72,39 @@ class PredictContext {
   factory PredictContext.fromJson(Map<String, dynamic> json) {
     // always-hear: weather is a nested Map { "code", "mood", "temperature_c" }
     // discovery:   weather_mood is a flat String
-    final weatherObj = json['weather'] as Map<String, dynamic>?;
-    final flatMood = json['weather_mood'] as String?;
+    final weatherObj = json['weather'] is Map ? Map<String, dynamic>.from(json['weather'] as Map) : null;
+    final flatMood = json['weather_mood']?.toString();
 
     return PredictContext(
-      bucket:        json['bucket'] as String,
-      fallbackLevel: json['fallback_level'] as int? ?? 0,
-      nInProfile:    json['n_in_profile'] as int? ?? 0,
-      weatherMood:   weatherObj?['mood'] as String?
+      bucket:        json['bucket']?.toString() ?? '',
+      fallbackLevel: _parseInt(json['fallback_level']),
+      nInProfile:    _parseInt(json['n_in_profile']),
+      weatherMood:   weatherObj?['mood']?.toString()
                      ?? flatMood
                      ?? 'clear',
-      weatherCode:   weatherObj?['code'] as int?,
-      temperatureC:  (weatherObj?['temperature_c'] as num?)?.toDouble(),
-      maxPriorPlays: json['max_prior_plays'] as int?,
-      timestampIst:  json['timestamp_ist'] as String? ?? '',
+      weatherCode:   weatherObj != null ? _parseIntOrNull(weatherObj['code']) : _parseIntOrNull(json['weather_code']),
+      temperatureC:  weatherObj != null ? _parseDoubleOrNull(weatherObj['temperature_c']) : _parseDoubleOrNull(json['temperature_c']),
+      maxPriorPlays: _parseIntOrNull(json['max_prior_plays']),
+      timestampIst:  json['timestamp_ist']?.toString() ?? '',
     );
+  }
+
+  static int _parseInt(dynamic v) {
+    if (v is int) return v;
+    if (v is double) return v.toInt();
+    return int.tryParse(v?.toString() ?? '') ?? 0;
+  }
+
+  static double? _parseDoubleOrNull(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toDouble();
+    return double.tryParse(v.toString());
+  }
+
+  static int? _parseIntOrNull(dynamic v) {
+    if (v == null) return null;
+    if (v is num) return v.toInt();
+    return int.tryParse(v.toString());
   }
 
   @override
@@ -119,14 +137,23 @@ class PredictResponse {
     final rawList =
         (json['predictions'] ?? json['discovery_pool']) as List<dynamic>? ?? [];
 
+    final requestContextJson = json['request_context'];
+    final requestContext = requestContextJson is Map
+        ? PredictContext.fromJson(Map<String, dynamic>.from(requestContextJson))
+        : const PredictContext(
+            bucket: '',
+            fallbackLevel: 3,
+            nInProfile: 0,
+            weatherMood: 'clear',
+            timestampIst: '',
+          );
+
     return PredictResponse(
-      requestContext: PredictContext.fromJson(
-        json['request_context'] as Map<String, dynamic>,
-      ),
+      requestContext: requestContext,
       count: json['count'] as int? ?? rawList.length,
       songs: rawList
-          .cast<Map<String, dynamic>>()
-          .map(RecommendedSong.fromPredictJson)
+          .whereType<Map>()
+          .map((e) => RecommendedSong.fromPredictJson(Map<String, dynamic>.from(e)))
           .toList(),
       mode: mode,
     );

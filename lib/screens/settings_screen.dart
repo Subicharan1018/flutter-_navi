@@ -664,7 +664,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   value: _imageCacheEnabled,
                   onChanged: (v) {
                     setState(() => _imageCacheEnabled = v);
-                    ref.read(cacheSettingsProvider).setImageCacheEnabled(v);
+                    ref.read(cacheSettingsNotifierProvider.notifier).setImageCacheEnabled(v);
                   },
                 ),
                 _SettingsDivider(),
@@ -673,7 +673,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   value: _musicCacheEnabled,
                   onChanged: (v) {
                     setState(() => _musicCacheEnabled = v);
-                    ref.read(cacheSettingsProvider).setMusicCacheEnabled(v);
+                    ref.read(cacheSettingsNotifierProvider.notifier).setMusicCacheEnabled(v);
                   },
                 ),
                 _SettingsDivider(),
@@ -683,7 +683,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   value: _bpmCacheEnabled,
                   onChanged: (v) {
                     setState(() => _bpmCacheEnabled = v);
-                    ref.read(cacheSettingsProvider).setBpmCacheEnabled(v);
+                    ref.read(cacheSettingsNotifierProvider.notifier).setBpmCacheEnabled(v);
                   },
                 ),
               ],

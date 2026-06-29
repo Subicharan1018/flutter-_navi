@@ -36,6 +36,7 @@ class SongMetadata extends Table {
   IntColumn get rating => integer().withDefault(const Constant(0))();
   BoolColumn get starred => boolean().withDefault(const Constant(false))();
   IntColumn get updatedAt => integer()();
+  IntColumn get createdAt => integer().nullable()();
 
   @override
   Set<Column> get primaryKey => {songId};

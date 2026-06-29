@@ -411,6 +411,61 @@ final listenerCollectorProvider = Provider<ListeningEventCollector>((ref) {
 // New feature providers
 // ---------------------------------------------------------------------------
 
+class CacheSettings {
+  final bool imageCacheEnabled;
+  final bool musicCacheEnabled;
+  final bool bpmCacheEnabled;
+
+  const CacheSettings({
+    required this.imageCacheEnabled,
+    required this.musicCacheEnabled,
+    required this.bpmCacheEnabled,
+  });
+}
+
+class CacheSettingsNotifier extends Notifier<CacheSettings> {
+  @override
+  CacheSettings build() {
+    final service = CacheSettingsService();
+    return CacheSettings(
+      imageCacheEnabled: service.getImageCacheEnabled(),
+      musicCacheEnabled: service.getMusicCacheEnabled(),
+      bpmCacheEnabled: service.getBpmCacheEnabled(),
+    );
+  }
+
+  Future<void> setImageCacheEnabled(bool enabled) async {
+    await CacheSettingsService().setImageCacheEnabled(enabled);
+    state = CacheSettings(
+      imageCacheEnabled: enabled,
+      musicCacheEnabled: state.musicCacheEnabled,
+      bpmCacheEnabled: state.bpmCacheEnabled,
+    );
+  }
+
+  Future<void> setMusicCacheEnabled(bool enabled) async {
+    await CacheSettingsService().setMusicCacheEnabled(enabled);
+    state = CacheSettings(
+      imageCacheEnabled: state.imageCacheEnabled,
+      musicCacheEnabled: enabled,
+      bpmCacheEnabled: state.bpmCacheEnabled,
+    );
+  }
+
+  Future<void> setBpmCacheEnabled(bool enabled) async {
+    await CacheSettingsService().setBpmCacheEnabled(enabled);
+    state = CacheSettings(
+      imageCacheEnabled: state.imageCacheEnabled,
+      musicCacheEnabled: state.musicCacheEnabled,
+      bpmCacheEnabled: enabled,
+    );
+  }
+}
+
+final cacheSettingsNotifierProvider = NotifierProvider<CacheSettingsNotifier, CacheSettings>(
+  CacheSettingsNotifier.new,
+);
+
 /// Singleton [CacheSettingsService] — manages image/music/BPM cache toggles.
 final cacheSettingsProvider = Provider<CacheSettingsService>((ref) {
   return CacheSettingsService();

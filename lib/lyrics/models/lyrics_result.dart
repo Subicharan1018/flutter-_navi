@@ -29,8 +29,8 @@ class LyricsResult {
     Map<String, dynamic> json,
     SyncedLyrics? Function(String type, String text) parser,
   ) {
-    final typeName = json['type'] as String? ?? 'none';
-    final raw = json['rawText'] as String? ?? '';
+    final typeName = json['type']?.toString() ?? 'none';
+    final raw = json['rawText']?.toString() ?? '';
     final t = LyricsType.values.firstWhere(
       (e) => e.name == typeName,
       orElse: () => LyricsType.none,
