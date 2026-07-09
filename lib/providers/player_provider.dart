@@ -353,7 +353,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
                     positionAtSwitch.inSeconds >
                         (prevSong.duration * 0.8).toInt(),
               );
-          _audioHandler.refreshReplayGain();
         }
 
         if (!_suppressNextHistoryPush &&

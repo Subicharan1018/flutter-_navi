@@ -79,7 +79,6 @@ Future<void> main() async {
     globalAudioHandler = await AudioService.init<NaviAudioHandler>(
       builder: () => NaviAudioHandler(
         container.read(subsonicServiceProvider),
-        replayGainService: container.read(replayGainProvider),
         transcodingService: container.read(transcodingProvider),
       ),
       config: const AudioServiceConfig(
@@ -93,7 +92,6 @@ Future<void> main() async {
     debugPrint('⚠️  AudioService.init failed ($e)\n$st');
     globalAudioHandler = NaviAudioHandler(
       container.read(subsonicServiceProvider),
-      replayGainService: container.read(replayGainProvider),
       transcodingService: container.read(transcodingProvider),
     );
   }

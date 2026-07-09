@@ -14,6 +14,7 @@ import '../models/listening_history_response.dart';
 import '../models/contribution_graph_response.dart';
 import '../models/song_deep_dive_response.dart';
 import '../models/predict_response.dart';
+import '../models/replay_response.dart';
 import 'shuffle_exception.dart';
 
 class ShuffleRepository {
@@ -197,4 +198,16 @@ class ShuffleRepository {
 
   Future<SongDeepDiveResponse> getSongDeepDive({required String title}) =>
       _api.getSongDeepDive(title: title);
+
+  // ---------------------------------------------------------------------------
+  // Replay
+  // ---------------------------------------------------------------------------
+
+  Future<YearlyReplayResponse> getYearlyReplay({int? year}) =>
+      _api.getYearlyReplay(year: year);
+
+  Future<MonthlyReplayResponse> getMonthlyReplay({
+    required int year,
+    required int month,
+  }) => _api.getMonthlyReplay(year: year, month: month);
 }

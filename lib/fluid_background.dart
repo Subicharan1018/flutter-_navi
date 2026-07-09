@@ -278,8 +278,8 @@ class _FluidBackgroundState extends State<FluidBackground>
             begin: Alignment.topCenter,
             end: Alignment.bottomCenter,
             colors: [
-              Color.lerp(_currentColors[0], Colors.black, 0.65)!,
-              Colors.black,
+              _currentColors[0],
+              _currentColors.length > 1 ? _currentColors[1] : Colors.black,
             ],
           ),
         ),
@@ -298,7 +298,10 @@ class _FluidBackgroundState extends State<FluidBackground>
           tColor: _tColor,
         ),
         size: Size.infinite,
-        isComplex: false,
+        // isComplex: true hints Skia's raster cache to store the shader result
+        // across frames when nothing changes (e.g. during paused playback),
+        // reducing redundant GPU re-executions of the fragment shader.
+        isComplex: true,
         willChange: true,
       ),
     );

@@ -7,7 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
 import '../providers/player_provider.dart';
 import '../services/subsonic_service.dart';
-import '../services/replay_gain_service.dart';
+
 import '../services/transcoding_service.dart';
 import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
@@ -43,10 +43,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   int _wifiBitrate = TranscodeBitrate.original;
   int _mobileBitrate = TranscodeBitrate.kbps192;
   String _transcodeFormat = TranscodeFormat.mp3;
-  ReplayGainMode _replayGainMode = ReplayGainMode.off;
-  double _preampGain = 0.0;
-  bool _preventClipping = true;
-  double _fallbackGain = -6.0;
   bool _recommendationsEnabled = true;
 
   @override
@@ -73,8 +69,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _loadNewFeatureSettings() async {
     final cache = ref.read(cacheSettingsProvider);
     await cache.initialize();
-    final replay = ref.read(replayGainProvider);
-    await replay.initialize();
     final transcoding = ref.read(transcodingProvider);
     final rec = ref.read(recommendationProvider);
 
@@ -88,10 +82,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         _wifiBitrate = transcoding.wifiBitrate;
         _mobileBitrate = transcoding.mobileBitrate;
         _transcodeFormat = transcoding.format;
-        _replayGainMode = replay.getMode();
-        _preampGain = replay.getPreampGain();
-        _preventClipping = replay.getPreventClipping();
-        _fallbackGain = replay.getFallbackGain();
         _recommendationsEnabled = rec.enabled;
       });
     }
@@ -753,110 +743,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             SizedBox(height: 32),
 
             // ----------------------------------------------------------------
-            // Replay Gain
-            // ----------------------------------------------------------------
-            _SettingsGroup(
-              title: 'Volume normalisation',
-              children: [
-                _SettingsNavRow(
-                  title: 'Mode',
-                  value: switch (_replayGainMode) {
-                              ReplayGainMode.off   => 'Off',
-                              ReplayGainMode.track => 'By track',
-                              ReplayGainMode.album => 'By album',
-                            },
-                  onTap: () => _showReplayGainModeSelector(),
-                ),
-                if (_replayGainMode != ReplayGainMode.off) ...[
-                  _SettingsDivider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Pre-amp',
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textPrimary,
-                            fontSize: 15,
-                          ),
-                        ),
-                        Text(
-                          '${_preampGain.toStringAsFixed(1)} dB',
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textMuted,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Slider(
-                    value: _preampGain,
-                    min: -15.0,
-                    max: 15.0,
-                    divisions: 60,
-                    activeColor: ThemeTokens.of(context).accent,
-                    onChanged: (v) {
-                      setState(() => _preampGain = v);
-                      ref.read(replayGainProvider).setPreampGain(v);
-                    },
-                  ),
-                  _SettingsDivider(),
-                  SettingsToggleRow(
-                    title: 'Prevent Clipping',
-                    value: _preventClipping,
-                    onChanged: (v) {
-                      setState(() => _preventClipping = v);
-                      ref.read(replayGainProvider).setPreventClipping(v);
-                    },
-                  ),
-                  _SettingsDivider(),
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 8,
-                    ),
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      children: [
-                        Text(
-                          'Fallback gain',
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textPrimary,
-                            fontSize: 15,
-                          ),
-                        ),
-                        Text(
-                          '${_fallbackGain.toStringAsFixed(1)} dB',
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textMuted,
-                            fontSize: 15,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Slider(
-                    value: _fallbackGain,
-                    min: -15.0,
-                    max: 0.0,
-                    divisions: 30,
-                    activeColor: ThemeTokens.of(context).accent,
-                    onChanged: (v) {
-                      setState(() => _fallbackGain = v);
-                      ref.read(replayGainProvider).setFallbackGain(v);
-                    },
-                  ),
-                ],
-              ],
-            ),
-            SizedBox(height: 32),
-
-            // ----------------------------------------------------------------
             // Recommendations
             // ----------------------------------------------------------------
             _SettingsGroup(
@@ -1019,36 +905,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               TranscodeFormat.getLabel(f),
               style: TextStyle(
                 fontWeight: f == _transcodeFormat
-                    ? FontWeight.bold
-                    : FontWeight.normal,
-              ),
-            ),
-          );
-        }).toList(),
-        cancelButton: CupertinoActionSheetAction(
-          onPressed: () => Navigator.pop(ctx),
-          child: Text('Cancel'),
-        ),
-      ),
-    );
-  }
-
-  void _showReplayGainModeSelector() {
-    showCupertinoModalPopup(
-      context: context,
-      builder: (ctx) => CupertinoActionSheet(
-        title: Text('Volume normalisation mode'),
-        actions: ReplayGainMode.values.map((m) {
-          return CupertinoActionSheetAction(
-            onPressed: () {
-              Navigator.pop(ctx);
-              setState(() => _replayGainMode = m);
-              ref.read(replayGainProvider).setMode(m);
-            },
-            child: Text(
-              m.name.toUpperCase(),
-              style: TextStyle(
-                fontWeight: m == _replayGainMode
                     ? FontWeight.bold
                     : FontWeight.normal,
               ),

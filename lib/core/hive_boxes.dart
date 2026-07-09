@@ -107,10 +107,7 @@ class HiveBoxes {
   static const kMobileBitrate = 'transcoding_mobile_bitrate';
   static const kTranscodeFormat = 'transcoding_format';
   static const kConnectionType = 'transcoding_connection_type';
-  static const kReplayGainMode = 'replay_gain_mode';
-  static const kPreampGain = 'replay_gain_preamp';
-  static const kPreventClipping = 'replay_gain_prevent_clipping';
-  static const kFallbackGain = 'replay_gain_fallback';
+
 
   // ---------------------------------------------------------------------------
   // One-time migration from SharedPreferences → Hive
@@ -186,16 +183,6 @@ class HiveBoxes {
         kConnectionType,
       );
 
-      // Audio — replay gain
-      await _migrateInt(sp, 'replay_gain_mode', audio, kReplayGainMode);
-      await _migrateDouble(sp, 'replay_gain_preamp', audio, kPreampGain);
-      await _migrateBool(
-        sp,
-        'replay_gain_prevent_clipping',
-        audio,
-        kPreventClipping,
-      );
-      await _migrateDouble(sp, 'replay_gain_fallback', audio, kFallbackGain);
 
       // Search history
       final searchHistory = sp.getStringList('search_history');
@@ -261,16 +248,4 @@ class HiveBoxes {
     }
   }
 
-  static Future<void> _migrateDouble(
-    SharedPreferences sp,
-    String spKey,
-    Box box,
-    String hiveKey,
-  ) async {
-    final val = sp.getDouble(spKey);
-    if (val != null) {
-      await box.put(hiveKey, val);
-      await sp.remove(spKey);
-    }
-  }
 }

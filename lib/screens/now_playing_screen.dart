@@ -786,14 +786,26 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         : _lastKnownImageUrl!;
     final cacheKey = 'cover_${song.coverArt.isNotEmpty ? song.coverArt : song.id}';
 
-    // FIX BUG-3: Only schedule extraction when the song actually changes.
-    // The guard inside _triggerPaletteExtraction makes this safe to call
-    // from build, but we additionally avoid the addPostFrameCallback overhead
-    // on every frame by checking song.id first.
+    // OPT #7: If the cache already has this song's colors, apply them
+    // synchronously before the first paint via a microtask so the background
+    // renders with the right colors on frame 1, not frame 2.
+    // addPostFrameCallback is only needed for the async extraction path.
     if (_lastExtractedSongId != song.id) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) _triggerPaletteExtraction(song.id, imageUrl);
-      });
+      final alreadyCached = PaletteCache.instance.getColorsFor(song.id);
+      if (alreadyCached != null) {
+        // Synchronous update: palette was already extracted (e.g. by mini-player).
+        _lastExtractedSongId = song.id;
+        if (!listEquals(_blobColors, alreadyCached)) {
+          // Safe to mutate state fields here — we are inside build() before
+          // the widget tree is returned, so no setState() call needed.
+          _blobColors = alreadyCached;
+        }
+      } else {
+        // Cache miss: kick off async extraction after the frame is done.
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _triggerPaletteExtraction(song.id, imageUrl);
+        });
+      }
     }
 
     final isShuffleActive = playerState.shuffleMode;
@@ -816,7 +828,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
         curve: Curves.easeOutCubic,
         transform: Matrix4.translationValues(0, _dragOffset, 0),
         child: Scaffold(
-          backgroundColor: ThemeTokens.of(context).bgBase,
+          backgroundColor: Colors.black,
           body: Stack(
             fit: StackFit.expand,
             children: [
@@ -2062,53 +2074,41 @@ class BlurredArtworkBackground extends StatefulWidget {
 
 class _BlurredArtworkBackgroundState extends State<BlurredArtworkBackground>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _controller;
+  // Slow drift animation — moves the color blobs like Apple Music.
+  // One cycle = 60 s, so motion is imperceptibly gentle.
+  late final AnimationController _drift;
 
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
+    _drift = AnimationController(
       vsync: this,
-      duration: const Duration(seconds: 45),
-    );
-    if (widget.isPlaying) {
-      _controller.repeat();
-    }
-  }
-
-  @override
-  void didUpdateWidget(BlurredArtworkBackground oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (widget.isPlaying != oldWidget.isPlaying) {
-      if (widget.isPlaying) {
-        _controller.repeat();
-      } else {
-        _controller.stop();
-      }
-    }
+      duration: const Duration(seconds: 60),
+    )..repeat();
   }
 
   @override
   void dispose() {
-    _controller.dispose();
+    _drift.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
+    // Dark overlay: slightly lighter on light theme to keep text readable.
     final overlayColor = tokens.isLight
-        ? Colors.white.withValues(alpha: 0.70)
-        : Colors.black.withValues(alpha: 0.55);
+        ? Colors.white.withValues(alpha: 0.55)
+        : Colors.black.withValues(alpha: 0.62);
 
-    final fallbackWidget = DecoratedBox(
+    final fallbackGradient = DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            widget.colors[0],
-            widget.colors.length > 1 ? widget.colors[1] : Colors.black,
+            widget.colors.isNotEmpty ? widget.colors[0] : Colors.black,
+            Colors.black,
           ],
         ),
       ),
@@ -2116,48 +2116,117 @@ class _BlurredArtworkBackgroundState extends State<BlurredArtworkBackground>
 
     return Positioned.fill(
       child: Stack(
+        fit: StackFit.expand,
         children: [
-          Positioned.fill(
+          // ── 1. Blurred album art (static, no rotation) ──────────────────
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 900),
+            child: ImageFiltered(
+              key: ValueKey(widget.imageUrl),
+              imageFilter: ImageFilter.blur(
+                sigmaX: 52,
+                sigmaY: 52,
+                tileMode: TileMode.mirror,
+              ),
+              child: CachedNetworkImage(
+                imageUrl: widget.imageUrl,
+                cacheKey: widget.cacheKey,
+                fit: BoxFit.cover,
+                width: double.infinity,
+                height: double.infinity,
+                memCacheWidth: 400,
+                memCacheHeight: 400,
+                placeholder: (context, url) => fallbackGradient,
+                errorWidget: (context, url, error) => fallbackGradient,
+              ),
+            ),
+          ),
+
+          // ── 2. Apple Music-style drifting color blobs ────────────────────
+          // AnimatedBuilder repaints only this subtree at ~30 fps.
+          RepaintBoundary(
             child: AnimatedBuilder(
-              animation: _controller,
-              builder: (context, child) {
-                final angle = _controller.value * 2 * math.pi;
-                final scale = 1.35 + 0.12 * math.sin(_controller.value * 2 * math.pi);
-                return Transform.rotate(
-                  angle: angle,
-                  child: Transform.scale(
-                    scale: scale,
-                    child: child,
+              animation: _drift,
+              builder: (context, _) {
+                return CustomPaint(
+                  painter: _BlobOverlayPainter(
+                    colors: widget.colors,
+                    t: _drift.value,
                   ),
+                  size: Size.infinite,
                 );
               },
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 1000),
-                child: CachedNetworkImage(
-                  key: ValueKey(widget.imageUrl),
-                  imageUrl: widget.imageUrl,
-                  cacheKey: widget.cacheKey,
-                  fit: BoxFit.cover,
-                  memCacheWidth: 600,
-                  memCacheHeight: 600,
-                  placeholder: (context, url) => fallbackWidget,
-                  errorWidget: (context, url, error) => fallbackWidget,
-                ),
-              ),
             ),
           ),
-          Positioned.fill(
-            child: ClipRect(
-              child: BackdropFilter(
-                filter: ImageFilter.blur(sigmaX: 55, sigmaY: 55),
-                child: Container(
-                  color: overlayColor,
-                ),
-              ),
-            ),
-          ),
+
+          // ── 3. Dark/light tint on top ────────────────────────────────────
+          Positioned.fill(child: ColoredBox(color: overlayColor)),
         ],
       ),
     );
   }
+}
+
+/// Paints 4 softly drifting color blobs — Apple Music-style, no rotation.
+class _BlobOverlayPainter extends CustomPainter {
+  final List<Color> colors;
+  final double t; // 0..1, repeating
+
+  const _BlobOverlayPainter({required this.colors, required this.t});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (colors.isEmpty) return;
+    final tau = 2 * math.pi;
+
+    // 4 blobs, each drifting slowly along a unique Lissajous-ish path.
+    final blobs = [
+      (
+        color: colors[0 % colors.length],
+        cx: 0.15 + 0.35 * math.sin(t * tau * 0.18),
+        cy: 0.10 + 0.28 * math.cos(t * tau * 0.14 + 0.7),
+        r: 0.55,
+        alpha: 0.38,
+      ),
+      (
+        color: colors[1 % colors.length],
+        cx: 0.78 + 0.18 * math.cos(t * tau * 0.21 + 1.2),
+        cy: 0.14 + 0.32 * math.sin(t * tau * 0.17 + 2.1),
+        r: 0.50,
+        alpha: 0.32,
+      ),
+      (
+        color: colors[2 % colors.length],
+        cx: 0.10 + 0.30 * math.sin(t * tau * 0.24 + 3.0),
+        cy: 0.65 + 0.28 * math.cos(t * tau * 0.19 + 0.5),
+        r: 0.52,
+        alpha: 0.28,
+      ),
+      (
+        color: colors[3 % colors.length],
+        cx: 0.72 + 0.24 * math.cos(t * tau * 0.16 + 1.8),
+        cy: 0.68 + 0.26 * math.sin(t * tau * 0.22 + 2.8),
+        r: 0.48,
+        alpha: 0.30,
+      ),
+    ];
+
+    for (final b in blobs) {
+      final cx = b.cx * size.width;
+      final cy = b.cy * size.height;
+      final radius = b.r * math.max(size.width, size.height);
+      final paint = Paint()
+        ..shader = RadialGradient(
+          colors: [
+            b.color.withValues(alpha: b.alpha),
+            b.color.withValues(alpha: 0.0),
+          ],
+        ).createShader(Rect.fromCircle(center: Offset(cx, cy), radius: radius));
+      canvas.drawCircle(Offset(cx, cy), radius, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(_BlobOverlayPainter old) =>
+      old.t != t || old.colors != colors;
 }

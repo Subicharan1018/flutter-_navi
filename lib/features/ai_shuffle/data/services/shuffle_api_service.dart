@@ -32,6 +32,7 @@ import '../models/listening_history_response.dart';
 import '../models/contribution_graph_response.dart';
 import '../models/song_deep_dive_response.dart';
 import '../models/predict_response.dart';
+import '../models/replay_response.dart';
 import '../repositories/shuffle_exception.dart';
 
 /// The canonical base URL for the Smart Shuffle hosted service.
@@ -372,6 +373,36 @@ class ShuffleApiService {
         queryParameters: {'title': title},
       );
       return SongDeepDiveResponse.fromJson(response.data!);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /replay  &  GET /replay/<year>/<month>
+  // ---------------------------------------------------------------------------
+
+  /// Returns the yearly listening Replay for [year] (defaults to current year
+  /// on the server when null). Corresponds to GET /replay?year=`<year>`.
+  Future<YearlyReplayResponse> getYearlyReplay({int? year}) async {
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/replay',
+        queryParameters: {'year': ?year},
+      );
+      return YearlyReplayResponse.fromJson(response.data!);
+    });
+  }
+
+  /// Returns the monthly listening Replay deep-dive for a specific
+  /// [year]/[month]. Corresponds to GET `/replay/<year>/<month>`.
+  Future<MonthlyReplayResponse> getMonthlyReplay({
+    required int year,
+    required int month,
+  }) async {
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>(
+        '/replay/$year/$month',
+      );
+      return MonthlyReplayResponse.fromJson(response.data!);
     });
   }
 

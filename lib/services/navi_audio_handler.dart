@@ -8,7 +8,7 @@ import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
 import '../models/song.dart';
 import 'subsonic_service.dart';
-import 'replay_gain_service.dart';
+
 import 'transcoding_service.dart';
 import 'cache_settings_service.dart';
 import '../providers/settings_provider.dart';
@@ -22,7 +22,7 @@ import 'shuffle_algorithms.dart';
 class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer player;
   final SubsonicService subsonicService;
-  final ReplayGainService _replayGainService;
+
   final TranscodingService _transcodingService;
   List<Song> _currentQueue = [];
   List<Song> _unshuffledQueue = [];
@@ -62,10 +62,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   NaviAudioHandler(
     this.subsonicService, {
     AudioPlayer? player,
-    ReplayGainService? replayGainService,
     TranscodingService? transcodingService,
   }) : player = player ?? AudioPlayer(),
-       _replayGainService = replayGainService ?? ReplayGainService(),
        _transcodingService = transcodingService ?? TranscodingService() {
     _listenToPlayerEvents();
 
@@ -351,15 +349,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _offlinePathsCache = null;
     _offlinePathsQueueLength = 0;
     await _rebuildSource(startIndex);
-    _applyReplayGain();
+    player.setVolume(1.0);
   }
-
-  void _applyReplayGain() {
-    final multiplier = _replayGainService.calculateVolumeMultiplier();
-    player.setVolume(multiplier);
-  }
-
-  void refreshReplayGain() => _applyReplayGain();
 
   /// Clears the audio source and queue. Must be called AFTER player.stop().
   Future<void> clearQueue() async {

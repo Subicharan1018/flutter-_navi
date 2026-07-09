@@ -133,6 +133,11 @@ class PaletteCache {
 
       Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
         final hsl = HSLColor.fromColor(base);
+        // Upper lightness cap is intentionally NOT 0.34 for all slots —
+        // see the call sites below. Light-cover albums (e.g. white/grey posters)
+        // produce colors that get clamped to near-black at 0.34 max, which is
+        // why VTV and similar covers showed pitch-black backgrounds. Vibrant and
+        // lightAccent slots use a higher cap so those colors remain visible.
         return hsl
             .withSaturation((hsl.saturation * satMul).clamp(0.08, 1.0))
             .withLightness((hsl.lightness * lightMul).clamp(0.04, 0.34))
@@ -187,10 +192,10 @@ class PaletteCache {
       ], derivedAccent);
 
       final colors = [
-        process(dominant, satMul: 1.10, lightMul: 0.44),
-        process(vibrant, satMul: 1.35, lightMul: 0.52),
-        process(darkAccent, satMul: 1.05, lightMul: 0.40),
-        process(lightAccent, satMul: 1.20, lightMul: 0.58),
+        process(dominant,    satMul: 1.10, lightMul: 0.44), // base: kept dark for contrast
+        process(vibrant,     satMul: 1.35, lightMul: 0.58), // vibrant: loosened → visible on light covers
+        process(darkAccent,  satMul: 1.05, lightMul: 0.40), // dark accent: stays dark
+        process(lightAccent, satMul: 1.20, lightMul: 0.68), // light accent: loosened → visible on light covers
       ];
 
       update(songId, colors);

@@ -8,7 +8,7 @@ import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
 import '../services/cache_settings_service.dart';
 import '../services/bpm_analyzer_service.dart';
-import '../services/replay_gain_service.dart';
+
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
 import '../services/search_history_service.dart';
@@ -476,10 +476,7 @@ final bpmAnalyzerProvider = Provider<BpmAnalyzerService>((ref) {
   return BpmAnalyzerService();
 });
 
-/// Singleton [ReplayGainService] — volume normalisation.
-final replayGainProvider = Provider<ReplayGainService>((ref) {
-  return ReplayGainService();
-});
+
 
 /// [TranscodingService] — network-aware bitrate/format management.
 final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {

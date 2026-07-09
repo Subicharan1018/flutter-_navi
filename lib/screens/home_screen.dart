@@ -1,9 +1,9 @@
-import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter_animate/flutter_animate.dart';
+
 import '../models/playlist.dart';
 import '../models/album.dart';
 import '../models/song.dart';
@@ -11,12 +11,14 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../core/theme.dart';
+import '../widgets/navi_ui.dart';
 import 'settings_screen.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../features/ai_shuffle/ui/home_stats_widget.dart';
 import 'made_for_you_screen.dart';
 import 'new_releases_screen.dart';
 import 'favorites_screen.dart';
+import 'navivibe_replay_screen.dart';
 
 // =============================================================================
 // Home Screen
@@ -30,23 +32,18 @@ class HomeScreen extends ConsumerStatefulWidget {
 
 class _HomeScreenState extends ConsumerState<HomeScreen>
     with SingleTickerProviderStateMixin {
-  final _sc = ScrollController();
-  final _scrollOffset = ValueNotifier<double>(0);
-  late final TabController _recentlyPlayedTab;
+  late final TabController _recentTab;
 
   @override
   void initState() {
     super.initState();
-    _sc.addListener(() => _scrollOffset.value = _sc.offset);
-    _recentlyPlayedTab = TabController(length: 2, vsync: this);
-    _recentlyPlayedTab.addListener(() => setState(() {}));
+    _recentTab = TabController(length: 2, vsync: this);
+    _recentTab.addListener(() => setState(() {}));
   }
 
   @override
   void dispose() {
-    _sc.dispose();
-    _scrollOffset.dispose();
-    _recentlyPlayedTab.dispose();
+    _recentTab.dispose();
     super.dispose();
   }
 
@@ -63,17 +60,20 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
     final recentAlbumsAsync = ref.watch(recentlyPlayedAlbumsProvider);
     final recentTracksAsync = ref.watch(recentlyPlayedSongsProvider);
     final settings = ref.watch(settingsProvider);
-    final topPad = MediaQuery.of(context).padding.top;
     final tokens = ThemeTokens.of(context);
+    final topPad = MediaQuery.of(context).padding.top;
 
-    // Parse host for subtitle
     String serverHost = '';
     try {
-      final uri = Uri.tryParse(settings.serverUrl);
-      serverHost = uri?.host ?? settings.serverUrl;
-    } catch (_) {
-      serverHost = settings.serverUrl;
-    }
+      serverHost = Uri.tryParse(settings.serverUrl)?.host ?? '';
+    } catch (_) {}
+
+    final displayName = settings.username.isNotEmpty
+        ? settings.username[0].toUpperCase() + settings.username.substring(1)
+        : 'NaviVibe';
+
+    final bottomClearance =
+        68.0 + 56.0 + s16 + MediaQuery.viewPaddingOf(context).bottom;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: tokens.isLight
@@ -81,160 +81,160 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
           : SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: tokens.bgBase,
-        body: Stack(
-          children: [
-            // ── Main scroll ──────────────────────────────────────────────────
-            RefreshIndicator(
-              color: tokens.accent,
-              backgroundColor: tokens.bgSurface,
-              displacement: topPad + 56,
-              onRefresh: () async {
-                ref.invalidate(playlistsProvider);
-                ref.invalidate(recentlyPlayedAlbumsProvider);
-                ref.invalidate(recentlyPlayedSongsProvider);
-              },
-              child: CustomScrollView(
-                controller: _sc,
-                physics: const BouncingScrollPhysics(),
-                slivers: [
-                  // ── Greeting header ────────────────────────────────────────
-                  SliverToBoxAdapter(
-                    child: _HomeHeader(
-                      greeting: _greet(),
-                      username: settings.username,
-                      serverHost: serverHost,
-                      topPad: topPad,
-                      onSettings: () => Navigator.push(
+        body: RefreshIndicator(
+          color: tokens.accent,
+          backgroundColor: tokens.bgElevated,
+          displacement: topPad + 60,
+          onRefresh: () async {
+            ref.invalidate(playlistsProvider);
+            ref.invalidate(recentlyPlayedAlbumsProvider);
+            ref.invalidate(recentlyPlayedSongsProvider);
+          },
+          child: CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
+            ),
+            slivers: [
+              // ── Pinned SliverAppBar ─────────────────────────────────────
+              SliverAppBar(
+                expandedHeight: 130,
+                pinned: true,
+                backgroundColor: tokens.bgBase,
+                surfaceTintColor: Colors.transparent,
+                elevation: 0,
+                scrolledUnderElevation: 0,
+                actions: [
+                  Padding(
+                    padding: const EdgeInsets.only(right: 12),
+                    child: _SettingsButton(
+                      onTap: () => Navigator.push(
                         context,
                         MaterialPageRoute(
                             builder: (_) => const SettingsScreen()),
                       ),
                     ),
                   ),
-
-                  // ── Explore ────────────────────────────────────────────────
-                  SliverToBoxAdapter(
-                    child: _SectionLabel(title: 'Explore'),
-                  ),
-                  SliverToBoxAdapter(
-                    child: const _ExploreRow(),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 4)),
-
-                  // ── Recently Played ────────────────────────────────────────
-                  SliverToBoxAdapter(
-                    child: _SectionLabel(title: 'Recently Played'),
-                  ),
-                  SliverToBoxAdapter(
-                    child: _RecentlyPlayedSection(
-                      tabController: _recentlyPlayedTab,
-                      albumsAsync: recentAlbumsAsync,
-                      tracksAsync: recentTracksAsync,
-                    ),
-                  ),
-
-                  const SliverToBoxAdapter(child: SizedBox(height: 4)),
-
-                  // ── Quick Play ─────────────────────────────────────────────
-                  SliverToBoxAdapter(
-                    child: _SectionLabel(title: 'Quick Play'),
-                  ),
-                  SliverToBoxAdapter(
-                    child: playlistsAsync.when(
-                      data: (playlists) {
-                        if (playlists.isEmpty) return const SizedBox();
-                        return _QuickPlayGrid(
-                          items: playlists.take(6).toList(),
-                          onTap: (pl) async {
-                            final svc = ref.read(subsonicServiceProvider);
-                            try {
-                              final songs =
-                                  await svc.getPlaylistSongs(pl.id);
-                              if (context.mounted) {
-                                ref
-                                    .read(playerProvider.notifier)
-                                    .setQueue(songs, 0);
-                              }
-                            } catch (e) {
-                              if (context.mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      'Could not load "${pl.name}". Check your connection.',
-                                    ),
-                                  ),
-                                );
-                              }
-                            }
-                          },
-                        );
-                      },
-                      loading: () => const _ShimmerGrid(),
-                      error: (error, stackTrace) => const SizedBox(),
-                    ),
-                  ),
-
-                  // ── Monthly Replay ────────────────────────────────────────
-                  const SliverToBoxAdapter(
-                    child: HomeStatsWidget(period: 'monthly'),
-                  ),
-
-                  // ── Weekly Replay ─────────────────────────────────────────
-                  const SliverToBoxAdapter(
-                    child: HomeStatsWidget(period: 'weekly'),
-                  ),
-
-                  // Bottom safe spacing for mini player
-                  const SliverToBoxAdapter(child: SizedBox(height: 160)),
                 ],
+                flexibleSpace: FlexibleSpaceBar(
+                  titlePadding: EdgeInsets.zero,
+                  expandedTitleScale: 1.0,
+                  title: LayoutBuilder(
+                    builder: (_, constraints) {
+                      final isCollapsed = constraints.maxHeight < 76;
+                      return AnimatedPadding(
+                        duration: const Duration(milliseconds: 200),
+                        padding: EdgeInsets.fromLTRB(
+                          s16,
+                          0,
+                          isCollapsed ? 52 : s16,
+                          isCollapsed ? 14 : s16,
+                        ),
+                        child: isCollapsed
+                            ? _CollapsedHeader(
+                                tokens: tokens,
+                                serverHost: serverHost,
+                              )
+                            : _ExpandedHeader(
+                                greeting: _greet(),
+                                displayName: displayName,
+                                serverHost: serverHost,
+                                tokens: tokens,
+                              ),
+                      );
+                    },
+                  ),
+                ),
               ),
-            ),
 
-            // ── Frosted sticky top bar (appears on scroll) ────────────────
-            Positioned(
-              top: 0,
-              left: 0,
-              right: 0,
-              child: ValueListenableBuilder<double>(
-                valueListenable: _scrollOffset,
-                builder: (context, offset, _) {
-                  final t = (offset / 60).clamp(0.0, 1.0);
-                  return AnimatedOpacity(
-                    opacity: t,
-                    duration: Duration.zero,
-                    child: ClipRect(
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 12, sigmaY: 12),
-                        child: Container(
-                          height: topPad + 50,
-                          color: tokens.bgBase.withValues(alpha: 0.90),
-                          padding:
-                              EdgeInsets.fromLTRB(20, topPad + 10, 20, 0),
+              // ── Explore ─────────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: _SectionHeader(title: 'Explore'),
+              ),
+              SliverPadding(
+                padding: const EdgeInsets.symmetric(horizontal: s16),
+                sliver: SliverToBoxAdapter(
+                  child: _ExploreGrid(context: context),
+                ),
+              ),
+
+              // ── Recently Played ──────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: _SectionHeader(title: 'Recently Played'),
+              ),
+              SliverToBoxAdapter(
+                child: _RecentlyPlayedSection(
+                  tabController: _recentTab,
+                  albumsAsync: recentAlbumsAsync,
+                  tracksAsync: recentTracksAsync,
+                ),
+              ),
+
+              // ── Quick Play ───────────────────────────────────────────────
+              playlistsAsync.when(
+                data: (playlists) {
+                  if (playlists.isEmpty) return const SliverToBoxAdapter(child: SizedBox());
+                  return SliverList(
+                    delegate: SliverChildListDelegate([
+                      _SectionHeader(title: 'Quick Play'),
+                      _QuickPlayGrid(
+                        items: playlists.take(6).toList(),
+                        onTap: (pl) async {
+                          final svc = ref.read(subsonicServiceProvider);
+                          try {
+                            final songs = await svc.getPlaylistSongs(pl.id);
+                            if (context.mounted) {
+                              ref.read(playerProvider.notifier).setQueue(songs, 0);
+                            }
+                          } catch (_) {
+                            if (context.mounted) {
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text(
+                                    'Could not load "${pl.name}". Check your connection.'),
+                                ),
+                              );
+                            }
+                          }
+                        },
+                      ),
+                    ]),
+                  );
+                },
+                loading: () => SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(s16, 0, s16, s8),
+                    child: Column(
+                      children: List.generate(
+                        3,
+                        (r) => Padding(
+                          padding: const EdgeInsets.only(bottom: s8),
                           child: Row(
                             children: [
-                              Text('Home', style: tokens.headingSm),
-                              const Spacer(),
-                              _TopBarIcon(
-                                icon: Icons.settings_outlined,
-                                label: 'Settings',
-                                onTap: () => Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (_) => const SettingsScreen(),
-                                  ),
-                                ),
-                              ),
+                              Expanded(child: NaviSkeleton(height: 58, borderRadius: radiusMd)),
+                              const SizedBox(width: s8),
+                              Expanded(child: NaviSkeleton(height: 58, borderRadius: radiusMd)),
                             ],
                           ),
                         ),
                       ),
                     ),
-                  );
-                },
+                  ),
+                ),
+                error: (_, e) => const SliverToBoxAdapter(child: SizedBox()),
               ),
-            ),
-          ],
+
+              // ── Listening highlights ─────────────────────────────────────
+              SliverToBoxAdapter(child: _SectionHeader(title: 'Listening Insights')),
+              const SliverToBoxAdapter(
+                child: HomeStatsWidget(period: 'monthly'),
+              ),
+              const SliverToBoxAdapter(
+                child: HomeStatsWidget(period: 'weekly'),
+              ),
+
+              SliverToBoxAdapter(child: SizedBox(height: bottomClearance)),
+            ],
+          ),
         ),
       ),
     );
@@ -242,97 +242,194 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
 }
 
 // =============================================================================
-// Header — greeting + username + server host
+// Header — collapsed (pinned) and expanded states
 // =============================================================================
 
-class _HomeHeader extends ConsumerWidget {
-  final String greeting;
-  final String username;
+class _CollapsedHeader extends StatelessWidget {
+  final AppThemeTokens tokens;
   final String serverHost;
-  final double topPad;
-  final VoidCallback onSettings;
+  const _CollapsedHeader({required this.tokens, required this.serverHost});
 
-  const _HomeHeader({
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          'Home',
+          style: TextStyle(
+            fontSize: 17,
+            fontWeight: FontWeight.w900,
+            color: tokens.textPrimary,
+            letterSpacing: -0.5,
+          ),
+        ),
+        if (serverHost.isNotEmpty) ...[
+          const SizedBox(width: s8),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+            decoration: BoxDecoration(
+              border: Border.all(color: tokens.accent.withValues(alpha: 0.4), width: 1),
+              borderRadius: BorderRadius.circular(4),
+            ),
+            child: Text(
+              serverHost,
+              style: TextStyle(
+                fontSize: 10,
+                fontWeight: FontWeight.w600,
+                color: tokens.accent,
+              ),
+            ),
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _ExpandedHeader extends StatelessWidget {
+  final String greeting;
+  final String displayName;
+  final String serverHost;
+  final AppThemeTokens tokens;
+
+  const _ExpandedHeader({
     required this.greeting,
-    required this.username,
+    required this.displayName,
     required this.serverHost,
-    required this.topPad,
-    required this.onSettings,
+    required this.tokens,
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final tokens = ThemeTokens.of(context);
-    final displayName =
-        username.isNotEmpty ? username[0].toUpperCase() + username.substring(1) : '';
+  Widget build(BuildContext context) {
+    final mode = tokens.mode;
 
-    return Padding(
-      padding: EdgeInsets.fromLTRB(20, topPad + 24, 20, 12),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  displayName.isNotEmpty ? '$greeting,' : greeting,
-                  style: tokens.textStyle(13, FontWeight.w500, tokens.textSecondary),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  displayName.isNotEmpty ? displayName : 'NaviVibe',
-                  style: tokens.textStyle(30, FontWeight.w800, tokens.textPrimary)
-                      .copyWith(
-                    letterSpacing: -0.5,
-                    height: 1.1,
-                  ),
-                ),
-                if (serverHost.isNotEmpty) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      Container(
-                        width: 6,
-                        height: 6,
-                        decoration: BoxDecoration(
-                          shape: BoxShape.circle,
-                          color: tokens.accent,
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                      Text(
-                        serverHost,
-                        style: tokens.textStyle(
-                            11, FontWeight.w500, tokens.textMuted),
-                      ),
-                    ],
-                  ),
-                ],
-              ],
-            ),
+    final titleStyle = mode == AppThemeMode.zen
+        ? tokens.textStyle(28, FontWeight.w400, tokens.textPrimary)
+            .copyWith(letterSpacing: -0.5, height: 1.1)
+        : mode == AppThemeMode.analog
+            ? tokens.textStyle(28, FontWeight.w800, tokens.textPrimary)
+                .copyWith(letterSpacing: -0.5, height: 1.1)
+            : TextStyle(
+                fontSize: 28,
+                fontWeight: FontWeight.w900,
+                color: tokens.textPrimary,
+                letterSpacing: -0.8,
+                height: 1.1,
+              );
+
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text(
+          greeting,
+          style: TextStyle(
+            fontSize: 12,
+            fontWeight: FontWeight.w500,
+            color: tokens.textMuted,
+            letterSpacing: 0.2,
           ),
-          const SizedBox(width: 12),
-          Semantics(
-            button: true,
-            label: 'Open Settings',
-            child: CupertinoClickable(
-              onTap: onSettings,
-              child: Container(
-                width: 40,
-                height: 40,
+        ),
+        const SizedBox(height: 2),
+        Text(displayName, style: titleStyle),
+        if (serverHost.isNotEmpty) ...[
+          const SizedBox(height: 5),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 6, height: 6,
                 decoration: BoxDecoration(
-                  color: tokens.bgSurface,
-                  shape: BoxShape.circle,
-                  border: Border.all(
-                      color: tokens.outline.withValues(alpha: 0.6), width: 1.0),
-                ),
-                child: Icon(
-                  Icons.settings_outlined,
-                  color: tokens.textSecondary,
-                  size: 20,
+                  color: tokens.accent, shape: BoxShape.circle),
+              ),
+              const SizedBox(width: 5),
+              Text(
+                serverHost,
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w500,
+                  color: tokens.textMuted,
+                  letterSpacing: 0.1,
                 ),
               ),
+            ],
+          ),
+        ],
+      ],
+    );
+  }
+}
+
+class _SettingsButton extends StatefulWidget {
+  final VoidCallback onTap;
+  const _SettingsButton({required this.onTap});
+
+  @override
+  State<_SettingsButton> createState() => _SettingsButtonState();
+}
+
+class _SettingsButtonState extends State<_SettingsButton> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    return GestureDetector(
+      onTapDown: (_) => setState(() => _pressed = true),
+      onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
+      onTapCancel: () => setState(() => _pressed = false),
+      child: AnimatedScale(
+        scale: _pressed ? 0.90 : 1.0,
+        duration: const Duration(milliseconds: 120),
+        child: Container(
+          width: 36, height: 36,
+          decoration: BoxDecoration(
+            color: tokens.bgSurface,
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: tokens.textPrimary.withValues(alpha: 0.08), width: 0.8),
+          ),
+          child: Icon(
+            Icons.settings_outlined,
+            color: tokens.textSecondary,
+            size: 18,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// =============================================================================
+// Section header — matches dashboard_screen._Label style
+// =============================================================================
+
+class _SectionHeader extends StatelessWidget {
+  final String title;
+  const _SectionHeader({required this.title});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(s16, s24, s16, s12),
+      child: Row(
+        children: [
+          Text(
+            title,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w600,
+              color: tokens.textSecondary,
+              letterSpacing: 0.1,
+            ),
+          ),
+          const SizedBox(width: s12),
+          Expanded(
+            child: Container(
+              height: 0.5,
+              color: tokens.textPrimary.withValues(alpha: 0.10),
             ),
           ),
         ],
@@ -342,197 +439,356 @@ class _HomeHeader extends ConsumerWidget {
 }
 
 // =============================================================================
-// Explore Row — theme-adaptive action cards with CupertinoClickable
+// Explore Grid — 2×2 equal cards + full-width Replay banner
 // =============================================================================
 
-class _ExploreRow extends StatelessWidget {
-  const _ExploreRow();
+class _ExploreGrid extends StatelessWidget {
+  final BuildContext context;
+  const _ExploreGrid({required this.context});
 
   @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
+  Widget build(BuildContext outerCtx) {
+    final t = ThemeTokens.of(outerCtx);
 
-    final greenAccent = t.mode == AppThemeMode.spotify
+    // Four accent colours — harmonise per theme rather than hard-coding Spotify green
+    final c1 = t.mode == AppThemeMode.spotify
         ? const Color(0xFF1DB954)
         : t.accent;
-    final roseAccent = t.mode == AppThemeMode.spotify
-        ? const Color(0xFFF43F5E)
-        : Color.lerp(t.accent, const Color(0xFFF43F5E), 0.55)!;
-    final blueAccent = t.mode == AppThemeMode.spotify
-        ? const Color(0xFF3B82F6)
-        : Color.lerp(t.accent, const Color(0xFF3B82F6), 0.55)!;
-    final purpleAccent = t.mode == AppThemeMode.spotify
+    final c2 = t.mode == AppThemeMode.spotify
         ? const Color(0xFF9333EA)
         : Color.lerp(t.accent, const Color(0xFF9333EA), 0.55)!;
+    final c3 = t.mode == AppThemeMode.spotify
+        ? const Color(0xFFF43F5E)
+        : Color.lerp(t.accent, const Color(0xFFF43F5E), 0.55)!;
+    final c4 = t.mode == AppThemeMode.spotify
+        ? const Color(0xFF3B82F6)
+        : Color.lerp(t.accent, const Color(0xFF3B82F6), 0.55)!;
+    final cReplay = t.mode == AppThemeMode.spotify
+        ? const Color(0xFFF59E0B)
+        : Color.lerp(t.accent, const Color(0xFFF59E0B), 0.50)!;
 
-    Color cardBg(Color accent) => t.isLight
-        ? Color.alphaBlend(accent.withValues(alpha: 0.10), t.bgSurface)
-        : Color.alphaBlend(accent.withValues(alpha: 0.16), t.bgBase);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: [
-          Row(
+    return Column(
+      children: [
+        // Row 1 — tall duo
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: _ExploreCard(
                   key: const Key('explore_made_for_you'),
-                  height: 140,
-                  title: 'Made\nFor You',
+                  title: 'Made For You',
+                  subtitle: 'AI picks just for you',
                   icon: Icons.auto_awesome_rounded,
-                  color: greenAccent,
-                  bgColor: cardBg(greenAccent),
-                  onTap: () => Navigator.push(context,
+                  color: c1,
+                  height: 130,
+                  onTap: () => Navigator.push(outerCtx,
                       MaterialPageRoute(builder: (_) => const MadeForYouScreen())),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: s8),
               Expanded(
                 child: _ExploreCard(
                   key: const Key('explore_ai_shuffle'),
-                  height: 140,
-                  title: 'AI\nShuffle',
-                  icon: Icons.auto_awesome,
-                  color: purpleAccent,
-                  bgColor: cardBg(purpleAccent),
-                  onTap: () => Navigator.push(context,
+                  title: 'AI Shuffle',
+                  subtitle: 'Smart queue, your taste',
+                  icon: Icons.shuffle_rounded,
+                  color: c2,
+                  height: 130,
+                  onTap: () => Navigator.push(outerCtx,
                       MaterialPageRoute(builder: (_) => const AiShuffleScreen())),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Row(
+        ),
+        const SizedBox(height: s8),
+
+        // Row 2 — shorter duo
+        IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Expanded(
                 child: _ExploreCard(
                   key: const Key('explore_favorites'),
-                  height: 100,
-                  title: 'Your\nFavorites',
+                  title: 'Favorites',
+                  subtitle: 'Your loved songs',
                   icon: Icons.favorite_rounded,
-                  color: roseAccent,
-                  bgColor: cardBg(roseAccent),
-                  onTap: () => Navigator.push(context,
+                  color: c3,
+                  height: 100,
+                  onTap: () => Navigator.push(outerCtx,
                       MaterialPageRoute(builder: (_) => const FavoritesScreen())),
                 ),
               ),
-              const SizedBox(width: 8),
+              const SizedBox(width: s8),
               Expanded(
                 child: _ExploreCard(
                   key: const Key('explore_new_releases'),
-                  height: 100,
-                  title: 'New\nReleases',
+                  title: 'New Releases',
+                  subtitle: 'Fresh from the server',
                   icon: Icons.new_releases_rounded,
-                  color: blueAccent,
-                  bgColor: cardBg(blueAccent),
-                  onTap: () => Navigator.push(context,
+                  color: c4,
+                  height: 100,
+                  onTap: () => Navigator.push(outerCtx,
                       MaterialPageRoute(builder: (_) => const NewReleasesScreen())),
                 ),
               ),
             ],
           ),
-        ],
+        ),
+        const SizedBox(height: s8),
+
+        // Full-width Replay banner
+        _ReplayBanner(
+          key: const Key('explore_replay'),
+          color: cReplay,
+          onTap: () => Navigator.push(outerCtx,
+              MaterialPageRoute(builder: (_) => const NavivibeReplayScreen())),
+        ),
+      ],
+    );
+  }
+}
+
+class _ExploreCard extends StatefulWidget {
+  final String title;
+  final String subtitle;
+  final IconData icon;
+  final Color color;
+  final double height;
+  final VoidCallback onTap;
+
+  const _ExploreCard({
+    super.key,
+    required this.title,
+    required this.subtitle,
+    required this.icon,
+    required this.color,
+    required this.height,
+    required this.onTap,
+  });
+
+  @override
+  State<_ExploreCard> createState() => _ExploreCardState();
+}
+
+class _ExploreCardState extends State<_ExploreCard> {
+  bool _pressed = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final bg = t.isLight
+        ? Color.alphaBlend(widget.color.withValues(alpha: 0.10), t.bgSurface)
+        : Color.alphaBlend(widget.color.withValues(alpha: 0.14), t.bgBase);
+
+    return Semantics(
+      button: true,
+      label: widget.title,
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.95 : 1.0,
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOut,
+          child: Container(
+            constraints: BoxConstraints(minHeight: widget.height),
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: radiusLg,
+              border: Border.all(
+                color: widget.color.withValues(alpha: 0.18),
+                width: 0.8,
+              ),
+            ),
+            child: Stack(
+              children: [
+                // Watermark
+                Positioned(
+                  right: -12,
+                  bottom: -12,
+                  child: Icon(
+                    widget.icon,
+                    size: 90,
+                    color: widget.color.withValues(alpha: 0.07),
+                  ),
+                ),
+                // Content
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Icon badge
+                      Container(
+                        width: 34, height: 34,
+                        decoration: BoxDecoration(
+                          color: widget.color.withValues(alpha: 0.13),
+                          borderRadius: BorderRadius.circular(9),
+                        ),
+                        child: Icon(widget.icon, color: widget.color, size: 17),
+                      ),
+                      const SizedBox(height: 12),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Text(
+                            widget.title,
+                            style: t.textStyle(14, FontWeight.w700, t.textPrimary)
+                                .copyWith(height: 1.2),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          const SizedBox(height: 2),
+                          Text(
+                            widget.subtitle,
+                            style: t.textStyle(11, FontWeight.w400, t.textMuted),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
 }
 
-class _ExploreCard extends StatelessWidget {
-  final double height;
-  final String title;
-  final IconData icon;
+// Full-width Replay banner — distinct enough to stand out from the grid cards
+class _ReplayBanner extends StatefulWidget {
   final Color color;
-  final Color bgColor;
   final VoidCallback onTap;
+  const _ReplayBanner({super.key, required this.color, required this.onTap});
 
-  const _ExploreCard({
-    super.key,
-    required this.height,
-    required this.title,
-    required this.icon,
-    required this.color,
-    required this.bgColor,
-    required this.onTap,
-  });
+  @override
+  State<_ReplayBanner> createState() => _ReplayBannerState();
+}
+
+class _ReplayBannerState extends State<_ReplayBanner> {
+  bool _pressed = false;
 
   @override
   Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
+    final t = ThemeTokens.of(context);
+    final year = DateTime.now().year;
+    final bg = t.isLight
+        ? Color.alphaBlend(widget.color.withValues(alpha: 0.12), t.bgSurface)
+        : Color.alphaBlend(widget.color.withValues(alpha: 0.16), t.bgBase);
+
     return Semantics(
       button: true,
-      label: title.replaceAll('\n', ' '),
-      child: CupertinoClickable(
-        onTap: onTap,
-        child: Container(
-          height: height,
-          clipBehavior: Clip.antiAlias,
-          decoration: BoxDecoration(
-            color: bgColor,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(
-              color: color.withValues(alpha: 0.20),
-              width: 1.0,
+      label: '$year Replay',
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.97 : 1.0,
+          duration: const Duration(milliseconds: 130),
+          curve: Curves.easeOut,
+          child: Container(
+            height: 76,
+            clipBehavior: Clip.antiAlias,
+            decoration: BoxDecoration(
+              color: bg,
+              borderRadius: radiusLg,
+              border: Border.all(
+                color: widget.color.withValues(alpha: 0.22), width: 0.8),
             ),
-          ),
-          child: Stack(
-            children: [
-              // Background icon watermark
-              Positioned(
-                right: -10,
-                top: -10,
-                child: Icon(
-                  icon,
-                  color: color.withValues(alpha: 0.09),
-                  size: 96,
+            child: Stack(
+              children: [
+                // Large year text watermark
+                Positioned(
+                  right: -6,
+                  top: -10,
+                  child: Text(
+                    '$year',
+                    style: TextStyle(
+                      fontSize: 80,
+                      fontWeight: FontWeight.w900,
+                      color: widget.color.withValues(alpha: 0.06),
+                      letterSpacing: -3,
+                      height: 1,
+                    ),
+                  ),
                 ),
-              ),
-              // Content
-              Padding(
-                padding: const EdgeInsets.all(16),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.all(7),
-                      decoration: BoxDecoration(
-                        color: color.withValues(alpha: 0.14),
-                        borderRadius: BorderRadius.circular(9),
+                Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 36, height: 36,
+                        decoration: BoxDecoration(
+                          color: widget.color.withValues(alpha: 0.13),
+                          borderRadius: BorderRadius.circular(10),
+                        ),
+                        child: Icon(
+                          Icons.bar_chart_rounded,
+                          color: widget.color, size: 19),
                       ),
-                      child: Icon(icon, color: color, size: 16),
-                    ),
-                    const SizedBox(height: 8),
-                    Text(
-                      title,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: tokens
-                          .textStyle(15, FontWeight.w700, tokens.textPrimary)
-                          .copyWith(height: 1.2),
-                    ),
-                  ],
-                ),
-              ),
-              // Arrow badge
-              Positioned(
-                bottom: 14,
-                right: 14,
-                child: Container(
-                  width: 26,
-                  height: 26,
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color.withValues(alpha: 0.18),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Text(
+                              '$year Replay',
+                              style: TextStyle(
+                                fontSize: 14, fontWeight: FontWeight.w700,
+                                color: t.textPrimary),
+                            ),
+                            const SizedBox(height: 1),
+                            Text(
+                              'Your year in music',
+                              style: TextStyle(
+                                fontSize: 11, color: t.textMuted),
+                            ),
+                          ],
+                        ),
+                      ),
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 12, vertical: 6),
+                        decoration: BoxDecoration(
+                          color: widget.color.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(20),
+                          border: Border.all(
+                            color: widget.color.withValues(alpha: 0.30),
+                            width: 0.7),
+                        ),
+                        child: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              'View',
+                              style: TextStyle(
+                                fontSize: 12, fontWeight: FontWeight.w700,
+                                color: widget.color),
+                            ),
+                            const SizedBox(width: 4),
+                            Icon(Icons.arrow_forward_rounded,
+                                size: 12, color: widget.color),
+                          ],
+                        ),
+                      ),
+                    ],
                   ),
-                  child: Icon(
-                    Icons.arrow_forward_rounded,
-                    color: color,
-                    size: 14,
-                  ),
                 ),
-              ),
-            ],
+              ],
+            ),
           ),
         ),
       ),
@@ -541,7 +797,7 @@ class _ExploreCard extends StatelessWidget {
 }
 
 // =============================================================================
-// Recently Played Section — segmented tab + carousel
+// Recently Played Section
 // =============================================================================
 
 class _RecentlyPlayedSection extends ConsumerStatefulWidget {
@@ -564,252 +820,90 @@ class _RecentlyPlayedSectionState
     extends ConsumerState<_RecentlyPlayedSection> {
   @override
   Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final selectedIdx = widget.tabController.index;
+    final isDark = !t.isLight;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // ── Segment selector ───────────────────────────────────────────────
+        // ── Pill-style tab switcher ──────────────────────────────────────
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16),
-          child: _ThemeSegmentedControl(
-            controller: widget.tabController,
-            labels: const ['Albums', 'Tracks'],
+          padding: const EdgeInsets.symmetric(horizontal: s16),
+          child: Container(
+            height: 36,
+            decoration: BoxDecoration(
+              color: isDark
+                  ? Colors.white.withValues(alpha: 0.05)
+                  : Colors.black.withValues(alpha: 0.04),
+              borderRadius: BorderRadius.circular(20),
+              border: Border.all(
+                color: t.textPrimary.withValues(alpha: 0.06), width: 0.5),
+            ),
+            child: LayoutBuilder(
+              builder: (_, constraints) {
+                final tabWidth = constraints.maxWidth / 2;
+                return Stack(
+                  children: [
+                    AnimatedPositioned(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutQuart,
+                      left: selectedIdx * tabWidth + 3,
+                      width: tabWidth - 6,
+                      top: 3, bottom: 3,
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: t.accent,
+                          borderRadius: BorderRadius.circular(17),
+                          boxShadow: [
+                            BoxShadow(
+                              color: t.accent.withValues(alpha: 0.30),
+                              blurRadius: 6,
+                              offset: const Offset(0, 2),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                    Row(
+                      children: ['Albums', 'Tracks'].asMap().entries.map((e) {
+                        final isActive = e.key == selectedIdx;
+                        return Expanded(
+                          child: GestureDetector(
+                            behavior: HitTestBehavior.opaque,
+                            onTap: () => widget.tabController.animateTo(e.key),
+                            child: Center(
+                              child: AnimatedDefaultTextStyle(
+                                duration: const Duration(milliseconds: 200),
+                                style: TextStyle(
+                                  fontSize: 12,
+                                  fontWeight: FontWeight.w700,
+                                  color: isActive
+                                      ? (t.isLight ? Colors.white : Colors.black)
+                                      : t.textSecondary,
+                                ),
+                                child: Text(e.value),
+                              ),
+                            ),
+                          ),
+                        );
+                      }).toList(),
+                    ),
+                  ],
+                );
+              },
+            ),
           ),
         ),
         const SizedBox(height: 14),
 
-        // ── Content carousel ───────────────────────────────────────────────
+        // ── Carousel ───────────────────────────────────────────────────
         SizedBox(
-          height: 196,
-          child: widget.tabController.index == 0
+          height: 200,
+          child: selectedIdx == 0
               ? _AlbumCarousel(albumsAsync: widget.albumsAsync)
               : _TrackCarousel(tracksAsync: widget.tracksAsync),
         ),
-      ],
-    );
-  }
-}
-
-// =============================================================================
-// Theme-aware segmented control
-// =============================================================================
-
-class _ThemeSegmentedControl extends StatelessWidget {
-  final TabController controller;
-  final List<String> labels;
-
-  const _ThemeSegmentedControl({
-    required this.controller,
-    required this.labels,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-
-    switch (t.mode) {
-      case AppThemeMode.neumorphic:
-        return _NeuSegmentedControl(controller: controller, labels: labels);
-      case AppThemeMode.frost:
-        return _FrostSegmentedControl(controller: controller, labels: labels);
-      case AppThemeMode.zen:
-        return _ZenSegmentedControl(controller: controller, labels: labels);
-      default:
-        return _DefaultSegmentedControl(controller: controller, labels: labels);
-    }
-  }
-}
-
-class _DefaultSegmentedControl extends StatelessWidget {
-  final TabController controller;
-  final List<String> labels;
-  const _DefaultSegmentedControl(
-      {required this.controller, required this.labels});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final selectedIdx = controller.index;
-
-    return Container(
-      height: 36,
-      decoration: BoxDecoration(
-        color: t.bgSurface,
-        borderRadius: BorderRadius.circular(10),
-        border: Border.all(color: t.outline, width: 1.0),
-      ),
-      child: Row(
-        children: List.generate(labels.length, (i) {
-          final isActive = i == selectedIdx;
-          return Expanded(
-            child: CupertinoClickable(
-              onTap: () => controller.animateTo(i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                curve: Curves.easeOutCubic,
-                margin: const EdgeInsets.all(3),
-                decoration: BoxDecoration(
-                  color: isActive ? t.accent : Colors.transparent,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  labels[i],
-                  style: t.textStyle(
-                    13,
-                    isActive ? FontWeight.w700 : FontWeight.w500,
-                    isActive
-                        ? (t.isLight ? Colors.white : Colors.black)
-                        : t.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _NeuSegmentedControl extends StatelessWidget {
-  final TabController controller;
-  final List<String> labels;
-  const _NeuSegmentedControl(
-      {required this.controller, required this.labels});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final selectedIdx = controller.index;
-    return NeuBox(
-      padding: const EdgeInsets.all(3),
-      borderRadius: BorderRadius.circular(12),
-      child: Row(
-        children: List.generate(labels.length, (i) {
-          final isActive = i == selectedIdx;
-          return Expanded(
-            child: CupertinoClickable(
-              onTap: () => controller.animateTo(i),
-              child: NeuBox(
-                isPressed: isActive,
-                borderRadius: BorderRadius.circular(9),
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                child: Center(
-                  child: Text(
-                    labels[i],
-                    style: t.textStyle(
-                      13,
-                      isActive ? FontWeight.w700 : FontWeight.w500,
-                      isActive ? t.accent : t.textSecondary,
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _FrostSegmentedControl extends StatelessWidget {
-  final TabController controller;
-  final List<String> labels;
-  const _FrostSegmentedControl(
-      {required this.controller, required this.labels});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final selectedIdx = controller.index;
-    return GlassBox(
-      borderRadius: BorderRadius.circular(10),
-      padding: const EdgeInsets.all(3),
-      child: Row(
-        children: List.generate(labels.length, (i) {
-          final isActive = i == selectedIdx;
-          return Expanded(
-            child: CupertinoClickable(
-              onTap: () => controller.animateTo(i),
-              child: AnimatedContainer(
-                duration: const Duration(milliseconds: 220),
-                margin: const EdgeInsets.all(2),
-                padding: const EdgeInsets.symmetric(vertical: 7),
-                decoration: BoxDecoration(
-                  color: isActive
-                      ? t.accent.withValues(alpha: 0.35)
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(7),
-                  border: isActive
-                      ? Border.all(
-                          color: t.accent.withValues(alpha: 0.5), width: 1.0)
-                      : null,
-                ),
-                alignment: Alignment.center,
-                child: Text(
-                  labels[i],
-                  style: t.textStyle(
-                    13,
-                    isActive ? FontWeight.w700 : FontWeight.w500,
-                    isActive ? t.textPrimary : t.textSecondary,
-                  ),
-                ),
-              ),
-            ),
-          );
-        }),
-      ),
-    );
-  }
-}
-
-class _ZenSegmentedControl extends StatelessWidget {
-  final TabController controller;
-  final List<String> labels;
-  const _ZenSegmentedControl(
-      {required this.controller, required this.labels});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final selectedIdx = controller.index;
-    return Row(
-      children: [
-        ...List.generate(labels.length, (i) {
-          final isActive = i == selectedIdx;
-          return Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: CupertinoClickable(
-              onTap: () => controller.animateTo(i),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    labels[i],
-                    style: t.textStyle(
-                      15,
-                      isActive ? FontWeight.w700 : FontWeight.w400,
-                      isActive ? t.textPrimary : t.textSecondary,
-                    ),
-                  ),
-                  const SizedBox(height: 3),
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    height: 2,
-                    width: isActive ? 24.0 : 0,
-                    decoration: BoxDecoration(
-                      color: t.accent,
-                      borderRadius: BorderRadius.circular(1),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }),
       ],
     );
   }
@@ -827,7 +921,7 @@ class _AlbumCarousel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return albumsAsync.when(
       loading: () => const _ShimmerReel(),
-      error: (error, stackTrace) => const _EmptyCarouselHint(
+      error: (_, e) => const _EmptyCarouselHint(
         icon: Icons.album_rounded,
         text: 'No recent albums — start playing something!',
       ),
@@ -841,7 +935,7 @@ class _AlbumCarousel extends ConsumerWidget {
         final svc = ref.watch(subsonicServiceProvider);
         return ListView.builder(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: s16),
           itemCount: albums.length,
           itemBuilder: (ctx, i) => Padding(
             padding: const EdgeInsets.only(right: 12),
@@ -867,7 +961,7 @@ class _AlbumCarousel extends ConsumerWidget {
   }
 }
 
-class _AlbumCard extends StatelessWidget {
+class _AlbumCard extends StatefulWidget {
   final Album album;
   final int rank;
   final String? coverUrl;
@@ -881,82 +975,105 @@ class _AlbumCard extends StatelessWidget {
   });
 
   @override
+  State<_AlbumCard> createState() => _AlbumCardState();
+}
+
+class _AlbumCardState extends State<_AlbumCard> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Semantics(
       button: true,
-      label: 'Play album: ${album.name} by ${album.artist}',
-      child: CupertinoClickable(
-        onTap: onTap,
-        child: SizedBox(
-          width: 140,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Cover art
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 140,
-                  height: 140,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      if (coverUrl != null)
-                        CachedNetworkImage(
-                          imageUrl: coverUrl!,
-                          cacheKey: 'cover_${album.coverArt.isNotEmpty ? album.coverArt : album.id}',
-                          fit: BoxFit.cover,
-                          // 140dp card × 2x DPR = 280px; 300 gives a small headroom.
-                          memCacheWidth: 300,
-                          memCacheHeight: 300,
-                          placeholder: (context, url) => _artPlaceholder(t),
-                          errorWidget: (context, url, error) => _artPlaceholder(t),
-                        )
-                      else
-                        _artPlaceholder(t),
-                      // Play overlay
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: t.accent.withValues(alpha: 0.92),
-                          ),
-                          child: Icon(
-                            Icons.play_arrow_rounded,
-                            color: t.isLight ? Colors.white : Colors.black,
-                            size: 18,
+      label: 'Play album: ${widget.album.name} by ${widget.album.artist}',
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.94 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: SizedBox(
+            width: 144,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: radiusMd,
+                  child: SizedBox(
+                    width: 144, height: 144,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        if (widget.coverUrl != null)
+                          CachedNetworkImage(
+                            imageUrl: widget.coverUrl!,
+                            cacheKey: 'cover_${widget.album.coverArt.isNotEmpty ? widget.album.coverArt : widget.album.id}',
+                            fit: BoxFit.cover,
+                            memCacheWidth: 288,
+                            memCacheHeight: 288,
+                            placeholder: (context, url) => _artPlaceholder(t),
+                            errorWidget: (context, url, error) => _artPlaceholder(t),
+                          )
+                        else
+                          _artPlaceholder(t),
+                        // Bottom gradient for play button legibility
+                        Positioned(
+                          bottom: 0, left: 0, right: 0,
+                          child: Container(
+                            height: 50,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.55),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                        Positioned(
+                          bottom: 8, right: 8,
+                          child: Container(
+                            width: 32, height: 32,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: t.accent.withValues(alpha: 0.92),
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: t.isLight ? Colors.white : Colors.black,
+                              size: 18,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                album.name,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: t.textStyle(12, FontWeight.w700, t.textPrimary),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                album.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: t.textStyle(11, FontWeight.w400, t.textSecondary),
-              ),
-            ],
-          ),
-        )
-            .animate(delay: (rank * 40).clamp(0, 200).ms)
-            .fadeIn(duration: 350.ms)
-            .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic),
+                const SizedBox(height: 7),
+                Text(
+                  widget.album.name,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: t.textStyle(12, FontWeight.w700, t.textPrimary),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.album.artist,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: t.textStyle(11, FontWeight.w400, t.textMuted),
+                ),
+              ],
+            ),
+          )
+              .animate(delay: (widget.rank * 40).clamp(0, 200).ms)
+              .fadeIn(duration: 350.ms)
+              .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic),
+        ),
       ),
     );
   }
@@ -964,8 +1081,7 @@ class _AlbumCard extends StatelessWidget {
   Widget _artPlaceholder(AppThemeTokens t) => Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
             colors: [
               t.accent.withValues(alpha: 0.5),
               t.accentDim.withValues(alpha: 0.25),
@@ -988,7 +1104,7 @@ class _TrackCarousel extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return tracksAsync.when(
       loading: () => const _ShimmerReel(),
-      error: (error, stackTrace) => const _EmptyCarouselHint(
+      error: (_, e) => const _EmptyCarouselHint(
         icon: Icons.music_note_rounded,
         text: 'No history yet — start listening!',
       ),
@@ -1002,7 +1118,7 @@ class _TrackCarousel extends ConsumerWidget {
         final svc = ref.watch(subsonicServiceProvider);
         return ListView.builder(
           scrollDirection: Axis.horizontal,
-          padding: const EdgeInsets.symmetric(horizontal: 16),
+          padding: const EdgeInsets.symmetric(horizontal: s16),
           itemCount: tracks.length,
           itemBuilder: (ctx, i) {
             final song = tracks[i];
@@ -1024,7 +1140,7 @@ class _TrackCarousel extends ConsumerWidget {
   }
 }
 
-class _TrackCard extends StatelessWidget {
+class _TrackCard extends StatefulWidget {
   final Song song;
   final int rank;
   final String coverUrl;
@@ -1038,79 +1154,101 @@ class _TrackCard extends StatelessWidget {
   });
 
   @override
+  State<_TrackCard> createState() => _TrackCardState();
+}
+
+class _TrackCardState extends State<_TrackCard> {
+  bool _pressed = false;
+
+  @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Semantics(
       button: true,
-      label: 'Play: ${song.title} by ${song.artist}',
-      child: CupertinoClickable(
-        onTap: onTap,
-        child: SizedBox(
-          width: 130,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              // Cover art
-              ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: SizedBox(
-                  width: 130,
-                  height: 130,
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      CachedNetworkImage(
-                        imageUrl: coverUrl,
-                        cacheKey: 'cover_${song.coverArt.isNotEmpty ? song.coverArt : song.id}',
-                        fit: BoxFit.cover,
-                        // 130dp card × 2x DPR = 260px; 280 gives headroom.
-                        memCacheWidth: 280,
-                        memCacheHeight: 280,
-                        placeholder: (context, url) => _artPlaceholder(t),
-                        errorWidget: (context, url, error) => _artPlaceholder(t),
-                      ),
-                      // Play overlay
-                      Positioned(
-                        bottom: 8,
-                        right: 8,
-                        child: Container(
-                          width: 28,
-                          height: 28,
-                          decoration: BoxDecoration(
-                            shape: BoxShape.circle,
-                            color: t.accent.withValues(alpha: 0.9),
-                          ),
-                          child: Icon(
-                            Icons.play_arrow_rounded,
-                            color: t.isLight ? Colors.white : Colors.black,
-                            size: 16,
+      label: 'Play: ${widget.song.title} by ${widget.song.artist}',
+      child: GestureDetector(
+        onTapDown: (_) => setState(() => _pressed = true),
+        onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
+        onTapCancel: () => setState(() => _pressed = false),
+        child: AnimatedScale(
+          scale: _pressed ? 0.94 : 1.0,
+          duration: const Duration(milliseconds: 120),
+          curve: Curves.easeOut,
+          child: SizedBox(
+            width: 134,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                ClipRRect(
+                  borderRadius: radiusMd,
+                  child: SizedBox(
+                    width: 134, height: 134,
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        CachedNetworkImage(
+                          imageUrl: widget.coverUrl,
+                          cacheKey: 'cover_${widget.song.coverArt.isNotEmpty ? widget.song.coverArt : widget.song.id}',
+                          fit: BoxFit.cover,
+                          memCacheWidth: 268,
+                          memCacheHeight: 268,
+                          placeholder: (context, url) => _artPlaceholder(t),
+                          errorWidget: (context, url, error) => _artPlaceholder(t),
+                        ),
+                        Positioned(
+                          bottom: 0, left: 0, right: 0,
+                          child: Container(
+                            height: 44,
+                            decoration: BoxDecoration(
+                              gradient: LinearGradient(
+                                begin: Alignment.bottomCenter,
+                                end: Alignment.topCenter,
+                                colors: [
+                                  Colors.black.withValues(alpha: 0.55),
+                                  Colors.transparent,
+                                ],
+                              ),
+                            ),
                           ),
                         ),
-                      ),
-                    ],
+                        Positioned(
+                          bottom: 7, right: 7,
+                          child: Container(
+                            width: 28, height: 28,
+                            decoration: BoxDecoration(
+                              shape: BoxShape.circle,
+                              color: t.accent.withValues(alpha: 0.90),
+                            ),
+                            child: Icon(
+                              Icons.play_arrow_rounded,
+                              color: t.isLight ? Colors.white : Colors.black,
+                              size: 16,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 7),
-              Text(
-                song.title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: t.textStyle(12, FontWeight.w700, t.textPrimary),
-              ),
-              const SizedBox(height: 2),
-              Text(
-                song.artist,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: t.textStyle(11, FontWeight.w400, t.textSecondary),
-              ),
-            ],
-          ),
-        )
-            .animate(delay: (rank * 40).clamp(0, 200).ms)
-            .fadeIn(duration: 350.ms)
-            .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic),
+                const SizedBox(height: 7),
+                Text(
+                  widget.song.title,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: t.textStyle(12, FontWeight.w700, t.textPrimary),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  widget.song.artist,
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: t.textStyle(11, FontWeight.w400, t.textMuted),
+                ),
+              ],
+            ),
+          )
+              .animate(delay: (widget.rank * 40).clamp(0, 200).ms)
+              .fadeIn(duration: 350.ms)
+              .slideX(begin: 0.05, end: 0, curve: Curves.easeOutCubic),
+        ),
       ),
     );
   }
@@ -1118,11 +1256,10 @@ class _TrackCard extends StatelessWidget {
   Widget _artPlaceholder(AppThemeTokens t) => Container(
         decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
+            begin: Alignment.topLeft, end: Alignment.bottomRight,
             colors: [
               t.accent.withValues(alpha: 0.5),
-              t.accentDim.withValues(alpha: 0.2),
+              t.accentDim.withValues(alpha: 0.20),
             ],
           ),
         ),
@@ -1143,18 +1280,18 @@ class _EmptyCarouselHint extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: s16),
       child: Container(
-        height: 196,
+        height: 200,
         decoration: BoxDecoration(
           color: t.bgSurface,
-          borderRadius: BorderRadius.circular(14),
-          border: Border.all(color: t.outline, width: 1.0),
+          borderRadius: radiusMd,
+          border: Border.all(color: t.outline, width: 0.8),
         ),
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(icon, color: t.textMuted, size: 32),
+            Icon(icon, color: t.textMuted, size: 30),
             const SizedBox(height: 10),
             Text(
               text,
@@ -1169,7 +1306,7 @@ class _EmptyCarouselHint extends StatelessWidget {
 }
 
 // =============================================================================
-// Quick Play Grid — 2-column tiled playlist rows
+// Quick Play Grid — 2-column playlist tiles
 // =============================================================================
 
 class _QuickPlayGrid extends StatelessWidget {
@@ -1180,8 +1317,9 @@ class _QuickPlayGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (items.isEmpty) return const SizedBox();
-
     final t = ThemeTokens.of(context);
+
+    // Six-step rotating palette aligned to the theme
     final palette = [
       t.accent,
       t.gold,
@@ -1192,34 +1330,32 @@ class _QuickPlayGrid extends StatelessWidget {
     ];
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: s16),
       child: Column(
         children: [
           for (int r = 0; r < (items.length / 2).ceil(); r++)
             Padding(
-              padding: const EdgeInsets.only(bottom: 8),
+              padding: const EdgeInsets.only(bottom: s8),
               child: Row(
                 children: [
                   for (int c = 0; c < 2; c++)
-                    Builder(
-                      builder: (_) {
-                        final i = r * 2 + c;
-                        if (i >= items.length) {
-                          return const Expanded(child: SizedBox());
-                        }
-                        return Expanded(
-                          child: Padding(
-                            padding: EdgeInsets.only(left: c == 1 ? 8 : 0),
-                            child: _QuickTile(
-                              playlist: items[i],
-                              accentColor: palette[i % 6],
-                              index: i,
-                              onTap: () => onTap(items[i]),
-                            ),
+                    Builder(builder: (_) {
+                      final i = r * 2 + c;
+                      if (i >= items.length) {
+                        return const Expanded(child: SizedBox());
+                      }
+                      return Expanded(
+                        child: Padding(
+                          padding: EdgeInsets.only(left: c == 1 ? s8 : 0),
+                          child: _QuickTile(
+                            playlist: items[i],
+                            accentColor: palette[i % palette.length],
+                            index: i,
+                            onTap: () => onTap(items[i]),
                           ),
-                        );
-                      },
-                    ),
+                        ),
+                      );
+                    }),
                 ],
               ),
             ),
@@ -1244,52 +1380,44 @@ class _QuickTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final svc = ref.watch(subsonicServiceProvider);
-    final tokens = ThemeTokens.of(context);
+    final t = ThemeTokens.of(context);
 
-    final tile = Semantics(
+    Widget tile = Semantics(
       button: true,
       label: 'Play playlist: ${playlist.name}',
-      child: CupertinoClickable(
+      child: GestureDetector(
         onTap: onTap,
         child: Container(
           height: 58,
           decoration: BoxDecoration(
-            color: tokens.bgSurface,
-            borderRadius: BorderRadius.circular(12),
+            color: t.bgSurface,
+            borderRadius: radiusMd,
             border: Border.all(
-              color: accentColor.withValues(alpha: 0.14),
-              width: 1.0,
-            ),
+              color: accentColor.withValues(alpha: 0.14), width: 0.8),
           ),
           clipBehavior: Clip.hardEdge,
           child: Row(
             children: [
-              // Artwork
               SizedBox(
-                width: 58,
-                height: 58,
+                width: 58, height: 58,
                 child: playlist.coverArt != null
                     ? CachedNetworkImage(
                         imageUrl: svc.getCoverArtUrl(playlist.coverArt!),
                         cacheKey: 'cover_${playlist.coverArt}',
                         fit: BoxFit.cover,
-                        // 58dp tile × 2x DPR = 116px; 128 is a clean power of 2.
-                        memCacheWidth: 128,
-                        memCacheHeight: 128,
+                        memCacheWidth: 116,
+                        memCacheHeight: 116,
                       )
                     : Container(
                         decoration: BoxDecoration(
-                          gradient: LinearGradient(
-                            colors: [
-                              accentColor.withValues(alpha: 0.8),
-                              accentColor.withValues(alpha: 0.3),
-                            ],
-                          ),
+                          gradient: LinearGradient(colors: [
+                            accentColor.withValues(alpha: 0.8),
+                            accentColor.withValues(alpha: 0.3),
+                          ]),
                         ),
                         child: Icon(
                           Icons.queue_music_rounded,
-                          color:
-                              tokens.textPrimary.withValues(alpha: 0.7),
+                          color: t.textPrimary.withValues(alpha: 0.7),
                           size: 22,
                         ),
                       ),
@@ -1298,19 +1426,16 @@ class _QuickTile extends ConsumerWidget {
               Expanded(
                 child: Text(
                   playlist.name,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: tokens.textStyle(
-                      13, FontWeight.w600, tokens.textPrimary),
+                  maxLines: 1, overflow: TextOverflow.ellipsis,
+                  style: t.textStyle(13, FontWeight.w600, t.textPrimary),
                 ),
               ),
               Container(
-                width: 28,
-                height: 28,
+                width: 28, height: 28,
                 margin: const EdgeInsets.only(right: 10),
                 decoration: BoxDecoration(
                   shape: BoxShape.circle,
-                  color: accentColor.withValues(alpha: 0.15),
+                  color: accentColor.withValues(alpha: 0.14),
                 ),
                 child: Icon(Icons.play_arrow_rounded,
                     color: accentColor, size: 16),
@@ -1321,8 +1446,7 @@ class _QuickTile extends ConsumerWidget {
       ),
     );
 
-    final disableAnim = MediaQuery.of(context).disableAnimations;
-    return disableAnim
+    return MediaQuery.of(context).disableAnimations
         ? tile
         : tile
             .animate(delay: (index * 40).clamp(0, 200).ms)
@@ -1332,117 +1456,26 @@ class _QuickTile extends ConsumerWidget {
 }
 
 // =============================================================================
-// Section label
-// =============================================================================
-
-class _SectionLabel extends StatelessWidget {
-  final String title;
-  const _SectionLabel({required this.title});
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
-      child: Text(title, style: tokens.headingSm),
-    );
-  }
-}
-
-// =============================================================================
-// Top bar icon button
-// =============================================================================
-
-class _TopBarIcon extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final VoidCallback onTap;
-  const _TopBarIcon({
-    required this.icon,
-    required this.label,
-    required this.onTap,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-    return Semantics(
-      button: true,
-      label: label,
-      child: SizedBox(
-        width: 48,
-        height: 48,
-        child: IconButton(
-          icon: Icon(icon, color: tokens.textSecondary, size: 22),
-          onPressed: onTap,
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
 // Shimmer placeholders
 // =============================================================================
-
-class _ShimmerGrid extends StatelessWidget {
-  const _ShimmerGrid();
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 16),
-      child: Column(
-        children: List.generate(
-          3,
-          (r) => Padding(
-            padding: const EdgeInsets.only(bottom: 8),
-            child: Row(
-              children: List.generate(
-                2,
-                (c) => Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(left: c == 1 ? 8 : 0),
-                    child: Container(
-                      height: 58,
-                      decoration: BoxDecoration(
-                        color: tokens.bgSurface,
-                        borderRadius: BorderRadius.circular(12),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ),
-      )
-          .animate(onPlay: (c) => c.repeat(reverse: true))
-          .fadeIn(duration: 700.ms)
-          .then()
-          .fadeOut(duration: 700.ms),
-    );
-  }
-}
 
 class _ShimmerReel extends StatelessWidget {
   const _ShimmerReel();
 
   @override
   Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
+    final t = ThemeTokens.of(context);
     return ListView.builder(
       scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.symmetric(horizontal: 16),
+      padding: const EdgeInsets.symmetric(horizontal: s16),
       itemCount: 5,
       itemBuilder: (_, i) => Padding(
         padding: const EdgeInsets.only(right: 12),
         child: Container(
-          width: 140,
+          width: 144,
           decoration: BoxDecoration(
-            color: tokens.bgSurface,
-            borderRadius: BorderRadius.circular(12),
+            color: t.bgSurface,
+            borderRadius: radiusMd,
           ),
         ),
       ),
