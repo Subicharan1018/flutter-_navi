@@ -7,19 +7,57 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../providers/navivibe_replay_provider.dart';
 import '../widgets/mini_player.dart';
-import '../widgets/navi_ui.dart';
 
 // =============================================================================
-// NavivibeReplayScreen — Apple Music-style yearly Replay.
+// NavivibeReplayScreen — Apple Music Replay-style yearly review.
 //
-// Design philosophy: compact, content-dense, NO bloated cards.
-//   • Hero section: accent-coloured backdrop, giant listening-time number
-//   • Quick stats: tight pill row (4 numbers)
-//   • Top track + artist: slim 56px rows with icon thumbnails
-//   • Genre: segmented bar, single compact card
-//   • Peak hour: small 36px waveform inline
-//   • Monthly: horizontal scroll strip of small tiles (not a 2-col grid)
-//   • Track/artist lists: 48px rows, Apple Music spacing
+// Design:
+//   • Full-screen accent gradient hero with giant total-minutes number
+//   • Year watermark ('25) rendered large and translucent behind stats
+//   • Top Song / Artist / Album previews inline on gradient
+//   • 2×2 quick-stat grid with divider lines
+//   • Enhanced genre bars with colour dots
+//   • Taller monthly carousel tiles with gradient tint
+//   • Bold rank badges on track + artist lists
+// =============================================================================
+
+// ── Helpers ──────────────────────────────────────────────────────────────────
+
+String _fmtComma(int v) {
+  if (v < 1000) return '$v';
+  final s = v.toString();
+  final buf = StringBuffer();
+  for (int i = 0; i < s.length; i++) {
+    if (i > 0 && (s.length - i) % 3 == 0) buf.write(',');
+    buf.write(s[i]);
+  }
+  return buf.toString();
+}
+
+String _fmtMin(double min) {
+  final h = (min / 60).floor();
+  final m = (min % 60).round();
+  if (h > 0) return '${h}h ${m}m';
+  return '${m}m';
+}
+
+/// Compute a hero-grade gradient pair from any accent colour.
+/// Clamps lightness so white text always reads well.
+({Color top, Color bottom}) _heroGradient(Color accent) {
+  final hsl = HSLColor.fromColor(accent);
+  final top = hsl
+      .withLightness(hsl.lightness.clamp(0.28, 0.48))
+      .withSaturation(hsl.saturation.clamp(0.5, 1.0))
+      .toColor();
+  final bottom = hsl
+      .withLightness((hsl.lightness * 0.3).clamp(0.04, 0.16))
+      .withSaturation(hsl.saturation.clamp(0.55, 1.0))
+      .toColor();
+  return (top: top, bottom: bottom);
+}
+
+// =============================================================================
+// Entry point
 // =============================================================================
 
 class NavivibeReplayScreen extends ConsumerStatefulWidget {
@@ -40,9 +78,7 @@ class _NavivibeReplayScreenState extends ConsumerState<NavivibeReplayScreen> {
     final topPad = MediaQuery.of(context).padding.top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: tokens.isLight
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.light, // always light on gradient hero
       child: Scaffold(
         backgroundColor: tokens.bgBase,
         body: Stack(
@@ -76,7 +112,7 @@ class _NavivibeReplayScreenState extends ConsumerState<NavivibeReplayScreen> {
 }
 
 // ---------------------------------------------------------------------------
-// _ReplayBody
+// _ReplayBody — main scrollable content
 // ---------------------------------------------------------------------------
 
 class _ReplayBody extends StatelessWidget {
@@ -101,9 +137,9 @@ class _ReplayBody extends StatelessWidget {
     return CustomScrollView(
       physics: const BouncingScrollPhysics(),
       slivers: [
-        // ── Cinematic hero (accent backdrop + giant number) ──────────────────
+        // ── Apple-style gradient hero ────────────────────────────────────────
         SliverToBoxAdapter(
-          child: _HeroSection(
+          child: _AppleHeroSection(
             replay: replay,
             topPad: topPad,
             onBack: onBack,
@@ -113,97 +149,66 @@ class _ReplayBody extends StatelessWidget {
           ),
         ),
 
-        // ── Quick stat pills ─────────────────────────────────────────────────
+        // ── Quick stats 2×2 grid ────────────────────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-            child: _StatPillRow(replay: replay),
-          ).animate(delay: 60.ms).fadeIn(duration: 350.ms),
+            padding: const EdgeInsets.fromLTRB(16, 24, 16, 0),
+            child: _QuickStatGrid(replay: replay),
+          ).animate(delay: 100.ms).fadeIn(duration: 420.ms)
+              .slideY(begin: 0.06, end: 0),
         ),
 
-        // ── Top track ────────────────────────────────────────────────────────
-        if (replay.topTracks.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-              child: _SpotlightRow(
-                label: 'TOP TRACK',
-                title: replay.topTracks.first.title,
-                subtitle: replay.topTracks.first.artist,
-                trailing: '${replay.topTracks.first.playCount} plays',
-                icon: Icons.music_note_rounded,
-                iconColor: tokens.accent,
-              ),
-            ).animate(delay: 90.ms).fadeIn(duration: 350.ms),
-          ),
-
-        // ── Top artist ───────────────────────────────────────────────────────
-        if (replay.topArtists.isNotEmpty)
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-              child: _SpotlightRow(
-                label: 'TOP ARTIST',
-                title: replay.topArtists.first.artist,
-                subtitle: '${replay.topArtists.first.uniqueSongs} songs',
-                trailing: _fmtMin(replay.topArtists.first.totalMinutes),
-                icon: Icons.person_rounded,
-                iconColor: tokens.textMuted,
-                circle: true,
-              ),
-            ).animate(delay: 120.ms).fadeIn(duration: 350.ms),
-          ),
-
-        // ── Genre breakdown ──────────────────────────────────────────────────
+        // ── Genre breakdown ─────────────────────────────────────────────────
         if (replay.topGenres.isNotEmpty)
           SliverToBoxAdapter(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 14, 16, 0),
-              child: _GenreCard(genres: replay.topGenres),
-            ).animate(delay: 150.ms).fadeIn(duration: 350.ms),
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 0),
+              child: _AppleGenreCard(genres: replay.topGenres),
+            ).animate(delay: 180.ms).fadeIn(duration: 420.ms),
           ),
 
-        // ── Peak hour ────────────────────────────────────────────────────────
+        // ── Peak hour ───────────────────────────────────────────────────────
         SliverToBoxAdapter(
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 0),
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
             child: _PeakHourRow(
               peakHour: replay.peakHourIst,
               heatmap: replay.hourlyHeatmap,
             ),
-          ).animate(delay: 180.ms).fadeIn(duration: 350.ms),
+          ).animate(delay: 240.ms).fadeIn(duration: 420.ms),
         ),
 
-        // ── Month-by-month horizontal strip ─────────────────────────────────
+        // ── Month-by-month horizontal carousel ──────────────────────────────
         SliverToBoxAdapter(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 20, 16, 10),
+                padding: const EdgeInsets.fromLTRB(16, 28, 16, 12),
                 child: Text(
                   'MONTH BY MONTH',
                   style: tokens
-                      .textStyle(10, FontWeight.w700, tokens.textMuted)
+                      .textStyle(11, FontWeight.w700, tokens.textMuted)
                       .copyWith(letterSpacing: 1.4),
                 ),
               ),
               SizedBox(
-                height: 92,
+                height: 114,
                 child: ListView.separated(
                   scrollDirection: Axis.horizontal,
                   padding: const EdgeInsets.symmetric(horizontal: 16),
-                  separatorBuilder: (_, _) => const SizedBox(width: 8),
+                  separatorBuilder: (_, _) => const SizedBox(width: 10),
                   itemCount: replay.monthlyCards.length,
                   itemBuilder: (ctx, i) {
                     final card = replay.monthlyCards[i];
                     return _MonthTile(
                       card: card,
+                      accentColor: tokens.accent,
                       onTap: () =>
                           _openMonthDetail(ctx, card.year, card.month),
                     )
-                        .animate(delay: (i * 35).clamp(0, 280).ms)
-                        .fadeIn(duration: 280.ms)
+                        .animate(delay: (i * 40).clamp(0, 320).ms)
+                        .fadeIn(duration: 300.ms)
                         .scale(
                           begin: const Offset(0.92, 0.92),
                           end: const Offset(1, 1),
@@ -212,34 +217,34 @@ class _ReplayBody extends StatelessWidget {
                 ),
               ),
             ],
-          ).animate(delay: 210.ms).fadeIn(duration: 350.ms),
+          ).animate(delay: 300.ms).fadeIn(duration: 420.ms),
         ),
 
-        // ── Top tracks list ──────────────────────────────────────────────────
+        // ── Top tracks list ─────────────────────────────────────────────────
         if (replay.topTracks.length > 1) ...[
           SliverToBoxAdapter(
             child: _SectionHeader(
               label: 'TOP TRACKS',
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 32, 16, 8),
             ),
           ),
           SliverList(
             delegate: SliverChildBuilderDelegate(
               (ctx, i) => _TrackRow(track: replay.topTracks[i], rank: i + 1)
                   .animate(delay: (i * 30).clamp(0, 250).ms)
-                  .fadeIn(duration: 260.ms)
+                  .fadeIn(duration: 280.ms)
                   .slideX(begin: 0.03, end: 0),
               childCount: replay.topTracks.length,
             ),
           ),
         ],
 
-        // ── Top artists list ─────────────────────────────────────────────────
+        // ── Top artists list ────────────────────────────────────────────────
         if (replay.topArtists.length > 1) ...[
           SliverToBoxAdapter(
             child: _SectionHeader(
               label: 'TOP ARTISTS',
-              padding: const EdgeInsets.fromLTRB(16, 24, 16, 4),
+              padding: const EdgeInsets.fromLTRB(16, 32, 16, 8),
             ),
           ),
           SliverList(
@@ -247,7 +252,7 @@ class _ReplayBody extends StatelessWidget {
               (ctx, i) =>
                   _ArtistRow(artist: replay.topArtists[i], rank: i + 1)
                       .animate(delay: (i * 30).clamp(0, 250).ms)
-                      .fadeIn(duration: 260.ms)
+                      .fadeIn(duration: 280.ms)
                       .slideX(begin: 0.03, end: 0),
               childCount: math.min(replay.topArtists.length, 5),
             ),
@@ -267,20 +272,13 @@ class _ReplayBody extends StatelessWidget {
       builder: (_) => _MonthDetailSheet(year: year, month: month),
     );
   }
-
-  static String _fmtMin(double min) {
-    final h = (min / 60).floor();
-    final m = (min % 60).round();
-    if (h > 0) return '${h}h ${m}m';
-    return '${m}m';
-  }
 }
 
 // ---------------------------------------------------------------------------
-// Hero section — accent backdrop, large number, nav bar embedded
+// Apple-style gradient hero
 // ---------------------------------------------------------------------------
 
-class _HeroSection extends StatelessWidget {
+class _AppleHeroSection extends StatelessWidget {
   final YearlyReplayResponse replay;
   final double topPad;
   final VoidCallback onBack;
@@ -288,7 +286,7 @@ class _HeroSection extends StatelessWidget {
   final int selectedYear;
   final ValueChanged<int> onYearSelected;
 
-  const _HeroSection({
+  const _AppleHeroSection({
     required this.replay,
     required this.topPad,
     required this.onBack,
@@ -300,256 +298,301 @@ class _HeroSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
+    final grad = _heroGradient(tokens.accent);
+
+    // Year watermark string — e.g. '25
+    final yearStr = "'${selectedYear.toString().substring(
+        selectedYear.toString().length - 2)}";
 
     return Container(
       decoration: BoxDecoration(
-        color: tokens.accent,
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [grad.top, grad.bottom],
+        ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Stack(
         children: [
-          // Nav bar
-          Padding(
-            padding: EdgeInsets.fromLTRB(4, topPad + 4, 12, 0),
-            child: Row(
-              children: [
-                IconButton(
-                  icon: Icon(
-                    Icons.keyboard_arrow_down_rounded,
-                    color: tokens.isLight ? Colors.white : Colors.black,
-                    size: 28,
-                  ),
-                  onPressed: onBack,
+          // ── Giant year watermark ──────────────────────────────────────────
+          Positioned(
+            right: -16,
+            top: topPad + 24,
+            child: Text(
+              yearStr,
+              style: TextStyle(
+                fontSize: 180,
+                fontWeight: FontWeight.w900,
+                color: Colors.white.withValues(alpha: 0.05),
+                letterSpacing: -10,
+                height: 1.0,
+              ),
+            ),
+          ),
+
+          // ── Main content column ──────────────────────────────────────────
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Nav bar
+              Padding(
+                padding: EdgeInsets.fromLTRB(4, topPad + 4, 8, 0),
+                child: Row(
+                  children: [
+                    IconButton(
+                      icon: const Icon(
+                        Icons.keyboard_arrow_down_rounded,
+                        color: Colors.white,
+                        size: 28,
+                      ),
+                      onPressed: onBack,
+                    ),
+                    const Spacer(),
+                    Text(
+                      'Replay',
+                      style: tokens
+                          .textStyle(17, FontWeight.w700, Colors.white)
+                          .copyWith(letterSpacing: -0.3),
+                    ),
+                    const Spacer(),
+                    if (availableYears.length > 1)
+                      _YearPicker(
+                        years: availableYears,
+                        selected: selectedYear,
+                        onChanged: onYearSelected,
+                      )
+                    else
+                      Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 12),
+                        child: Text(
+                          '$selectedYear',
+                          style: tokens.textStyle(
+                            13,
+                            FontWeight.w700,
+                            Colors.white.withValues(alpha: 0.6),
+                          ),
+                        ),
+                      ),
+                  ],
                 ),
-                Expanded(
-                  child: Text(
-                    'Replay',
-                    textAlign: TextAlign.center,
-                    style: tokens
-                        .textStyle(
-                          16,
-                          FontWeight.w700,
-                          tokens.isLight ? Colors.white : Colors.black,
-                        )
-                        .copyWith(letterSpacing: -0.3),
-                  ),
-                ),
-                if (availableYears.length > 1)
-                  _YearPicker(
-                    years: availableYears,
-                    selected: selectedYear,
-                    onChanged: onYearSelected,
-                    light: tokens.isLight,
-                  )
-                else
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 12),
-                    child: Text(
-                      '$selectedYear',
+              ),
+
+              // Total Minutes label + giant animated number
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 32, 24, 0),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Total Minutes',
                       style: tokens.textStyle(
-                        13,
-                        FontWeight.w700,
-                        (tokens.isLight ? Colors.white : Colors.black)
-                            .withValues(alpha: 0.7),
+                        14,
+                        FontWeight.w500,
+                        Colors.white.withValues(alpha: 0.6),
                       ),
                     ),
-                  ),
-              ],
-            ),
-          ),
-
-          // Big number
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 20, 20, 0),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Total Minutes',
-                  style: tokens.textStyle(
-                    13,
-                    FontWeight.w500,
-                    (tokens.isLight ? Colors.white : Colors.black)
-                        .withValues(alpha: 0.7),
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  _fmt(replay.totalPlays > 0
-                      ? (replay.totalMinutes).round()
-                      : 0),
-                  style: tokens
-                      .textStyle(
-                        56,
-                        FontWeight.w900,
-                        tokens.isLight ? Colors.white : Colors.black,
-                      )
-                      .copyWith(letterSpacing: -2.5, height: 1.0),
-                ),
-              ],
-            ),
-          ),
-
-          // Top song / artist preview row
-          Padding(
-            padding: const EdgeInsets.fromLTRB(20, 16, 20, 20),
-            child: Row(
-              children: [
-                if (replay.topTracks.isNotEmpty)
-                  Expanded(
-                    child: _HeroPreviewItem(
-                      label: 'Top Song',
-                      title: replay.topTracks.first.title,
-                      subtitle: replay.topTracks.first.artist,
-                      icon: Icons.music_note_rounded,
-                      light: tokens.isLight,
-                      tokens: tokens,
+                    const SizedBox(height: 6),
+                    TweenAnimationBuilder<int>(
+                      tween: IntTween(
+                        begin: 0,
+                        end: replay.totalPlays > 0
+                            ? replay.totalMinutes.round()
+                            : 0,
+                      ),
+                      duration: const Duration(milliseconds: 1400),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, value, _) => Text(
+                        _fmtComma(value),
+                        style: tokens
+                            .textStyle(64, FontWeight.w900, Colors.white)
+                            .copyWith(
+                              letterSpacing: -3.0,
+                              height: 1.0,
+                            ),
+                      ),
                     ),
-                  ),
-                if (replay.topTracks.isNotEmpty &&
-                    replay.topArtists.isNotEmpty)
-                  Container(
-                    width: 0.5,
-                    height: 40,
-                    margin: const EdgeInsets.symmetric(horizontal: 14),
-                    color: (tokens.isLight ? Colors.white : Colors.black)
-                        .withValues(alpha: 0.25),
-                  ),
-                if (replay.topArtists.isNotEmpty)
-                  Expanded(
-                    child: _HeroPreviewItem(
-                      label: 'Top Artist',
-                      title: replay.topArtists.first.artist,
-                      subtitle:
-                          '${replay.topArtists.first.uniqueSongs} songs',
-                      icon: Icons.person_rounded,
-                      light: tokens.isLight,
-                      tokens: tokens,
-                    ),
-                  ),
-              ],
-            ),
+                  ],
+                ),
+              ).animate().fadeIn(duration: 500.ms).slideY(begin: 0.08, end: 0),
+
+              // Thin divider
+              Padding(
+                padding: const EdgeInsets.fromLTRB(24, 24, 24, 20),
+                child: Container(
+                  height: 0.5,
+                  color: Colors.white.withValues(alpha: 0.15),
+                ),
+              ),
+
+              // Top Song highlight
+              if (replay.topTracks.isNotEmpty)
+                _HeroHighlightRow(
+                  icon: Icons.music_note_rounded,
+                  label: 'Top Song',
+                  title: replay.topTracks.first.title,
+                  subtitle: replay.topTracks.first.artist,
+                ).animate(delay: 250.ms).fadeIn(duration: 420.ms)
+                    .slideX(begin: 0.06, end: 0),
+
+              // Top Artist highlight
+              if (replay.topArtists.isNotEmpty)
+                _HeroHighlightRow(
+                  icon: Icons.person_rounded,
+                  label: 'Top Artist',
+                  title: replay.topArtists.first.artist,
+                  subtitle: '${replay.topArtists.first.uniqueSongs} songs',
+                ).animate(delay: 350.ms).fadeIn(duration: 420.ms)
+                    .slideX(begin: 0.06, end: 0),
+
+              // Top Album highlight (from first track's album)
+              if (replay.topTracks.isNotEmpty &&
+                  replay.topTracks.first.album.isNotEmpty)
+                _HeroHighlightRow(
+                  icon: Icons.album_rounded,
+                  label: 'Top Album',
+                  title: replay.topTracks.first.album,
+                  subtitle: replay.topTracks.first.artist,
+                ).animate(delay: 450.ms).fadeIn(duration: 420.ms)
+                    .slideX(begin: 0.06, end: 0),
+
+              const SizedBox(height: 28),
+            ],
           ),
         ],
       ),
-    ).animate().fadeIn(duration: 400.ms);
-  }
-
-  static String _fmt(int v) {
-    if (v >= 1000000) {
-      return '${(v / 1000000).toStringAsFixed(1)}M';
-    }
-    if (v >= 1000) {
-      return '${(v / 1000).toStringAsFixed(v % 1000 == 0 ? 0 : 1)}k';
-    }
-    return '$v';
-  }
-}
-
-class _HeroPreviewItem extends StatelessWidget {
-  final String label;
-  final String title;
-  final String subtitle;
-  final IconData icon;
-  final bool light;
-  final AppThemeTokens tokens;
-
-  const _HeroPreviewItem({
-    required this.label,
-    required this.title,
-    required this.subtitle,
-    required this.icon,
-    required this.light,
-    required this.tokens,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final fg = light ? Colors.white : Colors.black;
-    return Row(
-      children: [
-        Container(
-          width: 36,
-          height: 36,
-          decoration: BoxDecoration(
-            color: fg.withValues(alpha: 0.15),
-            borderRadius: BorderRadius.circular(8),
-          ),
-          child: Icon(icon, color: fg.withValues(alpha: 0.85), size: 18),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                label,
-                style: tokens
-                    .textStyle(9, FontWeight.w600, fg.withValues(alpha: 0.6))
-                    .copyWith(letterSpacing: 0.8),
-              ),
-              Text(
-                title,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style:
-                    tokens.textStyle(12, FontWeight.w700, fg),
-              ),
-              Text(
-                subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: tokens.textStyle(
-                    11, FontWeight.w400, fg.withValues(alpha: 0.65)),
-              ),
-            ],
-          ),
-        ),
-      ],
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Year picker (transparent pill on accent bg)
+// Hero highlight row — compact item on the gradient
+// ---------------------------------------------------------------------------
+
+class _HeroHighlightRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String title;
+  final String subtitle;
+
+  const _HeroHighlightRow({
+    required this.icon,
+    required this.label,
+    required this.title,
+    required this.subtitle,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(24, 0, 24, 18),
+      child: Row(
+        children: [
+          // Icon container
+          Container(
+            width: 46,
+            height: 46,
+            decoration: BoxDecoration(
+              color: Colors.white.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(13),
+            ),
+            child: Icon(
+              icon,
+              color: Colors.white.withValues(alpha: 0.85),
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: 14),
+          // Text column
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  label,
+                  style: tokens
+                      .textStyle(
+                        11,
+                        FontWeight.w600,
+                        Colors.white.withValues(alpha: 0.5),
+                      )
+                      .copyWith(letterSpacing: 0.5),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tokens
+                      .textStyle(15, FontWeight.w700, Colors.white)
+                      .copyWith(letterSpacing: -0.2),
+                ),
+                Text(
+                  subtitle,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: tokens.textStyle(
+                    12,
+                    FontWeight.w400,
+                    Colors.white.withValues(alpha: 0.55),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Year picker — translucent pill on the hero gradient
 // ---------------------------------------------------------------------------
 
 class _YearPicker extends StatelessWidget {
   final List<int> years;
   final int selected;
   final ValueChanged<int> onChanged;
-  final bool light;
 
   const _YearPicker({
     required this.years,
     required this.selected,
     required this.onChanged,
-    required this.light,
   });
 
   @override
   Widget build(BuildContext context) {
-    final fg = light ? Colors.white : Colors.black;
     return GestureDetector(
       onTap: () => _show(context),
       child: Container(
-        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 5),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
         decoration: BoxDecoration(
-          color: fg.withValues(alpha: 0.12),
+          color: Colors.white.withValues(alpha: 0.12),
           borderRadius: BorderRadius.circular(20),
           border: Border.all(
-              color: fg.withValues(alpha: 0.22), width: 0.7),
+            color: Colors.white.withValues(alpha: 0.2),
+            width: 0.7,
+          ),
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
             Text(
               '$selected',
-              style: TextStyle(
-                  fontSize: 12, fontWeight: FontWeight.w700, color: fg),
+              style: const TextStyle(
+                fontSize: 13,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+              ),
             ),
-            const SizedBox(width: 3),
-            Icon(Icons.expand_more_rounded, size: 14, color: fg),
+            const SizedBox(width: 4),
+            const Icon(
+              Icons.expand_more_rounded,
+              size: 16,
+              color: Colors.white,
+            ),
           ],
         ),
       ),
@@ -560,7 +603,7 @@ class _YearPicker extends StatelessWidget {
     final tokens = ThemeTokens.of(ctx);
     showModalBottomSheet<void>(
       context: ctx,
-      backgroundColor: tokens.bgSurface,
+      backgroundColor: tokens.bgSurfaceOpaque,
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
@@ -573,107 +616,43 @@ class _YearPicker extends StatelessWidget {
               width: 36,
               height: 4,
               decoration: BoxDecoration(
-                  color: tokens.outline,
-                  borderRadius: BorderRadius.circular(2)),
+                color: tokens.outline,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
             const SizedBox(height: 16),
-            Text('Select Year',
-                style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                    color: tokens.textPrimary)),
-            const SizedBox(height: 8),
-            ...years.map((y) => ListTile(
-                  title: Text('$y',
-                      style: TextStyle(
-                        fontSize: 15,
-                        fontWeight: y == selected
-                            ? FontWeight.w700
-                            : FontWeight.w400,
-                        color: y == selected
-                            ? tokens.accent
-                            : tokens.textPrimary,
-                      )),
-                  trailing: y == selected
-                      ? Icon(Icons.check_rounded,
-                          color: tokens.accent, size: 18)
-                      : null,
-                  onTap: () {
-                    Navigator.pop(ctx);
-                    onChanged(y);
-                  },
-                )),
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
-// Quick stat pill row (4 compact pills)
-// ---------------------------------------------------------------------------
-
-class _StatPillRow extends StatelessWidget {
-  final YearlyReplayResponse replay;
-  const _StatPillRow({required this.replay});
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-    return Row(
-      children: [
-        _Pill(label: 'Plays', value: _fmt(replay.totalPlays), tokens: tokens),
-        const SizedBox(width: 8),
-        _Pill(label: 'Days', value: '${replay.listeningDays}', tokens: tokens),
-        const SizedBox(width: 8),
-        _Pill(label: 'Songs', value: _fmt(replay.uniqueSongs), tokens: tokens),
-        const SizedBox(width: 8),
-        _Pill(
-            label: 'Artists',
-            value: '${replay.uniqueArtists}',
-            tokens: tokens),
-      ],
-    );
-  }
-
-  static String _fmt(int v) {
-    if (v >= 1000) return '${(v / 1000).toStringAsFixed(1)}k';
-    return '$v';
-  }
-}
-
-class _Pill extends StatelessWidget {
-  final String label;
-  final String value;
-  final AppThemeTokens tokens;
-  const _Pill(
-      {required this.label, required this.value, required this.tokens});
-
-  @override
-  Widget build(BuildContext context) {
-    return Expanded(
-      child: Container(
-        padding: const EdgeInsets.symmetric(vertical: 9),
-        decoration: BoxDecoration(
-          color: tokens.bgSurface,
-          borderRadius: BorderRadius.circular(10),
-          border: Border.all(
-              color: tokens.outline.withValues(alpha: 0.6), width: 0.5),
-        ),
-        child: Column(
-          children: [
             Text(
-              value,
-              style: tokens
-                  .textStyle(15, FontWeight.w800, tokens.textPrimary)
-                  .copyWith(letterSpacing: -0.4),
+              'Select Year',
+              style: TextStyle(
+                fontSize: 16,
+                fontWeight: FontWeight.w700,
+                color: tokens.textPrimary,
+              ),
             ),
-            const SizedBox(height: 1),
-            Text(label,
-                style:
-                    tokens.textStyle(10, FontWeight.w400, tokens.textMuted)),
+            const SizedBox(height: 8),
+            ...years.map(
+              (y) => ListTile(
+                title: Text(
+                  '$y',
+                  style: TextStyle(
+                    fontSize: 15,
+                    fontWeight:
+                        y == selected ? FontWeight.w700 : FontWeight.w400,
+                    color:
+                        y == selected ? tokens.accent : tokens.textPrimary,
+                  ),
+                ),
+                trailing: y == selected
+                    ? Icon(Icons.check_rounded,
+                        color: tokens.accent, size: 18)
+                    : null,
+                onTap: () {
+                  Navigator.pop(ctx);
+                  onChanged(y);
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
           ],
         ),
       ),
@@ -682,87 +661,100 @@ class _Pill extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Spotlight row — compact 56px row (top track / top artist)
+// Quick stat grid — 2×2 with divider lines
 // ---------------------------------------------------------------------------
 
-class _SpotlightRow extends StatelessWidget {
-  final String label;
-  final String title;
-  final String subtitle;
-  final String trailing;
-  final IconData icon;
-  final Color iconColor;
-  final bool circle;
-
-  const _SpotlightRow({
-    required this.label,
-    required this.title,
-    required this.subtitle,
-    required this.trailing,
-    required this.icon,
-    required this.iconColor,
-    this.circle = false,
-  });
+class _QuickStatGrid extends StatelessWidget {
+  final YearlyReplayResponse replay;
+  const _QuickStatGrid({required this.replay});
 
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
+    final dividerColor = tokens.outline.withValues(alpha: 0.4);
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(
         color: tokens.bgSurface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-            color: tokens.outline.withValues(alpha: 0.6), width: 0.5),
+          color: tokens.outline.withValues(alpha: 0.5),
+          width: 0.5,
+        ),
       ),
-      child: Row(
+      child: Column(
         children: [
-          // Icon thumbnail
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: iconColor.withValues(alpha: 0.12),
-              borderRadius:
-                  circle ? null : BorderRadius.circular(8),
-              shape: circle ? BoxShape.circle : BoxShape.rectangle,
-            ),
-            child: Icon(icon, color: iconColor, size: 20),
-          ),
-          const SizedBox(width: 12),
-          // Text
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          IntrinsicHeight(
+            child: Row(
               children: [
-                Text(
-                  label,
-                  style: tokens
-                      .textStyle(9, FontWeight.w600, tokens.accent)
-                      .copyWith(letterSpacing: 1.0),
+                Expanded(
+                  child: _StatCell(
+                    label: 'Total Plays',
+                    value: _fmtComma(replay.totalPlays),
+                  ),
                 ),
-                Text(
-                  title,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      tokens.textStyle(13, FontWeight.w700, tokens.textPrimary),
-                ),
-                Text(
-                  subtitle,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style:
-                      tokens.textStyle(11, FontWeight.w400, tokens.textMuted),
+                Container(width: 0.5, color: dividerColor),
+                Expanded(
+                  child: _StatCell(
+                    label: 'Listening Days',
+                    value: '${replay.listeningDays}',
+                  ),
                 ),
               ],
             ),
           ),
-          const SizedBox(width: 8),
+          Container(height: 0.5, color: dividerColor),
+          IntrinsicHeight(
+            child: Row(
+              children: [
+                Expanded(
+                  child: _StatCell(
+                    label: 'Unique Songs',
+                    value: _fmtComma(replay.uniqueSongs),
+                  ),
+                ),
+                Container(width: 0.5, color: dividerColor),
+                Expanded(
+                  child: _StatCell(
+                    label: 'Unique Artists',
+                    value: '${replay.uniqueArtists}',
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _StatCell extends StatelessWidget {
+  final String label;
+  final String value;
+
+  const _StatCell({required this.label, required this.value});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
           Text(
-            trailing,
+            label,
             style: tokens
-                .textStyle(12, FontWeight.w600, tokens.textSecondary),
+                .textStyle(11, FontWeight.w500, tokens.textMuted)
+                .copyWith(letterSpacing: 0.3),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            value,
+            style: tokens
+                .textStyle(24, FontWeight.w800, tokens.textPrimary)
+                .copyWith(letterSpacing: -0.8),
           ),
         ],
       ),
@@ -771,12 +763,12 @@ class _SpotlightRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Genre card — compact animated bars
+// Genre card — colour dots + rounded animated bars
 // ---------------------------------------------------------------------------
 
-class _GenreCard extends StatelessWidget {
+class _AppleGenreCard extends StatelessWidget {
   final List<ReplayGenre> genres;
-  const _GenreCard({required this.genres});
+  const _AppleGenreCard({required this.genres});
 
   @override
   Widget build(BuildContext context) {
@@ -784,13 +776,23 @@ class _GenreCard extends StatelessWidget {
     final top = genres.take(5).toList();
     final maxPct = top.isEmpty ? 1.0 : top.first.pct;
 
+    final barColors = [
+      tokens.accent,
+      tokens.accent.withValues(alpha: 0.78),
+      tokens.accent.withValues(alpha: 0.58),
+      tokens.accent.withValues(alpha: 0.40),
+      tokens.accent.withValues(alpha: 0.25),
+    ];
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 12),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: tokens.bgSurface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-            color: tokens.outline.withValues(alpha: 0.6), width: 0.5),
+          color: tokens.outline.withValues(alpha: 0.5),
+          width: 0.5,
+        ),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -798,57 +800,66 @@ class _GenreCard extends StatelessWidget {
           Text(
             'YOUR SOUND',
             style: tokens
-                .textStyle(9, FontWeight.w600, tokens.textMuted)
+                .textStyle(11, FontWeight.w700, tokens.textMuted)
                 .copyWith(letterSpacing: 1.2),
           ),
-          const SizedBox(height: 10),
+          const SizedBox(height: 16),
           ...top.asMap().entries.map((e) {
             final i = e.key;
             final g = e.value;
             final fill =
                 maxPct > 0 ? (g.pct / maxPct).clamp(0.0, 1.0) : 0.0;
-            final opacity = 1.0 - i * 0.18;
-            final color = tokens.accent.withValues(alpha: opacity);
+            final color = barColors[i % barColors.length];
+
             return Padding(
-              padding: const EdgeInsets.only(bottom: 7),
-              child: Row(
+              padding: const EdgeInsets.only(bottom: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  SizedBox(
-                    width: 72,
-                    child: Text(
-                      g.genre,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: tokens.textStyle(
-                          11, FontWeight.w500, tokens.textSecondary),
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(3),
-                      child: TweenAnimationBuilder<double>(
-                        tween: Tween(begin: 0, end: fill),
-                        duration:
-                            Duration(milliseconds: 450 + i * 60),
-                        curve: Curves.easeOutCubic,
-                        builder: (_, v, _) => LinearProgressIndicator(
-                          value: v,
-                          minHeight: 6,
-                          backgroundColor: tokens.bgElevated,
-                          valueColor: AlwaysStoppedAnimation(color),
+                  Row(
+                    children: [
+                      // Colour dot
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: color,
+                          shape: BoxShape.circle,
                         ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: Text(
+                          g.genre,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: tokens.textStyle(
+                            12,
+                            FontWeight.w600,
+                            tokens.textPrimary,
+                          ),
+                        ),
+                      ),
+                      Text(
+                        '${g.pct.toStringAsFixed(0)}%',
+                        style:
+                            tokens.textStyle(11, FontWeight.w600, color),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 6),
-                  SizedBox(
-                    width: 30,
-                    child: Text(
-                      '${g.pct.toStringAsFixed(0)}%',
-                      textAlign: TextAlign.right,
-                      style: tokens.textStyle(
-                          10, FontWeight.w600, color),
+                  const SizedBox(height: 7),
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(4),
+                    child: TweenAnimationBuilder<double>(
+                      tween: Tween(begin: 0, end: fill),
+                      duration: Duration(milliseconds: 550 + i * 80),
+                      curve: Curves.easeOutCubic,
+                      builder: (_, v, _) => LinearProgressIndicator(
+                        value: v,
+                        minHeight: 8,
+                        backgroundColor: tokens.bgElevated,
+                        valueColor: AlwaysStoppedAnimation(color),
+                      ),
                     ),
                   ),
                 ],
@@ -862,7 +873,7 @@ class _GenreCard extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Peak hour — compact inline waveform
+// Peak hour — waveform bar chart
 // ---------------------------------------------------------------------------
 
 class _PeakHourRow extends StatelessWidget {
@@ -880,50 +891,51 @@ class _PeakHourRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final counts =
-        List.generate(24, (h) => heatmap[h.toString()] ?? 0);
+    final counts = List.generate(24, (h) => heatmap[h.toString()] ?? 0);
     final maxCount =
         counts.isEmpty ? 1 : counts.reduce((a, b) => a > b ? a : b);
 
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
         color: tokens.bgSurface,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(18),
         border: Border.all(
-            color: tokens.outline.withValues(alpha: 0.6), width: 0.5),
+          color: tokens.outline.withValues(alpha: 0.5),
+          width: 0.5,
+        ),
       ),
       child: Row(
         children: [
-          // Left: label + hour
+          // Label + hour
           Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 'PEAK HOUR',
                 style: tokens
-                    .textStyle(9, FontWeight.w600, tokens.textMuted)
+                    .textStyle(11, FontWeight.w700, tokens.textMuted)
                     .copyWith(letterSpacing: 1.0),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 4),
               Text(
                 _label(peakHour),
-                style: tokens.textStyle(
-                    18, FontWeight.w800, tokens.accent),
+                style: tokens
+                    .textStyle(24, FontWeight.w800, tokens.accent)
+                    .copyWith(letterSpacing: -0.5),
               ),
             ],
           ),
-          const SizedBox(width: 16),
-          // Right: waveform bars
+          const SizedBox(width: 20),
+          // Waveform bars
           Expanded(
             child: SizedBox(
-              height: 36,
+              height: 48,
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
                 children: List.generate(24, (h) {
-                  final frac = maxCount > 0
-                      ? counts[h] / maxCount
-                      : 0.0;
+                  final frac =
+                      maxCount > 0 ? counts[h] / maxCount : 0.0;
                   final isPeak = h == peakHour;
                   return Expanded(
                     child: Padding(
@@ -931,17 +943,16 @@ class _PeakHourRow extends StatelessWidget {
                           const EdgeInsets.symmetric(horizontal: 0.8),
                       child: TweenAnimationBuilder<double>(
                         tween: Tween(begin: 0, end: frac),
-                        duration:
-                            Duration(milliseconds: 350 + h * 7),
+                        duration: Duration(milliseconds: 400 + h * 8),
                         curve: Curves.easeOutCubic,
                         builder: (_, v, _) => Container(
-                          height: math.max(2, 36 * v),
+                          height: math.max(3, 48 * v),
                           decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(2),
+                            borderRadius: BorderRadius.circular(3),
                             color: isPeak
                                 ? tokens.accent
                                 : tokens.accent.withValues(
-                                    alpha: 0.2 + 0.45 * v),
+                                    alpha: 0.15 + 0.5 * v),
                           ),
                         ),
                       ),
@@ -958,78 +969,96 @@ class _PeakHourRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Month tile — small horizontal-scroll tile (NOT a giant grid card)
+// Month tile — taller, gradient-tinted horizontal scroll tile
 // ---------------------------------------------------------------------------
 
 class _MonthTile extends StatelessWidget {
   final ReplayMonthlyCard card;
+  final Color accentColor;
   final VoidCallback onTap;
-  const _MonthTile({required this.card, required this.onTap});
+
+  const _MonthTile({
+    required this.card,
+    required this.accentColor,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
+    final hasActivity = card.totalPlays > 0;
 
     return CupertinoClickable(
       onTap: onTap,
       child: Container(
-        width: 100,
+        width: 112,
         decoration: BoxDecoration(
-          color: tokens.bgSurface,
-          borderRadius: BorderRadius.circular(12),
+          gradient: hasActivity
+              ? LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [
+                    accentColor.withValues(alpha: 0.14),
+                    accentColor.withValues(alpha: 0.04),
+                  ],
+                )
+              : null,
+          color: hasActivity ? null : tokens.bgSurface,
+          borderRadius: BorderRadius.circular(16),
           border: Border.all(
-              color: tokens.outline.withValues(alpha: 0.6), width: 0.5),
+            color: hasActivity
+                ? accentColor.withValues(alpha: 0.22)
+                : tokens.outline.withValues(alpha: 0.5),
+            width: 0.7,
+          ),
         ),
-        padding: const EdgeInsets.all(10),
+        padding: const EdgeInsets.all(12),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Month name + active dot
-            Row(
-              children: [
-                Text(
-                  card.monthName.substring(0, 3).toUpperCase(),
-                  style: tokens
-                      .textStyle(10, FontWeight.w800, tokens.accent)
-                      .copyWith(letterSpacing: 0.8),
-                ),
-                const Spacer(),
-                if (card.totalPlays > 0)
-                  Container(
-                    width: 5,
-                    height: 5,
-                    decoration: BoxDecoration(
-                      color: tokens.accent.withValues(alpha: 0.6),
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-              ],
+            // Month abbreviation
+            Text(
+              card.monthName.substring(0, 3).toUpperCase(),
+              style: tokens
+                  .textStyle(
+                    11,
+                    FontWeight.w800,
+                    hasActivity ? tokens.accent : tokens.textMuted,
+                  )
+                  .copyWith(letterSpacing: 0.8),
             ),
-            const SizedBox(height: 3),
+            const SizedBox(height: 6),
+            // Play count
             Text(
               '${card.totalPlays}',
               style: tokens
-                  .textStyle(17, FontWeight.w800, tokens.textPrimary)
+                  .textStyle(22, FontWeight.w800, tokens.textPrimary)
                   .copyWith(letterSpacing: -0.5),
             ),
             Text(
               'plays',
               style:
-                  tokens.textStyle(9, FontWeight.w400, tokens.textMuted),
+                  tokens.textStyle(10, FontWeight.w400, tokens.textMuted),
             ),
             const Spacer(),
+            // Top track name
             if (card.topTrack != null)
               Text(
                 card.topTrack!.title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
-                style:
-                    tokens.textStyle(10, FontWeight.w600, tokens.textSecondary),
+                style: tokens.textStyle(
+                  10,
+                  FontWeight.w600,
+                  tokens.textSecondary,
+                ),
               )
             else
-              Text('—',
-                  style: tokens.textStyle(
-                      10, FontWeight.w400, tokens.textMuted)),
+              Text(
+                '—',
+                style:
+                    tokens.textStyle(10, FontWeight.w400, tokens.textMuted),
+              ),
           ],
         ),
       ),
@@ -1038,7 +1067,7 @@ class _MonthTile extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Section header
+// Section header with divider line
 // ---------------------------------------------------------------------------
 
 class _SectionHeader extends StatelessWidget {
@@ -1051,18 +1080,29 @@ class _SectionHeader extends StatelessWidget {
     final tokens = ThemeTokens.of(context);
     return Padding(
       padding: padding,
-      child: Text(
-        label,
-        style: tokens
-            .textStyle(10, FontWeight.w700, tokens.textMuted)
-            .copyWith(letterSpacing: 1.4),
+      child: Row(
+        children: [
+          Text(
+            label,
+            style: tokens
+                .textStyle(11, FontWeight.w700, tokens.textMuted)
+                .copyWith(letterSpacing: 1.4),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Container(
+              height: 0.5,
+              color: tokens.outline.withValues(alpha: 0.45),
+            ),
+          ),
+        ],
       ),
     );
   }
 }
 
 // ---------------------------------------------------------------------------
-// Track row — 48px compact Apple Music style
+// Track row — bold rank numbers, accent tint for top 3
 // ---------------------------------------------------------------------------
 
 class _TrackRow extends StatelessWidget {
@@ -1074,44 +1114,52 @@ class _TrackRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
     final isTop3 = rank <= 3;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-              color: tokens.outline.withValues(alpha: 0.35), width: 0.5),
+            color: tokens.outline.withValues(alpha: 0.3),
+            width: 0.5,
+          ),
         ),
       ),
       child: Row(
         children: [
-          // Rank
+          // Rank number
           SizedBox(
-            width: 24,
+            width: 28,
             child: Text(
               '$rank',
               textAlign: TextAlign.center,
               style: tokens
                   .textStyle(
-                    isTop3 ? 17 : 13,
+                    isTop3 ? 22 : 14,
                     FontWeight.w900,
                     isTop3 ? tokens.accent : tokens.textMuted,
                   )
-                  .copyWith(letterSpacing: -0.3),
+                  .copyWith(letterSpacing: -0.5),
             ),
           ),
           const SizedBox(width: 12),
           // Icon
           Container(
-            width: 36,
-            height: 36,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: tokens.bgElevated,
-              borderRadius: BorderRadius.circular(6),
+              color: isTop3
+                  ? tokens.accent.withValues(alpha: 0.1)
+                  : tokens.bgElevated,
+              borderRadius: BorderRadius.circular(10),
             ),
-            child: Icon(Icons.music_note_rounded,
-                size: 16, color: tokens.textMuted),
+            child: Icon(
+              Icons.music_note_rounded,
+              size: 18,
+              color: isTop3 ? tokens.accent : tokens.textMuted,
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           // Title + artist
           Expanded(
             child: Column(
@@ -1122,14 +1170,20 @@ class _TrackRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: tokens.textStyle(
-                      13, FontWeight.w600, tokens.textPrimary),
+                    13,
+                    FontWeight.w600,
+                    tokens.textPrimary,
+                  ),
                 ),
                 Text(
                   track.artist,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
-                  style:
-                      tokens.textStyle(11, FontWeight.w400, tokens.textMuted),
+                  style: tokens.textStyle(
+                    11,
+                    FontWeight.w400,
+                    tokens.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -1142,12 +1196,18 @@ class _TrackRow extends StatelessWidget {
               Text(
                 '${track.playCount}×',
                 style: tokens.textStyle(
-                    12, FontWeight.w600, tokens.textSecondary),
+                  12,
+                  FontWeight.w600,
+                  tokens.textSecondary,
+                ),
               ),
               Text(
                 _fmtMin(track.totalMinutes),
                 style: tokens.textStyle(
-                    10, FontWeight.w400, tokens.textMuted),
+                  10,
+                  FontWeight.w400,
+                  tokens.textMuted,
+                ),
               ),
             ],
           ),
@@ -1155,17 +1215,10 @@ class _TrackRow extends StatelessWidget {
       ),
     );
   }
-
-  static String _fmtMin(double m) {
-    final h = (m / 60).floor();
-    final min = (m % 60).round();
-    if (h > 0) return '${h}h${min}m';
-    return '${min}m';
-  }
 }
 
 // ---------------------------------------------------------------------------
-// Artist row — 48px compact
+// Artist row — bold rank numbers, accent tint for top 3
 // ---------------------------------------------------------------------------
 
 class _ArtistRow extends StatelessWidget {
@@ -1177,40 +1230,53 @@ class _ArtistRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
     final isTop3 = rank <= 3;
+
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 9),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-              color: tokens.outline.withValues(alpha: 0.35), width: 0.5),
+            color: tokens.outline.withValues(alpha: 0.3),
+            width: 0.5,
+          ),
         ),
       ),
       child: Row(
         children: [
+          // Rank number
           SizedBox(
-            width: 24,
+            width: 28,
             child: Text(
               '$rank',
               textAlign: TextAlign.center,
-              style: tokens.textStyle(
-                isTop3 ? 17 : 13,
-                FontWeight.w900,
-                isTop3 ? tokens.accent : tokens.textMuted,
-              ),
+              style: tokens
+                  .textStyle(
+                    isTop3 ? 22 : 14,
+                    FontWeight.w900,
+                    isTop3 ? tokens.accent : tokens.textMuted,
+                  )
+                  .copyWith(letterSpacing: -0.5),
             ),
           ),
           const SizedBox(width: 12),
+          // Circle icon
           Container(
-            width: 36,
-            height: 36,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
-              color: tokens.bgElevated,
+              color: isTop3
+                  ? tokens.accent.withValues(alpha: 0.1)
+                  : tokens.bgElevated,
               shape: BoxShape.circle,
             ),
-            child: Icon(Icons.person_rounded,
-                size: 18, color: tokens.textMuted),
+            child: Icon(
+              Icons.person_rounded,
+              size: 20,
+              color: isTop3 ? tokens.accent : tokens.textMuted,
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
+          // Artist name + details
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
@@ -1220,12 +1286,18 @@ class _ArtistRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: tokens.textStyle(
-                      13, FontWeight.w600, tokens.textPrimary),
+                    13,
+                    FontWeight.w600,
+                    tokens.textPrimary,
+                  ),
                 ),
                 Text(
                   '${artist.uniqueSongs} songs · ${artist.playCount} plays',
                   style: tokens.textStyle(
-                      11, FontWeight.w400, tokens.textMuted),
+                    11,
+                    FontWeight.w400,
+                    tokens.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -1234,23 +1306,19 @@ class _ArtistRow extends StatelessWidget {
           Text(
             _fmtMin(artist.totalMinutes),
             style: tokens.textStyle(
-                12, FontWeight.w600, tokens.textSecondary),
+              12,
+              FontWeight.w600,
+              tokens.textSecondary,
+            ),
           ),
         ],
       ),
     );
   }
-
-  static String _fmtMin(double m) {
-    final h = (m / 60).floor();
-    final min = (m % 60).round();
-    if (h > 0) return '${h}h${min}m';
-    return '${min}m';
-  }
 }
 
 // ---------------------------------------------------------------------------
-// Monthly detail sheet (bottom sheet) — unchanged data, tighter UI
+// Monthly detail bottom sheet
 // ---------------------------------------------------------------------------
 
 class _MonthDetailSheet extends ConsumerWidget {
@@ -1271,30 +1339,36 @@ class _MonthDetailSheet extends ConsumerWidget {
       builder: (_, sc) => Container(
         decoration: BoxDecoration(
           color: tokens.bgBase,
-          borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+          borderRadius:
+              const BorderRadius.vertical(top: Radius.circular(24)),
         ),
         child: Column(
           children: [
             // Handle
             Padding(
-              padding: const EdgeInsets.symmetric(vertical: 10),
+              padding: const EdgeInsets.symmetric(vertical: 12),
               child: Center(
                 child: Container(
-                  width: 32,
+                  width: 36,
                   height: 4,
                   decoration: BoxDecoration(
-                      color: tokens.outline,
-                      borderRadius: BorderRadius.circular(2)),
+                    color: tokens.outline,
+                    borderRadius: BorderRadius.circular(2),
+                  ),
                 ),
               ),
             ),
             Expanded(
               child: async.when(
-                data: (data) =>
-                    _MonthDetailContent(data: data, scrollController: sc),
+                data: (data) => _MonthDetailContent(
+                  data: data,
+                  scrollController: sc,
+                ),
                 loading: () => Center(
                   child: CircularProgressIndicator(
-                      color: tokens.accent, strokeWidth: 2),
+                    color: tokens.accent,
+                    strokeWidth: 2,
+                  ),
                 ),
                 error: (e, _) => Center(
                   child: Column(
@@ -1303,14 +1377,18 @@ class _MonthDetailSheet extends ConsumerWidget {
                       Icon(Icons.wifi_off_rounded,
                           color: tokens.textMuted, size: 36),
                       const SizedBox(height: 12),
-                      Text('Could not load month data',
-                          style: TextStyle(color: tokens.textMuted)),
+                      Text(
+                        'Could not load month data',
+                        style: TextStyle(color: tokens.textMuted),
+                      ),
                       const SizedBox(height: 12),
                       TextButton(
-                        onPressed: () =>
-                            ref.invalidate(navivibeMonthlyReplayProvider(key)),
-                        child: Text('Retry',
-                            style: TextStyle(color: tokens.accent)),
+                        onPressed: () => ref
+                            .invalidate(navivibeMonthlyReplayProvider(key)),
+                        child: Text(
+                          'Retry',
+                          style: TextStyle(color: tokens.accent),
+                        ),
                       ),
                     ],
                   ),
@@ -1327,12 +1405,16 @@ class _MonthDetailSheet extends ConsumerWidget {
 class _MonthDetailContent extends StatelessWidget {
   final MonthlyReplayResponse data;
   final ScrollController scrollController;
-  const _MonthDetailContent(
-      {required this.data, required this.scrollController});
+
+  const _MonthDetailContent({
+    required this.data,
+    required this.scrollController,
+  });
 
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
+    final dividerColor = tokens.outline.withValues(alpha: 0.4);
 
     return ListView(
       controller: scrollController,
@@ -1342,73 +1424,103 @@ class _MonthDetailContent extends StatelessWidget {
         Text(
           '${data.monthName} ${data.year}',
           style: tokens
-              .textStyle(24, FontWeight.w900, tokens.textPrimary)
-              .copyWith(letterSpacing: -0.8),
+              .textStyle(28, FontWeight.w900, tokens.textPrimary)
+              .copyWith(letterSpacing: -1.0),
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 16),
 
-        // Quick stats pills — same _StatPillRow pattern
-        Row(
-          children: [
-            _Pill(
-                label: 'Plays',
-                value: '${data.totalPlays}',
-                tokens: tokens),
-            const SizedBox(width: 6),
-            _Pill(
-                label: 'Time',
-                value: data.totalHoursLabel,
-                tokens: tokens),
-            const SizedBox(width: 6),
-            _Pill(
-                label: 'Songs',
-                value: '${data.uniqueSongs}',
-                tokens: tokens),
-            const SizedBox(width: 6),
-            _Pill(
-                label: 'Streak',
-                value: '${data.streakDays}d 🔥',
-                tokens: tokens),
-          ],
+        // Quick stats — 2×2 grid
+        Container(
+          decoration: BoxDecoration(
+            color: tokens.bgSurface,
+            borderRadius: BorderRadius.circular(18),
+            border: Border.all(
+              color: tokens.outline.withValues(alpha: 0.5),
+              width: 0.5,
+            ),
+          ),
+          child: Column(
+            children: [
+              IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _StatCell(
+                        label: 'Plays',
+                        value: '${data.totalPlays}',
+                      ),
+                    ),
+                    Container(width: 0.5, color: dividerColor),
+                    Expanded(
+                      child: _StatCell(
+                        label: 'Time',
+                        value: data.totalHoursLabel,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              Container(height: 0.5, color: dividerColor),
+              IntrinsicHeight(
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: _StatCell(
+                        label: 'Songs',
+                        value: '${data.uniqueSongs}',
+                      ),
+                    ),
+                    Container(width: 0.5, color: dividerColor),
+                    Expanded(
+                      child: _StatCell(
+                        label: 'Streak',
+                        value: '${data.streakDays}d 🔥',
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
-        const SizedBox(height: 14),
+        const SizedBox(height: 20),
 
         // Daily mini chart
         if (data.dailyBreakdown.isNotEmpty) ...[
           _SheetSection('DAILY ACTIVITY'),
-          const SizedBox(height: 6),
+          const SizedBox(height: 8),
           _DailyMiniChart(days: data.dailyBreakdown),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
         ],
 
         // Top tracks
         if (data.topTracks.isNotEmpty) ...[
           _SheetSection('TOP TRACKS'),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           ...data.topTracks.asMap().entries.map(
                 (e) => _TrackRow(track: e.value, rank: e.key + 1)
                     .animate(delay: (e.key * 25).ms)
                     .fadeIn(duration: 220.ms),
               ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
         ],
 
         // Top artists
         if (data.topArtists.isNotEmpty) ...[
           _SheetSection('TOP ARTISTS'),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           ...data.topArtists.take(5).toList().asMap().entries.map(
                 (e) => _ArtistRow(artist: e.value, rank: e.key + 1)
                     .animate(delay: (e.key * 25).ms)
                     .fadeIn(duration: 220.ms),
               ),
-          const SizedBox(height: 14),
+          const SizedBox(height: 20),
         ],
 
         // Recent plays
         if (data.recentPlays.isNotEmpty) ...[
           _SheetSection('RECENT PLAYS'),
-          const SizedBox(height: 4),
+          const SizedBox(height: 6),
           ...data.recentPlays.take(10).map((p) => _RecentPlayRow(play: p)),
         ],
       ],
@@ -1428,12 +1540,16 @@ class _SheetSection extends StatelessWidget {
         Text(
           text,
           style: tokens
-              .textStyle(10, FontWeight.w700, tokens.textMuted)
+              .textStyle(11, FontWeight.w700, tokens.textMuted)
               .copyWith(letterSpacing: 1.3),
         ),
-        const SizedBox(width: 8),
+        const SizedBox(width: 10),
         Expanded(
-            child: Container(height: 0.5, color: tokens.outline)),
+          child: Container(
+            height: 0.5,
+            color: tokens.outline.withValues(alpha: 0.45),
+          ),
+        ),
       ],
     );
   }
@@ -1448,10 +1564,11 @@ class _DailyMiniChart extends StatelessWidget {
     final tokens = ThemeTokens.of(context);
     final maxPlays =
         days.map((d) => d.playCount).reduce(math.max).toDouble();
-    final show = days.length <= 31 ? days : days.sublist(days.length - 31);
+    final show =
+        days.length <= 31 ? days : days.sublist(days.length - 31);
 
     return SizedBox(
-      height: 44,
+      height: 48,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: show.map((d) {
@@ -1461,13 +1578,14 @@ class _DailyMiniChart extends StatelessWidget {
               padding: const EdgeInsets.symmetric(horizontal: 0.8),
               child: TweenAnimationBuilder<double>(
                 tween: Tween(begin: 0, end: frac),
-                duration: const Duration(milliseconds: 450),
+                duration: const Duration(milliseconds: 500),
                 curve: Curves.easeOutCubic,
                 builder: (_, v, _) => Container(
-                  height: math.max(2, 44 * v),
+                  height: math.max(3, 48 * v),
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(2),
-                    color: tokens.accent.withValues(alpha: 0.3 + 0.7 * v),
+                    borderRadius: BorderRadius.circular(3),
+                    color: tokens.accent
+                        .withValues(alpha: 0.25 + 0.75 * v),
                   ),
                 ),
               ),
@@ -1498,19 +1616,25 @@ class _RecentPlayRow extends StatelessWidget {
       decoration: BoxDecoration(
         border: Border(
           bottom: BorderSide(
-              color: tokens.outline.withValues(alpha: 0.35), width: 0.4),
+            color: tokens.outline.withValues(alpha: 0.3),
+            width: 0.4,
+          ),
         ),
       ),
       child: Row(
         children: [
           Container(
-            width: 32,
-            height: 32,
+            width: 36,
+            height: 36,
             decoration: BoxDecoration(
-                color: tokens.bgElevated,
-                borderRadius: BorderRadius.circular(6)),
-            child: Icon(Icons.music_note_rounded,
-                size: 14, color: tokens.textMuted),
+              color: tokens.bgElevated,
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              Icons.music_note_rounded,
+              size: 16,
+              color: tokens.textMuted,
+            ),
           ),
           const SizedBox(width: 10),
           Expanded(
@@ -1522,14 +1646,20 @@ class _RecentPlayRow extends StatelessWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: tokens.textStyle(
-                      12, FontWeight.w600, tokens.textPrimary),
+                    12,
+                    FontWeight.w600,
+                    tokens.textPrimary,
+                  ),
                 ),
                 Text(
                   play.artist,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: tokens.textStyle(
-                      10, FontWeight.w400, tokens.textMuted),
+                    10,
+                    FontWeight.w400,
+                    tokens.textMuted,
+                  ),
                 ),
               ],
             ),
@@ -1539,12 +1669,17 @@ class _RecentPlayRow extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.end,
             children: [
               if (timeStr.isNotEmpty)
-                Text(timeStr,
-                    style: tokens.textStyle(
-                        10, FontWeight.w400, tokens.textMuted)),
+                Text(
+                  timeStr,
+                  style: tokens.textStyle(
+                    10,
+                    FontWeight.w400,
+                    tokens.textMuted,
+                  ),
+                ),
               const SizedBox(height: 3),
               SizedBox(
-                width: 36,
+                width: 40,
                 height: 3,
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(2),
@@ -1555,8 +1690,10 @@ class _RecentPlayRow extends StatelessWidget {
                       play.listenRatio >= 0.8
                           ? tokens.accent
                           : play.listenRatio >= 0.5
-                              ? tokens.accent.withValues(alpha: 0.55)
-                              : tokens.textMuted.withValues(alpha: 0.35),
+                              ? tokens.accent
+                                  .withValues(alpha: 0.55)
+                              : tokens.textMuted
+                                  .withValues(alpha: 0.35),
                     ),
                   ),
                 ),
@@ -1570,7 +1707,7 @@ class _RecentPlayRow extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Loading state
+// Loading state — gradient hero skeleton
 // ---------------------------------------------------------------------------
 
 class _LoadingBody extends StatelessWidget {
@@ -1581,92 +1718,163 @@ class _LoadingBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
+    final grad = _heroGradient(tokens.accent);
+
     return Column(
       children: [
-        // Mock hero bg
+        // Gradient hero skeleton
         Container(
-          color: tokens.accent.withValues(alpha: 0.8),
-          padding: EdgeInsets.fromLTRB(4, topPad + 4, 12, 20),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                grad.top.withValues(alpha: 0.7),
+                grad.bottom.withValues(alpha: 0.7),
+              ],
+            ),
+          ),
+          padding: EdgeInsets.fromLTRB(4, topPad + 4, 12, 28),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
+              // Nav bar
               Row(
                 children: [
                   IconButton(
-                    icon: Icon(Icons.keyboard_arrow_down_rounded,
-                        color: tokens.isLight ? Colors.white : Colors.black,
-                        size: 28),
+                    icon: const Icon(
+                      Icons.keyboard_arrow_down_rounded,
+                      color: Colors.white,
+                      size: 28,
+                    ),
                     onPressed: onBack,
                   ),
                   const Spacer(),
-                  Text('Replay',
-                      style: tokens.textStyle(
-                          16,
-                          FontWeight.w700,
-                          tokens.isLight ? Colors.white : Colors.black)),
+                  Text(
+                    'Replay',
+                    style: tokens
+                        .textStyle(17, FontWeight.w700, Colors.white)
+                        .copyWith(letterSpacing: -0.3),
+                  ),
                   const Spacer(),
                   const SizedBox(width: 48),
                 ],
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 32),
+              // Total Minutes skeleton
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: NaviSkeleton(height: 11, width: 90),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 14,
+                      width: 100,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 10),
+                    Container(
+                      height: 58,
+                      width: 200,
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(8),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-              const SizedBox(height: 6),
+              const SizedBox(height: 28),
+              // Divider skeleton
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: NaviSkeleton(height: 52, width: 180),
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Container(
+                  height: 0.5,
+                  color: Colors.white.withValues(alpha: 0.1),
+                ),
               ),
               const SizedBox(height: 20),
+              // Highlight row skeletons
+              ...List.generate(
+                3,
+                (i) => Padding(
+                  padding: const EdgeInsets.fromLTRB(20, 0, 20, 18),
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 46,
+                        height: 46,
+                        decoration: BoxDecoration(
+                          color: Colors.white.withValues(alpha: 0.08),
+                          borderRadius: BorderRadius.circular(13),
+                        ),
+                      ),
+                      const SizedBox(width: 14),
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Container(
+                            height: 10,
+                            width: 60,
+                            decoration: BoxDecoration(
+                              color:
+                                  Colors.white.withValues(alpha: 0.08),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                          const SizedBox(height: 6),
+                          Container(
+                            height: 14,
+                            width: 150,
+                            decoration: BoxDecoration(
+                              color:
+                                  Colors.white.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                          const SizedBox(height: 4),
+                          Container(
+                            height: 10,
+                            width: 90,
+                            decoration: BoxDecoration(
+                              color:
+                                  Colors.white.withValues(alpha: 0.06),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
         ),
+        // Content skeleton
         Expanded(
           child: ListView(
             padding: const EdgeInsets.all(16),
             physics: const NeverScrollableScrollPhysics(),
             children: [
-              // Pill skeletons
-              Row(
-                children: List.generate(
-                  4,
-                  (_) => Expanded(
-                    child: Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 4),
-                      child: Container(
-                        height: 52,
-                        decoration: BoxDecoration(
-                          color: tokens.bgSurface,
-                          borderRadius: BorderRadius.circular(10),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              // Spotlight row skeletons
-              ...List.generate(
-                2,
-                (_) => Padding(
-                  padding: const EdgeInsets.only(bottom: 8),
-                  child: Container(
-                    height: 60,
-                    decoration: BoxDecoration(
-                      color: tokens.bgSurface,
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 8),
-              // Genre card skeleton
+              // Stat grid skeleton
               Container(
-                height: 100,
+                height: 130,
                 decoration: BoxDecoration(
                   color: tokens.bgSurface,
-                  borderRadius: BorderRadius.circular(12),
+                  borderRadius: BorderRadius.circular(18),
+                ),
+              ),
+              const SizedBox(height: 16),
+              // Genre card skeleton
+              Container(
+                height: 160,
+                decoration: BoxDecoration(
+                  color: tokens.bgSurface,
+                  borderRadius: BorderRadius.circular(18),
                 ),
               ),
             ],
@@ -1678,7 +1886,7 @@ class _LoadingBody extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Error state
+// Error state — gradient header + centred message
 // ---------------------------------------------------------------------------
 
 class _ErrorBody extends StatelessWidget {
@@ -1686,6 +1894,7 @@ class _ErrorBody extends StatelessWidget {
   final Object error;
   final VoidCallback onBack;
   final VoidCallback onRetry;
+
   const _ErrorBody({
     required this.topPad,
     required this.error,
@@ -1696,28 +1905,57 @@ class _ErrorBody extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
+    final grad = _heroGradient(tokens.accent);
+
     return Column(
       children: [
-        SizedBox(height: topPad + 16),
-        Row(
-          children: [
-            IconButton(
-              icon: Icon(Icons.keyboard_arrow_down_rounded,
-                  color: tokens.textPrimary, size: 30),
-              onPressed: onBack,
+        // Gradient header bar
+        Container(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                grad.top.withValues(alpha: 0.6),
+                grad.bottom.withValues(alpha: 0.4),
+              ],
             ),
-            const Spacer(),
-            Text('Replay', style: tokens.headingSm),
-            const SizedBox(width: 48),
-          ],
+          ),
+          padding: EdgeInsets.fromLTRB(4, topPad + 4, 12, 20),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white,
+                  size: 28,
+                ),
+                onPressed: onBack,
+              ),
+              const Spacer(),
+              Text(
+                'Replay',
+                style: tokens
+                    .textStyle(17, FontWeight.w700, Colors.white)
+                    .copyWith(letterSpacing: -0.3),
+              ),
+              const Spacer(),
+              const SizedBox(width: 48),
+            ],
+          ),
         ),
         const Spacer(),
-        Icon(Icons.wifi_off_rounded, color: tokens.textMuted, size: 48),
+        Icon(Icons.wifi_off_rounded, color: tokens.textMuted, size: 52),
         const SizedBox(height: 16),
-        Text('Could not load Replay',
-            style:
-                tokens.textStyle(16, FontWeight.w600, tokens.textPrimary)),
-        const SizedBox(height: 6),
+        Text(
+          'Could not load Replay',
+          style: tokens.textStyle(
+            18,
+            FontWeight.w600,
+            tokens.textPrimary,
+          ),
+        ),
+        const SizedBox(height: 8),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: 40),
           child: Text(
@@ -1725,24 +1963,32 @@ class _ErrorBody extends StatelessWidget {
                 ? 'Authentication failed. Check your server credentials.'
                 : 'Make sure your Navivibe server is reachable.',
             textAlign: TextAlign.center,
-            style:
-                tokens.textStyle(13, FontWeight.w400, tokens.textMuted),
+            style: tokens.textStyle(
+              13,
+              FontWeight.w400,
+              tokens.textMuted,
+            ),
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 24),
         ElevatedButton(
           style: ElevatedButton.styleFrom(
             backgroundColor: tokens.accent,
-            foregroundColor: tokens.isLight ? Colors.white : Colors.black,
+            foregroundColor: Colors.white,
             shape: const StadiumBorder(),
             elevation: 0,
+            padding:
+                const EdgeInsets.symmetric(horizontal: 32, vertical: 14),
           ),
           onPressed: onRetry,
-          child: Text('Retry',
-              style: tokens.textStyle(
-                  14,
-                  FontWeight.w700,
-                  tokens.isLight ? Colors.white : Colors.black)),
+          child: Text(
+            'Retry',
+            style: tokens.textStyle(
+              15,
+              FontWeight.w700,
+              Colors.white,
+            ),
+          ),
         ),
         const Spacer(),
       ],
