@@ -131,6 +131,11 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
     _playing = true;
     _playingController.add(true);
   }
+
+  void simulateIndexChange(int newIndex) {
+    _currentIndex = newIndex;
+    _currentIndexController.add(newIndex);
+  }
 }
 
 class MockAudioHandler extends Mock implements NaviAudioHandler {
@@ -204,6 +209,12 @@ class MockAudioHandler extends Mock implements NaviAudioHandler {
         title: songs[startIndex].title,
       ));
     }
+  }
+
+  @override
+  Future<void> updateQueuePreservingCurrent(List<Song> newQueue, int newCurrentIndex) async {
+    currentQueue = List<Song>.from(newQueue);
+    (player as ControlledAudioPlayer).simulateIndexChange(newCurrentIndex);
   }
 
   @override

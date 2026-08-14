@@ -811,16 +811,22 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final isShuffleActive = playerState.shuffleMode;
     final isRepeatActive = playerState.repeatMode != LoopMode.off;
 
+    final isDesktopLayout = MediaQuery.of(context).size.width >= 800;
+
     return GestureDetector(
-      onVerticalDragUpdate: (d) => setState(
-        () => _dragOffset = (d.primaryDelta! > 0 || _dragOffset > 0)
-            ? (_dragOffset + d.primaryDelta!).clamp(0, double.infinity)
-            : 0,
-      ),
-      onVerticalDragEnd: (d) =>
-          (_dragOffset > 150 || (d.primaryVelocity ?? 0) > 1000)
-          ? Navigator.pop(context)
-          : setState(() => _dragOffset = 0),
+      onVerticalDragUpdate: isDesktopLayout
+          ? null
+          : (d) => setState(
+                () => _dragOffset = (d.primaryDelta! > 0 || _dragOffset > 0)
+                    ? (_dragOffset + d.primaryDelta!).clamp(0, double.infinity)
+                    : 0,
+              ),
+      onVerticalDragEnd: isDesktopLayout
+          ? null
+          : (d) =>
+              (_dragOffset > 150 || (d.primaryVelocity ?? 0) > 1000)
+              ? Navigator.pop(context)
+              : setState(() => _dragOffset = 0),
       child: AnimatedContainer(
         duration: _dragOffset == 0
             ? const Duration(milliseconds: 250)
@@ -855,8 +861,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                   ),
                 ),
               SafeArea(
-                child: Column(
-                  children: [
+                child: isDesktopLayout
+                    ? _DesktopNowPlayingView(
+                        song: song,
+                        imageUrl: imageUrl,
+                        cacheKey: cacheKey,
+                        blobColors: _blobColors,
+                        sleepSeconds: _sleepSeconds,
+                        onSmartShuffle: _showSmartShuffleDialog,
+                      )
+                    : Column(
+                        children: [
                     const SizedBox(height: 8),
                     Center(
                       child: Container(
@@ -2230,3 +2245,417 @@ class _BlobOverlayPainter extends CustomPainter {
   bool shouldRepaint(_BlobOverlayPainter old) =>
       old.t != t || old.colors != colors;
 }
+
+// =============================================================================
+// Desktop Now Playing View (Side-by-Side Layout for Laptops & Monitors)
+// =============================================================================
+
+class _DesktopNowPlayingView extends ConsumerStatefulWidget {
+  final Song song;
+  final String imageUrl;
+  final String cacheKey;
+  final List<Color> blobColors;
+  final ValueNotifier<int?> sleepSeconds;
+  final VoidCallback onSmartShuffle;
+
+  const _DesktopNowPlayingView({
+    required this.song,
+    required this.imageUrl,
+    required this.cacheKey,
+    required this.blobColors,
+    required this.sleepSeconds,
+    required this.onSmartShuffle,
+  });
+
+  @override
+  ConsumerState<_DesktopNowPlayingView> createState() =>
+      _DesktopNowPlayingViewState();
+}
+
+class _DesktopNowPlayingViewState
+    extends ConsumerState<_DesktopNowPlayingView>
+    with SingleTickerProviderStateMixin {
+  late TabController _tabController;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabController = TabController(length: 2, vsync: this);
+  }
+
+  @override
+  void dispose() {
+    _tabController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final playerState = ref.watch(playerProvider);
+    final notifier = ref.read(playerProvider.notifier);
+    final song = widget.song;
+    final tokens = ThemeTokens.of(context);
+    final isShuffleActive = playerState.shuffleMode;
+    final isRepeatActive = playerState.repeatMode != LoopMode.off;
+
+    return Column(
+      children: [
+        // Desktop Top Bar
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
+          child: Row(
+            children: [
+              IconButton(
+                icon: const Icon(
+                  Icons.keyboard_arrow_down_rounded,
+                  color: Colors.white,
+                  size: 32,
+                ),
+                onPressed: () => Navigator.pop(context),
+                tooltip: 'Close',
+              ),
+              const SizedBox(width: 12),
+              Text(
+                'NOW PLAYING',
+                style: TextStyle(
+                  color: tokens.textSecondary,
+                  fontSize: 13,
+                  fontWeight: FontWeight.bold,
+                  letterSpacing: 1.5,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                icon: Icon(
+                  Icons.more_horiz_rounded,
+                  color: tokens.textPrimary.withValues(alpha: 0.8),
+                  size: 28,
+                ),
+                onPressed: () => showPlatformSheet(
+                  context: context,
+                  builder: (_) => OptionsMenu(song: song),
+                ),
+              ),
+            ],
+          ),
+        ),
+
+        // Split Main Content
+        Expanded(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(36, 8, 36, 24),
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                // Left Column: Artwork & Main Controls
+                Expanded(
+                  flex: 5,
+                  child: SingleChildScrollView(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const SizedBox(height: 12),
+                        // Cover Artwork
+                        Center(
+                          child: Container(
+                            width: 320,
+                            height: 320,
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              boxShadow: [
+                                BoxShadow(
+                                  color: Colors.black.withValues(alpha: 0.60),
+                                  blurRadius: 36,
+                                  spreadRadius: 2,
+                                  offset: const Offset(0, 14),
+                                ),
+                                if (widget.blobColors.length > 1)
+                                  BoxShadow(
+                                    color: widget.blobColors[1].withValues(
+                                      alpha: 0.35,
+                                    ),
+                                    blurRadius: 50,
+                                    offset: const Offset(0, 8),
+                                  ),
+                              ],
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: CachedNetworkImage(
+                                imageUrl: widget.imageUrl,
+                                cacheKey: widget.cacheKey,
+                                fit: BoxFit.cover,
+                                memCacheWidth: 600,
+                                memCacheHeight: 600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        const SizedBox(height: 24),
+
+                        // Title & Artist
+                        Row(
+                          children: [
+                            Expanded(
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [
+                                  Text(
+                                    song.title,
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontSize: 22,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                  const SizedBox(height: 4),
+                                  Text(
+                                    '${song.artist} \u2022 ${song.album}',
+                                    style: TextStyle(
+                                      color: tokens.textSecondary,
+                                      fontSize: 14,
+                                    ),
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                  ),
+                                ],
+                              ),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                playerState.starredIds.contains(song.id)
+                                    ? Icons.favorite_rounded
+                                    : Icons.favorite_border_rounded,
+                                color: playerState.starredIds.contains(song.id)
+                                    ? Colors.pinkAccent
+                                    : tokens.textSecondary,
+                                size: 26,
+                              ),
+                              onPressed: () => notifier.toggleStar(song.id),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 18),
+
+                        // Position Seek Bar
+                        _PositionStream(
+                          player: notifier.player,
+                          songId: song.id,
+                          duration: Duration(seconds: song.duration),
+                          onSeek: (d) => notifier.player.seek(d),
+                        ),
+                        const SizedBox(height: 12),
+
+                        // Quality Strip
+                        _AudioQualityStrip(song: song),
+                        const SizedBox(height: 20),
+
+                        // Playback Controls
+                        Row(
+                          mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+                          children: [
+                            GestureDetector(
+                              onLongPress: widget.onSmartShuffle,
+                              child: IconButton(
+                                icon: Icon(
+                                  isShuffleActive
+                                      ? Icons.shuffle_on_rounded
+                                      : Icons.shuffle_rounded,
+                                  color: isShuffleActive
+                                      ? tokens.accent
+                                      : tokens.textSecondary,
+                                  size: 24,
+                                ),
+                                onPressed: () => notifier.toggleShuffle(),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.skip_previous_rounded,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                              onPressed: () => notifier.playPrev(),
+                            ),
+                            Container(
+                              width: 56,
+                              height: 56,
+                              decoration: BoxDecoration(
+                                color: tokens.accent,
+                                shape: BoxShape.circle,
+                              ),
+                              child: IconButton(
+                                icon: Icon(
+                                  playerState.isPlaying
+                                      ? Icons.pause_rounded
+                                      : Icons.play_arrow_rounded,
+                                  color: Colors.black,
+                                  size: 34,
+                                ),
+                                onPressed: () => playerState.isPlaying
+                                    ? notifier.player.pause()
+                                    : notifier.player.play(),
+                              ),
+                            ),
+                            IconButton(
+                              icon: const Icon(
+                                Icons.skip_next_rounded,
+                                color: Colors.white,
+                                size: 36,
+                              ),
+                              onPressed: () => notifier.playNext(),
+                            ),
+                            IconButton(
+                              icon: Icon(
+                                playerState.repeatMode == LoopMode.one
+                                    ? Icons.repeat_one_rounded
+                                    : Icons.repeat_rounded,
+                                color: isRepeatActive
+                                    ? tokens.accent
+                                    : tokens.textSecondary,
+                                size: 24,
+                              ),
+                              onPressed: () => notifier.cycleRepeat(),
+                            ),
+                          ],
+                        ),
+                        const SizedBox(height: 16),
+                        _VolumeSlider(player: notifier.player),
+                      ],
+                    ),
+                  ),
+                ),
+
+                const SizedBox(width: 36),
+
+                // Right Column: Lyrics & Up Next Queue Tabs
+                Expanded(
+                  flex: 6,
+                  child: Container(
+                    decoration: BoxDecoration(
+                      color: Colors.black.withValues(alpha: 0.35),
+                      borderRadius: BorderRadius.circular(16),
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.08),
+                      ),
+                    ),
+                    child: Column(
+                      children: [
+                        TabBar(
+                          controller: _tabController,
+                          indicatorColor: tokens.accent,
+                          labelColor: tokens.accent,
+                          unselectedLabelColor: tokens.textSecondary,
+                          tabs: const [
+                            Tab(
+                              icon: Icon(Icons.lyrics_outlined, size: 18),
+                              text: 'Lyrics',
+                            ),
+                            Tab(
+                              icon: Icon(Icons.queue_music_rounded, size: 18),
+                              text: 'Up Next Queue',
+                            ),
+                          ],
+                        ),
+                        Expanded(
+                          child: TabBarView(
+                            controller: _tabController,
+                            children: [
+                              // Tab 1: Synchronized Lyrics View
+                              LyricsView(
+                                song: song,
+                                imageUrl: widget.imageUrl,
+                              ),
+                              // Tab 2: Desktop Queue List
+                              const _DesktopQueueView(),
+                            ],
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _DesktopQueueView extends ConsumerWidget {
+  const _DesktopQueueView();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final playerState = ref.watch(playerProvider);
+    final notifier = ref.read(playerProvider.notifier);
+    final service = ref.watch(subsonicServiceProvider);
+    final tokens = ThemeTokens.of(context);
+
+    if (playerState.queue.isEmpty) {
+      return Center(
+        child: Text(
+          'Queue is empty',
+          style: TextStyle(color: tokens.textMuted),
+        ),
+      );
+    }
+
+    return ListView.builder(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      itemCount: playerState.queue.length,
+      itemBuilder: (context, index) {
+        final song = playerState.queue[index];
+        final isPlaying = index == playerState.currentIndex;
+        final coverUrl = service.getCoverArtUrl(song.coverArt);
+
+        return ListTile(
+          dense: true,
+          tileColor: isPlaying
+              ? tokens.accent.withValues(alpha: 0.12)
+              : Colors.transparent,
+          leading: ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: CachedNetworkImage(
+              imageUrl: coverUrl,
+              width: 40,
+              height: 40,
+              fit: BoxFit.cover,
+            ),
+          ),
+          title: Text(
+            song.title,
+            style: TextStyle(
+              color: isPlaying ? tokens.accent : tokens.textPrimary,
+              fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
+            ),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          subtitle: Text(
+            song.artist,
+            style: TextStyle(color: tokens.textSecondary, fontSize: 12),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          trailing: isPlaying
+              ? Icon(Icons.volume_up_rounded, color: tokens.accent, size: 20)
+              : IconButton(
+                  icon: Icon(
+                    Icons.close_rounded,
+                    color: tokens.textMuted,
+                    size: 18,
+                  ),
+                  onPressed: () => notifier.removeFromQueue(index),
+                ),
+          onTap: () => notifier.jumpTo(index),
+        );
+      },
+    );
+  }
+}
+

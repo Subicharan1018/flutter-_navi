@@ -1552,13 +1552,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
         state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
 
-        // Replace audio sources but seek back to current song so it keeps playing.
-        await _audioHandler.setQueue(newQueue, newCurrentIndex);
-        // The current song is now at index 0 — seek to the saved position so
-        // there is no audible gap or restart.
-        final savedPosition = player.position;
-        await player.seek(savedPosition, index: newCurrentIndex);
-        player.play();
+        // Update the queue dynamically preserving current playback.
+        await _audioHandler.updateQueuePreservingCurrent(newQueue, newCurrentIndex);
       } finally {
         _suppressDepth--;
         completer.complete();

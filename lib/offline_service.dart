@@ -82,8 +82,9 @@ class OfflineService {
     }
   }
 
-  String _getSongPath(String songId) {
-    return '$_offlineDir/$songId.mp3';
+  String _getSongPath(String songId, {String? suffix}) {
+    final ext = (suffix != null && suffix.isNotEmpty) ? suffix.toLowerCase() : 'mp3';
+    return '$_offlineDir/$songId.$ext';
   }
 
   String _getSongMetadataPath(String songId) {
@@ -131,7 +132,7 @@ class OfflineService {
 
   bool isSongDownloaded(String songId) {
     if (_offlineDir == null) return false;
-    return _downloadedFileNames.contains('$songId.mp3');
+    return getLocalPath(songId) != null;
   }
 
   /// Async, non-blocking variant of [isSongDownloaded].
@@ -139,7 +140,7 @@ class OfflineService {
   /// Uses the in-memory downloaded filenames set so it never blocks the main thread.
   Future<bool> isSongDownloadedAsync(String songId) async {
     if (_offlineDir == null) return false;
-    return _downloadedFileNames.contains('$songId.mp3');
+    return getLocalPath(songId) != null;
   }
 
   Future<List<Song>> getDownloadedSongsMetadata() async {
@@ -201,8 +202,10 @@ class OfflineService {
     if (_offlineDir == null) await initialize();
 
     try {
+      // Download original raw audio file with native format/suffix
       final url = subsonicService.getStreamUrl(song.id);
-      final filePath = _getSongPath(song.id);
+      final ext = song.suffix.isNotEmpty ? song.suffix.toLowerCase() : 'mp3';
+      final filePath = _getSongPath(song.id, suffix: ext);
 
       final dio = Dio();
       // BUG-2 FIX: Without timeouts, Dio hangs indefinitely on no-network,
@@ -219,7 +222,7 @@ class OfflineService {
         },
       );
 
-      _downloadedFileNames.add('${song.id}.mp3');
+      _downloadedFileNames.add('${song.id}.$ext');
 
       final downloadedIds = getDownloadedSongIds();
       if (!downloadedIds.contains(song.id)) {
@@ -379,9 +382,12 @@ class OfflineService {
     if (_offlineDir == null) return false;
 
     try {
-      final file = File(_getSongPath(songId));
-      if (await file.exists()) {
-        await file.delete();
+      final localPath = getLocalPath(songId);
+      if (localPath != null) {
+        final file = File(localPath);
+        if (await file.exists()) {
+          await file.delete();
+        }
       }
       final lyricsFile = File(_getLyricsPath(songId));
       if (await lyricsFile.exists()) {
@@ -437,13 +443,22 @@ class OfflineService {
 
   String? getLocalPath(String songId) {
     if (_offlineDir == null) return null;
-    for (final ext in ['flac', 'mp3', 'm4a', 'ogg']) {
+    for (final ext in [
+      'flac',
+      'mp3',
+      'm4a',
+      'ogg',
+      'wav',
+      'aac',
+      'opus',
+      'alac',
+      'aiff',
+    ]) {
       final filename = '$songId.$ext';
       if (_downloadedFileNames.contains(filename)) {
         return '$_offlineDir/$filename';
       }
     }
-    // Fallback to extensionless or original mp3
     final oldFilename = '$songId.mp3';
     if (_downloadedFileNames.contains(oldFilename)) {
       return '$_offlineDir/$oldFilename';
@@ -456,7 +471,17 @@ class OfflineService {
   /// queue with the sync variant fires up to ~1000 blocking stat() syscalls.
   Future<String?> getLocalPathAsync(String songId) async {
     if (_offlineDir == null) return null;
-    for (final ext in ['flac', 'mp3', 'm4a', 'ogg']) {
+    for (final ext in [
+      'flac',
+      'mp3',
+      'm4a',
+      'ogg',
+      'wav',
+      'aac',
+      'opus',
+      'alac',
+      'aiff',
+    ]) {
       final filename = '$songId.$ext';
       if (_downloadedFileNames.contains(filename)) {
         return '$_offlineDir/$filename';

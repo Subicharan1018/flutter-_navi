@@ -22,8 +22,14 @@ import 'plain_text_view.dart';
 class LyricsView extends ConsumerStatefulWidget {
   final Song song;
   final String imageUrl;
+  final bool isEmbedded;
 
-  const LyricsView({super.key, required this.song, required this.imageUrl});
+  const LyricsView({
+    super.key,
+    required this.song,
+    required this.imageUrl,
+    this.isEmbedded = false,
+  });
 
   @override
   ConsumerState<LyricsView> createState() => _LyricsViewState();
@@ -89,6 +95,10 @@ class _LyricsViewState extends ConsumerState<LyricsView> {
           if (mounted) setState(() => _hasAnimated = false);
         });
       }
+    }
+
+    if (widget.isEmbedded) {
+      return RepaintBoundary(child: _buildBody(lyricsState));
     }
 
     return Container(

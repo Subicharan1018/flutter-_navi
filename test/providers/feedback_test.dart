@@ -179,6 +179,12 @@ class MockAudioHandler extends Mock implements NaviAudioHandler {
   }
 
   @override
+  Future<void> updateQueuePreservingCurrent(List<Song> newQueue, int newCurrentIndex) async {
+    currentQueue = List<Song>.from(newQueue);
+    _player.simulateIndexChange(newCurrentIndex);
+  }
+
+  @override
   Future<void> dispose() async {}
 }
 

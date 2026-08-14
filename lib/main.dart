@@ -84,7 +84,10 @@ Future<void> main() async {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.navivibe.audio',
         androidNotificationChannelName: 'NaviVibe',
-        androidNotificationOngoing: false,
+        // ongoing=true: notification cannot be swiped away, preventing Android
+        // from instantly killing the foreground service via notification dismiss.
+        // audio_service requires: if ongoing=true then stopForegroundOnPause=true.
+        androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
       ),
     );

@@ -51,9 +51,11 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
   }
 
   void _openNowPlaying(String imageUrl) {
-    // On desktop: use rootNavigator so NowPlayingScreen covers the full
-    // window (including the sidebar), not just the content column.
-    Navigator.of(context, rootNavigator: PlatformUtils.isDesktop).push(
+    if (PlatformUtils.prefersSidebarNavigation ||
+        MediaQuery.of(context).size.width >= PlatformUtils.kDesktopBreakpoint) {
+      return;
+    }
+    Navigator.of(context).push(
       AppRouteTransitions.slideUp(
         builder: (_) => NowPlayingScreen(initialImageUrl: imageUrl),
       ),

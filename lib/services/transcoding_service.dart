@@ -208,6 +208,9 @@ class TranscodingService extends ChangeNotifier {
     return bitrate == TranscodeBitrate.original ? null : bitrate;
   }
 
+  /// Returns the format to request from the server.
+  /// When transcoding is disabled → null (no format param = server streams original).
+  /// When transcoding is enabled → the configured format, or null if 'raw'.
   String? getCurrentFormat() {
     if (!_enabled) return null;
     return _format == TranscodeFormat.original ? null : _format;

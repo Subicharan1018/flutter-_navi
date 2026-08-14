@@ -189,7 +189,7 @@ class SubsonicService {
   /// the only place those params are applied — callers (the audio handler) read
   /// them from [TranscodingService]. Omitting both streams the original file.
   String getStreamUrl(String songId, {int? maxBitRate, String? format}) {
-    final params = {'id': songId, 'f': ''};
+    final params = <String, String>{'id': songId, 'f': ''};
     if (maxBitRate != null && maxBitRate > 0) {
       params['maxBitRate'] = maxBitRate.toString();
     }

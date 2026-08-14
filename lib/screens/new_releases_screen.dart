@@ -147,8 +147,8 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
                   padding: const EdgeInsets.symmetric(horizontal: 18),
                   sliver: SliverGrid(
                     gridDelegate:
-                        const SliverGridDelegateWithFixedCrossAxisCount(
-                          crossAxisCount: 2,
+                        const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 220,
                           mainAxisSpacing: 16,
                           crossAxisSpacing: 14,
                           childAspectRatio: 0.75,

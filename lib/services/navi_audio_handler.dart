@@ -352,6 +352,72 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     player.setVolume(1.0);
   }
 
+  /// Updates the queue dynamically while keeping the currently playing track playing
+  /// seamlessly without any audio interruption or playstate change.
+  Future<void> updateQueuePreservingCurrent(
+    List<Song> newQueue,
+    int newCurrentIndex,
+  ) async {
+    debugPrint('🎵 [NaviAudioHandler] updateQueuePreservingCurrent: ${newQueue.length} songs, current: $newCurrentIndex');
+    
+    _currentQueue = List.from(newQueue);
+    _unshuffledQueue = List.from(newQueue);
+    _offlinePathsCache = null;
+    _offlinePathsQueueLength = 0;
+
+    if (_isLinux) {
+      _linuxIndex = newCurrentIndex;
+      _linuxTargetIndex = newCurrentIndex;
+      return;
+    }
+
+    if (_playlist == null) {
+      await _rebuildSource(newCurrentIndex);
+      return;
+    }
+
+    final oldSequenceIndex = player.currentIndex;
+    if (oldSequenceIndex == null) {
+      await _rebuildSource(newCurrentIndex);
+      return;
+    }
+
+    final offlinePaths = await _precomputeOfflinePaths(newQueue);
+
+    // 1. Remove all children after oldSequenceIndex
+    final initialLen = _playlist!.children.length;
+    if (initialLen > oldSequenceIndex + 1) {
+      await _playlist!.removeRange(oldSequenceIndex + 1, initialLen);
+    }
+
+    // 2. Remove all children before oldSequenceIndex
+    if (oldSequenceIndex > 0) {
+      await _playlist!.removeRange(0, oldSequenceIndex);
+    }
+
+    // Now, the active item is the only item in the playlist (at index 0).
+
+    // 3. Insert prefix items before active index (which is now at 0)
+    final prefixSources = <AudioSource>[];
+    for (int i = 0; i < newCurrentIndex; i++) {
+      prefixSources.add(_toSourceWithPaths(newQueue[i], offlinePaths));
+    }
+    if (prefixSources.isNotEmpty) {
+      await _playlist!.insertAll(0, prefixSources);
+    }
+
+    // 4. Append suffix items after active index (which is now at newCurrentIndex)
+    final suffixSources = <AudioSource>[];
+    for (int i = newCurrentIndex + 1; i < newQueue.length; i++) {
+      suffixSources.add(_toSourceWithPaths(newQueue[i], offlinePaths));
+    }
+    if (suffixSources.isNotEmpty) {
+      await _playlist!.addAll(suffixSources);
+    }
+
+    _playlistOffset = 0;
+  }
+
   /// Clears the audio source and queue. Must be called AFTER player.stop().
   Future<void> clearQueue() async {
     _currentQueue.clear();
@@ -411,7 +477,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final List<AudioSource> sources = sourceSongs
         .map((song) => _toSourceWithPaths(song, offlinePaths))
         .toList();
-    _playlist = ConcatenatingAudioSource(children: sources);
+    _playlist = ConcatenatingAudioSource(
+      useLazyPreparation: true,
+      children: sources,
+    );
     await player.setAudioSource(
       _playlist!,
       initialIndex: initialIndex,
@@ -655,7 +724,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final List<AudioSource> sources = _currentQueue
           .map((song) => _toSourceWithPaths(song, offlinePaths))
           .toList();
-      _playlist = ConcatenatingAudioSource(children: sources);
+      _playlist = ConcatenatingAudioSource(
+        useLazyPreparation: true,
+        children: sources,
+      );
       _playlistOffset = 0;
       await player.setAudioSource(
         _playlist!,
