@@ -970,6 +970,38 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     state = state.copyWith(currentIndex: index);
   }
 
+  Future<void> insertNext(Song song) async {
+    await insertAllNext([song]);
+  }
+
+  Future<void> insertAllNext(List<Song> songs, {int? atIndex}) async {
+    debugPrint('🎵 [PlayerProvider] insertAllNext: ${songs.length} songs');
+    if (songs.isEmpty) return;
+    await _queueOpLock?.future;
+    final completer = Completer<void>();
+    _queueOpLock = completer;
+    _suppressDepth++;
+    try {
+      final currentQueue = List<Song>.from(state.queue);
+      final insertIndex = atIndex ??
+          (currentQueue.isEmpty
+              ? 0
+              : (state.currentIndex + 1).clamp(0, currentQueue.length));
+      currentQueue.insertAll(insertIndex, songs);
+
+      int newIndex = state.currentIndex;
+      if (state.queue.isNotEmpty && insertIndex <= state.currentIndex) {
+        newIndex += songs.length;
+      }
+      state = state.copyWith(queue: currentQueue, currentIndex: newIndex);
+      await _audioHandler.insertAllNext(songs, atIndex: insertIndex);
+    } finally {
+      _suppressDepth--;
+      completer.complete();
+      if (_queueOpLock == completer) _queueOpLock = null;
+    }
+  }
+
   Future<void> addToQueue(Song song) async {
     debugPrint('🎵 [PlayerProvider] addToQueue: ${song.title}');
     await _queueOpLock?.future;

@@ -176,16 +176,7 @@ class _DesktopSongTileState extends ConsumerState<_DesktopSongTile> {
         case 'play_now':
           widget.onTap();
         case 'play_next':
-          final state = ref.read(playerProvider);
-          final insertAt = state.currentIndex + 1;
-          if (insertAt >= state.queue.length) {
-            notifier.addToQueue(widget.song);
-          } else {
-            notifier.addToQueue(widget.song).then((_) {
-              final newState = ref.read(playerProvider);
-              notifier.reorderQueue(newState.queue.length - 1, insertAt);
-            });
-          }
+          notifier.insertNext(widget.song);
         case 'add_queue':
           notifier.addToQueue(widget.song);
         case 'add_playlist':
