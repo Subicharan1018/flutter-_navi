@@ -10,6 +10,8 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/song_tile.dart';
 import '../core/theme.dart';
+import 'album_details_screen.dart';
+import '../widgets/app_scaffold.dart';
 
 // =============================================================================
 // FavoritesScreen — Spotify dark theme
@@ -149,21 +151,10 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
           final album = albums[index];
           return _AlbumCard(
                 album: album,
-                onTap: () async {
-                  try {
-                    final svc = ref.read(subsonicServiceProvider);
-                    final songs = await svc.getAlbum(album.id);
-                    if (context.mounted) {
-                      ref.read(playerProvider.notifier).setQueue(songs, 0);
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Could not play album: $e')),
-                      );
-                    }
-                  }
-                },
+                onTap: () => navigateInApp(
+                  context,
+                  AlbumDetailsScreen(album: album),
+                ),
               )
               .animate(delay: (index * 40).clamp(0, 320).ms)
               .fadeIn(duration: 400.ms)

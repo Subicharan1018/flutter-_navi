@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/legacy.dart';
 import '../core/hive_boxes.dart';
 import 'settings_provider.dart';
 
+final searchQueryProvider = StateProvider<String>((ref) => '');
+
 final searchProvider = FutureProvider.family<Map<String, dynamic>, String>((
   ref,
   query,

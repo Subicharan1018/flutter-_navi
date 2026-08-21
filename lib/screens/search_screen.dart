@@ -8,6 +8,7 @@ import '../providers/search_provider.dart';
 import '../providers/player_provider.dart';
 import '../widgets/song_tile.dart';
 import '../core/theme.dart';
+import '../utils/platform_utils.dart';
 
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
@@ -19,13 +20,13 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   final TextEditingController _controller = TextEditingController();
   Timer? _debounce;
-  String _query = '';
+  String _mobileQuery = '';
 
   void _onSearchChanged(String query) {
     if (_debounce?.isActive ?? false) _debounce!.cancel();
     _debounce = Timer(const Duration(milliseconds: 300), () {
       setState(() {
-        _query = query;
+        _mobileQuery = query;
       });
     });
   }
@@ -39,6 +40,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDesktop = PlatformUtils.isDesktop;
+    final globalQuery = ref.watch(searchQueryProvider);
+    final activeQuery = isDesktop ? globalQuery : _mobileQuery;
+
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: ThemeTokens.of(context).isLight
           ? SystemUiOverlayStyle.dark
@@ -48,73 +53,73 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
         body: CustomScrollView(
           physics: const BouncingScrollPhysics(),
           slivers: [
-            SliverAppBar(
-              expandedHeight: 120,
-              backgroundColor: ThemeTokens.of(context).bgBase,
-              elevation: 0,
-              pinned: true,
-              flexibleSpace: FlexibleSpaceBar(
-                titlePadding: const EdgeInsets.symmetric(
-                  horizontal: 16,
-                  vertical: 16,
-                ),
-                centerTitle: false,
-                title: Text(
-                  'Search',
-                  style: TextStyle(
-                    color: ThemeTokens.of(context).textPrimary,
-                    fontSize: 28,
-                    fontWeight: FontWeight.bold,
+            if (!isDesktop) ...[
+              SliverAppBar(
+                expandedHeight: 120,
+                backgroundColor: ThemeTokens.of(context).bgBase,
+                elevation: 0,
+                pinned: true,
+                flexibleSpace: FlexibleSpaceBar(
+                  titlePadding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 16,
+                  ),
+                  centerTitle: false,
+                  title: Text(
+                    'Search',
+                    style: TextStyle(
+                      color: ThemeTokens.of(context).textPrimary,
+                      fontSize: 28,
+                      fontWeight: FontWeight.bold,
+                    ),
                   ),
                 ),
               ),
-            ),
-
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _SearchHeaderDelegate(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                  child: ClipRRect(
-                    borderRadius: BorderRadius.circular(12),
-                    child: BackdropFilter(
-                      // PERF-4: reduced from σ16 to σ10 — saves one GPU pass, still frosted.
-                      filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                      child: Container(
-                        height: 48,
-                        decoration: BoxDecoration(
-                          color: ThemeTokens.of(
-                            context,
-                          ).bgSurface.withValues(alpha: 0.8),
-                          borderRadius: BorderRadius.circular(12),
-                          border: Border.all(
-                            color: ThemeTokens.of(context).outline,
-                          ),
-                        ),
-                        child: TextField(
-                          controller: _controller,
-                          onChanged: _onSearchChanged,
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textPrimary,
-                            fontSize: 17,
-                          ),
-                          cursorColor: ThemeTokens.of(context).accent,
-                          decoration: InputDecoration(
-                            hintText: 'Artists, Songs, Lyrics and More',
-                            hintStyle: TextStyle(
-                              color: ThemeTokens.of(
-                                context,
-                              ).textMuted.withValues(alpha: 0.6),
-                              fontSize: 15,
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _SearchHeaderDelegate(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                    child: ClipRRect(
+                      borderRadius: BorderRadius.circular(12),
+                      child: BackdropFilter(
+                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
+                        child: Container(
+                          height: 48,
+                          decoration: BoxDecoration(
+                            color: ThemeTokens.of(
+                              context,
+                            ).bgSurface.withValues(alpha: 0.8),
+                            borderRadius: BorderRadius.circular(12),
+                            border: Border.all(
+                              color: ThemeTokens.of(context).outline,
                             ),
-                            prefixIcon: Icon(
-                              Icons.search_rounded,
-                              color: ThemeTokens.of(context).textMuted,
-                              size: 24,
+                          ),
+                          child: TextField(
+                            controller: _controller,
+                            onChanged: _onSearchChanged,
+                            style: TextStyle(
+                              color: ThemeTokens.of(context).textPrimary,
+                              fontSize: 17,
                             ),
-                            border: InputBorder.none,
-                            contentPadding: const EdgeInsets.symmetric(
-                              vertical: 12,
+                            cursorColor: ThemeTokens.of(context).accent,
+                            decoration: InputDecoration(
+                              hintText: 'Artists, Songs, Lyrics and More',
+                              hintStyle: TextStyle(
+                                color: ThemeTokens.of(
+                                  context,
+                                ).textMuted.withValues(alpha: 0.6),
+                                fontSize: 15,
+                              ),
+                              prefixIcon: Icon(
+                                Icons.search_rounded,
+                                color: ThemeTokens.of(context).textMuted,
+                                size: 24,
+                              ),
+                              border: InputBorder.none,
+                              contentPadding: const EdgeInsets.symmetric(
+                                vertical: 12,
+                              ),
                             ),
                           ),
                         ),
@@ -123,17 +128,23 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
                   ),
                 ),
               ),
-            ),
+            ] else ...[
+              const SliverToBoxAdapter(child: SizedBox(height: 16)),
+            ],
 
-            if (_query.isEmpty) ...[
+            if (activeQuery.isEmpty) ...[
               _SearchHistorySliver(
                 onTap: (q) {
-                  _controller.text = q;
-                  _onSearchChanged(q);
+                  if (isDesktop) {
+                    ref.read(searchQueryProvider.notifier).state = q;
+                  } else {
+                    _controller.text = q;
+                    _onSearchChanged(q);
+                  }
                 },
               ),
             ] else ...[
-              _SearchResultsSliver(query: _query),
+              _SearchResultsSliver(query: activeQuery),
             ],
 
             const SliverToBoxAdapter(child: SizedBox(height: 120)),

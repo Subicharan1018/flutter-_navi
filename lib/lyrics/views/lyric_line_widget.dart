@@ -33,29 +33,48 @@ class LyricLineWidget extends StatelessWidget {
         ? 1.0
         : isPast
         ? 0.35
-        : 0.60;
+        : 0.55;
 
-    final targetFontSize = isActive ? 28.0 : 22.0;
-    final targetWeight = isActive ? FontWeight.w700 : FontWeight.w400;
+    final targetFontSize = isActive ? 34.0 : 26.0;
+    final targetWeight = isActive ? FontWeight.w800 : FontWeight.w700;
     final targetColor = Colors.white.withValues(alpha: targetOpacity);
 
     Widget line = AnimatedDefaultTextStyle(
-      duration: const Duration(milliseconds: 350),
-      curve: Curves.easeInOut,
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeOutCubic,
       style: TextStyle(
         fontSize: targetFontSize,
         fontWeight: targetWeight,
         color: targetColor,
-        height: 1.3,
-        letterSpacing: isActive ? -0.3 : 0.0,
+        height: 1.32,
+        letterSpacing: isActive ? -0.8 : -0.4,
+        shadows: isActive
+            ? [
+                Shadow(
+                  color: Colors.white.withValues(alpha: 0.60),
+                  blurRadius: 26,
+                ),
+                const Shadow(
+                  color: Colors.black54,
+                  blurRadius: 14,
+                  offset: Offset(0, 4),
+                ),
+              ]
+            : [
+                const Shadow(
+                  color: Colors.black45,
+                  blurRadius: 10,
+                  offset: Offset(0, 2),
+                ),
+              ],
       ),
       child: AnimatedScale(
-        scale: isActive ? 1.05 : 1.0,
-        duration: const Duration(milliseconds: 350),
-        curve: Curves.easeInOut,
+        scale: isActive ? 1.0 : 0.94,
+        duration: const Duration(milliseconds: 300),
+        curve: Curves.easeOutCubic,
         alignment: Alignment.centerLeft,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 28.0, vertical: 10.0),
+          padding: const EdgeInsets.symmetric(horizontal: 24.0, vertical: 12.0),
           child: Text(text, maxLines: null),
         ),
       ),

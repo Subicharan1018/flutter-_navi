@@ -34,9 +34,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
 
 
-  /// True on Linux — ConcatenatingAudioSource is not supported by
-  /// just_audio_media_kit 2.1.0 in its platform-channel message form.
-  static bool get _isLinux => !kIsWeb && Platform.isLinux && !Platform.environment.containsKey('FLUTTER_TEST');
+  /// True on desktop (Linux, Windows, macOS) — ConcatenatingAudioSource is not
+  /// supported by just_audio_media_kit 2.1.0 in its platform-channel message form.
+  static bool get _isLinux =>
+      !kIsWeb &&
+      (Platform.isLinux || Platform.isWindows || Platform.isMacOS) &&
+      !Platform.environment.containsKey('FLUTTER_TEST');
+
+  /// Public getter for player_provider to coordinate completion advancement
+  static bool get isDesktopBridge => _isLinux;
 
   // ── Linux single-source bridge state ────────────────────────────────────────
   int _linuxIndex = 0;

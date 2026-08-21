@@ -3,9 +3,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import '../models/album.dart';
 import '../providers/settings_provider.dart';
-import '../providers/player_provider.dart';
 import '../core/theme.dart';
 import '../widgets/mini_player.dart';
+import 'album_details_screen.dart';
+import '../widgets/app_scaffold.dart';
 
 class NewReleasesScreen extends ConsumerStatefulWidget {
   const NewReleasesScreen({super.key});
@@ -45,21 +46,8 @@ class _NewReleasesScreenState extends ConsumerState<NewReleasesScreen> {
     }
   }
 
-  void _onAlbumTap(Album album) async {
-    // Fetch album songs and play
-    try {
-      final service = ref.read(subsonicServiceProvider);
-      final songs = await service.getAlbum(album.id);
-      if (songs.isNotEmpty && mounted) {
-        ref.read(playerProvider.notifier).setQueue(songs, 0);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Failed to load album: $e')));
-      }
-    }
+  void _onAlbumTap(Album album) {
+    navigateInApp(context, AlbumDetailsScreen(album: album));
   }
 
   @override

@@ -14,7 +14,6 @@ import 'settings_provider.dart';
 import '../services/navi_audio_handler.dart';
 import '../core/hive_boxes.dart';
 import '../core/app_constants.dart';
-import '../utils/platform_utils.dart';
 
 import '../services/scrobble_service.dart';
 import '../main.dart';
@@ -485,11 +484,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               ));
             }
 
-            // BUG-001 FIX: If there are more songs ahead, explicitly advance.
-            // On Linux, the NaviAudioHandler._startLinuxCompletionListener handles
+            // On Desktop (Linux/Windows/macOS), the NaviAudioHandler._startLinuxCompletionListener handles
             // advancement via the single-source bridge. Calling skipToNext() here
             // would cause a race with _linuxLoadTrack ("Loading interrupted").
-            if (!PlatformUtils.isLinux &&
+            if (!NaviAudioHandler.isDesktopBridge &&
                 state.currentIndex < state.queue.length - 1) {
               _suppressDepth++;
               try {

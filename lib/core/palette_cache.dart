@@ -131,73 +131,56 @@ class PaletteCache {
         debugPrint('⚠️ Error evicting palette image: $e');
       }
 
-      Color process(Color base, {double satMul = 1.25, double lightMul = 0.48}) {
-        final hsl = HSLColor.fromColor(base);
-        // Upper lightness cap is intentionally NOT 0.34 for all slots —
-        // see the call sites below. Light-cover albums (e.g. white/grey posters)
-        // produce colors that get clamped to near-black at 0.34 max, which is
-        // why VTV and similar covers showed pitch-black backgrounds. Vibrant and
-        // lightAccent slots use a higher cap so those colors remain visible.
-        return hsl
-            .withSaturation((hsl.saturation * satMul).clamp(0.08, 1.0))
-            .withLightness((hsl.lightness * lightMul).clamp(0.04, 0.34))
-            .toColor();
-      }
-
-      Color firstNonNull(List<Color?> candidates, Color fallback) {
-        for (final c in candidates) {
-          if (c != null) return c;
-        }
-        return fallback;
-      }
-
-      final dominant = firstNonNull([
-        palette.dominantColor?.color,
-        palette.darkVibrantColor?.color,
-        palette.darkMutedColor?.color,
+      // Extract all candidate colors from palette swatches
+      final allSwatches = [
         palette.vibrantColor?.color,
+        palette.lightVibrantColor?.color,
+        palette.darkVibrantColor?.color,
         palette.mutedColor?.color,
         palette.lightMutedColor?.color,
-      ], const Color(0xFF202022));
-
-      final dominantHsl = HSLColor.fromColor(dominant);
-      final derivedVibrant = dominantHsl
-          .withSaturation((dominantHsl.saturation + 0.25).clamp(0.20, 1.0))
-          .withLightness((dominantHsl.lightness * 0.95).clamp(0.08, 0.48))
-          .toColor();
-      final derivedAccent = dominantHsl
-          .withSaturation((dominantHsl.saturation + 0.12).clamp(0.14, 1.0))
-          .withLightness((dominantHsl.lightness * 1.18).clamp(0.12, 0.58))
-          .toColor();
-
-      final vibrant = firstNonNull([
-        palette.vibrantColor?.color,
-        palette.darkVibrantColor?.color,
-        palette.lightVibrantColor?.color,
-        palette.mutedColor?.color,
-      ], derivedVibrant);
-
-      final darkAccent = firstNonNull([
         palette.darkMutedColor?.color,
-        palette.darkVibrantColor?.color,
-        palette.mutedColor?.color,
         palette.dominantColor?.color,
-      ], dominant);
+        ...palette.colors,
+      ].whereType<Color>().toList();
 
-      final lightAccent = firstNonNull([
-        palette.lightVibrantColor?.color,
-        palette.lightMutedColor?.color,
-        palette.vibrantColor?.color,
-        palette.mutedColor?.color,
-      ], derivedAccent);
+      // Find swatches with actual color (saturation > 0.15)
+      final colorfulSwatches = allSwatches.where((c) {
+        final hsl = HSLColor.fromColor(c);
+        return hsl.saturation > 0.15 && hsl.lightness > 0.08 && hsl.lightness < 0.92;
+      }).toList();
 
-      final colors = [
-        process(dominant,    satMul: 1.10, lightMul: 0.44), // base: kept dark for contrast
-        process(vibrant,     satMul: 1.35, lightMul: 0.58), // vibrant: loosened → visible on light covers
-        process(darkAccent,  satMul: 1.05, lightMul: 0.40), // dark accent: stays dark
-        process(lightAccent, satMul: 1.20, lightMul: 0.68), // light accent: loosened → visible on light covers
-      ];
+      Color primary;
+      Color vibrant;
+      Color accent;
+      Color highlight;
 
+      if (colorfulSwatches.isNotEmpty) {
+        primary = colorfulSwatches.first;
+        vibrant = colorfulSwatches.length > 1 ? colorfulSwatches[1] : primary;
+        accent = colorfulSwatches.length > 2 ? colorfulSwatches[2] : vibrant;
+        highlight = colorfulSwatches.length > 3 ? colorfulSwatches[3] : accent;
+      } else {
+        primary = palette.dominantColor?.color ?? const Color(0xFFE50914);
+        vibrant = palette.vibrantColor?.color ?? const Color(0xFF8B5CF6);
+        accent = palette.lightVibrantColor?.color ?? const Color(0xFF06B6D4);
+        highlight = const Color(0xFFEC4899);
+      }
+
+      // Boost saturation & tune lightness for Apple Music luminous glow
+      Color tuneColor(Color c, {double targetSat = 0.88, double minLight = 0.35, double maxLight = 0.62, double hueShift = 0.0}) {
+        final hsl = HSLColor.fromColor(c);
+        final newHue = ((hsl.hue + hueShift) % 360.0 + 360.0) % 360.0;
+        final newSat = (hsl.saturation * 1.35).clamp(0.70, 1.0);
+        final newLight = hsl.lightness.clamp(minLight, maxLight);
+        return HSLColor.fromAHSL(1.0, newHue, newSat, newLight).toColor();
+      }
+
+      final c0 = tuneColor(primary, minLight: 0.32, maxLight: 0.48);
+      final c1 = tuneColor(vibrant, minLight: 0.45, maxLight: 0.65, hueShift: 24);
+      final c2 = tuneColor(accent, minLight: 0.40, maxLight: 0.60, hueShift: 65);
+      final c3 = tuneColor(highlight, minLight: 0.35, maxLight: 0.55, hueShift: 160);
+
+      final colors = [c0, c1, c2, c3];
       update(songId, colors);
       return colors;
     } catch (_) {

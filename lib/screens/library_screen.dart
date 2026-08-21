@@ -15,11 +15,12 @@ import '../widgets/create_playlist_dialog.dart';
 import '../widgets/swipeable_library_tile.dart';
 import '../core/theme.dart';
 import 'playlist_details_screen.dart';
+import 'album_details_screen.dart';
 import 'edit_playlist_screen.dart';
 import 'search_screen.dart';
 import 'offline_screen.dart';
 import '../services/subsonic_service.dart';
-import '../core/navigation_transitions.dart';
+import '../widgets/app_scaffold.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -389,20 +390,10 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     fontSize: 12,
                   ),
                 ),
-                onTap: () async {
-                  try {
-                    final songs = await service.getAlbum(item.id);
-                    if (context.mounted) {
-                      ref.read(playerProvider.notifier).setQueue(songs, 0);
-                    }
-                  } catch (e) {
-                    if (context.mounted) {
-                      ScaffoldMessenger.of(context).showSnackBar(
-                        SnackBar(content: Text('Could not play album: $e')),
-                      );
-                    }
-                  }
-                },
+                onTap: () => navigateInApp(
+                  context,
+                  AlbumDetailsScreen(album: item),
+                ),
               ),
             ),
           );
@@ -497,11 +488,9 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                     fontSize: 12,
                   ),
                 ),
-                onTap: () => Navigator.push(
+                onTap: () => navigateInApp(
                   context,
-                  AppRouteTransitions.fadeScale(
-                    builder: (_) => PlaylistDetailsScreen(playlist: item),
-                  ),
+                  PlaylistDetailsScreen(playlist: item),
                 ),
                 onLongPress: () => _showPlaylistOptions(context, item),
               ),

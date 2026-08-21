@@ -36,47 +36,71 @@ class _NoLyricsCardState extends State<NoLyricsCard>
   @override
   Widget build(BuildContext context) {
     return Center(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 40),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                ScaleTransition(
-                  scale: _scale,
-                  child: Icon(
-                    Icons.music_note_rounded,
-                    size: 72,
-                    color: Colors.white.withValues(alpha: 0.25),
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'No lyrics available',
-                  style: TextStyle(
-                    fontSize: 20,
-                    fontWeight: FontWeight.w600,
-                    color: Colors.white.withValues(alpha: 0.55),
-                    letterSpacing: -0.2,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-                const SizedBox(height: 8),
-                Text(
-                  'This song doesn\'t have lyrics\nin Subsonic or LRCLIB.',
-                  style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w400,
-                    color: Colors.white.withValues(alpha: 0.30),
-                    height: 1.5,
-                  ),
-                  textAlign: TextAlign.center,
-                ),
-              ],
-            ),
+      child: Container(
+        constraints: const BoxConstraints(maxWidth: 420),
+        padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 48),
+        decoration: BoxDecoration(
+          color: Colors.black.withValues(alpha: 0.22),
+          borderRadius: BorderRadius.circular(24),
+          border: Border.all(
+            color: Colors.white.withValues(alpha: 0.10),
+            width: 1,
           ),
-        )
-        .animate()
-        .fadeIn(duration: 500.ms, curve: Curves.easeOut)
-        .slideY(begin: 0.08, end: 0, duration: 500.ms, curve: Curves.easeOut);
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: 0.20),
+              blurRadius: 30,
+              offset: const Offset(0, 10),
+            ),
+          ],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ScaleTransition(
+              scale: _scale,
+              child: Container(
+                width: 76,
+                height: 76,
+                decoration: BoxDecoration(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.music_note_rounded,
+                  size: 40,
+                  color: Colors.white70,
+                ),
+              ),
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'No lyrics available',
+              style: TextStyle(
+                fontSize: 20,
+                fontWeight: FontWeight.w700,
+                color: Colors.white,
+                letterSpacing: -0.3,
+              ),
+              textAlign: TextAlign.center,
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'This song doesn\'t have synced lyrics in Subsonic or LRCLIB.',
+              style: TextStyle(
+                fontSize: 14,
+                fontWeight: FontWeight.w400,
+                color: Colors.white.withValues(alpha: 0.65),
+                height: 1.5,
+              ),
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+      ),
+    )
+    .animate()
+    .fadeIn(duration: 500.ms, curve: Curves.easeOut)
+    .slideY(begin: 0.08, end: 0, duration: 500.ms, curve: Curves.easeOut);
   }
 }

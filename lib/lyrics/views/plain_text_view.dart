@@ -5,9 +5,7 @@ import '../models/lyric_line.dart';
 
 /// Teleprompter view for Case B — plain text with no timestamps.
 ///
-/// All lines are shown at 0.70 opacity. A [Timer.periodic] advances the
-/// scroll position at a rate derived from `song.duration / lines.length`,
-/// giving a rough sense of pacing without inventing fake timestamps.
+/// Formatted with Apple Music glowing typography and graceful pacing.
 class PlainTextView extends StatefulWidget {
   final SyncedLyrics lyrics;
   final Song song;
@@ -22,8 +20,8 @@ class _PlainTextViewState extends State<PlainTextView> {
   late final ScrollController _scroll;
   Timer? _timer;
 
-  /// Estimated height for each lyric line including padding.
-  static const double _lineHeight = 52.0;
+  /// Line height for Apple Music large typography.
+  static const double _lineHeight = 64.0;
 
   @override
   void initState() {
@@ -36,7 +34,7 @@ class _PlainTextViewState extends State<PlainTextView> {
     final lines = widget.lyrics.lines;
     if (lines.isEmpty || widget.song.duration <= 0) return;
 
-    // Interval between advancing one line.
+    // Interval between advancing one line smoothly.
     final intervalMs = ((widget.song.duration * 1000) / lines.length).round();
 
     _timer = Timer.periodic(Duration(milliseconds: intervalMs), (_) {
@@ -45,7 +43,7 @@ class _PlainTextViewState extends State<PlainTextView> {
       final next = _scroll.offset + _lineHeight;
       _scroll.animateTo(
         next.clamp(0.0, _scroll.position.maxScrollExtent),
-        duration: const Duration(milliseconds: 600),
+        duration: const Duration(milliseconds: 800),
         curve: Curves.easeInOut,
       );
     });
@@ -64,44 +62,82 @@ class _PlainTextViewState extends State<PlainTextView> {
 
     return Stack(
       children: [
-        ListView.builder(
-          controller: _scroll,
-          padding: const EdgeInsets.fromLTRB(28, 20, 28, 120),
-          itemCount: lines.length,
-          itemBuilder: (_, i) => SizedBox(
-            height: _lineHeight,
-            child: Align(
-              alignment: Alignment.centerLeft,
+        // Top & Bottom Shader Fade Mask for smooth Apple Music text fade
+        ShaderMask(
+          shaderCallback: (Rect bounds) {
+            return const LinearGradient(
+              begin: Alignment.topCenter,
+              end: Alignment.bottomCenter,
+              colors: [
+                Colors.transparent,
+                Colors.black,
+                Colors.black,
+                Colors.transparent,
+              ],
+              stops: [0.0, 0.08, 0.92, 1.0],
+            ).createShader(bounds);
+          },
+          blendMode: BlendMode.dstIn,
+          child: ListView.builder(
+            controller: _scroll,
+            physics: const BouncingScrollPhysics(),
+            padding: const EdgeInsets.fromLTRB(36, 48, 36, 160),
+            itemCount: lines.length,
+            itemBuilder: (_, i) => Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8),
               child: Text(
                 lines[i].text,
-                style: const TextStyle(
-                  fontSize: 22,
-                  fontWeight: FontWeight.w400,
-                  color: Color(0xB3FFFFFF), // 0.70 opacity
-                  height: 1.3,
+                style: TextStyle(
+                  fontSize: 28,
+                  fontWeight: FontWeight.w700,
+                  color: Colors.white.withValues(alpha: 0.88),
+                  height: 1.35,
+                  letterSpacing: -0.6,
+                  shadows: [
+                    Shadow(
+                      color: Colors.black.withValues(alpha: 0.50),
+                      blurRadius: 18,
+                      offset: const Offset(0, 4),
+                    ),
+                  ],
                 ),
               ),
             ),
           ),
         ),
-        // "Plain Text" badge
+
+        // "Unsynced Lyrics" Badge
         Positioned(
           top: 12,
-          right: 16,
+          right: 24,
           child: Container(
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 5),
             decoration: BoxDecoration(
-              color: Colors.white.withValues(alpha: 0.15),
+              color: Colors.black.withValues(alpha: 0.35),
               borderRadius: BorderRadius.circular(20),
-            ),
-            child: const Text(
-              'Plain Text',
-              style: TextStyle(
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-                color: Colors.white70,
-                letterSpacing: 0.5,
+              border: Border.all(
+                color: Colors.white.withValues(alpha: 0.15),
               ),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  Icons.text_fields_rounded,
+                  size: 13,
+                  color: Colors.white.withValues(alpha: 0.70),
+                ),
+                const SizedBox(width: 5),
+                Text(
+                  'Lyrics',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.white.withValues(alpha: 0.80),
+                    letterSpacing: 0.5,
+                  ),
+                ),
+              ],
             ),
           ),
         ),

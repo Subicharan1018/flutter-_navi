@@ -13,12 +13,16 @@ import '../providers/settings_provider.dart';
 import '../core/theme.dart';
 import '../widgets/navi_ui.dart';
 import 'settings_screen.dart';
+import 'playlist_details_screen.dart';
+import 'album_details_screen.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../features/ai_shuffle/ui/home_stats_widget.dart';
 import 'made_for_you_screen.dart';
 import 'new_releases_screen.dart';
 import 'favorites_screen.dart';
 import 'navivibe_replay_screen.dart';
+import '../utils/platform_utils.dart';
+import '../widgets/app_scaffold.dart';
 
 // =============================================================================
 // Home Screen
@@ -104,16 +108,17 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                 elevation: 0,
                 scrolledUnderElevation: 0,
                 actions: [
-                  Padding(
-                    padding: const EdgeInsets.only(right: 12),
-                    child: _SettingsButton(
-                      onTap: () => Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (_) => const SettingsScreen()),
+                  if (!PlatformUtils.isDesktop)
+                    Padding(
+                      padding: const EdgeInsets.only(right: 12),
+                      child: _SettingsButton(
+                        onTap: () => Navigator.push(
+                          context,
+                          MaterialPageRoute(
+                              builder: (_) => const SettingsScreen()),
+                        ),
                       ),
                     ),
-                  ),
                 ],
                 flexibleSpace: FlexibleSpaceBar(
                   titlePadding: EdgeInsets.zero,
@@ -178,24 +183,10 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
                       _SectionHeader(title: 'Quick Play'),
                       _QuickPlayGrid(
                         items: playlists.take(6).toList(),
-                        onTap: (pl) async {
-                          final svc = ref.read(subsonicServiceProvider);
-                          try {
-                            final songs = await svc.getPlaylistSongs(pl.id);
-                            if (context.mounted) {
-                              ref.read(playerProvider.notifier).setQueue(songs, 0);
-                            }
-                          } catch (_) {
-                            if (context.mounted) {
-                              ScaffoldMessenger.of(context).showSnackBar(
-                                SnackBar(
-                                  content: Text(
-                                    'Could not load "${pl.name}". Check your connection.'),
-                                ),
-                              );
-                            }
-                          }
-                        },
+                        onTap: (pl) => navigateInApp(
+                          context,
+                          PlaylistDetailsScreen(playlist: pl),
+                        ),
                       ),
                     ]),
                   );
@@ -482,8 +473,7 @@ class _ExploreGrid extends StatelessWidget {
                   icon: Icons.auto_awesome_rounded,
                   color: c1,
                   height: 130,
-                  onTap: () => Navigator.push(outerCtx,
-                      MaterialPageRoute(builder: (_) => const MadeForYouScreen())),
+                  onTap: () => navigateInApp(outerCtx, const MadeForYouScreen()),
                 ),
               ),
               const SizedBox(width: s8),
@@ -495,8 +485,7 @@ class _ExploreGrid extends StatelessWidget {
                   icon: Icons.shuffle_rounded,
                   color: c2,
                   height: 130,
-                  onTap: () => Navigator.push(outerCtx,
-                      MaterialPageRoute(builder: (_) => const AiShuffleScreen())),
+                  onTap: () => navigateInApp(outerCtx, const AiShuffleScreen()),
                 ),
               ),
             ],
@@ -517,8 +506,7 @@ class _ExploreGrid extends StatelessWidget {
                   icon: Icons.favorite_rounded,
                   color: c3,
                   height: 100,
-                  onTap: () => Navigator.push(outerCtx,
-                      MaterialPageRoute(builder: (_) => const FavoritesScreen())),
+                  onTap: () => navigateInApp(outerCtx, const FavoritesScreen()),
                 ),
               ),
               const SizedBox(width: s8),
@@ -530,8 +518,7 @@ class _ExploreGrid extends StatelessWidget {
                   icon: Icons.new_releases_rounded,
                   color: c4,
                   height: 100,
-                  onTap: () => Navigator.push(outerCtx,
-                      MaterialPageRoute(builder: (_) => const NewReleasesScreen())),
+                  onTap: () => navigateInApp(outerCtx, const NewReleasesScreen()),
                 ),
               ),
             ],
@@ -543,8 +530,7 @@ class _ExploreGrid extends StatelessWidget {
         _ReplayBanner(
           key: const Key('explore_replay'),
           color: cReplay,
-          onTap: () => Navigator.push(outerCtx,
-              MaterialPageRoute(builder: (_) => const NavivibeReplayScreen())),
+          onTap: () => navigateInApp(outerCtx, const NavivibeReplayScreen()),
         ),
       ],
     );
@@ -945,14 +931,10 @@ class _AlbumCarousel extends ConsumerWidget {
               coverUrl: albums[i].coverArt.isNotEmpty
                   ? svc.getCoverArtUrl(albums[i].coverArt)
                   : null,
-              onTap: () async {
-                try {
-                  final songs = await svc.getAlbum(albums[i].id);
-                  if (ctx.mounted) {
-                    ref.read(playerProvider.notifier).setQueue(songs, 0);
-                  }
-                } catch (_) {}
-              },
+              onTap: () => navigateInApp(
+                ctx,
+                AlbumDetailsScreen(album: albums[i]),
+              ),
             ),
           ),
         );

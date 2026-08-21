@@ -55,9 +55,6 @@ float fbm(vec2 p) {
 
 // ── Color & Math Helpers ──────────────────────────────────────────────────────
 
-// FIX BUG-8: Replace array indexing with explicit selection now that the
-// uniforms are flat. An ivec4 swizzle-based approach or a simple if-chain
-// both work; the if-chain below is the most portable across GPU drivers.
 vec4 getColor(int idx) {
     if (idx == 0) return mix(u_colorPrev0, u_color0, u_tColor);
     if (idx == 1) return mix(u_colorPrev1, u_color1, u_tColor);
@@ -65,74 +62,48 @@ vec4 getColor(int idx) {
                   return mix(u_colorPrev3, u_color3, u_tColor);
 }
 
-float blobWeight(vec2 uv, vec2 centre, float r) {
-    vec2 aspect = vec2(u_resolution.x / u_resolution.y, 1.0);
-    float d = length((uv - centre) * aspect) / r;
-    return exp(-d * d * 2.8);
-}
-
-// ── Main Rendering ────────────────────────────────────────────────────────────
-
 void main() {
     vec2 fc = FlutterFragCoord().xy;
     vec2 uv = fc / u_resolution;
 
-    float t = u_time;
+    float t = u_time * 0.15;
 
-    float warpAmt = 0.014;
-    vec2 warpUV = uv + warpAmt * vec2(
-        fbm(uv * 2.3 + vec2(t * 0.0035,  t * 0.0025)),
-        fbm(uv * 2.3 + vec2(t * 0.0025,  t * 0.0045 + 3.14))
+    // Multi-octave continuous domain warping (Liquid Navier-Stokes style)
+    vec2 q = vec2(
+        fbm(uv * 1.5 + vec2(t * 0.25, t * 0.18)),
+        fbm(uv * 1.5 + vec2(t * 0.18 + 2.4, t * 0.22 + 4.1))
     );
 
-    vec3 col = mix(getColor(0).rgb, vec3(0.0), 0.74);
+    vec2 r = vec2(
+        fbm(uv * 1.8 + 2.5 * q + vec2(1.7, 9.2) + vec2(t * 0.20, -t * 0.15)),
+        fbm(uv * 1.8 + 2.5 * q + vec2(8.3, 2.8) + vec2(-t * 0.18, t * 0.22))
+    );
 
-    float tau = 6.28318;
-    #define S(x) (sin(x) * 0.5 + 0.5)
-    #define C(x) (cos(x) * 0.5 + 0.5)
+    float f = fbm(uv * 1.2 + 3.0 * r + vec2(t * 0.10, t * 0.12));
 
-    {
-        vec4 c = getColor(0);
-        vec2 ctr = vec2(0.10 + 0.40 * S(t * tau * 0.023), 0.05 + 0.38 * C(t * tau * 0.019 + 0.8));
-        col += c.rgb * blobWeight(warpUV, ctr, 0.72) * c.a;
-    }
-    {
-        vec4 c = getColor(1);
-        vec2 ctr = vec2(0.60 + 0.38 * C(t * tau * 0.031 + 1.2), 0.05 + 0.42 * S(t * tau * 0.025 + 2.1));
-        col += c.rgb * blobWeight(warpUV, ctr, 0.68) * c.a * 0.95;
-    }
-    {
-        vec4 c = getColor(2);
-        vec2 ctr = vec2(0.05 + 0.42 * S(t * tau * 0.036 + 3.0), 0.55 + 0.42 * C(t * tau * 0.026 + 0.5));
-        col += c.rgb * blobWeight(warpUV, ctr, 0.78) * c.a * 0.90;
-    }
-    {
-        vec4 c = getColor(3);
-        vec2 ctr = vec2(0.58 + 0.38 * C(t * tau * 0.019 + 1.7), 0.58 + 0.38 * S(t * tau * 0.034 + 2.8));
-        col += c.rgb * blobWeight(warpUV, ctr, 0.70) * c.a * 0.88;
-    }
-    {
-        vec4 c = getColor(0);
-        vec2 ctr = vec2(0.38 + 0.28 * S(t * tau * 0.014 + 0.3), 0.32 + 0.32 * C(t * tau * 0.028 + 1.4));
-        col += c.rgb * blobWeight(warpUV, ctr, 0.58) * c.a * 0.65;
-    }
+    // Continuous 4-way silky harmonic color interpolation (Zero circular balls)
+    vec3 c0 = getColor(0).rgb;
+    vec3 c1 = getColor(1).rgb;
+    vec3 c2 = getColor(2).rgb;
+    vec3 c3 = getColor(3).rgb;
 
-    #undef S
-    #undef C
+    // Seamless spatial blending
+    vec3 colTop = mix(c0, c1, clamp(r.x * 1.2 + uv.x * 0.5, 0.0, 1.0));
+    vec3 colBot = mix(c2, c3, clamp(q.y * 1.2 + uv.x * 0.5, 0.0, 1.0));
+    vec3 col = mix(colTop, colBot, clamp(f * 1.3 + uv.y * 0.4, 0.0, 1.0));
 
-    col = 1.0 - exp(-col * 0.95);
+    // Fluid illumination highlights
+    col += c1 * (f * f * 0.35);
+    col += c0 * (r.x * r.y * 0.25);
 
-    vec2 vUV = uv - vec2(0.5, 0.42);
-    vUV.x *= u_resolution.x / u_resolution.y;
-    float vDist  = length(vUV) / 0.88;
-    float vAlpha = smoothstep(0.30, 1.0, vDist) * 0.38;
-    col = mix(col, vec3(0.0), vAlpha);
+    // Apple Music smooth filmic exposure
+    col = vec3(1.0) - exp(-col * 1.15);
 
-    float scrY  = smoothstep(0.50, 1.0, uv.y);
-    col = mix(col, vec3(0.0), scrY * 0.66);
-
-    float topScr = smoothstep(0.18, 0.0, uv.y) * 0.16;
-    col = mix(col, vec3(0.0), topScr);
+    // Subtle edge softening
+    vec2 vUV = (uv - 0.5) * vec2(u_resolution.x / u_resolution.y, 1.0);
+    float vDist = length(vUV);
+    float vAlpha = smoothstep(0.40, 1.3, vDist) * 0.25;
+    col = mix(col, col * 0.60, vAlpha);
 
     fragColor = vec4(clamp(col, 0.0, 1.0), 1.0);
 }
