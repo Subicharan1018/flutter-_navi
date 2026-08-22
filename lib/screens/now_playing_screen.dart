@@ -936,18 +936,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
                                       BoxShadow(
                                         color: ThemeTokens.of(
                                           context,
-                                        ).bgBase.withValues(alpha: 0.70),
-                                        blurRadius: 44,
-                                        spreadRadius: 4,
-                                        offset: const Offset(0, 18),
+                                        ).bgBase.withValues(alpha: 0.60),
+                                        blurRadius: 28,
+                                        spreadRadius: 2,
+                                        offset: const Offset(0, 12),
                                       ),
                                       if (_blobColors.length > 1)
                                         BoxShadow(
                                           color: _blobColors[1].withValues(
-                                            alpha: 0.35,
+                                            alpha: 0.15,
                                           ),
-                                          blurRadius: 60,
-                                          offset: const Offset(0, 10),
+                                          blurRadius: 24,
+                                          offset: const Offset(0, 6),
                                         ),
                                     ],
                                   ),
@@ -2114,7 +2114,7 @@ class _BlurredArtworkBackgroundState extends State<BlurredArtworkBackground>
     // Dark overlay: slightly lighter on light theme to keep text readable.
     final overlayColor = tokens.isLight
         ? Colors.white.withValues(alpha: 0.55)
-        : Colors.black.withValues(alpha: 0.62);
+        : Colors.black.withValues(alpha: 0.78);
 
     final fallbackGradient = DecoratedBox(
       decoration: BoxDecoration(

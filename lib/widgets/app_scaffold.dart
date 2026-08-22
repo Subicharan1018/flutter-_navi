@@ -1830,52 +1830,67 @@ class _MobileScaffold extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final content = Column(
-      children: [
-        if (isOffline) _OfflineBanner(tokens: tokens),
-        Expanded(
-          child: IndexedStack(index: currentIndex, children: screens),
-        ),
-      ],
-    );
+    return Consumer(
+      builder: (context, ref, _) {
+        final playerState = ref.watch(playerProvider);
+        final hasTrack = playerState.queue.isNotEmpty &&
+            playerState.currentIndex < playerState.queue.length;
+        final double bottomOffset = (hasTrack ? 64.0 : 0.0) + 64.0;
 
-    final bottomNav = NavigationBar(
-      selectedIndex: currentIndex,
-      onDestinationSelected: onNavTap,
-      backgroundColor: tokens.bgSurface.withValues(alpha: 0.90),
-      indicatorColor: tokens.accent.withValues(alpha: 0.20),
-      elevation: 0,
-      height: 64,
-      destinations: items
-          .map(
-            (item) => NavigationDestination(
-              icon: Icon(item.icon, color: tokens.textSecondary),
-              selectedIcon: Icon(item.activeIcon, color: tokens.accent),
-              label: item.label,
+        final content = Column(
+          children: [
+            if (isOffline) _OfflineBanner(tokens: tokens),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: bottomOffset),
+                child: IndexedStack(index: currentIndex, children: screens),
+              ),
             ),
-          )
-          .toList(),
-    );
+          ],
+        );
 
-    final body = Stack(
-      children: [
-        content,
-        Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              const MiniPlayer(),
-              bottomNav,
-            ],
+        final bottomNav = SafeArea(
+          top: false,
+          child: NavigationBar(
+            selectedIndex: currentIndex,
+            onDestinationSelected: onNavTap,
+            backgroundColor: tokens.bgSurface.withValues(alpha: 0.95),
+            indicatorColor: tokens.accent.withValues(alpha: 0.20),
+            elevation: 0,
+            height: 60,
+            destinations: items
+                .map(
+                  (item) => NavigationDestination(
+                    icon: Icon(item.icon, color: tokens.textSecondary, size: 22),
+                    selectedIcon: Icon(item.activeIcon, color: tokens.accent, size: 22),
+                    label: item.label,
+                  ),
+                )
+                .toList(),
           ),
-        ),
-      ],
-    );
+        );
 
-    return Scaffold(backgroundColor: tokens.bgBase, body: body);
+        final body = Stack(
+          children: [
+            content,
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const MiniPlayer(),
+                  bottomNav,
+                ],
+              ),
+            ),
+          ],
+        );
+
+        return Scaffold(backgroundColor: tokens.bgBase, body: body);
+      },
+    );
   }
 }
 

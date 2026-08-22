@@ -913,7 +913,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             physics: const BouncingScrollPhysics(),
             slivers: [
               SliverAppBar(
-                expandedHeight: 380,
+                expandedHeight: 420,
                 pinned: true,
                 stretch: true,
                 backgroundColor: tokens.bgBase,
@@ -928,12 +928,6 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                 ),
                 flexibleSpace: FlexibleSpaceBar(
                   stretchModes: const [StretchMode.zoomBackground],
-                  title: CollapsedTitle(title: widget.playlist.name),
-                  titlePadding: const EdgeInsets.only(
-                    left: 56,
-                    right: 56,
-                    bottom: 14,
-                  ),
                   background: _isLoading
                       ? LoadingHeader(playlist: widget.playlist)
                       : ExpandedHeader(

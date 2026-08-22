@@ -259,15 +259,16 @@ class ExpandedHeader extends ConsumerWidget {
 
         // ── Content
         Positioned(
-          top: topPadding + 12,
+          top: topPadding + 4,
           left: 0,
           right: 0,
           child: Column(
+            mainAxisSize: MainAxisSize.min,
             children: [
               // Artwork
               Container(
-                width: 176,
-                height: 176,
+                width: 160,
+                height: 160,
                 decoration: BoxDecoration(
                   borderRadius: BorderRadius.circular(16),
                   boxShadow: [
@@ -298,7 +299,7 @@ class ExpandedHeader extends ConsumerWidget {
                             color: tokens.bgSurface,
                             child: Icon(
                               Icons.music_note_rounded,
-                              size: 72,
+                              size: 64,
                               color: tokens.textMuted,
                             ),
                           ),
@@ -306,7 +307,7 @@ class ExpandedHeader extends ConsumerWidget {
                             color: tokens.bgSurface,
                             child: Icon(
                               Icons.music_note_rounded,
-                              size: 72,
+                              size: 64,
                               color: tokens.textMuted,
                             ),
                           ),
@@ -315,24 +316,24 @@ class ExpandedHeader extends ConsumerWidget {
                           color: tokens.bgSurface,
                           child: Icon(
                             Icons.music_note_rounded,
-                            size: 72,
+                            size: 64,
                             color: tokens.textMuted,
                           ),
                         ),
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
 
               // Playlist name
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 32),
+                padding: const EdgeInsets.symmetric(horizontal: 24),
                 child: Text(
                   playlist.name,
-                  maxLines: 2,
+                  maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   textAlign: TextAlign.center,
                   style: TextStyle(
-                    fontSize: 26,
+                    fontSize: 22,
                     fontWeight: FontWeight.bold,
                     color: tokens.textPrimary,
                     letterSpacing: -0.5,
@@ -351,34 +352,34 @@ class ExpandedHeader extends ConsumerWidget {
                   fontWeight: FontWeight.w400,
                 ),
               ),
-              const SizedBox(height: 20),
+              const SizedBox(height: 14),
 
               // Play / Shuffle / Download buttons
               Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   HeaderButton(
-                    size: 52,
+                    size: 46,
                     onTap: onShuffleAll,
                     filled: false,
                     child: Icon(
                       Icons.shuffle_rounded,
                       color: tokens.textPrimary,
-                      size: 22,
+                      size: 20,
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 16),
                   HeaderButton(
-                    size: 64,
+                    size: 56,
                     onTap: onPlayAll,
                     filled: true,
                     child: Icon(
                       Icons.play_arrow_rounded,
                       color: ThemeTokens.of(context).textPrimary,
-                      size: 36,
+                      size: 32,
                     ),
                   ),
-                  const SizedBox(width: 20),
+                  const SizedBox(width: 16),
                   DownloadAllButton(
                     tokens: tokens,
                     isActive: isActive,
