@@ -119,7 +119,7 @@ class PlaybackState {
         'position_ms': positionMs,
         'is_playing': isPlaying,
         'queue': queue,
-        if (updatedAt != null) 'updated_at': updatedAt!.toIso8601String(),
+        'updated_at': ?updatedAt?.toIso8601String(),
         'sync_unknown': syncUnknown,
       };
 
@@ -477,10 +477,10 @@ class SessionSyncService {
   }) {
     _send({
       'type': 'state_update',
-      if (trackId != null) 'track_id': trackId,
-      if (positionMs != null) 'position_ms': positionMs,
-      if (isPlaying != null) 'is_playing': isPlaying,
-      if (queue != null) 'queue': queue,
+      'track_id': ?trackId,
+      'position_ms': ?positionMs,
+      'is_playing': ?isPlaying,
+      'queue': ?queue,
     });
   }
 
