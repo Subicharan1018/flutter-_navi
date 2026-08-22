@@ -1,7 +1,7 @@
 # Audio Queue Architecture & Flaws Investigation Report
 
 **Scope:** Android, iOS, Windows, macOS, and Linux  
-**Affected Modules:** `NaviAudioHandler` (`lib/services/navi_audio_handler.dart`), `PlayerNotifier` / `PlayerState` (`lib/providers/player_provider.dart`), `OptionsMenu` (`lib/widgets/options_menu.dart`), `SongTile` (`lib/widgets/song_tile.dart`), `NowPlayingScreen` (`lib/screens/now_playing_screen.dart`).
+**Affected Modules:** `NaviAudioHandler` (`lib/services/navi_audio_handler.dart`), `PlayerNotifier` / `PlayerState` (`lib/providers/player_provider.dart`), `OptionsMenu` (`lib/widgets/options_menu.dart`), `SongTile` (`lib/widgets/song_tile.dart`), `NowPlayingScreen` (`lib/screens/now_playing_screen.dart`), `PlaylistDetailsScreen` (`lib/screens/playlist_details_screen.dart`).
 
 ---
 
@@ -12,10 +12,13 @@ The audio queue subsystem suffers from three major architectural problems that m
 1. **Playback Interruption (2-Second Audio Stoppage) on "Add to Queue" & "Play Next"**:
    - **Desktop**: Adding to the queue triggers an unintended `_rebuildSource()` which re-instantiates `player.setAudioSource()` for the newly added track, cutting off the active track.
    - **Android/iOS**: "Play Next" is implemented as an un-atomic two-step hack (`addToQueue()` followed by an unawaited `reorderQueue()`). For queues over 100 songs (or queues $\le 5$ songs during shuffle updates), `_rebuildSource()` is invoked, destroying ExoPlayer's buffer and reloading network streams.
-2. **Queue Reset & Mangled Ordering after "Play Next"**:
-   - The two-step "add-then-reorder" hack creates a severe race condition with audio player index streams.
-   - In shuffle mode, `_unshuffledQueue` is mutated on addition but ignored on reordering, causing any subsequent shuffle or unshuffle operation to overwrite the active queue with stale ordering.
-   - False-triggering of Smart Local Refill and Autoplay when indices momentarily jump near the end of the queue.
+2. **Visual vs Audio Desync & Queue Reverting to Original Playlist Order (e.g. `[A,B,C,D,X]` vs `[B,X,D]`)**:
+   - When playing a shuffled playlist (`[B, X, D]`), `_unshuffledQueue` stores the original list `[A, B, C, D, X]`.
+   - Tapping "Play Next" on song `A` triggers the two-step hack (`addToQueue(A)` $\rightarrow$ `reorderQueue()`).
+   - `addToQueue(A)` appends `A` to `_currentQueue` and `_unshuffledQueue`.
+   - Because `shuffleMode == true`, `reorderQueue()` **refuses to update `_unshuffledQueue`**.
+   - Simultaneously, appending to the tail causes `currentIndex` to briefly jump near the end (`remainingAhead <= 3`), triggering **Smart Local Refill / Autoplay** or an unshuffle state refresh.
+   - Riverpod's `state.queue` gets overwritten with `_unshuffledQueue` (`[A, B, C, D, X]`) or the server pool, updating the UI visually to the normal playlist order, while the audio player engine continues outputting the active track from `[B, X, D]`.
 3. **Mangled Queue & Crash Spirals on Playback Errors**:
    - `_recoverStuckPlayer()` creates an infinite re-entrant loop by repeatedly attempting to reload the broken track that just threw `PlayerException`.
    - On Android, `_recoverStuckPlayer()` stops the player and re-creates sources, causing secondary `seekToNext()` failures.
@@ -23,44 +26,72 @@ The audio queue subsystem suffers from three major architectural problems that m
 
 ---
 
-## Deep Dive: Problem 1 — Audio Stoppage (2-Second Freeze) on Queue Operations
+## Detailed Scenario: The Playlist Shuffle "Play Next" Desync Bug
+
+### Step-by-Step Breakdown of the User Scenario:
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor User
-    participant UI as OptionsMenu / SongTile
-    participant Notifier as PlayerNotifier (Riverpod)
-    participant Handler as NaviAudioHandler
-    participant Engine as JustAudio / ExoPlayer
+    participant UI as PlaylistDetails / OptionsMenu
+    participant Riverpod as PlayerNotifier (state.queue)
+    participant Handler as NaviAudioHandler (_currentQueue & _unshuffledQueue)
+    participant Engine as JustAudio / ExoPlayer Output
 
-    Note over User, Engine: Scenario A: Desktop (Windows / Linux / macOS)
-    User->>UI: Tap "Add to Queue"
-    UI->>Notifier: addToQueue(song)
-    Notifier->>Handler: addToQueue(song)
-    Note over Handler: _playlist is null on Desktop!
-    Handler->>Handler: _rebuildSource(_currentQueue.length - 1)
-    Handler->>Engine: setAudioSource(newSongSource)
-    Note over Engine: 🛑 Active song stopped! 2s rebuffer begins!
-    Engine-->>User: Playback cuts off and plays new song
+    Note over User, Engine: Step 1: Playlist [A, B, C, D, X] -> User taps Shuffle Play
+    UI->>Riverpod: playPlaylist([A,B,C,D,X], shuffle: true)
+    Note over Riverpod: Smart Local orders seed B -> [B, X, D]
+    Riverpod->>Handler: setQueue([B, X, D], 0, unshuffled: [A, B, C, D, X])
+    Note over Handler: _currentQueue = [B, X, D]<br/>_unshuffledQueue = [A, B, C, D, X]
+    Handler->>Engine: Play track B (index 0)
+    Riverpod-->>UI: UI displays Up Next: [X, D]
 
-    Note over User, Engine: Scenario B: Android / iOS (Mobile)
-    User->>UI: Tap "Play Next"
-    UI->>Notifier: addToQueue(song)
-    UI-->>UI: unawaited .then() -> reorderQueue(...)
-    Notifier->>Handler: addToQueue(song)
-    Handler->>Engine: ConcatenatingAudioSource.add(...)
-    Note over UI, Notifier: Race: reorderQueue fires while ExoPlayer refreshes timeline
-    Notifier->>Handler: reorderQueue(oldIdx, insertAt)
-    alt If queue > 100 tracks (windowed mode)
-        Handler->>Handler: _rebuildSource(currentIndex)
-        Handler->>Engine: setAudioSource(newConcatenatingSource)
-        Note over Engine: 🛑 ExoPlayer pipeline torn down and reloaded!
-    else If queue <= 100 tracks
-        Handler->>Engine: ConcatenatingAudioSource.move(...)
-        Note over Engine: Timeline discontinuity / audio glitch
-    end
+    Note over User, Engine: Step 2: User taps "Play Next" on Song A
+    UI->>Riverpod: addToQueue(A)
+    Riverpod->>Handler: addToQueue(A)
+    Note over Handler: _currentQueue becomes [B, X, D, A]<br/>_unshuffledQueue becomes [A, B, C, D, X, A]
+    UI-->>UI: unawaited .then() -> reorderQueue(3, 1)
+    
+    Note over Handler: 💥 reorderQueue moves A in _currentQueue to [B, A, X, D]<br/>BUT line 925: if (!isShuffleMode) skips _unshuffledQueue!
+    
+    Note over Riverpod, Handler: Step 3: Index jump & Refill false-trigger
+    Note over Riverpod: remainingAhead <= 3 triggers _triggerSmartLocalFetchIfNeeded()
+    Riverpod->>Riverpod: _fetchAndReorderSmartLocal() reads _unshuffledQueue / server pool
+    Riverpod->>Riverpod: state = state.copyWith(queue: _audioHandler.unshuffledQueue or pool)
+    
+    Note over Riverpod, Engine: 💥 DESYNC RESULT:
+    Riverpod-->>UI: UI displays normal playlist: [A, B, C, D, X]
+    Engine-->>User: Audio continues playing active stream: [B, X, D]
 ```
+
+### Why this happens in code:
+1. **`setQueue` dual-queue split (`lib/services/navi_audio_handler.dart:352-353`)**:
+   When you hit shuffle on playlist `[A, B, C, D, X]`:
+   - `_currentQueue` is set to the shuffled list `[B, X, D]`.
+   - `_unshuffledQueue` is set to the original playlist `[A, B, C, D, X]`.
+2. **`addToQueue(A)` appends to both lists (`lib/services/navi_audio_handler.dart:802-803`)**:
+   - `_currentQueue` $\rightarrow$ `[B, X, D, A]`
+   - `_unshuffledQueue` $\rightarrow$ `[A, B, C, D, X, A]`
+3. **`reorderQueue()` ignores `_unshuffledQueue` in shuffle mode (`lib/services/navi_audio_handler.dart:925-928`)**:
+   ```dart
+   final song = _currentQueue.removeAt(oldIndex);
+   _currentQueue.insert(newIndex, song); // _currentQueue is now [B, A, X, D]
+
+   if (!isShuffleMode) { // 💥 isShuffleMode is TRUE, so _unshuffledQueue is NOT updated!
+     final unSong = _unshuffledQueue.removeAt(oldIndex);
+     _unshuffledQueue.insert(newIndex, unSong);
+   }
+   ```
+4. **Triggering Pool Refill or State Resync (`lib/providers/player_provider.dart:374-383`)**:
+   - Because `addToQueue` momentarily sets the index or loads the track at the tail, `_triggerSmartLocalFetchIfNeeded()` fires.
+   - When Smart Local finishes or when state syncs via `state = state.copyWith(queue: ...)`, `state.queue` is updated from the unshuffled pool or `_unshuffledQueue` (`[A, B, C, D, X]`).
+   - The UI widget tree watches `playerProvider` and immediately re-renders the list as **`[A, B, C, D, X]`**.
+   - But the audio player engine (`player`) was never interrupted with the new list, so it continues playing the audio buffer of **`[B, X, D]`**.
+
+---
+
+## Deep Dive: Problem 1 — Audio Stoppage (2-Second Freeze) on Queue Operations
 
 ### 1. Desktop Root Cause (Windows / Linux / macOS)
 On desktop platforms, `just_audio_media_kit` does not support playlist manipulation through platform channels. Navi uses a single-track bridge (`_isLinux == true`), where `_playlist` is permanently `null`.
@@ -116,76 +147,7 @@ On Android, `just_audio` uses ExoPlayer's `ConcatenatingMediaSource`.
 
 ---
 
-## Deep Dive: Problem 2 — Queue Scrambling / Reverting to Normal Order
-
-```mermaid
-flowchart TD
-    A["User taps 'Play Next' on Song X"] --> B["Step 1: addToQueue(Song X)"]
-    B --> C["Song X appended to _currentQueue AND _unshuffledQueue"]
-    B --> D["Desktop reloads source at end of queue / Mobile timeline updates"]
-    D --> E["Stream fires: currentIndex = queue.length - 1"]
-    
-    E --> F["Step 2: unawaited .then() executes reorderQueue()"]
-    F --> G{"Is Shuffle Mode Active?"}
-    G -- YES --> H["_currentQueue is reordered BUT _unshuffledQueue is NOT updated"]
-    G -- NO --> I["Both queues reordered"]
-    
-    E --> J{"currentIndex >= queue.length - 3?"}
-    J -- YES --> K["Smart Local Refill or Autoplay falsely triggered!"]
-    K --> L["Server returns fresh batch of songs"]
-    L --> M["commitSmartLocalOrder() overwrites upcoming queue!"]
-    
-    H --> N["User toggles Shuffle or unshuffle runs"]
-    N --> O["_currentQueue = List.from(_unshuffledQueue)"]
-    O --> P["💥 User's manual queue completely wiped and reset to old order!"]
-```
-
-### Key Mechanisms of Queue Corruption:
-1. **Unshuffled Queue (`_unshuffledQueue`) Inconsistency**:
-   - When a song is added, it is appended to both `_currentQueue` and `_unshuffledQueue`.
-   - In `navi_audio_handler.dart` (lines 925–928):
-     ```dart
-     if (!isShuffleMode) {
-       final unSong = _unshuffledQueue.removeAt(oldIndex);
-       _unshuffledQueue.insert(newIndex, unSong);
-     }
-     ```
-   - When shuffle is enabled, `_unshuffledQueue` **is never reordered**.
-   - When the user turns off shuffle (`unshuffleQueue()`) or when the algorithm reshuffles, `_currentQueue` is reloaded from `_unshuffledQueue`, discarding all manual "Play Next" and drag-and-drop ordering.
-2. **False Triggering of Smart Local & Autoplay**:
-   In `player_provider.dart` (lines 373–393), whenever `currentIndex` enters the last 3 tracks, background tasks query the Subsonic server for new songs and replace the upcoming queue via `commitSmartLocalOrder()`. Because the two-step "Play Next" briefly sets `currentIndex` to the tail of the queue, the refill task fires erroneously and wipes out the user's manual queue.
-
----
-
 ## Deep Dive: Problem 3 — Error Cascades & Mangled Queue State
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant Net as Network / Stream
-    participant Player as AudioPlayer (just_audio)
-    participant Handler as NaviAudioHandler
-    participant Prov as PlayerNotifier (Riverpod)
-
-    Net-->>Player: Stream error / 404 / decode failure
-    Player->>Handler: playbackEventStream.onError(PlayerException)
-    Handler->>Handler: _recoverStuckPlayer()
-    
-    Note over Handler: 💥 Attempt 1: Tries reloading the EXACT SAME failing track!
-    Handler->>Player: stop()
-    Handler->>Player: loadTrack(failingTrackIndex)
-    
-    Player-->>Handler: Immediate PlayerException again!
-    Note over Handler: Second recovery spawned concurrently!
-    
-    Handler->>Handler: catch block -> skipToNext()
-    Handler->>Handler: _linuxTargetIndex++ (Index desynchronized)
-    
-    Note over Prov: Riverpod state is NOT updated with the skip!
-    Prov->>Prov: _prunePlayedSongs() runs on desynced index
-    Prov->>Handler: pruneRange(0, pruneCount)
-    Note over Handler, Prov: 💥 Wrong track range deleted from queue!
-```
 
 ### 1. Infinite Re-Entrant Recovery Loop
 In `navi_audio_handler.dart` (lines 88–96 and 1188–1224):
