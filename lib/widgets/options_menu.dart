@@ -109,20 +109,7 @@ class OptionsMenu extends ConsumerWidget {
                 ),
               ),
               onTap: () {
-                // Insert the song right after the current index
-                final playerState = ref.read(playerProvider);
-                final notifier = ref.read(playerProvider.notifier);
-                final currentQueue = List<Song>.from(playerState.queue);
-                final insertAt = playerState.currentIndex + 1;
-                if (insertAt >= currentQueue.length) {
-                  notifier.addToQueue(song);
-                } else {
-                  // Use reorderQueue trick: add to end then move
-                  notifier.addToQueue(song).then((_) {
-                    final newState = ref.read(playerProvider);
-                    notifier.reorderQueue(newState.queue.length - 1, insertAt);
-                  });
-                }
+                ref.read(playerProvider.notifier).insertNext(song);
                 Navigator.pop(context);
                 ScaffoldMessenger.of(
                   context,

@@ -798,24 +798,64 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // Incremental queue mutations
   // ---------------------------------------------------------------------------
 
-  Future<void> addToQueue(Song song) async {
-    _currentQueue.add(song);
-    _unshuffledQueue.add(song);
-    if (_playlist != null) {
-      await _playlist!.add(_toSource(song));
-    } else {
-      await _rebuildSource(_currentQueue.length - 1);
+  // ---------------------------------------------------------------------------
+  // Incremental queue mutations
+  // ---------------------------------------------------------------------------
+
+  Future<void> insertNext(Song song) async {
+    await insertAllNext([song]);
+  }
+
+  Future<void> insertAllNext(List<Song> songs, {int? atIndex}) async {
+    if (songs.isEmpty) return;
+    final wasEmpty = _currentQueue.isEmpty;
+    final targetIndex = (atIndex ?? (currentIndex + 1)).clamp(0, _currentQueue.length);
+
+    _currentQueue.insertAll(targetIndex, songs);
+    final unTarget = targetIndex.clamp(0, _unshuffledQueue.length);
+    _unshuffledQueue.insertAll(unTarget, songs);
+
+    if (_isLinux) {
+      if (wasEmpty) {
+        await _rebuildSource(0);
+      } else if (targetIndex <= _linuxIndex) {
+        _linuxIndex += songs.length;
+        _linuxTargetIndex += songs.length;
+      }
+      return;
     }
+
+    if (_playlist != null) {
+      if (wasEmpty) {
+        await _rebuildSource(0);
+      } else if (_playlistOffset == 0) {
+        final sources = songs.map(_toSource).toList();
+        await _playlist!.insertAll(targetIndex, sources);
+      } else {
+        if (targetIndex < _playlistOffset) {
+          _playlistOffset += songs.length;
+        } else if (targetIndex <= _playlistOffset + _playlist!.children.length) {
+          final sources = songs.map(_toSource).toList();
+          await _playlist!.insertAll(targetIndex - _playlistOffset, sources);
+        }
+      }
+    }
+  }
+
+  Future<void> addToQueue(Song song) async {
+    await addAllToQueue([song]);
   }
 
   Future<void> addAllToQueue(List<Song> songs) async {
     if (songs.isEmpty) return;
+    final wasEmpty = _currentQueue.isEmpty;
     _currentQueue.addAll(songs);
     _unshuffledQueue.addAll(songs);
+
     if (_playlist != null) {
       await _playlist!.addAll(songs.map(_toSource).toList());
-    } else {
-      await _rebuildSource(_currentQueue.length - songs.length);
+    } else if (wasEmpty) {
+      await _rebuildSource(0);
     }
   }
 
@@ -925,6 +965,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (!isShuffleMode) {
       final unSong = _unshuffledQueue.removeAt(oldIndex);
       _unshuffledQueue.insert(newIndex, unSong);
+    } else {
+      final unIdx = _unshuffledQueue.indexWhere((s) => s.id == song.id);
+      if (unIdx != -1) {
+        final unSong = _unshuffledQueue.removeAt(unIdx);
+        final targetUnIdx = newIndex.clamp(0, _unshuffledQueue.length);
+        _unshuffledQueue.insert(targetUnIdx, unSong);
+      }
     }
 
     if (_playlist != null) {
@@ -1185,14 +1232,29 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
+  bool _isRecovering = false;
+  int? _lastFailedIndex;
+
   Future<void> _recoverStuckPlayer() async {
-    final int index = currentIndex;
-    final Duration pos = player.position;
-    final bool wasPlaying = player.playing;
-
-    debugPrint('⚠️ [NaviAudioHandler] Stuck player detected at track index $index, position $pos. Attempting recovery...');
-
+    if (_isRecovering) {
+      debugPrint('⚡ [NaviAudioHandler] Recovery already in progress. Ignoring re-entrant call.');
+      return;
+    }
+    _isRecovering = true;
     try {
+      final int index = currentIndex;
+      final Duration pos = player.position;
+      final bool wasPlaying = player.playing;
+
+      debugPrint('⚠️ [NaviAudioHandler] Stuck player detected at track index $index, position $pos. Attempting recovery...');
+
+      if (_lastFailedIndex == index) {
+        debugPrint('⚠️ [NaviAudioHandler] Track $index already failed once during recovery. Skipping to next track...');
+        await _safeSkipToNext(wasPlaying);
+        return;
+      }
+      _lastFailedIndex = index;
+
       // 1. Stop player to close hung network connections/decoders
       await player.stop();
       await Future.delayed(const Duration(seconds: 1));
@@ -1209,16 +1271,30 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (wasPlaying) {
         await player.play();
       }
+      _lastFailedIndex = null;
       debugPrint('✅ [NaviAudioHandler] Stuck player recovery successful!');
     } catch (e) {
       debugPrint('❌ [NaviAudioHandler] Stuck player recovery failed: $e. Skipping to next track...');
+      await _safeSkipToNext(player.playing);
+    } finally {
+      _isRecovering = false;
+    }
+  }
+
+  Future<void> _safeSkipToNext(bool wasPlaying) async {
+    try {
+      await skipToNext();
+      if (wasPlaying) {
+        await player.play();
+      }
+    } catch (e2) {
+      debugPrint('❌ [NaviAudioHandler] Skip to next track failed: $e2. Attempting jumpToIndex...');
       try {
-        await skipToNext();
-        if (wasPlaying) {
-          await player.play();
-        }
-      } catch (e2) {
-        debugPrint('❌ [NaviAudioHandler] Skip to next track also failed: $e2. Player stopped.');
+        final nextIdx = (currentIndex + 1).clamp(0, _currentQueue.length - 1);
+        await jumpToIndex(nextIdx);
+        if (wasPlaying) await player.play();
+      } catch (e3) {
+        debugPrint('❌ [NaviAudioHandler] jumpToIndex fallback also failed: $e3.');
       }
     }
   }
