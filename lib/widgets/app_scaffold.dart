@@ -38,7 +38,7 @@ import 'desktop_dialogs.dart';
 final GlobalKey<NavigatorState> desktopNavigatorKey = GlobalKey<NavigatorState>();
 
 void navigateInApp(BuildContext context, Widget screen) {
-  if (PlatformUtils.isDesktop || MediaQuery.of(context).size.width >= 800) {
+  if (PlatformUtils.isDesktop) {
     desktopNavigatorKey.currentState?.push(
       PageRouteBuilder(
         pageBuilder: (context, animation, secondaryAnimation) => screen,
@@ -146,9 +146,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     return NaviKeyboardShortcuts(
       child: LayoutBuilder(
         builder: (context, constraints) {
-          final useDesktopLayout =
-              PlatformUtils.prefersSidebarNavigation ||
-              constraints.maxWidth >= PlatformUtils.kDesktopBreakpoint;
+          final useDesktopLayout = PlatformUtils.isDesktop &&
+              (PlatformUtils.prefersSidebarNavigation ||
+                  constraints.maxWidth >= PlatformUtils.kDesktopBreakpoint);
 
           if (useDesktopLayout) {
             return _Desktop3PaneScaffold(
@@ -1835,8 +1835,18 @@ class _MobileScaffold extends StatelessWidget {
         final playerState = ref.watch(playerProvider);
         final hasTrack = playerState.queue.isNotEmpty &&
             playerState.currentIndex < playerState.queue.length;
-        final double bottomOffset = (hasTrack ? 64.0 : 0.0) + 64.0;
 
+        // System gesture inset (home bar on Android / iOS).
+        final bottomInset = MediaQuery.of(context).padding.bottom;
+
+        // Exact heights — no Flutter NavigationBar surprises.
+        const double kNavBarHeight = 58.0;
+        const double kMiniPlayerHeight = 72.0;
+
+        final double bottomOffset =
+            (hasTrack ? kMiniPlayerHeight : 0.0) + kNavBarHeight + bottomInset;
+
+        // ── Screen content (scrolls behind floating bar) ─────────────────────
         final content = Column(
           children: [
             if (isOffline) _OfflineBanner(tokens: tokens),
@@ -1849,27 +1859,87 @@ class _MobileScaffold extends StatelessWidget {
           ],
         );
 
-        final bottomNav = SafeArea(
-          top: false,
-          child: NavigationBar(
-            selectedIndex: currentIndex,
-            onDestinationSelected: onNavTap,
-            backgroundColor: tokens.bgSurface.withValues(alpha: 0.95),
-            indicatorColor: tokens.accent.withValues(alpha: 0.20),
-            elevation: 0,
-            height: 60,
-            destinations: items
-                .map(
-                  (item) => NavigationDestination(
-                    icon: Icon(item.icon, color: tokens.textSecondary, size: 22),
-                    selectedIcon: Icon(item.activeIcon, color: tokens.accent, size: 22),
-                    label: item.label,
-                  ),
-                )
-                .toList(),
+        // ── Hand-built Spotify-style bottom tab bar ───────────────────────────
+        // We build this ourselves so we have 100% control over the height.
+        // Flutter's NavigationBar adds internal safe-area padding on top of
+        // whatever height you specify in NavigationBarThemeData, which is
+        // exactly what caused the "black gap above icons" bug.
+        final bottomNav = Container(
+          color: tokens.bgSurface.withValues(alpha: 0.97),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              // Thin separator line between MiniPlayer and tab bar
+              Divider(
+                height: 1,
+                thickness: 0.5,
+                color: Colors.white.withValues(alpha: 0.10),
+              ),
+              SizedBox(
+                height: kNavBarHeight,
+                child: Row(
+                  children: List.generate(items.length, (i) {
+                    final item = items[i];
+                    final selected = i == currentIndex;
+                    return Expanded(
+                      child: InkWell(
+                        onTap: () => onNavTap(i),
+                        splashColor: tokens.accent.withValues(alpha: 0.12),
+                        highlightColor: Colors.transparent,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            // Selected indicator pill
+                            AnimatedContainer(
+                              duration: const Duration(milliseconds: 200),
+                              curve: Curves.easeInOut,
+                              width: selected ? 40 : 0,
+                              height: 2,
+                              margin: const EdgeInsets.only(bottom: 4),
+                              decoration: BoxDecoration(
+                                color: tokens.accent,
+                                borderRadius: BorderRadius.circular(1),
+                              ),
+                            ),
+                            Icon(
+                              selected ? item.activeIcon : item.icon,
+                              color: selected
+                                  ? tokens.accent
+                                  : tokens.textSecondary,
+                              size: 22,
+                            ),
+                            const SizedBox(height: 3),
+                            Text(
+                              item.label,
+                              style: TextStyle(
+                                fontSize: 10,
+                                fontWeight: selected
+                                    ? FontWeight.bold
+                                    : FontWeight.w500,
+                                color: selected
+                                    ? tokens.accent
+                                    : tokens.textSecondary,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                ),
+              ),
+              // System gesture strip — same color as bar, exactly bottomInset tall.
+              ColoredBox(
+                color: tokens.bgSurface.withValues(alpha: 0.97),
+                child: SizedBox(width: double.infinity, height: bottomInset),
+              ),
+            ],
           ),
         );
 
+        // ── Stack: content behind, player + nav bar floating at bottom ────────
         final body = Stack(
           children: [
             content,

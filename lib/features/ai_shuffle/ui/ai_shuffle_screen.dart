@@ -221,40 +221,43 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           // ── Mode selector ──────────────────────────────────────────────────
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: PredictMode.values.map((mode) {
-                final isSelected = queueState.mode == mode;
-                return Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: 6),
-                  child: FilterChip(
-                    label: Text(mode.displayLabel),
-                    selected: isSelected,
-                    onSelected: (_) {
-                      notifier.setMode(mode);
-                      notifier.fetchPredict(mode: mode);
-                    },
-                    selectedColor: cs.secondaryContainer,
-                    checkmarkColor: cs.onSecondaryContainer,
-                    backgroundColor: cs.surfaceContainerLow,
-                    side: BorderSide(
-                      color: isSelected
-                          ? cs.secondary
-                          : cs.outline.withValues(alpha: 0.4),
-                      width: isSelected ? 1.5 : 1,
+            child: SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: PredictMode.values.map((mode) {
+                  final isSelected = queueState.mode == mode;
+                  return Padding(
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    child: FilterChip(
+                      label: Text(mode.displayLabel),
+                      selected: isSelected,
+                      onSelected: (_) {
+                        notifier.setMode(mode);
+                        notifier.fetchPredict(mode: mode);
+                      },
+                      selectedColor: cs.secondaryContainer,
+                      checkmarkColor: cs.onSecondaryContainer,
+                      backgroundColor: cs.surfaceContainerLow,
+                      side: BorderSide(
+                        color: isSelected
+                            ? cs.secondary
+                            : cs.outline.withValues(alpha: 0.4),
+                        width: isSelected ? 1.5 : 1,
+                      ),
+                      labelStyle: TextStyle(
+                        color: isSelected
+                            ? cs.onSecondaryContainer
+                            : cs.onSurfaceVariant,
+                        fontWeight: isSelected
+                            ? FontWeight.w600
+                            : FontWeight.normal,
+                      ),
+                      showCheckmark: false,
                     ),
-                    labelStyle: TextStyle(
-                      color: isSelected
-                          ? cs.onSecondaryContainer
-                          : cs.onSurfaceVariant,
-                      fontWeight: isSelected
-                          ? FontWeight.w600
-                          : FontWeight.normal,
-                    ),
-                    showCheckmark: false,
-                  ),
-                );
-              }).toList(),
+                  );
+                }).toList(),
+              ),
             ),
           ),
 

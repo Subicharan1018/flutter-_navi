@@ -811,7 +811,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
     final isShuffleActive = playerState.shuffleMode;
     final isRepeatActive = playerState.repeatMode != LoopMode.off;
 
-    final isDesktopLayout = MediaQuery.of(context).size.width >= 800;
+    final isDesktopLayout = PlatformUtils.isDesktop && MediaQuery.of(context).size.width >= 800;
 
     return GestureDetector(
       onVerticalDragUpdate: isDesktopLayout
@@ -2154,12 +2154,6 @@ class _BlurredArtworkBackgroundState extends State<BlurredArtworkBackground>
 
   @override
   Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-    // Dark overlay: slightly lighter on light theme to keep text readable.
-    final overlayColor = tokens.isLight
-        ? Colors.white.withValues(alpha: 0.55)
-        : Colors.black.withValues(alpha: 0.78);
-
     final fallbackGradient = DecoratedBox(
       decoration: BoxDecoration(
         gradient: LinearGradient(
@@ -2219,7 +2213,20 @@ class _BlurredArtworkBackgroundState extends State<BlurredArtworkBackground>
           ),
 
           // ── 3. Dark/light tint on top ────────────────────────────────────
-          Positioned.fill(child: ColoredBox(color: overlayColor)),
+          Positioned.fill(
+            child: DecoratedBox(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.topCenter,
+                  end: Alignment.bottomCenter,
+                  colors: [
+                    Colors.black.withValues(alpha: 0.75),
+                    Colors.black.withValues(alpha: 0.90),
+                  ],
+                ),
+              ),
+            ),
+          ),
         ],
       ),
     );

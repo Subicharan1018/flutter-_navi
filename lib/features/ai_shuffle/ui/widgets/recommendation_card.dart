@@ -262,7 +262,7 @@ class _RecommendationCardState extends State<RecommendationCard>
                 if (widget.song.why.isNotEmpty) ...[
                   const SizedBox(height: s8),
                   Text(
-                    widget.song.why,
+                    _cleanWhy(widget.song.why),
                     style: tokens
                         .textStyle(11, FontWeight.w400, tokens.textSecondary)
                         .copyWith(fontStyle: FontStyle.italic),
@@ -276,6 +276,12 @@ class _RecommendationCardState extends State<RecommendationCard>
         ),
       ),
     );
+  }
+
+  String _cleanWhy(String why) {
+    final idx = why.indexOf('—');
+    if (idx != -1) return why.substring(0, idx).trim();
+    return why;
   }
 
   Color _scoreColor(double score, AppThemeTokens tokens) {

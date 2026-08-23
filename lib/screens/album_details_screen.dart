@@ -130,7 +130,7 @@ class _AlbumDetailsScreenState extends ConsumerState<AlbumDetailsScreen> {
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
     final themeColor = _vibrantColor ?? tokens.accent;
-    final isDesktop = PlatformUtils.isDesktop || MediaQuery.of(context).size.width >= 800;
+    final isDesktop = PlatformUtils.isDesktop && MediaQuery.of(context).size.width >= 800;
     final playerState = ref.watch(playerProvider);
     final isCurrentAlbumPlaying = playerState.isPlaying &&
         playerState.currentSong != null &&
@@ -189,9 +189,63 @@ class _AlbumDetailsScreenState extends ConsumerState<AlbumDetailsScreen> {
                 child: Padding(
                   padding: isDesktop
                       ? const EdgeInsets.fromLTRB(32, 4, 32, 16)
-                      : const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                      : const EdgeInsets.fromLTRB(16, 12, 16, 16),
                   child: Row(
                     children: [
+                      if (!isDesktop) ...[
+                        // Favorite / Add
+                        IconButton(
+                          icon: const Icon(
+                            Icons.add_circle_outline_rounded,
+                            color: Colors.white70,
+                            size: 24,
+                          ),
+                          onPressed: () {},
+                          tooltip: 'Add to Library',
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Download Button
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_circle_down_outlined,
+                            color: Colors.white70,
+                            size: 24,
+                          ),
+                          onPressed: _songs.isNotEmpty
+                              ? () => ref
+                                  .read(downloadStateProvider.notifier)
+                                  .downloadPlaylist(_songs)
+                              : null,
+                          tooltip: 'Download Album',
+                        ),
+                        const SizedBox(width: 8),
+
+                        // Options Menu
+                        IconButton(
+                          icon: const Icon(
+                            Icons.more_vert_rounded,
+                            color: Colors.white70,
+                            size: 24,
+                          ),
+                          onPressed: () {},
+                          tooltip: 'More Options',
+                        ),
+                        const Spacer(),
+
+                        // Shuffle Button
+                        IconButton(
+                          icon: const Icon(
+                            Icons.shuffle_rounded,
+                            color: Color(0xFF1DB954),
+                            size: 24,
+                          ),
+                          onPressed: () => _playAlbum(shuffle: true),
+                          tooltip: 'Shuffle Play',
+                        ),
+                        const SizedBox(width: 12),
+                      ],
+
                       // Large Green Circular Play Button (52x52)
                       MouseRegion(
                         cursor: SystemMouseCursors.click,
@@ -229,34 +283,33 @@ class _AlbumDetailsScreenState extends ConsumerState<AlbumDetailsScreen> {
                           ),
                         ),
                       ),
-                      const SizedBox(width: 20),
 
-                      // Shuffle Toggle
-                      IconButton(
-                        icon: const Icon(
-                          Icons.shuffle_rounded,
-                          color: Colors.white70,
-                          size: 24,
+                      if (isDesktop) ...[
+                        const SizedBox(width: 20),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.shuffle_rounded,
+                            color: Colors.white70,
+                            size: 24,
+                          ),
+                          onPressed: () => _playAlbum(shuffle: true),
+                          tooltip: 'Shuffle Play',
                         ),
-                        onPressed: () => _playAlbum(shuffle: true),
-                        tooltip: 'Shuffle Play',
-                      ),
-                      const SizedBox(width: 4),
-
-                      // Download Button
-                      IconButton(
-                        icon: const Icon(
-                          Icons.arrow_circle_down_outlined,
-                          color: Colors.white70,
-                          size: 24,
+                        const SizedBox(width: 4),
+                        IconButton(
+                          icon: const Icon(
+                            Icons.arrow_circle_down_outlined,
+                            color: Colors.white70,
+                            size: 24,
+                          ),
+                          onPressed: _songs.isNotEmpty
+                              ? () => ref
+                                  .read(downloadStateProvider.notifier)
+                                  .downloadPlaylist(_songs)
+                              : null,
+                          tooltip: 'Download Album',
                         ),
-                        onPressed: _songs.isNotEmpty
-                            ? () => ref
-                                .read(downloadStateProvider.notifier)
-                                .downloadPlaylist(_songs)
-                            : null,
-                        tooltip: 'Download Album',
-                      ),
+                      ],
                     ],
                   ),
                 ),
@@ -624,18 +677,19 @@ class _AlbumDetailsScreenState extends ConsumerState<AlbumDetailsScreen> {
   // ── Mobile Hero Banner ──────────────────────────────────────────────────
   Widget _buildMobileHero(AppThemeTokens tokens, Color themeColor) {
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Center(
           child: Container(
-            width: 180,
-            height: 180,
+            width: 220,
+            height: 220,
             decoration: BoxDecoration(
               borderRadius: BorderRadius.circular(8),
               boxShadow: [
                 BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.5),
-                  blurRadius: 20,
-                  offset: const Offset(0, 8),
+                  color: Colors.black.withValues(alpha: 0.6),
+                  blurRadius: 24,
+                  offset: const Offset(0, 10),
                 ),
               ],
             ),
@@ -651,24 +705,53 @@ class _AlbumDetailsScreenState extends ConsumerState<AlbumDetailsScreen> {
             ),
           ),
         ),
-        const SizedBox(height: 16),
+        const SizedBox(height: 20),
         Text(
           widget.album.name,
           style: const TextStyle(
             color: Colors.white,
             fontSize: 22,
             fontWeight: FontWeight.bold,
+            letterSpacing: -0.4,
           ),
-          textAlign: TextAlign.center,
+          textAlign: TextAlign.left,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: 8),
+        Row(
+          children: [
+            CircleAvatar(
+              radius: 12,
+              backgroundColor: const Color(0xFF282828),
+              child: Icon(
+                Icons.person_rounded,
+                size: 16,
+                color: tokens.textSecondary,
+              ),
+            ),
+            const SizedBox(width: 8),
+            Expanded(
+              child: Text(
+                widget.album.artist,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 14,
+                  fontWeight: FontWeight.w600,
+                ),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 6),
         Text(
-          '${widget.album.artist} \u2022 ${_songs.length} songs',
+          'Album \u2022 ${_songs.isNotEmpty ? "${_songs.first.year} \u2022 " : ""}${_songs.length} songs',
           style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.70),
+            color: Colors.white.withValues(alpha: 0.65),
             fontSize: 13,
+            fontWeight: FontWeight.w400,
           ),
         ),
       ],
