@@ -5,7 +5,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:just_audio/just_audio.dart';
-import 'package:audio_service/audio_service.dart';
+import 'package:audio_service/audio_service.dart' hide PlaybackState;
 import 'package:collection/collection.dart';
 import '../models/song.dart';
 import '../services/subsonic_service.dart';
@@ -20,6 +20,26 @@ import '../main.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../features/ai_shuffle/data/models/feedback_request.dart';
 import 'library_provider.dart';
+import '../services/session_sync_service.dart';
+import 'session_sync_provider.dart';
+import '../utils/device_utils.dart';
+
+// ---------------------------------------------------------------------------
+// Sync mode enum
+// ---------------------------------------------------------------------------
+enum SyncMode {
+  /// Offline / reconnecting: local playback continues, no active-device enforcement
+  standalone,
+
+  /// This device is authoritative and active
+  activeHere,
+
+  /// Another device is active; local playback engine is stopped
+  passive,
+
+  /// No active device on the server; idle session
+  idle,
+}
 
 // ---------------------------------------------------------------------------
 // Player state
@@ -34,6 +54,16 @@ class PlayerState {
   final List<String> starredIds;
   final List<Song> history;
 
+  // Session sync state fields (Step 5)
+  final SyncMode syncMode;
+  final String? remoteTrackId;
+  final String? remoteTrackTitle;
+  final String? remoteArtist;
+  final int remotePositionMs;
+  final bool remoteIsPlaying;
+  final DateTime? remoteUpdatedAt;
+  final String? remoteActiveDeviceName;
+
   static const int maxHistoryLength = AppConstants.playerHistoryMaxLength;
 
   const PlayerState({
@@ -45,6 +75,14 @@ class PlayerState {
     required this.repeatMode,
     required this.starredIds,
     this.history = const [],
+    this.syncMode = SyncMode.idle,
+    this.remoteTrackId,
+    this.remoteTrackTitle,
+    this.remoteArtist,
+    this.remotePositionMs = 0,
+    this.remoteIsPlaying = false,
+    this.remoteUpdatedAt,
+    this.remoteActiveDeviceName,
   });
 
   PlayerState copyWith({
@@ -56,6 +94,14 @@ class PlayerState {
     LoopMode? repeatMode,
     List<String>? starredIds,
     List<Song>? history,
+    SyncMode? syncMode,
+    String? remoteTrackId,
+    String? remoteTrackTitle,
+    String? remoteArtist,
+    int? remotePositionMs,
+    bool? remoteIsPlaying,
+    DateTime? remoteUpdatedAt,
+    String? remoteActiveDeviceName,
   }) {
     return PlayerState(
       queue: queue ?? this.queue,
@@ -66,8 +112,59 @@ class PlayerState {
       repeatMode: repeatMode ?? this.repeatMode,
       starredIds: starredIds ?? this.starredIds,
       history: history ?? this.history,
+      syncMode: syncMode ?? this.syncMode,
+      remoteTrackId: remoteTrackId ?? this.remoteTrackId,
+      remoteTrackTitle: remoteTrackTitle ?? this.remoteTrackTitle,
+      remoteArtist: remoteArtist ?? this.remoteArtist,
+      remotePositionMs: remotePositionMs ?? this.remotePositionMs,
+      remoteIsPlaying: remoteIsPlaying ?? this.remoteIsPlaying,
+      remoteUpdatedAt: remoteUpdatedAt ?? this.remoteUpdatedAt,
+      remoteActiveDeviceName:
+          remoteActiveDeviceName ?? this.remoteActiveDeviceName,
     );
   }
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PlayerState &&
+          runtimeType == other.runtimeType &&
+          const ListEquality<Song>().equals(queue, other.queue) &&
+          currentIndex == other.currentIndex &&
+          isPlaying == other.isPlaying &&
+          shuffleMode == other.shuffleMode &&
+          autoplayMode == other.autoplayMode &&
+          repeatMode == other.repeatMode &&
+          const ListEquality<String>().equals(starredIds, other.starredIds) &&
+          const ListEquality<Song>().equals(history, other.history) &&
+          syncMode == other.syncMode &&
+          remoteTrackId == other.remoteTrackId &&
+          remoteTrackTitle == other.remoteTrackTitle &&
+          remoteArtist == other.remoteArtist &&
+          remotePositionMs == other.remotePositionMs &&
+          remoteIsPlaying == other.remoteIsPlaying &&
+          remoteUpdatedAt == other.remoteUpdatedAt &&
+          remoteActiveDeviceName == other.remoteActiveDeviceName;
+
+  @override
+  int get hashCode => Object.hash(
+        Object.hashAll(queue),
+        currentIndex,
+        isPlaying,
+        shuffleMode,
+        autoplayMode,
+        repeatMode,
+        Object.hashAll(starredIds),
+        Object.hashAll(history),
+        syncMode,
+        remoteTrackId,
+        remoteTrackTitle,
+        remoteArtist,
+        remotePositionMs,
+        remoteIsPlaying,
+        remoteUpdatedAt,
+        remoteActiveDeviceName,
+      );
 
   List<Song> get historySongs => history;
   Song? get currentSong => queue.isNotEmpty && currentIndex < queue.length
@@ -133,58 +230,286 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String _nextSourceContext = 'autoplay';
   String _nextTransitionType = 'autoplay';
 
+  String? _myDeviceId;
+  Timer? _positionTickTimer;
+  StreamSubscription<PlaybackState>? _syncSub;
+  final Future<String> Function() _deviceIdProvider;
+
   PlayerNotifier(
     this._ref,
     this._audioHandler,
     this._subsonicService,
-    this._collector,
-  ) : super(
-        const PlayerState(
-          queue: [],
-          currentIndex: 0,
-          isPlaying: false,
-          shuffleMode: false,
-          autoplayMode: false,
-          repeatMode: LoopMode.off,
-          starredIds: [],
-          history: [],
-        ),
-      ) {
+    this._collector, {
+    Future<String> Function()? deviceIdProvider,
+  })  : _deviceIdProvider = deviceIdProvider ?? getOrCreateDeviceId,
+        super(
+          const PlayerState(
+            queue: [],
+            currentIndex: 0,
+            isPlaying: false,
+            shuffleMode: false,
+            autoplayMode: false,
+            repeatMode: LoopMode.off,
+            starredIds: [],
+            history: [],
+            syncMode: SyncMode.idle,
+          ),
+        ) {
     _init();
+    unawaited(_initSync());
     unawaited(_loadPersistedState());
+  }
+
+  Future<void> _initSync() async {
+    try {
+      _myDeviceId = await _deviceIdProvider();
+      final syncService = _ref.read(sessionSyncServiceProvider);
+      _syncSub = syncService.stateStream.listen(_onSyncStateChanged);
+      _onSyncStateChanged(syncService.currentState);
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ SessionSyncService init note: $e');
+    }
+  }
+
+  Future<void> claimActiveDevice() async {
+    if (state.syncMode != SyncMode.passive) return; // only meaningful when stealing from another active device
+    _myDeviceId ??= await _deviceIdProvider();
+    if (_myDeviceId != null) {
+      try {
+        _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!);
+      } catch (e) {
+        debugPrint('[PlayerNotifier] ⚠️ Failed to claim active device: $e');
+      }
+    }
+    // Do NOT start local playback here. Wait for the confirming broadcast.
+    // Unlike Step 5's play(), this device is stealing from something actively
+    // playing elsewhere — starting the engine optimistically risks a longer
+    // double-audio window since the other device is mid-playback, not idle.
+  }
+
+  void _onSyncStateChanged(PlaybackState syncState) {
+    final wasPassive = state.syncMode == SyncMode.passive;
+    final isMineNow = syncState.activeDevice != null &&
+        syncState.activeDevice == _myDeviceId;
+
+    if (syncState.syncUnknown) {
+      // Outage / reconnecting: degrade to standalone mode.
+      // Local playback continues uninterrupted, no active-device enforcement.
+      state = state.copyWith(syncMode: SyncMode.standalone);
+      return;
+    }
+
+    if (isMineNow) {
+      if (wasPassive) {
+        // Transfer just confirmed — resume from the state we were tracking as passive.
+        _resumeFromRemoteState(syncState);
+      }
+      state = state.copyWith(syncMode: SyncMode.activeHere);
+    } else if (syncState.activeDevice != null) {
+      // Another device is active — this device goes passive.
+      // Stop local playback if it was running; UI rendering handled in Step 7.
+      if (state.isPlaying) {
+        _stopLocalPlaybackOnly();
+      }
+      _stopPositionTick();
+      state = state.copyWith(
+        syncMode: SyncMode.passive,
+        remoteTrackId: syncState.trackId,
+        remoteTrackTitle: syncState.trackTitle,
+        remoteArtist: syncState.artist,
+        remotePositionMs: syncState.positionMs,
+        remoteIsPlaying: syncState.isPlaying,
+        remoteUpdatedAt: syncState.updatedAt,
+        remoteActiveDeviceName: syncState.activeDeviceName,
+      );
+    } else {
+      // activeDevice == null, nobody active — fresh/idle session
+      state = state.copyWith(syncMode: SyncMode.idle);
+    }
+  }
+
+  Future<void> _resumeFromRemoteState(PlaybackState syncState) async {
+    if (syncState.trackId == null) return;
+
+    // Interpolate position the same way passive-mode UI would have shown it,
+    // so resume lands close to where the other device actually was.
+    final elapsed = syncState.updatedAt != null && syncState.isPlaying
+        ? DateTime.now().difference(syncState.updatedAt!).inMilliseconds
+        : 0;
+    final resumePositionMs = syncState.positionMs + elapsed;
+
+    await _loadAndSeekTrack(
+      syncState.trackId!,
+      resumePositionMs,
+      title: syncState.trackTitle,
+      artist: syncState.artist,
+      album: syncState.album,
+    );
+    if (syncState.isPlaying) {
+      await _audioHandler.play();
+    }
+    _startPositionTick();
+  }
+
+  Future<void> _loadAndSeekTrack(
+    String trackId,
+    int positionMs, {
+    String? title,
+    String? artist,
+    String? album,
+  }) async {
+    final existingIndex = state.queue.indexWhere((s) => s.id == trackId);
+    if (existingIndex != -1) {
+      if (state.currentIndex != existingIndex) {
+        await _audioHandler.jumpToIndex(existingIndex);
+        state = state.copyWith(currentIndex: existingIndex);
+      }
+      await _audioHandler.seek(Duration(milliseconds: positionMs));
+    } else {
+      final song = Song(
+        id: trackId,
+        title: title ?? 'Unknown Title',
+        artist: artist ?? 'Unknown Artist',
+        album: album ?? '',
+        genre: '',
+        composer: '',
+        coverArt: '',
+        duration: (positionMs / 1000).ceil() + 60,
+        track: 1,
+        year: 0,
+      );
+      await setQueue([song], 0);
+      await _audioHandler.seek(Duration(milliseconds: positionMs));
+    }
+  }
+
+  Future<void> _stopLocalPlaybackOnly() async {
+    _stopPositionTick();
+    await _audioHandler.pause();
+  }
+
+  void _pushUpdate({
+    String? trackId,
+    int? positionMs,
+    bool? isPlaying,
+    List<String>? queue,
+  }) {
+    if (state.syncMode == SyncMode.passive) return; // never push from a passive device
+    try {
+      _ref.read(sessionSyncServiceProvider).pushStateUpdate(
+        trackId: trackId,
+        positionMs: positionMs,
+        isPlaying: isPlaying,
+        queue: queue,
+      );
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ⚠️ Failed to push sync update: $e');
+    }
+  }
+
+  Future<void> _ensureActiveDevice() async {
+    if (state.syncMode == SyncMode.idle || state.syncMode == SyncMode.standalone) {
+      _myDeviceId ??= await _deviceIdProvider();
+      if (_myDeviceId != null) {
+        try {
+          _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!);
+        } catch (e) {
+          debugPrint('[PlayerNotifier] ⚠️ Failed to transfer playback: $e');
+        }
+      }
+    }
+  }
+
+  void _startPositionTick() {
+    _positionTickTimer?.cancel();
+    _positionTickTimer = Timer.periodic(const Duration(seconds: 7), (_) {
+      if (state.isPlaying && state.syncMode == SyncMode.activeHere) {
+        _pushUpdate(positionMs: player.position.inMilliseconds);
+      }
+    });
+  }
+
+  void _stopPositionTick() {
+    _positionTickTimer?.cancel();
+    _positionTickTimer = null;
+  }
+
+  Future<void> play() async {
+    await _ensureActiveDevice();
+    await _audioHandler.play();
+    state = state.copyWith(isPlaying: true, syncMode: SyncMode.activeHere);
+    _pushUpdate(
+      trackId: state.currentSong?.id,
+      positionMs: player.position.inMilliseconds,
+      isPlaying: true,
+      queue: state.queue.map((s) => s.id).toList(),
+    );
+    _startPositionTick();
+  }
+
+  Future<void> pause() async {
+    await _audioHandler.pause();
+    state = state.copyWith(isPlaying: false);
+    _pushUpdate(
+      isPlaying: false,
+      positionMs: player.position.inMilliseconds,
+    );
+    _stopPositionTick();
+  }
+
+  Future<void> togglePlay() async {
+    if (state.isPlaying) {
+      await pause();
+    } else {
+      await play();
+    }
+  }
+
+  Future<void> seek(Duration position) async {
+    await _audioHandler.seek(position);
+    _pushUpdate(positionMs: position.inMilliseconds);
+  }
+
+  Future<void> seekMs(int ms) async {
+    await seek(Duration(milliseconds: ms));
   }
 
   int _pendingSeekMs = 0;
 
   Future<void> _loadPersistedState() async {
-    final s = HiveBoxes.session;
-    final p = HiveBoxes.prefs;
-    _pendingSeekMs = s.get(HiveBoxes.kLastPositionMs, defaultValue: 0) as int;
-    final shuffle =
-        p.get(HiveBoxes.kShufflePreference, defaultValue: false) as bool;
-    final repeatIdx = p.get('repeatMode', defaultValue: 0) as int;
-    final loopMode =
-        LoopMode.values[repeatIdx.clamp(0, LoopMode.values.length - 1)];
-    state = state.copyWith(shuffleMode: shuffle, repeatMode: loopMode);
-    // Apply to the just_audio player so audio behavior matches persisted UI
-    // state. Without this, the player stays on LoopMode.off after a restart
-    // even though the notification + UI correctly show repeat-one/all.
-    if (loopMode != LoopMode.off) {
-      await player.setLoopMode(loopMode);
-    }
+    try {
+      final s = HiveBoxes.session;
+      final p = HiveBoxes.prefs;
+      _pendingSeekMs =
+          s.get(HiveBoxes.kLastPositionMs, defaultValue: 0) as int;
+      final shuffle =
+          p.get(HiveBoxes.kShufflePreference, defaultValue: false) as bool;
+      final repeatIdx = p.get('repeatMode', defaultValue: 0) as int;
+      final loopMode =
+          LoopMode.values[repeatIdx.clamp(0, LoopMode.values.length - 1)];
+      state = state.copyWith(shuffleMode: shuffle, repeatMode: loopMode);
+      // Apply to the just_audio player so audio behavior matches persisted UI
+      // state. Without this, the player stays on LoopMode.off after a restart
+      // even though the notification + UI correctly show repeat-one/all.
+      if (loopMode != LoopMode.off) {
+        await player.setLoopMode(loopMode);
+      }
+    } catch (_) {}
   }
 
   void _persistState() {
     _persistTimer?.cancel();
     _persistTimer = Timer(const Duration(seconds: 2), () {
-      final s = HiveBoxes.session;
-      final p = HiveBoxes.prefs;
-      if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
-        s.put(HiveBoxes.kCurrentTrackId, state.queue[state.currentIndex].id);
-      }
-      s.put(HiveBoxes.kLastPositionMs, player.position.inMilliseconds);
-      p.put(HiveBoxes.kShufflePreference, state.shuffleMode);
-      p.put('repeatMode', state.repeatMode.index);
+      try {
+        final s = HiveBoxes.session;
+        final p = HiveBoxes.prefs;
+        if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
+          s.put(HiveBoxes.kCurrentTrackId, state.queue[state.currentIndex].id);
+        }
+        s.put(HiveBoxes.kLastPositionMs, player.position.inMilliseconds);
+        p.put(HiveBoxes.kShufflePreference, state.shuffleMode);
+        p.put('repeatMode', state.repeatMode.index);
+      } catch (_) {}
     });
   }
 
@@ -416,6 +741,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             _scrobblePlayStart = null;
           }
           state = state.copyWith(isPlaying: playing);
+
+          if (playing) {
+            if (state.syncMode == SyncMode.activeHere) {
+              _startPositionTick();
+              _pushUpdate(
+                isPlaying: true,
+                positionMs: player.position.inMilliseconds,
+              );
+            }
+          } else {
+            _stopPositionTick();
+            if (state.syncMode == SyncMode.activeHere) {
+              _pushUpdate(
+                isPlaying: false,
+                positionMs: player.position.inMilliseconds,
+              );
+            }
+          }
         }
 
         // 2. Handle loop mode changes
@@ -615,6 +958,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   @override
   void dispose() {
+    _syncSub?.cancel();
+    _positionTickTimer?.cancel();
     _shuffleGuardTimer?.cancel();
     _persistTimer?.cancel();
     _trackChangeTimer?.cancel();
@@ -635,6 +980,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final completer = Completer<void>();
     _queueOpLock = completer;
     try {
+      await _ensureActiveDevice();
       _clearHistory(); // also calls shuffleNotifier.clearQueue() → _sessionId = null
       _ref.read(shuffleQueueProvider.notifier).initSession(); // start session so feedback fires
       _playlistPool = []; // clear pool — not a playlist-shuffle context
@@ -642,7 +988,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _nextTransitionType = 'user_selected';
       _suppressDepth++;
       try {
-        state = state.copyWith(queue: songs, currentIndex: startIndex);
+        state = state.copyWith(
+          queue: songs,
+          currentIndex: startIndex,
+          syncMode: SyncMode.activeHere,
+        );
         await _audioHandler.setQueue(songs, startIndex);
         // Fix 2: init completion tracking for the first song, which doesn't
         // arrive via the media item change callback.
@@ -659,6 +1009,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         } catch (_) {}
         _pendingSeekMs = 0;
       }
+      _pushUpdate(
+        trackId: songs.isNotEmpty && startIndex < songs.length
+            ? songs[startIndex].id
+            : null,
+        positionMs: _pendingSeekMs,
+        isPlaying: true,
+        queue: songs.map((s) => s.id).toList(),
+      );
+      _startPositionTick();
       player.play();
     } finally {
       completer.complete();
@@ -699,6 +1058,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final completer = Completer<void>();
     _queueOpLock = completer;
     try {
+      await _ensureActiveDevice();
       _clearHistory();
       _nextSourceContext = 'playlist';
       _nextTransitionType = 'user_selected';
@@ -716,11 +1076,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             shuffleMode: false,
             queue: songs,
             currentIndex: 0,
+            syncMode: SyncMode.activeHere,
           );
           await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
         } finally {
           _suppressDepth--;
         }
+        _pushUpdate(
+          trackId: songs.isNotEmpty ? songs[0].id : null,
+          positionMs: 0,
+          isPlaying: true,
+          queue: songs.map((s) => s.id).toList(),
+        );
+        _startPositionTick();
         player.play();
         return;
       }
@@ -807,12 +1175,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             shuffleMode: true,
             queue: initialQueue,
             currentIndex: 0,
+            syncMode: SyncMode.activeHere,
           );
           await _audioHandler.setQueue(initialQueue, 0, unshuffledSongs: songs);
           // Fix 2: init completion tracking for the first song (seed at index 0).
           _trackedIndexForCompletion = 0;
           _positionAtCompletion = Duration.zero;
           _shuffleSettling = false;
+          _pushUpdate(
+            trackId: currentSong.id,
+            positionMs: 0,
+            isPlaying: true,
+            queue: initialQueue.map((s) => s.id).toList(),
+          );
+          _startPositionTick();
           player.play();
 
           // 5. Remove anything we just queued from the pool (safety drain).
@@ -838,9 +1214,17 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             shuffleMode: true,
             queue: finalQueue,
             currentIndex: 0,
+            syncMode: SyncMode.activeHere,
           );
           await _audioHandler.setQueue(finalQueue, 0, unshuffledSongs: songs);
           _shuffleSettling = false;
+          _pushUpdate(
+            trackId: currentSong.id,
+            positionMs: 0,
+            isPlaying: true,
+            queue: finalQueue.map((s) => s.id).toList(),
+          );
+          _startPositionTick();
           player.play();
         }
       } finally {
@@ -905,11 +1289,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> stop() async {
+    _stopPositionTick();
     _hasScrobbled = false;
     _currentScrobbleSongId = null;
     _scrobbleListenDuration = Duration.zero;
     _scrobblePlayStart = null;
     await player.stop();
+    _pushUpdate(isPlaying: false, positionMs: 0);
   }
 
   Future<void> playPrev() async {
