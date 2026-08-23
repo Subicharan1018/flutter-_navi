@@ -39,6 +39,7 @@ class NaviCard extends StatelessWidget {
   final EdgeInsets? padding;
   final VoidCallback? onTap;
   final Color? color;
+  final FocusNode? focusNode;
 
   const NaviCard({
     super.key,
@@ -46,25 +47,30 @@ class NaviCard extends StatelessWidget {
     this.padding,
     this.onTap,
     this.color,
+    this.focusNode,
   });
 
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final defaultBg = isDark
-        ? Colors.white.withValues(alpha: 0.05)
-        : Colors.black.withValues(alpha: 0.02);
+    final mode = tokens.mode;
+    final isSpotifyOrFrost = mode == AppThemeMode.spotify || mode == AppThemeMode.frost;
+
+    final hasFocus = focusNode?.hasFocus ?? false;
 
     return AnimatedContainer(
       duration: kAnimNormal,
       decoration: BoxDecoration(
-        color: color ?? defaultBg,
+        color: color ?? tokens.bgSurface,
         borderRadius: radiusMd,
-        border: Border.all(
-          color: tokens.textPrimary.withValues(alpha: 0.08),
-          width: 0.5,
-        ),
+        border: hasFocus
+            ? Border.all(color: tokens.accent, width: 1.5)
+            : (isSpotifyOrFrost
+                ? null
+                : Border.all(
+                    color: tokens.outline.withValues(alpha: 0.12),
+                    width: 0.5,
+                  )),
       ),
       child: Material(
         color: Colors.transparent,
@@ -143,37 +149,16 @@ class PremiumCard extends StatelessWidget {
         break;
 
       case AppThemeMode.frost:
-        // Frost Double-Bezel: Frosted glass panel inside a transparent border rim
-        final outerRadius = BorderRadius.circular(28);
-        final innerRadius = BorderRadius.circular(22); // 28 - 6
-        current = Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: Colors.white.withValues(alpha: 0.03),
-            borderRadius: outerRadius,
-            border: Border.all(
-              color: Colors.white.withValues(alpha: 0.08),
-              width: 0.5,
+        // Frost Liquid Glass: borderless frosted glass container
+        current = ClipRRect(
+          borderRadius: radiusLg,
+          child: Container(
+            padding: padding ?? const EdgeInsets.all(s20),
+            decoration: BoxDecoration(
+              color: color ?? tokens.glassBg,
+              borderRadius: radiusLg,
             ),
-          ),
-          child: ClipRRect(
-            borderRadius: innerRadius,
-            child: Container(
-              padding: padding ?? const EdgeInsets.all(s20),
-              decoration: BoxDecoration(
-                color: color ?? tokens.glassBg,
-                borderRadius: innerRadius,
-                border: Border.all(color: tokens.glassBorder, width: 0.8),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: 0.15),
-                    blurRadius: 16,
-                    spreadRadius: -4,
-                  ),
-                ],
-              ),
-              child: child,
-            ),
+            child: child,
           ),
         );
         break;
@@ -251,31 +236,14 @@ class PremiumCard extends StatelessWidget {
         break;
 
       case AppThemeMode.spotify:
-        // Spotify Double-Bezel: base dark surface inside slightly offset outer border rim
-        final outerRadius = BorderRadius.circular(24);
-        final innerRadius = BorderRadius.circular(18);
+        // Spotify Encore: borderless elevation card container
         current = Container(
-          padding: const EdgeInsets.all(6),
+          padding: padding ?? const EdgeInsets.all(s20),
           decoration: BoxDecoration(
-            color: tokens.textPrimary.withValues(alpha: 0.02),
-            borderRadius: outerRadius,
-            border: Border.all(
-              color: tokens.textPrimary.withValues(alpha: 0.04),
-              width: 0.5,
-            ),
+            color: color ?? tokens.bgSurface,
+            borderRadius: radiusLg,
           ),
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(s20),
-            decoration: BoxDecoration(
-              color: color ?? tokens.bgSurface,
-              borderRadius: innerRadius,
-              border: Border.all(
-                color: tokens.textPrimary.withValues(alpha: 0.08),
-                width: 0.5,
-              ),
-            ),
-            child: child,
-          ),
+          child: child,
         );
         break;
     }

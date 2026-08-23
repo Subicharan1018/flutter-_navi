@@ -1,3 +1,4 @@
+import 'dart:ui';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -1412,192 +1413,202 @@ class _DesktopBottomPlayerBar extends ConsumerWidget {
     final isShuffleActive = playerState.shuffleMode;
     final isRepeatActive = playerState.repeatMode != LoopMode.off;
 
-    return Container(
-      height: 86,
-      padding: const EdgeInsets.symmetric(horizontal: 18),
-      decoration: const BoxDecoration(
-        color: Color(0xFF000000),
-        border: Border(
-          top: BorderSide(color: Color(0xFF282828), width: 1),
-        ),
-      ),
-      child: Row(
-        children: [
-          // Left Zone: Current Song Info
-          SizedBox(
-            width: 280,
+    return RepaintBoundary(
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: 20, sigmaY: 20),
+          child: Container(
+            height: 86,
+            padding: const EdgeInsets.symmetric(horizontal: 18),
+            decoration: BoxDecoration(
+              color: const Color(0xCC121212),
+              border: Border(
+                top: BorderSide(
+                  color: Colors.white.withValues(alpha: 0.08),
+                  width: 1,
+                ),
+              ),
+            ),
             child: Row(
               children: [
-                GestureDetector(
-                  onTap: () => _openAppleMusicFullScreen(context),
-                  child: MouseRegion(
-                    cursor: SystemMouseCursors.click,
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(4),
-                      child: CachedNetworkImage(
-                        imageUrl: imageUrl,
-                        width: 56,
-                        height: 56,
-                        fit: BoxFit.cover,
+                // Left Zone: Current Song Info
+                SizedBox(
+                  width: 280,
+                  child: Row(
+                    children: [
+                      GestureDetector(
+                        onTap: () => _openAppleMusicFullScreen(context),
+                        child: MouseRegion(
+                          cursor: SystemMouseCursors.click,
+                          child: ClipRRect(
+                            borderRadius: BorderRadius.circular(4),
+                            child: CachedNetworkImage(
+                              imageUrl: imageUrl,
+                              width: 56,
+                              height: 56,
+                              fit: BoxFit.cover,
+                            ),
+                          ),
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 14),
+                      Expanded(
+                        child: GestureDetector(
+                          onTap: () => _openAppleMusicFullScreen(context),
+                          child: MouseRegion(
+                            cursor: SystemMouseCursors.click,
+                            child: Column(
+                              mainAxisAlignment: MainAxisAlignment.center,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  song.title,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontWeight: FontWeight.bold,
+                                    fontSize: 13,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                                const SizedBox(height: 3),
+                                Text(
+                                  song.artist,
+                                  style: const TextStyle(
+                                    color: Color(0xFFB3B3B3),
+                                    fontSize: 11,
+                                  ),
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                      IconButton(
+                        icon: Icon(
+                          playerState.starredIds.contains(song.id)
+                              ? Icons.favorite_rounded
+                              : Icons.favorite_border_rounded,
+                          color: playerState.starredIds.contains(song.id)
+                              ? const Color(0xFF1DB954)
+                              : Colors.white70,
+                          size: 20,
+                        ),
+                        onPressed: () => notifier.toggleStar(song.id),
+                      ),
+                    ],
                   ),
                 ),
-                const SizedBox(width: 14),
+
+                // Center Zone: Playback Controls & Progress Bar
                 Expanded(
-                  child: GestureDetector(
-                    onTap: () => _openAppleMusicFullScreen(context),
-                    child: MouseRegion(
-                      cursor: SystemMouseCursors.click,
-                      child: Column(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      Row(
                         mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(
-                            song.title,
-                            style: const TextStyle(
-                              color: Colors.white,
-                              fontWeight: FontWeight.bold,
-                              fontSize: 13,
+                          IconButton(
+                            icon: Icon(
+                              isShuffleActive
+                                  ? Icons.shuffle_on_rounded
+                                  : Icons.shuffle_rounded,
+                              color: isShuffleActive
+                                  ? const Color(0xFF1DB954)
+                                  : Colors.white60,
+                              size: 20,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            onPressed: () => notifier.toggleShuffle(),
                           ),
-                          const SizedBox(height: 3),
-                          Text(
-                            song.artist,
-                            style: const TextStyle(
-                              color: Color(0xFFB3B3B3),
-                              fontSize: 11,
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.skip_previous_rounded,
+                              color: Colors.white,
+                              size: 26,
                             ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
+                            onPressed: () => notifier.playPrev(),
+                          ),
+                          const SizedBox(width: 8),
+                          Container(
+                            width: 36,
+                            height: 36,
+                            decoration: const BoxDecoration(
+                              color: Colors.white,
+                              shape: BoxShape.circle,
+                            ),
+                            child: IconButton(
+                              padding: EdgeInsets.zero,
+                              icon: Icon(
+                                playerState.isPlaying
+                                    ? Icons.pause_rounded
+                                    : Icons.play_arrow_rounded,
+                                color: Colors.black,
+                                size: 22,
+                              ),
+                              onPressed: () => playerState.isPlaying
+                                  ? notifier.player.pause()
+                                  : notifier.player.play(),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: const Icon(
+                              Icons.skip_next_rounded,
+                              color: Colors.white,
+                              size: 26,
+                            ),
+                            onPressed: () => notifier.playNext(),
+                          ),
+                          const SizedBox(width: 8),
+                          IconButton(
+                            icon: Icon(
+                              playerState.repeatMode == LoopMode.one
+                                  ? Icons.repeat_one_rounded
+                                  : Icons.repeat_rounded,
+                              color: isRepeatActive
+                                  ? const Color(0xFF1DB954)
+                                  : Colors.white60,
+                              size: 20,
+                            ),
+                            onPressed: () => notifier.cycleRepeat(),
                           ),
                         ],
                       ),
-                    ),
-                  ),
-                ),
-                IconButton(
-                  icon: Icon(
-                    playerState.starredIds.contains(song.id)
-                        ? Icons.favorite_rounded
-                        : Icons.favorite_border_rounded,
-                    color: playerState.starredIds.contains(song.id)
-                        ? const Color(0xFF1DB954)
-                        : Colors.white70,
-                    size: 20,
-                  ),
-                  onPressed: () => notifier.toggleStar(song.id),
-                ),
-              ],
-            ),
-          ),
-
-          // Center Zone: Playback Controls & Progress Bar
-          Expanded(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    IconButton(
-                      icon: Icon(
-                        isShuffleActive
-                            ? Icons.shuffle_on_rounded
-                            : Icons.shuffle_rounded,
-                        color: isShuffleActive
-                            ? const Color(0xFF1DB954)
-                            : Colors.white60,
-                        size: 20,
-                      ),
-                      onPressed: () => notifier.toggleShuffle(),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.skip_previous_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                      onPressed: () => notifier.playPrev(),
-                    ),
-                    const SizedBox(width: 8),
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: const BoxDecoration(
-                        color: Colors.white,
-                        shape: BoxShape.circle,
-                      ),
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          playerState.isPlaying
-                              ? Icons.pause_rounded
-                              : Icons.play_arrow_rounded,
-                          color: Colors.black,
-                          size: 22,
+                      const SizedBox(height: 4),
+                      // Inner RepaintBoundary isolates 100ms position ticks from blur layer
+                      RepaintBoundary(
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 620),
+                          child: StreamBuilder<Duration>(
+                            stream: notifier.player.positionStream,
+                            builder: (context, snapshot) {
+                              final pos = snapshot.data ?? Duration.zero;
+                              final dur = Duration(seconds: song.duration);
+                              return avpb.ProgressBar(
+                                progress: pos,
+                                total: dur,
+                                onSeek: (d) => notifier.player.seek(d),
+                                barHeight: 4,
+                                thumbRadius: 5,
+                                baseBarColor: const Color(0xFF4D4D4D),
+                                bufferedBarColor: const Color(0xFF707070),
+                                progressBarColor: Colors.white,
+                                thumbColor: Colors.white,
+                                timeLabelTextStyle: const TextStyle(
+                                  color: Color(0xFFB3B3B3),
+                                  fontSize: 11,
+                                ),
+                              );
+                            },
+                          ),
                         ),
-                        onPressed: () => playerState.isPlaying
-                            ? notifier.player.pause()
-                            : notifier.player.play(),
                       ),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: const Icon(
-                        Icons.skip_next_rounded,
-                        color: Colors.white,
-                        size: 26,
-                      ),
-                      onPressed: () => notifier.playNext(),
-                    ),
-                    const SizedBox(width: 8),
-                    IconButton(
-                      icon: Icon(
-                        playerState.repeatMode == LoopMode.one
-                            ? Icons.repeat_one_rounded
-                            : Icons.repeat_rounded,
-                        color: isRepeatActive
-                            ? const Color(0xFF1DB954)
-                            : Colors.white60,
-                        size: 20,
-                      ),
-                      onPressed: () => notifier.cycleRepeat(),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 4),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 620),
-                  child: StreamBuilder<Duration>(
-                    stream: notifier.player.positionStream,
-                    builder: (context, snapshot) {
-                      final pos = snapshot.data ?? Duration.zero;
-                      final dur = Duration(seconds: song.duration);
-                      return avpb.ProgressBar(
-                        progress: pos,
-                        total: dur,
-                        onSeek: (d) => notifier.player.seek(d),
-                        barHeight: 4,
-                        thumbRadius: 5,
-                        baseBarColor: const Color(0xFF4D4D4D),
-                        bufferedBarColor: const Color(0xFF707070),
-                        progressBarColor: Colors.white,
-                        thumbColor: Colors.white,
-                        timeLabelTextStyle: const TextStyle(
-                          color: Color(0xFFB3B3B3),
-                          fontSize: 11,
-                        ),
-                      );
-                    },
+                    ],
                   ),
                 ),
-              ],
-            ),
-          ),
 
           // Right Zone: Lyrics, Queue, Sidebar Toggles & Volume
           SizedBox(
@@ -1643,6 +1654,9 @@ class _DesktopBottomPlayerBar extends ConsumerWidget {
           ),
         ],
       ),
+    ),
+    ),
+    ),
     );
   }
 }

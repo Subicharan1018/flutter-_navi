@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:collection/collection.dart';
 
+import '../../../core/theme.dart';
 import '../../../models/song.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/library_provider.dart';
@@ -168,6 +169,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final tokens = ThemeTokens.of(context);
     final cs = theme.colorScheme;
     final shuffleState = ref.watch(shuffleQueueProvider);
     final queueState   = ref.watch(predictQueueProvider);
@@ -236,22 +238,19 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
                         notifier.setMode(mode);
                         notifier.fetchPredict(mode: mode);
                       },
-                      selectedColor: cs.secondaryContainer,
-                      checkmarkColor: cs.onSecondaryContainer,
-                      backgroundColor: cs.surfaceContainerLow,
-                      side: BorderSide(
-                        color: isSelected
-                            ? cs.secondary
-                            : cs.outline.withValues(alpha: 0.4),
-                        width: isSelected ? 1.5 : 1,
-                      ),
+                      selectedColor: const Color(0xFFFFFFFF),
+                      backgroundColor: tokens.bgElevated,
+                      side: BorderSide.none,
+                      shape: const StadiumBorder(),
+                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
                       labelStyle: TextStyle(
                         color: isSelected
-                            ? cs.onSecondaryContainer
-                            : cs.onSurfaceVariant,
+                            ? const Color(0xFF000000)
+                            : tokens.textSecondary,
                         fontWeight: isSelected
-                            ? FontWeight.w600
-                            : FontWeight.normal,
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                        fontSize: 12,
                       ),
                       showCheckmark: false,
                     ),

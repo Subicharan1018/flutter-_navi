@@ -23,6 +23,9 @@ import 'playlist/widgets/playlist_menu_sheet.dart';
 // ---------------------------------------------------------------------------
 // Isolate-safe color extraction
 // ---------------------------------------------------------------------------
+// ---------------------------------------------------------------------------
+// Isolate-safe color extraction with HSL vibrancy tuning
+// ---------------------------------------------------------------------------
 Future<Color?> _extractPlaylistPalette(String imageUrl) async {
   try {
     final palette = await PaletteGenerator.fromImageProvider(
@@ -33,9 +36,30 @@ Future<Color?> _extractPlaylistPalette(String imageUrl) async {
       ),
       size: const Size(100, 100),
     );
-    return palette.vibrantColor?.color ??
+    
+    final color = palette.vibrantColor?.color ??
         palette.dominantColor?.color ??
         palette.mutedColor?.color;
+
+    if (color == null) return null;
+
+    final hsl = HSLColor.fromColor(color);
+    
+    // Filter out muddy brown/olive/dirty yellow hues (hue between 35 and 85)
+    // or very low saturation/lightness colors
+    if (hsl.hue >= 35 && hsl.hue <= 85 && hsl.saturation < 0.6) {
+      // Shift towards a rich vibrant warm amber or emerald green
+      return HSLColor.fromAHSL(1.0, 145, 0.70, 0.35).toColor();
+    }
+
+    // Ensure adequate saturation and dark-mode friendly lightness
+    final tunedHsl = hsl.withSaturation(
+      hsl.saturation.clamp(0.45, 0.85),
+    ).withLightness(
+      hsl.lightness.clamp(0.25, 0.45),
+    );
+
+    return tunedHsl.toColor();
   } catch (_) {
     return null;
   }
@@ -324,19 +348,19 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             top: 0,
             left: 0,
             right: 0,
-            height: 340,
+            height: 380,
             child: DecoratedBox(
               decoration: BoxDecoration(
                 gradient: LinearGradient(
                   begin: Alignment.topCenter,
                   end: Alignment.bottomCenter,
                   colors: [
-                    vibrantColor.withValues(alpha: 0.65),
-                    vibrantColor.withValues(alpha: 0.25),
-                    const Color(0xFF121212).withValues(alpha: 0.90),
+                    vibrantColor.withValues(alpha: 0.75),
+                    vibrantColor.withValues(alpha: 0.40),
+                    vibrantColor.withValues(alpha: 0.15),
                     const Color(0xFF121212),
                   ],
-                  stops: const [0.0, 0.50, 0.85, 1.0],
+                  stops: const [0.0, 0.45, 0.75, 1.0],
                 ),
               ),
             ),
@@ -350,26 +374,31 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
               // ── Spotify Desktop Hero Header ─────────────────────────────
               SliverToBoxAdapter(
                 child: Padding(
-                  padding: const EdgeInsets.fromLTRB(32, 24, 32, 16),
+                  padding: const EdgeInsets.fromLTRB(32, 28, 32, 20),
                   child: Row(
                     crossAxisAlignment: CrossAxisAlignment.end,
                     children: [
-                      // Square Cover Art (192x192 with drop shadow)
+                      // Premium Square Cover Art (212x212 with ambient glow)
                       Container(
-                        width: 192,
-                        height: 192,
+                        width: 212,
+                        height: 212,
                         decoration: BoxDecoration(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(10),
                           boxShadow: [
                             BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.60),
-                              blurRadius: 36,
-                              offset: const Offset(0, 12),
+                              color: vibrantColor.withValues(alpha: 0.45),
+                              blurRadius: 48,
+                              offset: const Offset(0, 16),
+                            ),
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.70),
+                              blurRadius: 28,
+                              offset: const Offset(0, 8),
                             ),
                           ],
                         ),
                         child: ClipRRect(
-                          borderRadius: BorderRadius.circular(6),
+                          borderRadius: BorderRadius.circular(10),
                           child: _coverImageUrl.isNotEmpty
                               ? CachedNetworkImage(
                                   imageUrl: _coverImageUrl,
@@ -380,7 +409,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                               : _placeholderCover(),
                         ),
                       ),
-                      const SizedBox(width: 24),
+                      const SizedBox(width: 28),
 
                       // Text & Metadata Stack
                       Expanded(
@@ -388,53 +417,68 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                           crossAxisAlignment: CrossAxisAlignment.start,
                           mainAxisAlignment: MainAxisAlignment.end,
                           children: [
-                            const Text(
-                              'PLAYLIST',
-                              style: TextStyle(
-                                color: Colors.white,
-                                fontSize: 12,
-                                fontWeight: FontWeight.w700,
-                                letterSpacing: 1.2,
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                              decoration: BoxDecoration(
+                                color: Colors.white.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(12),
+                              ),
+                              child: const Text(
+                                'PUBLIC PLAYLIST',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.w800,
+                                  letterSpacing: 1.5,
+                                ),
                               ),
                             ),
-                            const SizedBox(height: 6),
+                            const SizedBox(height: 10),
                             Text(
                               widget.playlist.name,
                               style: const TextStyle(
                                 color: Colors.white,
-                                fontSize: 36,
+                                fontSize: 48,
                                 fontWeight: FontWeight.w900,
-                                letterSpacing: -1.0,
-                                height: 1.15,
+                                letterSpacing: -1.4,
+                                height: 1.05,
+                                shadows: [
+                                  Shadow(
+                                    color: Colors.black45,
+                                    blurRadius: 16,
+                                    offset: Offset(0, 4),
+                                  ),
+                                ],
                               ),
                               maxLines: 2,
                               overflow: TextOverflow.ellipsis,
                             ),
-                            const SizedBox(height: 12),
+                            const SizedBox(height: 14),
 
                             if (widget.playlist.comment.isNotEmpty) ...[
                               Text(
                                 widget.playlist.comment,
                                 style: TextStyle(
-                                  color: Colors.white.withValues(alpha: 0.70),
+                                  color: Colors.white.withValues(alpha: 0.85),
                                   fontSize: 14,
+                                  fontWeight: FontWeight.w400,
                                 ),
                                 maxLines: 2,
                                 overflow: TextOverflow.ellipsis,
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 10),
                             ],
 
                             // User info & stats row
                             Row(
                               children: [
                                 CircleAvatar(
-                                  radius: 12,
-                                  backgroundColor: Colors.white.withValues(alpha: 0.20),
+                                  radius: 13,
+                                  backgroundColor: tokens.accent,
                                   child: const Icon(
-                                    Icons.person_rounded,
+                                    Icons.graphic_eq_rounded,
                                     size: 14,
-                                    color: Colors.white,
+                                    color: Colors.black,
                                   ),
                                 ),
                                 const SizedBox(width: 8),
@@ -442,15 +486,16 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                                   'NaviVibe',
                                   style: TextStyle(
                                     color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.bold,
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w800,
                                   ),
                                 ),
                                 Text(
                                   ' \u2022 ${_songs.length} songs, ${_formatDuration(_totalDurationSeconds)}',
                                   style: TextStyle(
-                                    color: Colors.white.withValues(alpha: 0.70),
-                                    fontSize: 13,
+                                    color: Colors.white.withValues(alpha: 0.80),
+                                    fontSize: 14,
+                                    fontWeight: FontWeight.w500,
                                   ),
                                 ),
                               ],

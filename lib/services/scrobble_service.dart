@@ -36,8 +36,12 @@ class ScrobbleService {
   ScrobbleService(this._api, this._connectivity);
 
   Future<bool> _isOffline() async {
-    final results = await _connectivity.checkConnectivity();
-    return results.contains(ConnectivityResult.none);
+    try {
+      final results = await _connectivity.checkConnectivity();
+      return results.contains(ConnectivityResult.none);
+    } catch (_) {
+      return false;
+    }
   }
 
   /// Notifies the server that [songId] is now playing (submission=false).

@@ -26,9 +26,26 @@ Future<Color?> _extractAlbumPalette(String imageUrl) async {
       ),
       size: const Size(100, 100),
     );
-    return palette.vibrantColor?.color ??
+    final color = palette.vibrantColor?.color ??
         palette.dominantColor?.color ??
         palette.mutedColor?.color;
+
+    if (color == null) return null;
+
+    final hsl = HSLColor.fromColor(color);
+    
+    // Filter out muddy brown/olive/dirty yellow hues (hue between 35 and 85)
+    if (hsl.hue >= 35 && hsl.hue <= 85 && hsl.saturation < 0.6) {
+      return HSLColor.fromAHSL(1.0, 145, 0.70, 0.35).toColor();
+    }
+
+    final tunedHsl = hsl.withSaturation(
+      hsl.saturation.clamp(0.45, 0.85),
+    ).withLightness(
+      hsl.lightness.clamp(0.25, 0.45),
+    );
+
+    return tunedHsl.toColor();
   } catch (_) {
     return null;
   }

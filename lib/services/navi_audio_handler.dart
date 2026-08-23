@@ -367,7 +367,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint('🎵 [NaviAudioHandler] updateQueuePreservingCurrent: ${newQueue.length} songs, current: $newCurrentIndex');
     
     _currentQueue = List.from(newQueue);
-    _unshuffledQueue = List.from(newQueue);
+    if (_unshuffledQueue.isEmpty) {
+      _unshuffledQueue = List.from(newQueue);
+    }
     _offlinePathsCache = null;
     _offlinePathsQueueLength = 0;
 

@@ -561,89 +561,126 @@ class _ExploreCard extends StatefulWidget {
 
 class _ExploreCardState extends State<_ExploreCard> {
   bool _pressed = false;
+  bool _hovered = false;
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final bg = t.isLight
-        ? Color.alphaBlend(widget.color.withValues(alpha: 0.10), t.bgSurface)
-        : Color.alphaBlend(widget.color.withValues(alpha: 0.14), t.bgBase);
+    final isDesktop = PlatformUtils.isDesktop;
+    final cardBg = _hovered ? t.bgElevated : t.bgSurface;
 
     return Semantics(
       button: true,
       label: widget.title,
-      child: GestureDetector(
-        onTapDown: (_) => setState(() => _pressed = true),
-        onTapUp: (_) { setState(() => _pressed = false); widget.onTap(); },
-        onTapCancel: () => setState(() => _pressed = false),
-        child: AnimatedScale(
-          scale: _pressed ? 0.95 : 1.0,
-          duration: const Duration(milliseconds: 130),
-          curve: Curves.easeOut,
-          child: Container(
-            constraints: BoxConstraints(minHeight: widget.height),
-            clipBehavior: Clip.antiAlias,
-            decoration: BoxDecoration(
-              color: bg,
-              borderRadius: radiusLg,
-              border: Border.all(
-                color: widget.color.withValues(alpha: 0.18),
-                width: 0.8,
+      child: MouseRegion(
+        onEnter: (_) => setState(() => _hovered = true),
+        onExit: (_) => setState(() => _hovered = false),
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          onTapDown: (_) => setState(() => _pressed = true),
+          onTapUp: (_) {
+            setState(() => _pressed = false);
+            widget.onTap();
+          },
+          onTapCancel: () => setState(() => _pressed = false),
+          child: AnimatedScale(
+            scale: _pressed ? 0.96 : 1.0,
+            duration: const Duration(milliseconds: 120),
+            curve: Curves.easeOut,
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 180),
+              constraints: BoxConstraints(minHeight: widget.height),
+              clipBehavior: Clip.antiAlias,
+              decoration: BoxDecoration(
+                color: cardBg,
+                borderRadius: radiusLg,
               ),
-            ),
-            child: Stack(
-              children: [
-                // Watermark
-                Positioned(
-                  right: -12,
-                  bottom: -12,
-                  child: Icon(
-                    widget.icon,
-                    size: 90,
-                    color: widget.color.withValues(alpha: 0.07),
+              child: Stack(
+                children: [
+                  // Subtle watermarked icon
+                  Positioned(
+                    right: -10,
+                    bottom: -10,
+                    child: Icon(
+                      widget.icon,
+                      size: 88,
+                      color: widget.color.withValues(alpha: 0.08),
+                    ),
                   ),
-                ),
-                // Content
-                Padding(
-                  padding: const EdgeInsets.all(16),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      // Icon badge
-                      Container(
-                        width: 34, height: 34,
-                        decoration: BoxDecoration(
-                          color: widget.color.withValues(alpha: 0.13),
-                          borderRadius: BorderRadius.circular(9),
+                  // Content
+                  Padding(
+                    padding: const EdgeInsets.all(16),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      children: [
+                        // Translucent icon chip
+                        Container(
+                          width: 34,
+                          height: 34,
+                          decoration: BoxDecoration(
+                            color: widget.color.withValues(alpha: 0.15),
+                            borderRadius: radiusSm,
+                          ),
+                          child: Icon(widget.icon, color: widget.color, size: 18),
                         ),
-                        child: Icon(widget.icon, color: widget.color, size: 17),
-                      ),
-                      const SizedBox(height: 12),
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          Text(
-                            widget.title,
-                            style: t.textStyle(14, FontWeight.w700, t.textPrimary)
-                                .copyWith(height: 1.2),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.subtitle,
-                            style: t.textStyle(11, FontWeight.w400, t.textMuted),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ],
+                        const SizedBox(height: 12),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              widget.title,
+                              style: t.textStyle(14, FontWeight.w700, t.textPrimary)
+                                  .copyWith(height: 1.2),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              widget.subtitle,
+                              style: t.textStyle(11, FontWeight.w400, t.textMuted),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ],
+                    ),
                   ),
-                ),
-              ],
+
+                  // Floating circular Spotify-green play button with shadow (Hover / Mobile action target)
+                  // Note: Drop shadow is a deliberate legibility exception matching Spotify Encore spec
+                  Positioned(
+                    right: 12,
+                    bottom: 12,
+                    child: AnimatedOpacity(
+                      duration: const Duration(milliseconds: 180),
+                      opacity: (isDesktop ? _hovered : true) ? 1.0 : 0.0,
+                      child: Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: const Color(0xFF1DB954), // Spotify green accent
+                          shape: BoxShape.circle,
+                          boxShadow: [
+                            BoxShadow(
+                              color: Colors.black.withValues(alpha: 0.35),
+                              blurRadius: 10,
+                              offset: const Offset(0, 4),
+                            ),
+                          ],
+                        ),
+                        child: const Icon(
+                          Icons.play_arrow_rounded,
+                          color: Colors.black,
+                          size: 24,
+                        ),
+                      ),
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
         ),
@@ -669,9 +706,6 @@ class _ReplayBannerState extends State<_ReplayBanner> {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final year = DateTime.now().year;
-    final bg = t.isLight
-        ? Color.alphaBlend(widget.color.withValues(alpha: 0.12), t.bgSurface)
-        : Color.alphaBlend(widget.color.withValues(alpha: 0.16), t.bgBase);
 
     return Semantics(
       button: true,
@@ -688,10 +722,8 @@ class _ReplayBannerState extends State<_ReplayBanner> {
             height: 76,
             clipBehavior: Clip.antiAlias,
             decoration: BoxDecoration(
-              color: bg,
+              color: t.bgSurface,
               borderRadius: radiusLg,
-              border: Border.all(
-                color: widget.color.withValues(alpha: 0.22), width: 0.8),
             ),
             child: Stack(
               children: [

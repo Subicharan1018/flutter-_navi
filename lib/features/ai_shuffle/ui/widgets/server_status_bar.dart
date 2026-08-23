@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/theme.dart';
 import '../../logic/shuffle_providers.dart';
 import '../../data/models/health_response.dart';
 import '../../../../widgets/desktop_dialogs.dart';
@@ -17,6 +18,7 @@ class ServerStatusBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final healthAsync = ref.watch(serverHealthProvider);
     final theme = Theme.of(context);
+    final tokens = ThemeTokens.of(context);
 
     return InkWell(
       onTap: () {
@@ -34,22 +36,26 @@ class ServerStatusBar extends ConsumerWidget {
       },
       child: Container(
         width: double.infinity,
-        padding: const EdgeInsets.symmetric(vertical: 6, horizontal: 16),
-        color: _getBackgroundColor(healthAsync, theme),
+        padding: const EdgeInsets.symmetric(vertical: 8, horizontal: 16),
+        color: tokens.bgSurface,
         child: Row(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(
-              _getIcon(healthAsync),
-              size: 14,
-              color: _getTextColor(healthAsync, theme),
+            Container(
+              width: 6,
+              height: 6,
+              decoration: BoxDecoration(
+                color: _getDotColor(healthAsync, theme),
+                shape: BoxShape.circle,
+              ),
             ),
             const SizedBox(width: 8),
             Text(
               _getText(healthAsync),
-              style: theme.textTheme.labelSmall?.copyWith(
-                color: _getTextColor(healthAsync, theme),
-                fontWeight: FontWeight.bold,
+              style: tokens.textStyle(
+                12,
+                FontWeight.w500,
+                tokens.textSecondary,
               ),
             ),
           ],
@@ -58,34 +64,16 @@ class ServerStatusBar extends ConsumerWidget {
     );
   }
 
-  Color _getBackgroundColor(
+  Color _getDotColor(
     AsyncValue<HealthResponse> asyncValue,
     ThemeData theme,
   ) {
     return asyncValue.when(
       data: (health) => health.isHealthy
-          ? theme.colorScheme.tertiary
+          ? const Color(0xFF1DB954)
           : theme.colorScheme.error,
-      loading: () => theme.colorScheme.surfaceContainerHighest,
-      error: (_, _) => theme.colorScheme.error,
-    );
-  }
-
-  Color _getTextColor(AsyncValue<HealthResponse> asyncValue, ThemeData theme) {
-    return asyncValue.when(
-      data: (health) => health.isHealthy
-          ? theme.colorScheme.onTertiary
-          : theme.colorScheme.onError,
       loading: () => theme.colorScheme.onSurfaceVariant,
-      error: (_, _) => theme.colorScheme.onError,
-    );
-  }
-
-  IconData _getIcon(AsyncValue<HealthResponse> asyncValue) {
-    return asyncValue.when(
-      data: (health) => health.isHealthy ? Icons.check_circle : Icons.error,
-      loading: () => Icons.sync,
-      error: (_, _) => Icons.cloud_off,
+      error: (_, _) => theme.colorScheme.error,
     );
   }
 

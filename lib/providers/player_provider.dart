@@ -681,6 +681,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
         if (!_suppressNextHistoryPush &&
             index > prevIndex &&
+            prevIndex >= 0 &&
             prevIndex < state.queue.length &&
             positionAtSwitch.inSeconds >= 2) {
           _pushToHistory(state.queue[prevIndex]);
