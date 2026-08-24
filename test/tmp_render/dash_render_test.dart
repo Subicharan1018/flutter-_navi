@@ -84,6 +84,7 @@ void main() {
       tester.view.devicePixelRatio = 2.0;
       addTearDown(tester.view.reset);
 
+      final boundaryKey = GlobalKey();
       await tester.pumpWidget(
         ProviderScope(
           overrides: [
@@ -96,21 +97,28 @@ void main() {
           ],
           child: MaterialApp(
             theme: ThemeData(brightness: (entry.value == AppThemeMode.spotify || entry.value == AppThemeMode.aura || entry.value == AppThemeMode.frost) ? Brightness.dark : Brightness.light),
-            home: ThemeTokens(tokens: tokens, child: const DashboardScreen()),
+            home: RepaintBoundary(
+              key: boundaryKey,
+              child: ThemeTokens(tokens: tokens, child: const DashboardScreen()),
+            ),
           ),
         ),
       );
-      await tester.pumpAndSettle(const Duration(seconds: 2));
+      await tester.pump(const Duration(milliseconds: 500));
 
-      final el = find.byType(DashboardScreen).evaluate().first;
-      final boundary = el.renderObject!.debugLayer!;
-      final img = await (boundary as OffsetLayer).toImage(
-        Offset.zero & const Size(400, 2400),
-        pixelRatio: 2.0,
-      );
-      final bytes = await img.toByteData(format: ImageByteFormat.png);
-      File('${Platform.environment['SCRATCH']}/dash_${entry.key}.png')
-          .writeAsBytesSync(bytes!.buffer.asUint8List());
+      final scratchDir = Platform.environment['SCRATCH'];
+      if (scratchDir != null) {
+        final boundary = boundaryKey.currentContext?.findRenderObject()
+            as RenderRepaintBoundary?;
+        if (boundary != null) {
+          final img = await boundary.toImage(pixelRatio: 2.0);
+          final bytes = await img.toByteData(format: ImageByteFormat.png);
+          if (bytes != null) {
+            File('$scratchDir/dash_${entry.key}.png')
+                .writeAsBytesSync(bytes.buffer.asUint8List());
+          }
+        }
+      }
     });
   }
 }
