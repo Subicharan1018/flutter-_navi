@@ -827,14 +827,38 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
               (_dragOffset > 150 || (d.primaryVelocity ?? 0) > 1000)
               ? Navigator.pop(context)
               : setState(() => _dragOffset = 0),
-      child: AnimatedContainer(
-        duration: _dragOffset == 0
-            ? const Duration(milliseconds: 250)
-            : Duration.zero,
-        curve: Curves.easeOutCubic,
-        transform: Matrix4.translationValues(0, _dragOffset, 0),
-        child: Scaffold(
-          backgroundColor: Colors.black,
+      child: Container(
+        color: Colors.black.withValues(
+          alpha: _dragOffset > 0
+              ? (1.0 - (_dragOffset / 500)).clamp(0.0, 0.7)
+              : 0.0,
+        ),
+        child: AnimatedContainer(
+          duration: _dragOffset == 0
+              ? const Duration(milliseconds: 250)
+              : Duration.zero,
+          curve: Curves.easeOutCubic,
+          transform: Matrix4.translationValues(0, _dragOffset, 0),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(_dragOffset > 0 ? 24 : 0),
+            ),
+            boxShadow: _dragOffset > 0
+                ? [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.6),
+                      blurRadius: 24,
+                      offset: const Offset(0, -6),
+                    ),
+                  ]
+                : null,
+          ),
+          child: ClipRRect(
+            borderRadius: BorderRadius.vertical(
+              top: Radius.circular(_dragOffset > 0 ? 24 : 0),
+            ),
+            child: Scaffold(
+              backgroundColor: Colors.black,
           body: Stack(
             fit: StackFit.expand,
             children: [
@@ -1356,8 +1380,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen>
           ),
         ),
       ),
-    );
-  }
+    ),
+  ),
+);
+}
 }
 
 // =============================================================================

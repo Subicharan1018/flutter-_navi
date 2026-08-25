@@ -1,273 +1,356 @@
 // =============================================================================
-// RecommendationCard — Smart Shuffle recommendation, NaviVibe design system.
+// RecommendationCard — redesigned AI Shuffle song row (v2)
+// -----------------------------------------------------------------------------
+// Replaces the old flat "number + grey square + two lines + stray icon" row.
+//
+// What changed and why:
+//   - Real cover art instead of a static music-note placeholder. Resolved by
+//     matching the recommendation against the local library, same lookup
+//     `_enqueueSong` already does in ai_shuffle_screen.dart.
+//   - No more leading numeric index. A shuffled AI queue isn't a fixed track
+//     list. Rank only shows as a tiny badge on the art for the top 3.
+//   - Currently-playing state swaps the art for a small animated equalizer.
+//   - Trailing action collapsed to a single quick-add `+`.
 // =============================================================================
 
 import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:cached_network_image/cached_network_image.dart';
+import 'package:collection/collection.dart';
+
 import '../../../../core/theme.dart';
-import '../../../../widgets/navi_ui.dart';
+import '../../../../models/song.dart';
+import '../../../../providers/library_provider.dart';
+import '../../../../providers/settings_provider.dart';
 import '../../data/models/recommended_song.dart';
 
-class RecommendationCard extends StatefulWidget {
-  final RecommendedSong song;
-  final VoidCallback onTap;
-  final VoidCallback onLongPress;
-
+class RecommendationCard extends ConsumerWidget {
   const RecommendationCard({
     super.key,
     required this.song,
     required this.onTap,
     required this.onLongPress,
+    this.rank,
+    this.isPlaying = false,
+    this.subtitleOverride,
+    this.badgeLabel,
   });
 
+  final RecommendedSong song;
+  final VoidCallback onTap;
+  final VoidCallback onLongPress;
+
+  /// 0-based position in the list. Only used to show a tiny "strong pick"
+  /// badge for the first three rows — pass null to suppress it entirely.
+  final int? rank;
+
+  /// Whether this is the track currently loaded in the player. Swaps the
+  /// art for an animated equalizer glyph when true.
+  final bool isPlaying;
+
+  /// Optional replacement for the artist line — falls back to composer/artist.
+  final String? subtitleOverride;
+
+  /// Optional small text badge rendered next to the title (e.g. "92%", "New").
+  final String? badgeLabel;
+
   @override
-  State<RecommendationCard> createState() => _RecommendationCardState();
+  Widget build(BuildContext context, WidgetRef ref) {
+    final tokens = ThemeTokens.of(context);
+    final allSongsAsync = ref.watch(allSongsProvider);
+    final svc = ref.watch(subsonicServiceProvider);
+
+    final localSong = allSongsAsync.maybeWhen(
+      data: (allSongs) => _resolveLocal(allSongs),
+      orElse: () => null,
+    );
+
+    final coverUrl = (localSong != null && localSong.coverArt.isNotEmpty)
+        ? svc.getCoverArtUrl(localSong.coverArt)
+        : null;
+
+    final showRankBadge = rank != null && rank! < 3;
+
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: onTap,
+        onLongPress: onLongPress,
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+          child: Row(
+            children: [
+              // ── Art / equalizer ──────────────────────────────────────
+              _ArtTile(
+                coverUrl: coverUrl,
+                isPlaying: isPlaying,
+                accent: tokens.accent,
+                rankBadge: showRankBadge ? rank! + 1 : null,
+              ),
+              const SizedBox(width: 12),
+
+              // ── Title / subtitle ─────────────────────────────────────
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Row(
+                      children: [
+                        Flexible(
+                          child: Text(
+                            song.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 14,
+                              fontWeight: FontWeight.w700,
+                              color: isPlaying
+                                  ? tokens.accent
+                                  : tokens.textPrimary,
+                              height: 1.25,
+                            ),
+                          ),
+                        ),
+                        if (badgeLabel != null) ...[
+                          const SizedBox(width: 6),
+                          _Badge(label: badgeLabel!, accent: tokens.accent),
+                        ],
+                      ],
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      subtitleOverride ?? song.composer,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w400,
+                        color: tokens.textMuted,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+
+              // ── Quick add ─────────────────────────────────────────────
+              IconButton(
+                onPressed: onTap,
+                icon: Icon(
+                  Icons.add_circle_outline_rounded,
+                  color: tokens.textSecondary,
+                  size: 22,
+                ),
+                tooltip: 'Add to queue',
+                splashRadius: 20,
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Song? _resolveLocal(List<Song> allSongs) {
+    return allSongs.firstWhereOrNull(
+          (s) =>
+              s.title.toLowerCase() == song.title.toLowerCase() &&
+              s.artist.toLowerCase() == song.composer.toLowerCase(),
+        ) ??
+        allSongs.firstWhereOrNull(
+          (s) => s.title.toLowerCase() == song.title.toLowerCase(),
+        );
+  }
 }
 
-class _RecommendationCardState extends State<RecommendationCard>
+// =============================================================================
+// Art tile — real cover art, rank badge overlay, or playing equalizer
+// =============================================================================
+
+class _ArtTile extends StatelessWidget {
+  const _ArtTile({
+    required this.coverUrl,
+    required this.isPlaying,
+    required this.accent,
+    required this.rankBadge,
+  });
+
+  final String? coverUrl;
+  final bool isPlaying;
+  final Color accent;
+  final int? rankBadge;
+
+  static const double _size = 48;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      width: _size,
+      height: _size,
+      child: Stack(
+        children: [
+          ClipRRect(
+            borderRadius: BorderRadius.circular(8),
+            child: SizedBox(
+              width: _size,
+              height: _size,
+              child: coverUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: coverUrl!,
+                      fit: BoxFit.cover,
+                      memCacheWidth: 96,
+                      memCacheHeight: 96,
+                      placeholder: (context, url) => _placeholder(),
+                      errorWidget: (context, url, error) => _placeholder(),
+                    )
+                  : _placeholder(),
+            ),
+          ),
+
+          // Playing-state scrim + equalizer
+          if (isPlaying)
+            Positioned.fill(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: Container(
+                  color: Colors.black.withValues(alpha: 0.45),
+                  alignment: Alignment.center,
+                  child: _EqualizerGlyph(color: accent),
+                ),
+              ),
+            ),
+
+          // Rank badge (top pick indicator, top 3 only)
+          if (rankBadge != null && !isPlaying)
+            Positioned(
+              left: 2,
+              top: 2,
+              child: Container(
+                width: 16,
+                height: 16,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: Colors.black.withValues(alpha: 0.65),
+                  shape: BoxShape.circle,
+                ),
+                child: Text(
+                  '$rankBadge',
+                  style: const TextStyle(
+                    fontSize: 9,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _placeholder() => Container(
+        decoration: BoxDecoration(
+          gradient: LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              accent.withValues(alpha: 0.45),
+              accent.withValues(alpha: 0.15),
+            ],
+          ),
+        ),
+        child: const Icon(
+          Icons.music_note_rounded,
+          color: Colors.white38,
+          size: 20,
+        ),
+      );
+}
+
+// =============================================================================
+// Tiny animated equalizer — 3 bars, staggered, loops while visible
+// =============================================================================
+
+class _EqualizerGlyph extends StatefulWidget {
+  const _EqualizerGlyph({required this.color});
+  final Color color;
+
+  @override
+  State<_EqualizerGlyph> createState() => _EqualizerGlyphState();
+}
+
+class _EqualizerGlyphState extends State<_EqualizerGlyph>
     with SingleTickerProviderStateMixin {
-  late final AnimationController _pressCtrl;
-  late final Animation<double> _scale;
+  late final AnimationController _controller;
 
   @override
   void initState() {
     super.initState();
-    _pressCtrl = AnimationController(vsync: this, duration: kAnimFast);
-    _scale = Tween(
-      begin: 1.0,
-      end: 0.97,
-    ).animate(CurvedAnimation(parent: _pressCtrl, curve: kCurveStandard));
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 900),
+    )..repeat(reverse: true);
   }
 
   @override
   void dispose() {
-    _pressCtrl.dispose();
+    _controller.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-
-    return GestureDetector(
-      onTapDown: (_) => _pressCtrl.forward(),
-      onTapUp: (_) {
-        _pressCtrl.reverse();
-        widget.onTap();
-      },
-      onTapCancel: () => _pressCtrl.reverse(),
-      onLongPress: widget.onLongPress,
-      child: ScaleTransition(
-        scale: _scale,
-        child: Container(
-          margin: const EdgeInsets.symmetric(horizontal: s8, vertical: s4),
-          decoration: BoxDecoration(
-            color: tokens.bgSurface,
-            borderRadius: radiusMd,
-          ),
-          child: Padding(
-            padding: const EdgeInsets.all(s12),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                // ── Top row ──────────────────────────────────────────────────
-                Row(
-                  children: [
-                    // Rank text (muted, regular weight)
-                    Container(
-                      width: 24,
-                      alignment: Alignment.centerLeft,
-                      child: Text(
-                        '${widget.song.rank}',
-                        style: tokens.textStyle(
-                          13,
-                          FontWeight.w500,
-                          tokens.textMuted,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: s8),
-                    // Title + composer
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            widget.song.title,
-                            style: tokens.textStyle(
-                              14,
-                              FontWeight.w600,
-                              tokens.textPrimary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                          const SizedBox(height: 2),
-                          Text(
-                            widget.song.composer.isNotEmpty
-                                ? widget.song.composer
-                                : 'Unknown Composer',
-                            style: tokens.textStyle(
-                              12,
-                              FontWeight.w400,
-                              tokens.textSecondary,
-                            ),
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                          ),
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: s8),
-                    // Starter badge — habitual session opener (v3.1)
-                    if (widget.song.isStarter) ...[
-                      _BadgeChip(
-                        label: '▶ STARTER',
-                        tokens: tokens,
-                      ),
-                      const SizedBox(width: s4),
-                    ],
-                    // Genre chip (neutral pill)
-                    if (widget.song.genreBucket.isNotEmpty)
-                      _GenreChip(
-                        bucket: widget.song.genreBucket,
-                        tokens: tokens,
-                      ),
-                    if (widget.song.isExplore) ...[
-                      const SizedBox(width: s4),
-                      _BadgeChip(label: 'EXPLORE', tokens: tokens),
-                    ] else if (widget.song.isColdStart) ...[
-                      const SizedBox(width: s4),
-                      _BadgeChip(label: 'NEW', tokens: tokens),
-                    ],
-                    const SizedBox(width: s8),
-                    // Add-to-queue
-                    GestureDetector(
-                      onTap: widget.onTap,
-                      child: Container(
-                        width: 32,
-                        height: 32,
-                        decoration: BoxDecoration(
-                          color: tokens.bgElevated,
-                          borderRadius: radiusSm,
-                        ),
-                        child: Icon(
-                          Icons.playlist_add_rounded,
-                          color: tokens.textSecondary,
-                          size: 18,
-                        ),
-                      ),
-                    ),
-                  ],
+    return SizedBox(
+      width: 20,
+      height: 16,
+      child: AnimatedBuilder(
+        animation: _controller,
+        builder: (context, _) {
+          return Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: List.generate(3, (i) {
+              final phase = (_controller.value + i * 0.33) % 1.0;
+              final height = 4 + (12 * (0.5 - (phase - 0.5).abs()) * 2);
+              return Container(
+                width: 3,
+                height: height.clamp(4, 16),
+                decoration: BoxDecoration(
+                  color: widget.color,
+                  borderRadius: BorderRadius.circular(1.5),
                 ),
-
-                // ── Pairing indicator (v3.1) ──────────────────────────────────
-                if (widget.song.pairing != null) ...[
-                  const SizedBox(height: s8),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.link_rounded,
-                        size: 13,
-                        color: tokens.accent.withValues(alpha: 0.8),
-                      ),
-                      const SizedBox(width: s4),
-                      Expanded(
-                        child: Text(
-                          widget.song.pairing!.isSecondOrder
-                              ? 'Pairs after "${widget.song.pairing!.follows}" '
-                                    '(2-song combo) · ${widget.song.pairing!.timesFollowed}× in your sessions'
-                              : 'Pairs after "${widget.song.pairing!.follows}" '
-                                    '· ${widget.song.pairing!.timesFollowed}× in your sessions',
-                          style: tokens.textStyle(
-                            10,
-                            FontWeight.w500,
-                            tokens.accent.withValues(alpha: 0.9),
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ),
-                    ],
-                  ),
-                ],
-
-                // ── Why caption ───────────────────────────────────────────────
-                if (widget.song.why.isNotEmpty) ...[
-                  const SizedBox(height: s8),
-                  Text(
-                    _cleanWhy(widget.song.why),
-                    style: tokens
-                        .textStyle(11, FontWeight.w400, tokens.textSecondary)
-                        .copyWith(fontStyle: FontStyle.italic),
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  String _cleanWhy(String why) {
-    final idx = why.indexOf('—');
-    if (idx != -1) return why.substring(0, idx).trim();
-    return why;
-  }
-}
-
-// ── Genre chip (neutral pill style) ───────────────────────────────────────────
-
-class _GenreChip extends StatelessWidget {
-  final String bucket;
-  final AppThemeTokens tokens;
-
-  const _GenreChip({required this.bucket, required this.tokens});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
-      decoration: BoxDecoration(
-        color: tokens.bgElevated,
-        borderRadius: radiusFull,
-      ),
-      child: Text(
-        bucket.toUpperCase(),
-        style: tokens.textStyle(
-          9,
-          FontWeight.w600,
-          tokens.textSecondary,
-        ),
+              );
+            }),
+          );
+        },
       ),
     );
   }
 }
 
-// ── Badge chip (neutral pill style) ───────────────────────────────────────────
+// =============================================================================
+// Small inline badge (match %, "New", etc.) — unused until backend sends data
+// =============================================================================
 
-class _BadgeChip extends StatelessWidget {
+class _Badge extends StatelessWidget {
+  const _Badge({required this.label, required this.accent});
   final String label;
-  final AppThemeTokens tokens;
-
-  const _BadgeChip({required this.label, required this.tokens});
+  final Color accent;
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 3),
+      padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
       decoration: BoxDecoration(
-        color: tokens.bgElevated,
-        borderRadius: radiusFull,
+        color: accent.withValues(alpha: 0.14),
+        borderRadius: BorderRadius.circular(6),
       ),
       child: Text(
         label,
-        style: tokens.textStyle(
-          9,
-          FontWeight.w600,
-          tokens.textSecondary,
+        style: TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w700,
+          color: accent,
         ),
       ),
     );

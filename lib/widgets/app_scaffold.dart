@@ -2087,9 +2087,9 @@ class _AppleMusicDesktopFullScreenPlayerState
         PaletteCache.instance.peekColorsFor(song.id) ??
         [
           tokens.accent,
-          const Color(0xFF8B5CF6),
-          const Color(0xFF06B6D4),
-          const Color(0xFFEC4899),
+          const Color(0xFF1E293B),
+          const Color(0xFF334155),
+          const Color(0xFF0F172A),
         ];
 
     final primaryColor = activeColors[0];

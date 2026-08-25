@@ -452,30 +452,38 @@ class _AlbumThumb extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final imageWidget = ClipRRect(
+      borderRadius: BorderRadius.circular(6),
+      child: CachedNetworkImage(
+        imageUrl: imageUrl,
+        width: 42,
+        height: 42,
+        memCacheWidth: 84,
+        memCacheHeight: 84,
+        fit: BoxFit.cover,
+        placeholder: (_, _) => Container(
+          color: ThemeTokens.of(context).bgElevated,
+          child: Icon(
+            Icons.music_note_rounded,
+            color: ThemeTokens.of(context).textMuted,
+            size: 20,
+          ),
+        ),
+      ),
+    );
+
+    // On Mobile: Hero transition smoothly animates artwork between MiniPlayer and NowPlayingScreen.
+    // On Desktop: Direct rendering to avoid duplicate Hero tag crashes between side-panel and player bar.
+    if (PlatformUtils.isDesktop) {
+      return SizedBox(width: 42, height: 42, child: imageWidget);
+    }
+
     return SizedBox(
       width: 42,
       height: 42,
       child: Hero(
-        tag: 'now_playing_artwork',
-        child: ClipRRect(
-          borderRadius: BorderRadius.circular(6),
-          child: CachedNetworkImage(
-            imageUrl: imageUrl,
-            width: 42,
-            height: 42,
-            memCacheWidth: 84,
-            memCacheHeight: 84,
-            fit: BoxFit.cover,
-            placeholder: (_, _) => Container(
-              color: ThemeTokens.of(context).bgElevated,
-              child: Icon(
-                Icons.music_note_rounded,
-                color: ThemeTokens.of(context).textMuted,
-                size: 20,
-              ),
-            ),
-          ),
-        ),
+        tag: 'nowplaying_art_$imageUrl',
+        child: imageWidget,
       ),
     );
   }

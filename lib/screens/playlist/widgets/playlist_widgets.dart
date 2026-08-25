@@ -245,11 +245,11 @@ class ExpandedHeader extends ConsumerWidget {
               gradient: LinearGradient(
                 begin: Alignment.topCenter,
                 end: Alignment.bottomCenter,
-                stops: const [0.0, 0.4, 0.78, 1.0],
+                stops: const [0.0, 0.35, 0.70, 1.0],
                 colors: [
-                  vibrantColor.withValues(alpha: 0.55),
-                  vibrantColor.withValues(alpha: 0.08),
-                  tokens.bgBase.withValues(alpha: 0.8),
+                  vibrantColor.withValues(alpha: 0.50),
+                  vibrantColor.withValues(alpha: 0.15),
+                  tokens.bgBase.withValues(alpha: 0.90),
                   tokens.bgBase,
                 ],
               ),

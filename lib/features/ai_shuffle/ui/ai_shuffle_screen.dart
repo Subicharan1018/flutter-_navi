@@ -5,6 +5,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:collection/collection.dart';
+import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme.dart';
 import '../../../models/song.dart';
@@ -173,6 +174,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     final cs = theme.colorScheme;
     final shuffleState = ref.watch(shuffleQueueProvider);
     final queueState   = ref.watch(predictQueueProvider);
+    final playerState  = ref.watch(playerProvider);
     final notifier     = ref.read(predictQueueProvider.notifier);
 
     // After a reshuffle the shuffle queue has data — display it.
@@ -204,164 +206,240 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           ),
         ],
       ),
-      body: Column(
+      body: Stack(
         children: [
-          // ── Server status bar ──────────────────────────────────────────────
-          const ServerStatusBar(),
-
-          // ── Session starter banner ─────────────────────────────────────────
-          if (sessionStarter != null)
-            _SessionStarterBanner(starter: sessionStarter),
-
-          // ── Context info strip ─────────────────────────────────────────────
-          if (queueState.context != null)
-            _PredictContextStrip(
-              ctx: queueState.context!,
-              mode: queueState.mode,
+          CustomScrollView(
+            physics: const AlwaysScrollableScrollPhysics(
+              parent: BouncingScrollPhysics(),
             ),
-
-          // ── Mode selector ──────────────────────────────────────────────────
-          Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 0),
-            child: SingleChildScrollView(
-              scrollDirection: Axis.horizontal,
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: PredictMode.values.map((mode) {
-                  final isSelected = queueState.mode == mode;
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 6),
-                    child: FilterChip(
-                      label: Text(mode.displayLabel),
-                      selected: isSelected,
-                      onSelected: (_) {
-                        notifier.setMode(mode);
-                        notifier.fetchPredict(mode: mode);
-                      },
-                      selectedColor: const Color(0xFFFFFFFF),
-                      backgroundColor: tokens.bgElevated,
-                      side: BorderSide.none,
-                      shape: const StadiumBorder(),
-                      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-                      labelStyle: TextStyle(
-                        color: isSelected
-                            ? const Color(0xFF000000)
-                            : tokens.textSecondary,
-                        fontWeight: isSelected
-                            ? FontWeight.w700
-                            : FontWeight.w500,
-                        fontSize: 12,
-                      ),
-                      showCheckmark: false,
-                    ),
-                  );
-                }).toList(),
+            slivers: [
+              // ── Server status bar ──────────────────────────────────────────
+              const SliverToBoxAdapter(
+                child: ServerStatusBar(),
               ),
-            ),
-          ),
 
-          const SizedBox(height: 8),
+              // ── Session starter banner ─────────────────────────────────────
+              if (sessionStarter != null)
+                SliverToBoxAdapter(
+                  child: _SessionStarterBanner(starter: sessionStarter),
+                ),
 
-          // ── Fallback Warning ───────────────────────────────────────────────
-          if (queueState.context?.fallbackLevel == 3)
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 4),
-              padding: const EdgeInsets.all(12),
-              decoration: BoxDecoration(
-                color: Colors.amber.withValues(alpha: 0.1),
-                border: Border.all(color: Colors.amber.withValues(alpha: 0.3)),
-                borderRadius: BorderRadius.circular(8),
-              ),
-              child: Row(children: [
-                const Icon(Icons.info_outline, color: Colors.amber, size: 18),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    'Using your global taste profile. '
-                    'Listen to more music in this time/season to get precise picks.',
-                    style: TextStyle(
-                      fontSize: 12,
-                      color: cs.onSurface,
+              // ── Context info strip ─────────────────────────────────────────
+              if (queueState.context != null)
+                SliverToBoxAdapter(
+                  child: _PredictContextStrip(
+                    ctx: queueState.context!,
+                    mode: queueState.mode,
+                  ),
+                ),
+
+              // ── Mode selector ──────────────────────────────────────────────
+              SliverToBoxAdapter(
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+                  child: SingleChildScrollView(
+                    scrollDirection: Axis.horizontal,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: PredictMode.values.map((mode) {
+                        final isSelected = queueState.mode == mode;
+                        return Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 6),
+                          child: FilterChip(
+                            label: Text(mode.displayLabel),
+                            selected: isSelected,
+                            onSelected: (_) {
+                              notifier.setMode(mode);
+                              notifier.fetchPredict(mode: mode);
+                            },
+                            selectedColor: const Color(0xFFFFFFFF),
+                            backgroundColor: tokens.bgElevated,
+                            side: BorderSide.none,
+                            shape: const StadiumBorder(),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 8,
+                            ),
+                            labelStyle: TextStyle(
+                              color: isSelected
+                                  ? const Color(0xFF000000)
+                                  : tokens.textSecondary,
+                              fontWeight: isSelected
+                                  ? FontWeight.w700
+                                  : FontWeight.w500,
+                              fontSize: 12,
+                            ),
+                            showCheckmark: false,
+                          ),
+                        );
+                      }).toList(),
                     ),
                   ),
                 ),
-              ]),
-            ),
+              ),
 
-          // ── Recommendations list ───────────────────────────────────────────
-          Expanded(
-            child: Builder(
-              builder: (context) {
-                if (isLoading && songs.isEmpty) {
-                  return _buildSkeletonList(cs);
-                }
-                if (hasError && songs.isEmpty) {
-                  return _buildErrorState(errorMsg, cs);
-                }
-                if (songs.isEmpty) {
-                  return _buildEmptyState(theme, cs, queueState.mode);
-                }
-                return ListView.builder(
+              // ── Fallback Warning ───────────────────────────────────────────
+              if (queueState.context?.fallbackLevel == 3)
+                SliverToBoxAdapter(
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(
+                      horizontal: 16,
+                      vertical: 4,
+                    ),
+                    padding: const EdgeInsets.all(12),
+                    decoration: BoxDecoration(
+                      color: Colors.amber.withValues(alpha: 0.1),
+                      border: Border.all(
+                        color: Colors.amber.withValues(alpha: 0.3),
+                      ),
+                      borderRadius: BorderRadius.circular(8),
+                    ),
+                    child: Row(
+                      children: [
+                        const Icon(
+                          Icons.info_outline,
+                          color: Colors.amber,
+                          size: 18,
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: Text(
+                            'Using your global taste profile. '
+                            'Listen to more music in this time/season to get precise picks.',
+                            style: TextStyle(
+                              fontSize: 12,
+                              color: cs.onSurface,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+
+              // ── Recommendations list ───────────────────────────────────────
+              if (isLoading && songs.isEmpty)
+                SliverToBoxAdapter(
+                  child: _buildSkeletonList(cs),
+                )
+              else if (hasError && songs.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildErrorState(errorMsg, cs),
+                )
+              else if (songs.isEmpty)
+                SliverFillRemaining(
+                  hasScrollBody: false,
+                  child: _buildEmptyState(theme, cs, queueState.mode),
+                )
+              else
+                SliverList.builder(
                   itemCount: songs.length,
                   itemBuilder: (context, index) {
                     final song = songs[index];
+                    final isPlaying = playerState.isPlaying &&
+                        playerState.currentSong?.title.toLowerCase() ==
+                            song.title.toLowerCase();
                     return RecommendationCard(
                       song: song,
+                      rank: index,
+                      isPlaying: isPlaying,
                       onTap: () => _enqueueSong(song),
                       onLongPress: () => _enqueueSong(song),
                     );
                   },
-                );
-              },
-            ),
+                ),
+
+              // Bottom clearance so sticky footer doesn't obscure last item
+              const SliverToBoxAdapter(
+                child: SizedBox(height: 96),
+              ),
+            ],
           ),
 
-          // ── Sticky footer ──────────────────────────────────────────────────
-          SafeArea(
-            top: false,
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: Row(
-                children: [
-                  // Refresh — re-fetches from /predict/* and clears reshuffle state
-                  IconButton.outlined(
-                    onPressed: _isApplyingQueue || isLoading
-                        ? null
-                        : _fetchRecommendations,
-                    icon: const Icon(Icons.refresh),
-                    tooltip: 'Refresh recommendations',
-                  ),
-                  const SizedBox(width: 8),
-                  // Reshuffle — calls POST /next with reshuffle: true
-                  IconButton.outlined(
-                    onPressed: _isApplyingQueue || isLoading
-                        ? null
-                        : _doReshuffle,
-                    icon: const Icon(Icons.shuffle_rounded),
-                    tooltip: 'Reshuffle queue (16 new songs)',
-                  ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: FilledButton.icon(
-                      onPressed: _isApplyingQueue || isLoading
-                          ? null
-                          : _applyAiShuffle,
-                      icon: _isApplyingQueue || isLoading
-                          ? const SizedBox(
-                              width: 16,
-                              height: 16,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                color: Colors.white,
-                              ),
-                            )
-                          : const Icon(Icons.play_arrow_rounded),
-                      label: Text(
-                        _isApplyingQueue ? 'Applying…' : 'Shuffle Now',
+          // ── Sticky Floating Footer with frosted glass backdrop ─────────────
+          Positioned(
+            left: 0,
+            right: 0,
+            bottom: 0,
+            child: Container(
+              decoration: BoxDecoration(
+                gradient: LinearGradient(
+                  begin: Alignment.bottomCenter,
+                  end: Alignment.topCenter,
+                  colors: [
+                    tokens.bgBase,
+                    tokens.bgBase.withValues(alpha: 0.85),
+                    tokens.bgBase.withValues(alpha: 0.0),
+                  ],
+                  stops: const [0.0, 0.65, 1.0],
+                ),
+              ),
+              child: SafeArea(
+                top: false,
+                child: Padding(
+                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  child: Row(
+                    children: [
+                      IconButton.outlined(
+                        onPressed: _isApplyingQueue || isLoading
+                            ? null
+                            : _fetchRecommendations,
+                        icon: const Icon(Icons.refresh),
+                        tooltip: 'Refresh recommendations',
+                        style: IconButton.styleFrom(
+                          backgroundColor: tokens.bgElevated,
+                          side: BorderSide.none,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: 8),
+                      IconButton.outlined(
+                        onPressed: _isApplyingQueue || isLoading
+                            ? null
+                            : _doReshuffle,
+                        icon: const Icon(Icons.shuffle_rounded),
+                        tooltip: 'Reshuffle queue (16 new songs)',
+                        style: IconButton.styleFrom(
+                          backgroundColor: tokens.bgElevated,
+                          side: BorderSide.none,
+                        ),
+                      ),
+                      const SizedBox(width: 12),
+                      Expanded(
+                        child: FilledButton.icon(
+                          onPressed: _isApplyingQueue || isLoading
+                              ? null
+                              : _applyAiShuffle,
+                          style: FilledButton.styleFrom(
+                            backgroundColor: const Color(0xFF1DB954),
+                            foregroundColor: Colors.black,
+                            padding: const EdgeInsets.symmetric(vertical: 14),
+                            shape: RoundedRectangleBorder(
+                              borderRadius: BorderRadius.circular(28),
+                            ),
+                          ),
+                          icon: _isApplyingQueue || isLoading
+                              ? const SizedBox(
+                                  width: 16,
+                                  height: 16,
+                                  child: CircularProgressIndicator(
+                                    strokeWidth: 2,
+                                    color: Colors.black,
+                                  ),
+                                )
+                              : const Icon(Icons.play_arrow_rounded, size: 22),
+                          label: Text(
+                            _isApplyingQueue ? 'Applying…' : 'Shuffle Now',
+                            style: const TextStyle(
+                              fontWeight: FontWeight.w700,
+                              fontSize: 14,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
                   ),
-                ],
+                ),
               ),
             ),
           ),
@@ -372,28 +450,50 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
 
   Widget _buildSkeletonList(ColorScheme cs) {
-    return ListView.builder(
-      itemCount: 5,
-      itemBuilder: (context, index) => Card(
-        margin: const EdgeInsets.symmetric(horizontal: 16.0, vertical: 4.0),
-        child: ListTile(
-          leading: Icon(Icons.music_note, color: cs.outlineVariant),
-          title: Container(
-            height: 14,
-            width: double.infinity,
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(4),
-            ),
-          ),
-          subtitle: Container(
-            height: 10,
-            width: 150,
-            margin: const EdgeInsets.only(top: 8),
-            decoration: BoxDecoration(
-              color: cs.surfaceContainerHighest,
-              borderRadius: BorderRadius.circular(4),
-            ),
+    final tokens = ThemeTokens.of(context);
+    return Shimmer.fromColors(
+      baseColor: tokens.bgElevated,
+      highlightColor: tokens.bgOverlay,
+      child: ListView.builder(
+        itemCount: 8,
+        itemBuilder: (context, index) => Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+          child: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(4),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Container(
+                      height: 14,
+                      width: double.infinity,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Container(
+                      height: 10,
+                      width: 140,
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
           ),
         ),
       ),

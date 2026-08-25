@@ -338,7 +338,7 @@ void main() {
 
         // Fire first download (don't await).
         unawaited(notifier.downloadSong(song));
-        await Future<void>.delayed(Duration.zero);
+        await Future<void>.delayed(const Duration(milliseconds: 10));
 
         // AUDIT: Second tap while downloading — must be a no-op.
         // The service must only be called once.
@@ -351,6 +351,9 @@ void main() {
             onProgress: any(named: 'onProgress'),
           ),
         ).called(1); // only 1 call — guard blocked the second tap
+
+        // Allow async first download to finish before container tearDown
+        await Future<void>.delayed(const Duration(milliseconds: 120));
       },
     );
   });

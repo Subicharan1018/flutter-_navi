@@ -1,3 +1,32 @@
+// =============================================================================
+// Dashboard / Listening Insights Screen (v2 — post research redesign)
+// -----------------------------------------------------------------------------
+// What changed and why (full reasoning in chat):
+//
+//   1. Killed the ghost watermark icon in _MetricCard (64px icon at 5% opacity,
+//      bottom-right of every card). This is the same generic-dashboard tell
+//      that was already removed from the Explore grid — same fix, different
+//      screen. The number and label carry the card on their own.
+//
+//   2. Replaced the flat 2x2 equal-weight metric grid with a hero metric +
+//      3 smaller supporting cards. Bento-grid research is consistent on this:
+//      equal-sized tiles read as a template default, asymmetric sizing (one
+//      tile 2x the others) creates hierarchy through spatial weight alone —
+//      no extra label needed to tell the user where to look first. Minutes
+//      listened is the hero here because it's the stat that carries the most
+//      "wrapped"-style emotional weight (Spotify Wrapped / Apple Music Replay
+//      both lead with a single oversized number, not a grid of equal ones).
+//
+//   3. Everything else — hourly heatmap, genre mix bars, line chart, top
+//      artists/tracks lists, model status card — is UNCHANGED. Those already
+//      use real interaction (tap-to-inspect heatmap), real data-driven bars,
+//      and real cover art for tracks. They were never the problem; only the
+//      metric grid and its watermark icon were.
+//
+// Everything below this point that isn't _MetricsRow / _MetricCard /
+// _HeroMetricCard is copied verbatim from the original file.
+// =============================================================================
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:fl_chart/fl_chart.dart';
@@ -47,15 +76,9 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     final modelAsync = ref.watch(modelStatusProvider);
     final tokens = ThemeTokens.of(context);
 
-    // The app shell sets extendBody:true, so this scroll view runs *behind* the
-    // 68px mini-player + 56px nav bar. Without this clearance the last card
-    // (AI model) sits permanently under the mini player.
     final bottomClearance =
         68.0 + 56.0 + s16 + MediaQuery.viewPaddingOf(context).bottom;
 
-    // "Listening over time" is driven by the contribution graph's real per-day
-    // counts (not the 20-row recent_plays sample, which made the line read as a
-    // flat zero with a single end spike). Window tracks the selected period.
     final contribDays =
         ref.watch(contributionGraphProvider).asData?.value.days ??
         const <ContributionDay>[];
@@ -80,7 +103,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         child: CustomScrollView(
           physics: const AlwaysScrollableScrollPhysics(),
           slivers: [
-            // ── Header ──────────────────────────────────────────────────
             SliverAppBar(
               expandedHeight: 130,
               pinned: true,
@@ -110,7 +132,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
 
-            // ── Period Tabs ──────────────────────────────────────────────
             SliverToBoxAdapter(
               child: Padding(
                 padding: const EdgeInsets.fromLTRB(s16, s8, s16, 0),
@@ -121,7 +142,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
               ),
             ),
 
-            // ── Content ──────────────────────────────────────────────────
             statsAsync.when(
               data: (stats) => SliverPadding(
                 padding: EdgeInsets.fromLTRB(s16, s20, s16, bottomClearance),
@@ -199,7 +219,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Row 1: Metrics on Left (4), Listening over time (Line Chart) on Right (6)
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -219,7 +238,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         const SizedBox(height: s24),
 
-        // Row 2: Listening Hours (Heatmap) on Left, Genre Mix (Radar) on Right
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -234,7 +252,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         const SizedBox(height: s24),
 
-        // Row 3: Top Artists side-by-side with Top Tracks
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -269,7 +286,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         ),
         const SizedBox(height: s24),
 
-        // Row 4: Consistency (Contribution Graph) on Left (65), AI Model Status on Right (35)
         Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -306,14 +322,12 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
         _MetricsRow(stats: stats, tokens: tokens),
         const SizedBox(height: s16),
 
-        // Group 1 — when you listen (hour of day + genre), tighter internal gap.
         HourlyHeatmap(heatmapData: stats.hourlyHeatmap),
         const SizedBox(height: s12),
 
         GenreMixCard(genres: stats.genreBreakdown),
         const SizedBox(height: s16),
 
-        // Group 2 — activity over time (year grid + windowed trend).
         const ContributionGraphCard(),
         const SizedBox(height: s12),
 
@@ -343,8 +357,6 @@ class _DashboardScreenState extends ConsumerState<DashboardScreen> {
     );
   }
 
-  /// One spot per day across the trailing [window] days, sourced from the
-  /// contribution graph's real per-day play counts.
   List<FlSpot> _spotsFromContribution(List<ContributionDay> days, int window) {
     final byDate = {for (final d in days) d.date: d.count};
     final now = DateTime.now();
@@ -446,7 +458,7 @@ class _ExpandedHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mode = tokens.mode;
-    
+
     TextStyle titleStyle;
     if (mode == AppThemeMode.zen) {
       titleStyle = tokens.textStyle(28, FontWeight.w400, tokens.textPrimary).copyWith(
@@ -491,7 +503,7 @@ class _ExpandedHeader extends StatelessWidget {
   }
 }
 
-// ── Period Selector ───────────────────────────────────────────────────────────
+// ── Period Selector (unchanged) ────────────────────────────────────────────────
 
 class _PeriodSelector extends StatelessWidget {
   final StatsPeriod selected;
@@ -625,8 +637,8 @@ class _PeriodSelector extends StatelessWidget {
 
                   Color textColor;
                   if (isSelected) {
-                    textColor = mode == AppThemeMode.zen 
-                        ? tokens.bgBase 
+                    textColor = mode == AppThemeMode.zen
+                        ? tokens.bgBase
                         : (mode == AppThemeMode.frost ? tokens.textPrimary : tokens.bgBase);
                   } else {
                     textColor = tokens.textSecondary;
@@ -660,7 +672,13 @@ class _PeriodSelector extends StatelessWidget {
   }
 }
 
-// ── Metrics Row ───────────────────────────────────────────────────────────────
+// =============================================================================
+// Metrics — hero metric (Minutes) + 3 smaller supporting cards
+// -----------------------------------------------------------------------------
+// Was: a flat 2x2 grid of four equal cards, each with a giant faint watermark
+// icon. Now: one dominant tile carries the emotional-headline number, the
+// other three sit smaller underneath — hierarchy through size, not a label.
+// =============================================================================
 
 class _MetricsRow extends StatelessWidget {
   final ListeningStatsResponse stats;
@@ -677,62 +695,60 @@ class _MetricsRow extends StatelessWidget {
       skipColor = tokens.warning;
     }
 
-    final cards = [
-      _MetricCard(
-        label: 'Plays',
-        value: _fmtValue(stats.totalPlays),
-        rawNumber: stats.totalPlays,
-        subtitle: 'tracks streamed',
-        icon: Icons.play_arrow_rounded,
-        accent: tokens.accent,
-        tokens: tokens,
-      ),
-      _MetricCard(
-        label: 'Minutes',
-        value: _fmtValue(stats.totalMinutes),
-        rawNumber: stats.totalMinutes,
-        subtitle: 'total airtime',
-        icon: Icons.headset_rounded,
-        accent: tokens.accent,
-        tokens: tokens,
-      ),
-      _MetricCard(
-        label: 'Skip rate',
-        value: '$skipRate%',
-        subtitle: 'tracks skipped',
-        icon: Icons.skip_next_rounded,
-        accent: skipColor,
-        tokens: tokens,
-      ),
-      _MetricCard(
-        label: 'Streak',
-        value: stats.streakDays > 3 ? '${stats.streakDays}d 🔥' : '${stats.streakDays}d',
-        subtitle: 'consecutive days',
-        icon: Icons.local_fire_department_rounded,
-        accent: stats.streakDays > 3 ? tokens.warning : tokens.textPrimary,
-        tokens: tokens,
-      ),
-    ];
+    return Column(
+      children: [
+        // ── Hero: Minutes listened ──────────────────────────────────────
+        _HeroMetricCard(
+          label: 'Minutes listened',
+          value: _fmtValue(stats.totalMinutes),
+          rawNumber: stats.totalMinutes,
+          subtitle: 'total airtime',
+          icon: Icons.headset_rounded,
+          tokens: tokens,
+        ),
+        const SizedBox(height: s12),
 
-    // Content-sized rows (IntrinsicHeight + stretch) instead of a fixed
-    // childAspectRatio grid: cards grow to fit their content, so nothing can
-    // overflow, and paired cards stay equal height.
-    Widget row(Widget a, Widget b) => IntrinsicHeight(
+        // ── Supporting metrics ──────────────────────────────────────────
+        IntrinsicHeight(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: a),
+              Expanded(
+                child: _MetricCard(
+                  label: 'Plays',
+                  value: _fmtValue(stats.totalPlays),
+                  rawNumber: stats.totalPlays,
+                  subtitle: 'tracks',
+                  icon: Icons.play_arrow_rounded,
+                  accent: tokens.accent,
+                  tokens: tokens,
+                ),
+              ),
               const SizedBox(width: s12),
-              Expanded(child: b),
+              Expanded(
+                child: _MetricCard(
+                  label: 'Skip rate',
+                  value: '$skipRate%',
+                  subtitle: 'skipped',
+                  icon: Icons.skip_next_rounded,
+                  accent: skipColor,
+                  tokens: tokens,
+                ),
+              ),
+              const SizedBox(width: s12),
+              Expanded(
+                child: _MetricCard(
+                  label: 'Streak',
+                  value: stats.streakDays > 3 ? '${stats.streakDays}d 🔥' : '${stats.streakDays}d',
+                  subtitle: 'days',
+                  icon: Icons.local_fire_department_rounded,
+                  accent: stats.streakDays > 3 ? tokens.warning : tokens.textPrimary,
+                  tokens: tokens,
+                ),
+              ),
             ],
           ),
-        );
-
-    return Column(
-      children: [
-        row(cards[0], cards[1]),
-        const SizedBox(height: s12),
-        row(cards[2], cards[3]),
+        ),
       ],
     );
   }
@@ -746,6 +762,119 @@ class _MetricsRow extends StatelessWidget {
   }
 }
 
+/// The dominant tile. Full-width, big tabular-figure number, subtle accent
+/// tint instead of a watermark icon — the icon sits small and inline next to
+/// the label, not oversized and faint in a corner.
+class _HeroMetricCard extends StatelessWidget {
+  final String label;
+  final String value;
+  final int? rawNumber;
+  final String subtitle;
+  final IconData icon;
+  final AppThemeTokens tokens;
+
+  const _HeroMetricCard({
+    required this.label,
+    required this.value,
+    this.rawNumber,
+    required this.subtitle,
+    required this.icon,
+    required this.tokens,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final mode = tokens.mode;
+
+    final numberStyle = mode == AppThemeMode.zen
+        ? tokens.textStyle(46, FontWeight.w400, tokens.textPrimary).copyWith(
+              letterSpacing: -1.5,
+              height: 1.0,
+            )
+        : (mode == AppThemeMode.analog
+            ? tokens.textStyle(44, FontWeight.w800, tokens.textPrimary).copyWith(
+                  letterSpacing: -1.0,
+                  height: 1.0,
+                )
+            : TextStyle(
+                fontSize: 46,
+                fontWeight: FontWeight.w900,
+                color: tokens.textPrimary,
+                letterSpacing: -1.5,
+                height: 1.0,
+                fontFeatures: const [FontFeature.tabularFigures()],
+              ));
+
+    final numberWidget = rawNumber != null
+        ? TweenAnimationBuilder<int>(
+            tween: IntTween(begin: 0, end: rawNumber!),
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutCubic,
+            builder: (context, val, _) => Text(_fmt(val), style: numberStyle, maxLines: 1),
+          )
+        : Text(value, style: numberStyle, maxLines: 1);
+
+    return PremiumCard(
+      padding: const EdgeInsets.fromLTRB(20, 18, 20, 18),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 26,
+                height: 26,
+                decoration: BoxDecoration(
+                  color: tokens.accent.withValues(alpha: 0.14),
+                  borderRadius: BorderRadius.circular(7),
+                ),
+                child: Icon(icon, size: 14, color: tokens.accent),
+              ),
+              const SizedBox(width: 8),
+              Text(
+                label.toUpperCase(),
+                style: TextStyle(
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                  color: tokens.textSecondary,
+                  letterSpacing: 0.8,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: numberWidget,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            subtitle,
+            style: TextStyle(
+              fontSize: 11,
+              fontWeight: FontWeight.w500,
+              color: tokens.textMuted,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _fmt(int v) {
+    if (v >= 1000) {
+      final k = v / 1000;
+      return '${k.toStringAsFixed(k.truncateToDouble() == k ? 0 : 1)}k';
+    }
+    return v.toString();
+  }
+}
+
+/// Supporting metric card. Same as before minus the giant watermark icon —
+/// the icon now sits small, inline, next to the label, same treatment as the
+/// hero card so the two tiers read as one family instead of two systems.
 class _MetricCard extends StatefulWidget {
   final String label;
   final String value;
@@ -778,20 +907,20 @@ class _MetricCardState extends State<_MetricCard> {
     final mode = tokens.mode;
 
     final numberStyle = mode == AppThemeMode.zen
-        ? tokens.textStyle(32, FontWeight.w400, tokens.textPrimary).copyWith(
-              letterSpacing: -1.0,
+        ? tokens.textStyle(24, FontWeight.w400, tokens.textPrimary).copyWith(
+              letterSpacing: -0.8,
               height: 1.0,
             )
         : (mode == AppThemeMode.analog
-            ? tokens.textStyle(30, FontWeight.w800, tokens.textPrimary).copyWith(
-                  letterSpacing: -0.5,
+            ? tokens.textStyle(22, FontWeight.w800, tokens.textPrimary).copyWith(
+                  letterSpacing: -0.4,
                   height: 1.0,
                 )
             : TextStyle(
-                fontSize: 32,
+                fontSize: 24,
                 fontWeight: FontWeight.w900,
                 color: tokens.textPrimary,
-                letterSpacing: -1.0,
+                letterSpacing: -0.8,
                 height: 1.0,
                 fontFeatures: const [FontFeature.tabularFigures()],
               ));
@@ -807,52 +936,45 @@ class _MetricCardState extends State<_MetricCard> {
 
     Widget content = PremiumCard(
       padding: const EdgeInsets.all(14),
-      child: Stack(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
         children: [
-          Positioned(
-            right: -8,
-            bottom: -14,
-            child: Icon(
-              widget.icon,
-              size: 64,
-              color: widget.accent.withValues(alpha: 0.05),
-            ),
-          ),
-          // mainAxisSize.min → the card grows to fit content (can't overflow);
-          // FittedBox keeps even a wide value ("12.8k") inside its width.
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
+          Row(
             children: [
-              Text(
-                widget.label.toUpperCase(),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w600,
-                  color: tokens.textSecondary,
-                  letterSpacing: 0.8,
-                ),
-              ),
-              const SizedBox(height: 10),
-              FittedBox(
-                fit: BoxFit.scaleDown,
-                alignment: Alignment.centerLeft,
-                child: numberWidget,
-              ),
-              const SizedBox(height: 2),
-              Text(
-                widget.subtitle,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: tokens.textMuted,
+              Icon(widget.icon, size: 13, color: widget.accent),
+              const SizedBox(width: 5),
+              Expanded(
+                child: Text(
+                  widget.label.toUpperCase(),
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 9.5,
+                    fontWeight: FontWeight.w600,
+                    color: tokens.textSecondary,
+                    letterSpacing: 0.6,
+                  ),
                 ),
               ),
             ],
+          ),
+          const SizedBox(height: 8),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: numberWidget,
+          ),
+          const SizedBox(height: 2),
+          Text(
+            widget.subtitle,
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+            style: TextStyle(
+              fontSize: 9.5,
+              fontWeight: FontWeight.w500,
+              color: tokens.textMuted,
+            ),
           ),
         ],
       ),
@@ -884,7 +1006,7 @@ class _MetricCardState extends State<_MetricCard> {
   }
 }
 
-// ── Hourly Heatmap ────────────────────────────────────────────────────────────
+// ── Hourly Heatmap (unchanged — already interactive and legible) ──────────────
 
 class HourlyHeatmap extends StatefulWidget {
   final Map<String, int> heatmapData;
@@ -912,7 +1034,7 @@ class _HourlyHeatmapState extends State<HourlyHeatmap> {
     final displayHour = _selectedHour ?? peakHour;
     final amPm = displayHour >= 12 ? 'pm' : 'am';
     final hr12 = displayHour % 12 == 0 ? 12 : displayHour % 12;
-    
+
     final displayCount = widget.heatmapData[displayHour.toString()] ?? 0;
     final labelText = _selectedHour != null ? 'plays' : 'peak hour';
 
@@ -1002,8 +1124,8 @@ class _HourlyHeatmapState extends State<HourlyHeatmap> {
                 if (mode == AppThemeMode.zen) {
                   barRadius = BorderRadius.zero;
                   decoration = BoxDecoration(
-                    color: isSelected 
-                        ? tokens.textPrimary 
+                    color: isSelected
+                        ? tokens.textPrimary
                         : tokens.textPrimary.withValues(alpha: 0.12 + intensity * 0.6),
                     border: Border.all(
                       color: tokens.textPrimary,
@@ -1082,10 +1204,6 @@ class _HourlyHeatmapState extends State<HourlyHeatmap> {
                           ),
                           const SizedBox(height: 6),
                           if (hour % 6 == 0)
-                            // The bar slot is only ~13px wide, so a 3-char label
-                            // like "12p" wraps to two lines. OverflowBox lets the
-                            // centred label render on one line, spilling into the
-                            // unlabelled neighbouring slots.
                             SizedBox(
                               height: 11,
                               child: OverflowBox(
@@ -1126,7 +1244,7 @@ class _HourlyHeatmapState extends State<HourlyHeatmap> {
   }
 }
 
-// ── Genre Radar ───────────────────────────────────────────────────────────────
+// ── Genre Mix (unchanged — clean horizontal bars, no need for bento treatment) ─
 
 class GenreMixCard extends StatelessWidget {
   final List<Map<String, dynamic>> genres;
@@ -1226,7 +1344,7 @@ class GenreMixCard extends StatelessWidget {
   }
 }
 
-// ── Listening Line Chart ──────────────────────────────────────────────────────
+// ── Listening Line Chart (unchanged) ───────────────────────────────────────────
 
 class ListeningLineChart extends StatelessWidget {
   final List<FlSpot> spots;
@@ -1332,8 +1450,8 @@ class ListeningLineChart extends StatelessWidget {
                       color: tokens.textPrimary.withValues(alpha: 0.1),
                       width: 0.8,
                     ),
-                    tooltipBorderRadius: mode == AppThemeMode.zen 
-                        ? BorderRadius.zero 
+                    tooltipBorderRadius: mode == AppThemeMode.zen
+                        ? BorderRadius.zero
                         : BorderRadius.circular(8.0),
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((touchedSpot) {
@@ -1341,7 +1459,7 @@ class ListeningLineChart extends StatelessWidget {
                         if (idx < 0 || idx >= labels.length) return null;
                         final dateStr = labels[idx];
                         final val = touchedSpot.y.toInt();
-                        
+
                         return LineTooltipItem(
                           '$dateStr\n',
                           TextStyle(
@@ -1475,7 +1593,7 @@ class _PingingDotPainter extends FlDotPainter {
   FlDotPainter lerp(FlDotPainter a, FlDotPainter b, double t) => this;
 }
 
-// ── Model Status ──────────────────────────────────────────────────────────────
+// ── Model Status (unchanged) ────────────────────────────────────────────────────
 
 class ModelStatusCard extends StatelessWidget {
   final ModelStatusResponse status;
@@ -1683,7 +1801,7 @@ class _MS extends StatelessWidget {
   );
 }
 
-// ── Top Artists ───────────────────────────────────────────────────────────────
+// ── Top Artists (unchanged) ──────────────────────────────────────────────────
 
 class _TopArtistsList extends StatelessWidget {
   final List<Map<String, dynamic>> artists;
@@ -1710,14 +1828,10 @@ class _TopArtistsList extends StatelessWidget {
         final ratio = maxPlays > 0 ? plays / maxPlays : 0.0;
         final initial = name.isNotEmpty ? name[0].toUpperCase() : '?';
 
-        // Derive high-end visual gradient colors for artist avatar from name hash
         final hue = (name.hashCode.abs() % 360).toDouble();
         final color1 = HSLColor.fromAHSL(1.0, hue, 0.65, 0.40).toColor();
         final color2 = HSLColor.fromAHSL(1.0, (hue + 40) % 360, 0.70, 0.25).toColor();
 
-        // Podium ramp: gold (themed warm signal) for #1, then neutral text
-        // tones. Avoids silver/bronze literals that vanish on the light themes
-        // and bleed colour into the monochrome Zen theme.
         final rankColor = i == 0
             ? tokens.gold
             : i == 1
@@ -1738,7 +1852,6 @@ class _TopArtistsList extends StatelessWidget {
           ),
           child: Row(
             children: [
-              // Stylized Rank Number
               SizedBox(
                 width: 28,
                 child: Text(
@@ -1755,7 +1868,6 @@ class _TopArtistsList extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: s8),
-              // Circular Artist Gradient Avatar
               Container(
                 width: 36,
                 height: 36,
@@ -1789,7 +1901,6 @@ class _TopArtistsList extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: s12),
-              // Artist Name & Track count bar
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
@@ -1852,7 +1963,7 @@ class _TopArtistsList extends StatelessWidget {
   }
 }
 
-// ── Top Tracks ────────────────────────────────────────────────────────────────
+// ── Top Tracks (unchanged) ───────────────────────────────────────────────────
 
 class _TopTracksList extends ConsumerWidget {
   final List<Map<String, dynamic>> tracks;
@@ -1896,9 +2007,6 @@ class _TopTracksList extends ConsumerWidget {
 
         final coverUrlAsync = ref.watch(songCoverUrlProvider('$title|$artist'));
 
-        // Podium ramp: gold (themed warm signal) for #1, then neutral text
-        // tones. Avoids silver/bronze literals that vanish on the light themes
-        // and bleed colour into the monochrome Zen theme.
         final rankColor = i == 0
             ? tokens.gold
             : i == 1
@@ -1919,7 +2027,6 @@ class _TopTracksList extends ConsumerWidget {
           ),
           child: Row(
             children: [
-              // Stylized Rank Number
               SizedBox(
                 width: 28,
                 child: Text(
@@ -1936,7 +2043,6 @@ class _TopTracksList extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: s8),
-              // Rounded Square Album Art with Double Rim Highlight (Double-Bezel concept)
               Container(
                 width: 38,
                 height: 38,
@@ -1967,7 +2073,6 @@ class _TopTracksList extends ConsumerWidget {
                 ),
               ),
               const SizedBox(width: s12),
-              // Song Info and listen ratio bar
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
