@@ -82,6 +82,19 @@ Whether you're an audiophile looking for bit-perfect playback or a casual listen
    flutter run
    ```
 
+### Quick Desktop Install
+
+- **Windows**:
+  Run in PowerShell:
+  ```powershell
+  .\install.ps1
+  ```
+- **Linux**:
+  Run in Terminal:
+  ```bash
+  ./install.sh
+  ```
+
 ## 📸 Screenshots
 
 <div align="center">

@@ -48,6 +48,25 @@ final songCoverUrlProvider = FutureProvider.autoDispose
   return null;
 });
 
+/// Looks up a cover art URL to represent an *artist*, by finding any cached
+/// song of theirs. Artists have no portrait in the Subsonic metadata we cache,
+/// so their most-recently-cached cover stands in — real artwork from their own
+/// catalogue rather than a synthesised placeholder.
+final artistCoverUrlProvider = FutureProvider.autoDispose
+    .family<String?, String>((ref, artist) async {
+  if (artist.isEmpty) return null;
+
+  final db = ref.watch(appDatabaseProvider);
+
+  final match = await (db.select(db.songMetadata)
+        ..where((t) => t.artistName.equals(artist))
+        ..limit(1))
+      .getSingleOrNull();
+
+  if (match == null) return null;
+  return ref.read(subsonicServiceProvider).getCoverArtUrl(match.songId);
+});
+
 
 Future<void> _cacheSongs(AppDatabase db, List<Song> songs) async {
   await db.batch((batch) {
