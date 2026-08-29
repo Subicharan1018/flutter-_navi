@@ -69,7 +69,22 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     this.subsonicService, {
     AudioPlayer? player,
     TranscodingService? transcodingService,
-  }) : player = player ?? AudioPlayer(),
+  }) : player =
+           player ??
+           AudioPlayer(
+             audioLoadConfiguration: const AudioLoadConfiguration(
+               androidLoadControl: AndroidLoadControl(
+                 minBufferDuration: Duration(seconds: 30),
+                 maxBufferDuration: Duration(seconds: 60),
+                 bufferForPlaybackDuration: Duration(seconds: 3),
+                 bufferForPlaybackAfterRebufferDuration: Duration(seconds: 5),
+                 prioritizeTimeOverSizeThresholds: true,
+               ),
+               darwinLoadControl: DarwinLoadControl(
+                 preferredForwardBufferDuration: Duration(seconds: 30),
+               ),
+             ),
+           ),
        _transcodingService = transcodingService ?? TranscodingService() {
     _listenToPlayerEvents();
 
