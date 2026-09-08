@@ -1,4 +1,4 @@
-// ignore_for_file: deprecated_member_use
+// ignore_for_file: deprecated_member_use, experimental_member_use
 
 import 'dart:async';
 import 'dart:collection';
@@ -74,11 +74,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
            AudioPlayer(
              audioLoadConfiguration: const AudioLoadConfiguration(
                androidLoadControl: AndroidLoadControl(
-                 minBufferDuration: Duration(seconds: 30),
-                 maxBufferDuration: Duration(seconds: 60),
-                 bufferForPlaybackDuration: Duration(seconds: 3),
-                 bufferForPlaybackAfterRebufferDuration: Duration(seconds: 5),
-                 prioritizeTimeOverSizeThresholds: true,
+                 minBufferDuration: Duration(seconds: 15),
+                 maxBufferDuration: Duration(seconds: 30),
+                 bufferForPlaybackDuration: Duration(milliseconds: 1500),
+                 bufferForPlaybackAfterRebufferDuration: Duration(seconds: 3),
+                 prioritizeTimeOverSizeThresholds: false,
                ),
                darwinLoadControl: DarwinLoadControl(
                  preferredForwardBufferDuration: Duration(seconds: 30),
@@ -122,10 +122,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
         if (isStuckState) {
           if (_stuckTimer == null) {
-            debugPrint('⏳ [NaviAudioHandler] Player entered buffering/loading. Starting 15s stuck timer.');
-            _stuckTimer = Timer(const Duration(seconds: 15), () async {
+            debugPrint('⏳ [NaviAudioHandler] Player entered buffering/loading. Starting 45s stuck timer.');
+            _stuckTimer = Timer(const Duration(seconds: 45), () async {
               _stuckTimer = null;
-              await _recoverStuckPlayer();
+              final currentState = this.player.playerState;
+              final stillStuck = currentState.playing &&
+                  (currentState.processingState == ProcessingState.loading ||
+                   currentState.processingState == ProcessingState.buffering);
+              if (stillStuck) {
+                await _recoverStuckPlayer();
+              }
             });
           }
         } else {
@@ -284,7 +290,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   AudioSource _toSource(Song song) {
-    final localPath = OfflineService().getLocalPath(song.id);
+    final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
+    final localPath = musicCacheEnabled ? OfflineService().getLocalPath(song.id) : null;
     final streamUri = localPath != null
         ? Uri.parse('file://$localPath')
         : Uri.parse(subsonicService.getStreamUrl(
@@ -293,19 +300,22 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             format: _transcodingService.getCurrentFormat(),
           ));
 
-    return AudioSource.uri(
-      streamUri,
-      tag: MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        genre: song.genre,
-        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
-        duration: Duration(seconds: song.duration),
-        extras: {'composer': song.composer, 'isLocal': localPath != null},
-      ),
+    final tag = MediaItem(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      genre: song.genre,
+      artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+      duration: Duration(seconds: song.duration),
+      extras: {'composer': song.composer, 'isLocal': localPath != null},
     );
+
+    if (localPath != null || !musicCacheEnabled) {
+      return AudioSource.uri(streamUri, tag: tag);
+    }
+
+    return LockCachingAudioSource(streamUri, tag: tag);
   }
 
   AudioSource _toSourceWithPaths(Song song, Map<String, String?> offlinePaths) {
@@ -319,19 +329,22 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             format: _transcodingService.getCurrentFormat(),
           ));
 
-    return AudioSource.uri(
-      streamUri,
-      tag: MediaItem(
-        id: song.id,
-        title: song.title,
-        artist: song.artist,
-        album: song.album,
-        genre: song.genre,
-        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
-        duration: Duration(seconds: song.duration),
-        extras: {'composer': song.composer, 'isLocal': localPath != null},
-      ),
+    final tag = MediaItem(
+      id: song.id,
+      title: song.title,
+      artist: song.artist,
+      album: song.album,
+      genre: song.genre,
+      artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+      duration: Duration(seconds: song.duration),
+      extras: {'composer': song.composer, 'isLocal': localPath != null},
     );
+
+    if (localPath != null || !musicCacheEnabled) {
+      return AudioSource.uri(streamUri, tag: tag);
+    }
+
+    return LockCachingAudioSource(streamUri, tag: tag);
   }
 
   Future<Map<String, String?>> _precomputeOfflinePaths(List<Song> songs) async {
@@ -737,30 +750,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (player.playing) player.play();
       return;
     }
-
-    final int n = _currentQueue.length;
-
-    if (n <= 5 && !preferMoveBasedReorder) {
-      final savedPosition = player.position;
-      final wasPlaying = player.playing;
-      final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-      final List<AudioSource> sources = _currentQueue
-          .map((song) => _toSourceWithPaths(song, offlinePaths))
-          .toList();
-      _playlist = ConcatenatingAudioSource(
-        useLazyPreparation: true,
-        children: sources,
-      );
-      _playlistOffset = 0;
-      await player.setAudioSource(
-        _playlist!,
-        initialIndex: anchorIndex,
-        initialPosition: savedPosition,
-      );
-      if (wasPlaying) player.play();
-      return;
-    }
-
     await _moveBasedReorder(anchorIndex);
   }
 

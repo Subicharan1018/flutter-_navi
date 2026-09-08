@@ -29,8 +29,9 @@ class MiniPlayer extends ConsumerStatefulWidget {
 }
 
 class _MiniPlayerState extends ConsumerState<MiniPlayer> {
-  late Color _themeColor;
+  Color? _themeColor;
   String? _lastImageUrl;
+  String? _currentTrackId;
 
   // ── Horizontal-swipe debounce guard ──────────────────────────────────────
   // Prevents rapid-fire next/prev calls if the user swipes multiple times
@@ -47,7 +48,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
-    _themeColor = ThemeTokens.of(context).accent;
+    // Only set initial fallback if no track color has ever been resolved yet.
+    _themeColor ??= ThemeTokens.of(context).accent;
   }
 
   void _openNowPlaying(String imageUrl) {
@@ -63,24 +65,25 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
   }
 
   Future<void> _loadPalette(String songId, String imageUrl) async {
-    if (_lastImageUrl == imageUrl) return;
+    if (_lastImageUrl == imageUrl && _currentTrackId == songId) return;
     _lastImageUrl = imageUrl;
+    final trackIdAtRequest = songId;
 
     final cached = PaletteCache.instance.getColorsFor(songId);
-    if (cached != null && cached.length > 1) {
-      if (mounted) {
-        setState(() => _themeColor = cached[1]);
+    if (cached != null && cached.isNotEmpty) {
+      if (mounted && _currentTrackId == trackIdAtRequest) {
+        setState(() => _themeColor = cached[0]);
       }
       return;
     }
 
     try {
       final colors = await PaletteCache.instance.extractAndCache(songId, imageUrl);
-      if (mounted && colors.length > 1) {
-        setState(() => _themeColor = colors[1]);
+      if (mounted && _currentTrackId == trackIdAtRequest && colors.isNotEmpty) {
+        setState(() => _themeColor = colors[0]);
       }
     } catch (_) {
-      if (mounted) {
+      if (mounted && _currentTrackId == trackIdAtRequest && _themeColor == null) {
         setState(() => _themeColor = ThemeTokens.of(context).accent);
       }
     }
@@ -96,11 +99,16 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> {
     final song = playerState.queue[playerState.currentIndex];
     final imageUrl = service.getCoverArtUrl(song.coverArt);
 
-    // Try to instantly read the vibrant color from cache to prevent flashing
+    if (_currentTrackId != song.id) {
+      _currentTrackId = song.id;
+    }
+
+    // Try to instantly read the primary dominant color from cache.
+    // If not yet cached, hold the previous track's resolved color instead of flashing green.
     final cachedColors = PaletteCache.instance.peekColorsFor(song.id);
-    final activeThemeColor = (cachedColors != null && cachedColors.length > 1)
-        ? cachedColors[1]
-        : _themeColor;
+    final activeThemeColor = (cachedColors != null && cachedColors.isNotEmpty)
+        ? cachedColors[0]
+        : (_themeColor ?? ThemeTokens.of(context).accent);
 
     // Defer palette load past the current frame to avoid cascading rebuilds.
     if (imageUrl != _lastImageUrl) {

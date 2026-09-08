@@ -38,6 +38,9 @@ class PaletteCache {
     Color(0xFF533483),
   ];
 
+  // In-flight extraction deduplication map to prevent redundant parallel extractions
+  final Map<String, Future<List<Color>>> _inFlight = {};
+
   // Insertion-ordered map used as an LRU cache.
   // Access (read or write) promotes an entry to the tail via remove+reinsert.
   // Eviction removes from the head (first inserted / least recently used).
@@ -71,6 +74,7 @@ class PaletteCache {
     if (entry != null) {
       _cache[id] =
           entry; // ← intentional LRU promotion step 2/2 (moves to tail)
+      _currentSongId = id;
       return entry;
     }
     return null;
@@ -96,6 +100,7 @@ class PaletteCache {
   void clear() {
     _currentSongId = null;
     _cache.clear();
+    _inFlight.clear();
   }
 
   // ── Private ────────────────────────────────────────────────────────────────
@@ -109,9 +114,31 @@ class PaletteCache {
 
   /// Extracts colors from [imageUrl] and caches them for [songId].
   /// Returns the extracted/cached 4-color palette.
-  Future<List<Color>> extractAndCache(String songId, String imageUrl) async {
+  /// Deduplicates in-flight calls so multiple widgets don't parallel-decode the same image.
+  Future<List<Color>> extractAndCache(String songId, String imageUrl) {
+    final existing = getColorsFor(songId);
+    if (existing != null) return Future.value(existing);
+
+    if (_inFlight.containsKey(songId)) {
+      return _inFlight[songId]!;
+    }
+
+    final future = _doExtract(songId, imageUrl).whenComplete(() {
+      _inFlight.remove(songId);
+    });
+    _inFlight[songId] = future;
+    return future;
+  }
+
+  Future<List<Color>> _doExtract(String songId, String imageUrl) async {
     final existing = getColorsFor(songId);
     if (existing != null) return existing;
+
+    if (imageUrl.isEmpty) {
+      final fallback = _kFallback;
+      update(songId, fallback);
+      return fallback;
+    }
 
     try {
       final imageProvider = ResizeImage(
@@ -131,15 +158,30 @@ class PaletteCache {
         debugPrint('⚠️ Error evicting palette image: $e');
       }
 
-      // Extract all candidate colors from palette swatches
+      // Check if dominantColor is a usable accent: reasonably saturated and not near-black or near-white.
+      bool isUsableAccent(Color? c) {
+        if (c == null) return false;
+        final hsl = HSLColor.fromColor(c);
+        return hsl.saturation >= 0.18 && hsl.lightness >= 0.12 && hsl.lightness <= 0.88;
+      }
+
+      final dominant = palette.dominantColor?.color;
+      final dominantIsUsable = isUsableAccent(dominant);
+
+      // Extract candidate colors from palette swatches.
+      // If dominantColor is a usable accent, prioritize it first so the primary theme matches
+      // the actual dominant artwork hue rather than a tiny high-saturation text/sticker artifact.
+      // If dominantColor is too dark/light/desaturated (e.g. black cover with red logo),
+      // fall back to vibrant colors.
       final allSwatches = [
+        if (dominantIsUsable) dominant!,
         palette.vibrantColor?.color,
         palette.lightVibrantColor?.color,
         palette.darkVibrantColor?.color,
         palette.mutedColor?.color,
         palette.lightMutedColor?.color,
         palette.darkMutedColor?.color,
-        palette.dominantColor?.color,
+        if (!dominantIsUsable && dominant != null) dominant,
         ...palette.colors,
       ].whereType<Color>().toList();
 
@@ -161,13 +203,15 @@ class PaletteCache {
         highlight = colorfulSwatches.length > 3 ? colorfulSwatches[3] : accent;
       } else {
         primary = palette.dominantColor?.color ?? const Color(0xFFE50914);
-        vibrant = palette.vibrantColor?.color ?? const Color(0xFF8B5CF6);
-        accent = palette.lightVibrantColor?.color ?? const Color(0xFF06B6D4);
-        highlight = const Color(0xFFEC4899);
+        vibrant = palette.vibrantColor?.color ?? primary;
+        accent = palette.lightVibrantColor?.color ?? vibrant;
+        highlight = palette.darkVibrantColor?.color ?? accent;
       }
 
-      // Boost saturation & tune lightness for Apple Music luminous glow
-      Color tuneColor(Color c, {double targetSat = 0.88, double minLight = 0.35, double maxLight = 0.62, double hueShift = 0.0}) {
+      // Boost saturation & tune lightness for Apple Music luminous glow.
+      // Hue shifts are bounded within ±25° of the source hue so the derived palette
+      // provides rich analogous depth without shifting into an alien hue family (e.g. red into green).
+      Color tuneColor(Color c, {double minLight = 0.35, double maxLight = 0.62, double hueShift = 0.0}) {
         final hsl = HSLColor.fromColor(c);
         final newHue = ((hsl.hue + hueShift) % 360.0 + 360.0) % 360.0;
         final newSat = (hsl.saturation * 1.35).clamp(0.70, 1.0);
@@ -176,9 +220,9 @@ class PaletteCache {
       }
 
       final c0 = tuneColor(primary, minLight: 0.32, maxLight: 0.48);
-      final c1 = tuneColor(vibrant, minLight: 0.45, maxLight: 0.65, hueShift: 24);
-      final c2 = tuneColor(accent, minLight: 0.40, maxLight: 0.60, hueShift: 65);
-      final c3 = tuneColor(highlight, minLight: 0.35, maxLight: 0.55, hueShift: 160);
+      final c1 = tuneColor(vibrant, minLight: 0.45, maxLight: 0.65, hueShift: 12);
+      final c2 = tuneColor(accent, minLight: 0.40, maxLight: 0.60, hueShift: -15);
+      final c3 = tuneColor(highlight, minLight: 0.35, maxLight: 0.55, hueShift: 24);
 
       final colors = [c0, c1, c2, c3];
       update(songId, colors);
