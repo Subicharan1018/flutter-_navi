@@ -14,6 +14,7 @@ import '../widgets/mini_player.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/options_menu.dart';
 import '../widgets/desktop_dialogs.dart';
+import '../widgets/swipe_action_background.dart';
 import '../core/theme.dart';
 import '../utils/platform_utils.dart';
 import 'song_picker_screen.dart';
@@ -255,6 +256,60 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
         ).showSnackBar(SnackBar(content: Text('Failed to remove song: $e')));
       }
     }
+  }
+
+  Future<void> _playSongNext(Song song) async {
+    final notifier = ref.read(playerProvider.notifier);
+    final playerState = ref.read(playerProvider);
+
+    if (playerState.queue.isEmpty) {
+      await notifier.setQueue(
+        [song],
+        0,
+        playlistName: widget.playlist.name,
+        unshuffledSongs: [song],
+      );
+    } else {
+      await notifier.insertNext(song);
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Playing next: ${song.title}'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+  }
+
+  Future<void> _addSongToQueue(Song song) async {
+    final notifier = ref.read(playerProvider.notifier);
+    final playerState = ref.read(playerProvider);
+
+    if (playerState.queue.isEmpty) {
+      await notifier.setQueue(
+        [song],
+        0,
+        playlistName: widget.playlist.name,
+        unshuffledSongs: [song],
+      );
+    } else {
+      await notifier.addToQueue(song);
+    }
+
+    if (!mounted) return;
+    ScaffoldMessenger.of(context)
+      ..clearSnackBars()
+      ..showSnackBar(
+        SnackBar(
+          content: Text('Added to queue: ${song.title}'),
+          behavior: SnackBarBehavior.floating,
+          duration: const Duration(seconds: 2),
+        ),
+      );
   }
 
   void _confirmDeletePlaylist() {
@@ -1030,6 +1085,17 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                 ),
               ),
 
+              if (!_isLoading && !_hasError && _filteredSongs.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 10, 16, 4),
+                    child: PlaylistTrackToolbar(
+                      count: _filteredSongs.length,
+                      isFiltered: _searchController.text.trim().isNotEmpty,
+                    ),
+                  ),
+                ),
+
               // Song list
               if (_isLoading)
                 const SliverFillRemaining(child: SongListSkeleton())
@@ -1075,17 +1141,59 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                           onRemoveFromPlaylist: () => _deleteSong(index),
                         ),
                       ),
+                      playlistId: widget.playlist.id,
+                      onRemoveFromPlaylist: () => _deleteSong(index),
                     );
 
                     return ReorderableDelayedDragStartListener(
                       key: ValueKey(song.id),
                       index: index,
-                      child: Dismissible(
-                        key: ValueKey('dismiss_${song.id}'),
-                        direction: DismissDirection.endToStart,
-                        background: const DismissBackground(),
-                        onDismissed: (_) => _deleteSong(index),
-                        child: RepaintBoundary(child: tileContent),
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 3,
+                        ),
+                        child: Dismissible(
+                          key: ValueKey('playlist_swipe_${song.id}'),
+                          direction: DismissDirection.horizontal,
+                          dismissThresholds: const {
+                            DismissDirection.startToEnd: 0.28,
+                            DismissDirection.endToStart: 0.28,
+                          },
+                          background: SwipeActionBackground(
+                            side: SwipeActionSide.left,
+                            icon: Icons.playlist_play_rounded,
+                            label: 'Play next',
+                            color: tokens.accent,
+                          ),
+                          secondaryBackground: SwipeActionBackground(
+                            side: SwipeActionSide.right,
+                            icon: Icons.queue_music_rounded,
+                            label: 'Add to queue',
+                            color: const Color(0xFF62D6FF),
+                          ),
+                          confirmDismiss: (direction) async {
+                            if (direction == DismissDirection.startToEnd) {
+                              await _playSongNext(song);
+                            } else if (direction == DismissDirection.endToStart) {
+                              await _addSongToQueue(song);
+                            }
+                            return false;
+                          },
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: tokens.bgSurface.withValues(alpha: 0.72),
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                color: tokens.outline.withValues(alpha: 0.18),
+                              ),
+                            ),
+                            child: ClipRRect(
+                              borderRadius: BorderRadius.circular(16),
+                              child: RepaintBoundary(child: tileContent),
+                            ),
+                          ),
+                        ),
                       ),
                     );
                   },

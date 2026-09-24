@@ -459,34 +459,6 @@ class HeaderButton extends StatelessWidget {
 }
 
 // ---------------------------------------------------------------------------
-// Dismiss background (swipe-to-delete)
-// ---------------------------------------------------------------------------
-class DismissBackground extends StatelessWidget {
-  const DismissBackground({super.key});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      alignment: Alignment.centerRight,
-      padding: const EdgeInsets.only(right: 24),
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          colors: [
-            Colors.transparent,
-            Colors.redAccent.withValues(alpha: 0.85),
-          ],
-        ),
-      ),
-      child: Icon(
-        Icons.delete_outline_rounded,
-        color: ThemeTokens.of(context).textPrimary,
-        size: 24,
-      ),
-    );
-  }
-}
-
-// ---------------------------------------------------------------------------
 // Search field
 // ---------------------------------------------------------------------------
 class PlaylistSearchField extends StatelessWidget {
@@ -554,6 +526,77 @@ class PlaylistSearchField extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Mobile track-list toolbar
+// ---------------------------------------------------------------------------
+class PlaylistTrackToolbar extends StatelessWidget {
+  final int count;
+  final bool isFiltered;
+
+  const PlaylistTrackToolbar({
+    super.key,
+    required this.count,
+    required this.isFiltered,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    return Row(
+      children: [
+        Text(
+          isFiltered ? 'Matching tracks' : 'Tracks',
+          style: TextStyle(
+            color: tokens.textPrimary,
+            fontSize: 16,
+            fontWeight: FontWeight.w700,
+            letterSpacing: -0.2,
+          ),
+        ),
+        const SizedBox(width: 8),
+        Text(
+          '$count',
+          style: TextStyle(
+            color: tokens.textMuted,
+            fontSize: 12,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        const Spacer(),
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 6),
+          decoration: BoxDecoration(
+            color: tokens.bgSurface.withValues(alpha: 0.7),
+            borderRadius: BorderRadius.circular(20),
+            border: Border.all(
+              color: tokens.outline.withValues(alpha: 0.18),
+            ),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(
+                Icons.swipe_rounded,
+                size: 15,
+                color: tokens.textSecondary,
+              ),
+              const SizedBox(width: 5),
+              Text(
+                'Swipe for actions',
+                style: TextStyle(
+                  color: tokens.textSecondary,
+                  fontSize: 10,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 }

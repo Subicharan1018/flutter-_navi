@@ -80,6 +80,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - fire.png
   shaders:
     - shaders/fluid_background.frag
 

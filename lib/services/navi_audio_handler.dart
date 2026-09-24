@@ -789,6 +789,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> _updateQueueAfterAnchor(
     int anchorIndex, {
     bool preferMoveBasedReorder = false,
+    String? preserveActiveSongId,
   }) async {
     if (_isDesktopBridge) {
       _desktopIndex = anchorIndex;
@@ -805,10 +806,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return;
     }
 
-    await _moveBasedReorder(anchorIndex);
+    await _moveBasedReorder(
+      anchorIndex,
+      preserveActiveSongId: preserveActiveSongId,
+    );
   }
 
-  Future<void> _moveBasedReorder(int anchorIndex) async {
+  Future<void> _moveBasedReorder(
+    int anchorIndex, {
+    String? preserveActiveSongId,
+  }) async {
     debugPrint('🎵 [NaviAudioHandler] _moveBasedReorder at anchor: $anchorIndex');
     final int n = _currentQueue.length;
     final int playlistLen = _playlist!.children.length;
@@ -822,8 +829,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         'falling back to rebuildSource at anchor $anchorIndex',
       );
       final savedPosition = player.position;
+      final rebuildIndex = preserveActiveSongId == null
+          ? anchorIndex
+          : _currentQueue.indexWhere((song) => song.id == preserveActiveSongId);
       await _rebuildSource(
-        anchorIndex.clamp(0, n - 1),
+        (rebuildIndex >= 0 ? rebuildIndex : currentIndex).clamp(0, n - 1),
         initialPosition: savedPosition,
       );
       if (player.playing) player.play();
@@ -848,9 +858,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       liveIds.insert(targetIdx, moved);
     }
 
-    final currentLiveIndex = currentIndex;
-    if (currentLiveIndex != anchorIndex) {
-      await player.seek(player.position, index: anchorIndex);
+    // Smart-local refills are allowed to overlap the end of a track. In that
+    // case the audio engine may advance while the source moves are happening.
+    // Seeking to the original anchor here would rewind playback to the song
+    // that was active when the refill started, creating a UI/audio mismatch.
+    // ConcatenatingAudioSource.move keeps the active media item in place, so
+    // preserve that item and let just_audio maintain its live index.
+    if (preserveActiveSongId == null) {
+      final currentLiveIndex = currentIndex;
+      if (currentLiveIndex != anchorIndex) {
+        await player.seek(player.position, index: anchorIndex);
+      }
     }
     if (player.playing) player.play();
   }
@@ -1200,10 +1218,22 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     for (int i = 0; i < orderedFuture.length; i++) {
       debugPrint('   Next ${i + 1}. ${orderedFuture[i].title}');
     }
+    // Capture the audio engine's active song before replacing the in-memory
+    // queue. A Smart Shuffle refill can finish at the same moment playback
+    // advances, so the caller's numeric anchor may already be stale.
+    String? activeSongId;
+    if (preferMoveBasedReorder && _currentQueue.isNotEmpty) {
+      final liveIndex = currentIndex;
+      if (liveIndex >= 0 && liveIndex < _currentQueue.length) {
+        activeSongId = _currentQueue[liveIndex].id;
+      }
+    }
+
     _currentQueue = [...pastAndPresent, ...orderedFuture];
     await _updateQueueAfterAnchor(
       anchorIndex,
       preferMoveBasedReorder: preferMoveBasedReorder,
+      preserveActiveSongId: activeSongId,
     );
   }
 

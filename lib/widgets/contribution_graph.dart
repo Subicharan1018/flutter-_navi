@@ -832,7 +832,12 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              const Text('🔥', style: TextStyle(fontSize: 11)),
+              Image.asset(
+                'fire.png',
+                width: 16,
+                height: 16,
+                fit: BoxFit.contain,
+              ),
               const SizedBox(width: 4),
               Text(
                 '$streak day streak',

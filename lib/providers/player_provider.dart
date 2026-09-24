@@ -543,8 +543,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _subscriptions.add(
       _audioHandler.mediaItem.listen((mediaItem) {
         if (mediaItem == null) return;
-        final index = state.queue.indexWhere((s) => s.id == mediaItem.id);
-        if (index == -1) return;
+
+        // The audio handler owns the authoritative playback index. Looking up
+        // the index by media-item ID in Riverpod's queue can return a stale
+        // position while Smart Shuffle is appending/reordering a batch (and is
+        // ambiguous if a song was deliberately queued twice).
+        final liveQueue = _audioHandler.currentQueue;
+        final index = _audioHandler.currentIndex;
+        if (index < 0 || index >= liveQueue.length) return;
+        if (liveQueue[index].id != mediaItem.id) return;
+
+        if (!_suppressEvents &&
+            (state.queue.length != liveQueue.length ||
+                !const ListEquality<Song>().equals(state.queue, liveQueue))) {
+          state = state.copyWith(
+            queue: List<Song>.from(liveQueue),
+            currentIndex: index,
+          );
+        }
 
         if (_pendingIndexAfterShuffle != null) {
           if (index == _pendingIndexAfterShuffle) {
@@ -953,6 +969,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void _drainPoolOfQueuedSongs() {
     final queuedIds = state.queue.map((s) => s.id).toSet();
     _playlistPool.removeWhere((s) => queuedIds.contains(s.id));
+  }
+
+  void _syncQueueFromAudioHandler() {
+    final liveQueue = List<Song>.from(_audioHandler.currentQueue);
+    final liveIndex = liveQueue.isEmpty
+        ? 0
+        : _audioHandler.currentIndex.clamp(0, liveQueue.length - 1);
+
+    state = state.copyWith(
+      queue: liveQueue,
+      currentIndex: liveIndex,
+    );
+    _lastKnownIndex = liveIndex;
+    _trackedIndexForCompletion = liveQueue.isEmpty ? -1 : liveIndex;
   }
 
   /// Take up to [_smartLocalBatchSize] songs from the front of the pool.
@@ -2259,7 +2289,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           // Acceptable fallback — Markov ordering will apply on next rebuild.
           debugPrint('[SMART LOCAL] HTTP failed; batch appended unordered');
           // Sync state from the handler since branch B no longer writes state.
-          state = state.copyWith(queue: _audioHandler.currentQueue);
+          _syncQueueFromAudioHandler();
           _drainPoolOfQueuedSongs();
           _prunePlayedSongs();
           return;
@@ -2272,7 +2302,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             '[SMART LOCAL] Player advanced during fetch '
             '($safeIndex→$liveIndex), skipping reorder',
           );
-          state = state.copyWith(queue: _audioHandler.currentQueue);
+          _syncQueueFromAudioHandler();
           _drainPoolOfQueuedSongs();
           _prunePlayedSongs();
           return;
@@ -2299,7 +2329,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           preferMoveBasedReorder: true,
         );
 
-        state = state.copyWith(queue: _audioHandler.currentQueue);
+        // The handler preserved the live active media item while moving the
+        // new batch. Read its index back instead of retaining the stale refill
+        // anchor from before the HTTP request.
+        _syncQueueFromAudioHandler();
         _drainPoolOfQueuedSongs();
         _prunePlayedSongs();
 

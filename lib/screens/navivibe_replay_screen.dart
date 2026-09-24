@@ -732,8 +732,13 @@ class _QuickStatGrid extends StatelessWidget {
 class _StatCell extends StatelessWidget {
   final String label;
   final String value;
+  final Widget? leading;
 
-  const _StatCell({required this.label, required this.value});
+  const _StatCell({
+    required this.label,
+    required this.value,
+    this.leading,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -750,11 +755,21 @@ class _StatCell extends StatelessWidget {
                 .copyWith(letterSpacing: 0.3),
           ),
           const SizedBox(height: 4),
-          Text(
-            value,
-            style: tokens
-                .textStyle(24, FontWeight.w800, tokens.textPrimary)
-                .copyWith(letterSpacing: -0.8),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.center,
+            children: [
+              if (leading != null) ...[
+                leading!,
+                const SizedBox(width: 5),
+              ],
+              Text(
+                value,
+                style: tokens
+                    .textStyle(24, FontWeight.w800, tokens.textPrimary)
+                    .copyWith(letterSpacing: -0.8),
+              ),
+            ],
           ),
         ],
       ),
@@ -1474,7 +1489,13 @@ class _MonthDetailContent extends StatelessWidget {
                     Expanded(
                       child: _StatCell(
                         label: 'Streak',
-                        value: '${data.streakDays}d 🔥',
+                        value: '${data.streakDays}d',
+                        leading: Image.asset(
+                          'fire.png',
+                          width: 18,
+                          height: 18,
+                          fit: BoxFit.contain,
+                        ),
                       ),
                     ),
                   ],

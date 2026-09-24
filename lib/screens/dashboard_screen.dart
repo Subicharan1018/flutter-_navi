@@ -982,6 +982,13 @@ class _StreakReadout extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.baseline,
           textBaseline: TextBaseline.alphabetic,
           children: [
+            Image.asset(
+              'fire.png',
+              width: 22,
+              height: 22,
+              fit: BoxFit.contain,
+            ),
+            const SizedBox(width: 5),
             Text('$days', style: _figureStyle(tokens, 20)),
             const SizedBox(width: 3),
             Flexible(

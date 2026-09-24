@@ -27,6 +27,7 @@ class SongTile extends ConsumerWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
   final String? playlistId;
+  final VoidCallback? onRemoveFromPlaylist;
 
   const SongTile({
     super.key,
@@ -34,6 +35,7 @@ class SongTile extends ConsumerWidget {
     required this.onTap,
     this.onLongPress,
     this.playlistId,
+    this.onRemoveFromPlaylist,
   });
 
   @override
@@ -87,7 +89,11 @@ class SongTile extends ConsumerWidget {
             imageUrl: imageUrl,
             imageCacheKey: imageCacheKey,
             isActive: isActive,
-            trailing: _MobileOptionsButton(song: song, playlistId: playlistId),
+            trailing: _MobileOptionsButton(
+              song: song,
+              playlistId: playlistId,
+              onRemoveFromPlaylist: onRemoveFromPlaylist,
+            ),
           ),
         ),
       ),
@@ -349,7 +355,13 @@ class _TileContent extends StatelessWidget {
 class _MobileOptionsButton extends StatelessWidget {
   final Song song;
   final String? playlistId;
-  const _MobileOptionsButton({required this.song, this.playlistId});
+  final VoidCallback? onRemoveFromPlaylist;
+
+  const _MobileOptionsButton({
+    required this.song,
+    this.playlistId,
+    this.onRemoveFromPlaylist,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -364,7 +376,11 @@ class _MobileOptionsButton extends StatelessWidget {
       onPressed: () {
         showPlatformSheet(
           context: context,
-          builder: (context) => OptionsMenu(song: song, playlistId: playlistId),
+          builder: (context) => OptionsMenu(
+            song: song,
+            playlistId: playlistId,
+            onRemoveFromPlaylist: onRemoveFromPlaylist,
+          ),
         );
       },
     );
