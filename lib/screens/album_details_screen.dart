@@ -136,10 +136,20 @@ class _AlbumDetailsScreenState extends ConsumerState<AlbumDetailsScreen> {
   void _playAlbum({int initialIndex = 0, bool shuffle = false}) {
     if (_songs.isEmpty) return;
     if (shuffle) {
-      ref.read(playerProvider.notifier).setQueue(_songs, 0);
+      ref.read(playerProvider.notifier).setQueue(
+            _songs,
+            0,
+            playlistName: widget.album.name,
+            unshuffledSongs: _songs,
+          );
       ref.read(playerProvider.notifier).toggleShuffle();
     } else {
-      ref.read(playerProvider.notifier).setQueue(_songs, initialIndex);
+      ref.read(playerProvider.notifier).setQueue(
+            _songs,
+            initialIndex,
+            playlistName: widget.album.name,
+            unshuffledSongs: _songs,
+          );
     }
   }
 

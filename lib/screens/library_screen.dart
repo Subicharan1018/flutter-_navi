@@ -183,16 +183,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               LibraryFilter.albums,
                     ),
                     _FilterChip(
-                      label: 'Offline',
-                      isSelected: false,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const OfflineScreen(),
-                          ),
-                        );
-                      },
+                      label: 'Downloaded',
+                      isSelected: filter == LibraryFilter.downloaded,
+                      onTap: () =>
+                          ref.read(libraryFilterProvider.notifier).state =
+                              LibraryFilter.downloaded,
                     ),
                   ],
                 ),

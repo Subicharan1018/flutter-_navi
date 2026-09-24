@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_video_progress_bar/audio_video_progress_bar.dart' as avpb;
+import '../models/song.dart';
 
 import '../screens/home_screen.dart';
 import '../screens/search_screen.dart';
@@ -13,6 +14,7 @@ import '../screens/dashboard_screen.dart';
 import '../screens/playlist_details_screen.dart';
 import '../screens/album_details_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/offline_screen.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../services/replay_upload_service.dart';
 import '../services/listening_log_service.dart';
@@ -732,32 +734,42 @@ class _DesktopLeftSidebarState extends ConsumerState<_DesktopLeftSidebar> {
                     ),
                   ),
 
-                  // Filter Chips (Playlists, Albums)
+                  // Filter Chips (Playlists, Albums, Downloaded)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: Row(
-                      children: [
-                        _LibFilterChip(
-                          label: 'All',
-                          selected: _libFilter == 'all',
-                          onTap: () => setState(() => _libFilter = 'all'),
-                          tokens: tokens,
-                        ),
-                        const SizedBox(width: 6),
-                        _LibFilterChip(
-                          label: 'Playlists',
-                          selected: _libFilter == 'playlists',
-                          onTap: () => setState(() => _libFilter = 'playlists'),
-                          tokens: tokens,
-                        ),
-                        const SizedBox(width: 6),
-                        _LibFilterChip(
-                          label: 'Albums',
-                          selected: _libFilter == 'albums',
-                          onTap: () => setState(() => _libFilter = 'albums'),
-                          tokens: tokens,
-                        ),
-                      ],
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _LibFilterChip(
+                            label: 'All',
+                            selected: _libFilter == 'all',
+                            onTap: () => setState(() => _libFilter = 'all'),
+                            tokens: tokens,
+                          ),
+                          const SizedBox(width: 6),
+                          _LibFilterChip(
+                            label: 'Playlists',
+                            selected: _libFilter == 'playlists',
+                            onTap: () => setState(() => _libFilter = 'playlists'),
+                            tokens: tokens,
+                          ),
+                          const SizedBox(width: 6),
+                          _LibFilterChip(
+                            label: 'Albums',
+                            selected: _libFilter == 'albums',
+                            onTap: () => setState(() => _libFilter = 'albums'),
+                            tokens: tokens,
+                          ),
+                          const SizedBox(width: 6),
+                          _LibFilterChip(
+                            label: 'Downloaded',
+                            selected: _libFilter == 'downloaded',
+                            onTap: () => setState(() => _libFilter = 'downloaded'),
+                            tokens: tokens,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
@@ -794,6 +806,53 @@ class _DesktopLeftSidebarState extends ConsumerState<_DesktopLeftSidebar> {
                     child: ListView(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                       children: [
+                        // Downloaded Songs pinned tile
+                        if (_libFilter == 'all' || _libFilter == 'downloaded')
+                          ListTile(
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                            ),
+                            leading: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: tokens.accent.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.download_done_rounded,
+                                color: tokens.accent,
+                                size: 20,
+                              ),
+                            ),
+                            title: Text(
+                              'Downloaded Songs',
+                              style: TextStyle(
+                                color: tokens.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              'Offline audio \u2022 Local storage',
+                              style: TextStyle(
+                                color: tokens.textMuted,
+                                fontSize: 11,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onTap: () {
+                              navigateInApp(
+                                context,
+                                const OfflineScreen(),
+                              );
+                            },
+                          ),
+
                         if (_libFilter == 'all' || _libFilter == 'playlists')
                           playlistsAsync.when(
                             data: (playlists) {
@@ -1305,11 +1364,18 @@ class _CreditRow extends StatelessWidget {
   }
 }
 
-class _DesktopQueueView extends ConsumerWidget {
+class _DesktopQueueView extends ConsumerStatefulWidget {
   const _DesktopQueueView();
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_DesktopQueueView> createState() => _DesktopQueueViewState();
+}
+
+class _DesktopQueueViewState extends ConsumerState<_DesktopQueueView> {
+  bool _showPrevious = false;
+
+  @override
+  Widget build(BuildContext context) {
     final playerState = ref.watch(playerProvider);
     final notifier = ref.read(playerProvider.notifier);
     final service = ref.watch(subsonicServiceProvider);
@@ -1317,63 +1383,459 @@ class _DesktopQueueView extends ConsumerWidget {
 
     if (playerState.queue.isEmpty) {
       return Center(
-        child: Text(
-          'Queue is empty',
-          style: TextStyle(color: tokens.textMuted),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.queue_music_rounded, color: tokens.textMuted, size: 48),
+            const SizedBox(height: 12),
+            Text(
+              'Queue is empty',
+              style: TextStyle(
+                color: tokens.textMuted,
+                fontSize: 14,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
+          ],
         ),
       );
     }
 
-    return ListView.builder(
-      padding: const EdgeInsets.symmetric(vertical: 8),
-      itemCount: playerState.queue.length,
-      itemBuilder: (context, index) {
-        final song = playerState.queue[index];
-        final isPlaying = index == playerState.currentIndex;
-        final coverUrl = service.getCoverArtUrl(song.coverArt);
+    final currentIndex = playerState.currentIndex.clamp(0, playerState.queue.length - 1);
+    final currentSong = playerState.queue[currentIndex];
+    final currentCoverUrl = service.getCoverArtUrl(currentSong.coverArt);
+    final currentPlaylistName = notifier.currentPlaylistName;
 
-        return ListTile(
-          dense: true,
-          tileColor: isPlaying
-              ? tokens.accent.withValues(alpha: 0.12)
-              : Colors.transparent,
-          leading: ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: CachedNetworkImage(
-              imageUrl: coverUrl,
-              width: 36,
-              height: 36,
-              fit: BoxFit.cover,
-            ),
-          ),
-          title: Text(
-            song.title,
-            style: TextStyle(
-              color: isPlaying ? tokens.accent : tokens.textPrimary,
-              fontWeight: isPlaying ? FontWeight.bold : FontWeight.normal,
-            ),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          subtitle: Text(
-            song.artist,
-            style: TextStyle(color: tokens.textSecondary, fontSize: 11),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-          ),
-          trailing: isPlaying
-              ? Icon(Icons.volume_up_rounded, color: tokens.accent, size: 18)
-              : IconButton(
-                  icon: Icon(
-                    Icons.close_rounded,
-                    color: tokens.textMuted,
-                    size: 16,
+    final upcomingSongs = playerState.queue.length > currentIndex + 1
+        ? playerState.queue.sublist(currentIndex + 1)
+        : <Song>[];
+    final previousSongs = currentIndex > 0
+        ? playerState.queue.sublist(0, currentIndex)
+        : <Song>[];
+
+    return CustomScrollView(
+      slivers: [
+        // Playlist context & Reshuffle quick header
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        currentPlaylistName != null
+                            ? 'PLAYLIST: ${currentPlaylistName.toUpperCase()}'
+                            : 'PLAYING QUEUE',
+                        style: TextStyle(
+                          color: tokens.accent,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      const SizedBox(height: 2),
+                      Text(
+                        '${playerState.queue.length} songs in queue',
+                        style: TextStyle(
+                          color: tokens.textSecondary,
+                          fontSize: 12,
+                        ),
+                      ),
+                    ],
                   ),
-                  onPressed: () => notifier.removeFromQueue(index),
                 ),
-          onTap: () => notifier.jumpTo(index),
-        );
-      },
+                // Quick Reshuffle Action Button
+                InkWell(
+                  onTap: () async {
+                    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(
+                        content: Text(
+                          currentPlaylistName != null
+                              ? 'Reshuffling "$currentPlaylistName"...'
+                              : 'Reshuffling queue...',
+                        ),
+                        duration: const Duration(seconds: 1),
+                        behavior: SnackBarBehavior.floating,
+                      ),
+                    );
+                    await notifier.applyShuffleAlgorithm();
+                  },
+                  borderRadius: BorderRadius.circular(20),
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                    decoration: BoxDecoration(
+                      color: tokens.accent.withValues(alpha: 0.15),
+                      borderRadius: BorderRadius.circular(20),
+                      border: Border.all(
+                        color: tokens.accent.withValues(alpha: 0.35),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.shuffle_rounded, color: tokens.accent, size: 14),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Reshuffle',
+                          style: TextStyle(
+                            color: tokens.accent,
+                            fontSize: 11,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // NOW PLAYING Header
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 6),
+            child: Row(
+              children: [
+                Icon(Icons.play_circle_filled_rounded, color: tokens.accent, size: 14),
+                const SizedBox(width: 6),
+                Text(
+                  'NOW PLAYING',
+                  style: TextStyle(
+                    color: tokens.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // NOW PLAYING Featured Card
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+            child: Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: tokens.accent.withValues(alpha: 0.12),
+                borderRadius: BorderRadius.circular(10),
+                border: Border.all(
+                  color: tokens.accent.withValues(alpha: 0.30),
+                  width: 1.2,
+                ),
+              ),
+              child: Row(
+                children: [
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(6),
+                    child: CachedNetworkImage(
+                      imageUrl: currentCoverUrl,
+                      width: 44,
+                      height: 44,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        width: 44,
+                        height: 44,
+                        color: tokens.bgElevated,
+                        child: Icon(Icons.music_note, color: tokens.textMuted, size: 20),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        width: 44,
+                        height: 44,
+                        color: tokens.bgElevated,
+                        child: Icon(Icons.music_note, color: tokens.textMuted, size: 20),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          currentSong.title,
+                          style: TextStyle(
+                            color: tokens.accent,
+                            fontWeight: FontWeight.bold,
+                            fontSize: 13,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                        const SizedBox(height: 3),
+                        Text(
+                          currentSong.artist,
+                          style: TextStyle(
+                            color: tokens.textSecondary,
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
+                    ),
+                  ),
+                  Icon(
+                    playerState.isPlaying
+                        ? Icons.volume_up_rounded
+                        : Icons.pause_circle_rounded,
+                    color: tokens.accent,
+                    size: 20,
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+
+        // UP NEXT Header
+        SliverToBoxAdapter(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 16, 16, 6),
+            child: Row(
+              children: [
+                Text(
+                  'NEXT UP',
+                  style: TextStyle(
+                    color: tokens.textSecondary,
+                    fontSize: 11,
+                    fontWeight: FontWeight.bold,
+                    letterSpacing: 1.0,
+                  ),
+                ),
+                const SizedBox(width: 6),
+                Text(
+                  '(${upcomingSongs.length})',
+                  style: TextStyle(
+                    color: tokens.textMuted,
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+
+        // UP NEXT List items
+        if (upcomingSongs.isEmpty)
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+              child: Center(
+                child: Text(
+                  playerState.autoplayMode
+                      ? 'End of queue \u2022 Autoplay will find similar songs'
+                      : 'End of queue',
+                  style: TextStyle(
+                    color: tokens.textMuted,
+                    fontSize: 12,
+                    fontStyle: FontStyle.italic,
+                  ),
+                ),
+              ),
+            ),
+          )
+        else
+          SliverList(
+            delegate: SliverChildBuilderDelegate(
+              (context, index) {
+                final song = upcomingSongs[index];
+                final actualQueueIndex = currentIndex + 1 + index;
+                final coverUrl = service.getCoverArtUrl(song.coverArt);
+
+                return ListTile(
+                  dense: true,
+                  contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                  leading: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      SizedBox(
+                        width: 18,
+                        child: Text(
+                          '${index + 1}',
+                          style: TextStyle(
+                            color: tokens.textMuted,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                          textAlign: TextAlign.center,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: CachedNetworkImage(
+                          imageUrl: coverUrl,
+                          width: 36,
+                          height: 36,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(
+                            width: 36,
+                            height: 36,
+                            color: tokens.bgElevated,
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            width: 36,
+                            height: 36,
+                            color: tokens.bgElevated,
+                            child: Icon(Icons.music_note, color: tokens.textMuted, size: 16),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                  title: Text(
+                    song.title,
+                    style: TextStyle(
+                      color: tokens.textPrimary,
+                      fontWeight: FontWeight.w500,
+                      fontSize: 13,
+                    ),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  subtitle: Text(
+                    song.artist,
+                    style: TextStyle(color: tokens.textSecondary, fontSize: 11),
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                  trailing: IconButton(
+                    icon: Icon(
+                      Icons.close_rounded,
+                      color: tokens.textMuted,
+                      size: 16,
+                    ),
+                    onPressed: () => notifier.removeFromQueue(actualQueueIndex),
+                    tooltip: 'Remove from queue',
+                  ),
+                  onTap: () => notifier.jumpTo(actualQueueIndex),
+                );
+              },
+              childCount: upcomingSongs.length,
+            ),
+          ),
+
+        // PREVIOUSLY PLAYED Collapsible Section
+        if (previousSongs.isNotEmpty) ...[
+          SliverToBoxAdapter(
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 4),
+              child: InkWell(
+                onTap: () => setState(() => _showPrevious = !_showPrevious),
+                borderRadius: BorderRadius.circular(6),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Row(
+                    children: [
+                      Icon(
+                        _showPrevious
+                            ? Icons.keyboard_arrow_down_rounded
+                            : Icons.keyboard_arrow_right_rounded,
+                        color: tokens.textMuted,
+                        size: 18,
+                      ),
+                      const SizedBox(width: 4),
+                      Text(
+                        'PREVIOUS TRACKS',
+                        style: TextStyle(
+                          color: tokens.textMuted,
+                          fontSize: 11,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 0.8,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        '(${previousSongs.length})',
+                        style: TextStyle(
+                          color: tokens.textMuted,
+                          fontSize: 11,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+          if (_showPrevious)
+            SliverList(
+              delegate: SliverChildBuilderDelegate(
+                (context, index) {
+                  final song = previousSongs[index];
+                  final coverUrl = service.getCoverArtUrl(song.coverArt);
+
+                  return Opacity(
+                    opacity: 0.65,
+                    child: ListTile(
+                      dense: true,
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 2),
+                      leading: ClipRRect(
+                        borderRadius: BorderRadius.circular(4),
+                        child: CachedNetworkImage(
+                          imageUrl: coverUrl,
+                          width: 32,
+                          height: 32,
+                          fit: BoxFit.cover,
+                          placeholder: (_, __) => Container(
+                            width: 32,
+                            height: 32,
+                            color: tokens.bgElevated,
+                          ),
+                          errorWidget: (_, __, ___) => Container(
+                            width: 32,
+                            height: 32,
+                            color: tokens.bgElevated,
+                            child: Icon(Icons.music_note, color: tokens.textMuted, size: 14),
+                          ),
+                        ),
+                      ),
+                      title: Text(
+                        song.title,
+                        style: TextStyle(
+                          color: tokens.textSecondary,
+                          fontSize: 12,
+                        ),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      subtitle: Text(
+                        song.artist,
+                        style: TextStyle(color: tokens.textMuted, fontSize: 10),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                      trailing: Icon(
+                        Icons.history_rounded,
+                        color: tokens.textMuted,
+                        size: 14,
+                      ),
+                      onTap: () => notifier.jumpTo(index),
+                    ),
+                  );
+                },
+                childCount: previousSongs.length,
+              ),
+            ),
+        ],
+
+        // Bottom spacing
+        const SliverToBoxAdapter(
+          child: SizedBox(height: 24),
+        ),
+      ],
     );
   }
 }

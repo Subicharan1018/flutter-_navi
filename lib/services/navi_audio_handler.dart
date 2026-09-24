@@ -36,31 +36,31 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// True on desktop (Linux, Windows, macOS) — ConcatenatingAudioSource is not
   /// supported by just_audio_media_kit 2.1.0 in its platform-channel message form.
-  static bool get _isLinux =>
+  static bool get _isDesktopBridge =>
       !kIsWeb &&
       (Platform.isLinux || Platform.isWindows || Platform.isMacOS) &&
       !Platform.environment.containsKey('FLUTTER_TEST');
 
   /// Public getter for player_provider to coordinate completion advancement
-  static bool get isDesktopBridge => _isLinux;
+  static bool get isDesktopBridge => _isDesktopBridge;
 
-  // ── Linux single-source bridge state ────────────────────────────────────────
-  int _linuxIndex = 0;
-  int _linuxTargetIndex = 0;
-  int _linuxLoadGeneration = 0;
-  StreamSubscription<PlayerState>? _linuxCompletionSub;
+  // ── Desktop single-source bridge state ───────────────────────────────────────
+  int _desktopIndex = 0;
+  int _desktopTargetIndex = 0;
+  int _desktopLoadGeneration = 0;
+  StreamSubscription<PlayerState>? _desktopCompletionSub;
 
   /// Holds all long-lived stream subscriptions so dispose() can cancel them.
   final List<StreamSubscription<dynamic>> _subscriptions = [];
 
-  // MEM-OPT: Cache the offline-path lookup so Linux doesn't re-stat the
+  // MEM-OPT: Cache the offline-path lookup so desktop doesn't re-stat the
   // filesystem on every track skip. Invalidated when the queue changes.
   Map<String, String?>? _offlinePathsCache;
   int _offlinePathsQueueLength = 0;
 
-  /// Mutex: true while setAudioSource() is in progress on Linux.
+  /// Mutex: true while setAudioSource() is in progress on desktop.
   /// Prevents the dual-completion-listener race (Bug 1 + Bug 3).
-  bool _linuxLoading = false;
+  bool _desktopLoading = false;
 
   /// Timer to detect stuck playback in loading or buffering state.
   Timer? _stuckTimer;
@@ -89,8 +89,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _listenToPlayerEvents();
 
     _subscriptions.add(this.player.currentIndexStream.listen((index) {
-      // On Linux we manage index ourselves — ignore just_audio's index stream
-      if (!_isLinux && index != null) {
+      // On desktop we manage index ourselves — ignore just_audio's index stream
+      if (!_isDesktopBridge && index != null) {
         final globalIndex = _playlistOffset + index;
         if (globalIndex < _currentQueue.length) {
           _trackRecentlyPlayed(_currentQueue[globalIndex].id);
@@ -159,8 +159,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }));
 
     // Sync current media item when sequence or index changes
-    // (non-Linux only — on Linux we push MediaItem manually via _emitLinuxMediaItem)
-    if (!_isLinux) {
+    // (non-desktop only — on desktop we push MediaItem manually via _emitDesktopMediaItem)
+    if (!_isDesktopBridge) {
       _subscriptions.add(player.sequenceStateStream.listen((sequenceState) {
         if (sequenceState.currentSource == null) return;
         final source = sequenceState.currentSource!;
@@ -232,17 +232,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> pause() => player.pause();
 
   @override
-  Future<void> seek(Duration position) => player.seek(position);
-
-  @override
   Future<void> skipToNext() {
-    if (_isLinux) return _linuxSkipToNext();
+    if (_isDesktopBridge) return _desktopSkipToNext();
     return player.seekToNext();
   }
 
   @override
   Future<void> skipToPrevious() {
-    if (_isLinux) return _linuxSkipToPrevious();
+    if (_isDesktopBridge) return _desktopSkipToPrevious();
     return player.seekToPrevious();
   }
 
@@ -275,6 +272,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _broadcastState();
   }
 
+  @override
   @visibleForTesting
   set currentQueue(List<Song> songs) => _currentQueue = songs;
 
@@ -293,12 +291,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
     final localPath = musicCacheEnabled ? OfflineService().getLocalPath(song.id) : null;
     final streamUri = localPath != null
-        ? Uri.parse('file://$localPath')
+        ? Uri.file(localPath)
         : Uri.parse(subsonicService.getStreamUrl(
             song.id,
             maxBitRate: _transcodingService.getCurrentBitrate(),
             format: _transcodingService.getCurrentFormat(),
           ));
+
+    final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
+    final artUri = localCoverPath != null
+        ? Uri.file(localCoverPath)
+        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt));
 
     final tag = MediaItem(
       id: song.id,
@@ -306,12 +309,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       artist: song.artist,
       album: song.album,
       genre: song.genre,
-      artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+      artUri: artUri,
       duration: Duration(seconds: song.duration),
       extras: {'composer': song.composer, 'isLocal': localPath != null},
     );
 
-    if (localPath != null || !musicCacheEnabled) {
+    if (localPath != null || !musicCacheEnabled || _isDesktopBridge) {
       return AudioSource.uri(streamUri, tag: tag);
     }
 
@@ -322,12 +325,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
     final localPath = musicCacheEnabled ? offlinePaths[song.id] : null;
     final streamUri = localPath != null
-        ? Uri.parse('file://$localPath')
+        ? Uri.file(localPath)
         : Uri.parse(subsonicService.getStreamUrl(
             song.id,
             maxBitRate: _transcodingService.getCurrentBitrate(),
             format: _transcodingService.getCurrentFormat(),
           ));
+
+    final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
+    final artUri = localCoverPath != null
+        ? Uri.file(localCoverPath)
+        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt));
 
     final tag = MediaItem(
       id: song.id,
@@ -335,12 +343,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       artist: song.artist,
       album: song.album,
       genre: song.genre,
-      artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+      artUri: artUri,
       duration: Duration(seconds: song.duration),
       extras: {'composer': song.composer, 'isLocal': localPath != null},
     );
 
-    if (localPath != null || !musicCacheEnabled) {
+    if (localPath != null || !musicCacheEnabled || _isDesktopBridge) {
       return AudioSource.uri(streamUri, tag: tag);
     }
 
@@ -401,9 +409,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _offlinePathsCache = null;
     _offlinePathsQueueLength = 0;
 
-    if (_isLinux) {
-      _linuxIndex = newCurrentIndex;
-      _linuxTargetIndex = newCurrentIndex;
+    if (_isDesktopBridge) {
+      _desktopIndex = newCurrentIndex;
+      _desktopTargetIndex = newCurrentIndex;
       return;
     }
 
@@ -459,11 +467,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _currentQueue.clear();
     _playlist = ConcatenatingAudioSource(children: []);
     _playlistOffset = 0;
-    if (_isLinux) {
-      _linuxCompletionSub?.cancel();
-      _linuxCompletionSub = null;
-      _linuxIndex = 0;
-      _linuxTargetIndex = 0;
+    if (_isDesktopBridge) {
+      _desktopCompletionSub?.cancel();
+      _desktopCompletionSub = null;
+      _desktopIndex = 0;
+      _desktopTargetIndex = 0;
     }
   }
 
@@ -475,22 +483,24 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final savedLoopMode = player.loopMode;
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
 
-    if (_isLinux) {
-      // ── Linux: ConcatenatingAudioSource is not supported by
+    if (_isDesktopBridge) {
+      // ── Desktop: ConcatenatingAudioSource is not supported by
       // just_audio_media_kit 2.1.0. Play one track at a time and advance
       // manually on completion.
       final start = startIndex.clamp(0, _currentQueue.length - 1);
-      _linuxTargetIndex = start;
-      await _linuxLoadTrack(
+      _desktopTargetIndex = start;
+      _desktopIndex = start;
+      _emitDesktopMediaItem(start);
+      await _desktopLoadTrack(
         start,
         offlinePaths,
         initialPosition: initialPosition,
       );
-      _startLinuxCompletionListener();
+      _startDesktopCompletionListener();
       return;
     }
 
-    // ── Non-Linux: original ConcatenatingAudioSource path ────────────────────
+    // ── Non-Desktop: original ConcatenatingAudioSource path ──────────────────
     // MEM-OPT: Cap at 100 sources. With a full album or shuffle queue of 500+
     // songs, ConcatenatingAudioSource pre-buffers adjacent tracks and holds a
     // MediaItem (~1 KB) per child. 100 songs = ~100 KB of tags + buffer memory.
@@ -528,17 +538,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   // ---------------------------------------------------------------------------
-  // Linux single-source bridge
+  // Desktop single-source bridge
   // ---------------------------------------------------------------------------
 
-  Future<void> _linuxLoadTrack(
+  Future<void> _desktopLoadTrack(
     int index,
     Map<String, String?> offlinePaths, {
     Duration? initialPosition,
   }) async {
     if (index < 0 || index >= _currentQueue.length) return;
-    final generation = ++_linuxLoadGeneration;
-    _linuxLoading = true;
+    final generation = ++_desktopLoadGeneration;
+    _desktopLoading = true;
     try {
       final source = _toSourceWithPaths(_currentQueue[index], offlinePaths);
       await player
@@ -546,40 +556,60 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           .timeout(
             const Duration(seconds: 15),
             onTimeout: () =>
-                throw TimeoutException('[Linux] _linuxLoadTrack timed out'),
+                throw TimeoutException('[Desktop] _desktopLoadTrack timed out'),
           );
-      if (generation != _linuxLoadGeneration) {
-        debugPrint('⚡ [Linux] Load for track $index superseded by generation $_linuxLoadGeneration');
+      if (generation != _desktopLoadGeneration) {
+        debugPrint('⚡ [Desktop] Load for track $index superseded by generation $_desktopLoadGeneration');
         return;
       }
-      _linuxIndex = index;
-      _emitLinuxMediaItem(index);
+      _desktopIndex = index;
+      _emitDesktopMediaItem(index);
       _trackRecentlyPlayed(_currentQueue[index].id);
       debugPrint(
-        '🎵 [Linux] Loaded track $index: ${_currentQueue[index].title}',
+        '🎵 [Desktop] Loaded track $index: ${_currentQueue[index].title}',
       );
     } on PlayerInterruptedException {
       // Expected when a newer load supersedes this one (e.g. rapid Next press).
       // Safe to swallow — the newer load will complete instead.
-      debugPrint('⚡ [Linux] Load interrupted (superseded by newer request)');
+      debugPrint('⚡ [Desktop] Load interrupted (superseded by newer request)');
     } on PlayerException catch (e) {
       debugPrint(
-        '❌ [Linux] PlayerException loading track $index: ${e.message}',
+        '❌ [Desktop] PlayerException loading track $index: ${e.message}',
       );
-      rethrow;
+      if (generation == _desktopLoadGeneration) {
+        _handleDesktopLoadError(index, e);
+      }
     } on TimeoutException catch (e) {
-      debugPrint('❌ [Linux] Timeout loading track $index: $e');
-      rethrow;
+      debugPrint('❌ [Desktop] Timeout loading track $index: $e');
+      if (generation == _desktopLoadGeneration) {
+        _handleDesktopLoadError(index, e);
+      }
     } finally {
-      if (generation == _linuxLoadGeneration) {
-        _linuxLoading = false;
+      if (generation == _desktopLoadGeneration) {
+        _desktopLoading = false;
       }
     }
   }
 
-  void _emitLinuxMediaItem(int index) {
+  void _handleDesktopLoadError(int failedIndex, Object error) {
+    if (_currentQueue.isEmpty) return;
+    debugPrint('⚠️ [Desktop] Handling load error for track $failedIndex. Attempting safe advance...');
+    if (failedIndex + 1 < _currentQueue.length) {
+      unawaited(_desktopSkipToNext());
+    } else if (failedIndex > 0) {
+      _desktopIndex = failedIndex - 1;
+      _desktopTargetIndex = _desktopIndex;
+      _emitDesktopMediaItem(_desktopIndex);
+    }
+  }
+
+  void _emitDesktopMediaItem(int index) {
     if (index < 0 || index >= _currentQueue.length) return;
     final song = _currentQueue[index];
+    final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
+    final artUri = localCoverPath != null
+        ? Uri.file(localCoverPath)
+        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt));
     mediaItem.add(
       MediaItem(
         id: song.id,
@@ -587,24 +617,24 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         artist: song.artist,
         album: song.album,
         genre: song.genre,
-        artUri: Uri.parse(subsonicService.getCoverArtUrl(song.coverArt)),
+        artUri: artUri,
         duration: Duration(seconds: song.duration),
-        extras: {'composer': song.composer, 'isLocal': false},
+        extras: {'composer': song.composer, 'isLocal': localCoverPath != null},
       ),
     );
   }
 
-  void _startLinuxCompletionListener() {
-    _linuxCompletionSub?.cancel();
-    _linuxCompletionSub = player.playerStateStream.listen((state) async {
+  void _startDesktopCompletionListener() {
+    _desktopCompletionSub?.cancel();
+    _desktopCompletionSub = player.playerStateStream.listen((state) async {
       if (state.processingState != ProcessingState.completed) return;
       // Guard: if PlayerNotifier or a manual skip already kicked off a load,
       // don't double-advance.
-      if (_linuxLoading) {
-        debugPrint('⚡ [Linux] Completion skipped (load already in progress)');
+      if (_desktopLoading) {
+        debugPrint('⚡ [Desktop] Completion skipped (load already in progress)');
         return;
       }
-      debugPrint('🏁 [Linux] Track completed, advancing...');
+      debugPrint('🏁 [Desktop] Track completed, advancing...');
 
       // Repeat one — restart current track
       if (player.loopMode == LoopMode.one) {
@@ -613,7 +643,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
 
-      int next = _linuxTargetIndex + 1;
+      int next = _desktopTargetIndex + 1;
       if (next >= _currentQueue.length) {
         if (player.loopMode == LoopMode.all) {
           next = 0; // wrap around
@@ -622,33 +652,36 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         }
       }
 
-      _linuxTargetIndex = next;
+      _desktopTargetIndex = next;
+      _desktopIndex = next;
+      _emitDesktopMediaItem(next);
+
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
       try {
-        await _linuxLoadTrack(next, offlinePaths);
+        await _desktopLoadTrack(next, offlinePaths);
         if (!player.playing) await player.play();
       } catch (e) {
         // Network glitch or timeout loading the next track — retry once after
         // a short delay instead of silently freezing the player.
-        debugPrint('❌ [Linux] Failed to load next track ($e). Retrying in 2s…');
+        debugPrint('❌ [Desktop] Failed to load next track ($e). Retrying in 2s…');
         await Future.delayed(const Duration(seconds: 2));
         // Re-check queue is still valid after the delay.
         if (next < _currentQueue.length) {
           try {
             final retryPaths = await _precomputeOfflinePaths(_currentQueue);
-            await _linuxLoadTrack(next, retryPaths);
+            await _desktopLoadTrack(next, retryPaths);
             if (!player.playing) await player.play();
           } catch (e2) {
-            debugPrint('❌ [Linux] Retry also failed ($e2). Skipping to next…');
+            debugPrint('❌ [Desktop] Retry also failed ($e2). Skipping to next…');
             // Try the track after that to avoid permanent freeze.
             final fallback = next + 1;
             if (fallback < _currentQueue.length) {
               final fallbackPaths = await _precomputeOfflinePaths(_currentQueue);
               try {
-                await _linuxLoadTrack(fallback, fallbackPaths);
+                await _desktopLoadTrack(fallback, fallbackPaths);
                 if (!player.playing) await player.play();
               } catch (_) {
-                debugPrint('❌ [Linux] Fallback also failed. Player stopped.');
+                debugPrint('❌ [Desktop] Fallback also failed. Player stopped.');
               }
             }
           }
@@ -657,10 +690,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     });
   }
 
-  Future<void> _linuxSkipToNext() async {
+  Future<void> _desktopSkipToNext() async {
     final wasPlaying = player.playing;
     if (_currentQueue.isEmpty) return;
-    int next = _linuxTargetIndex + 1;
+    int next = _desktopTargetIndex + 1;
     if (next >= _currentQueue.length) {
       if (player.loopMode == LoopMode.all) {
         next = 0;
@@ -668,13 +701,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
     }
-    _linuxTargetIndex = next;
+    _desktopTargetIndex = next;
+    _desktopIndex = next;
+    _emitDesktopMediaItem(next);
+
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-    await _linuxLoadTrack(next, offlinePaths);
+    await _desktopLoadTrack(next, offlinePaths);
     if (wasPlaying && !player.playing) await player.play();
   }
 
-  Future<void> _linuxSkipToPrevious() async {
+  Future<void> _desktopSkipToPrevious() async {
     final wasPlaying = player.playing;
     if (_currentQueue.isEmpty) return;
     // If more than 3 seconds in, restart current track
@@ -682,7 +718,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await player.seek(Duration.zero);
       return;
     }
-    int prev = _linuxTargetIndex - 1;
+    int prev = _desktopTargetIndex - 1;
     if (prev < 0) {
       if (player.loopMode == LoopMode.all) {
         prev = _currentQueue.length - 1;
@@ -691,39 +727,46 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
     }
-    _linuxTargetIndex = prev;
+    _desktopTargetIndex = prev;
+    _desktopIndex = prev;
+    _emitDesktopMediaItem(prev);
+
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-    await _linuxLoadTrack(prev, offlinePaths);
+    await _desktopLoadTrack(prev, offlinePaths);
     if (wasPlaying && !player.playing) await player.play();
   }
 
-  /// Current index — Linux uses _linuxIndex, other platforms use player.currentIndex
-  int get currentIndex => _isLinux ? _linuxIndex : (_playlistOffset + (player.currentIndex ?? 0));
+  /// Current index — Desktop uses _desktopIndex, other platforms use player.currentIndex
+  int get currentIndex => _isDesktopBridge ? _desktopIndex : (_playlistOffset + (player.currentIndex ?? 0));
 
   /// Platform-adaptive index jump.
-  /// On Linux: loads the track at [index] via the single-source bridge.
+  /// On Desktop: loads the track at [index] via the single-source bridge.
   /// On other platforms: uses just_audio's seek(Duration.zero, index: index).
   Future<void> jumpToIndex(int index) async {
     if (index < 0 || index >= _currentQueue.length) return;
-    if (_isLinux) {
-      _linuxTargetIndex = index;
+    if (_isDesktopBridge) {
+      _desktopTargetIndex = index;
+      _desktopIndex = index;
+      _emitDesktopMediaItem(index);
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-      await _linuxLoadTrack(index, offlinePaths);
+      await _desktopLoadTrack(index, offlinePaths);
     } else {
       await player.seek(Duration.zero, index: index);
     }
   }
 
   /// Override BaseAudioHandler.skipToQueueItem so callers (and platform media
-  /// controls) land on the correct track on Linux single-source mode.
+  /// controls) land on the correct track on Desktop single-source mode.
   @override
   Future<void> skipToQueueItem(int index) async {
     final wasPlaying = player.playing;
     if (index < 0 || index >= _currentQueue.length) return;
-    if (_isLinux) {
-      _linuxTargetIndex = index;
+    if (_isDesktopBridge) {
+      _desktopTargetIndex = index;
+      _desktopIndex = index;
+      _emitDesktopMediaItem(index);
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-      await _linuxLoadTrack(index, offlinePaths);
+      await _desktopLoadTrack(index, offlinePaths);
       if (wasPlaying && !player.playing) await player.play();
     } else {
       await player.seek(Duration.zero, index: index);
@@ -734,22 +777,21 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     int anchorIndex, {
     bool preferMoveBasedReorder = false,
   }) async {
-    if (_playlist == null) {
-      final savedPosition = player.position;
-      await _rebuildSource(anchorIndex, initialPosition: savedPosition);
-      if (player.playing) player.play();
+    if (_isDesktopBridge) {
+      _desktopIndex = anchorIndex;
+      _desktopTargetIndex = anchorIndex;
+      _emitDesktopMediaItem(anchorIndex);
       return;
     }
 
-    // FIX-SHUFFLE-GAP: Always prefer move-based reorder when the playlist is
-    // already loaded (i.e. _playlist != null). On Linux we don't use _playlist
-    // so we always fall back to _rebuildSource.
-    if (_isLinux) {
+    if (_playlist == null) {
       final savedPosition = player.position;
+      final wasPlaying = player.playing;
       await _rebuildSource(anchorIndex, initialPosition: savedPosition);
-      if (player.playing) player.play();
+      if (wasPlaying) await player.play();
       return;
     }
+
     await _moveBasedReorder(anchorIndex);
   }
 
@@ -804,10 +846,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // Incremental queue mutations
   // ---------------------------------------------------------------------------
 
-  // ---------------------------------------------------------------------------
-  // Incremental queue mutations
-  // ---------------------------------------------------------------------------
-
   Future<void> insertNext(Song song) async {
     await insertAllNext([song]);
   }
@@ -821,12 +859,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final unTarget = targetIndex.clamp(0, _unshuffledQueue.length);
     _unshuffledQueue.insertAll(unTarget, songs);
 
-    if (_isLinux) {
+    if (_isDesktopBridge) {
       if (wasEmpty) {
         await _rebuildSource(0);
-      } else if (targetIndex <= _linuxIndex) {
-        _linuxIndex += songs.length;
-        _linuxTargetIndex += songs.length;
+      } else if (targetIndex <= _desktopIndex) {
+        _desktopIndex += songs.length;
+        _desktopTargetIndex += songs.length;
       }
       return;
     }
@@ -869,18 +907,21 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (index < 0 || index >= _currentQueue.length) return;
 
     bool needsRebuild = true;
-    if (_isLinux) {
-      if (index < _linuxIndex) {
-        _linuxIndex--;
+    if (_isDesktopBridge) {
+      if (index < _desktopIndex) {
+        _desktopIndex--;
         needsRebuild = false; // Currently playing track is unaffected
-      } else if (index > _linuxIndex) {
+      } else if (index > _desktopIndex) {
         needsRebuild = false; // Currently playing track is unaffected
       }
 
-      if (index < _linuxTargetIndex) {
-        _linuxTargetIndex--;
+      if (index < _desktopTargetIndex) {
+        _desktopTargetIndex--;
       }
-      _linuxTargetIndex = _linuxTargetIndex.clamp(0, _currentQueue.length - 2 >= 0 ? _currentQueue.length - 2 : 0);
+      _desktopTargetIndex = _desktopTargetIndex.clamp(
+        0,
+        _currentQueue.length - 2 >= 0 ? _currentQueue.length - 2 : 0,
+      );
     }
 
     final song = _currentQueue.removeAt(index);
@@ -913,18 +954,18 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _unshuffledQueue.removeWhere((s) => s.id == song.id);
     }
 
-    if (_isLinux) {
+    if (_isDesktopBridge) {
       final prunedCount = end - start;
-      if (_linuxIndex >= start && _linuxIndex < end) {
-        _linuxIndex = start.clamp(0, _currentQueue.length - 1);
-      } else if (_linuxIndex >= end) {
-        _linuxIndex -= prunedCount;
+      if (_desktopIndex >= start && _desktopIndex < end) {
+        _desktopIndex = start.clamp(0, _currentQueue.length - 1);
+      } else if (_desktopIndex >= end) {
+        _desktopIndex -= prunedCount;
       }
 
-      if (_linuxTargetIndex >= start && _linuxTargetIndex < end) {
-        _linuxTargetIndex = start.clamp(0, _currentQueue.length - 1);
-      } else if (_linuxTargetIndex >= end) {
-        _linuxTargetIndex -= prunedCount;
+      if (_desktopTargetIndex >= start && _desktopTargetIndex < end) {
+        _desktopTargetIndex = start.clamp(0, _currentQueue.length - 1);
+      } else if (_desktopTargetIndex >= end) {
+        _desktopTargetIndex -= prunedCount;
       }
     }
 
@@ -947,37 +988,32 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (oldIndex < 0 || oldIndex >= _currentQueue.length) return;
     if (newIndex < 0 || newIndex >= _currentQueue.length) return;
 
-    if (_isLinux) {
-      if (oldIndex == _linuxIndex) {
-        _linuxIndex = newIndex;
-      } else if (oldIndex < _linuxIndex && newIndex >= _linuxIndex) {
-        _linuxIndex--;
-      } else if (oldIndex > _linuxIndex && newIndex <= _linuxIndex) {
-        _linuxIndex++;
+    if (_isDesktopBridge) {
+      if (oldIndex == _desktopIndex) {
+        _desktopIndex = newIndex;
+      } else if (oldIndex < _desktopIndex && newIndex >= _desktopIndex) {
+        _desktopIndex--;
+      } else if (oldIndex > _desktopIndex && newIndex <= _desktopIndex) {
+        _desktopIndex++;
       }
 
-      if (oldIndex == _linuxTargetIndex) {
-        _linuxTargetIndex = newIndex;
-      } else if (oldIndex < _linuxTargetIndex && newIndex >= _linuxTargetIndex) {
-        _linuxTargetIndex--;
-      } else if (oldIndex > _linuxTargetIndex && newIndex <= _linuxTargetIndex) {
-        _linuxTargetIndex++;
+      if (oldIndex == _desktopTargetIndex) {
+        _desktopTargetIndex = newIndex;
+      } else if (oldIndex < _desktopTargetIndex && newIndex >= _desktopTargetIndex) {
+        _desktopTargetIndex--;
+      } else if (oldIndex > _desktopTargetIndex && newIndex <= _desktopTargetIndex) {
+        _desktopTargetIndex++;
       }
     }
 
     final song = _currentQueue.removeAt(oldIndex);
     _currentQueue.insert(newIndex, song);
 
-    if (!isShuffleMode) {
-      final unSong = _unshuffledQueue.removeAt(oldIndex);
-      _unshuffledQueue.insert(newIndex, unSong);
-    } else {
-      final unIdx = _unshuffledQueue.indexWhere((s) => s.id == song.id);
-      if (unIdx != -1) {
-        final unSong = _unshuffledQueue.removeAt(unIdx);
-        final targetUnIdx = newIndex.clamp(0, _unshuffledQueue.length);
-        _unshuffledQueue.insert(targetUnIdx, unSong);
-      }
+    final unIdx = _unshuffledQueue.indexWhere((s) => s.id == song.id);
+    if (unIdx != -1) {
+      final unSong = _unshuffledQueue.removeAt(unIdx);
+      final targetUnIdx = newIndex.clamp(0, _unshuffledQueue.length);
+      _unshuffledQueue.insert(targetUnIdx, unSong);
     }
 
     if (_playlist != null) {
@@ -1001,12 +1037,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_currentQueue.isEmpty) return;
     final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
-    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final future = _currentQueue.sublist(safeIndex + 1);
-    if (future.isEmpty) return;
-    final shuffled = await compute(standardShuffleIsolate, future);
-    _currentQueue = [...pastAndPresent, ...shuffled];
-    await _updateQueueAfterAnchor(safeIndex);
+    final currentSong = _currentQueue[safeIndex];
+    final fullPool = _unshuffledQueue.isNotEmpty ? _unshuffledQueue : _currentQueue;
+    final pool = fullPool.where((s) => s.id != currentSong.id).toList();
+    if (pool.isEmpty) return;
+    final shuffled = await compute(standardShuffleIsolate, pool);
+    _currentQueue = [currentSong, ...shuffled];
+    await _updateQueueAfterAnchor(0);
   }
 
   // ---------------------------------------------------------------------------
@@ -1017,16 +1054,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint('🚀 [SHUFFLE] Dithered Position ($preference)');
     final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
-    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final future = _currentQueue.sublist(safeIndex + 1);
-    if (future.isEmpty) return;
+    final currentSong = _currentQueue[safeIndex];
+    final fullPool = _unshuffledQueue.isNotEmpty ? _unshuffledQueue : _currentQueue;
+    final pool = fullPool.where((s) => s.id != currentSong.id).toList();
+    if (pool.isEmpty) return;
     final result = await compute(
       ditheredPositionShuffleIsolate,
-      <String, dynamic>{'songs': future, 'pref': preference.index},
+      <String, dynamic>{'songs': pool, 'pref': preference.index},
     );
     debugPrint('✅ [SHUFFLE] Dithered result: ${result.length} songs');
-    _currentQueue = [...pastAndPresent, ...result];
-    await _updateQueueAfterAnchor(safeIndex);
+    _currentQueue = [currentSong, ...result];
+    await _updateQueueAfterAnchor(0);
   }
 
   Future<void> spotifyDitherShuffle(ShufflePreference preference) =>
@@ -1040,16 +1078,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint('🚀 [SHUFFLE] Merge-Shuffle ($preference)');
     final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
-    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final future = _currentQueue.sublist(safeIndex + 1);
-    if (future.isEmpty) return;
+    final currentSong = _currentQueue[safeIndex];
+    final fullPool = _unshuffledQueue.isNotEmpty ? _unshuffledQueue : _currentQueue;
+    final pool = fullPool.where((s) => s.id != currentSong.id).toList();
+    if (pool.isEmpty) return;
     final result = await compute(mergeShuffleIsolate, <String, dynamic>{
-      'songs': future,
+      'songs': pool,
       'pref': preference.index,
     });
     debugPrint('✅ [SHUFFLE] Merge result: ${result.length} songs');
-    _currentQueue = [...pastAndPresent, ...result];
-    await _updateQueueAfterAnchor(safeIndex);
+    _currentQueue = [currentSong, ...result];
+    await _updateQueueAfterAnchor(0);
   }
 
   // ---------------------------------------------------------------------------
@@ -1060,12 +1099,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint('🚀 [SHUFFLE] Weighted Shuffle (O(n log n))');
     final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
-    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final future = _currentQueue.sublist(safeIndex + 1);
-    if (future.isEmpty) return;
-    final shuffled = await compute(weightedShuffleIsolate, future);
-    _currentQueue = [...pastAndPresent, ...shuffled];
-    await _updateQueueAfterAnchor(safeIndex);
+    final currentSong = _currentQueue[safeIndex];
+    final fullPool = _unshuffledQueue.isNotEmpty ? _unshuffledQueue : _currentQueue;
+    final pool = fullPool.where((s) => s.id != currentSong.id).toList();
+    if (pool.isEmpty) return;
+    final shuffled = await compute(weightedShuffleIsolate, pool);
+    _currentQueue = [currentSong, ...shuffled];
+    await _updateQueueAfterAnchor(0);
   }
 
   // ---------------------------------------------------------------------------
@@ -1080,16 +1120,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
     final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
-    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final future = _currentQueue.sublist(safeIndex + 1);
-    if (future.isEmpty) return;
+    final currentSong = _currentQueue[safeIndex];
+    final fullPool = _unshuffledQueue.isNotEmpty ? _unshuffledQueue : _currentQueue;
+    final pool = fullPool.where((s) => s.id != currentSong.id).toList();
+    if (pool.isEmpty) return;
     final result = await compute(albumAwareShuffleIsolate, <String, dynamic>{
-      'songs': future,
+      'songs': pool,
       'shuffleTracks': shuffleTracksWithinAlbum,
     });
     debugPrint('✅ [SHUFFLE] Album-Aware result: ${result.length} songs');
-    _currentQueue = [...pastAndPresent, ...result];
-    await _updateQueueAfterAnchor(safeIndex);
+    _currentQueue = [currentSong, ...result];
+    await _updateQueueAfterAnchor(0);
   }
 
   // ---------------------------------------------------------------------------
@@ -1103,18 +1144,19 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
     final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
-    final pastAndPresent = _currentQueue.sublist(0, safeIndex + 1);
-    final future = _currentQueue.sublist(safeIndex + 1);
-    if (future.isEmpty) return;
+    final currentSong = _currentQueue[safeIndex];
+    final fullPool = _unshuffledQueue.isNotEmpty ? _unshuffledQueue : _currentQueue;
+    final pool = fullPool.where((s) => s.id != currentSong.id).toList();
+    if (pool.isEmpty) return;
     final result = await compute(
       recencyDampenedShuffleIsolate,
       <String, dynamic>{
-        'songs': future,
+        'songs': pool,
         'recentIds': _recentlyPlayedIds.toList(),
       },
     );
-    _currentQueue = [...pastAndPresent, ...result];
-    await _updateQueueAfterAnchor(safeIndex);
+    _currentQueue = [currentSong, ...result];
+    await _updateQueueAfterAnchor(0);
   }
 
   // ---------------------------------------------------------------------------
@@ -1266,9 +1308,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await Future.delayed(const Duration(seconds: 1));
 
       // 2. Re-resolve paths and reload source
-      if (_isLinux) {
+      if (_isDesktopBridge) {
         final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-        await _linuxLoadTrack(index, offlinePaths, initialPosition: pos);
+        await _desktopLoadTrack(index, offlinePaths, initialPosition: pos);
       } else {
         await _rebuildSource(index, initialPosition: pos);
       }
@@ -1312,8 +1354,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await s.cancel();
     }
     _subscriptions.clear();
-    await _linuxCompletionSub?.cancel();
-    _linuxCompletionSub = null;
+    await _desktopCompletionSub?.cancel();
+    _desktopCompletionSub = null;
     await player.stop();
     await player.dispose();
   }

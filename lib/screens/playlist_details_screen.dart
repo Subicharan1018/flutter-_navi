@@ -217,9 +217,12 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             playlistName: widget.playlist.name,
           );
     } else {
-      ref
-          .read(playerProvider.notifier)
-          .setQueue(playable, initialIndex.clamp(0, playable.length - 1));
+      ref.read(playerProvider.notifier).setQueue(
+            playable,
+            initialIndex.clamp(0, playable.length - 1),
+            playlistName: widget.playlist.name,
+            unshuffledSongs: _songs,
+          );
     }
   }
 
@@ -1058,9 +1061,12 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                     final song = _filteredSongs[index];
                     Widget tileContent = SongTile(
                       song: song,
-                      onTap: () => ref
-                          .read(playerProvider.notifier)
-                          .setQueue(_filteredSongs, index),
+                      onTap: () => ref.read(playerProvider.notifier).setQueue(
+                            _filteredSongs,
+                            index,
+                            playlistName: widget.playlist.name,
+                            unshuffledSongs: _songs,
+                          ),
                       onLongPress: () => showPlatformSheet(
                         context: context,
                         builder: (_) => OptionsMenu(

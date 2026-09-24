@@ -134,7 +134,8 @@ void main() {
         .setMockMethodCallHandler(
       const MethodChannel('plugins.flutter.io/path_provider'),
       (call) async {
-        if (call.method == 'getApplicationDocumentsDirectory') {
+        if (call.method == 'getApplicationDocumentsDirectory' ||
+            call.method == 'getTemporaryDirectory') {
           return dir.path;
         }
         return null;
