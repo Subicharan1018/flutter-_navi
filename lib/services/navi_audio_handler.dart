@@ -751,7 +751,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
       await _desktopLoadTrack(index, offlinePaths);
     } else {
-      await player.seek(Duration.zero, index: index);
+      final localIndex = index - _playlistOffset;
+      if (localIndex >= 0 && _playlist != null && localIndex < _playlist!.children.length) {
+        await player.seek(Duration.zero, index: localIndex);
+      } else {
+        final wasPlaying = player.playing;
+        await _rebuildSource(index);
+        if (wasPlaying) await player.play();
+      }
     }
   }
 
@@ -769,7 +776,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       await _desktopLoadTrack(index, offlinePaths);
       if (wasPlaying && !player.playing) await player.play();
     } else {
-      await player.seek(Duration.zero, index: index);
+      final localIndex = index - _playlistOffset;
+      if (localIndex >= 0 && _playlist != null && localIndex < _playlist!.children.length) {
+        await player.seek(Duration.zero, index: localIndex);
+      } else {
+        await _rebuildSource(index);
+        if (wasPlaying) await player.play();
+      }
     }
   }
 
@@ -819,8 +832,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     final List<String> liveIds = List.generate(n, (i) {
       final src = _playlist!.children[i];
-      if (src is UriAudioSource && src.tag is MediaItem) {
-        return (src.tag as MediaItem).id;
+      if (src.sequence.isNotEmpty && src.sequence.first.tag is MediaItem) {
+        return (src.sequence.first.tag as MediaItem).id;
       }
       return '';
     });
