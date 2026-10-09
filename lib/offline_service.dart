@@ -553,7 +553,7 @@ class OfflineService {
     // Check if the song has been downloaded locally first.
     final localPath = getLocalPath(song.id);
     if (localPath != null) {
-      return 'file://$localPath';
+      return Uri.file(localPath).toString();
     }
     return subsonicService.getStreamUrl(song.id);
   }

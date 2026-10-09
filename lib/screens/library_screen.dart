@@ -18,7 +18,6 @@ import 'playlist_details_screen.dart';
 import 'album_details_screen.dart';
 import 'edit_playlist_screen.dart';
 import 'search_screen.dart';
-import 'offline_screen.dart';
 import '../services/subsonic_service.dart';
 import '../widgets/app_scaffold.dart';
 
@@ -181,16 +180,11 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                               LibraryFilter.albums,
                     ),
                     _FilterChip(
-                      label: 'Offline',
-                      isSelected: false,
-                      onTap: () {
-                        Navigator.push(
-                          context,
-                          MaterialPageRoute(
-                            builder: (_) => const OfflineScreen(),
-                          ),
-                        );
-                      },
+                      label: 'Downloaded',
+                      isSelected: filter == LibraryFilter.downloaded,
+                      onTap: () =>
+                          ref.read(libraryFilterProvider.notifier).state =
+                              LibraryFilter.downloaded,
                     ),
                   ],
                 ),

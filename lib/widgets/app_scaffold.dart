@@ -11,6 +11,7 @@ import '../screens/dashboard_screen.dart';
 import '../screens/playlist_details_screen.dart';
 import '../screens/album_details_screen.dart';
 import '../screens/settings_screen.dart';
+import '../screens/offline_screen.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../services/replay_upload_service.dart';
 import '../services/listening_log_service.dart';
@@ -541,7 +542,7 @@ class _DesktopLeftSidebar extends ConsumerStatefulWidget {
 }
 
 class _DesktopLeftSidebarState extends ConsumerState<_DesktopLeftSidebar> {
-  String _libFilter = 'all'; // 'all', 'playlists', 'albums'
+  String _libFilter = 'all'; // 'all', 'playlists', 'albums', 'downloaded'
   String _searchQuery = '';
 
   @override
@@ -694,32 +695,42 @@ class _DesktopLeftSidebarState extends ConsumerState<_DesktopLeftSidebar> {
                     ),
                   ),
 
-                  // Filter Chips (Playlists, Albums)
+                  // Filter Chips (Playlists, Albums, Downloaded)
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-                    child: Row(
-                      children: [
-                        _LibFilterChip(
-                          label: 'All',
-                          selected: _libFilter == 'all',
-                          onTap: () => setState(() => _libFilter = 'all'),
-                          tokens: tokens,
-                        ),
-                        const SizedBox(width: 6),
-                        _LibFilterChip(
-                          label: 'Playlists',
-                          selected: _libFilter == 'playlists',
-                          onTap: () => setState(() => _libFilter = 'playlists'),
-                          tokens: tokens,
-                        ),
-                        const SizedBox(width: 6),
-                        _LibFilterChip(
-                          label: 'Albums',
-                          selected: _libFilter == 'albums',
-                          onTap: () => setState(() => _libFilter = 'albums'),
-                          tokens: tokens,
-                        ),
-                      ],
+                    child: SingleChildScrollView(
+                      scrollDirection: Axis.horizontal,
+                      child: Row(
+                        children: [
+                          _LibFilterChip(
+                            label: 'All',
+                            selected: _libFilter == 'all',
+                            onTap: () => setState(() => _libFilter = 'all'),
+                            tokens: tokens,
+                          ),
+                          const SizedBox(width: 6),
+                          _LibFilterChip(
+                            label: 'Playlists',
+                            selected: _libFilter == 'playlists',
+                            onTap: () => setState(() => _libFilter = 'playlists'),
+                            tokens: tokens,
+                          ),
+                          const SizedBox(width: 6),
+                          _LibFilterChip(
+                            label: 'Albums',
+                            selected: _libFilter == 'albums',
+                            onTap: () => setState(() => _libFilter = 'albums'),
+                            tokens: tokens,
+                          ),
+                          const SizedBox(width: 6),
+                          _LibFilterChip(
+                            label: 'Downloaded',
+                            selected: _libFilter == 'downloaded',
+                            onTap: () => setState(() => _libFilter = 'downloaded'),
+                            tokens: tokens,
+                          ),
+                        ],
+                      ),
                     ),
                   ),
 
@@ -756,6 +767,42 @@ class _DesktopLeftSidebarState extends ConsumerState<_DesktopLeftSidebar> {
                     child: ListView(
                       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 4),
                       children: [
+                        // Downloaded songs, pinned first
+                        if (_libFilter == 'all' || _libFilter == 'downloaded')
+                          ListTile(
+                            dense: true,
+                            contentPadding: const EdgeInsets.symmetric(horizontal: 8),
+                            leading: Container(
+                              width: 36,
+                              height: 36,
+                              decoration: BoxDecoration(
+                                color: tokens.accent.withValues(alpha: 0.15),
+                                borderRadius: BorderRadius.circular(4),
+                              ),
+                              child: Icon(
+                                Icons.download_done_rounded,
+                                color: tokens.accent,
+                                size: 20,
+                              ),
+                            ),
+                            title: Text(
+                              'Downloaded Songs',
+                              style: TextStyle(
+                                color: tokens.textPrimary,
+                                fontSize: 13,
+                                fontWeight: FontWeight.w600,
+                              ),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            subtitle: Text(
+                              'Offline audio \u2022 Local storage',
+                              style: TextStyle(color: tokens.textMuted, fontSize: 11),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                            onTap: () => navigateInApp(context, const OfflineScreen()),
+                          ),
                         if (_libFilter == 'all' || _libFilter == 'playlists')
                           playlistsAsync.when(
                             data: (playlists) {

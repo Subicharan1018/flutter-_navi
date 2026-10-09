@@ -79,6 +79,8 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    - fire.png
   shaders:
     - shaders/artwork_field.frag
   # Inter 4.1 (SIL OFL, assets/fonts/Inter-OFL-LICENSE.txt). Bundled so the
