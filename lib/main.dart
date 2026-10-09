@@ -11,7 +11,8 @@ import 'core/theme.dart';
 import 'utils/platform_utils.dart';
 import 'widgets/app_scaffold.dart';
 import 'screens/login_screen.dart';
-import 'fluid_background.dart';
+import 'player/artwork.dart';
+import 'player/artwork_field.dart';
 import 'dart:async';
 import 'providers/settings_provider.dart';
 import 'offline_service.dart';
@@ -99,8 +100,8 @@ Future<void> main() async {
     );
   }
 
-  // PERF-15: Pre-load the fluid background shader.
-  unawaited(FluidShaderLoader.instance.load());
+  // Compile the Now Playing artwork-field shader before it's first shown.
+  unawaited(ArtworkField.precache());
 
   runApp(
     UncontrolledProviderScope(
@@ -115,9 +116,10 @@ class MyMusicPlayerApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final mode = ref.watch(themeModeProvider);
-    final tokens = ThemeVariants.of(mode);
-    
+    // One theme, tinted by the album that's playing.
+    final palette = ref.watch(albumPaletteProvider);
+    final tokens = AppThemeTokens.fromPalette(palette);
+
     // Reactively toggle image cache boundaries
     final cacheSettings = ref.watch(cacheSettingsNotifierProvider);
     if (!cacheSettings.imageCacheEnabled) {
@@ -136,7 +138,9 @@ class MyMusicPlayerApp extends ConsumerWidget {
       tokens: tokens,
       child: MaterialApp(
         title: 'NaviVibe',
-        theme: AppTheme.buildTheme(mode),
+        theme: AppTheme.build(tokens),
+        themeAnimationDuration: const Duration(milliseconds: 450),
+        themeAnimationCurve: Curves.easeOutCubic,
         home: home,
         debugShowCheckedModeBanner: false,
       ),

@@ -34,9 +34,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     final topPad = MediaQuery.of(context).padding.top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: ThemeTokens.of(context).isLight
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: ThemeTokens.of(context).bgBase,
         body: RefreshIndicator(
@@ -287,9 +285,7 @@ class _FilterPill extends StatelessWidget {
               fontSize: 13,
               fontWeight: FontWeight.w600,
               color: isSelected
-                  ? (ThemeTokens.of(context).isLight
-                        ? Colors.white
-                        : Colors.black)
+                  ? ThemeTokens.of(context).onAccent
                   : ThemeTokens.of(context).textPrimary,
             ),
           ),

@@ -152,7 +152,7 @@ class _PeriodSelector extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: TextStyle(
                     color: isActive
-                        ? (tokens.isLight ? Colors.white : Colors.black)
+                        ? tokens.onAccent
                         : tokens.textMuted,
                     fontSize: 13,
                     fontWeight: isActive ? FontWeight.w700 : FontWeight.w500,

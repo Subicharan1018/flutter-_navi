@@ -14,7 +14,7 @@ void main() {
       MaterialApp(
         home: Scaffold(
           body: ThemeTokens(
-            tokens: ThemeVariants.spotify(),
+            tokens: AppThemeTokens.fallback,
             child: Builder(builder: (context) {
               return SettingsToggleRow(
                 title: 'Auto quality switch',

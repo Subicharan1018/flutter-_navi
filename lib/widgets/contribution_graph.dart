@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'dart:math' as math;
-import 'dart:ui' show ImageFilter;
 
 import '../core/theme.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
@@ -378,7 +377,6 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
     bool isSelected,
     AppThemeTokens tokens,
   ) {
-    final mode = tokens.mode;
     
     double size = 12.0;
     BorderRadius radius = BorderRadius.circular(2.5);
@@ -387,121 +385,26 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
     List<BoxShadow>? shadow;
 
     if (intensity == 0) {
-      switch (mode) {
-        case AppThemeMode.spotify:
-          color = tokens.textPrimary.withValues(alpha: 0.07);
-          radius = BorderRadius.circular(2.5);
-          break;
-        case AppThemeMode.aura:
-          color = tokens.textPrimary.withValues(alpha: 0.05);
-          radius = BorderRadius.circular(3.5);
-          break;
-        case AppThemeMode.frost:
-          color = Colors.white.withValues(alpha: 0.06);
-          radius = BorderRadius.circular(3.0);
-          border = Border.all(color: Colors.white.withValues(alpha: 0.05), width: 0.5);
-          break;
-        case AppThemeMode.neumorphic:
-          color = tokens.bgBase;
-          radius = BorderRadius.circular(3.0);
-          border = Border.all(color: tokens.outline.withValues(alpha: 0.15), width: 0.5);
-          shadow = [
-            BoxShadow(
-              color: tokens.neuDark.withValues(alpha: 0.2),
-              offset: const Offset(0.5, 0.5),
-              blurRadius: 1,
-            ),
-            BoxShadow(
-              color: tokens.neuLight,
-              offset: const Offset(-0.5, -0.5),
-              blurRadius: 1,
-            ),
-          ];
-          break;
-        case AppThemeMode.analog:
-          color = tokens.textPrimary.withValues(alpha: 0.06);
-          radius = BorderRadius.circular(6.0);
-          border = Border.all(color: tokens.outline.withValues(alpha: 0.25), width: 0.5);
-          break;
-        case AppThemeMode.zen:
-          color = tokens.textPrimary.withValues(alpha: 0.04);
-          radius = BorderRadius.zero;
-          border = Border.all(color: tokens.outline.withValues(alpha: 0.1), width: 0.5);
-          break;
-      }
+      color = tokens.textPrimary.withValues(alpha: 0.07);
+        radius = BorderRadius.circular(2.5);
     } else {
-      switch (mode) {
-        case AppThemeMode.spotify:
-          color = tokens.accent.withValues(alpha: 0.2 + intensity * 0.8);
-          radius = BorderRadius.circular(2.5);
-          break;
-        case AppThemeMode.aura:
-          color = tokens.accent.withValues(alpha: 0.25 + intensity * 0.75);
-          radius = BorderRadius.circular(3.5);
-          shadow = [
-            BoxShadow(
-              color: tokens.accent.withValues(alpha: 0.22 * intensity),
-              blurRadius: 4.0 * intensity,
-              spreadRadius: 0.5 * intensity,
-            ),
-          ];
-          break;
-        case AppThemeMode.frost:
-          color = tokens.accent.withValues(alpha: 0.2 + intensity * 0.8);
-          radius = BorderRadius.circular(3.0);
-          border = Border.all(color: Colors.white.withValues(alpha: 0.3 * intensity), width: 0.5);
-          shadow = [
-            BoxShadow(
-              color: tokens.accent.withValues(alpha: 0.1 * intensity),
-              blurRadius: 3.0,
-            )
-          ];
-          break;
-        case AppThemeMode.neumorphic:
-          color = Color.lerp(tokens.bgBase, tokens.accent, 0.15 + intensity * 0.85)!;
-          radius = BorderRadius.circular(3.0);
-          shadow = [
-            BoxShadow(
-              color: tokens.neuDark.withValues(alpha: 0.35 * intensity),
-              offset: Offset(1.0 * intensity, 1.0 * intensity),
-              blurRadius: 2.0 * intensity,
-            ),
-            BoxShadow(
-              color: tokens.neuLight.withValues(alpha: 0.9 * intensity),
-              offset: Offset(-1.0 * intensity, -1.0 * intensity),
-              blurRadius: 2.0 * intensity,
-            ),
-          ];
-          break;
-        case AppThemeMode.analog:
-          color = tokens.accent.withValues(alpha: 0.25 + intensity * 0.75);
-          radius = BorderRadius.circular(6.0);
-          border = Border.all(color: tokens.outline.withValues(alpha: 0.4), width: 0.5);
-          break;
-        case AppThemeMode.zen:
-          color = tokens.textPrimary.withValues(alpha: 0.15 + intensity * 0.85);
-          radius = BorderRadius.zero;
-          border = Border.all(color: tokens.textPrimary, width: 0.5);
-          break;
-      }
+      color = tokens.accent.withValues(alpha: 0.2 + intensity * 0.8);
+        radius = BorderRadius.circular(2.5);
     }
 
     if (isSelected) {
-      if (mode == AppThemeMode.zen) {
-        border = Border.all(color: tokens.textPrimary, width: 1.5);
-      } else {
-        border = Border.all(
-          color: tokens.textPrimary,
-          width: 1.2,
-        );
-        shadow = [
-          BoxShadow(
-            color: tokens.textPrimary.withValues(alpha: 0.4),
-            blurRadius: 4.0,
-            spreadRadius: 1.0,
-          )
-        ];
-      }
+      border = Border.all(
+        color: tokens.textPrimary,
+        width: 1.2,
+      );
+      shadow = [
+        BoxShadow(
+          color: tokens.textPrimary.withValues(alpha: 0.4),
+          blurRadius: 4.0,
+          spreadRadius: 1.0,
+        )
+      ];
+    
     }
 
     return GestureDetector(
@@ -552,7 +455,6 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
   }
 
   Widget _buildTooltip(DateTime date, int count, AppThemeTokens tokens) {
-    final mode = tokens.mode;
     
     Color tooltipBg;
     Color tooltipBorder;
@@ -565,53 +467,8 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
       ),
     ];
 
-    switch (mode) {
-      case AppThemeMode.spotify:
-        tooltipBg = tokens.bgElevated;
-        tooltipBorder = tokens.outline;
-        break;
-      case AppThemeMode.aura:
-        tooltipBg = tokens.bgElevated;
-        tooltipBorder = tokens.accent.withValues(alpha: 0.3);
-        shadow = [
-          BoxShadow(
-            color: tokens.accent.withValues(alpha: 0.15),
-            blurRadius: 8.0,
-            offset: const Offset(0, 4),
-          ),
-        ];
-        break;
-      case AppThemeMode.frost:
-        tooltipBg = tokens.bgElevated.withValues(alpha: 0.85);
-        tooltipBorder = tokens.glassBorder;
-        break;
-      case AppThemeMode.neumorphic:
-        tooltipBg = tokens.bgSurface;
-        tooltipBorder = tokens.outline;
-        shadow = [
-          BoxShadow(
-            color: tokens.neuDark.withValues(alpha: 0.25),
-            offset: const Offset(2, 2),
-            blurRadius: 4,
-          ),
-          BoxShadow(
-            color: tokens.neuLight,
-            offset: const Offset(-2, -2),
-            blurRadius: 4,
-          ),
-        ];
-        break;
-      case AppThemeMode.analog:
-        tooltipBg = tokens.bgElevated;
-        tooltipBorder = tokens.outline;
-        break;
-      case AppThemeMode.zen:
-        tooltipBg = tokens.bgBase;
-        tooltipBorder = tokens.textPrimary;
-        borderRadius = BorderRadius.zero;
-        shadow = [];
-        break;
-    }
+    tooltipBg = tokens.bgElevated;
+      tooltipBorder = tokens.outline;
 
     final dateText = _formatDate(date);
     final countText = '$count ${count == 1 ? 'play' : 'plays'}';
@@ -645,7 +502,7 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
           Text(
             countText,
             style: TextStyle(
-              color: mode == AppThemeMode.zen ? tokens.textPrimary : tokens.accent,
+              color: tokens.accent,
               fontSize: 11,
               fontWeight: FontWeight.bold,
             ),
@@ -653,16 +510,6 @@ class _ContributionGraphCardState extends ConsumerState<ContributionGraphCard>
         ],
       ),
     );
-
-    if (mode == AppThemeMode.frost) {
-      tooltipContent = ClipRRect(
-        borderRadius: borderRadius,
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: 8, sigmaY: 8),
-          child: tooltipContent,
-        ),
-      );
-    }
 
     return Stack(
       alignment: Alignment.bottomCenter,

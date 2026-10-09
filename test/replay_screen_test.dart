@@ -71,8 +71,8 @@ Widget _buildTestApp({List<dynamic>? overrides}) {
       ],
     ],
     child: ThemeTokens(
-      tokens: ThemeVariants.spotify(),
-      child: MaterialApp(theme: AppTheme.darkTheme, home: const ReplayScreen()),
+      tokens: AppThemeTokens.fallback,
+      child: MaterialApp(theme: AppTheme.build(AppThemeTokens.fallback), home: const ReplayScreen()),
     ),
   );
 }

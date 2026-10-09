@@ -45,9 +45,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     final activeQuery = isDesktop ? globalQuery : _mobileQuery;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: ThemeTokens.of(context).isLight
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: ThemeTokens.of(context).bgBase,
         body: CustomScrollView(

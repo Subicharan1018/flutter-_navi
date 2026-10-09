@@ -1,3 +1,4 @@
+import 'dart:math' as math;
 // =============================================================================
 // ShuffleApiService — Dio-based HTTP client for the Smart Shuffle server.
 //
@@ -58,6 +59,7 @@ class ShuffleApiService {
         ),
       ) {
     _dio.interceptors.add(_BasicAuthInterceptor(_credentialsSupplier));
+    _dio.interceptors.add(_RetryInterceptor(_dio));
     if (kDebugMode) {
       _dio.interceptors.add(
         LogInterceptor(
@@ -83,6 +85,7 @@ class ShuffleApiService {
         ),
       ) {
     _dio.interceptors.add(_BasicAuthInterceptor(_credentialsSupplier));
+    _dio.interceptors.add(_RetryInterceptor(_dio));
     if (kDebugMode) {
       _dio.interceptors.add(
         LogInterceptor(
@@ -432,6 +435,51 @@ class ShuffleApiService {
       debugPrint('[ShuffleApi] ❌ unexpected: $e');
       if (e is ShuffleException) rethrow;
       throw ShuffleNetworkError(e.toString());
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Retry interceptor
+// ---------------------------------------------------------------------------
+
+/// Retries only when the server provably did not do the work:
+///  * 429 / 502 / 503 / 504 — rejected or unavailable (any method), honouring
+///    `Retry-After` up to 5 s;
+///  * connection errors and timeouts — GET only, so a slow `POST /feedback`
+///    is never replayed and a play is never counted twice.
+/// Exponential backoff with jitter so many clients don't retry in lockstep.
+class _RetryInterceptor extends Interceptor {
+  final Dio _dio;
+  static const _maxRetries = 2;
+  static final _rng = math.Random();
+
+  _RetryInterceptor(this._dio);
+
+  @override
+  Future<void> onError(DioException err, ErrorInterceptorHandler handler) async {
+    final req = err.requestOptions;
+    final attempt = (req.extra['retry_attempt'] as int?) ?? 0;
+    final code = err.response?.statusCode;
+    final rejected = code == 429 || code == 502 || code == 503 || code == 504;
+    final transient = req.method == 'GET' &&
+        (err.type == DioExceptionType.connectionError ||
+            err.type == DioExceptionType.connectionTimeout ||
+            err.type == DioExceptionType.receiveTimeout);
+    if (attempt >= _maxRetries || !(rejected || transient)) {
+      return handler.next(err);
+    }
+    final retryAfter = int.tryParse(err.response?.headers.value('retry-after') ?? '');
+    if (retryAfter != null && retryAfter > 5) return handler.next(err);
+    final backoffMs = retryAfter != null
+        ? retryAfter * 1000
+        : (400 * math.pow(3, attempt)).toInt() + _rng.nextInt(250);
+    await Future<void>.delayed(Duration(milliseconds: backoffMs));
+    req.extra['retry_attempt'] = attempt + 1;
+    try {
+      handler.resolve(await _dio.fetch<dynamic>(req));
+    } on DioException catch (e) {
+      handler.next(e);
     }
   }
 }

@@ -109,9 +109,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen>
         : '';
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: tokens.isLight
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: tokens.bgBase,
         body: RefreshIndicator(

@@ -411,16 +411,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final style = tokens.mode == AppThemeMode.zen
-        ? tokens
-            .textStyle(15, FontWeight.w500, tokens.textPrimary)
-            .copyWith(letterSpacing: -0.2)
-        : TextStyle(
-            fontSize: 15,
-            fontWeight: FontWeight.w700,
-            color: tokens.textPrimary,
-            letterSpacing: -0.3,
-          );
+    final style = tokens.textStyle(15, FontWeight.w700, tokens.textPrimary);
 
     return Row(
       crossAxisAlignment: CrossAxisAlignment.end,
@@ -481,28 +472,16 @@ class _ExpandedHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final mode = tokens.mode;
     
     TextStyle titleStyle;
-    if (mode == AppThemeMode.zen) {
-      titleStyle = tokens.textStyle(28, FontWeight.w400, tokens.textPrimary).copyWith(
-        letterSpacing: -0.5,
-        height: 1.1,
-      );
-    } else if (mode == AppThemeMode.analog) {
-      titleStyle = tokens.textStyle(28, FontWeight.w800, tokens.textPrimary).copyWith(
-        letterSpacing: -0.5,
-        height: 1.1,
-      );
-    } else {
-      titleStyle = TextStyle(
-        fontSize: 28,
-        fontWeight: FontWeight.w900,
-        color: tokens.textPrimary,
-        letterSpacing: -0.8,
-        height: 1.1,
-      );
-    }
+    titleStyle = TextStyle(
+      fontSize: 28,
+      fontWeight: FontWeight.w900,
+      color: tokens.textPrimary,
+      letterSpacing: -0.8,
+      height: 1.1,
+    );
+  
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -537,7 +516,6 @@ class _PeriodSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final mode = tokens.mode;
     final isDark = Theme.of(context).brightness == Brightness.dark;
 
     BorderRadius trackRadius = BorderRadius.circular(20);
@@ -558,70 +536,10 @@ class _PeriodSelector extends StatelessWidget {
       width: 0.5,
     );
 
-    switch (mode) {
-      case AppThemeMode.spotify:
-        trackColor = tokens.bgElevated;
-        capsuleColor = tokens.accent;
-        capsuleShadow = [];
-        trackBorder = Border.all(color: tokens.outline, width: 1);
-        break;
-      case AppThemeMode.aura:
-        trackColor = tokens.bgElevated;
-        capsuleColor = tokens.accent;
-        capsuleShadow = [
-          BoxShadow(
-            color: tokens.accent.withValues(alpha: 0.35),
-            blurRadius: 8,
-            offset: const Offset(0, 2),
-          ),
-        ];
-        break;
-      case AppThemeMode.frost:
-        trackColor = Colors.white.withValues(alpha: 0.06);
-        capsuleColor = Colors.white.withValues(alpha: 0.2);
-        trackBorder = Border.all(color: tokens.glassBorder, width: 0.5);
-        capsuleShadow = [];
-        break;
-      case AppThemeMode.neumorphic:
-        trackColor = tokens.bgOverlay;
-        capsuleColor = tokens.bgBase;
-        capsuleShadow = [
-          BoxShadow(
-            color: tokens.neuDark.withValues(alpha: 0.6),
-            offset: const Offset(2, 2),
-            blurRadius: 4,
-          ),
-          BoxShadow(
-            color: tokens.neuLight,
-            offset: const Offset(-2, -2),
-            blurRadius: 4,
-          ),
-        ];
-        trackRadius = BorderRadius.circular(12);
-        capsuleRadius = BorderRadius.circular(10);
-        trackBorder = null;
-        break;
-      case AppThemeMode.analog:
-        trackColor = tokens.bgElevated.withValues(alpha: 0.5);
-        capsuleColor = tokens.accent;
-        capsuleShadow = [
-          BoxShadow(
-            color: tokens.accent.withValues(alpha: 0.2),
-            blurRadius: 4,
-            offset: const Offset(0, 2),
-          ),
-        ];
-        trackBorder = Border.all(color: tokens.outline.withValues(alpha: 0.5), width: 1);
-        break;
-      case AppThemeMode.zen:
-        trackColor = tokens.bgSurface;
-        capsuleColor = tokens.textPrimary;
-        capsuleShadow = [];
-        trackRadius = BorderRadius.zero;
-        capsuleRadius = BorderRadius.zero;
-        trackBorder = Border.all(color: tokens.textPrimary, width: 1);
-        break;
-    }
+    trackColor = tokens.bgElevated;
+      capsuleColor = tokens.accent;
+      capsuleShadow = [];
+      trackBorder = Border.all(color: tokens.outline, width: 1);
 
     return Container(
       height: 40,
@@ -659,14 +577,7 @@ class _PeriodSelector extends StatelessWidget {
                   final p = entry.value;
                   final isSelected = idx == selectedIndex;
 
-                  Color textColor;
-                  if (isSelected) {
-                    textColor = mode == AppThemeMode.zen 
-                        ? tokens.bgBase 
-                        : (mode == AppThemeMode.frost ? tokens.textPrimary : tokens.bgBase);
-                  } else {
-                    textColor = tokens.textSecondary;
-                  }
+                  final textColor = isSelected ? tokens.onAccent : tokens.textSecondary;
 
                   return Expanded(
                     child: GestureDetector(
@@ -701,25 +612,14 @@ class _PeriodSelector extends StatelessWidget {
 /// Type rule for every large figure on this screen, so the dashboard has one
 /// numeric voice instead of each card inventing its own.
 TextStyle _figureStyle(AppThemeTokens tokens, double size) {
-  switch (tokens.mode) {
-    case AppThemeMode.zen:
-      return tokens
-          .textStyle(size, FontWeight.w400, tokens.textPrimary)
-          .copyWith(letterSpacing: -size * 0.03, height: 1.0);
-    case AppThemeMode.analog:
-      return tokens
-          .textStyle(size, FontWeight.w800, tokens.textPrimary)
-          .copyWith(letterSpacing: -size * 0.02, height: 1.0);
-    default:
-      return TextStyle(
-        fontSize: size,
-        fontWeight: FontWeight.w900,
-        color: tokens.textPrimary,
-        letterSpacing: -size * 0.03,
-        height: 1.0,
-        fontFeatures: const [FontFeature.tabularFigures()],
-      );
-  }
+  return TextStyle(
+      fontSize: size,
+      fontWeight: FontWeight.w900,
+      color: tokens.textPrimary,
+      letterSpacing: -size * 0.03,
+      height: 1.0,
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
 }
 
 /// Caption rule paired with [_figureStyle] — what the figure counts.
@@ -889,8 +789,7 @@ class _SkipReadout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final kept = 100 - pct;
-    final isZen = tokens.mode == AppThemeMode.zen;
-    final radius = isZen ? BorderRadius.zero : radiusFull;
+    final radius = radiusFull;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -968,8 +867,6 @@ class _StreakReadout extends StatelessWidget {
       final key = '${d.year}-${_two(d.month)}-${_two(d.day)}';
       return (byDate[key] ?? 0) > 0;
     });
-
-    final isZen = tokens.mode == AppThemeMode.zen;
     final live = days > 0 ? tokens.accent : tokens.textMuted;
 
     return Column(
@@ -1011,7 +908,7 @@ class _StreakReadout extends StatelessWidget {
                       color: played[i]
                           ? live
                           : tokens.textPrimary.withValues(alpha: 0.10),
-                      borderRadius: isZen ? null : radiusFull,
+                      borderRadius: radiusFull,
                     ),
                   ),
                 ),
@@ -1069,7 +966,6 @@ class _HourlyHeatmapState extends State<HourlyHeatmap> {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final mode = tokens.mode;
     final maxCount = widget.heatmapData.values.fold(0, (a, b) => a > b ? a : b);
     if (maxCount == 0) return const SizedBox.shrink();
 
@@ -1147,63 +1043,15 @@ class _HourlyHeatmapState extends State<HourlyHeatmap> {
                 BorderRadius barRadius = const BorderRadius.vertical(top: Radius.circular(3));
                 BoxDecoration? decoration;
 
-                if (mode == AppThemeMode.zen) {
-                  barRadius = BorderRadius.zero;
-                  decoration = BoxDecoration(
-                    color: isSelected 
-                        ? tokens.textPrimary 
-                        : tokens.textPrimary.withValues(alpha: 0.12 + intensity * 0.6),
-                    border: Border.all(
-                      color: tokens.textPrimary,
-                      width: isSelected ? 1.0 : 0.5,
-                    ),
-                  );
-                } else if (mode == AppThemeMode.aura) {
-                  barRadius = BorderRadius.circular(4);
-                  decoration = BoxDecoration(
-                    borderRadius: barRadius,
-                    gradient: LinearGradient(
-                      colors: [
-                        tokens.accent.withValues(alpha: 0.15),
-                        tokens.accent.withValues(
-                          alpha: isSelected ? 1.0 : (0.2 + intensity * 0.7),
-                        ),
-                      ],
-                      begin: Alignment.bottomCenter,
-                      end: Alignment.topCenter,
-                    ),
-                    boxShadow: isSelected || isPeak
-                        ? [
-                            BoxShadow(
-                              color: tokens.accent.withValues(alpha: 0.3),
-                              blurRadius: 4,
-                              spreadRadius: 0.5,
-                            )
-                          ]
-                        : null,
-                  );
-                } else if (mode == AppThemeMode.analog) {
-                  barRadius = BorderRadius.circular(6);
-                  decoration = BoxDecoration(
-                    color: isSelected
-                        ? tokens.accent
-                        : tokens.accent.withValues(alpha: 0.18 + intensity * 0.65),
-                    borderRadius: barRadius,
-                    border: Border.all(
-                      color: tokens.outline.withValues(alpha: 0.3),
-                      width: 0.5,
-                    ),
-                  );
-                } else {
-                  decoration = BoxDecoration(
-                    color: isSelected
-                        ? tokens.accent
-                        : (isPeak
-                            ? tokens.accent
-                            : tokens.accent.withValues(alpha: 0.12 + intensity * 0.60)),
-                    borderRadius: barRadius,
-                  );
-                }
+                decoration = BoxDecoration(
+                  color: isSelected
+                      ? tokens.accent
+                      : (isPeak
+                          ? tokens.accent
+                          : tokens.accent.withValues(alpha: 0.12 + intensity * 0.60)),
+                  borderRadius: barRadius,
+                );
+              
 
                 return Expanded(
                   child: Padding(
@@ -1380,7 +1228,6 @@ class ListeningLineChart extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final mode = tokens.mode;
 
     bool isUp = true;
     double pctChange = 0.0;
@@ -1460,9 +1307,7 @@ class ListeningLineChart extends StatelessWidget {
                       color: tokens.textPrimary.withValues(alpha: 0.1),
                       width: 0.8,
                     ),
-                    tooltipBorderRadius: mode == AppThemeMode.zen 
-                        ? BorderRadius.zero 
-                        : BorderRadius.circular(8.0),
+                    tooltipBorderRadius: BorderRadius.circular(8.0),
                     getTooltipItems: (touchedSpots) {
                       return touchedSpots.map((touchedSpot) {
                         final idx = touchedSpot.x.toInt();
@@ -1481,7 +1326,7 @@ class ListeningLineChart extends StatelessWidget {
                             TextSpan(
                               text: '$val ${val == 1 ? 'play' : 'plays'}',
                               style: TextStyle(
-                                color: mode == AppThemeMode.zen ? tokens.textPrimary : tokens.accent,
+                                color: tokens.accent,
                                 fontSize: 12,
                                 fontWeight: FontWeight.bold,
                               ),
@@ -1910,10 +1755,9 @@ class _Artwork extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isZen = tokens.mode == AppThemeMode.zen;
     final radius = circular
         ? BorderRadius.circular(size)
-        : BorderRadius.circular(isZen ? 0 : 6);
+        : BorderRadius.circular(6);
 
     final url = urlAsync.asData?.value;
 
@@ -1972,7 +1816,7 @@ class _RowMeter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final bar = ClipRRect(
-      borderRadius: tokens.mode == AppThemeMode.zen ? BorderRadius.zero : radiusFull,
+      borderRadius: radiusFull,
       child: TweenAnimationBuilder<double>(
         tween: Tween(begin: 0, end: value.clamp(0.0, 1.0)),
         duration: MediaQuery.of(context).disableAnimations ? Duration.zero : kAnimSlow,
@@ -2041,7 +1885,7 @@ class _TopArtistsList extends ConsumerWidget {
             urlAsync: ref.watch(artistCoverUrlProvider(name)),
             label: name,
             size: 36,
-            circular: tokens.mode != AppThemeMode.zen,
+            circular: true,
           ),
           title: name,
           plays: plays,

@@ -198,6 +198,12 @@ class SubsonicService {
     if (format != null && format.isNotEmpty && format != 'raw') {
       params['format'] = format;
     }
+    if (params.containsKey('maxBitRate') || params.containsKey('format')) {
+      // A live transcode has no file length. Without an estimate the player
+      // can't seek or show a correct duration until the whole song has
+      // downloaded; Navidrome computes one from bitrate × duration.
+      params['estimateContentLength'] = 'true';
+    }
     return _buildStableUrl('stream.view', params);
   }
 

@@ -72,16 +72,20 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }) : player =
            player ??
            AudioPlayer(
+             // Lossless over a shared home uplink: read far ahead (up to 2 min,
+             // ~15–20 MB of FLAC) so short congestion never reaches the ears.
+             // Time wins over ExoPlayer's default byte cap, which would
+             // otherwise stop a FLAC buffer at ~13 MB.
              audioLoadConfiguration: const AudioLoadConfiguration(
                androidLoadControl: AndroidLoadControl(
-                 minBufferDuration: Duration(seconds: 15),
-                 maxBufferDuration: Duration(seconds: 30),
+                 minBufferDuration: Duration(seconds: 50),
+                 maxBufferDuration: Duration(seconds: 120),
                  bufferForPlaybackDuration: Duration(milliseconds: 1500),
                  bufferForPlaybackAfterRebufferDuration: Duration(seconds: 3),
-                 prioritizeTimeOverSizeThresholds: false,
+                 prioritizeTimeOverSizeThresholds: true,
                ),
                darwinLoadControl: DarwinLoadControl(
-                 preferredForwardBufferDuration: Duration(seconds: 30),
+                 preferredForwardBufferDuration: Duration(seconds: 120),
                ),
              ),
            ),

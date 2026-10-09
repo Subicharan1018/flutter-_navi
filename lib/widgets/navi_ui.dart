@@ -53,9 +53,6 @@ class NaviCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final mode = tokens.mode;
-    final isSpotifyOrFrost = mode == AppThemeMode.spotify || mode == AppThemeMode.frost;
-
     final hasFocus = focusNode?.hasFocus ?? false;
 
     return AnimatedContainer(
@@ -65,12 +62,7 @@ class NaviCard extends StatelessWidget {
         borderRadius: radiusMd,
         border: hasFocus
             ? Border.all(color: tokens.accent, width: 1.5)
-            : (isSpotifyOrFrost
-                ? null
-                : Border.all(
-                    color: tokens.outline.withValues(alpha: 0.12),
-                    width: 0.5,
-                  )),
+            : null,
       ),
       child: Material(
         color: Colors.transparent,
@@ -107,146 +99,18 @@ class PremiumCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final tokens = ThemeTokens.of(context);
-    final mode = tokens.mode;
 
     Widget current;
 
-    switch (mode) {
-      case AppThemeMode.zen:
-        // Stark Zen layout: sharp corners, thin black border, no shadow
-        current = Container(
-          padding: padding ?? const EdgeInsets.all(s20),
-          decoration: BoxDecoration(
-            color: color ?? tokens.bgBase,
-            border: Border.all(color: tokens.textPrimary, width: 1.0),
-          ),
-          child: child,
-        );
-        break;
-
-      case AppThemeMode.neumorphic:
-        // Neumorphic extruded soft surface
-        current = Container(
-          padding: padding ?? const EdgeInsets.all(s20),
-          decoration: BoxDecoration(
-            color: color ?? tokens.bgBase,
-            borderRadius: BorderRadius.circular(16),
-            boxShadow: [
-              BoxShadow(
-                color: tokens.neuDark.withValues(alpha: 0.5),
-                offset: const Offset(6, 6),
-                blurRadius: 14,
-              ),
-              BoxShadow(
-                color: tokens.neuLight,
-                offset: const Offset(-6, -6),
-                blurRadius: 14,
-              ),
-            ],
-          ),
-          child: child,
-        );
-        break;
-
-      case AppThemeMode.frost:
-        // Frost Liquid Glass: borderless frosted glass container
-        current = ClipRRect(
+    // Spotify Encore: borderless elevation card container
+      current = Container(
+        padding: padding ?? const EdgeInsets.all(s20),
+        decoration: BoxDecoration(
+          color: color ?? tokens.bgSurface,
           borderRadius: radiusLg,
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(s20),
-            decoration: BoxDecoration(
-              color: color ?? tokens.glassBg,
-              borderRadius: radiusLg,
-            ),
-            child: child,
-          ),
-        );
-        break;
-
-      case AppThemeMode.aura:
-        // Aura Double-Bezel: OLED card inside a glowing neon accent highlight border rim
-        final outerRadius = BorderRadius.circular(28);
-        final innerRadius = BorderRadius.circular(22);
-        current = Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: tokens.bgSurface.withValues(alpha: 0.4),
-            borderRadius: outerRadius,
-            border: Border.all(
-              color: tokens.accent.withValues(alpha: 0.15),
-              width: 0.8,
-            ),
-            boxShadow: [
-              BoxShadow(
-                color: tokens.accent.withValues(alpha: 0.03),
-                blurRadius: 12,
-                spreadRadius: -2,
-              ),
-            ],
-          ),
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(s20),
-            decoration: BoxDecoration(
-              color: color ?? tokens.bgSurface,
-              borderRadius: innerRadius,
-              border: Border.all(
-                color: tokens.textPrimary.withValues(alpha: 0.06),
-                width: 0.5,
-              ),
-            ),
-            child: child,
-          ),
-        );
-        break;
-
-      case AppThemeMode.analog:
-        // Warm retro vinyl card with double border
-        final outerRadius = BorderRadius.circular(24);
-        final innerRadius = BorderRadius.circular(18);
-        current = Container(
-          padding: const EdgeInsets.all(6),
-          decoration: BoxDecoration(
-            color: tokens.bgSurface.withValues(alpha: 0.5),
-            borderRadius: outerRadius,
-            border: Border.all(
-              color: tokens.outline.withValues(alpha: 0.3),
-              width: 0.8,
-            ),
-          ),
-          child: Container(
-            padding: padding ?? const EdgeInsets.all(s20),
-            decoration: BoxDecoration(
-              color: color ?? tokens.bgSurface,
-              borderRadius: innerRadius,
-              border: Border.all(
-                color: tokens.outline.withValues(alpha: 0.5),
-                width: 0.5,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: tokens.outline.withValues(alpha: 0.10),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: child,
-          ),
-        );
-        break;
-
-      case AppThemeMode.spotify:
-        // Spotify Encore: borderless elevation card container
-        current = Container(
-          padding: padding ?? const EdgeInsets.all(s20),
-          decoration: BoxDecoration(
-            color: color ?? tokens.bgSurface,
-            borderRadius: radiusLg,
-          ),
-          child: child,
-        );
-        break;
-    }
+        ),
+        child: child,
+      );
 
     if (onTap == null) return current;
 

@@ -2,7 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../core/constants.dart';
 import '../core/hive_boxes.dart';
-import '../core/theme.dart';
 import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
@@ -78,14 +77,9 @@ class SettingsState {
   final String analyticsUploadSchedule; // 'none', 'weekly', 'monthly'
   final String? analyticsLastUpload;
 
-  /// Active UI theme.  Defaults to the classic Spotify dark look.
-  final AppThemeMode themeMode;
-
-  /// When true a live mesh-gradient shader renders behind the main scaffold.
-  final bool meshGradientEnabled;
   final bool allowHttp;
 
-  /// When false the fluid/mesh background animation is disabled entirely.
+  /// When false the Now Playing artwork field stays still (no drift).
   /// Useful on low-end devices to save GPU and battery.
   final bool fluidBgEnabled;
 
@@ -102,8 +96,6 @@ class SettingsState {
     this.dataCollectionEnabled = true,
     this.analyticsUploadSchedule = 'none',
     this.analyticsLastUpload,
-    this.themeMode = AppThemeMode.spotify,
-    this.meshGradientEnabled = false,
     this.allowHttp = false,
     this.fluidBgEnabled = true,
   });
@@ -132,8 +124,6 @@ class SettingsState {
     bool? dataCollectionEnabled,
     String? analyticsUploadSchedule,
     String? analyticsLastUpload,
-    AppThemeMode? themeMode,
-    bool? meshGradientEnabled,
     bool? allowHttp,
     bool? fluidBgEnabled,
   }) {
@@ -152,8 +142,6 @@ class SettingsState {
       analyticsUploadSchedule:
           analyticsUploadSchedule ?? this.analyticsUploadSchedule,
       analyticsLastUpload: analyticsLastUpload ?? this.analyticsLastUpload,
-      themeMode: themeMode ?? this.themeMode,
-      meshGradientEnabled: meshGradientEnabled ?? this.meshGradientEnabled,
       allowHttp: allowHttp ?? this.allowHttp,
       fluidBgEnabled: fluidBgEnabled ?? this.fluidBgEnabled,
     );
@@ -183,9 +171,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             .get(HiveBoxes.kShufflePreference, defaultValue: 'composer')
             ?.toString() ??
         'composer';
-    final themeName =
-        p.get(HiveBoxes.kThemeMode, defaultValue: 'spotify')?.toString() ??
-        'spotify';
 
     String getString(dynamic box, String key, String defaultValue) {
       final val = box.get(key)?.toString() ?? '';
@@ -224,14 +209,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
               ?.toString() ??
           'none',
       analyticsLastUpload: p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
-      themeMode: AppThemeMode.values.firstWhere(
-        (e) => e.name == themeName,
-        orElse: () => AppThemeMode.spotify,
-      ),
-      meshGradientEnabled:
-          p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false) is bool
-          ? p.get(HiveBoxes.kMeshGradientEnabled, defaultValue: false) as bool
-          : false,
       allowHttp: p.get(HiveBoxes.kAllowHttp, defaultValue: false) == true,
       fluidBgEnabled:
           p.get(HiveBoxes.kFluidBgEnabled, defaultValue: true) is bool
@@ -305,18 +282,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     state = state.copyWith(analyticsLastUpload: timestamp);
   }
 
-  /// Persists and applies a new [AppThemeMode].
-  Future<void> setThemeMode(AppThemeMode mode) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kThemeMode, mode.name);
-    state = state.copyWith(themeMode: mode);
-  }
-
-  /// Persists and applies the mesh-gradient background toggle.
-  Future<void> setMeshGradientEnabled(bool enabled) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kMeshGradientEnabled, enabled);
-    state = state.copyWith(meshGradientEnabled: enabled);
-  }
-
   Future<void> setAllowHttp(bool allow) async {
     await HiveBoxes.prefs.put(HiveBoxes.kAllowHttp, allow);
     state = state.copyWith(allowHttp: allow);
@@ -338,15 +303,6 @@ final settingsProvider = StateNotifierProvider<SettingsNotifier, SettingsState>(
   },
 );
 
-/// Convenience provider — just the active [AppThemeMode].
-final themeModeProvider = Provider<AppThemeMode>((ref) {
-  return ref.watch(settingsProvider).themeMode;
-});
-
-/// Convenience provider — the [AppThemeTokens] for the active theme.
-final themeTokensProvider = Provider<AppThemeTokens>((ref) {
-  return ThemeVariants.of(ref.watch(themeModeProvider));
-});
 
 /// Singleton [AppDatabase] — central Drift instance for the app.
 final appDatabaseProvider = Provider<AppDatabase>((ref) {

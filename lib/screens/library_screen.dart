@@ -78,9 +78,7 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
     }
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: ThemeTokens.of(context).isLight
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: ThemeTokens.of(context).bgBase,
         body: CustomScrollView(
@@ -882,9 +880,7 @@ class _FilterChip extends StatelessWidget {
               label,
               style: TextStyle(
                 color: isSelected
-                    ? (ThemeTokens.of(context).isLight
-                          ? Colors.white
-                          : Colors.black)
+                    ? ThemeTokens.of(context).onAccent
                     : ThemeTokens.of(context).textPrimary,
                 fontWeight: FontWeight.w600,
                 fontSize: 13,

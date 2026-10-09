@@ -11,7 +11,6 @@ import '../services/subsonic_service.dart';
 import '../services/transcoding_service.dart';
 import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
-import '../widgets/theme_selector.dart';
 import 'listening_stats_screen.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
@@ -222,9 +221,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final tokens = ThemeTokens.of(context);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: tokens.isLight
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: tokens.bgBase,
         appBar: AppBar(
@@ -271,14 +268,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         body: ListView(
           padding: const EdgeInsets.symmetric(vertical: 16),
           children: [
-            ThemeSelector(),
-            SizedBox(height: 16),
             _SettingsGroup(
               title: 'Appearance',
               children: [
                 SettingsToggleRow(
-                  title: 'Fluid background',
-                  subtitle: 'Enable live animated background shader (disable for better performance/battery)',
+                  title: 'Living artwork',
+                  subtitle: 'The Now Playing background drifts with the music. Turn off to save battery.',
                   value: settings.fluidBgEnabled,
                   onChanged: (v) {
                     ref.read(settingsProvider.notifier).setFluidBgEnabled(v);

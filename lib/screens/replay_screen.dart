@@ -85,9 +85,7 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen>
     final topPad = MediaQuery.of(context).padding.top;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: ThemeTokens.of(context).isLight
-          ? SystemUiOverlayStyle.dark
-          : SystemUiOverlayStyle.light,
+      value: SystemUiOverlayStyle.light,
       child: Scaffold(
         backgroundColor: ThemeTokens.of(context).bgBase,
         body: Stack(

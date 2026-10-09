@@ -1,0 +1,229 @@
+import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' show Color;
+
+/// The four colour roles NaviVibe derives from a cover, already tuned for a
+/// dark UI so every consumer can use them without further correction.
+///
+///  * [deep]    — darkest tone; tints the app ground and sheet backgrounds.
+///  * [base]    — mid tone; fills the mini player and washes the queue/lyrics.
+///  * [vibrant] — the accent role: play button, progress, selection, toggles.
+///                Always ≥ 4.5:1 against [deep] so it is legible as text too.
+///  * [glow]    — a second hue for gradients and the artwork field highlight.
+class AlbumPalette {
+  final Color deep;
+  final Color base;
+  final Color vibrant;
+  final Color glow;
+
+  const AlbumPalette({
+    required this.deep,
+    required this.base,
+    required this.vibrant,
+    required this.glow,
+  });
+
+  /// Shown when nothing is playing or a cover has no usable pixels:
+  /// midnight indigo, plum, rose and amber — warm enough to never read as
+  /// a "default grey" app.
+  static const AlbumPalette fallback = AlbumPalette(
+    deep: Color(0xFF120C24),
+    base: Color(0xFF3B1F5E),
+    vibrant: Color(0xFFFF5C8A),
+    glow: Color(0xFFFFB454),
+  );
+
+  /// Text/icon colour that sits on a [vibrant] fill.
+  Color get onVibrant => vibrant.computeLuminance() > 0.42
+      ? const Color(0xFF0B0B0B)
+      : const Color(0xFFFFFFFF);
+
+  static AlbumPalette lerp(AlbumPalette a, AlbumPalette b, double t) =>
+      AlbumPalette(
+        deep: Color.lerp(a.deep, b.deep, t)!,
+        base: Color.lerp(a.base, b.base, t)!,
+        vibrant: Color.lerp(a.vibrant, b.vibrant, t)!,
+        glow: Color.lerp(a.glow, b.glow, t)!,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is AlbumPalette &&
+      other.deep == deep &&
+      other.base == base &&
+      other.vibrant == vibrant &&
+      other.glow == glow;
+
+  @override
+  int get hashCode => Object.hash(deep, base, vibrant, glow);
+}
+
+// =============================================================================
+// Extraction — pure Dart over raw RGBA bytes so it runs in a background
+// isolate (`compute(extractAlbumPalette, bytes)`). palette_generator needs the
+// engine image codec and therefore blocks the UI isolate for 50–200 ms per
+// song; this works on a 64×64 thumbnail in ~2 ms off the main thread.
+// =============================================================================
+
+class _Hsv {
+  final double h, s, v;
+  const _Hsv(this.h, this.s, this.v);
+}
+
+_Hsv _toHsv(int r, int g, int b) {
+  final rf = r / 255.0, gf = g / 255.0, bf = b / 255.0;
+  final mx = math.max(rf, math.max(gf, bf));
+  final mn = math.min(rf, math.min(gf, bf));
+  final d = mx - mn;
+  double h = 0;
+  if (d > 1e-6) {
+    if (mx == rf) {
+      h = 60 * (((gf - bf) / d) % 6);
+    } else if (mx == gf) {
+      h = 60 * (((bf - rf) / d) + 2);
+    } else {
+      h = 60 * (((rf - gf) / d) + 4);
+    }
+  }
+  if (h < 0) h += 360;
+  return _Hsv(h, mx == 0 ? 0 : d / mx, mx);
+}
+
+/// HSL → ARGB int (so the isolate never needs dart:ui objects).
+int _hsl(double h, double s, double l) {
+  h = ((h % 360) + 360) % 360;
+  s = s.clamp(0.0, 1.0);
+  l = l.clamp(0.0, 1.0);
+  final c = (1 - (2 * l - 1).abs()) * s;
+  final x = c * (1 - ((h / 60) % 2 - 1).abs());
+  final m = l - c / 2;
+  double r = 0, g = 0, b = 0;
+  if (h < 60) {
+    r = c; g = x;
+  } else if (h < 120) {
+    r = x; g = c;
+  } else if (h < 180) {
+    g = c; b = x;
+  } else if (h < 240) {
+    g = x; b = c;
+  } else if (h < 300) {
+    r = x; b = c;
+  } else {
+    r = c; b = x;
+  }
+  int ch(double v) => ((v + m) * 255).round().clamp(0, 255);
+  return 0xFF000000 | (ch(r) << 16) | (ch(g) << 8) | ch(b);
+}
+
+double _relLum(int argb) {
+  double lin(int c) {
+    final v = c / 255.0;
+    return v <= 0.03928 ? v / 12.92 : math.pow((v + 0.055) / 1.055, 2.4).toDouble();
+  }
+  return 0.2126 * lin((argb >> 16) & 0xFF) +
+      0.7152 * lin((argb >> 8) & 0xFF) +
+      0.0722 * lin(argb & 0xFF);
+}
+
+double _contrast(int a, int b) {
+  final la = _relLum(a), lb = _relLum(b);
+  return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
+}
+
+/// Returns `[deep, base, vibrant, glow]` as ARGB ints.
+///
+/// Hue histogram weighted by area, √saturation and value finds the colour a
+/// person would name for the cover (tuned on real covers: a pale-sky pop
+/// cover reads blue, not skin-tone). Monochrome covers keep their neutrality
+/// instead of being forced into an arbitrary hue.
+List<int> extractAlbumPalette(Uint8List rgba) {
+  const bins = 24; // 15° hue buckets
+  final weight = List<double>.filled(bins, 0);
+  final sumH = List<double>.filled(bins, 0);
+  final sumS = List<double>.filled(bins, 0);
+  final sumV = List<double>.filled(bins, 0);
+  final cnt = List<int>.filled(bins, 0);
+  double totalV = 0, totalS = 0;
+  int n = 0, colourfulPx = 0;
+
+  for (int i = 0; i + 3 < rgba.length; i += 4) {
+    if (rgba[i + 3] < 128) continue;
+    final hsv = _toHsv(rgba[i], rgba[i + 1], rgba[i + 2]);
+    totalV += hsv.v;
+    totalS += hsv.s;
+    n++;
+    if (hsv.s < 0.16 || hsv.v < 0.14) continue; // greys and near-blacks
+    final b = (hsv.h / (360 / bins)).floor() % bins;
+    // Area matters most: a cover that is half pale-blue sky reads as blue,
+    // even if a smaller area (skin, a logo) is more saturated.
+    final w = math.sqrt(hsv.s) * (0.2 + hsv.v);
+    colourfulPx++;
+    weight[b] += w;
+    sumH[b] += hsv.h * w;
+    sumS[b] += hsv.s * w;
+    sumV[b] += hsv.v * w;
+    cnt[b]++;
+  }
+  if (n == 0) return _fallbackInts;
+
+  // Smooth neighbouring bins so a hue split across a boundary isn't halved.
+  final smooth = List<double>.generate(
+    bins,
+    (b) => weight[b] + 0.5 * (weight[(b + 1) % bins] + weight[(b - 1 + bins) % bins]),
+  );
+  int best = 0;
+  for (int b = 1; b < bins; b++) {
+    if (smooth[b] > smooth[best]) best = b;
+  }
+  final colourful = colourfulPx > n * 0.06;
+
+  if (!colourful) {
+    // Monochrome / desaturated cover: neutral palette with a faint warmth,
+    // vibrant becomes a soft white so accents stay quiet but legible.
+    final avgV = totalV / n;
+    final avgS = totalS / n;
+    final deep = _hsl(30, 0.06 + avgS * 0.2, 0.07);
+    final base = _hsl(30, 0.05 + avgS * 0.2, (0.16 + avgV * 0.12).clamp(0.16, 0.26));
+    return [deep, base, 0xFFEDEDED, _hsl(35, 0.25, 0.70)];
+  }
+
+  double hueOf(int b) => weight[b] > 0 ? sumH[b] / weight[b] : b * (360 / bins) + 7.5;
+  double satOf(int b) => weight[b] > 0 ? sumS[b] / weight[b] : 0.6;
+
+  final h1 = hueOf(best);
+  final s1 = satOf(best);
+
+  // Second hue: strongest bin at least 40° away from the first.
+  int second = -1;
+  for (int b = 0; b < bins; b++) {
+    final d = ((hueOf(b) - h1).abs() % 360);
+    final dist = math.min(d, 360 - d);
+    if (dist < 40 || weight[b] <= 0) continue;
+    if (second == -1 || smooth[b] > smooth[second]) second = b;
+  }
+  final hasSecond = second != -1 && smooth[second] > smooth[best] * 0.18;
+  final h2 = hasSecond ? hueOf(second) : (h1 + 28) % 360;
+  final s2 = hasSecond ? satOf(second) : s1;
+
+  final deep = _hsl(h1, (s1 * 0.75).clamp(0.30, 0.75), 0.085);
+  final base = _hsl(h1, (s1 * 0.85).clamp(0.38, 0.80), 0.24);
+
+  // Vibrant: saturated and bright enough for ≥4.5:1 on the deep ground.
+  double l = 0.56;
+  int vibrant = _hsl(h1, (s1 * 1.2).clamp(0.62, 0.95), l);
+  while (_contrast(vibrant, deep) < 4.5 && l < 0.86) {
+    l += 0.03;
+    vibrant = _hsl(h1, (s1 * 1.2).clamp(0.62, 0.95), l);
+  }
+  final glow = _hsl(h2, (s2 * 1.1).clamp(0.55, 0.95), 0.62);
+  return [deep, base, vibrant, glow];
+}
+
+const List<int> _fallbackInts = [0xFF120C24, 0xFF3B1F5E, 0xFFFF5C8A, 0xFFFFB454];
+
+AlbumPalette albumPaletteFromInts(List<int> c) => AlbumPalette(
+      deep: Color(c[0]),
+      base: Color(c[1]),
+      vibrant: Color(c[2]),
+      glow: Color(c[3]),
+    );

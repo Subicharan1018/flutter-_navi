@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:cached_network_image/cached_network_image.dart';
-import 'package:palette_generator/palette_generator.dart';
+import '../player/artwork.dart';
 
 import '../models/album.dart';
 import '../models/song.dart';
@@ -17,38 +17,10 @@ import '../utils/platform_utils.dart';
 // Isolate-safe color extraction
 // ---------------------------------------------------------------------------
 Future<Color?> _extractAlbumPalette(String imageUrl) async {
-  try {
-    final palette = await PaletteGenerator.fromImageProvider(
-      ResizeImage(
-        CachedNetworkImageProvider(imageUrl),
-        width: 150,
-        height: 150,
-      ),
-      size: const Size(100, 100),
-    );
-    final color = palette.vibrantColor?.color ??
-        palette.dominantColor?.color ??
-        palette.mutedColor?.color;
-
-    if (color == null) return null;
-
-    final hsl = HSLColor.fromColor(color);
-    
-    // Filter out muddy brown/olive/dirty yellow hues (hue between 35 and 85)
-    if (hsl.hue >= 35 && hsl.hue <= 85 && hsl.saturation < 0.6) {
-      return HSLColor.fromAHSL(1.0, 145, 0.70, 0.35).toColor();
-    }
-
-    final tunedHsl = hsl.withSaturation(
-      hsl.saturation.clamp(0.45, 0.85),
-    ).withLightness(
-      hsl.lightness.clamp(0.25, 0.45),
-    );
-
-    return tunedHsl.toColor();
-  } catch (_) {
-    return null;
-  }
+  // Shares the app-wide artwork repository: decoded once at 64px, palette
+  // extracted in a background isolate, real cover hues only.
+  final data = await ArtworkRepository.instance.load(imageUrl, imageUrl);
+  return data?.palette.base;
 }
 
 // ===========================================================================

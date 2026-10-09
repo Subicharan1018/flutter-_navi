@@ -1,355 +1,143 @@
+import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
-import 'dart:io';
 
-TextStyle _font(
-  TextStyle Function() builder,
+import 'album_palette.dart';
+
+export 'album_palette.dart' show AlbumPalette;
+
+// =============================================================================
+// NaviVibe has ONE theme, and it is alive: every colour role is derived from
+// the album that is playing. The ground is near-black tinted with the cover's
+// deep tone; the accent is the cover's vibrant tone, contrast-corrected.
+//
+// Widgets read tokens through `ThemeTokens.of(context)` and never hardcode
+// colours, so the whole app re-tints when the song changes.
+// =============================================================================
+
+/// Size-specific tracking (Apple's tracking tables, translated to Inter):
+/// small text opens up slightly, display text tightens.
+double trackingFor(double size) {
+  if (size <= 11) return size * 0.01;
+  if (size <= 13) return 0;
+  if (size <= 17) return size * -0.008;
+  if (size <= 24) return size * -0.016;
+  if (size <= 34) return size * -0.022;
+  return size * -0.028;
+}
+
+/// Inter for text sizes, Inter Display (the optical cut drawn for large
+/// sizes) from 20pt up — the same switch SF makes between Text and Display.
+TextStyle naviText(
   double size,
   FontWeight weight,
-  Color color, [
-  double? letterSpacing,
-]) {
-  if (Platform.environment.containsKey('FLUTTER_TEST')) {
-    return TextStyle(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: letterSpacing,
-    );
-  }
-  return builder();
+  Color color, {
+  double? height,
+  bool tabular = false,
+}) {
+  final display = size >= 20 && weight.value >= 500;
+  return TextStyle(
+    fontFamily: display ? 'InterDisplay' : 'Inter',
+    fontSize: size,
+    fontWeight: weight,
+    color: color,
+    height: height,
+    letterSpacing: trackingFor(size),
+    fontFeatures: tabular ? const [FontFeature.tabularFigures()] : null,
+  );
 }
-
-// =============================================================================
-// AppThemeMode — enum identifying each of the five themes
-// =============================================================================
-
-enum AppThemeMode {
-  /// Spotify-accurate dark palette (original).
-  spotify,
-
-  /// Dynamic mesh-gradient dark theme — album art drives colour.
-  aura,
-
-  /// Glassmorphism / frosted-glass iOS aesthetic.
-  frost,
-
-  /// Neumorphic soft-UI — extruded surfaces.
-  neumorphic,
-
-  /// Retro vinyl / analogue warmth.
-  analog,
-
-  /// Ultra-minimalist typography-led brutalist design.
-  zen,
-}
-
-extension AppThemeModeLabel on AppThemeMode {
-  String get label {
-    switch (this) {
-      case AppThemeMode.spotify:
-        return 'Spotify';
-      case AppThemeMode.aura:
-        return 'Aura';
-      case AppThemeMode.frost:
-        return 'Frost';
-      case AppThemeMode.neumorphic:
-        return 'Neumorphic';
-      case AppThemeMode.analog:
-        return 'Analog';
-      case AppThemeMode.zen:
-        return 'Zen';
-    }
-  }
-
-  String get description {
-    switch (this) {
-      case AppThemeMode.spotify:
-        return 'Classic Spotify dark palette — crisp, green-accented, immersive.';
-      case AppThemeMode.aura:
-        return 'Deep black with dynamic mesh gradients drawn from album art.';
-      case AppThemeMode.frost:
-        return 'Frosted-glass panels over a blurred album backdrop.';
-      case AppThemeMode.neumorphic:
-        return 'Soft extruded surfaces — tactile, physical, premium.';
-      case AppThemeMode.analog:
-        return 'Warm vinyl-era nostalgia in cream, wood, and brushed metal.';
-      case AppThemeMode.zen:
-        return 'Stark, typography-led minimalism with zero distractions.';
-    }
-  }
-}
-
-// =============================================================================
-// AppThemeTokens — the raw palette/typography tokens for one theme.
-// Every theme produces an instance of this class; the rest of the app reads
-// from it via the ThemeTokens InheritedWidget below.
-// =============================================================================
 
 class AppThemeTokens {
-  // ── Identity ────────────────────────────────────────────────────────────────
-  final AppThemeMode mode;
+  /// The palette these tokens were derived from.
+  final AlbumPalette palette;
 
-  // ── Background layers (darkest → brightest) ─────────────────────────────────
+  // ── Grounds (darkest → brightest), tinted by the playing album ─────────────
   final Color bgBase; // scaffold / page background
-  final Color bgSurface; // cards, sheets
-  final Color bgElevated; // popovers, tooltips
-  final Color bgOverlay; // modal scrims
+  final Color bgSurface; // cards, sheets, rows on hover
+  final Color bgElevated; // popovers, menus, raised rows
+  final Color bgOverlay; // chips, scrims, pressed fills
 
-  // ── Brand / accent ────────────────────────────────────────────────────────
-  final Color accent; // primary interactive colour
-  final Color accentDim; // muted accent (disabled, inactive)
-  final Color gold; // stars / favourites
+  // ── Accent (the album's vibrant tone) ─────────────────────────────────────
+  final Color accent;
+  final Color accentDim;
+  final Color onAccent;
+  final Color gold; // ratings / stars — warm, independent of the album
 
   // ── Text ──────────────────────────────────────────────────────────────────
   final Color textPrimary;
   final Color textSecondary;
   final Color textMuted;
 
-  // ── Borders & dividers ────────────────────────────────────────────────────
+  // ── Hairlines ─────────────────────────────────────────────────────────────
   final Color outline;
 
-  // ── Glassmorphism (used by Frost; others can safely ignore) ──────────────
-  final Color glassBg;
-  final Color glassBorder;
-
-  // ── Neumorphic shadows (used by Neumorphic theme) ─────────────────────────
-  final Color neuLight; // bright-side shadow colour
-  final Color neuDark; // dark-side shadow colour
-
-  // ── Typography ────────────────────────────────────────────────────────────
-  final TextStyle Function(double size, FontWeight weight, Color color)
-  textStyle;
-
-  const AppThemeTokens({
-    required this.mode,
+  const AppThemeTokens._({
+    required this.palette,
     required this.bgBase,
     required this.bgSurface,
     required this.bgElevated,
     required this.bgOverlay,
     required this.accent,
     required this.accentDim,
+    required this.onAccent,
     required this.gold,
     required this.textPrimary,
     required this.textSecondary,
     required this.textMuted,
     required this.outline,
-    required this.glassBg,
-    required this.glassBorder,
-    required this.neuLight,
-    required this.neuDark,
-    required this.textStyle,
   });
 
-  // ── Convenience text styles ───────────────────────────────────────────────
-  TextStyle get headingLg => textStyle(28, FontWeight.w700, textPrimary);
-  TextStyle get headingMd => textStyle(22, FontWeight.w700, textPrimary);
-  TextStyle get headingSm => textStyle(16, FontWeight.w700, textPrimary);
-  TextStyle get bodyMd => textStyle(14, FontWeight.w400, textPrimary);
-  TextStyle get bodySm => textStyle(12, FontWeight.w400, textSecondary);
-  TextStyle get labelMd => textStyle(11, FontWeight.w600, textSecondary);
-  TextStyle get technicalSm => textStyle(14, FontWeight.w500, textSecondary);
-  TextStyle get technicalXs => textStyle(12, FontWeight.w400, textMuted);
+  factory AppThemeTokens.fromPalette(AlbumPalette p) {
+    Color tint(Color ground, double amount) => Color.lerp(ground, p.deep, amount)!;
+    return AppThemeTokens._(
+      palette: p,
+      bgBase: tint(const Color(0xFF000000), 0.55),
+      bgSurface: tint(const Color(0xFF111111), 0.45),
+      bgElevated: tint(const Color(0xFF1B1B1B), 0.40),
+      bgOverlay: tint(const Color(0xFF2A2A2A), 0.35),
+      accent: p.vibrant,
+      accentDim: Color.lerp(p.vibrant, p.deep, 0.45)!,
+      onAccent: p.onVibrant,
+      gold: const Color(0xFFFFC94D),
+      textPrimary: const Color(0xFFFFFFFF),
+      textSecondary: const Color(0xA8FFFFFF), // 66%
+      textMuted: const Color(0x70FFFFFF), // 44%
+      outline: const Color(0x14FFFFFF),
+    );
+  }
 
-  /// Whether this theme uses a light background
-  bool get isLight => ThemeVariants._isLight(mode);
+  static final AppThemeTokens fallback =
+      AppThemeTokens.fromPalette(AlbumPalette.fallback);
 
-  /// Guaranteed opaque surface colour — safe for dropdowns, dialogs,
-  /// and other overlays where a translucent [bgSurface] would leak the
-  /// backdrop through (e.g. the Frost theme's 30% white glass surface).
+  // ── Typography ────────────────────────────────────────────────────────────
+  TextStyle textStyle(double size, FontWeight weight, Color color) =>
+      naviText(size, weight, color);
+
+  TextStyle get headingLg => naviText(28, FontWeight.w800, textPrimary);
+  TextStyle get headingMd => naviText(22, FontWeight.w700, textPrimary);
+  TextStyle get headingSm => naviText(16, FontWeight.w700, textPrimary);
+  TextStyle get bodyMd => naviText(14, FontWeight.w400, textPrimary);
+  TextStyle get bodySm => naviText(12, FontWeight.w400, textSecondary);
+  TextStyle get labelMd => naviText(11, FontWeight.w600, textSecondary);
+  TextStyle get technicalSm => naviText(14, FontWeight.w500, textSecondary, tabular: true);
+  TextStyle get technicalXs => naviText(12, FontWeight.w400, textMuted, tabular: true);
+
+  /// Always opaque — safe for menus and dialogs over moving content.
   Color get bgSurfaceOpaque => Color.alphaBlend(bgSurface, bgBase);
 
   // ── Semantic state colours ────────────────────────────────────────────────
-  // A theme-aware status vocabulary so screens never hardcode green/amber/red
-  // literals — those bleed one theme's identity across all six (e.g. Spotify
-  // green on the Analog theme). Positive maps to the live accent, warning to
-  // the warm gold signal, danger to the shared error red (matches the
-  // ColorScheme error and DESIGN.md's documented error token).
-  Color get positive => accent;
+  Color get positive => const Color(0xFF3DDC84);
   Color get warning => gold;
-  Color get danger => const Color(0xFFCF6679);
+  Color get danger => const Color(0xFFFF5D73);
+
+  @override
+  bool operator ==(Object other) =>
+      other is AppThemeTokens && other.palette == palette;
+
+  @override
+  int get hashCode => palette.hashCode;
 }
 
-// =============================================================================
-// ThemeVariants — builds an AppThemeTokens for every AppThemeMode
-// =============================================================================
-
-class ThemeVariants {
-  ThemeVariants._();
-
-  static bool _isLight(AppThemeMode m) =>
-      m == AppThemeMode.neumorphic ||
-      m == AppThemeMode.zen ||
-      m == AppThemeMode.analog;
-
-  // ── Spotify ─────────────────────────────────────────────────────────────────
-  static AppThemeTokens spotify() => AppThemeTokens(
-    mode: AppThemeMode.spotify,
-    bgBase: const Color(0xFF090909),
-    bgSurface: const Color(0xFF121212),
-    bgElevated: const Color(0xFF181818),
-    bgOverlay: const Color(0xFF242424),
-    accent: const Color(0xFF1DB954),
-    accentDim: const Color(0xFF158A3E),
-    gold: const Color(0xFFE8C547),
-    textPrimary: const Color(0xFFFFFFFF),
-    textSecondary: const Color(0xFFA7A7A7),
-    textMuted: const Color(0xFF666666),
-    outline: Colors.transparent,
-    glassBg: const Color(0xCC121212),
-    glassBorder: const Color(0x1AFFFFFF),
-    neuLight: const Color(0xFF242424),
-    neuDark: const Color(0xFF000000),
-    textStyle: (size, weight, color) =>
-        _font(() => GoogleFonts.inter(fontSize: size, fontWeight: weight, color: color), size, weight, color),
-  );
-
-  // ── Aura — deep black + dynamic gradients ────────────────────────────────
-  static AppThemeTokens aura() => AppThemeTokens(
-    mode: AppThemeMode.aura,
-    bgBase: const Color(0xFF030303),
-    bgSurface: const Color(0xFF0D0D0D),
-    bgElevated: const Color(0xFF141414),
-    bgOverlay: const Color(0xFF1A1A2E),
-    // Purple-pink accent: aura vibe
-    accent: const Color(0xFFBB86FC),
-    accentDim: const Color(0xFF7B54A8),
-    gold: const Color(0xFFFFD700),
-    textPrimary: const Color(0xFFF0EEFF),
-    textSecondary: const Color(0xFFAA99CC),
-    textMuted: const Color(0xFF665588),
-    outline: const Color(0xFF1E1E30),
-    glassBg: const Color(0xAA0D0D1A),
-    glassBorder: const Color(0x33BB86FC),
-    neuLight: const Color(0xFF1A1A2E),
-    neuDark: const Color(0xFF000000),
-    textStyle: (size, weight, color) => _font(() => GoogleFonts.spaceMono(
-      fontSize: size * 0.95,
-      fontWeight: weight,
-      color: color,
-    ), size * 0.95, weight, color),
-  );
-
-  // ── Frost — glassmorphism ─────────────────────────────────────────────────
-  static AppThemeTokens frost() => AppThemeTokens(
-    mode: AppThemeMode.frost,
-    bgBase: const Color(0xFF0A1628),
-    bgSurface: const Color(0x4DFFFFFF), // translucent white glass
-    bgElevated: const Color(0x66FFFFFF),
-    bgOverlay: const Color(0x33FFFFFF),
-    accent: const Color(0xFF64D2FF), // ice blue
-    accentDim: const Color(0xFF3BA8D8),
-    gold: const Color(0xFFFFE066),
-    textPrimary: const Color(0xFFFFFFFF),
-    textSecondary: const Color(0xCCFFFFFF),
-    textMuted: const Color(0x88FFFFFF),
-    outline: Colors.transparent,
-    glassBg: const Color(0x55FFFFFF),
-    glassBorder: const Color(0x22FFFFFF),
-    neuLight: const Color(0x55FFFFFF),
-    neuDark: const Color(0x330A1628),
-    textStyle: (size, weight, color) =>
-        _font(() => GoogleFonts.nunito(fontSize: size, fontWeight: weight, color: color), size, weight, color),
-  );
-
-  // ── Neumorphic — soft-UI light ────────────────────────────────────────────
-  static AppThemeTokens neumorphic() => AppThemeTokens(
-    mode: AppThemeMode.neumorphic,
-    bgBase: const Color(0xFFE0E5EC),
-    bgSurface: const Color(0xFFE8EDF4),
-    bgElevated: const Color(0xFFF0F4FA),
-    bgOverlay: const Color(0xFFD8DDE8),
-    accent: const Color(0xFF4A90D9), // calm blue
-    accentDim: const Color(0xFF2D6BAD),
-    gold: const Color(0xFFD4A017),
-    textPrimary: const Color(0xFF2C3E50),
-    textSecondary: const Color(0xFF5D7A8C),
-    textMuted: const Color(0xFF8FA8B8),
-    outline: const Color(0xFFCDD3DE),
-    glassBg: const Color(0xCCE0E5EC),
-    glassBorder: const Color(0x44FFFFFF),
-    neuLight: const Color(0xFFFFFFFF), // key for neumorphic shadows
-    neuDark: const Color(0xFFA3B1C6),
-    textStyle: (size, weight, color) =>
-        _font(() => GoogleFonts.dmSans(fontSize: size, fontWeight: weight, color: color), size, weight, color),
-  );
-
-  // ── Analog / Vinyl — warm retro ──────────────────────────────────────────
-  static AppThemeTokens analog() => AppThemeTokens(
-    mode: AppThemeMode.analog,
-    bgBase: const Color(0xFFF5ECD7), // aged cream
-    bgSurface: const Color(0xFFEDE0C4),
-    bgElevated: const Color(0xFFDED0B0),
-    bgOverlay: const Color(0xFF3D2B1F), // dark wood for overlays
-    accent: const Color(0xFFB5451B), // oxide red / vinyl groove
-    accentDim: const Color(0xFF8A3315),
-    gold: const Color(0xFFC8960C),
-    textPrimary: const Color(0xFF1C1008),
-    textSecondary: const Color(0xFF5C3D2E),
-    textMuted: const Color(0xFF9E7B5A),
-    outline: const Color(0xFFCAB896),
-    glassBg: const Color(0xCCEDE0C4),
-    glassBorder: const Color(0x44B5451B),
-    neuLight: const Color(0xFFFFF8E8),
-    neuDark: const Color(0xFFB09070),
-    textStyle: (size, weight, color) => _font(() => GoogleFonts.playfairDisplay(
-      fontSize: size,
-      fontWeight: weight,
-      color: color,
-    ), size, weight, color),
-  );
-
-  // ── Zen — ultra-minimalist, typography-led ────────────────────────────────
-  static AppThemeTokens zen() => AppThemeTokens(
-    mode: AppThemeMode.zen,
-    bgBase: const Color(0xFFFAFAF8), // near-white
-    bgSurface: const Color(0xFFF0F0EE),
-    bgElevated: const Color(0xFFE8E8E4),
-    bgOverlay: const Color(0xFF111111),
-    accent: const Color(0xFF111111), // pure black accent
-    accentDim: const Color(0xFF555555),
-    gold: const Color(0xFF222222), // even stars are monochrome
-    textPrimary: const Color(0xFF0A0A0A),
-    textSecondary: const Color(0xFF444444),
-    textMuted: const Color(0xFF888888),
-    outline: const Color(0xFFDDDDDD),
-    glassBg: const Color(0xCCFAFAF8),
-    glassBorder: const Color(0x22000000),
-    neuLight: const Color(0xFFFFFFFF),
-    neuDark: const Color(0xFFCCCCCC),
-    // Scale clamped to 1.08× (was 1.15×) to prevent card text overflow.
-    textStyle: (size, weight, color) => _font(() => GoogleFonts.cormorantGaramond(
-      fontSize: size * 1.08,
-      fontWeight: weight,
-      color: color,
-      letterSpacing: weight == FontWeight.w700 ? -0.5 : 0.2,
-    ), size * 1.08, weight, color, weight == FontWeight.w700 ? -0.5 : 0.2),
-  );
-
-  // ── Factory ───────────────────────────────────────────────────────────────
-  static AppThemeTokens of(AppThemeMode mode) {
-    switch (mode) {
-      case AppThemeMode.spotify:
-        return spotify();
-      case AppThemeMode.aura:
-        return aura();
-      case AppThemeMode.frost:
-        return frost();
-      case AppThemeMode.neumorphic:
-        return neumorphic();
-      case AppThemeMode.analog:
-        return analog();
-      case AppThemeMode.zen:
-        return zen();
-    }
-  }
-}
-
-// =============================================================================
-// ThemeTokens — InheritedWidget so any descendant can call
-//   ThemeTokens.of(context).accent, etc.
-// =============================================================================
-
+/// Exposes the live [AppThemeTokens] to the tree.
 class ThemeTokens extends InheritedWidget {
   final AppThemeTokens tokens;
 
@@ -357,185 +145,186 @@ class ThemeTokens extends InheritedWidget {
 
   static AppThemeTokens of(BuildContext context) {
     final w = context.dependOnInheritedWidgetOfExactType<ThemeTokens>();
-    assert(w != null, 'No ThemeTokens found in widget tree');
-    return w!.tokens;
+    return w?.tokens ?? AppThemeTokens.fallback;
   }
 
   @override
-  bool updateShouldNotify(ThemeTokens old) => old.tokens.mode != tokens.mode;
+  bool updateShouldNotify(ThemeTokens old) => old.tokens != tokens;
 }
 
-// =============================================================================
-// AppTheme — builds a ThemeData from an AppThemeTokens instance.
-//             Also exposes legacy static members used across the codebase.
-// =============================================================================
-
 class AppTheme {
-  // ── Legacy static colours (Spotify defaults, kept for backward compat) ────
-  static const Color spotifyGreen = Color(0xFF1DB954);
-  static const Color electricBlue = Color(0xFF1DB954);
-  static const Color goldAccent = Color(0xFFE8C547);
+  AppTheme._();
 
-  static const Color coreBackground = Color(0xFF000000);
-  static const Color surfaceLevel = Color(0xFF121212);
-  static const Color cardSurface = Color(0xFF181818);
-  static const Color topLevel = Color(0xFF282828);
-  static const Color outlineColor = Color(0xFF2A2A2A);
-
-  static const Color textPrimary = Color(0xFFFFFFFF);
-  static const Color textSecondary = Color(0xFFB3B3B3);
-  static const Color textMuted = Color(0xFF7F7F7F);
-
-  static const Color glassBackground = Color(0xCC121212);
-  static const Color glassBorder = Color(0x28FFFFFF);
-  static const Color glassShadow = Color(0x66000000);
-
-  static const LinearGradient greenGradient = LinearGradient(
-    colors: [Color(0xFF1DB954), Color(0xFF158A3E)],
-    begin: Alignment.topLeft,
-    end: Alignment.bottomRight,
-  );
-
-  // ── Legacy text styles (Spotify) ─────────────────────────────────────────
-  static TextStyle get technicalSm => _font(() => GoogleFonts.inter(
-    fontSize: 14,
-    fontWeight: FontWeight.w500,
-    color: textSecondary,
-  ), 14, FontWeight.w500, textSecondary);
-  static TextStyle get technicalXs => _font(() => GoogleFonts.inter(
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: textMuted,
-  ), 12, FontWeight.w400, textMuted);
-  static TextStyle get headingLg => _font(() => GoogleFonts.inter(
-    fontSize: 28,
-    fontWeight: FontWeight.w700,
-    color: textPrimary,
-    letterSpacing: -0.5,
-  ), 28, FontWeight.w700, textPrimary, -0.5);
-  static TextStyle get headingMd => _font(() => GoogleFonts.inter(
-    fontSize: 22,
-    fontWeight: FontWeight.w700,
-    color: textPrimary,
-    letterSpacing: -0.3,
-  ), 22, FontWeight.w700, textPrimary, -0.3);
-  static TextStyle get headingSm => _font(() => GoogleFonts.inter(
-    fontSize: 16,
-    fontWeight: FontWeight.w700,
-    color: textPrimary,
-  ), 16, FontWeight.w700, textPrimary);
-  static TextStyle get bodyMd => _font(() => GoogleFonts.inter(
-    fontSize: 14,
-    fontWeight: FontWeight.w400,
-    color: textPrimary,
-  ), 14, FontWeight.w400, textPrimary);
-  static TextStyle get bodySm => _font(() => GoogleFonts.inter(
-    fontSize: 12,
-    fontWeight: FontWeight.w400,
-    color: textSecondary,
-  ), 12, FontWeight.w400, textSecondary);
-  static TextStyle get labelMd => _font(() => GoogleFonts.inter(
-    fontSize: 11,
-    fontWeight: FontWeight.w600,
-    color: textSecondary,
-    letterSpacing: 1.2,
-  ), 11, FontWeight.w600, textSecondary, 1.2);
-
-  // ── Legacy darkTheme (Spotify, kept for backward compat) ──────────────────
-  static ThemeData get darkTheme => buildTheme(AppThemeMode.spotify);
-
-  // ── Main builder ─────────────────────────────────────────────────────────
-  static ThemeData buildTheme(AppThemeMode mode) {
-    final t = ThemeVariants.of(mode);
-    final brightness = t.isLight ? Brightness.light : Brightness.dark;
-
+  static ThemeData build(AppThemeTokens t) {
+    TextStyle s(double size, FontWeight w, Color c) => naviText(size, w, c);
     return ThemeData(
       useMaterial3: true,
-      brightness: brightness,
+      brightness: Brightness.dark,
+      fontFamily: 'Inter',
       scaffoldBackgroundColor: t.bgBase,
+      canvasColor: t.bgBase,
       colorScheme: ColorScheme(
-        brightness: brightness,
+        brightness: Brightness.dark,
         primary: t.accent,
-        onPrimary: t.isLight ? Colors.white : Colors.black,
-        secondary: t.accentDim,
-        onSecondary: t.isLight ? Colors.white : Colors.black,
-        surface: t.bgSurface,
+        onPrimary: t.onAccent,
+        secondary: t.palette.glow,
+        onSecondary: const Color(0xFF0B0B0B),
+        surface: t.bgSurfaceOpaque,
         onSurface: t.textPrimary,
-        error: const Color(0xFFCF6679),
+        surfaceContainerHighest: t.bgElevated,
+        outline: t.outline,
+        error: t.danger,
         onError: Colors.white,
       ),
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
-      hoverColor: Colors.transparent,
-
+      hoverColor: t.textPrimary.withValues(alpha: 0.05),
+      focusColor: t.accent.withValues(alpha: 0.24),
+      textSelectionTheme: TextSelectionThemeData(
+        cursorColor: t.accent,
+        selectionColor: t.accent.withValues(alpha: 0.32),
+        selectionHandleColor: t.accent,
+      ),
       appBarTheme: AppBarTheme(
         backgroundColor: Colors.transparent,
+        surfaceTintColor: Colors.transparent,
         elevation: 0,
         centerTitle: false,
+        titleTextStyle: s(20, FontWeight.w700, t.textPrimary),
         iconTheme: IconThemeData(color: t.textPrimary),
       ),
-
       textTheme: TextTheme(
-        displayLarge: t.textStyle(32, FontWeight.w700, t.textPrimary),
-        headlineMedium: t.textStyle(24, FontWeight.w700, t.textPrimary),
-        titleLarge: t.textStyle(16, FontWeight.w700, t.textPrimary),
-        bodyLarge: t.textStyle(15, FontWeight.w400, t.textPrimary),
-        bodyMedium: t.textStyle(13, FontWeight.w400, t.textSecondary),
-        bodySmall: t.textStyle(12, FontWeight.w400, t.textSecondary),
+        displayLarge: s(32, FontWeight.w800, t.textPrimary),
+        headlineMedium: s(24, FontWeight.w700, t.textPrimary),
+        titleLarge: s(18, FontWeight.w700, t.textPrimary),
+        titleMedium: s(16, FontWeight.w600, t.textPrimary),
+        bodyLarge: s(15, FontWeight.w400, t.textPrimary),
+        bodyMedium: s(14, FontWeight.w400, t.textSecondary),
+        bodySmall: s(12, FontWeight.w400, t.textSecondary),
+        labelLarge: s(14, FontWeight.w600, t.textPrimary),
+        labelSmall: s(11, FontWeight.w600, t.textSecondary),
       ),
-
+      iconTheme: IconThemeData(color: t.textPrimary, size: 24),
+      dividerTheme: DividerThemeData(color: t.outline, thickness: 1, space: 1),
       sliderTheme: SliderThemeData(
-        trackHeight: mode == AppThemeMode.neumorphic ? 6 : 4,
+        trackHeight: 4,
         activeTrackColor: t.accent,
-        inactiveTrackColor: t.textPrimary.withValues(alpha: 0.1),
-        thumbColor: mode == AppThemeMode.zen ? t.accent : t.textPrimary,
+        inactiveTrackColor: t.textPrimary.withValues(alpha: 0.14),
+        thumbColor: t.textPrimary,
         overlayColor: Colors.transparent,
-        thumbShape: RoundSliderThumbShape(
-          enabledThumbRadius: mode == AppThemeMode.neumorphic ? 9 : 6,
-        ),
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
       ),
-
+      switchTheme: SwitchThemeData(
+        thumbColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? t.onAccent : t.textSecondary,
+        ),
+        trackColor: WidgetStateProperty.resolveWith(
+          (s) => s.contains(WidgetState.selected) ? t.accent : t.bgOverlay,
+        ),
+        trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
+      ),
       chipTheme: ChipThemeData(
         backgroundColor: t.bgOverlay,
         selectedColor: t.accent,
-        labelStyle: t.textStyle(13, FontWeight.w500, t.textPrimary),
-        secondaryLabelStyle: t.textStyle(
-          13,
-          FontWeight.w500,
-          t.isLight ? Colors.white : Colors.black,
-        ),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        labelStyle: s(13, FontWeight.w600, t.textPrimary),
+        secondaryLabelStyle: s(13, FontWeight.w600, t.onAccent),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
         shape: const StadiumBorder(),
         side: BorderSide.none,
       ),
-
-      bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: t.bgBase,
-        selectedItemColor: t.accent,
-        unselectedItemColor: t.textMuted,
-        selectedLabelStyle: t.textStyle(11, FontWeight.w500, t.accent),
-        unselectedLabelStyle: t.textStyle(11, FontWeight.w500, t.textMuted),
-        type: BottomNavigationBarType.fixed,
-        elevation: 0,
+      filledButtonTheme: FilledButtonThemeData(
+        style: FilledButton.styleFrom(
+          backgroundColor: t.accent,
+          foregroundColor: t.onAccent,
+          shape: const StadiumBorder(),
+          textStyle: s(15, FontWeight.w700, t.onAccent),
+          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+        ),
+      ),
+      textButtonTheme: TextButtonThemeData(
+        style: TextButton.styleFrom(
+          foregroundColor: t.accent,
+          textStyle: s(14, FontWeight.w600, t.accent),
+        ),
+      ),
+      snackBarTheme: SnackBarThemeData(
+        backgroundColor: t.bgElevated,
+        contentTextStyle: s(14, FontWeight.w500, t.textPrimary),
+        actionTextColor: t.accent,
+        behavior: SnackBarBehavior.floating,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      ),
+      bottomSheetTheme: BottomSheetThemeData(
+        backgroundColor: t.bgElevated,
+        surfaceTintColor: Colors.transparent,
+        modalBackgroundColor: t.bgElevated,
+        shape: const RoundedRectangleBorder(
+          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+        ),
+        showDragHandle: true,
+        dragHandleColor: t.textMuted,
+      ),
+      dialogTheme: DialogThemeData(
+        backgroundColor: t.bgElevated,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+        titleTextStyle: s(19, FontWeight.w700, t.textPrimary),
+        contentTextStyle: s(14, FontWeight.w400, t.textSecondary),
+      ),
+      popupMenuTheme: PopupMenuThemeData(
+        color: t.bgElevated,
+        surfaceTintColor: Colors.transparent,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        textStyle: s(14, FontWeight.w500, t.textPrimary),
+      ),
+      listTileTheme: ListTileThemeData(
+        iconColor: t.textSecondary,
+        textColor: t.textPrimary,
+        titleTextStyle: s(15, FontWeight.w500, t.textPrimary),
+        subtitleTextStyle: s(13, FontWeight.w400, t.textSecondary),
+      ),
+      progressIndicatorTheme: ProgressIndicatorThemeData(
+        color: t.accent,
+        linearTrackColor: t.bgOverlay,
+      ),
+      scrollbarTheme: ScrollbarThemeData(
+        thumbColor: WidgetStateProperty.all(t.textPrimary.withValues(alpha: 0.22)),
+        radius: const Radius.circular(8),
+        thickness: WidgetStateProperty.all(6),
+      ),
+      pageTransitionsTheme: const PageTransitionsTheme(
+        builders: {
+          TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+        },
       ),
     );
   }
 }
 
 // =============================================================================
-// CupertinoClickable — press-scale feedback widget (unchanged)
+// PressScale — tactile press feedback. Scales on pointer-DOWN (instant
+// response), springs back on release; a press never waits for the tap to
+// resolve.
 // =============================================================================
 
 class CupertinoClickable extends StatefulWidget {
   final Widget child;
   final VoidCallback? onTap;
+  final VoidCallback? onLongPress;
   final double scaleFactor;
+  final String? semanticLabel;
 
   const CupertinoClickable({
     super.key,
     required this.child,
     this.onTap,
-    this.scaleFactor = 0.97,
+    this.onLongPress,
+    this.scaleFactor = 0.96,
+    this.semanticLabel,
   });
 
   @override
@@ -544,136 +333,41 @@ class CupertinoClickable extends StatefulWidget {
 
 class _CupertinoClickableState extends State<CupertinoClickable>
     with SingleTickerProviderStateMixin {
-  late AnimationController _controller;
-  late Animation<double> _scaleAnimation;
-
-  @override
-  void initState() {
-    super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 100),
-    );
-    _scaleAnimation = Tween<double>(
-      begin: 1.0,
-      end: widget.scaleFactor,
-    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
-  }
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 90),
+    reverseDuration: const Duration(milliseconds: 260),
+  );
+  late final Animation<double> _scale = Tween<double>(
+    begin: 1.0,
+    end: widget.scaleFactor,
+  ).animate(CurvedAnimation(
+    parent: _c,
+    curve: Curves.easeOut,
+    reverseCurve: Curves.easeOutBack,
+  ));
 
   @override
   void dispose() {
-    _controller.dispose();
+    _c.dispose();
     super.dispose();
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return GestureDetector(
-      onTapDown: (_) => widget.onTap != null ? _controller.forward() : null,
-      onTapUp: (_) => widget.onTap != null ? _controller.reverse() : null,
-      onTapCancel: () => widget.onTap != null ? _controller.reverse() : null,
-      onTap: widget.onTap,
-      behavior: HitTestBehavior.opaque,
-      child: ScaleTransition(scale: _scaleAnimation, child: widget.child),
-    );
-  }
-}
-
-// =============================================================================
-// NeuBox — neumorphic container helper (used in Neumorphic theme screens)
-// =============================================================================
-
-class NeuBox extends StatelessWidget {
-  final Widget child;
-  final bool isPressed;
-  final BorderRadius? borderRadius;
-  final EdgeInsets? padding;
-
-  const NeuBox({
-    super.key,
-    required this.child,
-    this.isPressed = false,
-    this.borderRadius,
-    this.padding,
-  });
+  bool get _enabled => widget.onTap != null || widget.onLongPress != null;
 
   @override
   Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final r = borderRadius ?? BorderRadius.circular(16);
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 150),
-      padding: padding ?? const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: t.bgBase,
-        borderRadius: r,
-        boxShadow: isPressed
-            ? [
-                BoxShadow(
-                  color: t.neuDark.withValues(alpha: 0.6),
-                  offset: const Offset(2, 2),
-                  blurRadius: 6,
-                ),
-                BoxShadow(
-                  color: t.neuLight,
-                  offset: const Offset(-2, -2),
-                  blurRadius: 6,
-                ),
-              ]
-            : [
-                BoxShadow(
-                  color: t.neuDark.withValues(alpha: 0.6),
-                  offset: const Offset(6, 6),
-                  blurRadius: 14,
-                ),
-                BoxShadow(
-                  color: t.neuLight,
-                  offset: const Offset(-6, -6),
-                  blurRadius: 14,
-                ),
-              ],
-      ),
-      child: child,
-    );
-  }
-}
-
-// =============================================================================
-// GlassBox — glassmorphism container helper (used in Frost theme screens)
-// =============================================================================
-
-class GlassBox extends StatelessWidget {
-  final Widget child;
-  final BorderRadius? borderRadius;
-  final EdgeInsets? padding;
-
-  const GlassBox({
-    super.key,
-    required this.child,
-    this.borderRadius,
-    this.padding,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    return ClipRRect(
-      borderRadius: borderRadius ?? BorderRadius.circular(20),
-      child: Container(
-        padding: padding ?? const EdgeInsets.all(16),
-        decoration: BoxDecoration(
-          color: t.glassBg,
-          borderRadius: borderRadius ?? BorderRadius.circular(20),
-          border: Border.all(color: t.glassBorder, width: 1),
-          boxShadow: [
-            BoxShadow(
-              color: Colors.black.withValues(alpha: 0.25),
-              blurRadius: 20,
-              spreadRadius: -4,
-            ),
-          ],
-        ),
-        child: child,
+    return Semantics(
+      button: _enabled,
+      label: widget.semanticLabel,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTapDown: _enabled ? (_) => _c.forward() : null,
+        onTapUp: _enabled ? (_) => _c.reverse() : null,
+        onTapCancel: _enabled ? () => _c.reverse() : null,
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        child: ScaleTransition(scale: _scale, child: widget.child),
       ),
     );
   }

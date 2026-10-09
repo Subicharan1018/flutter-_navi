@@ -52,12 +52,21 @@ class TranscodeFormat {
 
 enum ConnectionType { wifi, mobile }
 
+/// Streaming defaults: lossless. The original file (FLAC etc.) is streamed
+/// untouched on every network; transcoding happens only if a user turns it
+/// on in Settings. Users who already chose their own settings keep them.
+const bool _kDefaultEnabled = false;
+const bool _kDefaultSmart = false;
+const int _kDefaultWifi = TranscodeBitrate.original;
+const int _kDefaultMobile = TranscodeBitrate.original;
+const String _kDefaultFormat = TranscodeFormat.mp3;
+
 class TranscodingService extends ChangeNotifier {
-  int _wifiBitrate = TranscodeBitrate.original;
-  int _mobileBitrate = TranscodeBitrate.kbps192;
-  String _format = TranscodeFormat.mp3;
-  bool _enabled = false;
-  bool _smartEnabled = false;
+  int _wifiBitrate = _kDefaultWifi;
+  int _mobileBitrate = _kDefaultMobile;
+  String _format = _kDefaultFormat;
+  bool _enabled = _kDefaultEnabled;
+  bool _smartEnabled = _kDefaultSmart;
   ConnectionType _currentConnectionType = ConnectionType.wifi;
 
   StreamSubscription<List<ConnectivityResult>>? _connectivitySub;
@@ -79,35 +88,20 @@ class TranscodingService extends ChangeNotifier {
   void _loadFromHive() {
     final box = HiveBoxes.audio;
 
-    final wifiVal = box.get(
-      HiveBoxes.kWifiBitrate,
-      defaultValue: TranscodeBitrate.original,
-    );
-    _wifiBitrate = wifiVal is int ? wifiVal : TranscodeBitrate.original;
+    final wifiVal = box.get(HiveBoxes.kWifiBitrate, defaultValue: _kDefaultWifi);
+    _wifiBitrate = wifiVal is int ? wifiVal : _kDefaultWifi;
 
-    final mobileVal = box.get(
-      HiveBoxes.kMobileBitrate,
-      defaultValue: TranscodeBitrate.kbps192,
-    );
-    _mobileBitrate = mobileVal is int ? mobileVal : TranscodeBitrate.kbps192;
+    final mobileVal = box.get(HiveBoxes.kMobileBitrate, defaultValue: _kDefaultMobile);
+    _mobileBitrate = mobileVal is int ? mobileVal : _kDefaultMobile;
 
-    _format =
-        box
-            .get(HiveBoxes.kTranscodeFormat, defaultValue: TranscodeFormat.mp3)
-            ?.toString() ??
-        TranscodeFormat.mp3;
+    _format = box.get(HiveBoxes.kTranscodeFormat, defaultValue: _kDefaultFormat)?.toString() ??
+        _kDefaultFormat;
 
-    final enabledVal = box.get(
-      HiveBoxes.kTranscodingEnabled,
-      defaultValue: false,
-    );
-    _enabled = enabledVal is bool ? enabledVal : false;
+    final enabledVal = box.get(HiveBoxes.kTranscodingEnabled, defaultValue: _kDefaultEnabled);
+    _enabled = enabledVal is bool ? enabledVal : _kDefaultEnabled;
 
-    final smartVal = box.get(
-      HiveBoxes.kSmartSwitchEnabled,
-      defaultValue: false,
-    );
-    _smartEnabled = smartVal is bool ? smartVal : false;
+    final smartVal = box.get(HiveBoxes.kSmartSwitchEnabled, defaultValue: _kDefaultSmart);
+    _smartEnabled = smartVal is bool ? smartVal : _kDefaultSmart;
 
     final connVal = box.get(HiveBoxes.kConnectionType, defaultValue: 0);
     final connectionIndex = connVal is int ? connVal : 0;
