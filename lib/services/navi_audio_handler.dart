@@ -103,6 +103,18 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         if (globalIndex < _currentQueue.length) {
           _trackRecentlyPlayed(_currentQueue[globalIndex].id);
         }
+        // A gapless advance changes the position without changing
+        // playerState, and the notification interpolates elapsed time from
+        // the last broadcast: without this it kept counting from the previous
+        // song (a 4-minute song then a 3-minute one showed "3:00 of 3:00").
+        // Deferred a microtask so it runs after just_audio has reset position.
+        scheduleMicrotask(() {
+          try {
+            _broadcastState();
+          } on UnimplementedError {
+            // Test doubles of AudioPlayer that only stub queue behaviour.
+          }
+        });
       }
     }));
 

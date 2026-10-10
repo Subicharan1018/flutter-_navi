@@ -312,7 +312,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       return;
     }
 
+    // A broadcast for another device that predates our own claim is stale:
+    // keep playing until the server confirms (or the grace runs out).
+    if (!isMineNow && syncState.activeDevice != null && _claimPending) return;
+
     if (isMineNow) {
+      _claimedAt = null;
       if (wasPassive) {
         // Transfer just confirmed — resume from the state we were tracking as passive.
         _resumeFromRemoteState(syncState);
@@ -420,15 +425,28 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  /// When this device last claimed playback because the listener started
+  /// something here. Until the server confirms the claim, a broadcast naming
+  /// another device is stale (sent before the transfer was processed); acting
+  /// on it paused this phone, then the confirmation reloaded and re-seeked
+  /// the track — the one-second drop on every change.
+  DateTime? _claimedAt;
+  static const Duration _claimGrace = Duration(seconds: 4);
+
+  bool get _claimPending =>
+      _claimedAt != null && DateTime.now().difference(_claimedAt!) < _claimGrace;
+
   Future<void> _ensureActiveDevice() async {
-    if (state.syncMode == SyncMode.idle || state.syncMode == SyncMode.standalone) {
-      _myDeviceId ??= await _deviceIdProvider();
-      if (_myDeviceId != null) {
-        try {
-          _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!);
-        } catch (e) {
-          debugPrint('[PlayerNotifier] ⚠️ Failed to transfer playback: $e');
-        }
+    // Starting playback here means "play here", even if another device was
+    // active: claim it, so the server doesn't keep the other device.
+    if (state.syncMode == SyncMode.activeHere) return;
+    _myDeviceId ??= await _deviceIdProvider();
+    if (_myDeviceId != null) {
+      _claimedAt = DateTime.now();
+      try {
+        _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!);
+      } catch (e) {
+        debugPrint('[PlayerNotifier] ⚠️ Failed to transfer playback: $e');
       }
     }
   }
