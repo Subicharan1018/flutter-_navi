@@ -230,6 +230,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String _nextSourceContext = 'autoplay';
   String _nextTransitionType = 'autoplay';
 
+  /// The queue index [_nextTransitionType] was set for, when known. The type
+  /// is consumed by the next track-change event; if that event is for a
+  /// different index, the marked change never surfaced (its event was dropped
+  /// or never emitted) and this one is a natural advance, so a stale
+  /// 'user_selected' can't leak onto it and block autoplay or Smart Shuffle
+  /// refills.
+  int? _nextTransitionIndex;
+
+  void _markTransition(String type, {int? index}) {
+    _nextTransitionType = type;
+    _nextTransitionIndex = index;
+  }
+
   String? _myDeviceId;
   Timer? _positionTickTimer;
   StreamSubscription<PlaybackState>? _syncSub;
@@ -606,10 +619,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // transition type, and the reset must happen even when analytics is off
         // (otherwise a 'user_selected' start would never clear, permanently
         // suppressing autoplay on natural advancement for analytics-off users).
-        final sourceContext = _nextSourceContext;
-        final transitionType = _nextTransitionType;
+        final marked = _nextTransitionIndex == null || _nextTransitionIndex == index;
+        final sourceContext = marked ? _nextSourceContext : 'autoplay';
+        final transitionType = marked ? _nextTransitionType : 'autoplay';
         _nextSourceContext = 'autoplay';
-        _nextTransitionType = 'autoplay';
+        _markTransition('autoplay');
 
         if (analyticsEnabled && newSong != null) {
           final sourceCtx = sourceContext;
@@ -1032,7 +1046,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _playlistPool = []; // clear pool — not a playlist-shuffle context
       _currentPlaylistName = playlistName;
       _nextSourceContext = playlistName != null ? 'playlist' : 'user_queue';
-      _nextTransitionType = 'user_selected';
+      _markTransition('user_selected');
       _suppressDepth++;
       try {
         state = state.copyWith(
@@ -1112,7 +1126,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _ensureActiveDevice();
       _clearHistory();
       _nextSourceContext = 'playlist';
-      _nextTransitionType = 'user_selected';
+      _markTransition('user_selected');
       _currentPlaylistName = playlistName;
 
       final settings = _ref.read(settingsProvider);
@@ -1333,7 +1347,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
 
     _suppressNextHistoryPush = true;
-    _nextTransitionType = 'manual_next';
+    _markTransition('manual_next');
     _nextSourceContext = 'manual_next';
 
     // Optimistic index switch on Desktop
@@ -1421,9 +1435,22 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  /// An explicit jump supersedes the post-shuffle guard. The guard waits for
+  /// the reshuffled anchor index and drops every other index event; if the
+  /// listener jumps inside that window, the jump's own event would be dropped
+  /// too, leaving its 'user_selected' transition to leak onto the next
+  /// natural track change (which then skipped the Smart Shuffle refill).
+  void _releaseShuffleGuard() {
+    if (_pendingIndexAfterShuffle == null) return;
+    _shuffleGuardTimer?.cancel();
+    _shuffleGuardTimer = null;
+    _pendingIndexAfterShuffle = null;
+    _shuffleSettling = false;
+  }
+
   Future<void> jumpTo(int index) async {
     debugPrint('🎵 [PlayerProvider] jumpTo: $index');
-    _nextTransitionType = 'user_selected';
+    _markTransition('user_selected', index: index);
     _nextSourceContext = 'user_selected';
     await _jumpToInternal(index, pushHistory: true);
   }
@@ -1437,6 +1464,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _pushToHistory(state.queue[state.currentIndex]);
     }
     _suppressNextHistoryPush = true;
+    _releaseShuffleGuard();
     state = state.copyWith(currentIndex: index);
     try {
       await _audioHandler.jumpToIndex(index);

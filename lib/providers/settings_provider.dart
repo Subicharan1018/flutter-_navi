@@ -294,14 +294,17 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     state = state.copyWith(webdavUrl: url);
   }
 
+  // State first, then persist: callers reshuffle straight after choosing a
+  // style, and waiting on the disk write meant the reshuffle could still see
+  // the old one.
   Future<void> setShuffleAlgorithm(ShuffleAlgorithm algo) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kShuffleAlgorithm, algo.name);
     state = state.copyWith(shuffleAlgorithm: algo);
+    await HiveBoxes.prefs.put(HiveBoxes.kShuffleAlgorithm, algo.name);
   }
 
   Future<void> setShufflePreference(ShufflePreference pref) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kShufflePreference, pref.name);
     state = state.copyWith(shufflePreference: pref);
+    await HiveBoxes.prefs.put(HiveBoxes.kShufflePreference, pref.name);
   }
 
   Future<void> setDataCollectionEnabled(bool enabled) async {

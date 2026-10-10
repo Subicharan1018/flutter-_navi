@@ -11,6 +11,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:navivibe/core/hive_boxes.dart';
+import 'package:navivibe/features/ai_shuffle/logic/shuffle_providers.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:navivibe/providers/settings_provider.dart';
@@ -18,6 +19,8 @@ import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
+
+import '../helpers/reversing_shuffle_repository.dart';
 
 Song _song({
   required String id,
@@ -191,16 +194,13 @@ class TestAudioHandler extends NaviAudioHandler {
   }) async {
     currentQueue = List<Song>.from(songs);
   }
-
-  Future<List<Song>?> computeSmartLocalOrder({
-    required Song currentSong,
-    required List<Song> future,
-    String? contextName,
-  }) async {
-    // Reverse the future queue to simulate a shuffle
-    return future.reversed.toList();
-  }
 }
+
+/// Every shuffle (Smart Local or local) keeps the playing song playing and
+/// moves it to the front, with the rest of the queue after it. This is the
+/// index that song now has, which the guard must hold.
+int _anchorIndex(ProviderContainer c, String songId) =>
+    c.read(playerProvider).queue.indexWhere((s) => s.id == songId);
 
 void main() {
   setUpAll(() async {
@@ -258,6 +258,7 @@ void main() {
             audioHandlerProvider.overrideWithValue(handler),
             subsonicServiceProvider.overrideWithValue(mockService),
             listenerCollectorProvider.overrideWithValue(mockCollector),
+            shuffleRepositoryProvider.overrideWithValue(ReversingShuffleRepository()),
           ],
         );
         addTearDown(container.dispose);
@@ -290,37 +291,36 @@ void main() {
         // do the compute and commit.
         await notifier.applyShuffleAlgorithm();
 
-        // Immediately after the method returns, the index should be safeIndex (2)
+        // The playing song keeps playing, now at the front of the new order.
+        final anchor = _anchorIndex(container, '3');
         final stateAfter = container.read(playerProvider);
-        expect(stateAfter.currentIndex, 2);
         expect(stateAfter.currentSong?.id, '3');
+        expect(stateAfter.currentIndex, anchor);
+        // The Smart Shuffle order was applied (the fake reverses candidates).
+        expect(stateAfter.queue.skip(anchor + 1).map((s) => s.id), ['5', '4', '2', '1']);
 
-        // Now we mock the realistic worst-case async stream emissions from just_audio
-        // Emit safeIndex - 1 (1)
+        // Realistic worst case from just_audio: stale emissions of indices
+        // from before the reorder arrive after it.
+        await mockPlayer.emitCurrentIndex(2);
+        await Future.delayed(const Duration(milliseconds: 10));
         await mockPlayer.emitCurrentIndex(1);
         await Future.delayed(const Duration(milliseconds: 10));
 
-        // Emit 0
-        await mockPlayer.emitCurrentIndex(0);
-        await Future.delayed(const Duration(milliseconds: 10));
-
-        // If the bug is present, state.currentIndex will now be 0.
+        // The guard must hold the anchor through them.
         final stateDuringRace = container.read(playerProvider);
-        // We expect the state to NOT be 0, it should be protected by the guard
-        // (This expect will FAIL pre-fix, which is the TDD intention).
         expect(
           stateDuringRace.currentIndex,
-          2,
-          reason:
-              'Index should not fall back to 0 due to transient stream events',
+          anchor,
+          reason: 'Transient stream events must not move playback off the anchor',
         );
+        expect(stateDuringRace.currentSong?.id, '3');
 
-        // Finally emit the correct safeIndex (2)
-        await mockPlayer.emitCurrentIndex(2);
+        // Finally the player reports the anchor itself.
+        await mockPlayer.emitCurrentIndex(anchor);
         await Future.delayed(const Duration(milliseconds: 10));
 
         final finalState = container.read(playerProvider);
-        expect(finalState.currentIndex, 2);
+        expect(finalState.currentIndex, anchor);
         expect(finalState.currentSong?.id, '3');
       },
     );
@@ -346,6 +346,7 @@ void main() {
             audioHandlerProvider.overrideWithValue(handler),
             subsonicServiceProvider.overrideWithValue(mockService),
             listenerCollectorProvider.overrideWithValue(mockCollector),
+            shuffleRepositoryProvider.overrideWithValue(ReversingShuffleRepository()),
           ],
         );
         addTearDown(container.dispose);
@@ -370,20 +371,22 @@ void main() {
         // Reshuffle.
         await notifier.applyShuffleAlgorithm();
 
-        // Guard window is active; verify anchor is held.
-        expect(container.read(playerProvider).currentIndex, 2);
+        // Guard window is active; verify the anchor (the playing song, now at
+        // the front of the new order) is held.
+        final anchor = _anchorIndex(container, '3');
+        expect(container.read(playerProvider).currentIndex, anchor);
         expect(container.read(playerProvider).currentSong?.id, '3');
 
         // Wait for the 500ms guard timer to expire.
-        // This is the critical moment: _lastKnownIndex must be updated to 2
-        // (the anchor) so subsequent stream events have correct comparison base.
+        // This is the critical moment: _lastKnownIndex must be updated to the
+        // anchor so subsequent stream events have the correct comparison base.
         await Future.delayed(const Duration(milliseconds: 600));
 
         // Guard has expired. State should still reflect the anchor.
         final stateAfterExpiry = container.read(playerProvider);
         expect(
           stateAfterExpiry.currentIndex,
-          2,
+          anchor,
           reason: 'State must remain on anchor after guard timer expires',
         );
         expect(
