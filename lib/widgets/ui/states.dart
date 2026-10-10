@@ -55,7 +55,7 @@ class MessageState extends StatelessWidget {
               Text(message, textAlign: TextAlign.center, style: t.subheadline),
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: Space.xl),
-                SizedBox(width: 200, child: TintedButton(label: actionLabel!, onTap: onAction)),
+                TintedButton(label: actionLabel!, onTap: onAction),
               ],
             ],
           ),

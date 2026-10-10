@@ -2,6 +2,8 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show Color;
 
+import 'package:flutter/painting.dart' show HSLColor;
+
 /// The four colour roles NaviVibe derives from a cover, already tuned for a
 /// dark UI so every consumer can use them without further correction.
 ///
@@ -23,15 +25,59 @@ class AlbumPalette {
     required this.glow,
   });
 
-  /// Shown when nothing is playing or a cover has no usable pixels: neutral
-  /// graphite with the brand green, so an empty player matches the app
-  /// chrome instead of inventing a purple/pink identity.
+  /// Shown when nothing is playing or a cover has no usable pixels: the app's
+  /// own green-black ramp with the brand green, so an empty player matches
+  /// the chrome instead of inventing an identity.
   static const AlbumPalette fallback = AlbumPalette(
-    deep: Color(0xFF0E0E0E),
-    base: Color(0xFF242424),
-    vibrant: Color(0xFF1ED760),
-    glow: Color(0xFF3A3A3A),
+    deep: Color(0xFF050B07),
+    base: Color(0xFF15261B),
+    vibrant: Color(0xFF30D158),
+    glow: Color(0xFF1F3326),
   );
+
+  /// Page ground for album / playlist / artist pages (iOS 26.4 style): the
+  /// cover's own hue, deep enough that white text reads at AA everywhere,
+  /// muted enough that a neon cover doesn't become a neon page.
+  ///
+  /// Chrome never turns purple or pink: hues in 250–340° are pulled to the
+  /// nearest blue or crimson and quietened, so the page still reads as
+  /// "this cover's colour" without changing the app's identity per song.
+  Color get ground {
+    final hsl = HSLColor.fromColor(base);
+    final hue = guardHue(hsl.hue);
+    final saturation = guardSaturation(hue, (hsl.saturation * 0.8).clamp(0.0, 0.6));
+    return HSLColor.fromAHSL(1, hue, saturation, hsl.lightness.clamp(0.13, 0.19)).toColor();
+  }
+
+  static const double _guardFrom = 250;
+  static const double _guardTo = 340;
+
+  /// Where guarded hues land: a clear blue and a clear red. Closer to the
+  /// band, dark desaturated tones still read as indigo and dusty rose.
+  static const double _landCool = 215;
+  static const double _landWarm = 8;
+
+  /// Just outside the band, hues are kept quiet for the same reason.
+  static const double _edge = 20;
+  static const double _edgeSaturation = 0.3;
+
+  /// True for the purple–pink band the app never paints chrome in.
+  static bool isGuardedHue(double hue) => hue >= _guardFrom && hue <= _guardTo;
+
+  /// Pulls a purple or pink hue out to a clear blue or red; every other hue
+  /// passes through.
+  static double guardHue(double hue) {
+    if (!isGuardedHue(hue)) return hue;
+    return hue < (_guardFrom + _guardTo) / 2 ? _landCool : _landWarm;
+  }
+
+  /// Caps the saturation of surface tones whose hue sits just outside the
+  /// band, so a blue-violet or crimson-pink cover still reads blue or red.
+  static double guardSaturation(double hue, double saturation) {
+    final nearCool = hue >= _guardFrom - _edge && hue < _guardFrom;
+    final nearWarm = hue > _guardTo && hue <= _guardTo + _edge;
+    return nearCool || nearWarm ? math.min(saturation, _edgeSaturation) : saturation;
+  }
 
   /// Text/icon colour that sits on a [vibrant] fill.
   Color get onVibrant => vibrant.computeLuminance() > 0.42
@@ -190,7 +236,9 @@ List<int> extractAlbumPalette(Uint8List rgba) {
   double hueOf(int b) => weight[b] > 0 ? sumH[b] / weight[b] : b * (360 / bins) + 7.5;
   double satOf(int b) => weight[b] > 0 ? sumS[b] / weight[b] : 0.6;
 
-  final h1 = hueOf(best);
+  // Brand guard: roles are never purple or pink (the cover itself is shown
+  // untouched; only the colours derived from it are steered).
+  final h1 = AlbumPalette.guardHue(hueOf(best));
   final s1 = satOf(best);
 
   // Second hue: strongest bin at least 40° away from the first.
@@ -202,11 +250,11 @@ List<int> extractAlbumPalette(Uint8List rgba) {
     if (second == -1 || smooth[b] > smooth[second]) second = b;
   }
   final hasSecond = second != -1 && smooth[second] > smooth[best] * 0.18;
-  final h2 = hasSecond ? hueOf(second) : (h1 + 28) % 360;
+  final h2 = AlbumPalette.guardHue(hasSecond ? hueOf(second) : (h1 + 28) % 360);
   final s2 = hasSecond ? satOf(second) : s1;
 
-  final deep = _hsl(h1, (s1 * 0.75).clamp(0.30, 0.75), 0.085);
-  final base = _hsl(h1, (s1 * 0.85).clamp(0.38, 0.80), 0.24);
+  final deep = _hsl(h1, AlbumPalette.guardSaturation(h1, (s1 * 0.75).clamp(0.30, 0.75)), 0.085);
+  final base = _hsl(h1, AlbumPalette.guardSaturation(h1, (s1 * 0.85).clamp(0.38, 0.80)), 0.24);
 
   // Vibrant: saturated and bright enough for ≥4.5:1 on the deep ground.
   double l = 0.56;
@@ -219,7 +267,7 @@ List<int> extractAlbumPalette(Uint8List rgba) {
   return [deep, base, vibrant, glow];
 }
 
-const List<int> _fallbackInts = [0xFF0E0E0E, 0xFF242424, 0xFF1ED760, 0xFF3A3A3A];
+const List<int> _fallbackInts = [0xFF050B07, 0xFF15261B, 0xFF30D158, 0xFF1F3326];
 
 AlbumPalette albumPaletteFromInts(List<int> c) => AlbumPalette(
       deep: Color(c[0]),

@@ -1,25 +1,32 @@
 // =============================================================================
-// AiShuffleScreen — Smart Shuffle UI (v4.0.0)
+// Smart Shuffle — the app's own "station": a mix tuned to the moment (time,
+// season, weather, your habits) from the Smart Shuffle server, presented the
+// way Apple Music presents a personal mix: a card in the mix's own colours
+// that says what it's tuned for, one Play button, then the songs.
 // =============================================================================
 
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:collection/collection.dart';
-import 'package:shimmer/shimmer.dart';
 
 import '../../../core/theme.dart';
 import '../../../models/song.dart';
-import '../../../providers/player_provider.dart';
 import '../../../providers/library_provider.dart';
+import '../../../providers/player_provider.dart';
+import '../../../providers/settings_provider.dart';
 import '../../../screens/now_playing_screen.dart';
-import '../data/models/recommended_song.dart';
-import '../data/models/predict_response.dart';
+import '../../../widgets/song_tile.dart';
+import '../../../widgets/ui/action_sheet.dart';
+import '../../../widgets/ui/controls.dart';
+import '../../../widgets/ui/large_title_page.dart';
+import '../../../widgets/ui/media.dart';
+import '../../../widgets/ui/mosaic_art.dart';
+import '../../../widgets/ui/states.dart';
 import '../data/models/next_response.dart';
+import '../data/models/predict_response.dart';
+import '../logic/recommendation_resolver.dart';
 import '../logic/shuffle_providers.dart';
-import 'widgets/server_status_bar.dart';
-import 'widgets/recommendation_card.dart';
-import 'widgets/model_status_sheet.dart';
-import '../../../widgets/desktop_dialogs.dart';
+import 'widgets/smart_shuffle_status.dart';
 
 class AiShuffleScreen extends ConsumerStatefulWidget {
   const AiShuffleScreen({super.key});
@@ -29,649 +36,274 @@ class AiShuffleScreen extends ConsumerStatefulWidget {
 }
 
 class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
-  /// True while _applyAiShuffle() is resolving songs and setting the queue.
-  bool _isApplyingQueue = false;
+  bool _applying = false;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _fetchRecommendations();
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => _fetch());
   }
 
-  void _fetchRecommendations() {
-    // Clear any previous /next reshuffle batch FIRST so the screen never renders
-    // a stale frame of the playback engine's batches. On first open those batches
-    // are populated by playPlaylist's fetchNext (/next); clearing before fetching
-    // stops the screen from briefly showing /next data before /predict/always-hear.
-    ref.read(shuffleQueueProvider.notifier).clearQueue();
-    final state = ref.read(predictQueueProvider);
-    ref.read(predictQueueProvider.notifier).fetchPredict(mode: state.mode);
+  /// Fresh /predict for [mode] (default: the current one). Drops any /next
+  /// reshuffle preview first so a stale batch never shows over the new
+  /// picks. Only the preview: a mix that's already playing keeps its session.
+  void _fetch([PredictMode? mode]) {
+    ref.read(shuffleQueueProvider.notifier).clearPreview();
+    ref.read(predictQueueProvider.notifier).fetchPredict(mode: mode ?? ref.read(predictQueueProvider).mode);
   }
 
-  Future<void> _enqueueSong(RecommendedSong song) async {
+  /// New songs for the same moment: everything on screen is banned.
+  Future<void> _reshuffle(List<Song> visible) async {
+    HapticFeedback.selectionClick();
     try {
-      final allSongs = await ref.read(allSongsProvider.future);
-      final localSong = allSongs.firstWhereOrNull(
-        (s) =>
-            s.title.toLowerCase() == song.title.toLowerCase() &&
-            s.artist.toLowerCase() == song.composer.toLowerCase(),
-      ) ?? allSongs.firstWhereOrNull(
-        (s) => s.title.toLowerCase() == song.title.toLowerCase(),
-      );
-
-      if (localSong != null) {
-        await ref.read(playerProvider.notifier).addToQueue(localSong);
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Added "${song.title}" to queue')),
-        );
-      } else {
-        if (!mounted) return;
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Not found in library: ${song.title}')),
-        );
-      }
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error adding song: $e')));
-    }
-  }
-
-  /// Resolves all recommendations against the local library, replaces the
-  /// playback queue with the resolved songs, then navigates to Now Playing.
-  Future<void> _applyAiShuffle() async {
-    if (_isApplyingQueue) return;
-    setState(() => _isApplyingQueue = true);
-
-    try {
-      // After reshuffle, use the shuffle queue; otherwise use predict queue.
-      final shuffleState = ref.read(shuffleQueueProvider);
-      final predictState = ref.read(predictQueueProvider);
-      final recommendations = shuffleState.batches.isNotEmpty
-          ? shuffleState.allRecommendedSongs
-          : predictState.songs;
-
-      if (recommendations.isEmpty) {
-        _showSnackBar('No recommendations — tap refresh first');
-        return;
-      }
-
-      final allSongs = await ref.read(allSongsProvider.future);
-      final resolved = recommendations
-          .map((rec) {
-            return allSongs.firstWhereOrNull(
-              (s) =>
-                  s.title.toLowerCase() == rec.title.toLowerCase() &&
-                  s.artist.toLowerCase() == rec.composer.toLowerCase(),
-            ) ?? allSongs.firstWhereOrNull(
-              (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-            );
-          })
-          .whereType<Song>()
-          .toList();
-
-      if (resolved.isEmpty) {
-        _showSnackBar('None of the recommendations were found in your library');
-        return;
-      }
-
-      // Clean preview batches BEFORE playback starts
-      final notifier = ref.read(shuffleQueueProvider.notifier);
-      notifier.clearQueue();  // Wipes preview batches + playedTitles
-
-      await ref.read(playerProvider.notifier).setQueue(resolved, 0);
-
-      // Fresh sessionId for real playback AFTER setQueue clears history
-      notifier.initSession();
-
-      if (!mounted) return;
-      // Navigate to Now Playing screen instead of popping to a black screen
-      Navigator.of(
-        context,
-      ).push(MaterialPageRoute(builder: (_) => const NowPlayingScreen()));
-    } catch (e, st) {
-      debugPrint('[SmartShuffle] _applyAiShuffle error: $e\n$st');
-      _showSnackBar('Failed to apply shuffle — please try again');
-    } finally {
-      if (mounted) setState(() => _isApplyingQueue = false);
-    }
-  }
-
-  /// Fetches 16 new songs from POST /next (reshuffle: true),
-  /// excluding the current visible queue. Session state is preserved.
-  Future<void> _doReshuffle() async {
-    if (_isApplyingQueue) return;
-    try {
-      await ref.read(shuffleQueueProvider.notifier).reshuffle(source: 'smart');
+      await ref
+          .read(shuffleQueueProvider.notifier)
+          .reshuffle(source: 'smart', visibleTitles: [for (final s in visible) s.title]);
     } catch (_) {
-      _showSnackBar('Reshuffle failed — please try again');
+      if (mounted) showToast(context, 'Couldn’t get new picks. Check your connection and try again.');
     }
   }
 
-  void _showSnackBar(String message) {
-    if (!mounted) return;
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
-
-  void _showModelStatus() {
-    showPlatformSheet(
-      context: context,
-      title: 'Model Status',
-      builder: (_) => const ModelStatusSheet(),
-    );
+  /// Plays the resolved mix from [start] and opens Now Playing.
+  Future<void> _play(List<Song> mix, {int start = 0}) async {
+    if (_applying || mix.isEmpty) return;
+    setState(() => _applying = true);
+    try {
+      final shuffle = ref.read(shuffleQueueProvider.notifier);
+      shuffle.clearQueue(); // drop preview batches before real playback
+      await ref.read(playerProvider.notifier).setQueue(mix, start, playlistName: 'Smart Shuffle');
+      shuffle.initSession(); // fresh session for real playback
+      if (mounted) openNowPlaying(context);
+    } catch (_) {
+      if (mounted) showToast(context, 'Couldn’t start the mix. Try again.');
+    } finally {
+      if (mounted) setState(() => _applying = false);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final tokens = ThemeTokens.of(context);
-    final cs = theme.colorScheme;
     final shuffleState = ref.watch(shuffleQueueProvider);
-    final queueState   = ref.watch(predictQueueProvider);
-    final playerState  = ref.watch(playerProvider);
-    final notifier     = ref.read(predictQueueProvider.notifier);
+    final predict = ref.watch(predictQueueProvider);
+    final library = ref.watch(allSongsProvider).asData?.value ?? const <Song>[];
+    // Picks resolve against the library mirror; on a first launch it may
+    // still be syncing, which is "not ready yet", not "no picks".
+    final syncing = library.isEmpty && ref.watch(librarySyncProvider.select((s) => s.syncing));
 
-    // After a reshuffle the shuffle queue has data — display it.
-    // Otherwise fall back to the predict queue.
-    final songs     = shuffleState.batches.isNotEmpty
-        ? shuffleState.allRecommendedSongs
-        : queueState.songs;
+    // After a reshuffle the /next batches are newest; otherwise /predict.
+    final recs = shuffleState.batches.isNotEmpty ? shuffleState.allRecommendedSongs : predict.songs;
+    final resolver = RecommendationResolver(library);
+    final mix = resolver.resolveAll(recs);
+    final missing = recs.length - mix.length;
+    final starter = shuffleState.batches.map((b) => b.sessionStarter).whereType<SessionStarter>().firstOrNull;
+    final loading = shuffleState.isLoading || predict.isLoading || syncing;
+    final error = shuffleState.error ?? (predict.hasError ? predict.errorMessage : null);
 
-    // Session starter pinned by the server (v3.1), if any.
-    final sessionStarter = shuffleState.batches
-        .map((b) => b.sessionStarter)
-        .firstWhereOrNull((s) => s != null);
-    final isLoading = shuffleState.isLoading || queueState.isLoading;
-    final hasError  = shuffleState.error != null ||
-        (queueState.hasError && songs.isEmpty);
-    final errorMsg  = shuffleState.error ?? queueState.errorMessage ?? 'Error';
-
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Smart Shuffle'),
-        actions: [
-          IconButton(
-            icon: Icon(
-              Icons.info_outline_rounded,
-              color: Theme.of(context).colorScheme.onSurface,
+    return LargeTitlePage(
+      title: 'Smart Shuffle',
+      trailing: const SmartShuffleStatusButton(),
+      onRefresh: () async => _fetch(),
+      slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.lg),
+          sliver: SliverToBoxAdapter(
+            child: NaviSegmented<PredictMode>(
+              segments: {for (final m in PredictMode.values) m: m.displayLabel},
+              value: predict.mode,
+              onChanged: _fetch,
             ),
-            tooltip: 'Model Status',
-            onPressed: _showModelStatus,
-          ),
-        ],
-      ),
-      body: Stack(
-        children: [
-          CustomScrollView(
-            physics: const AlwaysScrollableScrollPhysics(
-              parent: BouncingScrollPhysics(),
-            ),
-            slivers: [
-              // ── Server status bar ──────────────────────────────────────────
-              const SliverToBoxAdapter(
-                child: ServerStatusBar(),
-              ),
-
-              // ── Session starter banner ─────────────────────────────────────
-              if (sessionStarter != null)
-                SliverToBoxAdapter(
-                  child: _SessionStarterBanner(starter: sessionStarter),
-                ),
-
-              // ── Context info strip ─────────────────────────────────────────
-              if (queueState.context != null)
-                SliverToBoxAdapter(
-                  child: _PredictContextStrip(
-                    ctx: queueState.context!,
-                    mode: queueState.mode,
-                  ),
-                ),
-
-              // ── Mode selector ──────────────────────────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 8),
-                  child: SingleChildScrollView(
-                    scrollDirection: Axis.horizontal,
-                    child: Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: PredictMode.values.map((mode) {
-                        final isSelected = queueState.mode == mode;
-                        return Padding(
-                          padding: const EdgeInsets.symmetric(horizontal: 6),
-                          child: FilterChip(
-                            label: Text(mode.displayLabel),
-                            selected: isSelected,
-                            onSelected: (_) {
-                              notifier.setMode(mode);
-                              notifier.fetchPredict(mode: mode);
-                            },
-                            selectedColor: const Color(0xFFFFFFFF),
-                            backgroundColor: tokens.bgElevated,
-                            side: BorderSide.none,
-                            shape: const StadiumBorder(),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 8,
-                            ),
-                            labelStyle: TextStyle(
-                              color: isSelected
-                                  ? const Color(0xFF000000)
-                                  : tokens.textSecondary,
-                              fontWeight: isSelected
-                                  ? FontWeight.w700
-                                  : FontWeight.w500,
-                              fontSize: 12,
-                            ),
-                            showCheckmark: false,
-                          ),
-                        );
-                      }).toList(),
-                    ),
-                  ),
-                ),
-              ),
-
-              // ── Fallback Warning ───────────────────────────────────────────
-              if (queueState.context?.fallbackLevel == 3)
-                SliverToBoxAdapter(
-                  child: Container(
-                    margin: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: ThemeTokens.of(context).warning.withValues(alpha: 0.1),
-                      border: Border.all(
-                        color: ThemeTokens.of(context).warning.withValues(alpha: 0.3),
-                      ),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: Row(
-                      children: [
-                        Icon(
-                          Icons.info_outline,
-                          color: ThemeTokens.of(context).warning,
-                          size: 18,
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: Text(
-                            'Using your global taste profile. '
-                            'Listen to more music in this time/season to get precise picks.',
-                            style: TextStyle(
-                              fontSize: 12,
-                              color: cs.onSurface,
-                            ),
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // ── Recommendations list ───────────────────────────────────────
-              if (isLoading && songs.isEmpty)
-                SliverToBoxAdapter(
-                  child: _buildSkeletonList(cs),
-                )
-              else if (hasError && songs.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _buildErrorState(errorMsg, cs),
-                )
-              else if (songs.isEmpty)
-                SliverFillRemaining(
-                  hasScrollBody: false,
-                  child: _buildEmptyState(theme, cs, queueState.mode),
-                )
-              else
-                SliverList.builder(
-                  itemCount: songs.length,
-                  itemBuilder: (context, index) {
-                    final song = songs[index];
-                    final isPlaying = playerState.isPlaying &&
-                        playerState.currentSong?.title.toLowerCase() ==
-                            song.title.toLowerCase();
-                    return RecommendationCard(
-                      song: song,
-                      rank: index,
-                      isPlaying: isPlaying,
-                      onTap: () => _enqueueSong(song),
-                      onLongPress: () => _enqueueSong(song),
-                    );
-                  },
-                ),
-
-              // Bottom clearance so sticky footer doesn't obscure last item
-              const SliverToBoxAdapter(
-                child: SizedBox(height: 96),
-              ),
-            ],
-          ),
-
-          // ── Sticky footer; the fade keeps list rows from running under it ──
-          Positioned(
-            left: 0,
-            right: 0,
-            bottom: 0,
-            child: Container(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.bottomCenter,
-                  end: Alignment.topCenter,
-                  colors: [
-                    tokens.bgBase,
-                    tokens.bgBase.withValues(alpha: 0.85),
-                    tokens.bgBase.withValues(alpha: 0.0),
-                  ],
-                  stops: const [0.0, 0.65, 1.0],
-                ),
-              ),
-              child: SafeArea(
-                top: false,
-                child: Padding(
-                  padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Row(
-                    children: [
-                      IconButton.outlined(
-                        onPressed: _isApplyingQueue || isLoading
-                            ? null
-                            : _fetchRecommendations,
-                        icon: const Icon(Icons.refresh),
-                        tooltip: 'Refresh recommendations',
-                        style: IconButton.styleFrom(
-                          backgroundColor: tokens.bgElevated,
-                          side: BorderSide.none,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      IconButton.outlined(
-                        onPressed: _isApplyingQueue || isLoading
-                            ? null
-                            : _doReshuffle,
-                        icon: const Icon(Icons.shuffle_rounded),
-                        tooltip: 'Reshuffle queue (16 new songs)',
-                        style: IconButton.styleFrom(
-                          backgroundColor: tokens.bgElevated,
-                          side: BorderSide.none,
-                        ),
-                      ),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: FilledButton.icon(
-                          onPressed: _isApplyingQueue || isLoading
-                              ? null
-                              : _applyAiShuffle,
-                          style: FilledButton.styleFrom(
-                            backgroundColor: ThemeTokens.of(context).accent,
-                            foregroundColor: Colors.black,
-                            padding: const EdgeInsets.symmetric(vertical: 14),
-                            shape: RoundedRectangleBorder(
-                              borderRadius: BorderRadius.circular(28),
-                            ),
-                          ),
-                          icon: _isApplyingQueue || isLoading
-                              ? const SizedBox(
-                                  width: 16,
-                                  height: 16,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: Colors.black,
-                                  ),
-                                )
-                              : const Icon(Icons.play_arrow_rounded, size: 22),
-                          label: Text(
-                            _isApplyingQueue ? 'Applying…' : 'Shuffle Now',
-                            style: const TextStyle(
-                              fontWeight: FontWeight.w700,
-                              fontSize: 14,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-
-  Widget _buildSkeletonList(ColorScheme cs) {
-    final tokens = ThemeTokens.of(context);
-    return Shimmer.fromColors(
-      baseColor: tokens.bgElevated,
-      highlightColor: tokens.bgOverlay,
-      child: ListView.builder(
-        itemCount: 8,
-        itemBuilder: (context, index) => Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-          child: Row(
-            children: [
-              Container(
-                width: 44,
-                height: 44,
-                decoration: BoxDecoration(
-                  color: Colors.white,
-                  borderRadius: BorderRadius.circular(4),
-                ),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Container(
-                      height: 14,
-                      width: double.infinity,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Container(
-                      height: 10,
-                      width: 140,
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
           ),
         ),
-      ),
-    );
-  }
-
-  Widget _buildEmptyState(ThemeData theme, ColorScheme cs, PredictMode mode) {
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Icon(Icons.auto_awesome_rounded, size: 64, color: cs.outlineVariant),
-          const SizedBox(height: 16),
-          Text('No recommendations yet', style: theme.textTheme.titleMedium),
-          const SizedBox(height: 8),
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 32.0),
-            child: Text(
-              mode.emptyMessage,
-              style: theme.textTheme.bodySmall,
-              textAlign: TextAlign.center,
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+          sliver: SliverToBoxAdapter(
+            child: _MixCard(
+              context: predict.context,
+              mode: predict.mode,
+              mix: mix,
+              busy: _applying || loading,
+              onPlay: mix.isEmpty ? null : () => _play(mix),
+              onShuffle: mix.isEmpty ? null : () => _play([...mix]..shuffle()),
+              onNewPicks: loading ? null : () => _reshuffle(mix),
             ),
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildErrorState(String message, ColorScheme cs) {
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(32.0),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.cloud_off, size: 48, color: cs.error),
-            const SizedBox(height: 12),
-            Text(message, textAlign: TextAlign.center),
-            const SizedBox(height: 12),
-            FilledButton.tonal(
-              onPressed: _fetchRecommendations,
-              child: const Text('Retry'),
-            ),
-          ],
         ),
-      ),
+        if (starter != null) SliverToBoxAdapter(child: _StarterRow(starter: starter)),
+        if (syncing)
+          const SliverToBoxAdapter(
+            child: Padding(
+              padding: EdgeInsets.only(top: Space.xxl),
+              child: LoadingState(label: 'Getting your library ready for Smart Shuffle…'),
+            ),
+          )
+        else if (loading && mix.isEmpty)
+          const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.only(top: Space.lg), child: TrackListSkeleton()))
+        else if (error != null && mix.isEmpty)
+          SliverToBoxAdapter(
+            child: MessageState.error(
+              title: 'Smart Shuffle isn’t reachable',
+              message: 'Check that your Smart Shuffle server is running, then try again.',
+              onRetry: _fetch,
+            ),
+          )
+        else if (mix.isEmpty)
+          SliverToBoxAdapter(
+            child: MessageState(
+              icon: CupertinoIcons.sparkles,
+              title: 'No picks yet',
+              message: predict.mode.emptyMessage,
+            ),
+          )
+        else ...[
+          const SliverToBoxAdapter(child: SectionHeader(title: 'In This Mix')),
+          SliverFixedExtentList(
+            itemExtent: SongTile.extent,
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => SongTile(song: mix[i], onTap: () => _play(mix, start: i)),
+              childCount: mix.length,
+            ),
+          ),
+          if (missing > 0)
+            SliverToBoxAdapter(
+              child: Builder(
+                builder: (context) => Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, 0),
+                  child: Text(
+                    missing == 1
+                        ? '1 pick isn’t in your library yet.'
+                        : '$missing picks aren’t in your library yet.',
+                    style: ThemeTokens.of(context).footnote,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ],
     );
   }
 }
 
-class _SessionStarterBanner extends StatelessWidget {
-  const _SessionStarterBanner({required this.starter});
+/// The mix itself: cover mosaic, the moment it's tuned for, and the
+/// transport.
+class _MixCard extends ConsumerWidget {
+  final PredictContext? context;
+  final PredictMode mode;
+  final List<Song> mix;
+  final bool busy;
+  final VoidCallback? onPlay;
 
+  /// Plays the same picks in a shuffled order (Apple's round Shuffle).
+  final VoidCallback? onShuffle;
+
+  /// Swaps every pick on screen for new ones tuned to the same moment.
+  final VoidCallback? onNewPicks;
+
+  const _MixCard({
+    required this.context,
+    required this.mode,
+    required this.mix,
+    required this.busy,
+    required this.onPlay,
+    required this.onShuffle,
+    required this.onNewPicks,
+  });
+
+  static String _titleCase(String s) =>
+      s.split('_').where((w) => w.isNotEmpty).map((w) => '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
+
+  /// "late_morning__summer__cloudy" → ("Late Morning", ["Summer", "Cloudy"]).
+  static (String, List<String>) _moment(PredictContext? c) {
+    if (c == null) return ('Right Now', const []);
+    final parts = c.bucket.split('__').where((p) => p.isNotEmpty).map(_titleCase).toList();
+    return (parts.isEmpty ? 'Right Now' : parts.first, parts.skip(1).toList());
+  }
+
+  static String _confidence(PredictContext c) => switch (c.fallbackLevel) {
+        0 => 'Tuned from ${c.nInProfile} plays at moments like this',
+        1 => 'Based on what you play this season',
+        2 => 'Based on what you play at this time of day',
+        _ => 'Still learning your taste. The more you listen, the closer it gets.',
+      };
+
+  @override
+  Widget build(BuildContext buildContext, WidgetRef ref) {
+    final t = ThemeTokens.of(buildContext);
+    final svc = ref.read(subsonicServiceProvider);
+    final (title, extras) = _moment(context);
+    final c = context;
+    final details = [
+      ...extras,
+      if (c?.temperatureC != null) '${c!.temperatureC!.round()}°',
+    ].join(', ');
+
+    // The mix as an Apple playlist header: art, name, why, transport. No
+    // card around it; the page is the surface.
+    return Column(
+      children: [
+        MosaicArt(
+          urls: [for (final s in mix.take(12)) svc.getCoverArtUrl(s.coverArt)],
+          size: _art,
+          radius: Radii.hero,
+          placeholderIcon: CupertinoIcons.sparkles,
+        ),
+        const SizedBox(height: Space.lg),
+        Text(
+          mode == PredictMode.discovery ? 'Discoveries for $title' : 'Your Mix for $title',
+          textAlign: TextAlign.center,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: t.title1,
+        ),
+        if (details.isNotEmpty) ...[
+          const SizedBox(height: Space.xxs),
+          Text(details, textAlign: TextAlign.center, style: t.title3.copyWith(color: t.accent, fontWeight: FontWeight.w500)),
+        ],
+        if (c != null) ...[
+          const SizedBox(height: Space.sm),
+          Text(_confidence(c), textAlign: TextAlign.center, style: t.footnote),
+        ],
+        const SizedBox(height: Space.xl),
+        PlayShuffleButtons(
+          onPlay: busy ? null : onPlay,
+          onShuffle: busy ? null : onShuffle,
+          trailing: CircleIconButton(
+            icon: CupertinoIcons.arrow_2_circlepath,
+            label: 'New Picks',
+            onTap: onNewPicks,
+          ),
+        ),
+      ],
+    );
+  }
+
+  static const double _art = 220;
+}
+
+/// "Your evening opener" — the song you usually start this time of day with.
+class _StarterRow extends StatelessWidget {
   final SessionStarter starter;
+  const _StarterRow({required this.starter});
 
   @override
   Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-    final accent = ThemeTokens.of(context).accent;
-
-    return Container(
-      margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(
-        color: accent.withValues(alpha: 0.10),
-        border: Border.all(color: accent.withValues(alpha: 0.35)),
-        borderRadius: BorderRadius.circular(12),
-      ),
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.lg, Space.gutter, 0),
       child: Row(
         children: [
-          Icon(Icons.play_circle_fill_rounded, color: accent, size: 20),
-          const SizedBox(width: 10),
+          Icon(CupertinoIcons.sunrise, size: 18, color: t.accent),
+          const SizedBox(width: Space.sm),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Your ${starter.timeArcLabel} opener',
-                  style: textTheme.labelSmall?.copyWith(
-                    color: accent,
-                    fontWeight: FontWeight.w700,
-                    letterSpacing: 0.3,
-                  ),
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  starter.title,
-                  style: textTheme.bodyMedium?.copyWith(
-                    color: cs.onSurface,
-                    fontWeight: FontWeight.w600,
-                  ),
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+            child: Text.rich(
+              TextSpan(children: [
+                TextSpan(text: 'Your ${starter.timeArcLabel} opener: ', style: t.subheadline),
+                TextSpan(text: starter.title, style: t.subheadline.copyWith(color: t.textPrimary)),
+              ]),
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
             ),
           ),
-          const SizedBox(width: 8),
-          Text(
-            'started ${starter.sessionsStarted}×',
-            style: textTheme.labelSmall?.copyWith(
-              color: cs.onSurfaceVariant,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _PredictContextStrip extends StatelessWidget {
-  const _PredictContextStrip({required this.ctx, required this.mode});
-
-  final PredictContext ctx;
-  final PredictMode mode;
-
-  @override
-  Widget build(BuildContext context) {
-    final cs = Theme.of(context).colorScheme;
-    final textTheme = Theme.of(context).textTheme;
-
-    return Container(
-      margin: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-      decoration: BoxDecoration(
-        color: cs.surfaceContainerHigh,
-        borderRadius: BorderRadius.circular(12),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // Context bucket row
-          Row(children: [
-            const Icon(Icons.tune, size: 14),
-            const SizedBox(width: 6),
-            Text(
-              ctx.bucket.split('__').map((s) => s.isEmpty ? '' : s[0].toUpperCase() + s.substring(1).toLowerCase()).join(' • '),
-              style: textTheme.labelMedium,
-            ),
-          ]),
-          const SizedBox(height: 4),
-          // Weather + temperature
-          Row(children: [
-            const Icon(Icons.cloud_outlined, size: 14),
-            const SizedBox(width: 6),
-            Text(
-              '${ctx.weatherMood.isNotEmpty ? ctx.weatherMood[0].toUpperCase() + ctx.weatherMood.substring(1).toLowerCase() : ""}'
-              '${ctx.temperatureC != null ? "  ${ctx.temperatureC!.toStringAsFixed(1)} °C" : ""}',
-              style: textTheme.labelSmall,
-            ),
-          ]),
-          const SizedBox(height: 4),
-          // Profile confidence
-          Row(children: [
-            Icon(
-              ctx.isHighConfidence ? Icons.verified : Icons.info_outline,
-              size: 14,
-              color: ctx.isHighConfidence ? ThemeTokens.of(context).positive : ThemeTokens.of(context).warning,
-            ),
-            const SizedBox(width: 6),
-            Expanded(
-              child: Text(
-                ctx.fallbackDescription,
-                style: textTheme.labelSmall?.copyWith(
-                  color: ctx.isHighConfidence ? ThemeTokens.of(context).positive : ThemeTokens.of(context).warning,
-                ),
-              ),
-            ),
-          ]),
-          // Show max_prior_plays badge for discovery mode
-          if (mode == PredictMode.discovery && ctx.maxPriorPlays != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Showing songs with ≤ ${ctx.maxPriorPlays} prior plays',
-              style: textTheme.labelSmall,
-            ),
-          ],
+          Text('${starter.sessionsStarted}×', style: t.footnote),
         ],
       ),
     );

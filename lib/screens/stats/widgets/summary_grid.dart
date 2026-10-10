@@ -1,4 +1,4 @@
-import 'package:flutter/cupertino.dart';
+import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
 import '../../../features/ai_shuffle/data/models/contribution_graph_response.dart';
@@ -6,93 +6,115 @@ import '../../../features/ai_shuffle/data/models/listening_stats_response.dart';
 import '../../../utils/format.dart';
 import 'stat_card.dart';
 
-/// The four period totals as tiles, Apple Fitness style: what you did, in
-/// big numbers, each with the one shape that explains it.
-class SummaryGrid extends StatelessWidget {
+/// The top of Stats: time listened as one big figure, the way Apple Fitness
+/// leads with the number you care about. Plays, skips and streak sit under
+/// it as supporting figures, then the last two weeks as a strip of days.
+class SummaryHero extends StatelessWidget {
   final ListeningStatsResponse stats;
   final List<ContributionDay> days;
-  const SummaryGrid({super.key, required this.stats, required this.days});
+
+  /// "in the last 7 days", "all time"…
+  final String periodPhrase;
+
+  const SummaryHero({super.key, required this.stats, required this.days, required this.periodPhrase});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final skip = (stats.skipRate * 100).round().clamp(0, 100);
-    final skipColor = skip > 20 ? t.danger : (skip >= 10 ? t.warning : t.positive);
+    // Only a skip rate that says something's off is worth colouring.
+    final skipColor = skip > 30 ? t.danger : t.textPrimary;
 
-    return LayoutBuilder(builder: (context, c) {
-      final columns = c.maxWidth >= 640 ? 4 : 2;
-      final width = (c.maxWidth - Space.md * (columns - 1)) / columns;
-      final tiles = [
-        _Tile(
-          label: 'Plays',
-          icon: CupertinoIcons.play_fill,
-          value: _Counting(target: stats.totalPlays, format: compactCount),
+    return Semantics(
+      container: true,
+      label: '${listeningTime(stats.totalMinutes)} listened $periodPhrase. '
+          '${stats.totalPlays} plays, $skip percent skipped, ${stats.streakDays} day streak.',
+      child: ExcludeSemantics(
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            FittedBox(
+              fit: BoxFit.scaleDown,
+              alignment: Alignment.centerLeft,
+              child: _Counting(
+                target: stats.totalMinutes,
+                format: listeningTime,
+                style: figureStyle(t, 64).copyWith(color: t.accent, letterSpacing: -2.4),
+              ),
+            ),
+            const SizedBox(height: Space.xs),
+            Text('listened $periodPhrase', style: t.body.copyWith(color: t.textSecondary)),
+            const SizedBox(height: Space.xxl),
+            IntrinsicHeight(
+              child: Row(
+                children: [
+                  Expanded(
+                    child: _Figure(
+                      first: true,
+                      value: _Counting(target: stats.totalPlays, format: compactCount, style: figureStyle(t, 24)),
+                      label: stats.totalPlays == 1 ? 'play' : 'plays',
+                    ),
+                  ),
+                  const _Divider(),
+                  Expanded(
+                    child: _Figure(
+                      value: Text('$skip%', style: figureStyle(t, 24).copyWith(color: skipColor)),
+                      label: 'skipped',
+                    ),
+                  ),
+                  const _Divider(),
+                  Expanded(
+                    child: _Figure(
+                      value: Text('${stats.streakDays}', style: figureStyle(t, 24)),
+                      label: 'day streak',
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            if (days.isNotEmpty) ...[
+              const SizedBox(height: Space.xxl),
+              _Fortnight(days: days),
+            ],
+          ],
         ),
-        _Tile(
-          label: 'Listening Time',
-          icon: CupertinoIcons.time,
-          value: _Counting(target: stats.totalMinutes, format: listeningTime),
-        ),
-        _Tile(
-          label: 'Skipped',
-          icon: CupertinoIcons.forward_end_fill,
-          iconColor: skipColor,
-          value: Text('$skip%', style: figureStyle(t, 30).copyWith(color: skipColor)),
-          footer: _Proportion(played: 100 - skip, color: skipColor),
-        ),
-        _Tile(
-          label: 'Streak',
-          icon: CupertinoIcons.flame_fill,
-          iconColor: stats.streakDays > 0 ? t.warning : t.textMuted,
-          value: Text(
-            stats.streakDays == 1 ? '1 day' : '${stats.streakDays} days',
-            style: figureStyle(t, 30),
-          ),
-          footer: _Fortnight(days: days, live: stats.streakDays > 0 ? t.warning : t.textMuted),
-        ),
-      ];
-      return Wrap(
-        spacing: Space.md,
-        runSpacing: Space.md,
-        children: [for (final tile in tiles) SizedBox(width: width, child: tile)],
-      );
-    });
+      ),
+    );
   }
 }
 
-class _Tile extends StatelessWidget {
-  final String label;
-  final IconData icon;
-  final Color? iconColor;
+class _Figure extends StatelessWidget {
   final Widget value;
-  final Widget? footer;
+  final String label;
 
-  const _Tile({required this.label, required this.icon, this.iconColor, required this.value, this.footer});
+  /// The first figure hangs on the page margin.
+  final bool first;
+  const _Figure({required this.value, required this.label, this.first = false});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return Container(
-      height: 128,
-      padding: const EdgeInsets.all(Space.lg),
-      decoration: BoxDecoration(color: t.bgSurface, borderRadius: BorderRadius.circular(Radii.group)),
+    return Padding(
+      padding: EdgeInsets.only(left: first ? 0 : Space.md, right: Space.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Row(
-            children: [
-              Icon(icon, size: 15, color: iconColor ?? t.accent),
-              const SizedBox(width: Space.xs + 2),
-              Expanded(child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline)),
-            ],
-          ),
-          const Spacer(),
           FittedBox(fit: BoxFit.scaleDown, alignment: Alignment.centerLeft, child: value),
-          if (footer != null) ...[const SizedBox(height: Space.sm), footer!],
+          const SizedBox(height: Space.xxs),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
         ],
       ),
     );
   }
+}
+
+/// Hairline between the supporting figures; the first figure hangs on the
+/// page margin, so dividers carry the rhythm instead of boxes.
+class _Divider extends StatelessWidget {
+  const _Divider();
+
+  @override
+  Widget build(BuildContext context) => Container(width: 0.5, color: ThemeTokens.of(context).outline);
 }
 
 /// A number that counts up once when it first appears (skipped when the
@@ -100,79 +122,81 @@ class _Tile extends StatelessWidget {
 class _Counting extends StatelessWidget {
   final int target;
   final String Function(int) format;
-  const _Counting({required this.target, required this.format});
+  final TextStyle style;
+  const _Counting({required this.target, required this.format, required this.style});
 
   @override
   Widget build(BuildContext context) {
-    final style = figureStyle(ThemeTokens.of(context), 30);
     if (MediaQuery.disableAnimationsOf(context)) return Text(format(target), style: style);
     return TweenAnimationBuilder<int>(
       tween: IntTween(begin: 0, end: target),
-      duration: Motion.slow * 2,
-      curve: Motion.ease,
+      duration: Motion.slow * 3,
+      curve: Curves.easeOutExpo,
       builder: (_, v, _) => Text(format(v), style: style),
     );
   }
 }
 
-/// Played-through vs skipped as one split bar.
-class _Proportion extends StatelessWidget {
-  final int played;
-  final Color color;
-  const _Proportion({required this.played, required this.color});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    return ClipRRect(
-      borderRadius: BorderRadius.circular(2),
-      child: SizedBox(
-        height: 4,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Expanded(flex: played.clamp(1, 100), child: ColoredBox(color: t.fill)),
-            if (played < 100) ...[
-              const SizedBox(width: 2),
-              Expanded(flex: 100 - played, child: ColoredBox(color: color)),
-            ],
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// The last 14 days, one tick each, lit on days you listened.
+/// The last 14 days as bars sized by plays, today on the right and lit;
+/// a day without music stays a short stub so gaps in a streak read at once.
 class _Fortnight extends StatelessWidget {
   static const _window = 14;
+  static const _height = 44.0;
   final List<ContributionDay> days;
-  final Color live;
-  const _Fortnight({required this.days, required this.live});
+  const _Fortnight({required this.days});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final byDate = {for (final d in days) d.date: d.count};
     final now = DateTime.now();
-    return SizedBox(
-      height: 4,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          for (var i = 0; i < _window; i++) ...[
-            if (i > 0) const SizedBox(width: 2),
-            Expanded(
-              child: DecoratedBox(
-                decoration: BoxDecoration(
-                  color: (byDate[isoDate(now.subtract(Duration(days: _window - 1 - i)))] ?? 0) > 0 ? live : t.fill,
-                  borderRadius: BorderRadius.circular(2),
+    final counts = [
+      for (var i = 0; i < _window; i++) byDate[isoDate(now.subtract(Duration(days: _window - 1 - i)))] ?? 0,
+    ];
+    final max = counts.fold(0, (a, b) => a > b ? a : b);
+    const weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Text('Last 2 weeks', style: t.footnote),
+        const SizedBox(height: Space.sm),
+        SizedBox(
+          height: _height,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (var i = 0; i < _window; i++) ...[
+                if (i > 0) const SizedBox(width: 4),
+                Expanded(
+                  child: Container(
+                    height: max == 0 || counts[i] == 0 ? 4 : 8 + (_height - 8) * counts[i] / max,
+                    decoration: BoxDecoration(
+                      color: counts[i] == 0 ? t.fill : (i == _window - 1 ? t.accent : t.accentDim),
+                      borderRadius: BorderRadius.circular(3),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+        const SizedBox(height: Space.xs + 2),
+        Row(
+          children: [
+            for (var i = 0; i < _window; i++) ...[
+              if (i > 0) const SizedBox(width: 4),
+              Expanded(
+                child: Text(
+                  weekdays[now.subtract(Duration(days: _window - 1 - i)).weekday - 1],
+                  textAlign: TextAlign.center,
+                  style: t.caption2.copyWith(color: i == _window - 1 ? t.textPrimary : t.textMuted),
                 ),
               ),
-            ),
+            ],
           ],
-        ],
-      ),
+        ),
+      ],
     );
   }
 }

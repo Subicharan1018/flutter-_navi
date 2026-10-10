@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../models/song.dart';
+import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/queue_actions.dart';
 import 'desktop_dialogs.dart';
@@ -19,6 +20,7 @@ Future<void> showCollectionActions(
   required Future<List<Song>> Function() loadSongs,
   VoidCallback? onEdit,
   VoidCallback? onDelete,
+  Pin? pin,
 }) =>
     showPlatformSheet(
       context: context,
@@ -30,6 +32,7 @@ Future<void> showCollectionActions(
         loadSongs: loadSongs,
         onEdit: onEdit,
         onDelete: onDelete,
+        pin: pin,
       ),
     );
 
@@ -42,6 +45,9 @@ class _CollectionActions extends ConsumerWidget {
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
 
+  /// When given, offers Pin / Unpin for the top of Library.
+  final Pin? pin;
+
   const _CollectionActions({
     required this.title,
     this.subtitle,
@@ -50,6 +56,7 @@ class _CollectionActions extends ConsumerWidget {
     required this.loadSongs,
     this.onEdit,
     this.onDelete,
+    this.pin,
   });
 
   @override
@@ -98,6 +105,8 @@ class _CollectionActions extends ConsumerWidget {
             onTap: () => withSongs((s) => queueSongs(page, ref, s, next: false, label: title)),
           ),
         ]),
+        if (pin != null)
+          SheetGroup(children: [_PinAction(pin: pin!, page: page)]),
         if (onEdit != null || onDelete != null)
           SheetGroup(children: [
             if (onEdit != null) SheetAction(label: 'Edit Playlist', icon: CupertinoIcons.pencil, onTap: onEdit),
@@ -106,6 +115,36 @@ class _CollectionActions extends ConsumerWidget {
           ]),
         const SizedBox(height: 8),
       ],
+    );
+  }
+}
+
+class _PinAction extends ConsumerWidget {
+  final Pin pin;
+  final BuildContext page;
+  const _PinAction({required this.pin, required this.page});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final pinned = ref.watch(pinsProvider.select((p) => p.any((e) => e.key == pin.key)));
+    final noun = switch (pin.kind) {
+      PinKind.album => 'Album',
+      PinKind.playlist => 'Playlist',
+      PinKind.artist => 'Artist',
+    };
+    return SheetAction(
+      label: pinned ? 'Unpin $noun' : 'Pin $noun',
+      icon: pinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin,
+      onTap: () {
+        final ok = ref.read(pinsProvider.notifier).toggle(pin);
+        if (!page.mounted) return;
+        showToast(
+          page,
+          !ok
+              ? 'Library holds ${PinsNotifier.max} pins. Unpin one to add another.'
+              : (pinned ? 'Unpinned from Library' : 'Pinned to Library'),
+        );
+      },
     );
   }
 }

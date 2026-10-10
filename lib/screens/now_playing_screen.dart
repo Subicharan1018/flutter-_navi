@@ -1,5 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -21,6 +23,7 @@ import '../providers/settings_provider.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/options_menu.dart';
+import '../widgets/ui/action_sheet.dart';
 
 // =============================================================================
 // Opening the player
@@ -279,6 +282,10 @@ class _PhoneLayout extends ConsumerWidget {
     final notifier = ref.read(playerProvider.notifier);
     final route = _route(context);
     final height = MediaQuery.sizeOf(context).height;
+    // The covers either side of this one, for the swipe carousel.
+    final index = ref.watch(playerProvider.select((s) => s.currentIndex));
+    final previous = ref.watch(playerProvider.select((s) => index > 0 && index - 1 < s.queue.length ? s.queue[index - 1] : null));
+    final next = ref.watch(playerProvider.select((s) => index + 1 < s.queue.length ? s.queue[index + 1] : null));
 
     // Vertical drag anywhere outside the scrolling panes dismisses the sheet.
     Widget dismissible(Widget child) => GestureDetector(
@@ -302,8 +309,12 @@ class _PhoneLayout extends ConsumerWidget {
             paneAnim: paneAnim,
             onClosePane: onClosePane,
             dismissible: dismissible,
+            previous: previous,
+            next: next,
             onNext: notifier.playNext,
-            onPrevious: notifier.playPrev,
+            // The swipe shows the queue's previous cover, so it plays exactly
+            // that song (the ⏮ button keeps "restart, then previous").
+            onPrevious: () => notifier.jumpTo(index - 1),
           ),
         ),
         dismissible(
@@ -314,13 +325,12 @@ class _PhoneLayout extends ConsumerWidget {
                 const _RemoteDeviceBanner(),
                 Scrubber(player: notifier.player, song: song),
                 const SizedBox(height: 6),
+                // Apple Music's three: shuffle and repeat live in the queue.
                 TransportControls(
                   playing: playing,
                   onPlayPause: notifier.togglePlay,
                   onPrevious: notifier.playPrev,
                   onNext: notifier.playNext,
-                  leading: const ShuffleModeButton(),
-                  trailing: const RepeatModeButton(),
                 ),
                 const SizedBox(height: 10),
                 VolumeBar(player: notifier.player),
@@ -347,6 +357,10 @@ class _Stage extends StatefulWidget {
   final AnimationController paneAnim;
   final VoidCallback onClosePane;
   final Widget Function(Widget) dismissible;
+
+  /// Neighbouring songs in the queue, shown as the carousel's side covers.
+  final Song? previous;
+  final Song? next;
   final VoidCallback onNext;
   final VoidCallback onPrevious;
 
@@ -358,6 +372,8 @@ class _Stage extends StatefulWidget {
     required this.paneAnim,
     required this.onClosePane,
     required this.dismissible,
+    required this.previous,
+    required this.next,
     required this.onNext,
     required this.onPrevious,
   });
@@ -369,31 +385,121 @@ class _Stage extends StatefulWidget {
 class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
   static const double _headerArt = 60;
   static const double _headerTop = 6;
+  static const double _titleH = 58;
+  static const double _titleGap = 26;
 
-  // Horizontal swipe on the cover: tracks the finger, skips past a threshold,
-  // springs home otherwise.
+  /// Space between covers in the carousel.
+  static const double _coverGap = 28;
+
+  /// Pull past a missing neighbour: Apple's asymptotic resistance, never
+  /// travelling further than this fraction of a stride however far you drag.
+  static const double _rubberBandReach = 0.35;
+
+  /// A flick at least this fast decides the direction on its own.
+  static const double _flingVelocity = 700;
+
+  /// How long a committed swipe waits for the song to change before giving
+  /// up and coming home (end of queue, a failed load).
+  static const Duration _commitTimeout = Duration(seconds: 4);
+
+  static const SpringDescription _spring = SpringDescription(mass: 1, stiffness: 300, damping: 30);
+
+  // The carousel: the cover follows the finger 1:1 with the next and previous
+  // covers riding alongside. Past the threshold it carries on to the
+  // neighbour, which then becomes the song; otherwise it springs home.
   late final AnimationController _swipe = AnimationController.unbounded(vsync: this);
+
+  /// True between a committed swipe and the song actually changing; the
+  /// cover then swaps without a cross-fade, since the neighbour already
+  /// slid into place showing the new art.
+  bool _committed = false;
+
+  /// Where a committed swipe is heading (± one stride).
+  double _commitTarget = 0;
+  Timer? _settle;
+
+  /// The finger's own travel this drag; [_swipe] shows it, resisted where
+  /// there's no neighbour to reveal.
+  double _finger = 0;
+
+  /// Cover width plus gap, from the last layout.
+  double _stride = 1;
+
+  @override
+  void didUpdateWidget(_Stage old) {
+    super.didUpdateWidget(old);
+    if (old.song.id != widget.song.id && _committed) {
+      // The neighbour has become the song. Rebase the offset so the new
+      // centre cover continues from exactly where the neighbour was, and
+      // finish the glide home with the velocity it already had.
+      _settle?.cancel();
+      final velocity = _swipe.velocity;
+      _swipe.value = _swipe.value - _commitTarget;
+      _swipe.animateWith(SpringSimulation(_spring, _swipe.value, 0, velocity));
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) setState(() => _committed = false);
+      });
+    }
+  }
 
   @override
   void dispose() {
+    _settle?.cancel();
     _swipe.dispose();
     super.dispose();
   }
 
-  void _swipeEnd(DragEndDetails d, double width) {
+  void _swipeStart(DragStartDetails _) {
+    if (_committed) return;
+    _swipe.stop();
+    _finger = _swipe.value;
+  }
+
+  void _swipeUpdate(DragUpdateDetails d) {
+    if (_committed) return;
+    _finger += d.delta.dx;
+    final missing = (_finger < 0 && widget.next == null) || (_finger > 0 && widget.previous == null);
+    _swipe.value = missing ? _resist(_finger) : _finger;
+  }
+
+  /// x·s/(|x|+s): follows the finger at first, then stiffens toward a limit.
+  double _resist(double x) {
+    final limit = _stride * _rubberBandReach;
+    return x * limit / (x.abs() + limit);
+  }
+
+  void _home([double velocity = 0]) =>
+      _swipe.animateWith(SpringSimulation(_spring, _swipe.value, 0, velocity));
+
+  void _swipeEnd(DragEndDetails d) {
+    if (_committed) return;
     final v = d.velocity.pixelsPerSecond.dx;
     final dx = _swipe.value;
-    final go = dx.abs() > width * 0.22 || v.abs() > 700;
-    if (go) {
-      HapticFeedback.lightImpact();
-      (dx < 0 || v < -700) ? widget.onNext() : widget.onPrevious();
+    // A real flick decides by its own direction; otherwise where it was let go.
+    final flick = v.abs() > _flingVelocity;
+    final forward = flick ? v < 0 : dx < 0;
+    final neighbour = forward ? widget.next : widget.previous;
+    // A flick back against the drag means "never mind".
+    final opposes = flick && dx != 0 && (v < 0) != (dx < 0);
+    final go = neighbour != null && !opposes && (flick || dx.abs() > _stride * 0.28);
+    if (!go) {
+      _home(v);
+      return;
     }
-    _swipe.animateWith(SpringSimulation(
-      const SpringDescription(mass: 1, stiffness: 320, damping: 26),
-      dx,
-      0,
-      v / 1000,
-    ));
+    HapticFeedback.lightImpact();
+    final target = forward ? -_stride : _stride;
+    setState(() {
+      _committed = true;
+      _commitTarget = target;
+    });
+    _swipe.animateWith(SpringSimulation(_spring, dx, target, v));
+    forward ? widget.onNext() : widget.onPrevious();
+    // If playback refuses the change (end of queue, an error), come home.
+    _settle = Timer(_commitTimeout, () {
+      if (!mounted || !_committed) return;
+      setState(() => _committed = false);
+      _home();
+    });
   }
 
   @override
@@ -402,12 +508,16 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
     return LayoutBuilder(
       builder: (context, c) {
         final w = c.maxWidth, h = c.maxHeight;
-        const titleH = 58.0, gap = 22.0;
-        final artSize = math.min(w - 56, h - titleH - gap - 12).clamp(140.0, 520.0);
-        final groupH = artSize + gap + titleH;
-        final top0 = math.max(4.0, (h - groupH) * 0.3);
+        // Apple's arrangement: the title sits right above the scrubber, and
+        // the cover takes the space above it, a little above centre.
+        final titleTop0 = h - _titleH - 6;
+        final room = titleTop0 - _titleGap;
+        final artSize = math.min(w - 56, room - 8).clamp(140.0, 520.0);
+        final top0 = math.max(4.0, (room - artSize) * 0.42);
         final big = Rect.fromLTWH((w - artSize) / 2, top0, artSize, artSize);
         const small = Rect.fromLTWH(20, _headerTop, _headerArt, _headerArt);
+        final stride = artSize + _coverGap;
+        _stride = stride;
 
         return AnimatedBuilder(
           animation: Listenable.merge([widget.paneAnim, _swipe]),
@@ -415,13 +525,31 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
             final t = Curves.easeInOutCubic.transform(widget.paneAnim.value);
             final artRect = Rect.lerp(big, small, t)!;
             final titleLeft = _lerp(28, small.right + 14, t);
-            final titleTop = _lerp(big.bottom + gap, _headerTop + 4, t);
+            final titleTop = _lerp(titleTop0, _headerTop + 4, t);
             final titleScale = _lerp(1, 0.8, t);
             final paneTop = small.bottom + 12;
             final paneT = Curves.easeOutCubic.transform(((widget.paneAnim.value - 0.25) / 0.75).clamp(0.0, 1.0));
             final inPlayer = widget.pane == _Pane.none && widget.paneAnim.value == 0;
+            final dx = _swipe.value * (1 - t);
+            // Covers shrink a touch as they leave the centre, like a deck.
+            double depth(double offset) => 1 - 0.08 * (offset.abs() / stride).clamp(0.0, 1.0);
+            final pausedScale = reduce ? 1.0 : _lerp(widget.playing ? 1 : 0.84, 1, t);
+            // Null when there's nothing to show: a non-positioned placeholder
+            // would collapse the Stack's width and shift the whole stage.
+            Widget? side(Song? s, double offset) => s == null || dx.abs() < 0.5
+                ? null
+                : Positioned.fromRect(
+                    rect: artRect.shift(Offset(offset, 0)),
+                    child: IgnorePointer(
+                      child: Transform.scale(
+                        scale: depth(offset) * pausedScale,
+                        child: _SideCover(song: s, size: artRect.width, radius: 12),
+                      ),
+                    ),
+                  );
 
             return Stack(
+              fit: StackFit.expand,
               clipBehavior: Clip.none,
               children: [
                 // Pane — under the header, rising as the cover leaves.
@@ -445,21 +573,34 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
                 // Background drag target in player mode (dismiss gesture).
                 if (inPlayer) Positioned.fill(child: widget.dismissible(const SizedBox.expand())),
 
+                // Carousel neighbours.
+                ?side(widget.previous, dx - stride),
+                ?side(widget.next, dx + stride),
+
                 // Cover.
                 Positioned.fromRect(
-                  rect: artRect.shift(Offset(_swipe.value * (1 - t), 0)),
+                  rect: artRect.shift(Offset(dx, 0)),
                   child: GestureDetector(
                     onTap: widget.pane != _Pane.none ? widget.onClosePane : null,
-                    onHorizontalDragUpdate: inPlayer ? (d) => _swipe.value += d.delta.dx : null,
-                    onHorizontalDragEnd: inPlayer ? (d) => _swipeEnd(d, w) : null,
+                    onHorizontalDragStart: inPlayer ? _swipeStart : null,
+                    onHorizontalDragUpdate: inPlayer ? _swipeUpdate : null,
+                    onHorizontalDragEnd: inPlayer ? _swipeEnd : null,
+                    onHorizontalDragCancel: inPlayer
+                        ? () {
+                            if (!_committed) _home();
+                          }
+                        : null,
                     child: widget.dismissible(
-                      _Cover(
-                        song: widget.song,
-                        size: artRect.width,
-                        radius: _lerp(12, 7, t),
-                        // Apple's signature: the cover recedes while paused.
-                        scale: reduce ? 1 : _lerp(widget.playing ? 1 : 0.84, 1, t),
-                        tilt: inPlayer ? (_swipe.value / w).clamp(-0.4, 0.4) : 0,
+                      Transform.scale(
+                        scale: depth(dx),
+                        child: _Cover(
+                          song: widget.song,
+                          size: artRect.width,
+                          radius: _lerp(12, 7, t),
+                          // Apple's signature: the cover recedes while paused.
+                          scale: pausedScale,
+                          instantSwap: _committed,
+                        ),
                       ),
                     ),
                   ),
@@ -527,9 +668,11 @@ class _Cover extends ConsumerWidget {
   final double size;
   final double radius;
   final double scale;
-  final double tilt; // -1..1 while swiping
 
-  const _Cover({required this.song, required this.size, required this.radius, required this.scale, this.tilt = 0});
+  /// Swap art without the cross-fade (the carousel already slid it in).
+  final bool instantSwap;
+
+  const _Cover({required this.song, required this.size, required this.radius, required this.scale, this.instantSwap = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -541,36 +684,24 @@ class _Cover extends ConsumerWidget {
       // Grows with a little overshoot (it "lands" when music starts),
       // recedes without one.
       curve: scale >= 1 ? Curves.easeOutBack : Curves.easeOutCubic,
-      child: Transform(
-        alignment: Alignment.center,
-        transform: Matrix4.identity()
-          ..setEntry(3, 2, 0.0012)
-          ..rotateY(tilt * 0.35),
-        child: DecoratedBox(
-          decoration: BoxDecoration(
+      child: DecoratedBox(
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(radius),
+          boxShadow: [_coverShadow(deep, size)],
+        ),
+        child: Hero(
+          tag: 'np_cover',
+          child: ClipRRect(
             borderRadius: BorderRadius.circular(radius),
-            boxShadow: [
-              BoxShadow(
-                color: Color.lerp(deep, Colors.black, 0.4)!.withValues(alpha: 0.55),
-                blurRadius: size * 0.12,
-                offset: Offset(0, size * 0.05),
-              ),
-            ],
-          ),
-          child: Hero(
-            tag: 'np_cover',
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(radius),
-              child: AnimatedSwitcher(
-                duration: const Duration(milliseconds: 320),
-                child: CoverImage(
-                  key: ValueKey(song.id),
-                  url: url,
-                  cacheKey: coverCacheKey(song),
-                  width: size,
-                  height: size,
-                  cacheWidth: 1000,
-                ),
+            child: AnimatedSwitcher(
+              duration: instantSwap ? Duration.zero : const Duration(milliseconds: 320),
+              child: CoverImage(
+                key: ValueKey(song.id),
+                url: url,
+                cacheKey: coverCacheKey(song),
+                width: size,
+                height: size,
+                cacheWidth: 1000,
               ),
             ),
           ),
@@ -579,6 +710,39 @@ class _Cover extends ConsumerWidget {
     );
   }
 }
+
+/// A neighbouring cover in the swipe carousel. Same art, same shadow; the
+/// image decode is shared with the real cover through the cache key.
+class _SideCover extends ConsumerWidget {
+  final Song song;
+  final double size;
+  final double radius;
+  const _SideCover({required this.song, required this.size, required this.radius});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
+    final deep = ref.watch(albumPaletteProvider.select((p) => p.deep));
+    return DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(radius),
+        boxShadow: [_coverShadow(deep, size)],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(radius),
+        child: CoverImage(url: url, cacheKey: coverCacheKey(song), width: size, height: size, cacheWidth: 1000),
+      ),
+    );
+  }
+}
+
+/// The cover's lift off the artwork field: offset and soft, in the album's
+/// own darkest tone.
+BoxShadow _coverShadow(Color deep, double size) => BoxShadow(
+      color: Color.lerp(deep, Colors.black, 0.4)!.withValues(alpha: 0.55),
+      blurRadius: size * 0.12,
+      offset: Offset(0, size * 0.05),
+    );
 
 // =============================================================================
 // Title row — title, artist, favourite, more
@@ -610,7 +774,7 @@ class _TitleRow extends ConsumerWidget {
         ),
         const SizedBox(width: 8),
         GlassCircleButton(
-          icon: starred ? Icons.star_rounded : Icons.star_outline_rounded,
+          icon: starred ? CupertinoIcons.star_fill : CupertinoIcons.star,
           semanticLabel: starred ? 'Remove from favourites' : 'Add to favourites',
           onTap: () {
             HapticFeedback.mediumImpact();
@@ -618,7 +782,7 @@ class _TitleRow extends ConsumerWidget {
           },
         ),
         GlassCircleButton(
-          icon: Icons.more_horiz_rounded,
+          icon: CupertinoIcons.ellipsis,
           semanticLabel: 'More options',
           onTap: () => _showMore(context, song),
         ),
@@ -700,7 +864,7 @@ class _BottomRow extends ConsumerWidget {
           semanticLabel: 'Lyrics',
           selected: pane == _Pane.lyrics,
           onTap: () => onTogglePane(_Pane.lyrics),
-          child: Icon(Icons.format_quote_rounded, size: 24, color: c(pane == _Pane.lyrics)),
+          child: Icon(CupertinoIcons.quote_bubble, size: 24, color: c(pane == _Pane.lyrics)),
         ),
         GlyphButton(
           size: 48,
@@ -710,12 +874,12 @@ class _BottomRow extends ConsumerWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(Icons.speaker_group_rounded, size: 24, color: c(remote)),
+              Icon(CupertinoIcons.hifispeaker, size: 24, color: c(remote)),
               if (sleeping)
-                Positioned(
+                const Positioned(
                   right: -5,
                   top: -3,
-                  child: Icon(Icons.bedtime_rounded, size: 11, color: Colors.white.withValues(alpha: 0.9)),
+                  child: Icon(CupertinoIcons.moon_fill, size: 11, color: Colors.white),
                 ),
             ],
           ),
@@ -725,7 +889,7 @@ class _BottomRow extends ConsumerWidget {
           semanticLabel: 'Queue',
           selected: pane == _Pane.queue,
           onTap: () => onTogglePane(_Pane.queue),
-          child: Icon(Icons.format_list_bulleted_rounded, size: 24, color: c(pane == _Pane.queue)),
+          child: Icon(CupertinoIcons.list_bullet, size: 24, color: c(pane == _Pane.queue)),
         ),
       ],
     );
@@ -745,44 +909,34 @@ class _DevicesSheet extends ConsumerWidget {
     final mode = ref.watch(playerProvider.select((s) => s.syncMode));
     final remoteName = ref.watch(playerProvider.select((s) => s.remoteActiveDeviceName));
     final here = mode != SyncMode.passive;
+    final playingGlyph = Icon(CupertinoIcons.waveform, size: 20, color: t.accent);
+    final player = ref.read(playerProvider.notifier);
     return SafeArea(
       top: false,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(24, 0, 24, 8),
-            child: Text('Playing on', style: naviText(20, FontWeight.w700, t.textPrimary)),
-          ),
-          ListTile(
-            leading: Icon(
-              PlatformUtils.isDesktop ? Icons.computer_rounded : Icons.smartphone_rounded,
-              color: here ? t.accent : t.textSecondary,
+          SheetGroup(children: [
+            SheetAction(
+              label: PlatformUtils.isDesktop ? 'This Computer' : 'This Phone',
+              detail: here ? 'Playing here' : 'Tap to move playback here',
+              trailing: here ? playingGlyph : null,
+              onTap: here ? null : player.claimActiveDevice,
             ),
-            title: const Text('This device'),
-            subtitle: Text(here ? 'Playing here' : 'Tap to move playback here'),
-            trailing: here ? Icon(Icons.graphic_eq_rounded, color: t.accent) : null,
-            onTap: here
-                ? null
-                : () {
-                    ref.read(playerProvider.notifier).claimActiveDevice();
-                    Navigator.pop(context);
-                  },
-          ),
-          if (!here)
-            ListTile(
-              leading: Icon(Icons.devices_other_rounded, color: t.accent),
-              title: Text(remoteName ?? 'Another device'),
-              subtitle: const Text('Playing now'),
-              trailing: Icon(Icons.graphic_eq_rounded, color: t.accent),
-            ),
+            if (!here)
+              SheetAction(
+                label: remoteName ?? 'Another device',
+                detail: 'Playing now',
+                trailing: playingGlyph,
+              ),
+          ]),
           if (here)
             Padding(
-              padding: const EdgeInsets.fromLTRB(24, 4, 24, 16),
+              padding: const EdgeInsets.fromLTRB(Space.xxl, 0, Space.xxl, Space.lg),
               child: Text(
                 'Other NaviVibe devices signed in to your account show up here while they play.',
-                style: naviText(13, FontWeight.w400, t.textMuted).copyWith(height: 1.4),
+                style: t.footnote,
               ),
             ),
         ],
@@ -814,7 +968,7 @@ class _RemoteDeviceBanner extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(Icons.speaker_group_rounded, size: 18, color: Colors.white),
+                    const Icon(CupertinoIcons.hifispeaker, size: 18, color: Colors.white),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -864,7 +1018,7 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
             child: Row(
               children: [
                 GlassCircleButton(
-                  icon: Icons.keyboard_arrow_down_rounded,
+                  icon: CupertinoIcons.chevron_down,
                   semanticLabel: 'Close player (Esc)',
                   onTap: () => Navigator.maybePop(context),
                 ),

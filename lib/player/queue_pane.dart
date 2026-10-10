@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -9,7 +10,9 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/desktop_dialogs.dart';
+import '../widgets/ui/action_sheet.dart';
 import 'artwork.dart';
+import 'edge_fade.dart';
 import 'now_playing_style.dart';
 
 /// Queue and history in one scroll: history lives ABOVE the anchor (scroll
@@ -47,7 +50,10 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
     final upNext = current + 1 < queue.length ? queue.sublist(current + 1) : const <Song>[];
     final currentSong = current < queue.length ? queue[current] : null;
 
-    return CustomScrollView(
+    return EdgeFade(
+      top: 0.03,
+      bottom: 0.08,
+      child: CustomScrollView(
       center: _anchor,
       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       slivers: [
@@ -175,7 +181,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                       child: SizedBox(
                         width: 48,
                         height: 48,
-                        child: Icon(Icons.drag_handle_rounded, color: st.textMuted, size: 22),
+                        child: Icon(CupertinoIcons.line_horizontal_3, color: st.textMuted, size: 22),
                       ),
                     ),
                   ),
@@ -185,6 +191,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
           ),
         SliverToBoxAdapter(child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom)),
       ],
+      ),
     );
   }
 }
@@ -208,7 +215,7 @@ class _ModePills extends ConsumerWidget {
         children: [
           Expanded(
             child: _Pill(
-              icon: Icons.shuffle_rounded,
+              icon: CupertinoIcons.shuffle,
               label: 'Shuffle',
               active: shuffle,
               style: st,
@@ -219,7 +226,7 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              icon: repeat == LoopMode.one ? Icons.repeat_one_rounded : Icons.repeat_rounded,
+              icon: repeat == LoopMode.one ? CupertinoIcons.repeat_1 : CupertinoIcons.repeat,
               label: switch (repeat) {
                 LoopMode.one => 'Repeat 1',
                 LoopMode.all => 'Repeat',
@@ -233,7 +240,7 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              icon: Icons.all_inclusive_rounded,
+              icon: CupertinoIcons.infinite,
               label: 'Autoplay',
               active: autoplay,
               style: st,
@@ -259,61 +266,57 @@ class _ShuffleModeSheet extends ConsumerWidget {
   final WidgetRef parentRef;
   const _ShuffleModeSheet({required this.parentRef});
 
+  /// The styles offered here; the full list lives in Settings. Whatever is
+  /// selected is always shown, so the checkmark is never missing.
+  static const _quick = [
+    ShuffleAlgorithm.standard,
+    ShuffleAlgorithm.spotify,
+    ShuffleAlgorithm.youtube,
+    ShuffleAlgorithm.smartLocal,
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
     final current = ref.watch(settingsProvider.select((s) => s.shuffleAlgorithm));
     final shuffleOn = ref.watch(playerProvider.select((s) => s.shuffleMode));
-    final modes = <(ShuffleAlgorithm, IconData, String, String)>[
-      for (final (algo, icon) in const [
-        (ShuffleAlgorithm.standard, Icons.shuffle_rounded),
-        (ShuffleAlgorithm.spotify, Icons.auto_awesome_rounded),
-        (ShuffleAlgorithm.youtube, Icons.trending_up_rounded),
-      ])
-        (algo, icon, algo.label, algo.summary),
-    ];
+    final modes = [..._quick, if (!_quick.contains(current)) current];
+    // The sheet closes before an action runs; act through the page's ref.
+    final player = parentRef.read(playerProvider.notifier);
+
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: Text('Shuffle style', style: naviText(20, FontWeight.w700, t.textPrimary)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SheetGroup(children: [
+            SheetAction(
+              label: shuffleOn ? 'Reshuffle Up Next' : 'Shuffle Up Next',
+              icon: CupertinoIcons.shuffle,
+              onTap: () async {
+                // The library only feeds Smart Shuffle's candidates; without
+                // it the local reshuffle still runs.
+                final all = await parentRef.read(allSongsProvider.future).catchError((_) => const <Song>[]);
+                await player.reshuffleUpNext(all);
+              },
             ),
-            for (final (algo, icon, title, sub) in modes)
-              ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                leading: Icon(icon, color: algo == current ? t.accent : t.textSecondary),
-                title: Text(title),
-                subtitle: Text(sub),
-                trailing: algo == current ? Icon(Icons.check_rounded, color: t.accent) : null,
+          ]),
+          SheetGroup(children: [
+            for (final algo in modes)
+              SheetAction(
+                label: algo.label,
+                detail: algo.summary,
+                trailing: SizedBox(
+                  width: 22,
+                  child: algo == current ? Icon(CupertinoIcons.checkmark_alt, size: 20, color: t.accent) : null,
+                ),
                 onTap: () async {
-                  ref.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
-                  if (shuffleOn) await ref.read(playerProvider.notifier).applyShuffleAlgorithm();
-                  if (context.mounted) Navigator.pop(context);
+                  parentRef.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
+                  if (shuffleOn) await player.applyShuffleAlgorithm();
                 },
               ),
-            if (shuffleOn) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Reshuffle what plays next'),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    final all = await ref.read(allSongsProvider.future);
-                    await ref.read(playerProvider.notifier).reshuffleActiveQueue(all);
-                  },
-                ),
-              ),
-            ],
-          ],
-        ),
+          ]),
+        ],
       ),
     );
   }
@@ -466,7 +469,7 @@ class _Swipeable extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
         color: const Color(0xFFE5484D),
-        child: const Icon(Icons.remove_circle_outline_rounded, color: Colors.white),
+        child: const Icon(CupertinoIcons.minus_circle, color: Colors.white),
       ),
       child: child,
     );

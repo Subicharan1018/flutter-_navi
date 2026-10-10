@@ -6,19 +6,21 @@ import 'recommended_song.dart';
 enum PredictMode { alwaysHear, discovery }
 
 extension PredictModeLabel on PredictMode {
+  /// What the listener gets, in their words: songs they love at moments
+  /// like this, or songs they've barely heard.
   String get displayLabel {
     switch (this) {
-      case PredictMode.alwaysHear: return 'Always Hear';
-      case PredictMode.discovery:  return 'Discovery';
+      case PredictMode.alwaysHear: return 'Familiar';
+      case PredictMode.discovery:  return 'Discover';
     }
   }
 
   String get emptyMessage {
     switch (this) {
       case PredictMode.alwaysHear:
-        return 'Not enough listening history for this context yet. Keep playing music!';
+        return 'Smart Shuffle needs a few more plays at this time of day. Keep listening and your mix fills in.';
       case PredictMode.discovery:
-        return 'No unexplored songs match your current vibe. Try raising max_prior_plays.';
+        return 'You’ve already heard everything that fits right now. Try Familiar, or check back later.';
     }
   }
 }

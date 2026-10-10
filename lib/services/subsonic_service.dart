@@ -278,6 +278,10 @@ class SubsonicService {
   // Auth / Connectivity
   // ---------------------------------------------------------------------------
 
+  /// Checks the server and credentials, letting the typed [AppException]
+  /// through (AuthException, NetworkException, …) so sign-in can say which.
+  Future<void> verifyCredentials() => _get('ping.view');
+
   Future<bool> ping() async {
     try {
       await _get('ping.view');
@@ -609,9 +613,13 @@ class SubsonicService {
   /// Call this after adding or removing songs so the next open re-fetches.
   Future<void> invalidatePlaylist(String id) => _cache.invalidate(id);
 
-  Future<void> createPlaylist(String name) async {
-    await _get('createPlaylist.view', {'name': name});
-    // Playlist list is owned by playlistsProvider — callers invalidate via ref.invalidate(playlistsProvider).
+  /// Creates a playlist and returns it when the server echoes it back
+  /// (Subsonic API 1.14+, Navidrome); null on older servers.
+  /// Playlist list is owned by playlistsProvider — callers invalidate it.
+  Future<Playlist?> createPlaylist(String name) async {
+    final res = await _get('createPlaylist.view', {'name': name});
+    final map = _getMap(res, 'playlist');
+    return map.isEmpty ? null : Playlist.fromJson(map);
   }
 
   Future<void> deletePlaylist(String id) async {

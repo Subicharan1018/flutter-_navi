@@ -1,0 +1,39 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:390px;height:844px;overflow:hidden;background:#000;color:#fff;font-family:Inter,sans-serif}
+.status{height:47px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;padding:8px 16px 0}
+h1{font-size:34px;font-weight:700;letter-spacing:-.7px}
+.avatar{width:30px;height:30px;border-radius:50%;border:2px solid #30D158}
+.sec{display:flex;justify-content:space-between;padding:20px 16px 10px}.sec h2{font-size:21px;font-weight:600}
+.k{font-size:12.5px;color:#98989F;padding:0 16px 6px}
+.picks{display:flex;gap:12px;padding:0 16px}
+.card{flex:0 0 240px;height:340px;border-radius:12px;overflow:hidden;background:#1D2B45;display:flex;flex-direction:column}
+.card .art{height:240px;background:linear-gradient(135deg,#5C86C9,#1E2A6B)}
+.card .p{padding:12px 14px}.card b{font-size:16px;display:block}.card span{font-size:12.5px;color:#C5CDDB}
+.shelf{display:flex;gap:12px;padding:0 16px}
+.alb .c{width:150px;height:150px;border-radius:8px}.alb .n{font-size:12.5px;font-weight:500;margin-top:7px}.alb .a{font-size:12.5px;color:#98989F}
+.mini{position:absolute;left:16px;right:16px;bottom:100px;height:58px;border-radius:29px;background:#3A2418;display:flex;align-items:center;padding:0 16px 0 8px;gap:12px}
+.mini .c{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#C9805C,#5A2A14)}
+.mini b{font-size:15px;display:block}.mini span{font-size:12.5px;color:#D9C2B4}.mini .ctl{margin-left:auto;font-size:20px;letter-spacing:10px}
+.tabs{position:absolute;left:16px;right:88px;bottom:28px;height:62px;border-radius:31px;background:#1C1C1E;display:flex;align-items:center;padding:4px}
+.tab{flex:1;height:54px;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10.5px;gap:4px}
+.tab i{width:20px;height:20px;border:2px solid currentColor;border-radius:5px}.tab.on{background:#2C2C2E;color:#30D158}
+.search{position:absolute;right:16px;bottom:28px;width:62px;height:62px;border-radius:50%;background:#1C1C1E}
+</style></head><body>
+<div class="status"></div>
+<div class="top"><h1>Home</h1><div class="avatar"></div></div>
+<div class="sec"><h2>Top Picks for You</h2></div>
+<div class="k">Made for You</div>
+<div class="picks"><div class="card"><div class="art"></div><div class="p"><b>Smart Shuffle</b><span>A mix tuned to the time of day.</span></div></div>
+<div class="card" style="background:#3A2418"><div class="art" style="background:linear-gradient(135deg,#C9805C,#5A2A14)"></div></div></div>
+<div class="sec"><h2>Recently Played</h2><span>›</span></div>
+<div class="shelf"><div class="alb"><div class="c" style="background:linear-gradient(135deg,#5C86C9,#1E2A6B)"></div><div class="n">Hurry Up, We’re…</div><div class="a">M83</div></div>
+<div class="alb"><div class="c" style="background:linear-gradient(135deg,#D8B04F,#4D3A12)"></div><div class="n">Short n’ Sweet</div><div class="a">Sabrina Carpenter</div></div></div>
+<div class="mini"><div class="c"></div><div><b>Espresso</b><span>Sabrina Carpenter</span></div><div class="ctl">❚❚ ▶▶</div></div>
+<div class="tabs"><div class="tab on"><i></i>Home</div><div class="tab"><i></i>Shuffle</div><div class="tab"><i></i>Stats</div><div class="tab"><i></i>Library</div></div>
+<div class="search"></div>
+</body></html>

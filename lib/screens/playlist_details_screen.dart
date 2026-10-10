@@ -9,6 +9,7 @@ import '../models/playlist.dart';
 import '../models/song.dart';
 import '../providers/download_provider.dart';
 import '../providers/library_provider.dart';
+import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
@@ -20,11 +21,13 @@ import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/collection_hero.dart';
+import '../widgets/ui/artwork_page.dart';
 import '../widgets/ui/controls.dart';
-import '../widgets/ui/detail_page.dart';
+import '../widgets/ui/media.dart';
+import '../widgets/ui/mosaic_art.dart';
 import '../widgets/ui/states.dart';
 import '../widgets/ui/swipe_actions.dart';
-import 'edit_playlist_screen.dart';
+import 'playlist_editor.dart';
 import 'song_picker_screen.dart';
 
 /// A playlist, Apple Music style. Tap "Edit" to reorder (drag handles) or
@@ -47,7 +50,10 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   bool _editing = false;
   final _search = TextEditingController();
 
-  Playlist get _playlist => widget.playlist;
+  /// The playlist as the server has it now (name, description and cover can
+  /// change in the editor); falls back to what this page was opened with.
+  Playlist? _live;
+  Playlist get _playlist => _live ?? widget.playlist;
   String get _query => _search.text.trim().toLowerCase();
 
   List<Song> get _visible => _query.isEmpty
@@ -153,7 +159,8 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   }
 
   Future<void> _addSongs() async {
-    await Navigator.of(context).push(MaterialPageRoute<void>(
+    await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<bool>(
+      fullscreenDialog: true,
       builder: (_) => SongPickerScreen(playlistId: _playlist.id, playlistName: _playlist.name),
     ));
     await ref.read(subsonicServiceProvider).invalidatePlaylist(_playlist.id);
@@ -161,10 +168,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   }
 
   Future<void> _edit() async {
-    final changed = await Navigator.of(context).push<bool>(
-      MaterialPageRoute(builder: (_) => EditPlaylistScreen(playlist: _playlist)),
-    );
-    if (changed == true) _load();
+    if (await showPlaylistEditor(context, playlist: _playlist)) _load();
   }
 
   Future<void> _delete() async {
@@ -177,28 +181,43 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
+    _live = ref.watch(playlistsProvider).asData?.value.where((p) => p.id == widget.playlist.id).firstOrNull;
     final ids = {for (final s in _songs) s.id};
     final playingThis = ref.watch(playerProvider.select((s) =>
         s.isPlaying && s.currentSong != null && ids.contains(s.currentSong!.id)));
     final visible = _visible;
+    final svc = ref.read(subsonicServiceProvider);
+    final ownCover = (_playlist.coverArt ?? '').isNotEmpty;
+    final paletteId = _playlist.resolvedCoverArtId(_songs);
 
-    return DetailPage(
+    return ArtworkPage(
+      paletteCoverId: paletteId,
+      // A playlist without its own cover shows a mosaic of its songs, as
+      // Apple Music does.
+      art: (size) => ownCover
+          ? CoverArt(url: _coverUrl, size: size, radius: 0, placeholderIcon: CupertinoIcons.music_note_list)
+          : MosaicArt(
+              urls: [for (final s in _songs.take(24)) svc.getCoverArtUrl(s.coverArt)],
+              size: size,
+              radius: 0,
+            ),
       title: _playlist.name,
-      revealAt: CollectionHero.revealOffset(context),
+      detail: _loading ? null : songCount(_songs.length),
+      description: _playlist.comment.trim(),
+      buttons: PlayShuffleButtons(
+        playing: playingThis,
+        onPlay: _songs.isEmpty
+            ? null
+            : () => playingThis ? ref.read(playerProvider.notifier).player.pause() : _play(),
+        onShuffle: _songs.isEmpty ? null : () => _play(shuffle: true),
+        trailing: CollectionDownloadButton(songs: _songs),
+      ),
       actions: _editing
-          ? [
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: Space.md),
-                onPressed: () => setState(() => _editing = false),
-                child: Text('Done', style: t.headline.copyWith(color: t.accent)),
-              ),
-            ]
+          ? [_BarTextAction(label: 'Done', bold: true, onTap: () => setState(() => _editing = false))]
           : [
-              CollectionDownloadButton(songs: _songs),
-              BarButton(icon: CupertinoIcons.add, label: 'Add Songs', onTap: _addSongs),
-              BarButton(
-                icon: CupertinoIcons.ellipsis_circle,
+              BarCircleButton(icon: CupertinoIcons.add, label: 'Add Songs', onTap: _addSongs),
+              BarCircleButton(
+                icon: CupertinoIcons.ellipsis,
                 label: 'More',
                 onTap: () => showCollectionActions(
                   context,
@@ -208,27 +227,15 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                   loadSongs: () async => _songs,
                   onEdit: _edit,
                   onDelete: _delete,
+                  pin: Pin.playlist(_playlist),
                 ),
               ),
             ],
       onRefresh: _load,
       slivers: [
-        SliverToBoxAdapter(
-          child: CollectionHero(
-            title: _playlist.name,
-            description: _playlist.comment.trim(),
-            artUrl: _coverUrl,
-            placeholderIcon: CupertinoIcons.music_note_list,
-            playing: playingThis,
-            onPlay: _songs.isEmpty
-                ? null
-                : () => playingThis ? ref.read(playerProvider.notifier).player.pause() : _play(),
-            onShuffle: _songs.isEmpty ? null : () => _play(shuffle: true),
-          ),
-        ),
         if (!_loading && !_failed && _songs.isNotEmpty)
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.sm, Space.sm),
+            padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.xs, Space.sm),
             sliver: SliverToBoxAdapter(
               child: Row(
                 children: [
@@ -238,11 +245,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                         : const SizedBox.shrink(),
                   ),
                   if (!_editing && _query.isEmpty)
-                    CupertinoButton(
-                      padding: const EdgeInsets.symmetric(horizontal: Space.sm),
-                      onPressed: () => setState(() => _editing = true),
-                      child: Text('Edit', style: t.body.copyWith(color: t.accent)),
-                    ),
+                    _BarTextAction(label: 'Edit', onTap: () => setState(() => _editing = true)),
                 ],
               ),
             ),
@@ -276,7 +279,9 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             itemCount: _songs.length,
             onReorderItem: _reorder,
             itemExtent: SongTile.extent,
-            proxyDecorator: (child, _, _) => Material(color: t.bgElevated, elevation: 8, child: child),
+            proxyDecorator: (child, _, _) => Builder(
+              builder: (context) => Material(color: ThemeTokens.of(context).bgElevated, elevation: 8, child: child),
+            ),
             itemBuilder: (context, i) => _EditRow(
               key: ValueKey('edit_${_songs[i].id}_$i'),
               song: _songs[i],
@@ -314,6 +319,26 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   }
 }
 
+/// A text action ("Edit", "Done") that takes its colour from the page it
+/// sits on — white on an artwork-tinted page.
+class _BarTextAction extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  final bool bold;
+  const _BarTextAction({required this.label, required this.onTap, this.bold = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return CupertinoButton(
+      padding: const EdgeInsets.symmetric(horizontal: Space.md),
+      minimumSize: const Size(44, 36),
+      onPressed: onTap,
+      child: Text(label, style: (bold ? t.headline : t.body).copyWith(color: t.accent)),
+    );
+  }
+}
+
 /// A row in edit mode: remove on the left, drag handle on the right.
 class _EditRow extends ConsumerWidget {
   final Song song;
@@ -338,7 +363,7 @@ class _EditRow extends ConsumerWidget {
             ),
             CoverArt(
               url: svc.getCoverArtUrl(song.coverArt.isNotEmpty ? song.coverArt : song.id),
-              size: 44,
+              size: 46,
               radius: Radii.thumb,
             ),
             const SizedBox(width: Space.md),
@@ -347,8 +372,8 @@ class _EditRow extends ConsumerWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.callout),
-                  Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
+                  Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
+                  Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                 ],
               ),
             ),

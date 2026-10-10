@@ -7,11 +7,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../models/artist.dart';
 import '../models/search_results.dart';
+import '../player/artwork.dart' show coverPaletteProvider;
+import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/search_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
+import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/ui/controls.dart';
 import '../widgets/ui/large_title_page.dart';
@@ -151,7 +154,7 @@ class _BrowseGenres extends ConsumerWidget {
               crossAxisCount: c.crossAxisExtent >= 900 ? 4 : c.crossAxisExtent >= 600 ? 3 : 2,
               crossAxisSpacing: Space.md,
               mainAxisSpacing: Space.md,
-              mainAxisExtent: 84,
+              mainAxisExtent: 108,
             ),
             delegate: SliverChildBuilderDelegate(
               (context, i) => _GenreTile(genre: genres[i]),
@@ -164,32 +167,76 @@ class _BrowseGenres extends ConsumerWidget {
   }
 }
 
-class _GenreTile extends StatelessWidget {
+/// Apple Music's Browse tile: a block of colour sampled from one of the
+/// genre's albums, the name in bold white, and that album's cover tipped
+/// into the bottom-right corner.
+class _GenreTile extends ConsumerWidget {
   final Genre genre;
   const _GenreTile({required this.genre});
 
+  /// Luminance at which white bold text still clears 4.5:1.
+  static const double _maxLuminance = 0.18;
+
+  /// The cover's hue as Apple's Browse colours are: saturated, never muddy,
+  /// and dark enough for white text. Steps lightness down until it reads.
+  static Color _tileColor(Color base) {
+    final hsl = HSLColor.fromColor(base);
+    // A black-and-white cover stays neutral rather than gaining a hue.
+    final saturation = hsl.saturation < 0.15 ? hsl.saturation : hsl.saturation.clamp(0.5, 0.78);
+    var c = hsl.withSaturation(saturation).withLightness(0.4);
+    while (c.toColor().computeLuminance() > _maxLuminance && c.lightness > 0.2) {
+      c = c.withLightness(c.lightness - 0.02);
+    }
+    return c.toColor();
+  }
+
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
+    final cover = ref.watch(genreCoverProvider(genre.name)).asData?.value;
+    final palette = cover == null ? null : ref.watch(coverPaletteProvider(cover)).asData?.value;
+    final fill = palette == null ? t.bgSurface : _tileColor(palette.base);
+    final url = cover == null ? null : ref.read(subsonicServiceProvider).getCoverArtUrl(cover);
+
     return CupertinoClickable(
       onTap: () => navigateInApp(context, GenreScreen(genre: genre.name)),
       scaleFactor: 0.97,
       semanticLabel: genre.name,
-      child: Container(
-        padding: const EdgeInsets.all(Space.md),
-        decoration: BoxDecoration(color: t.bgSurface, borderRadius: BorderRadius.circular(Radii.group)),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(genre.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.headline),
-            Text(
-              genre.albumCount == 1 ? '1 album' : '${genre.albumCount} albums',
-              style: t.footnote,
-            ),
-          ],
-        ),
-      ),
+      child: LayoutBuilder(builder: (context, c) {
+        final art = c.maxHeight * 0.78;
+        return AnimatedContainer(
+          duration: Motion.slow,
+          decoration: BoxDecoration(color: fill, borderRadius: BorderRadius.circular(Radii.cover)),
+          clipBehavior: Clip.antiAlias,
+          child: Stack(
+            children: [
+              if (url != null)
+                Positioned(
+                  right: -art * 0.18,
+                  bottom: -art * 0.12,
+                  child: Transform.rotate(
+                    angle: 0.42,
+                    child: DecoratedBox(
+                      decoration: const BoxDecoration(
+                        boxShadow: [BoxShadow(color: Color(0x59000000), blurRadius: 10, offset: Offset(-2, 4))],
+                      ),
+                      child: CoverArt(url: url, size: art, radius: Radii.thumb),
+                    ),
+                  ),
+                ),
+              Padding(
+                padding: const EdgeInsets.fromLTRB(Space.md, Space.md, Space.xxxl + Space.lg, Space.md),
+                child: Text(
+                  genre.name,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.headline.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+                ),
+              ),
+            ],
+          ),
+        );
+      }),
     );
   }
 }
@@ -294,6 +341,7 @@ class _ResultsState extends ConsumerState<_Results> {
                   artUrl: art,
                   placeholderIcon: CupertinoIcons.music_albums,
                   loadSongs: () => svc.getAlbum(a.id),
+                  pin: Pin.album(a),
                 ),
               );
             },

@@ -5,7 +5,7 @@ import '../../../features/ai_shuffle/data/models/model_status_response.dart';
 import '../../../utils/format.dart';
 import 'stat_card.dart';
 
-/// What the Smart Shuffle model has learned and when it next retrains.
+/// What Smart Shuffle has learned about you, and when it next updates.
 class ModelStatusCard extends StatelessWidget {
   final ModelStatusResponse status;
   const ModelStatusCard({super.key, required this.status});
@@ -18,20 +18,19 @@ class ModelStatusCard extends StatelessWidget {
     final progress = threshold > 0 ? (pending / threshold).clamp(0.0, 1.0) : 0.0;
     final learning = pending > 0;
 
-    return StatCard(
-      title: 'Smart Shuffle Model',
+    return StatSection(
+      title: 'Smart Shuffle',
       readout: learning ? 'Learning' : 'Up to Date',
       readoutColor: learning ? t.accent : t.textSecondary,
-      readoutCaption: '${status.modelSizeMb.toStringAsFixed(1)} MB on your server',
+      readoutCaption: learning ? 'from your latest plays' : 'with everything you’ve played',
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              _Figure(value: compactCount(status.songsInLibrary), label: 'songs'),
               _Figure(value: compactCount(status.totalPlaysProcessed), label: 'plays learned'),
-              _Figure(value: '${status.composersTracked}', label: 'composers'),
-              _Figure(value: '${status.contextBuckets}', label: 'moments'),
+              _Figure(value: compactCount(status.songsInLibrary), label: 'songs known'),
+              _Figure(value: '${status.contextBuckets}', label: 'listening moments'),
             ],
           ),
           if (threshold > 0) ...[
@@ -48,8 +47,8 @@ class ModelStatusCard extends StatelessWidget {
             const SizedBox(height: Space.sm),
             Text(
               pending >= threshold
-                  ? 'Retraining with your latest plays.'
-                  : 'Retrains after ${threshold - pending} more plays.',
+                  ? 'Updating your mixes with your latest plays now.'
+                  : 'Your mixes update after ${threshold - pending} more plays.',
               style: t.footnote,
             ),
           ],
@@ -71,9 +70,9 @@ class _Figure extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: figureStyle(t, 20))),
+          FittedBox(fit: BoxFit.scaleDown, child: Text(value, style: figureStyle(t, 22))),
           const SizedBox(height: Space.xxs),
-          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
+          Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
         ],
       ),
     );

@@ -95,15 +95,16 @@ class FilterPills<T> extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    // 34pt pills inside a 44pt row, so each one is a full-size target.
     return SizedBox(
-      height: 34,
+      height: 44,
       child: ListView(
         scrollDirection: Axis.horizontal,
         padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
         children: [
           for (final e in options.entries)
             Padding(
-              padding: const EdgeInsets.only(right: Space.sm),
+              padding: const EdgeInsets.only(right: Space.sm, top: 5, bottom: 5),
               child: CupertinoClickable(
                 semanticLabel: e.value,
                 onTap: () {

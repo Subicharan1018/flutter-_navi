@@ -207,6 +207,7 @@ class CollectionRow extends StatelessWidget {
   final bool showChevron;
   final bool showSeparator;
   final Color? titleColor;
+  final TextStyle? titleStyle;
 
   const CollectionRow({
     super.key,
@@ -218,6 +219,7 @@ class CollectionRow extends StatelessWidget {
     this.showChevron = true,
     this.showSeparator = true,
     this.titleColor,
+    this.titleStyle,
   });
 
   /// Library destination row: green glyph instead of artwork.
@@ -227,12 +229,15 @@ class CollectionRow extends StatelessWidget {
     required IconData icon,
     required String title,
     required VoidCallback onTap,
+    bool showSeparator = true,
   }) {
     final t = ThemeTokens.of(context);
     return CollectionRow(
       key: key,
       title: title,
-      leading: SizedBox(width: 28, child: Icon(icon, size: 24, color: t.accent)),
+      titleStyle: t.title3.copyWith(fontWeight: FontWeight.w400),
+      leading: SizedBox(width: 30, child: Icon(icon, size: 24, color: t.accent)),
+      showSeparator: showSeparator,
       onTap: onTap,
     );
   }
@@ -274,7 +279,7 @@ class CollectionRow extends StatelessWidget {
                             title,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: t.body.copyWith(color: titleColor ?? t.textPrimary),
+                            style: (titleStyle ?? t.body).copyWith(color: titleColor ?? t.textPrimary),
                           ),
                           if (subtitle != null && subtitle!.isNotEmpty) ...[
                             const SizedBox(height: 1),
@@ -295,34 +300,112 @@ class CollectionRow extends StatelessWidget {
   }
 }
 
-/// Apple Music's pair of tinted buttons under album and playlist headers.
+/// iOS 26.4 Apple Music transport under a collection header: a round
+/// Shuffle on the left, the Play capsule in the middle, an optional round
+/// action ([trailing], e.g. download) on the right. Centred, thumb-reachable.
 class PlayShuffleButtons extends StatelessWidget {
   final VoidCallback? onPlay;
   final VoidCallback? onShuffle;
   final bool playing;
+  final Widget? trailing;
 
-  const PlayShuffleButtons({super.key, required this.onPlay, required this.onShuffle, this.playing = false});
+  const PlayShuffleButtons({
+    super.key,
+    required this.onPlay,
+    required this.onShuffle,
+    this.playing = false,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
-    Widget button(IconData icon, String label, VoidCallback? onTap) => Expanded(
-          child: TintedButton(icon: icon, label: label, onTap: onTap),
-        );
+    final t = ThemeTokens.of(context);
+    final enabled = onPlay != null;
     return Row(
+      mainAxisSize: MainAxisSize.min,
       children: [
-        button(
-          playing ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
-          playing ? 'Pause' : 'Play',
-          onPlay,
+        CircleIconButton(icon: CupertinoIcons.shuffle, label: 'Shuffle', onTap: onShuffle),
+        const SizedBox(width: Space.xl),
+        CupertinoClickable(
+          onTap: enabled
+              ? () {
+                  HapticFeedback.mediumImpact();
+                  onPlay!();
+                }
+              : null,
+          scaleFactor: 0.95,
+          semanticLabel: playing ? 'Pause' : 'Play',
+          child: AnimatedContainer(
+            duration: Motion.fast,
+            height: 50,
+            constraints: const BoxConstraints(minWidth: 148),
+            padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
+            decoration: BoxDecoration(
+              color: enabled ? t.accent : t.fill,
+              borderRadius: BorderRadius.circular(Radii.capsule),
+            ),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(
+                  playing ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                  size: 18,
+                  color: enabled ? t.onAccent : t.textMuted,
+                ),
+                const SizedBox(width: Space.sm),
+                Text(
+                  playing ? 'Pause' : 'Play',
+                  style: t.headline.copyWith(color: enabled ? t.onAccent : t.textMuted),
+                ),
+              ],
+            ),
+          ),
         ),
-        const SizedBox(width: Space.md + 2),
-        button(CupertinoIcons.shuffle, 'Shuffle', onShuffle),
+        const SizedBox(width: Space.xl),
+        trailing ?? const SizedBox(width: CircleIconButton.size),
       ],
     );
   }
 }
 
-/// iOS tinted button: grey fill, accent glyph and label.
+/// A round glyph button on a soft fill (Shuffle, Download, More).
+class CircleIconButton extends StatelessWidget {
+  static const double size = 44;
+
+  final IconData icon;
+  final String label;
+  final VoidCallback? onTap;
+  final Widget? child;
+  final Color? color;
+
+  const CircleIconButton({super.key, required this.icon, required this.label, this.onTap, this.child, this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return CupertinoClickable(
+        onTap: onTap == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                onTap!();
+              },
+        scaleFactor: 0.9,
+        semanticLabel: label,
+        child: Container(
+          width: size,
+          height: size,
+          decoration: BoxDecoration(color: t.fill, shape: BoxShape.circle),
+          alignment: Alignment.center,
+          child: child ?? Icon(icon, size: 19, color: onTap == null ? t.textMuted : (color ?? t.textPrimary)),
+        ),
+    );
+  }
+}
+
+/// iOS tinted capsule: soft fill, accent glyph and label. Used for single
+/// secondary actions ("Try Again", "Add Songs").
 class TintedButton extends StatelessWidget {
   final IconData? icon;
   final String label;
@@ -342,16 +425,18 @@ class TintedButton extends StatelessWidget {
               HapticFeedback.lightImpact();
               onTap!();
             },
-      scaleFactor: 0.97,
+      scaleFactor: 0.96,
       semanticLabel: label,
       child: Container(
-        height: 50,
-        decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(Radii.control)),
+        height: 44,
+        padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+        decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(Radii.capsule)),
         child: Row(
+          mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             if (icon != null) ...[
-              Icon(icon, size: 18, color: fg),
+              Icon(icon, size: 17, color: fg),
               const SizedBox(width: Space.sm),
             ],
             Text(label, style: t.headline.copyWith(color: fg)),

@@ -4,15 +4,17 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../models/album.dart';
 import '../models/song.dart';
+import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/platform_utils.dart';
 import '../utils/queue_actions.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
+import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/ui/artwork_page.dart';
 import '../widgets/ui/collection_hero.dart';
-import '../widgets/ui/detail_page.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/states.dart';
 import '../widgets/ui/swipe_actions.dart';
@@ -35,11 +37,19 @@ class AlbumDetailsScreen extends ConsumerWidget {
   final Album album;
   const AlbumDetailsScreen({super.key, required this.album});
 
+  /// "Electronic · 2011 · Lossless" — genre, year and, when every track is
+  /// lossless, the badge Apple Music shows under the title.
+  static String _detail(Album a, List<Song> songs) {
+    const lossless = {'flac', 'alac', 'wav', 'aiff', 'ape', 'wv'};
+    final allLossless = songs.isNotEmpty && songs.every((s) => lossless.contains(s.suffix.toLowerCase()));
+    return [a.detailLine, if (allLossless) 'Lossless'].where((s) => s.isNotEmpty).join(' · ');
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final page = ref.watch(albumPageProvider(album.id));
-    // The passed-in album paints the hero at once; the fetched record fills
-    // in year, genre and the artist link.
+    // The passed-in album paints at once; the fetched record fills in year,
+    // genre and the artist link.
     final full = page.asData?.value.album ?? album;
     final songs = page.asData?.value.songs ?? const <Song>[];
     final svc = ref.read(subsonicServiceProvider);
@@ -58,13 +68,22 @@ class AlbumDetailsScreen extends ConsumerWidget {
 
     void openArtist() => navigateInApp(context, ArtistScreen(artistId: full.artistId, name: full.artist));
 
-    return DetailPage(
+    return ArtworkPage(
+      paletteCoverId: album.coverArt,
+      art: (size) => CoverArt(url: art, size: size, radius: 0, placeholderIcon: CupertinoIcons.music_albums),
       title: full.name,
-      revealAt: CollectionHero.revealOffset(context),
+      subtitle: full.artist,
+      onSubtitleTap: full.artistId.isEmpty ? null : openArtist,
+      detail: _detail(full, songs),
+      buttons: PlayShuffleButtons(
+        playing: playingThis,
+        onPlay: songs.isEmpty ? null : () => play(),
+        onShuffle: songs.isEmpty ? null : () => play(shuffle: true),
+        trailing: CollectionDownloadButton(songs: songs),
+      ),
       actions: [
-        CollectionDownloadButton(songs: songs),
-        BarButton(
-          icon: CupertinoIcons.ellipsis_circle,
+        BarCircleButton(
+          icon: CupertinoIcons.ellipsis,
           label: 'More',
           onTap: () => showCollectionActions(
             context,
@@ -73,23 +92,12 @@ class AlbumDetailsScreen extends ConsumerWidget {
             artUrl: art,
             placeholderIcon: CupertinoIcons.music_albums,
             loadSongs: () async => songs,
+            pin: Pin.album(full),
           ),
         ),
       ],
       onRefresh: () async => ref.invalidate(albumPageProvider(album.id)),
       slivers: [
-        SliverToBoxAdapter(
-          child: CollectionHero(
-            title: full.name,
-            subtitle: full.artist,
-            onSubtitleTap: full.artistId.isEmpty ? null : openArtist,
-            detail: full.detailLine,
-            artUrl: art,
-            playing: playingThis,
-            onPlay: songs.isEmpty ? null : () => play(),
-            onShuffle: songs.isEmpty ? null : () => play(shuffle: true),
-          ),
-        ),
         ...page.when(
           loading: () => const [SliverToBoxAdapter(child: TrackListSkeleton(artwork: false))],
           error: (_, _) => [
@@ -142,7 +150,7 @@ class _MoreByArtist extends ConsumerWidget {
         .toList();
     final svc = ref.read(subsonicServiceProvider);
     return Padding(
-      padding: const EdgeInsets.only(top: Space.lg),
+      padding: const EdgeInsets.only(top: Space.sm),
       child: MediaShelf(
         title: 'More by ${album.artist}',
         onSeeAll: onSeeAll,

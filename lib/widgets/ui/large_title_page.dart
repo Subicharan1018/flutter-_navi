@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
+import 'dock_ground.dart';
 
 /// The frame of every top-level page: Apple's large title that collapses into
 /// a compact bar as you scroll, iOS pull-to-refresh, and bottom clearance so
@@ -38,7 +39,9 @@ class LargeTitlePage extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final canPop = Navigator.of(context).canPop();
-    return Scaffold(
+    return DockGroundScope(
+      color: null,
+      child: Scaffold(
       backgroundColor: t.bgBase,
       body: CustomScrollView(
         controller: controller,
@@ -74,6 +77,7 @@ class LargeTitlePage extends StatelessWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

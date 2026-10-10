@@ -1,6 +1,8 @@
 import 'package:flutter/cupertino.dart'
     show CupertinoPageTransitionsBuilder, CupertinoThemeData, CupertinoTextThemeData;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import 'album_palette.dart';
@@ -10,10 +12,11 @@ export 'album_palette.dart' show AlbumPalette;
 // =============================================================================
 // NaviVibe's design language is Apple Music on iPhone, built for Android.
 //
-// Colour: Apple's dark-mode system colours (pure black ground, #1C1C1E grouped
-// surfaces, 60 % secondary labels, hairline separators) with one accent —
-// system green. Album colour lives only on Now Playing and the mini player,
-// which read [AppThemeTokens.palette] directly.
+// Colour: Apple's dark-mode roles (ground, grouped surface, elevated, overlay,
+// secondary / tertiary labels, separators) translated onto a green-black ramp
+// instead of neutral grey, with one accent — system green. Every role is
+// opaque; only artwork fades into its page. Collection pages take their
+// ground from the cover ([AppThemeTokens.tinted]).
 //
 // Type: Apple's text styles (Large Title 34 … Caption 2 11), set in Inter /
 // Inter Display — the closest licensed match to SF Pro, which can't ship on
@@ -46,16 +49,19 @@ abstract final class Space {
 /// Corner radii, matched to the iOS role of each surface.
 abstract final class Radii {
   /// Track thumbnails in rows.
-  static const double thumb = 4;
+  static const double thumb = 5;
 
   /// Album / playlist covers in grids and shelves.
-  static const double cover = 6;
+  static const double cover = 8;
 
   /// Hero artwork on album and playlist pages.
-  static const double hero = 10;
+  static const double hero = 12;
 
-  /// Buttons, search field, grouped list sections.
-  static const double control = 10;
+  /// Buttons, search field.
+  static const double control = 12;
+
+  /// Fully rounded ends (capsule buttons, tab bar, mini player).
+  static const double capsule = 999;
 
   /// Inset grouped list sections (Settings, Library).
   static const double group = 12;
@@ -73,16 +79,11 @@ abstract final class Motion {
   static const Curve spring = Curves.easeOutBack;
 }
 
-/// Size-specific tracking (Apple's tracking tables, translated to Inter):
-/// small text opens up slightly, display text tightens.
-double trackingFor(double size) {
-  if (size <= 11) return size * 0.01;
-  if (size <= 13) return 0;
-  if (size <= 17) return size * -0.008;
-  if (size <= 24) return size * -0.016;
-  if (size <= 34) return size * -0.022;
-  return size * -0.028;
-}
+/// Inter's published "dynamic metrics" tracking curve (rsms.me/inter/dynmetrics):
+/// em = a + b·e^(c·size). Small text opens slightly, display text tightens —
+/// the same behaviour as SF's size-specific tracking, but correct for Inter's
+/// wider letterforms.
+double trackingFor(double size) => size * (-0.0223 + 0.185 * math.exp(-0.1745 * size));
 
 /// Inter for text sizes, Inter Display (the optical cut drawn for large
 /// sizes) from 20pt up — the same switch SF makes between Text and Display.
@@ -126,10 +127,18 @@ class AppThemeTokens {
   final Color textSecondary;
   final Color textMuted;
 
-  // ── Hairlines ─────────────────────────────────────────────────────────────
+  // ── Hairlines and fills ───────────────────────────────────────────────────
   final Color outline;
 
+  /// iOS tertiarySystemFill — search fields, secondary buttons, tracks.
+  final Color fill;
+
+  /// True inside an artwork-coloured page (see [AppThemeTokens.tinted]).
+  final bool tinted;
+
   const AppThemeTokens._({
+    this.fill = const Color(0xFF1A2D21),
+    this.tinted = false,
     required this.palette,
     required this.bgBase,
     required this.bgSurface,
@@ -148,44 +157,73 @@ class AppThemeTokens {
   /// Apple's dark-mode systemGreen — the app's single accent.
   static const Color brandGreen = Color(0xFF30D158);
 
-  /// App chrome is Apple's neutral dark system palette whatever is playing.
-  /// Album colour belongs to Now Playing and the mini player only (they read
-  /// [palette] directly); tinting every page per song made the app purple or
-  /// pink and a different app with each track.
+  /// App chrome keeps the same green-black ramp whatever is playing. Album
+  /// colour belongs to Now Playing, the mini player (they read [palette]
+  /// directly) and collection pages ([AppThemeTokens.tinted]); tinting
+  /// every page per song made the app a different app with each track.
   factory AppThemeTokens.fromPalette(AlbumPalette p) {
     return AppThemeTokens._(
       palette: p,
-      bgBase: const Color(0xFF000000), // systemBackground
-      bgSurface: const Color(0xFF1C1C1E), // secondarySystemBackground
-      bgElevated: const Color(0xFF2C2C2E), // tertiarySystemBackground
-      bgOverlay: const Color(0xFF3A3A3C), // systemGray5 — pressed / chips
+      bgBase: const Color(0xFF050B07), // systemBackground
+      bgSurface: const Color(0xFF0F1D14), // secondarySystemBackground
+      bgElevated: const Color(0xFF17291D), // tertiarySystemBackground
+      bgOverlay: const Color(0xFF213628), // pressed fills, chips
       accent: brandGreen,
       accentDim: const Color(0xFF248A3D), // systemGreen, accessible dark
       onAccent: const Color(0xFF000000),
       gold: const Color(0xFFFFD60A), // systemYellow
       textPrimary: const Color(0xFFFFFFFF), // label
-      textSecondary: const Color(0x99EBEBF5), // secondaryLabel (60 %)
-      textMuted: const Color(0x4DEBEBF5), // tertiaryLabel (30 %)
-      outline: const Color(0xA6545458), // separator
+      textSecondary: const Color(0xFF97A59C), // secondaryLabel, ≥ 6:1 on every ground
+      textMuted: const Color(0xFF7E9284), // tertiaryLabel, ≥ 4.5:1 up to bgElevated
+      outline: const Color(0xFF223529), // separator
     );
   }
 
   static final AppThemeTokens fallback =
       AppThemeTokens.fromPalette(AlbumPalette.fallback);
 
-  // ── Typography: Apple's text styles ───────────────────────────────────────
+  /// Tokens for a page painted in an artwork colour ([ground]). As in
+  /// Apple Music's iOS 26 album pages, foreground is only ever white: the
+  /// accent becomes white, secondary text and hairlines become white at
+  /// reduced strength, and raised surfaces are lighter steps of the ground.
+  factory AppThemeTokens.tinted(AlbumPalette p, Color ground) {
+    // Every role is resolved to a solid colour against the ground.
+    Color lift(double amount) => Color.lerp(ground, Colors.white, amount)!;
+    return AppThemeTokens._(
+      palette: p,
+      tinted: true,
+      bgBase: ground,
+      bgSurface: lift(0.07),
+      bgElevated: lift(0.12),
+      bgOverlay: lift(0.18),
+      accent: Colors.white,
+      accentDim: lift(0.55),
+      onAccent: Colors.black,
+      gold: const Color(0xFFFFD60A),
+      textPrimary: Colors.white,
+      textSecondary: lift(0.68),
+      textMuted: lift(0.55), // ≥ 4.5:1 on every clamped ground lightness
+      outline: lift(0.14),
+      fill: lift(0.12),
+    );
+  }
+
+  // ── Typography: Apple's text styles, optically matched ────────────────────
+  // Inter draws ~6 % larger and heavier than SF Pro at the same point size,
+  // so each role is set one notch down (and Bold only for the Large Title)
+  // to *look* like Apple's 34/28/22/20/17/16/15/13/12/11 scale on screen.
   // Use these named styles; `.copyWith(color: …)` for a different colour.
-  TextStyle get largeTitle => naviText(34, FontWeight.w700, textPrimary, height: 41 / 34);
-  TextStyle get title1 => naviText(28, FontWeight.w700, textPrimary, height: 34 / 28);
-  TextStyle get title2 => naviText(22, FontWeight.w700, textPrimary, height: 28 / 22);
-  TextStyle get title3 => naviText(20, FontWeight.w600, textPrimary, height: 25 / 20);
-  TextStyle get headline => naviText(17, FontWeight.w600, textPrimary, height: 22 / 17);
-  TextStyle get body => naviText(17, FontWeight.w400, textPrimary, height: 22 / 17);
-  TextStyle get callout => naviText(16, FontWeight.w400, textPrimary, height: 21 / 16);
-  TextStyle get subheadline => naviText(15, FontWeight.w400, textSecondary, height: 20 / 15);
-  TextStyle get footnote => naviText(13, FontWeight.w400, textSecondary, height: 18 / 13);
-  TextStyle get caption1 => naviText(12, FontWeight.w400, textSecondary, height: 16 / 12);
-  TextStyle get caption2 => naviText(11, FontWeight.w500, textSecondary, height: 13 / 11);
+  TextStyle get largeTitle => naviText(32, FontWeight.w700, textPrimary, height: 1.18);
+  TextStyle get title1 => naviText(26, FontWeight.w700, textPrimary, height: 1.2);
+  TextStyle get title2 => naviText(21, FontWeight.w600, textPrimary, height: 1.25);
+  TextStyle get title3 => naviText(19, FontWeight.w600, textPrimary, height: 1.25);
+  TextStyle get headline => naviText(16, FontWeight.w600, textPrimary, height: 1.3);
+  TextStyle get body => naviText(16, FontWeight.w400, textPrimary, height: 1.3);
+  TextStyle get callout => naviText(15, FontWeight.w400, textPrimary, height: 1.3);
+  TextStyle get subheadline => naviText(14, FontWeight.w400, textSecondary, height: 1.3);
+  TextStyle get footnote => naviText(12.5, FontWeight.w400, textSecondary, height: 1.3);
+  TextStyle get caption1 => naviText(11.5, FontWeight.w400, textSecondary, height: 1.3);
+  TextStyle get caption2 => naviText(10.5, FontWeight.w500, textSecondary, height: 1.25);
 
   /// Escape hatch for one-off display sizes (hero numbers, desktop titles).
   TextStyle textStyle(double size, FontWeight weight, Color color) =>
@@ -194,23 +232,30 @@ class AppThemeTokens {
   /// Always opaque — safe for menus and dialogs over moving content.
   Color get bgSurfaceOpaque => Color.alphaBlend(bgSurface, bgBase);
 
-  /// iOS tertiarySystemFill — search fields, secondary buttons.
-  Color get fill => const Color(0x3D767680);
-
   /// Opaque hairline for places a translucent separator would double up.
-  Color get separatorOpaque => const Color(0xFF38383A);
+  Color get separatorOpaque => outline;
 
   // ── Semantic state colours (iOS system colours, dark) ─────────────────────
   Color get positive => brandGreen;
   Color get warning => const Color(0xFFFF9F0A); // systemOrange
   Color get danger => const Color(0xFFFF453A); // systemRed
 
-  @override
-  bool operator ==(Object other) =>
-      other is AppThemeTokens && other.palette == palette;
+  /// iOS system colours for Settings-style icon squares. Deliberately no
+  /// purple / pink: green leads, the rest are Apple's cooler and warm tones.
+  static const Color systemBlue = Color(0xFF0A84FF);
+  static const Color systemTeal = Color(0xFF40C8E0);
+  static const Color systemOrange = Color(0xFFFF9F0A);
+  static const Color systemRed = Color(0xFFFF453A);
+  static const Color systemYellow = Color(0xFFFFD60A);
+  static const Color systemGray = Color(0xFF8E8E93);
+  static const Color systemGray2 = Color(0xFF636366);
 
   @override
-  int get hashCode => palette.hashCode;
+  bool operator ==(Object other) =>
+      other is AppThemeTokens && other.palette == palette && other.bgBase == bgBase && other.tinted == tinted;
+
+  @override
+  int get hashCode => Object.hash(palette, bgBase, tinted);
 }
 
 /// Exposes the live [AppThemeTokens] to the tree.
@@ -401,7 +446,7 @@ class AppTheme {
         primaryColor: t.accent,
         primaryContrastingColor: t.onAccent,
         scaffoldBackgroundColor: t.bgBase,
-        barBackgroundColor: t.bgBase.withValues(alpha: 0.75),
+        barBackgroundColor: t.bgBase,
         textTheme: CupertinoTextThemeData(
           primaryColor: t.accent,
           textStyle: t.body,

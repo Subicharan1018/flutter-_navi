@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -34,7 +32,8 @@ import '../services/replay_upload_service.dart';
 import '../services/window_manager_service.dart';
 import '../utils/platform_utils.dart';
 import 'cover_art.dart';
-import 'create_playlist_dialog.dart';
+import '../screens/playlist_editor.dart';
+import 'ui/dock_ground.dart';
 import 'mini_player.dart';
 
 // =============================================================================
@@ -106,6 +105,10 @@ class AppScaffold extends ConsumerStatefulWidget {
 class _AppScaffoldState extends ConsumerState<AppScaffold> with WidgetsBindingObserver, WindowLifecycleMixin {
   AppTab _tab = AppTab.home;
 
+  /// Tabs built so far. A tab is built the first time it's opened and kept
+  /// alive after that, so Stats and Shuffle don't fetch at launch.
+  final Set<AppTab> _visited = {AppTab.home};
+
   @override
   void initState() {
     super.initState();
@@ -140,7 +143,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WidgetsBindingOb
     }
     HapticFeedback.selectionClick();
     if (PlatformUtils.isDesktop) desktopNavigatorKey.currentState?.popUntil((r) => r.isFirst);
-    setState(() => _tab = tab);
+    setState(() {
+      _tab = tab;
+      _visited.add(tab);
+    });
     _activeTab = tab;
     _desktopTab.value = tab;
   }
@@ -155,7 +161,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WidgetsBindingOb
               (PlatformUtils.prefersSidebarNavigation || c.maxWidth >= PlatformUtils.kDesktopBreakpoint);
           return desktop
               ? _DesktopShell(tab: _tab, onSelect: _select, offline: offline)
-              : _PhoneShell(tab: _tab, onSelect: _select, offline: offline);
+              : _PhoneShell(tab: _tab, visited: _visited, onSelect: _select, offline: offline);
         },
       ),
     );
@@ -166,10 +172,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WidgetsBindingOb
 
 class _PhoneShell extends ConsumerWidget {
   final AppTab tab;
+  final Set<AppTab> visited;
   final ValueChanged<AppTab> onSelect;
   final bool offline;
 
-  const _PhoneShell({required this.tab, required this.onSelect, required this.offline});
+  const _PhoneShell({required this.tab, required this.visited, required this.onSelect, required this.offline});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -186,24 +193,45 @@ class _PhoneShell extends ConsumerWidget {
               index: tab.index,
               children: [
                 for (final destination in AppTab.values)
-                  Navigator(
-                    key: _tabNavigators[destination],
-                    onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => destination.screen),
-                  ),
+                  visited.contains(destination)
+                      // Hidden tabs stop animating, and can't claim the dock colour.
+                      ? TickerMode(
+                          enabled: destination == tab,
+                          child: Navigator(
+                            key: _tabNavigators[destination],
+                            onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => destination.screen),
+                          ),
+                        )
+                      : const SizedBox.shrink(),
               ],
             ),
           ),
-          if (offline) const Positioned(top: 0, left: 0, right: 0, child: _OfflineBanner()),
+          // The dock: one solid band in the visible page's own colour, with
+          // the mini player and tab bar floating on it. Nothing scrolls into
+          // view between or beside the controls, and an artwork-coloured page
+          // keeps its colour right to the bottom edge.
           Positioned(
             left: 0,
             right: 0,
             bottom: 0,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const MiniPlayer(),
-                _TabBar(tab: tab, onSelect: onSelect),
-              ],
+            child: ValueListenableBuilder<Color?>(
+              valueListenable: DockGround.value,
+              builder: (context, ground, _) {
+                final band = ground ?? t.bgBase;
+                return AnimatedContainer(
+                  duration: Motion.standard,
+                  color: band,
+                  padding: const EdgeInsets.only(top: Space.sm),
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (offline) const _OfflineBanner(),
+                      const MiniPlayer(),
+                      _TabBar(tab: tab, onSelect: onSelect, ground: band),
+                    ],
+                  ),
+                );
+              },
             ),
           ),
         ],
@@ -212,39 +240,104 @@ class _PhoneShell extends ConsumerWidget {
   }
 }
 
-/// iOS tab bar: translucent material over the content, hairline on top, the
-/// selected tab tinted with the accent.
+/// iOS 26 tab bar: a floating capsule holding the main tabs, with Search
+/// split off into its own circle at the trailing end. Solid surfaces lifted
+/// from the dock band's colour with a hairline edge (no blur, no shadow);
+/// the selected tab sits on a lighter pill that slides between positions.
 class _TabBar extends StatelessWidget {
+  static const double _height = 62;
+
   final AppTab tab;
   final ValueChanged<AppTab> onSelect;
-  const _TabBar({required this.tab, required this.onSelect});
+
+  /// The dock band this bar floats on; its surfaces are lighter solid steps
+  /// of it, so the bar belongs to whatever page is showing.
+  final Color ground;
+  const _TabBar({required this.tab, required this.onSelect, required this.ground});
+
+  static final _main = AppTab.values.where((t) => t != AppTab.search).toList();
+
+  /// [ground] lifted toward white by [amount], fully opaque.
+  static Color _lift(Color ground, double amount) => Color.lerp(ground, Colors.white, amount)!;
+
+  BoxDecoration _surface({bool circle = false}) => BoxDecoration(
+        color: _lift(ground, 0.09),
+        shape: circle ? BoxShape.circle : BoxShape.rectangle,
+        borderRadius: circle ? null : BorderRadius.circular(Radii.capsule),
+        border: Border.all(color: _lift(ground, 0.16), width: 0.5),
+      );
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final bottom = MediaQuery.paddingOf(context).bottom;
-    return ClipRect(
-      child: BackdropFilter(
-        filter: ImageFilter.blur(sigmaX: 24, sigmaY: 24),
-        child: Container(
-          height: 50 + bottom,
-          padding: EdgeInsets.only(bottom: bottom),
-          decoration: BoxDecoration(
-            color: t.bgBase.withValues(alpha: 0.78),
-            border: Border(top: BorderSide(color: t.outline, width: 0.5)),
-          ),
-          child: Row(
-            children: [
-              for (final destination in AppTab.values)
-                Expanded(
-                  child: _TabButton(
-                    tab: destination,
-                    selected: destination == tab,
-                    onTap: () => onSelect(destination),
+    final index = _main.indexOf(tab);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, bottom > 0 ? bottom : Space.md),
+      child: SizedBox(
+        height: _height,
+        child: Row(
+          children: [
+            Expanded(
+              child: Container(
+                decoration: _surface(),
+                padding: const EdgeInsets.all(4),
+                child: LayoutBuilder(builder: (context, c) {
+                  final w = c.maxWidth / _main.length;
+                  return Stack(
+                    children: [
+                      if (index >= 0)
+                        AnimatedPositioned(
+                          duration: Motion.standard,
+                          curve: Curves.easeOutBack,
+                          left: index * w,
+                          top: 0,
+                          bottom: 0,
+                          width: w,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              color: _lift(ground, 0.18),
+                              borderRadius: BorderRadius.circular(Radii.capsule),
+                            ),
+                          ),
+                        ),
+                      Row(
+                        children: [
+                          for (final destination in _main)
+                            Expanded(
+                              child: _TabButton(
+                                tab: destination,
+                                selected: destination == tab,
+                                onTap: () => onSelect(destination),
+                              ),
+                            ),
+                        ],
+                      ),
+                    ],
+                  );
+                }),
+              ),
+            ),
+            const SizedBox(width: Space.sm + 2),
+            Semantics(
+              button: true,
+              selected: tab == AppTab.search,
+              label: 'Search',
+              child: GestureDetector(
+                onTap: () => onSelect(AppTab.search),
+                child: Container(
+                  width: _height,
+                  height: _height,
+                  decoration: _surface(circle: true),
+                  child: Icon(
+                    CupertinoIcons.search,
+                    size: 24,
+                    color: tab == AppTab.search ? t.accent : t.textPrimary,
                   ),
                 ),
-            ],
-          ),
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -260,7 +353,7 @@ class _TabButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final color = selected ? t.accent : t.textSecondary;
+    final color = selected ? t.accent : t.textPrimary;
     return Semantics(
       button: true,
       selected: selected,
@@ -271,9 +364,12 @@ class _TabButton extends StatelessWidget {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(selected ? tab.activeIcon : tab.icon, size: 24, color: color),
-            const SizedBox(height: 2),
-            Text(tab.label, style: t.caption2.copyWith(color: color)),
+            Icon(selected ? tab.activeIcon : tab.icon, size: 22, color: color),
+            const SizedBox(height: 3),
+            Text(
+              tab.label,
+              style: t.caption2.copyWith(color: color, fontWeight: selected ? FontWeight.w600 : FontWeight.w500),
+            ),
           ],
         ),
       ),
@@ -287,22 +383,16 @@ class _OfflineBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return SafeArea(
-      bottom: false,
-      child: Center(
-        child: Container(
-          margin: const EdgeInsets.only(top: Space.xs),
-          padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.xs),
-          decoration: BoxDecoration(color: t.bgElevated, borderRadius: BorderRadius.circular(14)),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Icon(CupertinoIcons.wifi_slash, size: 13, color: t.warning),
-              const SizedBox(width: Space.xs + 2),
-              Text('Offline — playing downloads', style: t.caption1.copyWith(color: t.textPrimary)),
-            ],
-          ),
-        ),
+    // Sits on the dock band above the mini player, clear of page titles.
+    return Padding(
+      padding: const EdgeInsets.only(bottom: Space.sm),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(CupertinoIcons.wifi_slash, size: 13, color: t.warning),
+          const SizedBox(width: Space.xs + 2),
+          Text('Offline. Playing your downloads.', style: t.caption1.copyWith(color: t.textPrimary)),
+        ],
       ),
     );
   }
@@ -468,7 +558,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
               tooltip: 'New Playlist',
               visualDensity: VisualDensity.compact,
               icon: Icon(CupertinoIcons.add, size: 18, color: t.textSecondary),
-              onPressed: () => showDialog(context: context, builder: (_) => const CreatePlaylistDialog()),
+              onPressed: () => showPlaylistEditor(context),
             ),
           ),
           for (final p in playlists)

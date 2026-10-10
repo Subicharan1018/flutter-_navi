@@ -27,6 +27,13 @@ final genreAlbumsProvider = FutureProvider.autoDispose.family<List<Album>, Strin
   return ref.watch(subsonicServiceProvider).getAlbumsByGenre(genre);
 });
 
+/// One album cover that stands for a genre on its Browse tile. Kept for the
+/// session so the grid doesn't refetch every time Search is opened.
+final genreCoverProvider = FutureProvider.family<String?, String>((ref, genre) async {
+  final albums = await ref.watch(subsonicServiceProvider).getAlbumsByGenre(genre, size: 1);
+  return albums.firstOrNull?.coverArt;
+});
+
 class SearchHistoryNotifier extends StateNotifier<List<String>> {
   static const _max = 10;
 

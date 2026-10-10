@@ -1,5 +1,5 @@
 import 'dart:io' show Platform;
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 
 // =============================================================================
 // platform_utils.dart — Centralised platform detection
@@ -14,9 +14,14 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 // =============================================================================
 
 abstract final class PlatformUtils {
+  /// Test seam: render the phone (false) or desktop (true) layout regardless
+  /// of the host OS, so phone screens can be checked on a desktop test host.
+  @visibleForTesting
+  static bool? debugDesktopOverride;
+
   /// True on Linux, Windows, and macOS — i.e. any desktop OS.
   static bool get isDesktop =>
-      !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
+      debugDesktopOverride ?? (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS));
 
   /// True only on Linux.
   static bool get isLinux =>

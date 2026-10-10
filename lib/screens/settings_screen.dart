@@ -203,6 +203,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Server',
                 icon: CupertinoIcons.cloud,
+                iconColor: AppThemeTokens.systemBlue,
                 value: host.isEmpty ? 'Not connected' : host,
               ),
               GroupedTextFieldRow(
@@ -210,6 +211,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 controller: _user,
                 placeholder: 'Required',
                 icon: CupertinoIcons.person_fill,
+                iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedTextFieldRow(
                 title: 'Password',
@@ -217,6 +219,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'Required',
                 obscure: true,
                 icon: CupertinoIcons.lock_fill,
+                iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedSwitchRow(
                 title: 'Allow HTTP',
@@ -241,6 +244,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Shuffle Style',
                 icon: CupertinoIcons.shuffle,
+                iconColor: AppThemeTokens.systemOrange,
                 value: s.shuffleAlgorithm.label,
                 onTap: () async {
                   final v = await showChoiceSheet<ShuffleAlgorithm>(
@@ -258,6 +262,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 GroupedRow(
                   title: 'Spread Songs By',
                   icon: CupertinoIcons.square_grid_2x2,
+                  iconColor: AppThemeTokens.systemTeal,
                   value: s.shufflePreference.label,
                   onTap: () async {
                     final v = await showChoiceSheet<ShufflePreference>(
@@ -281,6 +286,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Convert While Streaming',
                 icon: CupertinoIcons.waveform,
+                iconColor: AppThemeTokens.systemRed,
                 value: _transcoding,
                 onChanged: (v) {
                   setState(() => _transcoding = v);
@@ -299,6 +305,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 GroupedRow(
                   title: 'Format',
                   icon: CupertinoIcons.doc_text,
+                  iconColor: AppThemeTokens.systemGray,
                   value: TranscodeFormat.getLabel(_format),
                   onTap: () async {
                     final v = await showChoiceSheet<String>(
@@ -317,6 +324,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Switch Automatically',
                   subtitle: 'Uses the Wi-Fi or cellular quality to match your connection.',
                   icon: CupertinoIcons.arrow_2_squarepath,
+                  iconColor: AppThemeTokens.systemTeal,
                   value: _smartSwitch,
                   onChanged: (v) {
                     setState(() => _smartSwitch = v);
@@ -332,11 +340,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Downloaded Songs',
                 icon: CupertinoIcons.arrow_down_circle,
+                iconColor: AppThemeTokens.systemBlue,
                 value: downloads == 0 ? 'None' : '$downloads · $size',
               ),
               GroupedSwitchRow(
                 title: 'Cache Artwork',
                 icon: CupertinoIcons.photo,
+                iconColor: AppThemeTokens.systemTeal,
                 value: _imageCache,
                 onChanged: (v) {
                   setState(() => _imageCache = v);
@@ -347,6 +357,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Cache Music',
                 subtitle: 'Keeps recently played songs for instant replay.',
                 icon: CupertinoIcons.music_note_2,
+                iconColor: AppThemeTokens.systemRed,
                 value: _musicCache,
                 onChanged: (v) {
                   setState(() => _musicCache = v);
@@ -357,6 +368,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Cache Tempo',
                 subtitle: 'Measures song tempo ahead of time so Smart Shuffle starts faster.',
                 icon: CupertinoIcons.metronome,
+                iconColor: AppThemeTokens.systemOrange,
                 value: _bpmCache,
                 onChanged: (v) {
                   setState(() => _bpmCache = v);
@@ -406,6 +418,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Export as CSV',
                 subtitle: 'Saves your play history and song data to Downloads.',
                 icon: CupertinoIcons.square_arrow_down,
+                iconColor: AppThemeTokens.systemBlue,
                 trailing: _spinner('export'),
                 onTap: _busy == null
                     ? () => _run('export', () async {
@@ -429,6 +442,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Sync Automatically',
                 icon: CupertinoIcons.calendar,
+                iconColor: AppThemeTokens.systemRed,
                 value: _scheduleLabel(s.analyticsUploadSchedule),
                 onTap: () async {
                   final v = await showChoiceSheet<String>(
@@ -445,7 +459,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Remove Skipped Plays',
                 subtitle: 'Deletes plays that lasted under a second.',
                 icon: CupertinoIcons.trash,
-                iconColor: t.bgOverlay,
+                iconColor: AppThemeTokens.systemGray,
                 onTap: () => _run('purge', () async {
                   final n = await ref.read(listenerCollectorProvider).purgeNoiseEvents();
                   return n == 0 ? 'Nothing to remove' : 'Removed $n skipped plays';
@@ -461,6 +475,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Upload a Song',
                 icon: CupertinoIcons.cloud_upload,
+                iconColor: AppThemeTokens.systemBlue,
                 trailing: _spinner('upload'),
                 onTap: _busy == null ? _upload : null,
               ),
@@ -469,6 +484,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 controller: _uploadDir,
                 placeholder: '/music',
                 icon: CupertinoIcons.folder_fill,
+                iconColor: AppThemeTokens.systemTeal,
               ),
               GroupedTextFieldRow(
                 title: 'WebDAV URL',
@@ -476,12 +492,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'https://',
                 keyboardType: TextInputType.url,
                 icon: CupertinoIcons.link,
+                iconColor: AppThemeTokens.systemGray,
               ),
               GroupedTextFieldRow(
                 title: 'Username',
                 controller: _davUser,
                 placeholder: 'Optional',
                 icon: CupertinoIcons.person_fill,
+                iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedTextFieldRow(
                 title: 'Password',
@@ -489,6 +507,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'Optional',
                 obscure: true,
                 icon: CupertinoIcons.lock_fill,
+                iconColor: AppThemeTokens.systemGray2,
               ),
             ],
           ),

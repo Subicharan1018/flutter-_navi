@@ -1,21 +1,20 @@
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../../models/playlist.dart';
 import '../../providers/library_provider.dart';
+import '../../providers/pins_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/format.dart';
 import '../../utils/playlist_actions.dart';
 import '../../widgets/app_scaffold.dart' show navigateInApp;
 import '../../widgets/collection_actions.dart';
 import '../../widgets/cover_art.dart';
-import '../../widgets/create_playlist_dialog.dart';
 import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/ui/media.dart';
 import '../../widgets/ui/states.dart';
-import '../edit_playlist_screen.dart';
+import '../playlist_editor.dart';
 import '../favorites_screen.dart';
 import '../playlist_details_screen.dart';
 
@@ -46,7 +45,7 @@ class PlaylistsPage extends ConsumerWidget {
             titleColor: t.accent,
             leading: glyphTile(CupertinoIcons.add),
             showChevron: false,
-            onTap: () => showDialog(context: context, builder: (_) => const CreatePlaylistDialog()),
+            onTap: () => showPlaylistEditor(context),
           ),
           CollectionRow(
             title: 'Favorites',
@@ -90,8 +89,9 @@ class PlaylistsPage extends ConsumerWidget {
       subtitle: songCount(p.songCount),
       artUrl: art,
       loadSongs: () => ref.read(subsonicServiceProvider).getPlaylistSongs(p.id),
-      onEdit: () => navigateInApp(context, EditPlaylistScreen(playlist: p)),
+      onEdit: () => showPlaylistEditor(context, playlist: p),
       onDelete: () => deletePlaylistWithConfirm(context, ref, p),
+      pin: Pin.playlist(p),
     );
   }
 }

@@ -18,34 +18,20 @@ import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 // Metadata Caching helpers (using AppDatabase/Drift)
 // ---------------------------------------------------------------------------
 
-/// Looks up a cached song's cover art URL by title and artist.
-/// Returns null if not found in the local database.
-final songCoverUrlProvider = FutureProvider.autoDispose
-    .family<String?, String>((ref, key) async {
+/// Cover-art id for a song the stats server names by "title|artist", via the
+/// local mirror. Null when the song isn't in the library.
+final songCoverIdProvider = FutureProvider.autoDispose.family<String?, String>((ref, key) async {
   final parts = key.split('|');
   if (parts.length < 2) return null;
-  final title = parts[0];
-  final artist = parts[1];
+  final song = await resolveLibrarySong(ref.watch(appDatabaseProvider), parts[0], parts[1]);
+  if (song == null) return null;
+  return song.coverArt.isNotEmpty ? song.coverArt : song.id;
+});
 
-  final db = ref.watch(appDatabaseProvider);
-
-  // Try exact match first
-  var match = await (db.select(db.songMetadata)
-        ..where((t) => t.trackName.equals(title) & t.artistName.equals(artist))
-        ..limit(1))
-      .getSingleOrNull();
-
-  // Fallback to title-only match if exact match fails
-  match ??= await (db.select(db.songMetadata)
-        ..where((t) => t.trackName.equals(title))
-        ..limit(1))
-      .getSingleOrNull();
-
-  if (match != null) {
-    final coverId = match.songId;
-    return ref.read(subsonicServiceProvider).getCoverArtUrl(coverId);
-  }
-  return null;
+/// Cover-art URL for "title|artist" (see [songCoverIdProvider]).
+final songCoverUrlProvider = FutureProvider.autoDispose.family<String?, String>((ref, key) async {
+  final id = await ref.watch(songCoverIdProvider(key).future);
+  return id == null ? null : ref.read(subsonicServiceProvider).getCoverArtUrl(id);
 });
 
 /// Looks up a cover art URL to represent an *artist*, by finding any cached
@@ -593,20 +579,25 @@ class PlaylistController {
   final Ref ref;
   PlaylistController(this.ref);
 
-  Future<void> createAndAdd(String name, String songId) async {
+  /// Creates a playlist and returns it. Uses the server's echo when it has
+  /// one; older servers are asked for the list directly (not through the
+  /// autoDispose [playlistsProvider], which could be torn down mid-await).
+  Future<Playlist> create(String name) async {
     final service = ref.read(subsonicServiceProvider);
-    await service.createPlaylist(name);
-
+    final created = await service.createPlaylist(name) ??
+        (await service.getPlaylists()).lastWhere(
+          (p) => p.name == name,
+          orElse: () => throw Exception('Playlist not found after creation'),
+        );
     ref.invalidate(playlistsProvider);
-    final playlists = await ref.read(playlistsProvider.future);
+    return created;
+  }
 
-    final newPlaylist = playlists.firstWhere(
-      (p) => p.name == name,
-      orElse: () => throw Exception('Playlist not found after creation'),
-    );
-    await service.updatePlaylist(newPlaylist.id, songIdToAdd: songId);
-
-    ref.invalidate(songsInPlaylistProvider(newPlaylist.id));
+  Future<void> createAndAdd(String name, String songId) async {
+    final playlist = await create(name);
+    await ref.read(subsonicServiceProvider).updatePlaylist(playlist.id, songIdToAdd: songId);
+    ref.invalidate(songsInPlaylistProvider(playlist.id));
+    ref.invalidate(playlistsProvider);
   }
 
   Future<int> batchUpdate({

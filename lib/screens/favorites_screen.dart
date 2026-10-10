@@ -5,6 +5,7 @@ import '../core/theme.dart';
 import '../models/album.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
+import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
@@ -12,9 +13,9 @@ import '../utils/queue_actions.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/ui/artwork_page.dart';
 import '../widgets/ui/collection_hero.dart';
 import '../widgets/ui/controls.dart';
-import '../widgets/ui/detail_page.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/mosaic_art.dart';
 import '../widgets/ui/states.dart';
@@ -49,31 +50,26 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
     final songs = favorites.asData?.value.songs ?? const <Song>[];
     final albums = favorites.asData?.value.albums ?? const <Album>[];
     final svc = ref.read(subsonicServiceProvider);
-    final width = MediaQuery.sizeOf(context).width;
-    final artSize = width >= 720 ? 240.0 : (width - 128).clamp(160.0, 300.0);
 
-    return DetailPage(
+    return ArtworkPage(
+      paletteCoverId: songs.isEmpty ? null : songs.first.coverArt,
+      art: (size) => MosaicArt(
+        urls: [for (final s in songs.take(24)) svc.getCoverArtUrl(s.coverArt)],
+        size: size,
+        radius: 0,
+        placeholderIcon: CupertinoIcons.star_fill,
+      ),
       title: 'Favorites',
-      revealAt: CollectionHero.revealOffset(context),
-      actions: [CollectionDownloadButton(songs: songs)],
+      detail: favorites.hasValue
+          ? '${songCount(songs.length)} · ${albums.length == 1 ? '1 album' : '${albums.length} albums'}'
+          : null,
+      buttons: PlayShuffleButtons(
+        onPlay: songs.isEmpty ? null : () => _play(songs),
+        onShuffle: songs.isEmpty ? null : () => _play(songs, shuffle: true),
+        trailing: CollectionDownloadButton(songs: songs),
+      ),
       onRefresh: () async => ref.invalidate(favoritesProvider),
       slivers: [
-        SliverToBoxAdapter(
-          child: CollectionHero(
-            title: 'Favorites',
-            detail: favorites.hasValue
-                ? '${songCount(songs.length)}, ${albums.length == 1 ? '1 album' : '${albums.length} albums'}'
-                : null,
-            art: MosaicArt(
-              urls: [for (final s in songs.take(16)) svc.getCoverArtUrl(s.coverArt)],
-              size: artSize,
-              radius: Radii.hero,
-              placeholderIcon: CupertinoIcons.star_fill,
-            ),
-            onPlay: songs.isEmpty ? null : () => _play(songs),
-            onShuffle: songs.isEmpty ? null : () => _play(songs, shuffle: true),
-          ),
-        ),
         SliverPadding(
           padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.md),
           sliver: SliverToBoxAdapter(
@@ -149,6 +145,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                         artUrl: art,
                         placeholderIcon: CupertinoIcons.music_albums,
                         loadSongs: () => svc.getAlbum(a.id),
+                        pin: Pin.album(a),
                       ),
                     );
                   },

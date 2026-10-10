@@ -56,11 +56,11 @@ class _YearGridState extends State<YearGrid> {
     int countOn(DateTime d) => byDate[isoDate(d)] ?? 0;
     final selectedCount = _selected == null ? 0 : countOn(_selected!);
 
-    return StatCard(
+    return StatSection(
       title: 'Your Year',
       readout: _selected == null ? '$active days' : '${_months[_selected!.month - 1]} ${_selected!.day}',
       readoutCaption: _selected == null
-          ? 'with music · ${compactCount(total)} plays'
+          ? 'with music, ${compactCount(total)} plays in all'
           : (selectedCount == 1 ? '1 play' : '$selectedCount plays'),
       readoutColor: _selected == null ? null : t.accent,
       child: Column(
@@ -107,7 +107,7 @@ class _YearGridState extends State<YearGrid> {
                   height: 10,
                   margin: const EdgeInsets.only(right: 3),
                   decoration: BoxDecoration(
-                    color: level == 0 ? t.fill : t.accent.withValues(alpha: level),
+                    color: _GridPainter.shade(level, t.fill, t.accent),
                     borderRadius: BorderRadius.circular(2),
                   ),
                 ),
@@ -149,9 +149,15 @@ class _GridPainter extends CustomPainter {
 
   static double _level(int c) => c == 0 ? 0 : c < 4 ? levels[1] : c < 9 ? levels[2] : c < 18 ? levels[3] : levels[4];
 
-  void _text(Canvas canvas, String s, Offset at) {
+  /// Solid step between the empty cell and full accent (no transparency).
+  static Color shade(double level, Color empty, Color accent) => Color.lerp(empty, accent, level)!;
+
+  /// Paints [s] at [at] unless it would be clipped by [maxX] (a month label
+  /// in the last column).
+  void _text(Canvas canvas, String s, Offset at, {double maxX = double.infinity}) {
     final tp = TextPainter(text: TextSpan(text: s, style: label), textDirection: TextDirection.ltr)..layout();
-    tp.paint(canvas, at);
+    if (at.dx + tp.width <= maxX) tp.paint(canvas, at);
+    tp.dispose();
   }
 
   @override
@@ -171,13 +177,13 @@ class _GridPainter extends CustomPainter {
       final weekStart = start.add(Duration(days: w * 7));
       if (weekStart.month != lastMonth) {
         lastMonth = weekStart.month;
-        _text(canvas, _YearGridState._months[weekStart.month - 1], Offset(left + w * step, 0));
+        _text(canvas, _YearGridState._months[weekStart.month - 1], Offset(left + w * step, 0), maxX: size.width);
       }
       for (var d = 0; d < 7; d++) {
         final day = weekStart.add(Duration(days: d));
         if (day.isAfter(today)) continue;
         final level = _level(countOn(day));
-        paint.color = level == 0 ? empty : accent.withValues(alpha: level);
+        paint.color = shade(level, empty, accent);
         final rect = RRect.fromRectAndRadius(
           Rect.fromLTWH(left + w * step, top + d * step, cell, cell),
           const Radius.circular(2.5),

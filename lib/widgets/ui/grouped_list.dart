@@ -140,7 +140,10 @@ class GroupedRow extends StatelessWidget {
               ),
               if (value != null) ...[
                 const SizedBox(width: Space.sm),
-                Flexible(
+                // The title owns the row; the value takes what it needs up
+                // to a cap, then ellipsizes (iOS Settings behaviour).
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 150),
                   child: Text(
                     value!,
                     maxLines: 1,

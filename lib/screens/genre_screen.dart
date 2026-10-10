@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/search_provider.dart';
 import '../providers/settings_provider.dart';
@@ -80,6 +81,7 @@ class GenreScreen extends ConsumerWidget {
                         artUrl: art,
                         placeholderIcon: CupertinoIcons.music_albums,
                         loadSongs: () => svc.getAlbum(a.id),
+                        pin: Pin.album(a),
                       ),
                     );
                   },

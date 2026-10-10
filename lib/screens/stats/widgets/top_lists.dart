@@ -6,50 +6,80 @@ import '../../../providers/library_provider.dart';
 import '../../../widgets/cover_art.dart';
 import 'stat_card.dart';
 
-/// Top artists for the period, with how their plays compare to the leader.
+/// Top artists for the period as Apple Music shows artists: round
+/// portraits on a shelf, the leader first and largest.
 class TopArtistsCard extends ConsumerWidget {
+  static const double _lead = 128;
+  static const double _rest = 96;
+
   final List<Map<String, dynamic>> artists;
   const TopArtistsCard({super.key, required this.artists});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final top = artists.take(5).toList();
-    final max = top.fold<int>(0, (m, a) => (a['play_count'] as int? ?? 0) > m ? a['play_count'] as int : m);
-    return StatCard(
+    final t = ThemeTokens.of(context);
+    final top = artists.take(6).toList();
+    return StatSection(
       title: 'Top Artists',
       child: top.isEmpty
           ? const _Empty('No artist has enough plays in this period yet.')
-          : Column(children: [
-              for (final (i, a) in top.indexed)
-                _RankedRow(
-                  rank: i + 1,
-                  title: a['artist']?.toString() ?? 'Unknown Artist',
-                  plays: a['play_count'] as int? ?? 0,
-                  share: max == 0 ? 0 : (a['play_count'] as int? ?? 0) / max,
-                  art: ref.watch(artistCoverUrlProvider(a['artist']?.toString() ?? '')).asData?.value,
-                  circular: true,
-                  last: i == top.length - 1,
-                ),
-            ]),
+          : SizedBox(
+              height: _lead + 52,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                // Bleed to the screen edge like every shelf in the app.
+                clipBehavior: Clip.none,
+                itemCount: top.length,
+                separatorBuilder: (_, _) => const SizedBox(width: Space.lg),
+                itemBuilder: (context, i) {
+                  final name = top[i]['artist']?.toString() ?? 'Unknown Artist';
+                  final plays = top[i]['play_count'] as int? ?? 0;
+                  final size = i == 0 ? _lead : _rest;
+                  return SizedBox(
+                    width: size,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.end,
+                      children: [
+                        CoverArt(
+                          url: ref.watch(artistCoverUrlProvider(name)).asData?.value,
+                          size: size,
+                          circular: true,
+                          placeholderIcon: CupertinoIcons.person_fill,
+                        ),
+                        const SizedBox(height: Space.sm),
+                        Text(
+                          name,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          textAlign: TextAlign.center,
+                          style: (i == 0 ? t.headline : t.subheadline.copyWith(color: t.textPrimary)),
+                        ),
+                        Text(plays == 1 ? '1 play' : '$plays plays', style: t.footnote),
+                      ],
+                    ),
+                  );
+                },
+              ),
+            ),
     );
   }
 }
 
-/// Top songs for the period, with how much of each you actually heard.
+/// Top songs for the period as a ranked list, each with how much of it you
+/// actually heard on average.
 class TopSongsCard extends ConsumerWidget {
   final List<Map<String, dynamic>> tracks;
   const TopSongsCard({super.key, required this.tracks});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
     // The server can list one song under several file ids; show it once.
     final seen = <String>{};
     final top = [
       for (final s in tracks)
         if (seen.add('${s['title']}|${s['artist']}')) s,
     ].take(5).toList();
-    return StatCard(
+    return StatSection(
       title: 'Top Songs',
       child: top.isEmpty
           ? const _Empty('No song has enough plays in this period yet.')
@@ -59,15 +89,12 @@ class TopSongsCard extends ConsumerWidget {
                   final title = s['title']?.toString() ?? 'Unknown';
                   final artist = s['artist']?.toString() ?? '';
                   final heardRaw = s['avg_listen_ratio'];
-                  final heard = heardRaw is num ? heardRaw.toDouble().clamp(0.0, 1.0) : 1.0;
                   return _RankedRow(
                     rank: i + 1,
                     title: title,
                     subtitle: artist,
                     plays: s['play_count'] as int? ?? 0,
-                    share: heard,
-                    shareColor: heard >= 0.8 ? t.positive : (heard >= 0.5 ? t.warning : t.danger),
-                    shareLabel: '${(heard * 100).round()}% heard',
+                    heard: heardRaw is num ? heardRaw.toDouble().clamp(0.0, 1.0) : null,
                     art: ref.watch(songCoverUrlProvider('$title|$artist')).asData?.value,
                     last: i == top.length - 1,
                   );
@@ -80,97 +107,71 @@ class TopSongsCard extends ConsumerWidget {
 class _RankedRow extends StatelessWidget {
   final int rank;
   final String title;
-  final String? subtitle;
+  final String subtitle;
   final int plays;
-  final double share;
-  final Color? shareColor;
-  final String? shareLabel;
+  final double? heard;
   final String? art;
-  final bool circular;
   final bool last;
 
   const _RankedRow({
     required this.rank,
     required this.title,
-    this.subtitle,
+    required this.subtitle,
     required this.plays,
-    required this.share,
-    this.shareColor,
-    this.shareLabel,
+    required this.heard,
     required this.art,
-    this.circular = false,
     required this.last,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: Space.sm + 2),
-      decoration: BoxDecoration(
-        border: last ? null : Border(bottom: BorderSide(color: t.outline, width: 0.5)),
-      ),
+    // Only a song you mostly skip is worth flagging.
+    final heardColor = heard != null && heard! < 0.4 ? t.danger : t.textSecondary;
+    return SizedBox(
+      height: 64,
       child: Row(
         children: [
           SizedBox(
-            width: 22,
+            width: 28,
             child: Text(
               '$rank',
-              style: t.callout.copyWith(
-                color: rank == 1 ? t.accent : t.textSecondary,
-                fontWeight: FontWeight.w600,
-                fontFeatures: const [FontFeature.tabularFigures()],
-              ),
+              style: figureStyle(t, 17).copyWith(color: rank == 1 ? t.accent : t.textSecondary),
             ),
           ),
-          CoverArt(
-            url: art,
-            size: 44,
-            radius: Radii.thumb,
-            circular: circular,
-            placeholderIcon: circular ? CupertinoIcons.person_fill : CupertinoIcons.music_note,
-          ),
+          CoverArt(url: art, size: 48, radius: Radii.thumb, placeholderIcon: CupertinoIcons.music_note),
           const SizedBox(width: Space.md),
           Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.callout),
-                if (subtitle != null && subtitle!.isNotEmpty)
-                  Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
-                const SizedBox(height: Space.xs + 2),
-                Row(
-                  children: [
-                    Expanded(
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: Stack(
-                          children: [
-                            Container(height: 3, color: t.fill),
-                            FractionallySizedBox(
-                              widthFactor: share.clamp(0.0, 1.0),
-                              child: Container(height: 3, color: shareColor ?? t.accent),
-                            ),
-                          ],
-                        ),
-                      ),
+            child: DecoratedBox(
+              // Apple's inset separator: starts at the text, not the edge.
+              decoration: BoxDecoration(
+                border: last ? null : Border(bottom: BorderSide(color: t.outline, width: 0.5)),
+              ),
+              child: Row(
+                children: [
+                  Expanded(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
+                        if (subtitle.isNotEmpty)
+                          Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                      ],
                     ),
-                    if (shareLabel != null) ...[
-                      const SizedBox(width: Space.sm),
-                      Text(shareLabel!, style: t.caption2),
+                  ),
+                  const SizedBox(width: Space.md),
+                  Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: [
+                      Text('$plays', style: figureStyle(t, 17)),
+                      if (heard != null)
+                        Text('${(heard! * 100).round()}% heard', style: t.caption1.copyWith(color: heardColor)),
                     ],
-                  ],
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: Space.md),
-          Text(
-            '$plays',
-            style: t.callout.copyWith(
-              color: t.textSecondary,
-              fontWeight: FontWeight.w600,
-              fontFeatures: const [FontFeature.tabularFigures()],
+                  ),
+                ],
+              ),
             ),
           ),
         ],

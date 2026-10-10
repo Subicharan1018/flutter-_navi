@@ -1979,6 +1979,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   //              to an async provider.
   // ---------------------------------------------------------------------------
 
+  /// "Reshuffle Up Next" from the queue: a fresh order for everything after
+  /// the current song, in the listener's shuffle style. Smart Shuffle asks
+  /// the server first; any failure (offline, server down, nothing matched)
+  /// falls back to reshuffling locally, so the action never silently does
+  /// nothing. Turns shuffle on if it was off.
+  Future<void> reshuffleUpNext(List<Song> allSongs) async {
+    if (!state.shuffleMode) {
+      await setShuffleMode(true);
+      return;
+    }
+    if (_ref.read(settingsProvider).shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
+      try {
+        await reshuffleActiveQueue(allSongs);
+        return;
+      } catch (e) {
+        debugPrint('[Reshuffle] Smart Shuffle unavailable, reshuffling locally: $e');
+      }
+    }
+    await applyShuffleAlgorithm();
+  }
+
   /// Returns true if a reshuffle is currently in progress.
   bool _isReshuffling = false;
   bool get isReshuffling => _isReshuffling;
@@ -1999,6 +2020,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (currentSong == null) return;
 
       // Candidate pool: if playing from playlist, strictly constrain to playlist songs
+      final fromLibrary = _audioHandler.unshuffledQueue.isEmpty && _playlistPool.isEmpty;
       final pool = _audioHandler.unshuffledQueue.isNotEmpty
           ? _audioHandler.unshuffledQueue
           : (_playlistPool.isNotEmpty ? _playlistPool : allSongs);
@@ -2039,11 +2061,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         }
       }
 
-      // If server returned fewer items or none, pad with remaining candidate songs
+      // If server returned fewer items or none, pad with remaining candidate
+      // songs. A playlist keeps every song; the whole library is capped so a
+      // reshuffle never queues thousands of tracks.
+      const libraryPadCap = 200;
+      final picked = resolved.toSet();
       for (final s in candidateSongs) {
-        if (!resolved.contains(s)) {
-          resolved.add(s);
-        }
+        if (fromLibrary && resolved.length >= libraryPadCap) break;
+        if (picked.add(s)) resolved.add(s);
       }
 
       if (resolved.isEmpty) {

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/album.dart';
 import '../../models/library_sort.dart';
 import '../../providers/library_provider.dart';
+import '../../providers/pins_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/app_scaffold.dart' show navigateInApp;
 import '../../widgets/collection_actions.dart';
@@ -84,6 +85,7 @@ class _AlbumCard extends ConsumerWidget {
         artUrl: artUrl,
         placeholderIcon: CupertinoIcons.music_albums,
         loadSongs: () => ref.read(subsonicServiceProvider).getAlbum(album.id),
+        pin: Pin.album(album),
       ),
     );
   }

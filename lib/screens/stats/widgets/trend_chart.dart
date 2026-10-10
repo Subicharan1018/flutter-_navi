@@ -10,7 +10,12 @@ import 'stat_card.dart';
 class TrendChart extends StatelessWidget {
   final List<ContributionDay> days;
   final int window;
-  const TrendChart({super.key, required this.days, required this.window});
+
+  /// The period's total from the stats endpoint. When the server has plays
+  /// but no daily series, the chart steps aside instead of claiming there's
+  /// no listening.
+  final int totalPlays;
+  const TrendChart({super.key, required this.days, required this.window, required this.totalPlays});
 
   @override
   Widget build(BuildContext context) {
@@ -27,7 +32,8 @@ class TrendChart extends StatelessWidget {
     }
 
     if (current == 0 && previous == 0) {
-      return StatCard(
+      if (totalPlays > 0) return const SizedBox.shrink();
+      return StatSection(
         title: 'Plays per Day',
         child: Text('Play some music and your daily listening is drawn here.', style: t.subheadline),
       );
@@ -38,13 +44,13 @@ class TrendChart extends StatelessWidget {
     DateTime dateFor(int i) => now.subtract(Duration(days: window - 1 - i));
     String short(DateTime d) => '${_months[d.month - 1]} ${d.day}';
 
-    return StatCard(
+    return StatSection(
       title: 'Plays per Day',
       readout: change == null ? compactCount(current.round()) : '${up ? '+' : ''}$change%',
       readoutColor: change == null ? null : (up ? t.positive : t.danger),
       readoutCaption: change == null ? 'plays' : 'vs the previous $window days',
       child: SizedBox(
-        height: 150,
+        height: 170,
         child: LineChart(
           LineChartData(
             minY: 0,
@@ -73,8 +79,12 @@ class TrendChart extends StatelessWidget {
                   showTitles: true,
                   reservedSize: 22,
                   interval: (window / 4).ceilToDouble(),
-                  getTitlesWidget: (v, _) => Padding(
-                    padding: const EdgeInsets.only(top: Space.xs + 2),
+                  // Kept inside the plot so the first and last dates never
+                  // hang past the page margin.
+                  getTitlesWidget: (v, meta) => SideTitleWidget(
+                    meta: meta,
+                    space: Space.xs + 2,
+                    fitInside: SideTitleFitInsideData.fromTitleMeta(meta),
                     child: Text(short(dateFor(v.toInt())), style: t.caption2),
                   ),
                 ),
@@ -112,7 +122,8 @@ class TrendChart extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [t.accent.withValues(alpha: 0.22), t.accent.withValues(alpha: 0)],
+                    // Solid steps from a deep green to the page: no transparency.
+                    colors: [Color.lerp(t.bgBase, t.accent, 0.24)!, t.bgBase],
                   ),
                 ),
               ),

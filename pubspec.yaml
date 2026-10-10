@@ -38,7 +38,6 @@ dependencies:
   # UI
   cupertino_icons: ^1.0.8
   cached_network_image: ^3.3.1
-  shimmer: ^3.0.0
   flutter_animate: ^4.5.2
   marquee: ^2.3.0
   connectivity_plus: ^7.1.1
@@ -75,8 +74,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
-  assets:
-    - fire.png
   shaders:
     - shaders/artwork_field.frag
   # Inter 4.1 (SIL OFL, assets/fonts/Inter-OFL-LICENSE.txt). Bundled so the

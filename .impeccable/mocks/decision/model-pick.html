@@ -1,0 +1,57 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;800&family=Courier+Prime:wght@400;700&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:390px;height:844px;overflow:hidden;background:#0A0A0A;color:#F4F3EE;font-family:Inter,sans-serif}
+.status{height:47px}
+.top{display:flex;justify-content:space-between;align-items:flex-end;padding:8px 16px 0}
+h1{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:46px;text-transform:uppercase;letter-spacing:.5px;line-height:1}
+.avatar{width:30px;height:30px;border-radius:50%;background:#F2C230}
+.sec{padding:20px 16px 10px;display:flex;justify-content:space-between;align-items:baseline}
+.sec h2{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:24px;text-transform:uppercase;letter-spacing:.4px}
+.sec span{font-family:'Courier Prime',monospace;font-size:12px;color:#9A9890}
+.picks{display:flex;gap:12px;padding:0 16px}
+.card{flex:0 0 268px;display:flex;height:300px;border-radius:6px;overflow:hidden}
+.spine{width:44px;background:#F2C230;color:#0A0A0A;display:flex;align-items:center;justify-content:center}
+.spine b{writing-mode:vertical-rl;transform:rotate(180deg);font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:18px;letter-spacing:.12em;text-transform:uppercase}
+.inlay{flex:1;background:#151515;display:flex;flex-direction:column}
+.art{height:178px;background:linear-gradient(135deg,#5C86C9,#1E2A6B);position:relative}
+.art::after{content:"";position:absolute;right:30px;top:30px;width:90px;height:90px;border-radius:50%;background:#A88FE6}
+.list{padding:10px 12px;font-family:'Courier Prime',monospace;font-size:12px;line-height:1.55;color:#C9C7C0}
+.list div{display:flex;justify-content:space-between}
+.list b{color:#F4F3EE;font-weight:700}
+.side{font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:13px;letter-spacing:.14em;color:#30D158;margin-bottom:4px}
+.rows{padding:0 16px}
+.row{display:flex;align-items:center;gap:12px;height:58px;border-bottom:1px solid #222}
+.row .c{width:46px;height:46px;border-radius:3px}
+.row .n{font-size:15px;font-weight:500}.row .a{font-size:13px;color:#9A9890}
+.row .t{margin-left:auto;font-family:'Courier Prime',monospace;font-size:13px;color:#9A9890}
+.mini{position:absolute;left:16px;right:16px;bottom:100px;height:60px;border-radius:8px;background:#151515;display:flex;align-items:center;overflow:hidden}
+.mini .sp{width:10px;align-self:stretch;background:#D9472B}
+.mini .c{width:44px;height:44px;margin:0 12px;border-radius:3px;background:linear-gradient(135deg,#4FB89A,#123F33)}
+.mini b{font-size:15px;font-weight:600;display:block}.mini span{font-family:'Courier Prime',monospace;font-size:12px;color:#9A9890}
+.mini .ctl{margin-left:auto;padding-right:16px;font-size:20px;letter-spacing:10px}
+.tabs{position:absolute;left:16px;right:88px;bottom:28px;height:62px;border-radius:31px;background:#151515;display:flex;align-items:center;padding:4px}
+.tab{flex:1;height:54px;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10.5px;gap:4px}
+.tab i{width:20px;height:20px;border:2px solid currentColor;border-radius:5px}
+.tab.on{background:#F2C230;color:#0A0A0A;font-weight:700}
+.search{position:absolute;right:16px;bottom:28px;width:62px;height:62px;border-radius:50%;background:#151515}
+</style></head><body>
+<div class="status"></div>
+<div class="top"><h1>Home</h1><div class="avatar"></div></div>
+<div class="sec"><h2>Top Picks for You</h2><span>C-90 · tonight</span></div>
+<div class="picks">
+ <div class="card"><div class="spine"><b>Smart Shuffle</b></div><div class="inlay"><div class="art"></div>
+  <div class="list"><div class="side">SIDE A · LATE EVENING</div><div><b>01 Thaniye</b><span>3:58</span></div><div><span>02 Midnight City</span><span>4:03</span></div><div><span>03 Kannukulla</span><span>3:41</span></div></div></div></div>
+ <div class="card"><div class="spine" style="background:#30D158"><b>Favorites</b></div><div class="inlay"><div class="art" style="background:linear-gradient(135deg,#C9805C,#5A2A14)"></div></div></div>
+</div>
+<div class="sec"><h2>Recently Played</h2><span>›</span></div>
+<div class="rows">
+ <div class="row"><div class="c" style="background:linear-gradient(135deg,#5C86C9,#1E2A6B)"></div><div><div class="n">Midnight City</div><div class="a">M83</div></div><div class="t">4:03</div></div>
+ <div class="row"><div class="c" style="background:linear-gradient(135deg,#D8B04F,#4D3A12)"></div><div><div class="n">Espresso</div><div class="a">Sabrina Carpenter</div></div><div class="t">2:55</div></div>
+</div>
+<div class="mini"><div class="sp"></div><div class="c"></div><div><b>Thaniye</b><span>A · 01 · 1:12 / 3:58</span></div><div class="ctl">❚❚ ▶▶</div></div>
+<div class="tabs"><div class="tab on"><i></i>Home</div><div class="tab"><i></i>Shuffle</div><div class="tab"><i></i>Stats</div><div class="tab"><i></i>Library</div></div>
+<div class="search"></div>
+</body></html>

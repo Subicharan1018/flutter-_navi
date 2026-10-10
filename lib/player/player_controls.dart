@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
@@ -526,7 +527,7 @@ class _TransportControlsState extends State<TransportControls> with SingleTicker
           size: skipBox,
           semanticLabel: 'Previous',
           onTap: widget.onPrevious,
-          child: Icon(Icons.fast_rewind_rounded, size: 44 * s, color: widget.color),
+          child: Icon(CupertinoIcons.backward_fill, size: 40 * s, color: widget.color),
         ),
         GlyphButton(
           size: playBox,
@@ -543,7 +544,7 @@ class _TransportControlsState extends State<TransportControls> with SingleTicker
           size: skipBox,
           semanticLabel: 'Next',
           onTap: widget.onNext,
-          child: Icon(Icons.fast_forward_rounded, size: 44 * s, color: widget.color),
+          child: Icon(CupertinoIcons.forward_fill, size: 40 * s, color: widget.color),
         ),
         ?widget.trailing,
       ],
@@ -603,7 +604,7 @@ class _VolumeBarState extends State<VolumeBar> {
       children: [
         GestureDetector(
           onTap: () => _set(0),
-          child: Icon(Icons.volume_mute_rounded, size: 20, color: widget.iconColor),
+          child: Icon(CupertinoIcons.speaker_fill, size: 18, color: widget.iconColor),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -619,7 +620,7 @@ class _VolumeBarState extends State<VolumeBar> {
         const SizedBox(width: 10),
         GestureDetector(
           onTap: () => _set(1),
-          child: Icon(Icons.volume_up_rounded, size: 20, color: widget.iconColor),
+          child: Icon(CupertinoIcons.speaker_3_fill, size: 18, color: widget.iconColor),
         ),
       ],
     );

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -6,10 +7,10 @@ import '../providers/player_provider.dart';
 import 'player_controls.dart';
 
 // =============================================================================
-// Shuffle and repeat, flanking the transport (Spotify's layout) so both are
-// one tap away instead of buried in the queue pane. Active state is shown by
-// full opacity plus a dot underneath — legible over any album colour without
-// introducing a second accent hue on the artwork.
+// Shuffle and repeat flanking the transport on the wide (desktop) player,
+// where there's room. Phones follow Apple Music and keep them in the queue.
+// Active state is full opacity plus a dot underneath — legible over any
+// album colour without introducing a second accent hue on the artwork.
 // =============================================================================
 
 class _ModeGlyph extends StatelessWidget {
@@ -69,7 +70,7 @@ class ShuffleModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final on = ref.watch(playerProvider.select((s) => s.shuffleMode));
     return _ModeGlyph(
-      icon: Icons.shuffle_rounded,
+      icon: CupertinoIcons.shuffle,
       active: on,
       semanticLabel: on ? 'Shuffle on' : 'Shuffle off',
       onTap: () => ref.read(playerProvider.notifier).toggleShuffle(),
@@ -89,7 +90,7 @@ class RepeatModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(playerProvider.select((s) => s.repeatMode));
     return _ModeGlyph(
-      icon: mode == LoopMode.one ? Icons.repeat_one_rounded : Icons.repeat_rounded,
+      icon: mode == LoopMode.one ? CupertinoIcons.repeat_1 : CupertinoIcons.repeat,
       active: mode != LoopMode.off,
       semanticLabel: switch (mode) {
         LoopMode.off => 'Repeat off',

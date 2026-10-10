@@ -53,7 +53,9 @@ class SongTile extends ConsumerStatefulWidget {
   });
 
   /// Fixed row height so lists can use `itemExtent` (cheaper scrolling).
-  static const double extent = 64;
+  static const double extent = 58;
+
+  static const double _art = 46;
 
   @override
   ConsumerState<SongTile> createState() => _SongTileState();
@@ -80,7 +82,7 @@ class _SongTileState extends ConsumerState<SongTile> {
     final song = widget.song;
     final isCurrent = ref.watch(playerProvider.select((s) => s.currentSong?.id == song.id));
     final isPlaying = isCurrent && ref.watch(playerProvider.select((s) => s.isPlaying));
-    final textInset = widget.showArtwork ? Space.gutter + 48 + Space.md : Space.gutter + 32;
+    final textInset = widget.showArtwork ? Space.gutter + SongTile._art + Space.md : Space.gutter + 32;
 
     final leading = widget.showArtwork
         ? Stack(
@@ -90,13 +92,13 @@ class _SongTileState extends ConsumerState<SongTile> {
                 url: ref.read(subsonicServiceProvider).getCoverArtUrl(
                       song.coverArt.isNotEmpty ? song.coverArt : song.id,
                     ),
-                size: 48,
+                size: SongTile._art,
                 radius: Radii.thumb,
               ),
               if (isCurrent)
                 Container(
-                  width: 48,
-                  height: 48,
+                  width: SongTile._art,
+                  height: SongTile._art,
                   decoration: BoxDecoration(
                     color: Colors.black.withValues(alpha: 0.45),
                     borderRadius: BorderRadius.circular(Radii.thumb),
@@ -151,11 +153,11 @@ class _SongTileState extends ConsumerState<SongTile> {
                               song.title,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
-                              style: t.callout.copyWith(color: isCurrent ? t.accent : t.textPrimary),
+                              style: t.body.copyWith(color: isCurrent ? t.accent : t.textPrimary),
                             ),
                             if (widget.showArtist) ...[
-                              const SizedBox(height: 2),
-                              Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
+                              const SizedBox(height: 1),
+                              Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                             ],
                           ],
                         ),
