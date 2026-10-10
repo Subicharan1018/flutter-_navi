@@ -70,7 +70,7 @@ class ServerStatusBar extends ConsumerWidget {
   ) {
     return asyncValue.when(
       data: (health) => health.isHealthy
-          ? const Color(0xFF1DB954)
+          ? theme.colorScheme.primary
           : theme.colorScheme.error,
       loading: () => theme.colorScheme.onSurfaceVariant,
       error: (_, _) => theme.colorScheme.error,

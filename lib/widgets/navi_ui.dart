@@ -29,58 +29,7 @@ const Curve kCurveStandard = Curves.easeInOut;
 const Curve kCurveDecel = Curves.decelerate;
 
 // =============================================================================
-// NaviCard — Base Card Component
-// =============================================================================
-// =============================================================================
-// NaviCard — Base Card Component
-// =============================================================================
-class NaviCard extends StatelessWidget {
-  final Widget child;
-  final EdgeInsets? padding;
-  final VoidCallback? onTap;
-  final Color? color;
-  final FocusNode? focusNode;
-
-  const NaviCard({
-    super.key,
-    required this.child,
-    this.padding,
-    this.onTap,
-    this.color,
-    this.focusNode,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-    final hasFocus = focusNode?.hasFocus ?? false;
-
-    return AnimatedContainer(
-      duration: kAnimNormal,
-      decoration: BoxDecoration(
-        color: color ?? tokens.bgSurface,
-        borderRadius: radiusMd,
-        border: hasFocus
-            ? Border.all(color: tokens.accent, width: 1.5)
-            : null,
-      ),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onTap,
-          borderRadius: radiusMd,
-          child: Padding(
-            padding: padding ?? const EdgeInsets.all(s20),
-            child: child,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// PremiumCard — Double-Bezel, Neumorphic, or Stark Brutalist card layout
+// PremiumCard — the one card surface: solid, borderless, 8 px corners.
 // =============================================================================
 class PremiumCard extends StatelessWidget {
   final Widget child;
@@ -102,12 +51,11 @@ class PremiumCard extends StatelessWidget {
 
     Widget current;
 
-    // Spotify Encore: borderless elevation card container
-      current = Container(
-        padding: padding ?? const EdgeInsets.all(s20),
+    current = Container(
+        padding: padding ?? const EdgeInsets.all(s16),
         decoration: BoxDecoration(
           color: color ?? tokens.bgSurface,
-          borderRadius: radiusLg,
+          borderRadius: radiusSm,
         ),
         child: child,
       );
@@ -179,118 +127,6 @@ class _NaviSkeletonState extends State<NaviSkeleton>
         decoration: BoxDecoration(
           color: tokens.textPrimary.withValues(alpha: _anim.value * 0.1),
           borderRadius: widget.borderRadius ?? radiusSm,
-        ),
-      ),
-    );
-  }
-}
-
-// =============================================================================
-// LiquidGlassButton — Interactive CTA
-// =============================================================================
-class LiquidGlassButton extends StatefulWidget {
-  final String label;
-  final VoidCallback? onTap;
-  final IconData? icon;
-  final bool isLoading;
-
-  const LiquidGlassButton({
-    super.key,
-    required this.label,
-    this.onTap,
-    this.icon,
-    this.isLoading = false,
-  });
-
-  @override
-  State<LiquidGlassButton> createState() => _LiquidGlassButtonState();
-}
-
-class _LiquidGlassButtonState extends State<LiquidGlassButton>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _ctrl;
-  late Animation<double> _scale;
-  bool _pressed = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _ctrl = AnimationController(vsync: this, duration: kAnimFast);
-    _scale = Tween(
-      begin: 1.0,
-      end: 0.96,
-    ).animate(CurvedAnimation(parent: _ctrl, curve: kCurveStandard));
-  }
-
-  @override
-  void dispose() {
-    _ctrl.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-    return GestureDetector(
-      onTapDown: (_) {
-        _ctrl.forward();
-        setState(() => _pressed = true);
-      },
-      onTapUp: (_) {
-        _ctrl.reverse();
-        setState(() => _pressed = false);
-        widget.onTap?.call();
-      },
-      onTapCancel: () {
-        _ctrl.reverse();
-        setState(() => _pressed = false);
-      },
-      child: ScaleTransition(
-        scale: _scale,
-        child: Container(
-          height: 52,
-          padding: const EdgeInsets.symmetric(horizontal: s24),
-          decoration: BoxDecoration(
-            borderRadius: radiusFull,
-            color: tokens.accent.withValues(alpha: 0.12),
-            border: Border.all(color: tokens.accent.withValues(alpha: 0.4)),
-            boxShadow: _pressed
-                ? []
-                : [
-                    BoxShadow(
-                      color: tokens.accent.withValues(alpha: 0.2),
-                      blurRadius: 12,
-                      offset: const Offset(0, 4),
-                    ),
-                  ],
-          ),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (widget.icon != null) ...[
-                Icon(widget.icon, color: tokens.accent, size: 18),
-                const SizedBox(width: s8),
-              ],
-              if (widget.isLoading)
-                SizedBox(
-                  width: 16,
-                  height: 16,
-                  child: CircularProgressIndicator(
-                    strokeWidth: 2,
-                    color: tokens.accent,
-                  ),
-                )
-              else
-                Text(
-                  widget.label,
-                  style: TextStyle(
-                    fontSize: 14,
-                    color: tokens.accent,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-            ],
-          ),
         ),
       ),
     );

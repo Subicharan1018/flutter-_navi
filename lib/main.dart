@@ -139,6 +139,7 @@ class MyMusicPlayerApp extends ConsumerWidget {
       child: MaterialApp(
         title: 'NaviVibe',
         theme: AppTheme.build(tokens),
+        scrollBehavior: const NaviScrollBehavior(),
         themeAnimationDuration: const Duration(milliseconds: 450),
         themeAnimationCurve: Curves.easeOutCubic,
         home: home,

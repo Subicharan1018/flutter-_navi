@@ -21,7 +21,11 @@ import 'shuffle_algorithms.dart';
 
 class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer player;
-  final SubsonicService subsonicService;
+
+  /// Replaced when the signed-in credentials change (audioHandlerProvider).
+  /// The handler is created in main() before sign-in, so a final field pinned
+  /// it to an empty-password service and stream URLs failed until restart.
+  SubsonicService subsonicService;
 
   final TranscodingService _transcodingService;
   List<Song> _currentQueue = [];
@@ -209,7 +213,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           LoopMode.off: AudioServiceRepeatMode.none,
           LoopMode.one: AudioServiceRepeatMode.one,
           LoopMode.all: AudioServiceRepeatMode.all,
-        }[player.loopMode]!,
+        }[_repeatMode]!,
         shuffleMode: player.shuffleModeEnabled
             ? AudioServiceShuffleMode.all
             : AudioServiceShuffleMode.none,
@@ -261,18 +265,29 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   @override
-  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
-    // REPEAT-ONCE BUG FIX: Ensure AudioServiceRepeatMode.one explicitly maps
-    // to LoopMode.one. The previously broken logic or mismatch caused infinite repeats.
-    // AudioServiceRepeatMode.none => LoopMode.off
-    // AudioServiceRepeatMode.one  => LoopMode.one
-    // AudioServiceRepeatMode.all  => LoopMode.all
-    final next = switch (player.loopMode) {
-      LoopMode.off => LoopMode.one,
-      LoopMode.one => LoopMode.all,
-      LoopMode.all => LoopMode.off,
-    };
-    await player.setLoopMode(next);
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) =>
+      applyRepeatMode(switch (repeatMode) {
+        AudioServiceRepeatMode.none => LoopMode.off,
+        AudioServiceRepeatMode.one => LoopMode.one,
+        AudioServiceRepeatMode.all || AudioServiceRepeatMode.group =>
+          LoopMode.all,
+      });
+
+  /// The user's repeat choice. This — not `player.loopMode` — is the source
+  /// of truth: on desktop only one track is loaded at a time, so setting
+  /// LoopMode.all on the player would loop that single track forever and the
+  /// queue would never advance or wrap.
+  LoopMode _repeatMode = LoopMode.off;
+  LoopMode get repeatMode => _repeatMode;
+
+  /// Applies [mode] and re-broadcasts state immediately. Loop changes don't
+  /// alter playerState, so without the explicit broadcast the UI (which reads
+  /// repeatMode from playbackState) never saw the change.
+  Future<void> applyRepeatMode(LoopMode mode) async {
+    _repeatMode = mode;
+    await player.setLoopMode(
+      _isDesktopBridge && mode == LoopMode.all ? LoopMode.off : mode,
+    );
     _broadcastState();
   }
 
@@ -483,7 +498,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Duration? initialPosition,
   }) async {
     if (_currentQueue.isEmpty) return;
-    final savedLoopMode = player.loopMode;
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
 
     if (_isDesktopBridge) {
@@ -535,8 +549,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       initialIndex: initialIndex,
       initialPosition: initialPosition,
     );
-    if (savedLoopMode != LoopMode.off) {
-      await player.setLoopMode(savedLoopMode);
+    if (_repeatMode != LoopMode.off) {
+      await player.setLoopMode(_repeatMode);
     }
   }
 
@@ -640,7 +654,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       debugPrint('🏁 [Desktop] Track completed, advancing...');
 
       // Repeat one — restart current track
-      if (player.loopMode == LoopMode.one) {
+      if (_repeatMode == LoopMode.one) {
         await player.seek(Duration.zero);
         await player.play();
         return;
@@ -648,7 +662,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       int next = _desktopTargetIndex + 1;
       if (next >= _currentQueue.length) {
-        if (player.loopMode == LoopMode.all) {
+        if (_repeatMode == LoopMode.all) {
           next = 0; // wrap around
         } else {
           return; // end of queue, stay stopped
@@ -698,7 +712,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_currentQueue.isEmpty) return;
     int next = _desktopTargetIndex + 1;
     if (next >= _currentQueue.length) {
-      if (player.loopMode == LoopMode.all) {
+      if (_repeatMode == LoopMode.all) {
         next = 0;
       } else {
         return;
@@ -723,7 +737,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     int prev = _desktopTargetIndex - 1;
     if (prev < 0) {
-      if (player.loopMode == LoopMode.all) {
+      if (_repeatMode == LoopMode.all) {
         prev = _currentQueue.length - 1;
       } else {
         await player.seek(Duration.zero);

@@ -265,11 +265,12 @@ class _ShuffleModeSheet extends ConsumerWidget {
     final current = ref.watch(settingsProvider.select((s) => s.shuffleAlgorithm));
     final shuffleOn = ref.watch(playerProvider.select((s) => s.shuffleMode));
     final modes = <(ShuffleAlgorithm, IconData, String, String)>[
-      (ShuffleAlgorithm.standard, Icons.shuffle_rounded, 'Random', 'Every song equally likely.'),
-      (ShuffleAlgorithm.spotify, Icons.auto_awesome_rounded, 'Balanced',
-          'Spreads out songs by the same artist.'),
-      (ShuffleAlgorithm.youtube, Icons.trending_up_rounded, 'Favourites first',
-          'Leans toward starred and most-played songs.'),
+      for (final (algo, icon) in const [
+        (ShuffleAlgorithm.standard, Icons.shuffle_rounded),
+        (ShuffleAlgorithm.spotify, Icons.auto_awesome_rounded),
+        (ShuffleAlgorithm.youtube, Icons.trending_up_rounded),
+      ])
+        (algo, icon, algo.label, algo.summary),
     ];
     return SafeArea(
       top: false,

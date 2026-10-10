@@ -1,0 +1,145 @@
+import 'package:flutter/cupertino.dart';
+
+import '../../core/theme.dart';
+import 'media.dart';
+
+/// Empty or error content: a quiet glyph, one line saying what's going on,
+/// one saying what to do, and at most one action. Centred, like iOS.
+class MessageState extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String message;
+  final String? actionLabel;
+  final VoidCallback? onAction;
+
+  const MessageState({
+    super.key,
+    required this.icon,
+    required this.title,
+    required this.message,
+    this.actionLabel,
+    this.onAction,
+  });
+
+  /// Something failed to load.
+  factory MessageState.error({
+    Key? key,
+    required String title,
+    String message = 'Check your connection to the server, then try again.',
+    required VoidCallback onRetry,
+  }) =>
+      MessageState(
+        key: key,
+        icon: CupertinoIcons.wifi_exclamationmark,
+        title: title,
+        message: message,
+        actionLabel: 'Try again',
+        onAction: onRetry,
+      );
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 320),
+        child: Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Space.xxl, vertical: Space.huge),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(icon, size: 48, color: t.textMuted),
+              const SizedBox(height: Space.lg),
+              Text(title, textAlign: TextAlign.center, style: t.title3),
+              const SizedBox(height: Space.sm),
+              Text(message, textAlign: TextAlign.center, style: t.subheadline),
+              if (actionLabel != null && onAction != null) ...[
+                const SizedBox(height: Space.xl),
+                SizedBox(width: 200, child: TintedButton(label: actionLabel!, onTap: onAction)),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+/// iOS activity indicator centred in the available space.
+class LoadingState extends StatelessWidget {
+  final String? label;
+  const LoadingState({super.key, this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(Space.huge),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const CupertinoActivityIndicator(radius: 12),
+            if (label != null) ...[
+              const SizedBox(height: Space.md),
+              Text(label!, style: t.footnote),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Grey placeholder block shaped like the content it stands in for.
+class SkeletonBox extends StatelessWidget {
+  final double width;
+  final double height;
+  final double radius;
+  const SkeletonBox({super.key, required this.width, required this.height, this.radius = Radii.thumb});
+
+  @override
+  Widget build(BuildContext context) => Container(
+        width: width,
+        height: height,
+        decoration: BoxDecoration(
+          color: ThemeTokens.of(context).bgSurface,
+          borderRadius: BorderRadius.circular(radius),
+        ),
+      );
+}
+
+/// Placeholder rows matching a track list while it loads.
+class TrackListSkeleton extends StatelessWidget {
+  final int rows;
+  final bool artwork;
+  const TrackListSkeleton({super.key, this.rows = 8, this.artwork = true});
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        for (var i = 0; i < rows; i++)
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.sm),
+            child: Row(
+              children: [
+                if (artwork) ...[
+                  const SkeletonBox(width: 48, height: 48),
+                  const SizedBox(width: Space.md),
+                ],
+                const Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SkeletonBox(width: 170, height: 13),
+                    SizedBox(height: Space.sm),
+                    SkeletonBox(width: 110, height: 11),
+                  ],
+                ),
+              ],
+            ),
+          ),
+      ],
+    );
+  }
+}

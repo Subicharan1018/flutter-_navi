@@ -492,7 +492,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       // state. Without this, the player stays on LoopMode.off after a restart
       // even though the notification + UI correctly show repeat-one/all.
       if (loopMode != LoopMode.off) {
-        await player.setLoopMode(loopMode);
+        await _audioHandler.applyRepeatMode(loopMode);
       }
     } catch (_) {}
   }
@@ -1884,7 +1884,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         nextMode = LoopMode.off; // third tap → off
         break;
     }
-    await player.setLoopMode(nextMode);
+    // Through the handler, which owns repeat (desktop wraps the queue itself)
+    // and re-broadcasts immediately; update + persist our state optimistically
+    // so the button responds on the same frame.
+    await _audioHandler.applyRepeatMode(nextMode);
+    state = state.copyWith(repeatMode: nextMode);
+    _persistState();
   }
 
   Future<void> handleSuggestAction(Song song, bool isMore) async {
@@ -2390,12 +2395,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 // Providers
 // ---------------------------------------------------------------------------
 final audioHandlerProvider = Provider<NaviAudioHandler>((ref) {
+  NaviAudioHandler handler;
   try {
-    return globalAudioHandler;
+    handler = globalAudioHandler;
   } catch (_) {
-    final service = ref.watch(subsonicServiceProvider);
-    return NaviAudioHandler(service);
+    handler = NaviAudioHandler(ref.read(subsonicServiceProvider));
   }
+  // The global handler outlives any one SubsonicService: keep it on the live
+  // one without rebuilding this provider (which would tear down playback).
+  handler.subsonicService = ref.read(subsonicServiceProvider);
+  ref.listen<SubsonicService>(
+    subsonicServiceProvider,
+    (_, next) => handler.subsonicService = next,
+  );
+  return handler;
 });
 
 final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((

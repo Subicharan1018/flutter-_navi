@@ -288,17 +288,17 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
                     ),
                     padding: const EdgeInsets.all(12),
                     decoration: BoxDecoration(
-                      color: Colors.amber.withValues(alpha: 0.1),
+                      color: ThemeTokens.of(context).warning.withValues(alpha: 0.1),
                       border: Border.all(
-                        color: Colors.amber.withValues(alpha: 0.3),
+                        color: ThemeTokens.of(context).warning.withValues(alpha: 0.3),
                       ),
                       borderRadius: BorderRadius.circular(8),
                     ),
                     child: Row(
                       children: [
-                        const Icon(
+                        Icon(
                           Icons.info_outline,
-                          color: Colors.amber,
+                          color: ThemeTokens.of(context).warning,
                           size: 18,
                         ),
                         const SizedBox(width: 8),
@@ -357,7 +357,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
             ],
           ),
 
-          // ── Sticky Floating Footer with frosted glass backdrop ─────────────
+          // ── Sticky footer; the fade keeps list rows from running under it ──
           Positioned(
             left: 0,
             right: 0,
@@ -411,7 +411,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
                               ? null
                               : _applyAiShuffle,
                           style: FilledButton.styleFrom(
-                            backgroundColor: const Color(0xFF1DB954),
+                            backgroundColor: ThemeTokens.of(context).accent,
                             foregroundColor: Colors.black,
                             padding: const EdgeInsets.symmetric(vertical: 14),
                             shape: RoundedRectangleBorder(
@@ -553,7 +553,7 @@ class _SessionStarterBanner extends StatelessWidget {
   Widget build(BuildContext context) {
     final cs = Theme.of(context).colorScheme;
     final textTheme = Theme.of(context).textTheme;
-    const accent = Color(0xFF4ADE80);
+    final accent = ThemeTokens.of(context).accent;
 
     return Container(
       margin: const EdgeInsets.fromLTRB(16, 8, 16, 0),
@@ -565,7 +565,7 @@ class _SessionStarterBanner extends StatelessWidget {
       ),
       child: Row(
         children: [
-          const Icon(Icons.play_circle_fill_rounded, color: accent, size: 20),
+          Icon(Icons.play_circle_fill_rounded, color: accent, size: 20),
           const SizedBox(width: 10),
           Expanded(
             child: Column(
@@ -652,14 +652,14 @@ class _PredictContextStrip extends StatelessWidget {
             Icon(
               ctx.isHighConfidence ? Icons.verified : Icons.info_outline,
               size: 14,
-              color: ctx.isHighConfidence ? Colors.green : Colors.orange,
+              color: ctx.isHighConfidence ? ThemeTokens.of(context).positive : ThemeTokens.of(context).warning,
             ),
             const SizedBox(width: 6),
             Expanded(
               child: Text(
                 ctx.fallbackDescription,
                 style: textTheme.labelSmall?.copyWith(
-                  color: ctx.isHighConfidence ? Colors.green : Colors.orange,
+                  color: ctx.isHighConfidence ? ThemeTokens.of(context).positive : ThemeTokens.of(context).warning,
                 ),
               ),
             ),

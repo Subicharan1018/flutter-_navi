@@ -1,4 +1,6 @@
-import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
+import 'package:flutter/cupertino.dart'
+    show CupertinoPageTransitionsBuilder, CupertinoThemeData, CupertinoTextThemeData;
+import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/material.dart';
 
 import 'album_palette.dart';
@@ -6,13 +8,70 @@ import 'album_palette.dart';
 export 'album_palette.dart' show AlbumPalette;
 
 // =============================================================================
-// NaviVibe has ONE theme, and it is alive: every colour role is derived from
-// the album that is playing. The ground is near-black tinted with the cover's
-// deep tone; the accent is the cover's vibrant tone, contrast-corrected.
+// NaviVibe's design language is Apple Music on iPhone, built for Android.
 //
-// Widgets read tokens through `ThemeTokens.of(context)` and never hardcode
-// colours, so the whole app re-tints when the song changes.
+// Colour: Apple's dark-mode system colours (pure black ground, #1C1C1E grouped
+// surfaces, 60 % secondary labels, hairline separators) with one accent —
+// system green. Album colour lives only on Now Playing and the mini player,
+// which read [AppThemeTokens.palette] directly.
+//
+// Type: Apple's text styles (Large Title 34 … Caption 2 11), set in Inter /
+// Inter Display — the closest licensed match to SF Pro, which can't ship on
+// Android.
+//
+// Widgets read everything through `ThemeTokens.of(context)` plus the [Space],
+// [Radii] and [Motion] constants below; screens never hardcode a colour, a
+// font size or a corner radius.
 // =============================================================================
+
+/// Spacing scale (pt). Apple's layout margins are 16 on iPhone, 20 on wide.
+abstract final class Space {
+  static const double xxs = 2;
+  static const double xs = 4;
+  static const double sm = 8;
+  static const double md = 12;
+  static const double lg = 16;
+  static const double xl = 20;
+  static const double xxl = 24;
+  static const double xxxl = 32;
+  static const double huge = 48;
+
+  /// Leading/trailing page margin.
+  static const double gutter = 16;
+
+  /// Clearance for content scrolling under the floating mini player + tab bar.
+  static const double playerClearance = 152;
+}
+
+/// Corner radii, matched to the iOS role of each surface.
+abstract final class Radii {
+  /// Track thumbnails in rows.
+  static const double thumb = 4;
+
+  /// Album / playlist covers in grids and shelves.
+  static const double cover = 6;
+
+  /// Hero artwork on album and playlist pages.
+  static const double hero = 10;
+
+  /// Buttons, search field, grouped list sections.
+  static const double control = 10;
+
+  /// Inset grouped list sections (Settings, Library).
+  static const double group = 12;
+
+  /// Sheets and the floating mini player.
+  static const double sheet = 16;
+}
+
+/// Motion durations and curves. iOS motion is quick and decelerates hard.
+abstract final class Motion {
+  static const Duration fast = Duration(milliseconds: 150);
+  static const Duration standard = Duration(milliseconds: 250);
+  static const Duration slow = Duration(milliseconds: 400);
+  static const Curve ease = Curves.easeOutCubic;
+  static const Curve spring = Curves.easeOutBack;
+}
 
 /// Size-specific tracking (Apple's tracking tables, translated to Inter):
 /// small text opens up slightly, display text tightens.
@@ -86,48 +145,65 @@ class AppThemeTokens {
     required this.outline,
   });
 
+  /// Apple's dark-mode systemGreen — the app's single accent.
+  static const Color brandGreen = Color(0xFF30D158);
+
+  /// App chrome is Apple's neutral dark system palette whatever is playing.
+  /// Album colour belongs to Now Playing and the mini player only (they read
+  /// [palette] directly); tinting every page per song made the app purple or
+  /// pink and a different app with each track.
   factory AppThemeTokens.fromPalette(AlbumPalette p) {
-    Color tint(Color ground, double amount) => Color.lerp(ground, p.deep, amount)!;
     return AppThemeTokens._(
       palette: p,
-      bgBase: tint(const Color(0xFF000000), 0.55),
-      bgSurface: tint(const Color(0xFF111111), 0.45),
-      bgElevated: tint(const Color(0xFF1B1B1B), 0.40),
-      bgOverlay: tint(const Color(0xFF2A2A2A), 0.35),
-      accent: p.vibrant,
-      accentDim: Color.lerp(p.vibrant, p.deep, 0.45)!,
-      onAccent: p.onVibrant,
-      gold: const Color(0xFFFFC94D),
-      textPrimary: const Color(0xFFFFFFFF),
-      textSecondary: const Color(0xA8FFFFFF), // 66%
-      textMuted: const Color(0x70FFFFFF), // 44%
-      outline: const Color(0x14FFFFFF),
+      bgBase: const Color(0xFF000000), // systemBackground
+      bgSurface: const Color(0xFF1C1C1E), // secondarySystemBackground
+      bgElevated: const Color(0xFF2C2C2E), // tertiarySystemBackground
+      bgOverlay: const Color(0xFF3A3A3C), // systemGray5 — pressed / chips
+      accent: brandGreen,
+      accentDim: const Color(0xFF248A3D), // systemGreen, accessible dark
+      onAccent: const Color(0xFF000000),
+      gold: const Color(0xFFFFD60A), // systemYellow
+      textPrimary: const Color(0xFFFFFFFF), // label
+      textSecondary: const Color(0x99EBEBF5), // secondaryLabel (60 %)
+      textMuted: const Color(0x4DEBEBF5), // tertiaryLabel (30 %)
+      outline: const Color(0xA6545458), // separator
     );
   }
 
   static final AppThemeTokens fallback =
       AppThemeTokens.fromPalette(AlbumPalette.fallback);
 
-  // ── Typography ────────────────────────────────────────────────────────────
+  // ── Typography: Apple's text styles ───────────────────────────────────────
+  // Use these named styles; `.copyWith(color: …)` for a different colour.
+  TextStyle get largeTitle => naviText(34, FontWeight.w700, textPrimary, height: 41 / 34);
+  TextStyle get title1 => naviText(28, FontWeight.w700, textPrimary, height: 34 / 28);
+  TextStyle get title2 => naviText(22, FontWeight.w700, textPrimary, height: 28 / 22);
+  TextStyle get title3 => naviText(20, FontWeight.w600, textPrimary, height: 25 / 20);
+  TextStyle get headline => naviText(17, FontWeight.w600, textPrimary, height: 22 / 17);
+  TextStyle get body => naviText(17, FontWeight.w400, textPrimary, height: 22 / 17);
+  TextStyle get callout => naviText(16, FontWeight.w400, textPrimary, height: 21 / 16);
+  TextStyle get subheadline => naviText(15, FontWeight.w400, textSecondary, height: 20 / 15);
+  TextStyle get footnote => naviText(13, FontWeight.w400, textSecondary, height: 18 / 13);
+  TextStyle get caption1 => naviText(12, FontWeight.w400, textSecondary, height: 16 / 12);
+  TextStyle get caption2 => naviText(11, FontWeight.w500, textSecondary, height: 13 / 11);
+
+  /// Escape hatch for one-off display sizes (hero numbers, desktop titles).
   TextStyle textStyle(double size, FontWeight weight, Color color) =>
       naviText(size, weight, color);
-
-  TextStyle get headingLg => naviText(28, FontWeight.w800, textPrimary);
-  TextStyle get headingMd => naviText(22, FontWeight.w700, textPrimary);
-  TextStyle get headingSm => naviText(16, FontWeight.w700, textPrimary);
-  TextStyle get bodyMd => naviText(14, FontWeight.w400, textPrimary);
-  TextStyle get bodySm => naviText(12, FontWeight.w400, textSecondary);
-  TextStyle get labelMd => naviText(11, FontWeight.w600, textSecondary);
-  TextStyle get technicalSm => naviText(14, FontWeight.w500, textSecondary, tabular: true);
-  TextStyle get technicalXs => naviText(12, FontWeight.w400, textMuted, tabular: true);
 
   /// Always opaque — safe for menus and dialogs over moving content.
   Color get bgSurfaceOpaque => Color.alphaBlend(bgSurface, bgBase);
 
-  // ── Semantic state colours ────────────────────────────────────────────────
-  Color get positive => const Color(0xFF3DDC84);
-  Color get warning => gold;
-  Color get danger => const Color(0xFFFF5D73);
+  /// iOS tertiarySystemFill — search fields, secondary buttons.
+  Color get fill => const Color(0x3D767680);
+
+  /// Opaque hairline for places a translucent separator would double up.
+  Color get separatorOpaque => const Color(0xFF38383A);
+
+  // ── Semantic state colours (iOS system colours, dark) ─────────────────────
+  Color get positive => brandGreen;
+  Color get warning => const Color(0xFFFF9F0A); // systemOrange
+  Color get danger => const Color(0xFFFF453A); // systemRed
 
   @override
   bool operator ==(Object other) =>
@@ -155,8 +231,9 @@ class ThemeTokens extends InheritedWidget {
 class AppTheme {
   AppTheme._();
 
+  /// Material widgets themed to read as their iOS counterparts.
   static ThemeData build(AppThemeTokens t) {
-    TextStyle s(double size, FontWeight w, Color c) => naviText(size, w, c);
+    final control = RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.control));
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
@@ -167,142 +244,196 @@ class AppTheme {
         brightness: Brightness.dark,
         primary: t.accent,
         onPrimary: t.onAccent,
-        secondary: t.palette.glow,
-        onSecondary: const Color(0xFF0B0B0B),
-        surface: t.bgSurfaceOpaque,
+        secondary: t.accent,
+        onSecondary: t.onAccent,
+        surface: t.bgSurface,
         onSurface: t.textPrimary,
         surfaceContainerHighest: t.bgElevated,
         outline: t.outline,
         error: t.danger,
-        onError: Colors.white,
+        onError: t.textPrimary,
       ),
+      // iOS has no ink ripples: presses dim or scale instead.
       splashFactory: NoSplash.splashFactory,
       highlightColor: Colors.transparent,
       hoverColor: t.textPrimary.withValues(alpha: 0.05),
       focusColor: t.accent.withValues(alpha: 0.24),
+      cupertinoOverrideTheme: cupertino(t),
       textSelectionTheme: TextSelectionThemeData(
         cursorColor: t.accent,
         selectionColor: t.accent.withValues(alpha: 0.32),
         selectionHandleColor: t.accent,
       ),
       appBarTheme: AppBarTheme(
-        backgroundColor: Colors.transparent,
+        backgroundColor: t.bgBase,
         surfaceTintColor: Colors.transparent,
         elevation: 0,
-        centerTitle: false,
-        titleTextStyle: s(20, FontWeight.w700, t.textPrimary),
-        iconTheme: IconThemeData(color: t.textPrimary),
+        scrolledUnderElevation: 0,
+        centerTitle: true,
+        titleTextStyle: t.headline,
+        iconTheme: IconThemeData(color: t.accent),
+        actionsIconTheme: IconThemeData(color: t.accent),
       ),
       textTheme: TextTheme(
-        displayLarge: s(32, FontWeight.w800, t.textPrimary),
-        headlineMedium: s(24, FontWeight.w700, t.textPrimary),
-        titleLarge: s(18, FontWeight.w700, t.textPrimary),
-        titleMedium: s(16, FontWeight.w600, t.textPrimary),
-        bodyLarge: s(15, FontWeight.w400, t.textPrimary),
-        bodyMedium: s(14, FontWeight.w400, t.textSecondary),
-        bodySmall: s(12, FontWeight.w400, t.textSecondary),
-        labelLarge: s(14, FontWeight.w600, t.textPrimary),
-        labelSmall: s(11, FontWeight.w600, t.textSecondary),
+        displayLarge: t.largeTitle,
+        headlineLarge: t.title1,
+        headlineMedium: t.title2,
+        headlineSmall: t.title3,
+        titleLarge: t.headline,
+        titleMedium: t.headline,
+        titleSmall: t.subheadline,
+        bodyLarge: t.body,
+        bodyMedium: t.callout,
+        bodySmall: t.footnote,
+        labelLarge: t.headline,
+        labelMedium: t.footnote,
+        labelSmall: t.caption2,
       ),
       iconTheme: IconThemeData(color: t.textPrimary, size: 24),
-      dividerTheme: DividerThemeData(color: t.outline, thickness: 1, space: 1),
+      dividerTheme: DividerThemeData(color: t.outline, thickness: 0.5, space: 0.5),
       sliderTheme: SliderThemeData(
         trackHeight: 4,
-        activeTrackColor: t.accent,
-        inactiveTrackColor: t.textPrimary.withValues(alpha: 0.14),
+        activeTrackColor: t.textPrimary,
+        inactiveTrackColor: t.fill,
         thumbColor: t.textPrimary,
         overlayColor: Colors.transparent,
-        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 6),
+        thumbShape: const RoundSliderThumbShape(enabledThumbRadius: 7),
       ),
       switchTheme: SwitchThemeData(
-        thumbColor: WidgetStateProperty.resolveWith(
-          (s) => s.contains(WidgetState.selected) ? t.onAccent : t.textSecondary,
-        ),
+        thumbColor: WidgetStateProperty.all(t.textPrimary),
         trackColor: WidgetStateProperty.resolveWith(
           (s) => s.contains(WidgetState.selected) ? t.accent : t.bgOverlay,
         ),
         trackOutlineColor: WidgetStateProperty.all(Colors.transparent),
       ),
-      chipTheme: ChipThemeData(
-        backgroundColor: t.bgOverlay,
-        selectedColor: t.accent,
-        labelStyle: s(13, FontWeight.w600, t.textPrimary),
-        secondaryLabelStyle: s(13, FontWeight.w600, t.onAccent),
-        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-        shape: const StadiumBorder(),
-        side: BorderSide.none,
-      ),
       filledButtonTheme: FilledButtonThemeData(
         style: FilledButton.styleFrom(
           backgroundColor: t.accent,
           foregroundColor: t.onAccent,
-          shape: const StadiumBorder(),
-          textStyle: s(15, FontWeight.w700, t.onAccent),
-          padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 14),
+          minimumSize: const Size(0, 50),
+          shape: control,
+          textStyle: t.headline,
+          padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
+        ),
+      ),
+      outlinedButtonTheme: OutlinedButtonThemeData(
+        style: OutlinedButton.styleFrom(
+          foregroundColor: t.accent,
+          backgroundColor: t.fill,
+          minimumSize: const Size(0, 50),
+          side: BorderSide.none,
+          shape: control,
+          textStyle: t.headline,
         ),
       ),
       textButtonTheme: TextButtonThemeData(
-        style: TextButton.styleFrom(
-          foregroundColor: t.accent,
-          textStyle: s(14, FontWeight.w600, t.accent),
-        ),
+        style: TextButton.styleFrom(foregroundColor: t.accent, textStyle: t.body),
+      ),
+      iconButtonTheme: IconButtonThemeData(
+        style: IconButton.styleFrom(foregroundColor: t.accent, highlightColor: Colors.transparent),
       ),
       snackBarTheme: SnackBarThemeData(
         backgroundColor: t.bgElevated,
-        contentTextStyle: s(14, FontWeight.w500, t.textPrimary),
+        contentTextStyle: t.subheadline.copyWith(color: t.textPrimary),
         actionTextColor: t.accent,
         behavior: SnackBarBehavior.floating,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+        elevation: 0,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.group)),
       ),
       bottomSheetTheme: BottomSheetThemeData(
-        backgroundColor: t.bgElevated,
+        backgroundColor: t.bgSurface,
         surfaceTintColor: Colors.transparent,
-        modalBackgroundColor: t.bgElevated,
+        modalBackgroundColor: t.bgSurface,
         shape: const RoundedRectangleBorder(
-          borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
+          borderRadius: BorderRadius.vertical(top: Radius.circular(Radii.sheet)),
         ),
         showDragHandle: true,
         dragHandleColor: t.textMuted,
+        dragHandleSize: const Size(36, 5),
       ),
       dialogTheme: DialogThemeData(
         backgroundColor: t.bgElevated,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
-        titleTextStyle: s(19, FontWeight.w700, t.textPrimary),
-        contentTextStyle: s(14, FontWeight.w400, t.textSecondary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
+        titleTextStyle: t.headline,
+        contentTextStyle: t.footnote.copyWith(color: t.textPrimary),
       ),
       popupMenuTheme: PopupMenuThemeData(
         color: t.bgElevated,
         surfaceTintColor: Colors.transparent,
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-        textStyle: s(14, FontWeight.w500, t.textPrimary),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.group)),
+        textStyle: t.body,
       ),
       listTileTheme: ListTileThemeData(
-        iconColor: t.textSecondary,
+        iconColor: t.accent,
         textColor: t.textPrimary,
-        titleTextStyle: s(15, FontWeight.w500, t.textPrimary),
-        subtitleTextStyle: s(13, FontWeight.w400, t.textSecondary),
+        titleTextStyle: t.body,
+        subtitleTextStyle: t.subheadline,
+        minVerticalPadding: Space.sm,
       ),
       progressIndicatorTheme: ProgressIndicatorThemeData(
-        color: t.accent,
-        linearTrackColor: t.bgOverlay,
+        color: t.textSecondary,
+        linearTrackColor: t.fill,
       ),
       scrollbarTheme: ScrollbarThemeData(
-        thumbColor: WidgetStateProperty.all(t.textPrimary.withValues(alpha: 0.22)),
-        radius: const Radius.circular(8),
-        thickness: WidgetStateProperty.all(6),
+        thumbColor: WidgetStateProperty.all(t.textMuted),
+        radius: const Radius.circular(3),
+        thickness: WidgetStateProperty.all(3),
       ),
+      // iOS navigation everywhere: slide in from the right, swipe the left
+      // edge to go back — on Android too.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: PredictiveBackPageTransitionsBuilder(),
+          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
+          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
           TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
           TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
         },
       ),
     );
   }
+
+  /// Theme for the Cupertino widgets the app uses (nav bars, switches,
+  /// segmented controls, action sheets) so they share the same type and green.
+  static CupertinoThemeData cupertino(AppThemeTokens t) => CupertinoThemeData(
+        brightness: Brightness.dark,
+        primaryColor: t.accent,
+        primaryContrastingColor: t.onAccent,
+        scaffoldBackgroundColor: t.bgBase,
+        barBackgroundColor: t.bgBase.withValues(alpha: 0.75),
+        textTheme: CupertinoTextThemeData(
+          primaryColor: t.accent,
+          textStyle: t.body,
+          actionTextStyle: t.body.copyWith(color: t.accent),
+          navTitleTextStyle: t.headline,
+          navLargeTitleTextStyle: t.largeTitle,
+          navActionTextStyle: t.body.copyWith(color: t.accent),
+          tabLabelTextStyle: t.caption2,
+        ),
+      );
+}
+
+/// iOS scroll feel app-wide: rubber-band overscroll, no Android glow, mouse
+/// and trackpad drag enabled on desktop.
+class NaviScrollBehavior extends MaterialScrollBehavior {
+  const NaviScrollBehavior();
+
+  @override
+  ScrollPhysics getScrollPhysics(BuildContext context) =>
+      const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+
+  @override
+  Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) =>
+      child;
+
+  @override
+  Set<PointerDeviceKind> get dragDevices => {
+        PointerDeviceKind.touch,
+        PointerDeviceKind.mouse,
+        PointerDeviceKind.trackpad,
+        PointerDeviceKind.stylus,
+      };
 }
 
 // =============================================================================

@@ -1,15 +1,28 @@
 import 'dart:async';
-import 'dart:ui';
-import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
-import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_animate/flutter_animate.dart';
-import '../providers/search_provider.dart';
-import '../providers/player_provider.dart';
-import '../widgets/song_tile.dart';
-import '../core/theme.dart';
-import '../utils/platform_utils.dart';
 
+import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/theme.dart';
+import '../models/artist.dart';
+import '../models/search_results.dart';
+import '../providers/player_provider.dart';
+import '../providers/search_provider.dart';
+import '../providers/settings_provider.dart';
+import '../widgets/app_scaffold.dart' show navigateInApp;
+import '../widgets/collection_actions.dart';
+import '../widgets/song_tile.dart';
+import '../widgets/ui/controls.dart';
+import '../widgets/ui/large_title_page.dart';
+import '../widgets/ui/media.dart';
+import '../widgets/ui/states.dart';
+import 'album_details_screen.dart';
+import 'artist_screen.dart';
+import 'genre_screen.dart';
+
+/// Apple Music's Search: recent searches and Browse by genre while idle;
+/// Artists, Albums and Songs once you type.
 class SearchScreen extends ConsumerStatefulWidget {
   const SearchScreen({super.key});
 
@@ -18,134 +31,162 @@ class SearchScreen extends ConsumerStatefulWidget {
 }
 
 class _SearchScreenState extends ConsumerState<SearchScreen> {
-  final TextEditingController _controller = TextEditingController();
-  Timer? _debounce;
-  String _mobileQuery = '';
+  static const _debounce = Duration(milliseconds: 300);
 
-  void _onSearchChanged(String query) {
-    if (_debounce?.isActive ?? false) _debounce!.cancel();
-    _debounce = Timer(const Duration(milliseconds: 300), () {
-      setState(() {
-        _mobileQuery = query;
-      });
-    });
-  }
+  late final _controller = TextEditingController(text: ref.read(searchQueryProvider));
+  Timer? _timer;
 
   @override
   void dispose() {
+    _timer?.cancel();
     _controller.dispose();
-    _debounce?.cancel();
     super.dispose();
   }
 
+  void _onChanged(String text) {
+    _timer?.cancel();
+    _timer = Timer(_debounce, () => ref.read(searchQueryProvider.notifier).state = text.trim());
+  }
+
+  void _searchFor(String text) {
+    _timer?.cancel();
+    _controller.text = text;
+    ref.read(searchQueryProvider.notifier).state = text;
+  }
+
+  /// A result was used: remember the query that found it.
+  void _remember() => ref.read(searchHistoryProvider.notifier).addQuery(ref.read(searchQueryProvider));
+
   @override
   Widget build(BuildContext context) {
-    final isDesktop = PlatformUtils.isDesktop;
-    final globalQuery = ref.watch(searchQueryProvider);
-    final activeQuery = isDesktop ? globalQuery : _mobileQuery;
+    // The desktop sidebar can start a search too; mirror it into the field.
+    ref.listen(searchQueryProvider, (_, next) {
+      if (_controller.text.trim() != next) _controller.text = next;
+    });
+    final query = ref.watch(searchQueryProvider);
 
-    return AnnotatedRegion<SystemUiOverlayStyle>(
-      value: SystemUiOverlayStyle.light,
-      child: Scaffold(
-        backgroundColor: ThemeTokens.of(context).bgBase,
-        body: CustomScrollView(
-          physics: const BouncingScrollPhysics(),
-          slivers: [
-            if (!isDesktop) ...[
-              SliverAppBar(
-                expandedHeight: 120,
-                backgroundColor: ThemeTokens.of(context).bgBase,
-                elevation: 0,
-                pinned: true,
-                flexibleSpace: FlexibleSpaceBar(
-                  titlePadding: const EdgeInsets.symmetric(
-                    horizontal: 16,
-                    vertical: 16,
-                  ),
-                  centerTitle: false,
-                  title: Text(
-                    'Search',
-                    style: TextStyle(
-                      color: ThemeTokens.of(context).textPrimary,
-                      fontSize: 28,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                ),
-              ),
-              SliverPersistentHeader(
-                pinned: true,
-                delegate: _SearchHeaderDelegate(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(12),
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-                        child: Container(
-                          height: 48,
-                          decoration: BoxDecoration(
-                            color: ThemeTokens.of(
-                              context,
-                            ).bgSurface.withValues(alpha: 0.8),
-                            borderRadius: BorderRadius.circular(12),
-                            border: Border.all(
-                              color: ThemeTokens.of(context).outline,
-                            ),
-                          ),
-                          child: TextField(
-                            controller: _controller,
-                            onChanged: _onSearchChanged,
-                            style: TextStyle(
-                              color: ThemeTokens.of(context).textPrimary,
-                              fontSize: 17,
-                            ),
-                            cursorColor: ThemeTokens.of(context).accent,
-                            decoration: InputDecoration(
-                              hintText: 'Artists, Songs, Lyrics and More',
-                              hintStyle: TextStyle(
-                                color: ThemeTokens.of(
-                                  context,
-                                ).textMuted.withValues(alpha: 0.6),
-                                fontSize: 15,
-                              ),
-                              prefixIcon: Icon(
-                                Icons.search_rounded,
-                                color: ThemeTokens.of(context).textMuted,
-                                size: 24,
-                              ),
-                              border: InputBorder.none,
-                              contentPadding: const EdgeInsets.symmetric(
-                                vertical: 12,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            ] else ...[
-              const SliverToBoxAdapter(child: SizedBox(height: 16)),
-            ],
+    return LargeTitlePage(
+      title: 'Search',
+      header: NaviSearchField(
+        controller: _controller,
+        placeholder: 'Artists, Albums, Songs',
+        onChanged: _onChanged,
+        onSubmitted: (q) {
+          _searchFor(q.trim());
+          _remember();
+        },
+      ),
+      onRefresh: query.isEmpty ? () async => ref.invalidate(genresProvider) : null,
+      slivers: query.isEmpty
+          ? [_RecentSearches(onTap: _searchFor), const _BrowseGenres()]
+          : [_Results(query: query, onUsed: _remember)],
+    );
+  }
+}
 
-            if (activeQuery.isEmpty) ...[
-              _SearchHistorySliver(
-                onTap: (q) {
-                  if (isDesktop) {
-                    ref.read(searchQueryProvider.notifier).state = q;
-                  } else {
-                    _controller.text = q;
-                    _onSearchChanged(q);
-                  }
-                },
-              ),
-            ] else ...[
-              _SearchResultsSliver(query: activeQuery),
-            ],
+// ─────────────────────────────────────────────────────────────────────────────
+// Idle state
+// ─────────────────────────────────────────────────────────────────────────────
 
-            const SliverToBoxAdapter(child: SizedBox(height: 120)),
+class _RecentSearches extends ConsumerWidget {
+  final ValueChanged<String> onTap;
+  const _RecentSearches({required this.onTap});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final history = ref.watch(searchHistoryProvider);
+    if (history.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    return SliverList.list(children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(Space.gutter, Space.lg, Space.sm, 0),
+        child: Row(
+          children: [
+            Expanded(child: Text('Recently Searched', style: t.title3)),
+            CupertinoButton(
+              padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+              onPressed: () => ref.read(searchHistoryProvider.notifier).clearHistory(),
+              child: Text('Clear', style: t.body.copyWith(color: t.accent)),
+            ),
+          ],
+        ),
+      ),
+      for (final (i, q) in history.indexed)
+        Dismissible(
+          key: ValueKey('recent_$q'),
+          direction: DismissDirection.endToStart,
+          background: Container(
+            color: t.danger,
+            alignment: Alignment.centerRight,
+            padding: const EdgeInsets.only(right: Space.xl),
+            child: Text('Delete', style: t.headline.copyWith(color: Colors.white)),
+          ),
+          onDismissed: (_) => ref.read(searchHistoryProvider.notifier).removeQuery(q),
+          child: CollectionRow(
+            title: q,
+            leading: Icon(CupertinoIcons.search, size: 18, color: t.textMuted),
+            showChevron: false,
+            showSeparator: i < history.length - 1,
+            onTap: () => onTap(q),
+          ),
+        ),
+    ]);
+  }
+}
+
+class _BrowseGenres extends ConsumerWidget {
+  const _BrowseGenres();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final genres = ref.watch(genresProvider).asData?.value ?? const <Genre>[];
+    if (genres.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    return SliverMainAxisGroup(slivers: [
+      const SliverToBoxAdapter(child: SectionHeader(title: 'Browse by Genre')),
+      SliverPadding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+        sliver: SliverLayoutBuilder(
+          builder: (context, c) => SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: c.crossAxisExtent >= 900 ? 4 : c.crossAxisExtent >= 600 ? 3 : 2,
+              crossAxisSpacing: Space.md,
+              mainAxisSpacing: Space.md,
+              mainAxisExtent: 84,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => _GenreTile(genre: genres[i]),
+              childCount: genres.length,
+            ),
+          ),
+        ),
+      ),
+    ]);
+  }
+}
+
+class _GenreTile extends StatelessWidget {
+  final Genre genre;
+  const _GenreTile({required this.genre});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return CupertinoClickable(
+      onTap: () => navigateInApp(context, GenreScreen(genre: genre.name)),
+      scaleFactor: 0.97,
+      semanticLabel: genre.name,
+      child: Container(
+        padding: const EdgeInsets.all(Space.md),
+        decoration: BoxDecoration(color: t.bgSurface, borderRadius: BorderRadius.circular(Radii.group)),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(genre.name, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.headline),
+            Text(
+              genre.albumCount == 1 ? '1 album' : '${genre.albumCount} albums',
+              style: t.footnote,
+            ),
           ],
         ),
       ),
@@ -153,207 +194,127 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   }
 }
 
-class _SearchHistorySliver extends ConsumerWidget {
-  final Function(String) onTap;
-  const _SearchHistorySliver({required this.onTap});
+// ─────────────────────────────────────────────────────────────────────────────
+// Results
+// ─────────────────────────────────────────────────────────────────────────────
+
+class _Results extends ConsumerStatefulWidget {
+  final String query;
+  final VoidCallback onUsed;
+  const _Results({required this.query, required this.onUsed});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final history = ref.watch(searchHistoryProvider);
+  ConsumerState<_Results> createState() => _ResultsState();
+}
 
-    if (history.isEmpty) {
+class _ResultsState extends ConsumerState<_Results> {
+  /// Last results shown, kept on screen while the next query loads so the
+  /// list doesn't flash to a skeleton on every keystroke.
+  SearchResults? _last;
+
+  @override
+  Widget build(BuildContext context) {
+    final query = widget.query;
+    final onUsed = widget.onUsed;
+    final results = ref.watch(searchProvider(query));
+    if (results.asData?.value case final value?) _last = value;
+    final data = results.isLoading ? _last : (results.asData?.value ?? SearchResults.empty);
+
+    if (results.hasError) {
       return SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.search_rounded,
-                color: ThemeTokens.of(context).textMuted,
-                size: 64,
-              ),
-              SizedBox(height: 16),
-              Text(
-                'Search for music',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textMuted,
-                  fontSize: 15,
-                ),
-              ),
-            ],
-          ),
+        hasScrollBody: false,
+        child: MessageState.error(
+          title: 'Search isn’t available',
+          onRetry: () => ref.invalidate(searchProvider(query)),
+        ),
+      );
+    }
+    if (data == null) {
+      return const SliverToBoxAdapter(child: TrackListSkeleton());
+    }
+    if (data.isEmpty) {
+      return SliverFillRemaining(
+        hasScrollBody: false,
+        child: MessageState(
+          icon: CupertinoIcons.search,
+          title: 'No results for “$query”',
+          message: 'Check the spelling, or try an artist, album or song name.',
         ),
       );
     }
 
-    return SliverList(
-      delegate: SliverChildBuilderDelegate((context, index) {
-        if (index == 0) {
-          return Padding(
-            padding: const EdgeInsets.fromLTRB(16, 24, 16, 8),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'Recent Searches',
-                  style: TextStyle(
-                    color: ThemeTokens.of(context).textPrimary,
-                    fontSize: 18,
-                    fontWeight: FontWeight.bold,
-                  ),
+    final svc = ref.read(subsonicServiceProvider);
+    final songs = data.songs;
+    return SliverMainAxisGroup(slivers: [
+      if (data.artists.isNotEmpty)
+        SliverToBoxAdapter(
+          child: MediaShelf(
+            title: 'Artists',
+            cardSize: 110,
+            hasSubtitle: false,
+            itemCount: data.artists.length,
+            itemBuilder: (context, i) {
+              final a = data.artists[i];
+              return MediaCard(
+                title: a.name,
+                artUrl: svc.getCoverArtUrl(a.coverArtId),
+                size: 110,
+                circular: true,
+                placeholderIcon: CupertinoIcons.person_fill,
+                onTap: () {
+                  onUsed();
+                  navigateInApp(context, ArtistScreen(artistId: a.id, name: a.name));
+                },
+              );
+            },
+          ),
+        ),
+      if (data.albums.isNotEmpty)
+        SliverToBoxAdapter(
+          child: MediaShelf(
+            title: 'Albums',
+            itemCount: data.albums.length,
+            itemBuilder: (context, i) {
+              final a = data.albums[i];
+              final art = svc.getCoverArtUrl(a.coverArt);
+              return MediaCard(
+                title: a.name,
+                subtitle: a.artist,
+                artUrl: art,
+                size: 150,
+                placeholderIcon: CupertinoIcons.music_albums,
+                onTap: () {
+                  onUsed();
+                  navigateInApp(context, AlbumDetailsScreen(album: a));
+                },
+                onLongPress: () => showCollectionActions(
+                  context,
+                  title: a.name,
+                  subtitle: a.artist,
+                  artUrl: art,
+                  placeholderIcon: CupertinoIcons.music_albums,
+                  loadSongs: () => svc.getAlbum(a.id),
                 ),
-                TextButton(
-                  onPressed: () =>
-                      ref.read(searchHistoryProvider.notifier).clearHistory(),
-                  child: Text(
-                    'Clear All',
-                    style: TextStyle(
-                      color: ThemeTokens.of(context).accent,
-                      fontSize: 13,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          );
-        }
-
-        final query = history[index - 1];
-        return ListTile(
-          contentPadding: const EdgeInsets.symmetric(horizontal: 16),
-          leading: Icon(
-            Icons.history_rounded,
-            color: ThemeTokens.of(context).textMuted,
-            size: 22,
+              );
+            },
           ),
-          title: Text(
-            query,
-            style: TextStyle(
-              color: ThemeTokens.of(context).textPrimary,
-              fontSize: 15,
-            ),
-          ),
-          trailing: IconButton(
-            icon: Icon(
-              Icons.close_rounded,
-              color: ThemeTokens.of(context).textMuted,
-              size: 18,
-            ),
-            onPressed: () =>
-                ref.read(searchHistoryProvider.notifier).removeQuery(query),
-          ),
-          onTap: () {
-            onTap(query);
-          },
-        );
-      }, childCount: history.length + 1),
-    );
-  }
-}
-
-class _SearchHeaderDelegate extends SliverPersistentHeaderDelegate {
-  final Widget child;
-  _SearchHeaderDelegate({required this.child});
-
-  @override
-  Widget build(
-    BuildContext context,
-    double shrinkOffset,
-    bool overlapsContent,
-  ) {
-    return Container(
-      color: ThemeTokens.of(
-        context,
-      ).bgBase.withValues(alpha: shrinkOffset > 0 ? 0.9 : 0.0),
-      child: child,
-    );
-  }
-
-  @override
-  double get maxExtent => 64;
-  @override
-  double get minExtent => 64;
-  @override
-  bool shouldRebuild(_SearchHeaderDelegate old) => old.child != child;
-}
-
-class _SearchResultsSliver extends ConsumerWidget {
-  final String query;
-  const _SearchResultsSliver({required this.query});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final searchAsync = ref.watch(searchProvider(query));
-
-    return searchAsync.when(
-      data: (results) {
-        final songs = results['songs'] as List<dynamic>? ?? [];
-        if (songs.isEmpty) {
-          return SliverFillRemaining(
-            child: Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.sentiment_dissatisfied_rounded,
-                    color: ThemeTokens.of(context).textMuted,
-                    size: 48,
-                  ),
-                  SizedBox(height: 12),
-                  Text(
-                    'No results found',
-                    style: TextStyle(
-                      color: ThemeTokens.of(context).textMuted,
-                      fontSize: 15,
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          );
-        }
-        return SliverList(
-          delegate: SliverChildBuilderDelegate((context, index) {
-            final song = songs[index];
-            return SongTile(
-              song: song,
+        ),
+      if (songs.isNotEmpty) ...[
+        const SliverToBoxAdapter(child: SectionHeader(title: 'Songs')),
+        SliverFixedExtentList(
+          itemExtent: SongTile.extent,
+          delegate: SliverChildBuilderDelegate(
+            (context, i) => SongTile(
+              song: songs[i],
               onTap: () {
-                ref.read(searchHistoryProvider.notifier).addQuery(query);
-                ref.read(playerProvider.notifier).setQueue(songs.cast(), index);
+                onUsed();
+                ref.read(playerProvider.notifier).setQueue(songs, i, playlistName: 'Search');
               },
-            ).animate().fadeIn(duration: 300.ms).slideY(begin: 0.05, end: 0);
-          }, childCount: songs.length),
-        );
-      },
-      loading: () => SliverFillRemaining(
-        child: Center(
-          child: CircularProgressIndicator(
-            color: ThemeTokens.of(context).accent,
+            ),
+            childCount: songs.length,
           ),
         ),
-      ),
-      error: (e, st) => SliverFillRemaining(
-        child: Center(
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(
-                Icons.error_outline_rounded,
-                color: Colors.redAccent,
-                size: 48,
-              ),
-              SizedBox(height: 12),
-              Text(
-                'Error: $e',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textMuted,
-                  fontSize: 13,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
+      ],
+    ]);
   }
 }

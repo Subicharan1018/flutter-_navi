@@ -12,7 +12,9 @@ import '../core/app_exception.dart';
 import '../core/hive_boxes.dart';
 import '../models/song.dart';
 import '../models/album.dart';
+import '../models/artist.dart';
 import '../models/playlist.dart';
+import '../models/search_results.dart';
 import 'playlist_cache_service.dart';
 
 class SubsonicService {
@@ -309,26 +311,32 @@ class SubsonicService {
   // Song library
   // ---------------------------------------------------------------------------
 
-  Future<List<Song>> getAllSongs({int size = 5000, int offset = 0}) async {
-    // BUG-29: Song.fromJson mapping moved to background isolate.
-    // BUG-31: in-memory cache removed — Riverpod allSongsProvider.keepAlive()
-    //         is the authoritative cache.
-    try {
+  /// One page of the whole library, for full-library sync.
+  ///
+  /// Uses an **empty** search3 query — the "browse all" contract Navidrome,
+  /// Gonic, Ampache and LMS implement for offline-sync clients — with `*`
+  /// only as a fallback for servers that return nothing for it.
+  ///
+  /// The page is returned as-is: a short or empty page is what ends the
+  /// caller's pagination. (A former fallback to getRandomSongs() for pages of
+  /// ≤10 songs turned the last page into 500 random songs, so a fresh install
+  /// never finished syncing.)
+  Future<List<Song>> getAllSongs({int size = 500, int offset = 0}) async {
+    Future<List<Song>> page(String query) async {
       final res = await _get('search3.view', {
-        'query': '*',
+        'query': query,
         'songCount': size.toString(),
         'songOffset': offset.toString(),
+        'artistCount': '0',
+        'albumCount': '0',
       });
-      final searchResult = _getMap(res, 'searchResult3');
-      final rawList = _getList(searchResult, 'song');
-      // Parse 5000 Song objects on a background isolate.
-      final songs = await compute(_parseSongList, rawList);
-      if (songs.length > 10) return songs;
-    } catch (e) {
-      debugPrint('Wildcard search failed: $e');
+      final rawList = _getList(_getMap(res, 'searchResult3'), 'song');
+      return compute(_parseSongList, rawList); // parse off the UI isolate
     }
 
-    return getRandomSongs(size: size);
+    final songs = await page('');
+    if (songs.isNotEmpty || offset > 0) return songs;
+    return page('*');
   }
 
   Future<List<Song>> getRandomSongs({int size = 50}) async {
@@ -433,10 +441,36 @@ class SubsonicService {
         .toList();
   }
 
-  Future<List<Song>> getAlbum(String id) async {
+  Future<List<Song>> getAlbum(String id) async => (await getAlbumDetails(id)).songs;
+
+  /// The album's full record (artist id, year, genre) together with its
+  /// tracks — pages opened from a song only know the album's id and name.
+  Future<({Album album, List<Song> songs})> getAlbumDetails(String id) async {
     final res = await _get('getAlbum.view', {'id': id});
-    final songs = _getList(_getMap(res, 'album'), 'song');
-    return songs
+    final map = _getMap(res, 'album');
+    final songs = _getList(map, 'song')
+        .whereType<Map>()
+        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+    return (album: Album.fromJson(map), songs: songs);
+  }
+
+  /// Every album by one artist, newest first.
+  Future<List<Album>> getArtistAlbums(String artistId) async {
+    final res = await _get('getArtist.view', {'id': artistId});
+    final albums = _getList(_getMap(res, 'artist'), 'album')
+        .whereType<Map>()
+        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
+        .toList()
+      ..sort((a, b) => b.year.compareTo(a.year));
+    return albums;
+  }
+
+  /// The artist's most played songs, as ranked by the server (Navidrome uses
+  /// Last.fm data when configured; empty otherwise).
+  Future<List<Song>> getTopSongs(String artistName, {int count = 10}) async {
+    final res = await _get('getTopSongs.view', {'artist': artistName, 'count': '$count'});
+    return _getList(_getMap(res, 'topSongs'), 'song')
         .whereType<Map>()
         .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
         .toList();
@@ -675,25 +709,41 @@ class SubsonicService {
   // Search
   // ---------------------------------------------------------------------------
 
-  Future<Map<String, List<dynamic>>> search(String query) async {
-    final res = await _get('search3.view', {'query': query});
-    final searchResult = _getMap(res, 'searchResult3');
-    final songs = _getList(searchResult, 'song')
+  Future<SearchResults> search(String query) async {
+    final res = await _get('search3.view', {
+      'query': query,
+      'artistCount': '10',
+      'albumCount': '20',
+      'songCount': '50',
+    });
+    final r = _getMap(res, 'searchResult3');
+    List<T> parse<T>(String key, T Function(Map<String, dynamic>) f) =>
+        _getList(r, key).whereType<Map>().map((e) => f(Map<String, dynamic>.from(e))).toList();
+    return SearchResults(
+      artists: parse('artist', Artist.fromJson),
+      albums: parse('album', Album.fromJson),
+      songs: parse('song', Song.fromJson),
+    );
+  }
+
+  /// All genres, largest first.
+  Future<List<Genre>> getGenres() async {
+    final res = await _get('getGenres.view');
+    return _getList(_getMap(res, 'genres'), 'genre')
         .whereType<Map>()
-        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
-    final albums = _getList(searchResult, 'album')
+        .map((e) => Genre.fromJson(Map<String, dynamic>.from(e)))
+        .where((g) => g.name.isNotEmpty)
+        .toList()
+      ..sort((a, b) => b.albumCount.compareTo(a.albumCount));
+  }
+
+  /// Albums tagged with [genre].
+  Future<List<Album>> getAlbumsByGenre(String genre, {int size = 200}) async {
+    final res = await _get('getAlbumList2.view', {'type': 'byGenre', 'genre': genre, 'size': '$size'});
+    return _getList(_getMap(res, 'albumList2'), 'album')
         .whereType<Map>()
         .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
         .toList();
-    final artists = _getList(searchResult, 'artist')
-        .whereType<Map>()
-        .map((e) {
-          final m = Map<String, dynamic>.from(e);
-          return m['name']?.toString() ?? '';
-        })
-        .toList();
-    return {'songs': songs, 'albums': albums, 'artists': artists};
   }
 
   // ---------------------------------------------------------------------------

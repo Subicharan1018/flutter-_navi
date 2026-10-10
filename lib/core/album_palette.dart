@@ -23,14 +23,14 @@ class AlbumPalette {
     required this.glow,
   });
 
-  /// Shown when nothing is playing or a cover has no usable pixels:
-  /// midnight indigo, plum, rose and amber — warm enough to never read as
-  /// a "default grey" app.
+  /// Shown when nothing is playing or a cover has no usable pixels: neutral
+  /// graphite with the brand green, so an empty player matches the app
+  /// chrome instead of inventing a purple/pink identity.
   static const AlbumPalette fallback = AlbumPalette(
-    deep: Color(0xFF120C24),
-    base: Color(0xFF3B1F5E),
-    vibrant: Color(0xFFFF5C8A),
-    glow: Color(0xFFFFB454),
+    deep: Color(0xFF0E0E0E),
+    base: Color(0xFF242424),
+    vibrant: Color(0xFF1ED760),
+    glow: Color(0xFF3A3A3A),
   );
 
   /// Text/icon colour that sits on a [vibrant] fill.
@@ -219,7 +219,7 @@ List<int> extractAlbumPalette(Uint8List rgba) {
   return [deep, base, vibrant, glow];
 }
 
-const List<int> _fallbackInts = [0xFF120C24, 0xFF3B1F5E, 0xFFFF5C8A, 0xFFFFB454];
+const List<int> _fallbackInts = [0xFF0E0E0E, 0xFF242424, 0xFF1ED760, 0xFF3A3A3A];
 
 AlbumPalette albumPaletteFromInts(List<int> c) => AlbumPalette(
       deep: Color(c[0]),

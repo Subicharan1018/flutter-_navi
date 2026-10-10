@@ -12,6 +12,7 @@ import '../player/artwork.dart';
 import '../player/artwork_field.dart';
 import '../player/lyrics_pane.dart';
 import '../player/now_playing_style.dart';
+import '../player/mode_buttons.dart';
 import '../player/player_controls.dart';
 import '../player/queue_pane.dart';
 import '../player/sleep_timer.dart';
@@ -318,6 +319,8 @@ class _PhoneLayout extends ConsumerWidget {
                   onPlayPause: notifier.togglePlay,
                   onPrevious: notifier.playPrev,
                   onNext: notifier.playNext,
+                  leading: const ShuffleModeButton(),
+                  trailing: const RepeatModeButton(),
                 ),
                 const SizedBox(height: 10),
                 VolumeBar(player: notifier.player),
@@ -665,14 +668,12 @@ void _showMore(BuildContext context, Song song) {
   showPlatformSheet(
     context: context,
     title: song.title,
-    builder: (_) => SingleChildScrollView(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SleepTimerTile(),
-          OptionsMenu(song: song),
-        ],
-      ),
+    builder: (_) => Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        const SleepTimerTile(),
+        OptionsMenu(song: song),
+      ],
     ),
   );
 }
@@ -904,6 +905,8 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                                 onPrevious: notifier.playPrev,
                                 onNext: notifier.playNext,
                                 scale: 0.86,
+                                leading: const ShuffleModeButton(scale: 0.9),
+                                trailing: const RepeatModeButton(scale: 0.9),
                               ),
                               const SizedBox(height: 8),
                               VolumeBar(player: notifier.player),

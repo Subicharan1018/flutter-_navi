@@ -468,6 +468,10 @@ class TransportControls extends StatefulWidget {
   final Color color;
   final double scale; // 1.0 = phone Now Playing
 
+  /// Optional mode buttons either side (shuffle / repeat on Now Playing).
+  final Widget? leading;
+  final Widget? trailing;
+
   const TransportControls({
     super.key,
     required this.playing,
@@ -476,6 +480,8 @@ class TransportControls extends StatefulWidget {
     required this.onNext,
     this.color = Colors.white,
     this.scale = 1,
+    this.leading,
+    this.trailing,
   });
 
   @override
@@ -506,17 +512,24 @@ class _TransportControlsState extends State<TransportControls> with SingleTicker
   @override
   Widget build(BuildContext context) {
     final s = widget.scale;
+    // With shuffle/repeat either side, tighten the transport hit areas (not
+    // the glyphs) so all five fit a 360 dp phone: 48+60+76+60+48 = 292.
+    final flanked = widget.leading != null || widget.trailing != null;
+    final skipBox = (flanked ? 60.0 : 72.0) * s;
+    final playBox = (flanked ? 76.0 : 84.0) * s;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment:
+          flanked ? MainAxisAlignment.spaceBetween : MainAxisAlignment.spaceEvenly,
       children: [
+        ?widget.leading,
         GlyphButton(
-          size: 72 * s,
+          size: skipBox,
           semanticLabel: 'Previous',
           onTap: widget.onPrevious,
           child: Icon(Icons.fast_rewind_rounded, size: 44 * s, color: widget.color),
         ),
         GlyphButton(
-          size: 84 * s,
+          size: playBox,
           semanticLabel: widget.playing ? 'Pause' : 'Play',
           onTap: widget.onPlayPause,
           child: AnimatedIcon(
@@ -527,11 +540,12 @@ class _TransportControlsState extends State<TransportControls> with SingleTicker
           ),
         ),
         GlyphButton(
-          size: 72 * s,
+          size: skipBox,
           semanticLabel: 'Next',
           onTap: widget.onNext,
           child: Icon(Icons.fast_forward_rounded, size: 44 * s, color: widget.color),
         ),
+        ?widget.trailing,
       ],
     );
   }
@@ -612,7 +626,8 @@ class _VolumeBarState extends State<VolumeBar> {
   }
 }
 
-/// Small frosted circle holding a secondary action (favourite, more).
+/// Secondary action on the artwork (favourite, more): a plain glyph with a
+/// full-size hit area — no translucent disc behind it.
 class GlassCircleButton extends StatelessWidget {
   final IconData icon;
   final VoidCallback onTap;
@@ -636,12 +651,7 @@ class GlassCircleButton extends StatelessWidget {
       semanticLabel: semanticLabel,
       onTap: onTap,
       pressColor: const Color(0x00FFFFFF),
-      child: Container(
-        width: diameter,
-        height: diameter,
-        decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0x26FFFFFF)),
-        child: Icon(icon, size: diameter * 0.56, color: iconColor ?? Colors.white),
-      ),
+      child: Icon(icon, size: diameter * 0.7, color: iconColor ?? Colors.white),
     );
   }
 }

@@ -180,6 +180,19 @@ Future<void> _loadFonts() async {
       File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.parent.path;
   final icons = File('$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
   if (icons.existsSync()) await family('MaterialIcons', [icons.path]);
+  // Cupertino glyphs come from the cupertino_icons package in the pub cache.
+  final pubCache = Platform.environment['PUB_CACHE'] ??
+      (Platform.isWindows
+          ? '${Platform.environment['LOCALAPPDATA']}/Pub/Cache'
+          : '${Platform.environment['HOME']}/.pub-cache');
+  final hosted = Directory('$pubCache/hosted/pub.dev');
+  if (hosted.existsSync()) {
+    final pkgs = hosted.listSync().whereType<Directory>().where((d) => d.path.contains('cupertino_icons-')).toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
+    if (pkgs.isNotEmpty) {
+      await family('packages/cupertino_icons/CupertinoIcons', ['${pkgs.last.path}/assets/CupertinoIcons.ttf']);
+    }
+  }
 }
 
 Widget _app({

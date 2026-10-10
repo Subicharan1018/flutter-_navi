@@ -12,6 +12,7 @@ import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
 import '../services/search_history_service.dart';
 import '../database/app_database.dart';
+import 'library_provider.dart' show resetLibrarySyncClock;
 
 // ---------------------------------------------------------------------------
 // Shuffle Algorithm enum
@@ -47,13 +48,43 @@ enum ShuffleAlgorithm {
   /// Smart Shuffle via shuffle.subimusic.me — queries the hosted AI server
   /// for intelligent, context-aware song recommendations using the user's
   /// personal Navidrome listening history and real-time weather/time context.
-  smartLocal,
+  smartLocal;
+
+  /// Name shown in Settings and the queue's shuffle-style sheet.
+  String get label => switch (this) {
+        standard => 'Random',
+        spotify => 'Balanced',
+        youtube => 'Favorites First',
+        albumAware => 'By Album',
+        mergeShuffle => 'Evenly Mixed',
+        recencyDampened => 'Fresh Mix',
+        smartLocal => 'Smart Shuffle',
+      };
+
+  /// One line on what the listener will hear.
+  String get summary => switch (this) {
+        standard => 'Every song is equally likely to play next.',
+        spotify => 'Spreads out songs from the same group so they never play back to back.',
+        youtube => 'Leans toward songs you starred, rated highly or play most.',
+        albumAware => 'Plays whole albums in order, with the albums shuffled.',
+        mergeShuffle => 'Interleaves groups as evenly as mathematically possible.',
+        recencyDampened => 'Like Favorites First, but holds back songs you heard this session.',
+        smartLocal => 'Uses your Smart Shuffle server to pick songs for the time, weather and your habits.',
+      };
+
+  /// Whether [ShufflePreference] grouping applies to this style.
+  bool get usesGrouping => this == spotify || this == mergeShuffle;
 }
 
 // ---------------------------------------------------------------------------
 // Shuffle Preference enum
 // ---------------------------------------------------------------------------
-enum ShufflePreference { composer, genre }
+enum ShufflePreference {
+  composer,
+  genre;
+
+  String get label => switch (this) { composer => 'Composer', genre => 'Genre' };
+}
 
 // ---------------------------------------------------------------------------
 // Settings state
@@ -228,6 +259,12 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   }) async {
     final auth = HiveBoxes.auth;
     final p = HiveBoxes.prefs;
+
+    // A different server or account means the local library mirror belongs
+    // to someone else: make the next library load a full sync.
+    if (url != state.serverUrl || user != state.username) {
+      await resetLibrarySyncClock();
+    }
 
     await auth.put(HiveBoxes.kServerUrl, url);
     await auth.put(HiveBoxes.kUsername, user);
@@ -435,17 +472,14 @@ final bpmAnalyzerProvider = Provider<BpmAnalyzerService>((ref) {
 
 
 /// [TranscodingService] — network-aware bitrate/format management.
-final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {
-  final service = TranscodingService();
-  ref.onDispose(service.dispose);
-  return service;
-});
+/// ChangeNotifierProvider disposes the service itself; disposing it again in
+/// onDispose asserted "used after being disposed" on teardown.
+final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) => TranscodingService());
 
 /// [RecommendationService] — play pattern tracking and personalised feeds.
 /// MEM-OPT: initialize() is NOT called here. The service lazy-loads its data
-/// from SharedPreferences on the first call to trackSongPlay() or setEnabled().
-/// This avoids decoding 500 profiles into memory at app startup when the user
-/// never visits the Made For You screen.
+/// from SharedPreferences on the first call to trackSongPlay() or setEnabled(),
+/// so profiles aren't decoded at startup.
 final recommendationProvider = ChangeNotifierProvider<RecommendationService>((
   ref,
 ) {

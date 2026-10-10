@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -90,10 +91,10 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
             child: AnimatedContainer(
               duration: const Duration(milliseconds: 600),
               curve: Curves.easeOutCubic,
-              height: 62,
+              height: 60,
               decoration: BoxDecoration(
                 color: Color.lerp(palette.base, Colors.black, 0.12),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(Radii.sheet - 2),
                 boxShadow: const [
                   BoxShadow(color: Color(0x66000000), blurRadius: 18, offset: Offset(0, 6)),
                 ],
@@ -123,7 +124,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
                           size: 44,
                           semanticLabel: 'Next',
                           onTap: notifier.playNext,
-                          child: const Icon(Icons.fast_forward_rounded, color: Colors.white, size: 26),
+                          child: const Icon(CupertinoIcons.forward_fill, color: Colors.white, size: 24),
                         ),
                       ],
                     ),
@@ -151,8 +152,9 @@ class _Content extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
     final cover = ClipRRect(
-      borderRadius: BorderRadius.circular(6),
+      borderRadius: BorderRadius.circular(Radii.cover),
       child: CoverImage(url: url, cacheKey: coverCacheKey(song), width: 44, height: 44, cacheWidth: 132),
     );
     return Padding(
@@ -179,14 +181,14 @@ class _Content extends StatelessWidget {
                     song.title,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: naviText(14.5, FontWeight.w700, Colors.white),
+                    style: t.subheadline.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
                   ),
                   const SizedBox(height: 1),
                   Text(
                     song.artist,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: naviText(13, FontWeight.w500, Colors.white.withValues(alpha: 0.72)),
+                    style: t.footnote.copyWith(color: Colors.white.withValues(alpha: 0.72)),
                   ),
                 ],
               ),

@@ -32,6 +32,9 @@ String coverCacheKey(Song song) =>
 @visibleForTesting
 ImageProvider Function(String url, String cacheKey)? debugCoverImageOverride;
 
+/// [debugCoverImageOverride] for widgets outside this library (list covers).
+ImageProvider? testCoverOverride(String url) => debugCoverImageOverride?.call(url, url);
+
 /// The one way player surfaces load a cover: disk-cached network image,
 /// decoded at [cacheWidth] px wide so a 3000px cover never sits in RAM at
 /// full size.

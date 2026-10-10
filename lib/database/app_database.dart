@@ -56,6 +56,22 @@ class AppDatabase extends _$AppDatabase {
           }
         }
       },
+      // Idempotent: covers fresh installs and existing DBs without a bump.
+      beforeOpen: (_) => _ensureIndexes(),
     );
+  }
+
+  /// Indexes for the hot reads: per-row artwork lookups by title/artist and
+  /// "recently played" ordering were full scans of a library-sized table.
+  Future<void> _ensureIndexes() async {
+    const statements = [
+      'CREATE INDEX IF NOT EXISTS idx_song_meta_title_artist ON song_metadata (track_name, artist_name)',
+      'CREATE INDEX IF NOT EXISTS idx_song_meta_artist ON song_metadata (artist_name)',
+      'CREATE INDEX IF NOT EXISTS idx_play_events_ts ON play_events (ts_start)',
+      'CREATE INDEX IF NOT EXISTS idx_play_events_song ON play_events (song_id)',
+    ];
+    for (final sql in statements) {
+      await customStatement(sql);
+    }
   }
 }
