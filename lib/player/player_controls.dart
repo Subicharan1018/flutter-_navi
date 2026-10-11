@@ -655,7 +655,15 @@ class GlassCircleButton extends StatelessWidget {
       semanticLabel: semanticLabel,
       onTap: onTap,
       pressColor: const Color(0x00FFFFFF),
-      child: ion != null ? IonIcon(ion!, size: size, color: color) : Icon(icon, size: size, color: color),
+      // A glyph that changes (☆ → ★) pops in, so the state change reads.
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 240),
+        switchInCurve: Curves.easeOutBack,
+        transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
+        child: ion != null
+            ? IonIcon(ion!, key: ValueKey(ion), size: size, color: color)
+            : Icon(icon, key: ValueKey(icon), size: size, color: color),
+      ),
     );
   }
 }

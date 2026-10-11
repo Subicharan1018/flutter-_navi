@@ -14,6 +14,7 @@ uniform float uTime;      // seconds; frozen while paused
 uniform float uMix;       // 0 = artA (outgoing song), 1 = artB (current song)
 uniform vec4  uDeep;      // palette.deep (rgb), a unused
 uniform float uDim;       // 0..1 extra darkening (queue / lyrics open)
+uniform float uEnergy;    // 0..1: 1 while music plays, 0 paused — the room's light
 
 uniform sampler2D uArtA;
 uniform sampler2D uArtB;
@@ -69,9 +70,10 @@ void main() {
     // Screen-blend the large slow layer for soft luminous highlights.
     col = 1.0 - (1.0 - col) * (1.0 - c * 0.42);
 
-    // Vibrancy: lift saturation around luma so colours read rich, not muddy.
+    // Vibrancy: lift saturation around luma so colours read rich, not muddy;
+    // richer still while the music plays.
     float luma = dot(col, vec3(0.2126, 0.7152, 0.0722));
-    col = mix(vec3(luma), col, 1.38);
+    col = mix(vec3(luma), col, 1.38 + 0.24 * uEnergy);
 
     // Tone: compress highlights so white covers don't blow out white type.
     col = col / (1.0 + col * 0.55);
@@ -80,7 +82,12 @@ void main() {
     // more strongly, across the lower half where the controls live.
     float lower = smoothstep(0.42, 1.0, uv.y);
     float upper = smoothstep(0.18, 0.0, uv.y);
-    float shade = 0.18 + lower * 0.42 + upper * 0.18 + uDim * 0.38;
+    // The room's light: playing opens up the region behind the cover only
+    // (it fades out before the title, so text contrast is never reduced);
+    // pausing dims the whole field.
+    float behindCover = smoothstep(0.56, 0.30, uv.y);
+    float light = -0.10 * uEnergy * behindCover + 0.20 * (1.0 - uEnergy);
+    float shade = 0.18 + lower * 0.42 + upper * 0.18 + uDim * 0.38 + light;
     col = mix(col, uDeep.rgb * 0.55, clamp(shade, 0.0, 0.92));
 
     // Gentle vignette so the field sits behind the content.

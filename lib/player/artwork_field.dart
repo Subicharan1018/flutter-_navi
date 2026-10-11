@@ -18,14 +18,25 @@ import 'artwork.dart';
 ///  * drift advances only while [playing], capped at 30 fps, and stops when
 ///    the route is covered (TickerMode) or the OS asks to reduce motion;
 ///  * song changes cross-fade between the two cover textures in the shader.
+///
+/// The room's light follows the music: while [lit] the field is richer and
+/// opens up behind the cover; pausing dims it, in step with the cover
+/// receding. This changes colour, not position, so it stays (quickly) under
+/// reduced motion.
 class ArtworkField extends StatefulWidget {
   final ArtworkData? art;
+
+  /// Drift runs only while true (playing, and the living field is enabled).
   final bool playing;
+
+  /// Music is playing: lights the room. Independent of [playing], so the
+  /// light still follows play/pause when drift is turned off.
+  final bool lit;
 
   /// 0..1 extra darkening for dense content (lyrics, queue).
   final double dim;
 
-  const ArtworkField({super.key, required this.art, required this.playing, this.dim = 0});
+  const ArtworkField({super.key, required this.art, required this.playing, this.lit = true, this.dim = 0});
 
   static Future<ui.FragmentProgram>? _program;
 
@@ -57,6 +68,14 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
     vsync: this,
     duration: const Duration(milliseconds: 420),
     value: widget.dim,
+  );
+
+  /// Lights up over the cover's spring (~560ms) and dims a little faster.
+  late final AnimationController _energy = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 620),
+    reverseDuration: const Duration(milliseconds: 420),
+    value: widget.lit ? 1 : 0,
   );
   final ValueNotifier<double> _time = ValueNotifier(0);
 
@@ -95,6 +114,16 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
     if (widget.dim != old.dim) {
       _dim.animateTo(widget.dim, curve: Curves.easeOutCubic);
     }
+    if (widget.lit != old.lit) {
+      final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+      if (reduce) {
+        _energy.value = widget.lit ? 1 : 0;
+      } else {
+        widget.lit
+            ? _energy.animateTo(1, curve: Curves.easeOutCubic)
+            : _energy.animateBack(0, curve: Curves.easeInOutCubic);
+      }
+    }
     _syncTicker();
   }
 
@@ -123,6 +152,7 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
     _ticker.dispose();
     _mix.dispose();
     _dim.dispose();
+    _energy.dispose();
     _time.dispose();
     _shader?.dispose();
     super.dispose();
@@ -134,7 +164,7 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
     final shader = _shader;
     final from = _from, to = _to;
     if (shader == null || from == null || to == null) {
-      return _StaticField(palette: palette);
+      return _StaticField(palette: palette, lit: widget.lit);
     }
     return RepaintBoundary(
       child: CustomPaint(
@@ -146,6 +176,7 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
           time: _time,
           mix: _mix,
           dim: _dim,
+          energy: _energy,
           downscale: _downscale,
         ),
         child: const SizedBox.expand(),
@@ -162,6 +193,7 @@ class _FieldPainter extends CustomPainter {
   final ValueListenable<double> time;
   final Animation<double> mix;
   final Animation<double> dim;
+  final Animation<double> energy;
   final double downscale;
 
   _FieldPainter({
@@ -172,8 +204,9 @@ class _FieldPainter extends CustomPainter {
     required this.time,
     required this.mix,
     required this.dim,
+    required this.energy,
     required this.downscale,
-  }) : super(repaint: Listenable.merge([time, mix, dim]));
+  }) : super(repaint: Listenable.merge([time, mix, dim, energy]));
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -192,6 +225,7 @@ class _FieldPainter extends CustomPainter {
       ..setFloat(i++, deep.b)
       ..setFloat(i++, 1)
       ..setFloat(i++, dim.value)
+      ..setFloat(i++, energy.value)
       // Linear filtering: the default (none) samples the 64px cover
       // nearest-neighbour and the field turns into visible blocks.
       ..setImageSampler(0, from, filterQuality: FilterQuality.medium)
@@ -220,11 +254,16 @@ class _FieldPainter extends CustomPainter {
 /// Shown until the shader and the first cover are ready (and on platforms
 /// without runtime-effect support): the palette's own gradient, never black.
 class _StaticField extends StatelessWidget {
+  /// How far toward the deep tone the field settles while paused.
+  static const double _pausedDim = 0.35;
+
   final AlbumPalette palette;
-  const _StaticField({required this.palette});
+  final bool lit;
+  const _StaticField({required this.palette, required this.lit});
 
   @override
   Widget build(BuildContext context) {
+    Color tone(Color c) => lit ? c : Color.lerp(c, palette.deep, _pausedDim)!;
     return AnimatedContainer(
       duration: const Duration(milliseconds: 600),
       decoration: BoxDecoration(
@@ -232,8 +271,8 @@ class _StaticField extends StatelessWidget {
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
           colors: [
-            Color.lerp(palette.base, palette.glow, 0.25)!,
-            palette.base,
+            tone(Color.lerp(palette.base, palette.glow, 0.25)!),
+            tone(palette.base),
             palette.deep,
           ],
           stops: const [0, 0.45, 1],

@@ -1,73 +1,325 @@
 {
   "schemaVersion": 2,
-  "generatedAt": "2026-10-10T00:00:00Z",
+  "generatedAt": "2026-10-11T00:00:00Z",
   "title": "Design System: NaviVibe",
   "extensions": {
     "colorMeta": {
-      "ground": { "role": "neutral", "displayName": "Green-Black Ground", "canonical": "#050B07", "tonalRamp": ["#050B07", "#0F1D14", "#17291D", "#213628", "#3A5243", "#5E7566", "#97A59C", "#E6ECE8"] },
-      "grouped-surface": { "role": "neutral", "displayName": "Grouped Surface", "canonical": "#0F1D14" },
-      "elevated-surface": { "role": "neutral", "displayName": "Elevated Surface", "canonical": "#17291D" },
-      "overlay-fill": { "role": "neutral", "displayName": "Overlay Fill", "canonical": "#213628" },
-      "tertiary-fill": { "role": "neutral", "displayName": "Tertiary Fill", "canonical": "#1A2D21" },
-      "separator": { "role": "neutral", "displayName": "Separator", "canonical": "#223529" },
-      "system-green": { "role": "primary", "displayName": "System Green", "canonical": "#30D158", "tonalRamp": ["#0A2E14", "#13521F", "#248A3D", "#2BB34C", "#30D158", "#5FDC7D", "#9BE9AD", "#D7F7DE"] },
-      "system-green-dim": { "role": "primary", "displayName": "System Green, Dim", "canonical": "#248A3D" },
-      "on-green": { "role": "primary", "displayName": "On Green", "canonical": "#000000" },
-      "label": { "role": "neutral", "displayName": "Label", "canonical": "#FFFFFF" },
-      "secondary-label": { "role": "neutral", "displayName": "Secondary Label", "canonical": "#97A59C" },
-      "tertiary-label": { "role": "neutral", "displayName": "Tertiary Label", "canonical": "#7E9284" },
-      "system-yellow": { "role": "tertiary", "displayName": "System Yellow (ratings)", "canonical": "#FFD60A" },
-      "system-orange": { "role": "tertiary", "displayName": "System Orange (warning)", "canonical": "#FF9F0A" },
-      "system-red": { "role": "tertiary", "displayName": "System Red (destructive)", "canonical": "#FF453A" },
-      "system-blue": { "role": "tertiary", "displayName": "System Blue (Settings squares)", "canonical": "#0A84FF" },
-      "system-teal": { "role": "tertiary", "displayName": "System Teal (Settings squares)", "canonical": "#40C8E0" },
-      "system-gray": { "role": "neutral", "displayName": "System Gray", "canonical": "#8E8E93" },
-      "system-gray-2": { "role": "neutral", "displayName": "System Gray 2", "canonical": "#636366" },
-      "fallback-base": { "role": "neutral", "displayName": "Fallback Album Base", "canonical": "#15261B" },
-      "fallback-glow": { "role": "neutral", "displayName": "Fallback Album Glow", "canonical": "#1F3326" }
+      "ground": {
+        "role": "neutral",
+        "displayName": "AMOLED Black Ground",
+        "canonical": "#000000",
+        "tonalRamp": [
+          "#000000",
+          "#111111",
+          "#1C1C1E",
+          "#2C2C2E",
+          "#48484A",
+          "#636366",
+          "#9E9EA4",
+          "#E5E5EA"
+        ]
+      },
+      "grouped-surface": {
+        "role": "neutral",
+        "displayName": "Grouped Surface",
+        "canonical": "#111111"
+      },
+      "elevated-surface": {
+        "role": "neutral",
+        "displayName": "Elevated Surface",
+        "canonical": "#1C1C1E"
+      },
+      "overlay-fill": {
+        "role": "neutral",
+        "displayName": "Overlay Fill",
+        "canonical": "#2C2C2E"
+      },
+      "tertiary-fill": {
+        "role": "neutral",
+        "displayName": "Tertiary Fill",
+        "canonical": "#1C1C1E"
+      },
+      "separator": {
+        "role": "neutral",
+        "displayName": "Separator",
+        "canonical": "#262628"
+      },
+      "system-green": {
+        "role": "primary",
+        "displayName": "System Green",
+        "canonical": "#30D158",
+        "tonalRamp": [
+          "#0A2E14",
+          "#13521F",
+          "#248A3D",
+          "#2BB34C",
+          "#30D158",
+          "#5FDC7D",
+          "#9BE9AD",
+          "#D7F7DE"
+        ]
+      },
+      "system-green-dim": {
+        "role": "primary",
+        "displayName": "System Green, Dim",
+        "canonical": "#248A3D"
+      },
+      "on-green": {
+        "role": "primary",
+        "displayName": "On Green",
+        "canonical": "#000000"
+      },
+      "label": {
+        "role": "neutral",
+        "displayName": "Label",
+        "canonical": "#FFFFFF"
+      },
+      "secondary-label": {
+        "role": "neutral",
+        "displayName": "Secondary Label",
+        "canonical": "#9E9EA4"
+      },
+      "tertiary-label": {
+        "role": "neutral",
+        "displayName": "Tertiary Label",
+        "canonical": "#86868C"
+      },
+      "system-yellow": {
+        "role": "tertiary",
+        "displayName": "System Yellow (ratings)",
+        "canonical": "#FFD60A"
+      },
+      "system-orange": {
+        "role": "tertiary",
+        "displayName": "System Orange (warning)",
+        "canonical": "#FF9F0A"
+      },
+      "system-red": {
+        "role": "tertiary",
+        "displayName": "System Red (destructive)",
+        "canonical": "#FF453A"
+      },
+      "system-blue": {
+        "role": "tertiary",
+        "displayName": "System Blue (Settings squares)",
+        "canonical": "#0A84FF"
+      },
+      "system-teal": {
+        "role": "tertiary",
+        "displayName": "System Teal (Settings squares)",
+        "canonical": "#40C8E0"
+      },
+      "system-gray": {
+        "role": "neutral",
+        "displayName": "System Gray",
+        "canonical": "#8E8E93"
+      },
+      "system-gray-2": {
+        "role": "neutral",
+        "displayName": "System Gray 2",
+        "canonical": "#636366"
+      },
+      "fallback-base": {
+        "role": "neutral",
+        "displayName": "Fallback Album Base",
+        "canonical": "#1C1C1E"
+      },
+      "fallback-glow": {
+        "role": "neutral",
+        "displayName": "Fallback Album Glow",
+        "canonical": "#2C2C2E"
+      }
     },
     "albumDerived": {
-      "roles": ["deep", "base", "vibrant", "glow"],
-      "fallback": { "deep": "#050B07", "base": "#15261B", "vibrant": "#30D158", "glow": "#1F3326" },
+      "roles": [
+        "deep",
+        "base",
+        "vibrant",
+        "glow"
+      ],
+      "fallback": {
+        "deep": "#000000",
+        "base": "#1C1C1E",
+        "vibrant": "#30D158",
+        "glow": "#2C2C2E"
+      },
       "ground": "HSL(guardHue(base.h), guardSaturation(min(base.s*0.8, 0.6)), clamp(base.l, 0.13, 0.19))",
       "hueGuard": "hues 250-340 deg move to 215 (below 295) or 8 (295 and above); saturation capped at 0.3 for hues 230-250 and 340-360",
-      "tinted": { "surface": "lerp(ground, white, 0.07)", "elevated": "0.12", "overlay": "0.18", "fill": "0.12", "separator": "0.14", "secondaryText": "0.68", "tertiaryText": "0.42", "accent": "#FFFFFF", "onAccent": "#000000" },
-      "nowPlayingOnArtwork": { "textPrimary": "#FFFFFF", "textSecondary": "rgba(255,255,255,0.70)", "textMuted": "rgba(255,255,255,0.50)", "pillIdle": "rgba(255,255,255,0.15)", "pillActive": "rgba(255,255,255,0.95)", "pillOnActive": "#111111" }
+      "tinted": {
+        "surface": "lerp(ground, white, 0.07)",
+        "elevated": "0.12",
+        "overlay": "0.18",
+        "fill": "0.12",
+        "separator": "0.14",
+        "secondaryText": "0.68",
+        "tertiaryText": "0.55",
+        "accent": "#FFFFFF",
+        "onAccent": "#000000",
+        "accentDim": "0.55"
+      },
+      "nowPlayingOnArtwork": {
+        "textPrimary": "#FFFFFF",
+        "textSecondary": "rgba(255,255,255,0.70)",
+        "textMuted": "rgba(255,255,255,0.50)",
+        "pillIdle": "rgba(255,255,255,0.15)",
+        "pillActive": "rgba(255,255,255,0.95)",
+        "pillOnActive": "#111111"
+      }
     },
     "typographyMeta": {
-      "large-title": { "displayName": "Large Title", "purpose": "Top-level page title; collapses into the compact nav bar." },
-      "title1": { "displayName": "Title 1", "purpose": "Collection-page titles." },
-      "title2": { "displayName": "Title 2", "purpose": "Section headers and Stats section titles." },
-      "title3": { "displayName": "Title 3", "purpose": "Feature-card titles; Library destination rows at 400." },
-      "headline": { "displayName": "Headline", "purpose": "Button labels, nav titles, mini-player title." },
-      "body": { "displayName": "Body", "purpose": "Row titles, fields, values." },
-      "callout": { "displayName": "Callout", "purpose": "Supporting copy." },
-      "subheadline": { "displayName": "Subheadline", "purpose": "Secondary lines; filter-pill labels at 600." },
-      "footnote": { "displayName": "Footnote", "purpose": "Subtitles, grouped headers and footers, summaries." },
-      "caption1": { "displayName": "Caption 1", "purpose": "Offline banner." },
-      "caption2": { "displayName": "Caption 2", "purpose": "Tab labels." },
-      "stat-figure": { "displayName": "Stat Figure", "purpose": "The one numeric voice on Stats: display cut, tabular, tight." }
+      "large-title": {
+        "displayName": "Large Title",
+        "purpose": "Top-level page title; collapses into the compact nav bar."
+      },
+      "title1": {
+        "displayName": "Title 1",
+        "purpose": "Collection-page titles."
+      },
+      "title2": {
+        "displayName": "Title 2",
+        "purpose": "Section headers and Stats section titles."
+      },
+      "title3": {
+        "displayName": "Title 3",
+        "purpose": "Feature-card titles; Library destination rows at 400."
+      },
+      "headline": {
+        "displayName": "Headline",
+        "purpose": "Button labels, nav titles, mini-player title."
+      },
+      "body": {
+        "displayName": "Body",
+        "purpose": "Row titles, fields, values."
+      },
+      "callout": {
+        "displayName": "Callout",
+        "purpose": "Supporting copy."
+      },
+      "subheadline": {
+        "displayName": "Subheadline",
+        "purpose": "Secondary lines; filter-pill labels at 600."
+      },
+      "footnote": {
+        "displayName": "Footnote",
+        "purpose": "Subtitles, grouped headers and footers, summaries."
+      },
+      "caption1": {
+        "displayName": "Caption 1",
+        "purpose": "Offline banner."
+      },
+      "caption2": {
+        "displayName": "Caption 2",
+        "purpose": "Tab labels."
+      },
+      "stat-figure": {
+        "displayName": "Stat Figure",
+        "purpose": "The one numeric voice on Stats: display cut, tabular, tight."
+      }
     },
     "tracking": "letterSpacing = size * (-0.0223 + 0.185 * e^(-0.1745 * size)); Inter Display at size >= 20 and weight >= 500",
     "shadows": [
-      { "name": "cover-lift", "value": "0 calc(5% of size) calc(12% of size) <album deep 40% to black @ 55%>", "purpose": "Now Playing cover and carousel neighbours lifting off the artwork field." },
-      { "name": "hero-art-lift", "value": "0 14px 36px rgba(0,0,0,0.45)", "purpose": "Wide-layout collection cover." },
-      { "name": "bar-disc", "value": "0 2px 8px rgba(0,0,0,0.20)", "purpose": "36pt discs floating over artwork in the collection top bar." },
-      { "name": "dragged-row", "value": "0 10px 24px rgba(0,0,0,0.35)", "purpose": "Row being reordered in the playlist editor." }
+      {
+        "name": "cover-lift",
+        "value": "0 calc(5% of size) calc(12% of size) <album deep 40% to black @ 55%>",
+        "purpose": "Now Playing cover and carousel neighbours lifting off the artwork field."
+      },
+      {
+        "name": "hero-art-lift",
+        "value": "0 14px 36px rgba(0,0,0,0.45)",
+        "purpose": "Wide-layout collection cover."
+      },
+      {
+        "name": "bar-disc",
+        "value": "0 2px 8px rgba(0,0,0,0.20)",
+        "purpose": "36pt discs floating over artwork in the collection top bar."
+      },
+      {
+        "name": "dragged-row",
+        "value": "0 10px 24px rgba(0,0,0,0.35)",
+        "purpose": "Row being reordered in the playlist editor."
+      }
     ],
     "motion": [
-      { "name": "fast", "value": "150ms cubic-bezier(0.215, 0.61, 0.355, 1)", "purpose": "Pill and button state changes, row press release." },
-      { "name": "standard", "value": "250ms cubic-bezier(0.215, 0.61, 0.355, 1)", "purpose": "Dock band colour, general transitions." },
-      { "name": "slow", "value": "400ms cubic-bezier(0.215, 0.61, 0.355, 1)", "purpose": "Feature-card panel colour." },
-      { "name": "spring", "value": "cubic-bezier(0.175, 0.885, 0.32, 1.275)", "purpose": "Tab selection pill slide, press release, cover landing." },
-      { "name": "press", "value": "scale to 0.90-0.99 on pointer-down in 90ms; spring back over 260ms", "purpose": "Tactile press feedback in place of ripples." },
-      { "name": "mini-player-fill", "value": "600ms easeOutCubic", "purpose": "Mini-player ground changing between songs." }
+      {
+        "name": "fast",
+        "value": "150ms cubic-bezier(0.215, 0.61, 0.355, 1)",
+        "purpose": "Pill and button state changes, row press release."
+      },
+      {
+        "name": "standard",
+        "value": "250ms cubic-bezier(0.215, 0.61, 0.355, 1)",
+        "purpose": "Dock band colour, general transitions."
+      },
+      {
+        "name": "slow",
+        "value": "400ms cubic-bezier(0.215, 0.61, 0.355, 1)",
+        "purpose": "Feature-card panel colour."
+      },
+      {
+        "name": "spring",
+        "value": "cubic-bezier(0.175, 0.885, 0.32, 1.275)",
+        "purpose": "Tab selection pill slide, press release, cover landing."
+      },
+      {
+        "name": "press",
+        "value": "scale to 0.90-0.99 on pointer-down in 90ms; spring back over 260ms",
+        "purpose": "Tactile press feedback in place of ripples."
+      },
+      {
+        "name": "mini-player-fill",
+        "value": "600ms easeOutCubic",
+        "purpose": "Mini-player ground changing between songs."
+      },
+      {
+        "name": "field-energy",
+        "value": "620ms easeOutCubic in, 420ms easeInOutCubic out; instant under reduced motion",
+        "purpose": "Artwork field light (uEnergy): playing raises saturation (1.38 + 0.24) and opens the region behind the cover only; paused dims the field."
+      },
+      {
+        "name": "cover-deck",
+        "value": "spring; neighbours 28 apart, depth scale 1 - 0.08; rubber band x*s/(|x|+s), s = 0.35 stride",
+        "purpose": "Swiped and external skips glide along one deck; unrelated jumps, open panes and reduced motion cross-fade."
+      },
+      {
+        "name": "play-pause-swap",
+        "value": "200ms fade + scale 0.6 to 1, easeOutBack in / easeInCubic out",
+        "purpose": "Play and pause Ionicons cross-fade."
+      },
+      {
+        "name": "glyph-pop",
+        "value": "240ms scale, easeOutBack",
+        "purpose": "A glyph that changes state (star outline to filled) pops in."
+      },
+      {
+        "name": "title-swap",
+        "value": "220ms cross-fade, easeOutCubic",
+        "purpose": "Now Playing title on song change."
+      },
+      {
+        "name": "queue-mode",
+        "value": "220ms easeOutCubic fill; 160ms glyph switch",
+        "purpose": "Queue mode button on/off and busy spinner."
+      }
     ],
     "breakpoints": [
-      { "name": "grid-3", "value": "600px" },
-      { "name": "grid-5", "value": "900px" },
-      { "name": "desktop", "value": "PlatformUtils.kDesktopBreakpoint (desktop platforms only)" }
-    ]
+      {
+        "name": "grid-3",
+        "value": "600px"
+      },
+      {
+        "name": "grid-5",
+        "value": "900px"
+      },
+      {
+        "name": "desktop",
+        "value": "PlatformUtils.kDesktopBreakpoint (desktop platforms only)"
+      }
+    ],
+    "icons": {
+      "ionicons": "Ionicons v7 (MIT), white 192px PNGs in assets/ionicons/, tinted at draw time via Ion / IonIcon (BlendMode.srcIn). Player and Settings only.",
+      "cupertino": "CupertinoIcons everywhere else.",
+      "illustrations": "OneShotIcon: assets/icons/<name>.png still + <name>.webp one-shot animation (last frame = first). Phone tab bar at 34pt, plays once per tap, never under reduced motion. MessageState shows a 96pt still illustration."
+    }
   },
   "components": [
     {
@@ -84,7 +336,7 @@
       "refersTo": "button-circle",
       "description": "Round secondary action (Shuffle, Download, More) on the tertiary fill.",
       "html": "<button class=\"ds-circle\" aria-label=\"Shuffle\"><svg width=\"19\" height=\"19\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5\"/></svg></button>",
-      "css": ".ds-circle { width: 44px; height: 44px; border-radius: 50%; border: none; background: #1A2D21; color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.26s cubic-bezier(0.175,0.885,0.32,1.275); } .ds-circle:active { transform: scale(0.9); transition-duration: 0.09s; } .ds-circle:focus-visible { outline: 2px solid rgba(48,209,88,0.5); outline-offset: 2px; }"
+      "css": ".ds-circle { width: 44px; height: 44px; border-radius: 50%; border: none; background: #1C1C1E; color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: transform 0.26s cubic-bezier(0.175,0.885,0.32,1.275); } .ds-circle:active { transform: scale(0.9); transition-duration: 0.09s; } .ds-circle:focus-visible { outline: 2px solid rgba(48,209,88,0.5); outline-offset: 2px; }"
     },
     {
       "name": "Tinted Capsule",
@@ -92,15 +344,23 @@
       "refersTo": "button-tinted",
       "description": "Single secondary action: tertiary fill, green label.",
       "html": "<button class=\"ds-tinted\">Try Again</button>",
-      "css": ".ds-tinted { height: 44px; padding: 0 20px; border: none; border-radius: 999px; background: #1A2D21; color: #30D158; font: 600 16px/1.3 Inter, sans-serif; letter-spacing: -0.18px; cursor: pointer; transition: transform 0.26s; } .ds-tinted:active { transform: scale(0.96); } .ds-tinted:focus-visible { outline: 2px solid rgba(48,209,88,0.5); outline-offset: 2px; }"
+      "css": ".ds-tinted { height: 44px; padding: 0 20px; border: none; border-radius: 999px; background: #1C1C1E; color: #30D158; font: 600 16px/1.3 Inter, sans-serif; letter-spacing: -0.18px; cursor: pointer; transition: transform 0.26s; } .ds-tinted:active { transform: scale(0.96); } .ds-tinted:focus-visible { outline: 2px solid rgba(48,209,88,0.5); outline-offset: 2px; }"
+    },
+    {
+      "name": "Paired Capsules",
+      "kind": "button",
+      "refersTo": "button-tinted-filled",
+      "description": "Two actions sharing a row (Smart Shuffle): filled Play beside tinted Reshuffle, 50 tall, equal widths, 12 gap.",
+      "html": "<div class=\"ds-pair\"><button class=\"ds-pair-b ds-pair-on\">Play</button><button class=\"ds-pair-b\">Reshuffle</button></div>",
+      "css": ".ds-pair { display: flex; gap: 12px; } .ds-pair-b { flex: 1; height: 50px; border: none; border-radius: 999px; background: #1C1C1E; color: #30D158; font: 600 16px/1.3 Inter, sans-serif; letter-spacing: -0.18px; cursor: pointer; transition: transform 0.26s cubic-bezier(0.175,0.885,0.32,1.275); } .ds-pair-on { background: #30D158; color: #000; } .ds-pair-b:active { transform: scale(0.96); transition-duration: 0.09s; } .ds-pair-b:focus-visible { outline: 2px solid rgba(48,209,88,0.5); outline-offset: 2px; }"
     },
     {
       "name": "Search Field",
       "kind": "input",
       "refersTo": "search-field",
       "description": "iOS search field on the tertiary fill.",
-      "html": "<label class=\"ds-search\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#97A59C\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-4-4\"/></svg><input placeholder=\"Search\"></label>",
-      "css": ".ds-search { display: flex; align-items: center; gap: 6px; padding: 9px 8px; border-radius: 12px; background: #1A2D21; } .ds-search input { flex: 1; border: none; background: transparent; color: #fff; font: 400 16px/1.3 Inter, sans-serif; letter-spacing: -0.18px; outline: none; caret-color: #30D158; } .ds-search input::placeholder { color: #97A59C; } .ds-search:focus-within { background: #213628; }"
+      "html": "<label class=\"ds-search\"><svg width=\"18\" height=\"18\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#9E9EA4\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-4-4\"/></svg><input placeholder=\"Search\"></label>",
+      "css": ".ds-search { display: flex; align-items: center; gap: 6px; padding: 9px 8px; border-radius: 12px; background: #1C1C1E; } .ds-search input { flex: 1; border: none; background: transparent; color: #fff; font: 400 16px/1.3 Inter, sans-serif; letter-spacing: -0.18px; outline: none; caret-color: #30D158; } .ds-search input::placeholder { color: #9E9EA4; } .ds-search:focus-within { background: #2C2C2E; }"
     },
     {
       "name": "Filter Pills",
@@ -108,7 +368,7 @@
       "refersTo": "filter-pill",
       "description": "Library filters: tertiary fill idle, green selected.",
       "html": "<div class=\"ds-pills\"><button class=\"ds-pill ds-pill-on\">Playlists</button><button class=\"ds-pill\">Albums</button><button class=\"ds-pill\">Songs</button></div>",
-      "css": ".ds-pills { display: flex; gap: 8px; } .ds-pill { height: 34px; padding: 0 16px; border: none; border-radius: 17px; background: #1A2D21; color: #fff; font: 600 14px/1.3 Inter, sans-serif; cursor: pointer; transition: background 0.15s, transform 0.26s; } .ds-pill-on { background: #30D158; color: #000; } .ds-pill:active { transform: scale(0.96); } .ds-pill:focus-visible { outline: 2px solid rgba(48,209,88,0.5); outline-offset: 2px; }"
+      "css": ".ds-pills { display: flex; gap: 8px; } .ds-pill { height: 34px; padding: 0 16px; border: none; border-radius: 17px; background: #1C1C1E; color: #fff; font: 600 14px/1.3 Inter, sans-serif; cursor: pointer; transition: background 0.15s, transform 0.26s; } .ds-pill-on { background: #30D158; color: #000; } .ds-pill:active { transform: scale(0.96); } .ds-pill:focus-visible { outline: 2px solid rgba(48,209,88,0.5); outline-offset: 2px; }"
     },
     {
       "name": "Inset Grouped Section",
@@ -116,15 +376,15 @@
       "refersTo": "grouped-section",
       "description": "Settings and Library sections: grouped surface, radius 12, inset hairlines, iOS icon squares.",
       "html": "<div class=\"ds-group\"><div class=\"ds-group-h\">Playback</div><div class=\"ds-group-box\"><div class=\"ds-row\"><span class=\"ds-sq\" style=\"background:#30D158\"></span><span class=\"ds-row-t\">Streaming Quality</span><span class=\"ds-row-v\">Lossless</span></div><div class=\"ds-row\"><span class=\"ds-sq\" style=\"background:#0A84FF\"></span><span class=\"ds-row-t\">Crossfade</span><span class=\"ds-row-v\">Off</span></div></div></div>",
-      "css": ".ds-group { font-family: Inter, sans-serif; } .ds-group-h { padding: 0 16px 8px; color: #97A59C; font-size: 12.5px; } .ds-group-box { border-radius: 12px; background: #0F1D14; overflow: hidden; } .ds-row { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 16px; color: #fff; font-size: 16px; cursor: pointer; } .ds-row + .ds-row { box-shadow: inset 60px 0.5px 0 0 #0F1D14, inset 0 0.5px 0 0 #223529; } .ds-row:active { background: #213628; } .ds-sq { width: 30px; height: 30px; border-radius: 7px; flex: none; } .ds-row-t { flex: 1; } .ds-row-v { color: #97A59C; }"
+      "css": ".ds-group { font-family: Inter, sans-serif; } .ds-group-h { padding: 0 16px 8px; color: #9E9EA4; font-size: 12.5px; } .ds-group-box { border-radius: 12px; background: #111111; overflow: hidden; } .ds-row { display: flex; align-items: center; gap: 14px; min-height: 48px; padding: 0 16px; color: #fff; font-size: 16px; cursor: pointer; } .ds-row + .ds-row { box-shadow: inset 60px 0.5px 0 0 #111111, inset 0 0.5px 0 0 #262628; } .ds-row:active { background: #2C2C2E; } .ds-sq { width: 30px; height: 30px; border-radius: 7px; flex: none; } .ds-row-t { flex: 1; } .ds-row-v { color: #9E9EA4; }"
     },
     {
       "name": "Floating Tab Bar",
       "kind": "nav",
       "refersTo": "tab-bar",
-      "description": "iOS 26 capsule tab bar with sliding selection pill and a separate Search circle, on the solid dock band.",
+      "description": "iOS 26 capsule tab bar with sliding selection pill, one-shot illustrated tab icons, and a separate Search circle, on the solid dock band.",
       "html": "<nav class=\"ds-dock\"><div class=\"ds-tabs\"><button class=\"ds-tab ds-tab-on\">Home</button><button class=\"ds-tab\">Shuffle</button><button class=\"ds-tab\">Stats</button><button class=\"ds-tab\">Library</button></div><button class=\"ds-searchtab\" aria-label=\"Search\"><svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"#fff\" stroke-width=\"2\"><circle cx=\"11\" cy=\"11\" r=\"7\"/><path d=\"m20 20-4-4\"/></svg></button></nav>",
-      "css": ".ds-dock { display: flex; gap: 10px; padding: 8px 16px 12px; background: #050B07; } .ds-tabs { flex: 1; display: flex; height: 62px; padding: 4px; border-radius: 999px; background: #1B231E; border: 0.5px solid #2D342F; } .ds-tab { flex: 1; border: none; border-radius: 999px; background: transparent; color: #fff; font: 500 10.5px Inter, sans-serif; cursor: pointer; transition: background 0.25s cubic-bezier(0.175,0.885,0.32,1.275); } .ds-tab-on { background: #333A35; color: #30D158; font-weight: 600; } .ds-tab:focus-visible, .ds-searchtab:focus-visible { outline: 2px solid rgba(48,209,88,0.5); } .ds-searchtab { width: 62px; height: 62px; border-radius: 50%; background: #1B231E; border: 0.5px solid #2D342F; display: flex; align-items: center; justify-content: center; cursor: pointer; }"
+      "css": ".ds-dock { display: flex; gap: 10px; padding: 8px 16px 12px; background: #000000; } .ds-tabs { flex: 1; display: flex; height: 62px; padding: 4px; border-radius: 999px; background: #171717; border: 0.5px solid #292929; } .ds-tab { flex: 1; border: none; border-radius: 999px; background: transparent; color: #fff; font: 500 10.5px Inter, sans-serif; cursor: pointer; transition: background 0.25s cubic-bezier(0.175,0.885,0.32,1.275); } .ds-tab-on { background: #2E2E2E; color: #30D158; font-weight: 600; } .ds-tab:focus-visible, .ds-searchtab:focus-visible { outline: 2px solid rgba(48,209,88,0.5); } .ds-searchtab { width: 62px; height: 62px; border-radius: 50%; background: #171717; border: 0.5px solid #292929; display: flex; align-items: center; justify-content: center; cursor: pointer; }"
     },
     {
       "name": "Mini Player",
@@ -135,32 +395,65 @@
       "css": ".ds-mini { display: flex; align-items: center; gap: 12px; height: 58px; padding: 0 12px 0 8px; border-radius: 999px; background: #1A2B20; border: 0.5px solid #3A4840; font-family: Inter, sans-serif; } .ds-mini-art { width: 42px; height: 42px; border-radius: 50%; background: #B07A4A; } .ds-mini-txt { flex: 1; } .ds-mini-t { color: #fff; font-weight: 600; font-size: 16px; } .ds-mini-a { color: #C2C9C4; font-size: 12.5px; } .ds-mini-bar { height: 2px; margin-top: 4px; background: #475550; } .ds-mini-bar i { display: block; width: 37%; height: 100%; background: #E8EAE9; } .ds-mini-b { width: 48px; height: 48px; border: none; background: none; color: #fff; font-size: 18px; cursor: pointer; } .ds-mini-b:focus-visible { outline: 2px solid #fff; }"
     },
     {
+      "name": "Queue Mode Buttons",
+      "kind": "custom",
+      "refersTo": "button-queue-mode",
+      "description": "Four equal icon-only buttons over the artwork field: Shuffle, Repeat (1 badge), Autoplay, Smart Reshuffle.",
+      "html": "<div class=\"ds-qm\"><button class=\"ds-qm-b ds-qm-on\" aria-label=\"Shuffle on\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M16 3h5v5M4 20 21 3M21 16v5h-5M15 15l6 6M4 4l5 5\"/></svg></button><button class=\"ds-qm-b\" aria-label=\"Repeat this song\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linecap=\"round\"><path d=\"M17 2l4 4-4 4M3 11V9a3 3 0 0 1 3-3h15M7 22l-4-4 4-4M21 13v2a3 3 0 0 1-3 3H3\"/></svg><sup>1</sup></button><button class=\"ds-qm-b\" aria-label=\"Autoplay off\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\"><path d=\"M12 12c-2-2.7-4-4-6-4a4 4 0 0 0 0 8c2 0 4-1.3 6-4zm0 0c2 2.7 4 4 6 4a4 4 0 0 0 0-8c-2 0-4 1.3-6 4z\"/></svg></button><button class=\"ds-qm-b\" aria-label=\"Smart Reshuffle\"><svg width=\"20\" height=\"20\" viewBox=\"0 0 24 24\" fill=\"none\" stroke=\"currentColor\" stroke-width=\"2\" stroke-linejoin=\"round\"><path d=\"M12 3l2 6 6 2-6 2-2 6-2-6-6-2 6-2z\"/></svg></button></div>",
+      "css": ".ds-qm { display: flex; gap: 8px; padding: 16px; background: #3A2A1E; } .ds-qm-b { flex: 1; height: 44px; border: none; border-radius: 14px; background: rgba(255,255,255,0.15); color: #fff; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; transition: background 0.22s cubic-bezier(0.215,0.61,0.355,1), color 0.22s; } .ds-qm-b sup { font: 800 10px Inter, sans-serif; margin: -10px 0 0 1px; } .ds-qm-on { background: rgba(255,255,255,0.95); color: #111; } .ds-qm-b:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }"
+    },
+    {
       "name": "Stat Section",
       "kind": "custom",
       "refersTo": "",
       "description": "Container-free Stats section: Title 2, large tabular readout, then the chart.",
       "html": "<section class=\"ds-stat\"><h3>Listening Hours</h3><div class=\"ds-stat-r\"><b>9 pm</b><span>busiest hour</span></div></section>",
-      "css": ".ds-stat { padding-top: 40px; font-family: Inter, sans-serif; } .ds-stat h3 { margin: 0; color: #fff; font: 600 21px/1.25 InterDisplay, Inter, sans-serif; letter-spacing: -0.37px; } .ds-stat-r { display: flex; align-items: flex-end; gap: 8px; margin-top: 4px; } .ds-stat-r b { color: #30D158; font: 700 30px/1.05 InterDisplay, Inter, sans-serif; letter-spacing: -0.6px; font-variant-numeric: tabular-nums; } .ds-stat-r span { color: #97A59C; font-size: 14px; padding-bottom: 3px; }"
+      "css": ".ds-stat { padding-top: 40px; font-family: Inter, sans-serif; } .ds-stat h3 { margin: 0; color: #fff; font: 600 21px/1.25 InterDisplay, Inter, sans-serif; letter-spacing: -0.37px; } .ds-stat-r { display: flex; align-items: flex-end; gap: 8px; margin-top: 4px; } .ds-stat-r b { color: #30D158; font: 700 30px/1.05 InterDisplay, Inter, sans-serif; letter-spacing: -0.6px; font-variant-numeric: tabular-nums; } .ds-stat-r span { color: #9E9EA4; font-size: 14px; padding-bottom: 3px; }"
     }
   ],
   "narrative": {
     "northStar": "Apple Music, played straight",
-    "overview": "NaviVibe is the iOS 26 Apple Music app rebuilt at full fidelity for Android phones, with a faithful wide layout on Linux and Windows desktops. It has two translations and no others: green (systemGreen #30D158) where Apple uses red, and a deep green-black ground where Apple uses neutral grey. Everything else follows Apple's conventions. That means large titles that collapse into a compact bar, inset grouped lists, a floating capsule tab bar with Search split into its own circle, a capsule mini player, iOS page transitions with edge-swipe back, rubber-band scrolling, and presses that respond on touch-down by scaling instead of rippling.\n\nThe chrome is exact, quiet and opaque. Artwork is the only decoration and the only place colour comes from. The default chrome stays on the same green-black ramp whatever is playing. Album colour appears in three places only: the living artwork field behind Now Playing, the mini player (filled with the playing cover's ground), and collection pages (album, playlist, artist), whose ground is sampled from the cover with the artwork dissolving into it. Every sampled colour passes a hue guard, so purple and pink never reach the chrome.\n\nThe density is Apple's. The page gutter is 16, rows are at least 48 to 52 tall with hairline separators inset past the art, and sections are separated by space rather than boxes. Stats reads like Apple Fitness or Health: big figures and charts set straight on the page, with no cards.",
+    "overview": "NaviVibe is the iOS 26 Apple Music app rebuilt at full fidelity for Android phones, with a faithful wide layout on Linux and Windows desktops. It has two translations and no others: green (systemGreen #30D158) where Apple uses red, and a pure AMOLED black ground (with no tint) where Apple uses its neutral system greys. Everything else follows Apple's conventions. That means large titles that collapse into a compact bar, inset grouped lists, a floating capsule tab bar with Search split into its own circle, a capsule mini player, iOS page transitions with edge-swipe back, rubber-band scrolling, and presses that respond on touch-down by scaling instead of rippling.\n\nThe chrome is exact, quiet and opaque. Artwork is the main decoration and the only source of chrome colour. The default chrome stays on the same black ramp whatever is playing. Icons are monochrome and tinted by their role (Ionicons in the player and Settings, CupertinoIcons elsewhere); the one place fixed colour is drawn by hand is the illustrated set: the phone tab icons and the empty-state illustrations. Album colour appears in three places only: the living artwork field behind Now Playing, the mini player (filled with the playing cover's ground), and collection pages (album, playlist, artist), whose ground is sampled from the cover with the artwork dissolving into it. Every sampled colour passes a hue guard, so purple and pink never reach the chrome.\n\nThe density is Apple's. The page gutter is 16, rows are at least 48 to 52 tall with hairline separators inset past the art, and sections are separated by space rather than boxes. Stats reads like Apple Fitness or Health: big figures and charts set straight on the page, with no cards.",
     "keyCharacteristics": [
-      "There is one theme. The chrome uses a single green-black ramp, and system green is the only accent.",
+      "There is one theme. The chrome uses a single AMOLED black ramp, and system green is the only accent.",
       "Every role is an opaque colour. The only gradient seam is artwork dissolving into its own page colour.",
       "Collection pages and the mini player take a hue-guarded ground from the cover. On those pages foreground is white only.",
       "The type is Inter and Inter Display on Apple's text-style ladder, with size-specific (dynamic-metrics) tracking.",
       "Depth comes from tonal steps of the ground. Shadows are kept for artwork lifting off a page and for floating discs over artwork.",
-      "Phone Now Playing has three transport controls. Shuffle and repeat live in the queue."
+      "Phone Now Playing has three transport controls. Shuffle and repeat live in the queue.",
+      "The artwork field's light follows the music, and covers move on one deck whether you swipe or skip."
     ],
     "rules": [
-      { "name": "The Opaque Chrome Rule", "body": "Every chrome role is a solid colour. No blur, no translucent bars, no glass. The only gradient allowed is artwork dissolving into its own page colour: the collection-page seam, the Top Picks card seam, and the edge fade on scrolling panes.", "section": "colors" },
-      { "name": "The Green, Never Purple Rule", "body": "Any colour derived from a cover goes through the hue guard. Hues from 250° to 340° are moved to 215° (blue) or 8° (red), and saturation within 20° of either edge of that band is capped at 0.3. The cover image itself is never altered. No purple or pink chrome is ever authored by hand either.", "section": "colors" },
-      { "name": "The One Accent Rule", "body": "System green is the only accent in default chrome. On artwork-coloured pages and on Now Playing the accent becomes white. Nothing else gets a brand colour.", "section": "colors" },
-      { "name": "The Dynamic Tracking Rule", "body": "Letter-spacing is never hand-set. It always comes from `trackingFor(size) = size × (−0.0223 + 0.185·e^(−0.1745·size))`: small text opens slightly and display text tightens.", "section": "typography" },
-      { "name": "The Tabular Numbers Rule", "body": "Times, counts and figures use tabular numerals so values don't jitter as they change.", "section": "typography" },
-      { "name": "The Tonal Lift Rule", "body": "Use the next opaque step of the ground before reaching for a shadow. Panels, cards and sections never get shadows.", "section": "elevation" }
+      {
+        "name": "The Opaque Chrome Rule",
+        "body": "Every chrome role is a solid colour. No blur, no translucent bars, no glass. The only gradient allowed is artwork dissolving into its own page colour: the collection-page seam, the Top Picks card seam, and the edge fade on scrolling panes.",
+        "section": "colors"
+      },
+      {
+        "name": "The Green, Never Purple Rule",
+        "body": "Any colour derived from a cover goes through the hue guard. Hues from 250° to 340° are moved to 215° (blue) or 8° (red), and saturation within 20° of either edge of that band is capped at 0.3. The cover image itself is never altered. No purple or pink chrome is ever authored by hand either.",
+        "section": "colors"
+      },
+      {
+        "name": "The One Accent Rule",
+        "body": "System green is the only accent in default chrome. On artwork-coloured pages and on Now Playing the accent becomes white. Nothing else gets a brand colour. Monochrome glyphs take their colour from their role, never from the asset.",
+        "section": "colors"
+      },
+      {
+        "name": "The Dynamic Tracking Rule",
+        "body": "Letter-spacing is never hand-set. It always comes from `trackingFor(size) = size × (−0.0223 + 0.185·e^(−0.1745·size))`: small text opens slightly and display text tightens.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tabular Numbers Rule",
+        "body": "Times, counts and figures use tabular numerals so values don't jitter as they change.",
+        "section": "typography"
+      },
+      {
+        "name": "The Tonal Lift Rule",
+        "body": "Use the next opaque step of the ground before reaching for a shadow. Panels, cards and sections never get shadows.",
+        "section": "elevation"
+      }
     ],
     "dos": [
       "**Do** read every colour, size and radius through `ThemeTokens.of(context)`, `Space`, `Radii` and `Motion`.",
@@ -168,8 +461,9 @@
       "**Do** publish a page's ground with `DockGroundScope` so the dock band matches it.",
       "**Do** keep text at 4.5:1 or better against its actual ground. Use Secondary Label for any text that must read on tinted pages.",
       "**Do** give every control a touch target of at least 44pt and a semantic label.",
+      "**Do** draw player and Settings glyphs with `IonIcon`, tinted by role; use CupertinoIcons elsewhere.",
       "**Do** keep phone Now Playing to three transport controls (rewind, play/pause, forward), with shuffle and repeat in the queue.",
-      "**Do** honour reduced motion for field drift, the marquee, count-up figures and the cover scale."
+      "**Do** honour reduced motion for field drift, the field light (instant), the marquee, count-up figures, the cover scale, the deck glide and the tab illustrations."
     ],
     "donts": [
       "**Don't** add blur, glass, translucent bars or scrims over chrome. Chrome is opaque.",

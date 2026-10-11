@@ -223,6 +223,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
                     ArtworkField(
                       art: art,
                       playing: playing && living,
+                      lit: playing,
                       dim: wide ? 0.55 : (_pane == _Pane.none ? 0 : 1),
                     ),
                     if (wide)
@@ -426,10 +427,16 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
   /// Cover width plus gap, from the last layout.
   double _stride = 1;
 
+  /// True while a song change made elsewhere (skip buttons, the
+  /// notification, the song ending) glides the covers across, so the cover
+  /// swaps without its cross-fade.
+  bool _gliding = false;
+
   @override
   void didUpdateWidget(_Stage old) {
     super.didUpdateWidget(old);
-    if (old.song.id != widget.song.id && _committed) {
+    if (old.song.id == widget.song.id) return;
+    if (_committed) {
       // The neighbour has become the song. Rebase the offset so the new
       // centre cover continues from exactly where the neighbour was, and
       // finish the glide home with the velocity it already had.
@@ -440,7 +447,20 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         if (mounted) setState(() => _committed = false);
       });
+      return;
     }
+    // Same spatial model as the swipe for every other change: when the old
+    // song is now a neighbour, the new cover arrives from that side. A jump
+    // to an unrelated song keeps the cross-fade.
+    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final forward = widget.previous?.id == old.song.id;
+    final back = widget.next?.id == old.song.id;
+    if (reduce || widget.pane != _Pane.none || !(forward || back)) return;
+    _gliding = true;
+    _swipe.value = forward ? _stride : -_stride;
+    _swipe.animateWith(SpringSimulation(_spring, _swipe.value, 0, 0)).whenCompleteOrCancel(() {
+      if (mounted && _gliding) setState(() => _gliding = false);
+    });
   }
 
   @override
@@ -452,7 +472,9 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
 
   void _swipeStart(DragStartDetails _) {
     if (_committed) return;
+    // Catching a glide mid-flight hands it to the finger.
     _swipe.stop();
+    _gliding = false;
     _finger = _swipe.value;
   }
 
@@ -520,6 +542,29 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
         final stride = artSize + _coverGap;
         _stride = stride;
 
+        // Built once per stage build and only positioned on each animation
+        // frame: the same widget instances let Flutter skip rebuilding them
+        // while the covers swipe or the pane flies (the title measures
+        // itself for the marquee, and the queue is a whole list).
+        final title = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 220),
+          switchInCurve: Curves.easeOutCubic,
+          layoutBuilder: (current, previous) => Stack(
+            alignment: Alignment.topLeft,
+            children: [...previous, ?current],
+          ),
+          child: KeyedSubtree(
+            key: ValueKey(widget.song.id),
+            child: _TitleRow(song: widget.song),
+          ),
+        );
+        final pane = AnimatedSwitcher(
+          duration: const Duration(milliseconds: 260),
+          child: widget.shownPane == _Pane.queue
+              ? const QueuePane(key: ValueKey('queue'), style: NowPlayingStyle.onArtwork)
+              : const LyricsPane(key: ValueKey('lyrics'), style: NowPlayingStyle.onArtwork),
+        );
+
         return AnimatedBuilder(
           animation: Listenable.merge([widget.paneAnim, _swipe]),
           builder: (context, _) {
@@ -536,18 +581,22 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
             double depth(double offset) => 1 - 0.08 * (offset.abs() / stride).clamp(0.0, 1.0);
             final pausedScale = reduce ? 1.0 : _lerp(widget.playing ? 1 : 0.84, 1, t);
             // Null when there's nothing to show: a non-positioned placeholder
-            // would collapse the Stack's width and shift the whole stage.
-            Widget? side(Song? s, double offset) => s == null || dx.abs() < 0.5
-                ? null
-                : Positioned.fromRect(
-                    rect: artRect.shift(Offset(offset, 0)),
-                    child: IgnorePointer(
-                      child: Transform.scale(
-                        scale: depth(offset) * pausedScale,
-                        child: _SideCover(song: s, size: artRect.width, radius: 12),
-                      ),
-                    ),
-                  );
+            // would collapse the Stack's width and shift the whole stage. A
+            // neighbour wholly off screen is skipped too, so it isn't decoded
+            // and painted for nothing.
+            Widget? side(Song? s, double offset) {
+              final rect = artRect.shift(Offset(offset, 0));
+              if (s == null || dx.abs() < 0.5 || rect.right <= 0 || rect.left >= w) return null;
+              return Positioned.fromRect(
+                rect: rect,
+                child: IgnorePointer(
+                  child: Transform.scale(
+                    scale: depth(offset) * pausedScale,
+                    child: _SideCover(song: s, size: artRect.width, radius: 12),
+                  ),
+                ),
+              );
+            }
 
             return Stack(
               fit: StackFit.expand,
@@ -561,12 +610,7 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
                       opacity: paneT,
                       child: Transform.translate(
                         offset: Offset(0, (1 - paneT) * 28),
-                        child: AnimatedSwitcher(
-                          duration: const Duration(milliseconds: 260),
-                          child: widget.shownPane == _Pane.queue
-                              ? QueuePane(key: const ValueKey('queue'), style: NowPlayingStyle.onArtwork)
-                              : const LyricsPane(key: ValueKey('lyrics'), style: NowPlayingStyle.onArtwork),
-                        ),
+                        child: pane,
                       ),
                     ),
                   ),
@@ -600,7 +644,7 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
                           radius: _lerp(12, 7, t),
                           // Apple's signature: the cover recedes while paused.
                           scale: pausedScale,
-                          instantSwap: _committed,
+                          instantSwap: _committed || _gliding,
                         ),
                       ),
                     ),
@@ -615,7 +659,7 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
                   child: Transform.scale(
                     scale: titleScale,
                     alignment: Alignment.topLeft,
-                    child: _TitleRow(song: widget.song, compact: t > 0.5),
+                    child: title,
                   ),
                 ),
               ],
@@ -751,8 +795,7 @@ BoxShadow _coverShadow(Color deep, double size) => BoxShadow(
 
 class _TitleRow extends ConsumerWidget {
   final Song song;
-  final bool compact;
-  const _TitleRow({required this.song, this.compact = false});
+  const _TitleRow({required this.song});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
