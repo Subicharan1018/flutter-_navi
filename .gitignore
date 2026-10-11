@@ -76,3 +76,6 @@ graphify-out/*/*.json
 /graphify/*/*.md
 graphify-out/*/GRAPH_REPORT.md
 flutter-_navi/*
+
+# Diff images Flutter writes when a golden test fails — never commit
+test/goldens/failures/
