@@ -287,9 +287,9 @@ void main() {
             .read(settingsProvider.notifier)
             .setShuffleAlgorithm(ShuffleAlgorithm.smartLocal);
 
-        // We will intercept the shuffle call. It should wait for the lock and then
-        // do the compute and commit.
-        await notifier.applyShuffleAlgorithm();
+        // Smart Reshuffle: the server call runs outside the queue lock, the
+        // commit inside it. (The Shuffle toggle is local-only by design.)
+        await notifier.smartReshuffle();
 
         // The playing song keeps playing, now at the front of the new order.
         final anchor = _anchorIndex(container, '3');

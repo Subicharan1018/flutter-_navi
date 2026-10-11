@@ -749,7 +749,7 @@ void main() {
       expect(state.currentSong, isNotNull);
     });
 
-    test('Scenario 8: Reshuffle Active Queue preserves current song and replaces upcoming queue', () async {
+    test('Scenario 8: Smart Reshuffle preserves current song and replaces upcoming queue', () async {
       final playlist = generatePlaylist(40);
       setupContainer(librarySongs: playlist);
       final notifier = container.read(playerProvider.notifier);
@@ -757,8 +757,8 @@ void main() {
       await notifier.playPlaylist(playlist, shuffle: true);
       final playingBeforeReshuffle = container.read(playerProvider).currentSong!;
 
-      // Call reshuffleActiveQueue
-      await notifier.reshuffleActiveQueue(playlist);
+      final outcome = await notifier.smartReshuffle(library: playlist);
+      expect(outcome, ReshuffleOutcome.smart);
 
       final stateAfter = container.read(playerProvider);
 
@@ -766,7 +766,7 @@ void main() {
       expect(stateAfter.currentIndex, equals(0));
       expect(stateAfter.currentSong!.id, equals(playingBeforeReshuffle.id));
 
-      // Check excluded titles sent to server included original queue titles
+      // The current song is banned from the new picks
       final lastCall = mockRepo.getNextCalls.last;
       expect(lastCall['reshuffle'], isTrue);
       expect(lastCall['excludedTitles'].contains(playingBeforeReshuffle.title), isTrue);
@@ -793,6 +793,136 @@ void main() {
       final queueAfterRemove = container.read(playerProvider).queue;
       expect(queueAfterRemove.any((s) => s.id == songAt3.id), isFalse);
       expect(queueAfterRemove.length, equals(queueBefore.length - 1));
+    });
+  });
+
+  group('Shuffle buttons — random vs smart, no races', () {
+    List<String> ids(List<Song> q) => [for (final s in q) s.id];
+
+    test('Shuffle toggle is local and instant: never calls /next, even with the Smart style', () async {
+      final playlist = generatePlaylist(30);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playPlaylist(playlist);
+      final current = container.read(playerProvider).currentSong!;
+
+      await notifier.toggleShuffle();
+
+      final st = container.read(playerProvider);
+      expect(mockRepo.getNextCalls, isEmpty);
+      expect(st.shuffleMode, isTrue);
+      expect(st.currentSong!.id, current.id);
+      expect(ids(st.queue).toSet(), ids(playlist).toSet()); // same songs, new order
+    });
+
+    test('Smart Reshuffle always asks the server (reshuffle:true) and turns shuffle on', () async {
+      final playlist = generatePlaylist(30);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playPlaylist(playlist); // shuffle off
+      final current = container.read(playerProvider).currentSong!;
+
+      final outcome = await notifier.smartReshuffle();
+
+      final st = container.read(playerProvider);
+      expect(outcome, ReshuffleOutcome.smart);
+      expect(mockRepo.getNextCalls.where((c) => c['reshuffle'] == true).length, 1);
+      expect(st.shuffleMode, isTrue);
+      expect(st.queue.first.id, current.id);
+      expect(ids(st.queue).toSet().length, st.queue.length, reason: 'no duplicates');
+      // The playlist's songs only — a reshuffle never leaves the context.
+      expect(ids(st.queue).every(ids(playlist).contains), isTrue);
+    });
+
+    test('Rapid taps share one request (single-flight) — no bursts on the server', () async {
+      final playlist = generatePlaylist(30);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playPlaylist(playlist);
+      mockRepo.artificialDelay = const Duration(milliseconds: 60);
+
+      final taps = [for (var i = 0; i < 6; i++) notifier.smartReshuffle()];
+      expect(notifier.isSmartReshuffling, isTrue);
+      expect(container.read(smartReshuffleBusyProvider), isTrue);
+      final outcomes = await Future.wait(taps);
+
+      expect(mockRepo.getNextCalls.where((c) => c['reshuffle'] == true).length, 1);
+      expect(outcomes.toSet(), {ReshuffleOutcome.smart});
+      expect(notifier.isSmartReshuffling, isFalse);
+      expect(container.read(smartReshuffleBusyProvider), isFalse);
+    });
+
+    test('A queue change while the server thinks wins: stale smart picks are dropped', () async {
+      final playlist = generatePlaylist(30);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playPlaylist(playlist);
+      mockRepo.artificialDelay = const Duration(milliseconds: 80);
+
+      final pending = notifier.smartReshuffle();
+      await Future.delayed(const Duration(milliseconds: 10));
+      await notifier.toggleShuffle(); // the listener shuffles randomly meanwhile
+      final afterToggle = ids(container.read(playerProvider).queue);
+
+      expect(await pending, ReshuffleOutcome.superseded);
+      expect(ids(container.read(playerProvider).queue), afterToggle,
+          reason: 'the late server answer must not overwrite the newer queue');
+    });
+
+    test('Track advancing during the request: picks are rebased onto the song now playing', () async {
+      final playlist = generatePlaylist(30);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playPlaylist(playlist);
+      mockRepo.artificialDelay = const Duration(milliseconds: 120);
+
+      final first = container.read(playerProvider).currentSong!;
+      final pending = notifier.smartReshuffle();
+      await simulateNaturalTrackCompletion(notifier, nextIndex: 1, finishingSong: first);
+      final nowPlaying = container.read(playerProvider).currentSong!;
+      expect(nowPlaying.id, isNot(first.id));
+
+      expect(await pending, ReshuffleOutcome.smart);
+      final st = container.read(playerProvider);
+      expect(st.currentIndex, 0);
+      expect(st.queue.first.id, nowPlaying.id, reason: 'never jumps back to the old song');
+      expect(ids(st.queue).toSet().length, st.queue.length, reason: 'no duplicates');
+      expect(handler.currentQueue.first.id, nowPlaying.id);
+    });
+
+    test('Server down: falls back to a random shuffle and says so', () async {
+      final playlist = generatePlaylist(30);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playPlaylist(playlist);
+      final current = container.read(playerProvider).currentSong!;
+      mockRepo.shouldThrowError = true;
+
+      expect(await notifier.smartReshuffle(), ReshuffleOutcome.random);
+      final st = container.read(playerProvider);
+      expect(st.shuffleMode, isTrue);
+      expect(st.currentSong!.id, current.id);
+      expect(ids(st.queue).toSet(), ids(playlist).toSet());
+    });
+
+    test('Concurrent queue edits are serialised: no lost updates', () async {
+      final playlist = generatePlaylist(20);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playPlaylist(playlist);
+
+      final extra = [for (var i = 0; i < 5; i++) createTestSong(id: 'x$i', title: 'Extra $i')];
+      await Future.wait([
+        for (final s in extra) notifier.addToQueue(s),
+        notifier.toggleShuffle(),
+        notifier.insertNext(createTestSong(id: 'n0', title: 'Next 0')),
+      ]);
+
+      final q = ids(container.read(playerProvider).queue);
+      expect(q.length, 26);
+      expect(q.toSet().length, 26);
+      expect(q.toSet(), {...ids(playlist), ...ids(extra), 'n0'});
+      expect(q, ids(handler.currentQueue), reason: 'state and audio handler agree');
     });
   });
 }

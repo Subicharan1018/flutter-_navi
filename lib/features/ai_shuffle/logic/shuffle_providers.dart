@@ -283,7 +283,7 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
   /// The resulting batch REPLACES state.batches (not appended).
   /// Fetches a fresh batch with reshuffle:true.
   ///
-  /// [excludedTitlesOverride] — when provided (by [PlayerNotifier.reshuffleActiveQueue]),
+  /// [excludedTitlesOverride] — when provided (by [PlayerNotifier.smartReshuffle]),
   /// these titles are sent as the ban list instead of the preview batch in
   /// state.batches.  The state update (batches replacement) is skipped when
   /// called this way so the preview UI is left unchanged.

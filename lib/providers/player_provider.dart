@@ -19,9 +19,11 @@ import '../services/scrobble_service.dart';
 import '../main.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../features/ai_shuffle/data/models/feedback_request.dart';
+import '../features/ai_shuffle/data/models/recommended_song.dart';
 import 'library_provider.dart';
 import '../services/session_sync_service.dart';
 import 'session_sync_provider.dart';
+import '../utils/async_lock.dart';
 import '../utils/device_utils.dart';
 
 // ---------------------------------------------------------------------------
@@ -178,6 +180,31 @@ class PlayerState {
 // ---------------------------------------------------------------------------
 // Player notifier
 // ---------------------------------------------------------------------------
+/// What a Smart Reshuffle did.
+enum ReshuffleOutcome {
+  /// The server picked a fresh Up Next.
+  smart,
+
+  /// The server couldn't answer; Up Next was shuffled randomly instead.
+  random,
+
+  /// The queue changed while waiting (another action won); nothing applied.
+  superseded,
+
+  /// Nothing is playing or there is nothing else to pick from.
+  nothingToShuffle,
+}
+
+/// True while a Smart Reshuffle request is out — the button shows a spinner.
+class SmartReshuffleBusy extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  void set(bool busy) => state = busy;
+}
+
+final smartReshuffleBusyProvider = NotifierProvider<SmartReshuffleBusy, bool>(SmartReshuffleBusy.new);
+
 class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
   final NaviAudioHandler _audioHandler;
@@ -188,7 +215,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   bool _isFetchingSimilar = false;
   String? _lastFetchedForSongId;
 
-  Completer<void>? _queueOpLock;
+  /// Serialises every queue mutation (see [AsyncLock]). Network calls happen
+  /// outside it; results are validated against [_queueEpoch] on commit.
+  final AsyncLock _queueLock = AsyncLock();
+
+  /// Bumped by every user-initiated queue change. An async result computed
+  /// for an older epoch is stale — a later action superseded it — and is
+  /// dropped instead of overwriting what the listener just did. Natural track
+  /// advances don't bump it; commits rebase onto the live current song.
+  int _queueEpoch = 0;
+
+  /// The in-flight Smart Reshuffle, shared by every tap until it settles.
+  Future<ReshuffleOutcome>? _smartReshuffleInFlight;
   // RC-2: replaced single bool with two concerns:
   // _suppressDepth: reentrant counter for synchronous suppress blocks.
   // _shuffleSettling: single logical 500ms post-shuffle window.
@@ -1054,10 +1092,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     List<Song>? unshuffledSongs,
   }) async {
     debugPrint('🎵 [PlayerProvider] setQueue called with ${songs.length} songs, start: $startIndex, playlist: $playlistName');
-    await _queueOpLock?.future;
-    final completer = Completer<void>();
-    _queueOpLock = completer;
-    try {
+    await _queueLock.run(() async {
+      _queueEpoch++;
       await _ensureActiveDevice();
       _clearHistory(); // also calls shuffleNotifier.clearQueue() → _sessionId = null
       _ref.read(shuffleQueueProvider.notifier).initSession(); // start session so feedback fires
@@ -1102,10 +1138,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       );
       _startPositionTick();
       player.play();
-    } finally {
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
-    }
+    });
   }
 
   // ---------------------------------------------------------------------------
@@ -1137,10 +1170,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }) async {
     debugPrint('🎵 [PlayerProvider] playPlaylist called with ${songs.length} songs, shuffle: $shuffle, name: $playlistName');
     if (songs.isEmpty) return;
-    await _queueOpLock?.future;
-    final completer = Completer<void>();
-    _queueOpLock = completer;
-    try {
+    await _queueLock.run(() async {
+      _queueEpoch++;
       await _ensureActiveDevice();
       _clearHistory();
       _nextSourceContext = 'playlist';
@@ -1289,7 +1320,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             currentSong: currentSong,
             contextName: playlistName,
           );
-          if (_queueOpLock != completer) return;
+          if (!mounted) return;
           final finalQueue = [currentSong, ...shuffled];
           // Emit shuffleMode:true + queue in one copyWith — same guard as
           // the smartLocal branch above to prevent double applyShuffleAlgorithm.
@@ -1313,20 +1344,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       } finally {
         _isShuffling = false;
         // Safety: ensure _shuffleSettling is cleared if any branch exited early
-        // (e.g. !mounted or stale lock check) without explicitly clearing it.
+        // (e.g. !mounted) without explicitly clearing it.
         _shuffleSettling = false;
       }
-    } finally {
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
-    }
+    });
   }
 
   void refreshShuffleUrl() {}
 
   Future<void> playNext() async {
     debugPrint('🎵 [PlayerProvider] playNext');
-    await _queueOpLock?.future;
+    await _queueLock.run(_playNextLocked);
+  }
+
+  Future<void> _playNextLocked() async {
     final actionToken = ++_actionSequenceToken;
     final originalIdx = state.currentIndex;
 
@@ -1402,7 +1433,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> playPrev() async {
     debugPrint('🎵 [PlayerProvider] playPrev');
-    await _queueOpLock?.future;
+    await _queueLock.run(_playPrevLocked);
+  }
+
+  Future<void> _playPrevLocked() async {
     final actionToken = ++_actionSequenceToken;
     final originalIdx = state.currentIndex;
     try {
@@ -1470,7 +1504,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     debugPrint('🎵 [PlayerProvider] jumpTo: $index');
     _markTransition('user_selected', index: index);
     _nextSourceContext = 'user_selected';
-    await _jumpToInternal(index, pushHistory: true);
+    await _queueLock.run(() => _jumpToInternal(index, pushHistory: true));
   }
 
   Future<void> _jumpToInternal(int index, {required bool pushHistory}) async {
@@ -1500,9 +1534,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> insertAllNext(List<Song> songs, {int? atIndex}) async {
     debugPrint('🎵 [PlayerProvider] insertAllNext: ${songs.length} songs');
     if (songs.isEmpty) return;
-    await _queueOpLock?.future;
-    final completer = Completer<void>();
-    _queueOpLock = completer;
+    await _queueLock.run(() async {
+    _queueEpoch++;
     _suppressDepth++;
     try {
       final currentQueue = List<Song>.from(state.queue);
@@ -1520,24 +1553,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _audioHandler.insertAllNext(songs, atIndex: insertIndex);
     } finally {
       _suppressDepth--;
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
     }
+    });
   }
 
   Future<void> addToQueue(Song song) async {
     debugPrint('🎵 [PlayerProvider] addToQueue: ${song.title}');
-    await _queueOpLock?.future;
-    final completer = Completer<void>();
-    _queueOpLock = completer;
-    try {
+    await _queueLock.run(() async {
+      _queueEpoch++;
       final currentQueue = List<Song>.from(state.queue)..add(song);
       state = state.copyWith(queue: currentQueue);
       await _audioHandler.addToQueue(song);
-    } finally {
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
-    }
+    });
   }
 
   /// Batch-add multiple songs — single state update → single UI rebuild.
@@ -1545,24 +1572,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> addAllToQueue(List<Song> songs) async {
     debugPrint('🎵 [PlayerProvider] addAllToQueue: ${songs.length} songs');
     if (songs.isEmpty) return;
-    await _queueOpLock?.future;
-    final completer = Completer<void>();
-    _queueOpLock = completer;
-    try {
+    await _queueLock.run(() async {
+      _queueEpoch++;
       final currentQueue = List<Song>.from(state.queue)..addAll(songs);
       state = state.copyWith(queue: currentQueue);
       await _audioHandler.addAllToQueue(songs);
-    } finally {
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
-    }
+    });
   }
 
   Future<void> removeFromQueue(int index) async {
     debugPrint('🎵 [PlayerProvider] removeFromQueue at index: $index');
-    await _queueOpLock?.future;
-    final completer = Completer<void>();
-    _queueOpLock = completer;
+    await _queueLock.run(() async {
+    if (index < 0 || index >= state.queue.length) return;
+    _queueEpoch++;
     _suppressDepth++;
     try {
       final currentQueue = List<Song>.from(state.queue)..removeAt(index);
@@ -1576,15 +1598,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       await _audioHandler.removeFromQueue(index);
     } finally {
       _suppressDepth--;
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
     }
+    });
   }
 
   Future<void> reorderQueue(int oldIndex, int newIndex) async {
-    await _queueOpLock?.future;
-    final completer = Completer<void>();
-    _queueOpLock = completer;
+    await _queueLock.run(() async {
+    final len = state.queue.length;
+    if (oldIndex < 0 || oldIndex >= len || newIndex < 0 || newIndex >= len) return;
+    _queueEpoch++;
     _suppressDepth++;
     try {
       final currentQueue = List<Song>.from(state.queue);
@@ -1606,9 +1628,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       );
     } finally {
       _suppressDepth--;
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
     }
+    });
   }
 
   Future<void> toggleStar(String songId) async {
@@ -1638,282 +1659,107 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  Future<void> toggleShuffle() async {
-    await setShuffleMode(!state.shuffleMode);
-  }
+  // ---------------------------------------------------------------------------
+  // Shuffle — two different actions
+  //
+  //   Shuffle (toggle)   local and instant: a random order in the listener's
+  //                      shuffle style; off restores the original order. Never
+  //                      calls the server.
+  //   Smart Reshuffle    POST /next with reshuffle:true — the server picks a
+  //                      fresh run for right now. See [smartReshuffle].
+  // ---------------------------------------------------------------------------
 
-  Future<void> setShuffleMode(bool enabled) async {
-    await _queueOpLock?.future;
-    state = state.copyWith(shuffleMode: enabled);
-    if (enabled) {
-      await applyShuffleAlgorithm();
-    } else {
-      await unshuffleQueue();
-    }
-  }
+  Future<void> toggleShuffle() => setShuffleMode(!state.shuffleMode);
 
-  Future<void> unshuffleQueue() async {
+  Future<void> setShuffleMode(bool enabled) => _queueLock.run(() async {
+        _queueEpoch++;
+        state = state.copyWith(shuffleMode: enabled);
+        if (enabled) {
+          await _localShuffleLocked();
+        } else {
+          await _unshuffleLocked();
+        }
+      });
+
+  /// Re-randomises Up Next in the current local shuffle style (the queue
+  /// sheet's "Shuffle Up Next", and after the style changes).
+  Future<void> applyShuffleAlgorithm() => _queueLock.run(() async {
+        _queueEpoch++;
+        state = state.copyWith(shuffleMode: true);
+        await _localShuffleLocked();
+      });
+
+  /// Starts the post-shuffle guard: index events from the reorder are dropped
+  /// until the player settles on [anchor] (or 500 ms pass).
+  void _armShuffleGuard(int anchor) {
     _shuffleGuardTimer?.cancel();
-    final completer = Completer<void>();
-    _queueOpLock = completer;
+    _lastKnownIndex = anchor;
+    _pendingIndexAfterShuffle = anchor;
+    _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
+      if (!mounted) return;
+      _pendingIndexAfterShuffle = null;
+      // BUG-004: resync so the first event after the window has a correct
+      // prevIndex. Play/pause taps inside the 500 ms window are dropped on
+      // purpose — they would race the transient just_audio emissions.
+      _lastKnownIndex = state.currentIndex;
+      _shuffleSettling = false;
+    });
+  }
+
+  Future<void> _unshuffleLocked() async {
+    _shuffleGuardTimer?.cancel();
     _isShuffling = true;
     _shuffleSettling = true;
-    _playlistPool = []; // clear pool on unshuffle
+    _playlistPool = []; // the original order holds every song
     try {
       await _audioHandler.unshuffle();
       final postIndex = _audioHandler.currentIndex;
-      state = state.copyWith(
-        queue: _audioHandler.currentQueue,
-        currentIndex: postIndex,
-      );
-      // BUG-004 FIX (Change 1): Keep internal tracking in sync after unshuffle
-      // so the stream handler uses the correct prevIndex when events resume.
-      _lastKnownIndex = postIndex;
-
-      _pendingIndexAfterShuffle = postIndex;
-      _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
-        if (!mounted) return;
-        _pendingIndexAfterShuffle = null;
-        // BUG-004 FIX (Change 2): Sync _lastKnownIndex when the guard timer
-        // fires so that the first stream event processed after suppression ends
-        // has a correct prevIndex. Without this, a transient index=0 from
-        // just_audio is accepted as a legitimate track change.
-        //
-        // ACCEPTED TRADE-OFF: _shuffleSettling stays true for 500ms after
-        // unshuffle. Any play/pause taps within that window are dropped. This
-        // is intentional to prevent stale just_audio stream events from racing
-        // with the new queue order. The 500ms window is imperceptible to users.
-        _lastKnownIndex = state.currentIndex;
-        _shuffleSettling = false;
-      });
+      state = state.copyWith(queue: _audioHandler.currentQueue, currentIndex: postIndex);
+      _armShuffleGuard(postIndex);
     } finally {
       _isShuffling = false;
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
     }
   }
 
-  Future<void> applyShuffleAlgorithm() async {
+  /// Local shuffle in the chosen style. Smart Shuffle as a *style* applies to
+  /// shuffle-playing a playlist; this toggle is the plain random one, so it
+  /// uses a standard shuffle then — the smart one is [smartReshuffle].
+  Future<void> _localShuffleLocked() async {
     final settings = _ref.read(settingsProvider);
-
-    if (settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
-      await _applySmartLocalAlgorithm(settings);
-      return;
-    }
-
     _shuffleGuardTimer?.cancel();
-    final completer = Completer<void>();
-    _queueOpLock = completer;
     _isShuffling = true;
     _shuffleSettling = true;
     try {
-      // BUG-004 FIX: Capture the current song by ID before shuffle, not by
-      // integer index. After the shuffle await completes, the integer index
-      // is stale because the queue has been reordered.
-      final preShuffleIndex = _audioHandler.currentIndex;
-      final currentSongId = preShuffleIndex < _audioHandler.currentQueue.length
-          ? _audioHandler.currentQueue[preShuffleIndex].id
-          : null;
+      // BUG-004: track the current song by id; indexes go stale on reorder.
+      final pre = _audioHandler.currentIndex;
+      final currentSongId =
+          pre < _audioHandler.currentQueue.length ? _audioHandler.currentQueue[pre].id : null;
 
       switch (settings.shuffleAlgorithm) {
         case ShuffleAlgorithm.spotify:
           await _audioHandler.spotifyDitherShuffle(settings.shufflePreference);
-          break;
         case ShuffleAlgorithm.youtube:
           await _audioHandler.youtubeWeightedShuffle();
-          break;
-        case ShuffleAlgorithm.standard:
-          await _audioHandler.standardShuffle();
-          break;
         case ShuffleAlgorithm.albumAware:
           await _audioHandler.albumAwareShuffle();
-          break;
         case ShuffleAlgorithm.mergeShuffle:
           await _audioHandler.mergeShuffle(settings.shufflePreference);
-          break;
         case ShuffleAlgorithm.recencyDampened:
           await _audioHandler.recencyDampenedWeightedShuffle();
-          break;
+        case ShuffleAlgorithm.standard:
         case ShuffleAlgorithm.smartLocal:
-          break;
+          await _audioHandler.standardShuffle();
       }
 
-      // BUG-004 FIX: Find the current song in the new shuffled queue by ID.
-      // The player's currentIndex after shuffle may be null or unreliable,
-      // so we look up the song we were playing before shuffle by its ID.
-      int postShuffleIndex = _audioHandler.currentIndex;
+      var post = _audioHandler.currentIndex;
       if (currentSongId != null) {
-        final foundIndex = _audioHandler.currentQueue.indexWhere(
-          (s) => s.id == currentSongId,
-        );
-        if (foundIndex != -1) {
-          postShuffleIndex = foundIndex;
-        }
+        final found = _audioHandler.currentQueue.indexWhere((s) => s.id == currentSongId);
+        if (found != -1) post = found;
       }
-      state = state.copyWith(
-        queue: _audioHandler.currentQueue,
-        currentIndex: postShuffleIndex,
-      );
-      // BUG-004 FIX (Change 1): Keep internal tracking in sync after
-      // non-smartLocal shuffle so the stream handler uses the correct prevIndex
-      // when events resume after the suppression window closes.
-      _lastKnownIndex = postShuffleIndex;
-
-      _pendingIndexAfterShuffle = postShuffleIndex;
-      _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
-        if (!mounted) return;
-        _pendingIndexAfterShuffle = null;
-        // BUG-004 FIX (Change 2): Sync _lastKnownIndex on timer expiry.
-        // ACCEPTED TRADE-OFF: _shuffleSettling stays true for 500ms after
-        // each shuffle algorithm runs. This suppresses play/pause events in
-        // that window — intentional to block transient just_audio emissions
-        // that arrive while move-based reordering settles.
-        _lastKnownIndex = state.currentIndex;
-        _shuffleSettling = false;
-      });
+      state = state.copyWith(queue: _audioHandler.currentQueue, currentIndex: post);
+      _armShuffleGuard(post);
     } finally {
       _isShuffling = false;
-      completer.complete();
-      if (_queueOpLock == completer) _queueOpLock = null;
-    }
-  }
-
-  Future<void> _applySmartLocalAlgorithm(SettingsState settings) async {
-    await _queueOpLock?.future;
-
-    _shuffleGuardTimer?.cancel();
-
-    // BUG-FIX: Acquire the lock BEFORE the HTTP fetch so no concurrent queue
-    // operation (e.g. user tapping next) can race in during computeSmartLocalOrder.
-    final outerCompleter = Completer<void>();
-    _queueOpLock = outerCompleter;
-    _isShuffling = true;
-    _shuffleSettling = true;
-
-    final safeIndex = (_audioHandler.currentIndex).clamp(
-      0,
-      _audioHandler.currentQueue.length - 1,
-    );
-    final currentSong = _audioHandler.currentQueue[safeIndex];
-
-    final fullPool = _audioHandler.unshuffledQueue.isNotEmpty
-        ? _audioHandler.unshuffledQueue
-        : _audioHandler.currentQueue;
-    final candidateSongs = fullPool.where((s) => s.id != currentSong.id).toList();
-
-    if (candidateSongs.isEmpty) {
-      _isShuffling = false;
-      _shuffleSettling = false;
-      outerCompleter.complete();
-      if (_queueOpLock == outerCompleter) _queueOpLock = null;
-      return;
-    }
-
-    List<Song>? ordered;
-    try {
-      final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
-      final candidateTitles = candidateSongs.map((s) => s.title).toList();
-      debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart, candidates: ${candidateTitles.length})');
-
-      // source is always 'smart': the app has no Navidrome playlist_id here, so
-      // playlist isolation is enforced by `candidates`. playlist_name only sets the
-      // server-side genre streak and is passed regardless of mode.
-      final response = await shuffleNotifier.fetchNext(
-        source: 'smart',
-        playlistName: _currentPlaylistName,
-        candidates: candidateTitles,
-        count: candidateTitles.length,
-      );
-      if (!mounted) return;
-
-      final resolved = <Song>[];
-      for (final rec in response.queue) {
-        final match = candidateSongs.firstWhereOrNull(
-          (s) =>
-              s.title.toLowerCase() == rec.title.toLowerCase() &&
-              s.artist.toLowerCase() == rec.composer.toLowerCase(),
-        ) ?? candidateSongs.firstWhereOrNull(
-          (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-        );
-        if (match != null && !resolved.contains(match)) {
-          resolved.add(match);
-        }
-      }
-
-      for (final s in candidateSongs) {
-        if (!resolved.contains(s)) resolved.add(s);
-      }
-      ordered = resolved;
-    } catch (e) {
-      debugPrint('[Smart Local Shuffle] API Error: $e');
-      ordered = null;
-    }
-
-    if (ordered == null) {
-      // Server unavailable — fall back to standard shuffle.
-      try {
-        await _audioHandler.standardShuffle();
-        int postShuffleIndex = 0;
-        final foundIdx = _audioHandler.currentQueue.indexWhere(
-          (s) => s.id == currentSong.id,
-        );
-        if (foundIdx != -1) postShuffleIndex = foundIdx;
-        _lastKnownIndex = postShuffleIndex;
-        _pendingIndexAfterShuffle = postShuffleIndex;
-        state = state.copyWith(
-          queue: _audioHandler.currentQueue,
-          currentIndex: postShuffleIndex,
-        );
-        _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
-          if (!mounted) return;
-          _pendingIndexAfterShuffle = null;
-          _lastKnownIndex = state.currentIndex;
-          _shuffleSettling = false;
-        });
-      } finally {
-        _isShuffling = false;
-        outerCompleter.complete();
-        if (_queueOpLock == outerCompleter) _queueOpLock = null;
-      }
-      return;
-    }
-
-    try {
-      final liveIndex = _audioHandler.currentIndex;
-      if (liveIndex != safeIndex) {
-        debugPrint(
-          '⚠️ [applyShuffleAlgorithm] Smart Local: player advanced '
-          'during fetch ($safeIndex→$liveIndex), discarding stale order',
-        );
-        state = state.copyWith(
-          queue: _audioHandler.currentQueue,
-          currentIndex: liveIndex,
-        );
-        return;
-      }
-
-      await _audioHandler.commitSmartLocalOrder(
-        pastAndPresent: [currentSong],
-        orderedFuture: ordered,
-        anchorIndex: 0,
-      );
-
-      state = state.copyWith(
-        queue: _audioHandler.currentQueue,
-        currentIndex: 0,
-      );
-      _lastKnownIndex = 0;
-      _pendingIndexAfterShuffle = 0;
-      _shuffleGuardTimer = Timer(const Duration(milliseconds: 500), () {
-        if (!mounted) return;
-        _pendingIndexAfterShuffle = null;
-        _lastKnownIndex = state.currentIndex;
-        _shuffleSettling = false;
-      });
-    } finally {
-      _isShuffling = false;
-      outerCompleter.complete();
-      if (_queueOpLock == outerCompleter) _queueOpLock = null;
     }
   }
 
@@ -1974,7 +1820,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   ///
   /// IMPORTANT: This method resets shuffleMode to false. If the intent is to
   /// stay in shuffle mode but clear the queue, the caller should re-enable it.
-  Future<void> clearAiShuffleQueue() async {
+  Future<void> clearAiShuffleQueue() => _queueLock.run(_clearAiShuffleQueueLocked);
+
+  Future<void> _clearAiShuffleQueueLocked() async {
+    _queueEpoch++;
     // 1. Pause to prevent autoplay/lookahead from racing
     await player.pause();
 
@@ -2011,142 +1860,157 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   // ---------------------------------------------------------------------------
-  // Active-playback Reshuffle — POST /next with reshuffle:true
+  // Smart Reshuffle — POST /next with reshuffle:true
   //
-  // Collects every song title currently in the player queue (played + upcoming),
-  // sends them as excluded_titles to the server so none are repeated, and
-  // replaces the entire player queue with the fresh batch.
-  //
-  // Session context (depth, playedTitles, listenRatios) is preserved in
-  // ShuffleQueueNotifier — no clearQueue() is called here.
-  //
-  // [allSongs] — the caller must pass ref.read(allSongsProvider.future) so
-  //              this pure-Dart notifier doesn't need to hold a Riverpod ref
-  //              to an async provider.
+  // Race-free by construction:
+  //   • single-flight: taps while a request is out join it (no request bursts);
+  //   • the network call runs OUTSIDE the queue lock, so skips stay instant;
+  //   • the commit runs INSIDE it and checks the queue epoch: if the listener
+  //     changed the queue meanwhile (shuffle toggle, new album, reorder…), the
+  //     answer is stale and is dropped; a natural track advance is fine — the
+  //     result is rebased onto whatever is playing now;
+  //   • songs are matched by Navidrome id (server-provided), title as fallback.
   // ---------------------------------------------------------------------------
 
-  /// "Reshuffle Up Next" from the queue: a fresh order for everything after
-  /// the current song, in the listener's shuffle style. Smart Shuffle asks
-  /// the server first; any failure (offline, server down, nothing matched)
-  /// falls back to reshuffling locally, so the action never silently does
-  /// nothing. Turns shuffle on if it was off.
-  Future<void> reshuffleUpNext(List<Song> allSongs) async {
-    if (!state.shuffleMode) {
-      await setShuffleMode(true);
-      return;
-    }
-    if (_ref.read(settingsProvider).shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
-      try {
-        await reshuffleActiveQueue(allSongs);
-        return;
-      } catch (e) {
-        debugPrint('[Reshuffle] Smart Shuffle unavailable, reshuffling locally: $e');
-      }
-    }
-    await applyShuffleAlgorithm();
+  /// Whether a Smart Reshuffle is running (drives the button's spinner).
+  bool get isSmartReshuffling => _smartReshuffleInFlight != null;
+
+  /// A fresh, server-picked Up Next for this moment. Turns shuffle on.
+  /// Falls back to a random shuffle when the server can't answer, and says so
+  /// through the returned outcome.
+  Future<ReshuffleOutcome> smartReshuffle({List<Song>? library}) {
+    final running = _smartReshuffleInFlight;
+    if (running != null) return running;
+    _setSmartBusy(true);
+    final run = _smartReshuffle(library).whenComplete(() {
+      _smartReshuffleInFlight = null;
+      _setSmartBusy(false);
+    });
+    _smartReshuffleInFlight = run;
+    return run;
   }
 
-  /// Returns true if a reshuffle is currently in progress.
-  bool _isReshuffling = false;
-  bool get isReshuffling => _isReshuffling;
-
-  /// Replaces the active playback queue with a fresh 16-song batch from the
-  /// server, banning every song title that is currently in the queue.
-  ///
-  /// Throws on API or resolution failure — callers should catch and show a
-  /// snack-bar. On success, the new queue starts playing from index 0.
-  Future<void> reshuffleActiveQueue(List<Song> allSongs) async {
-    if (_isReshuffling) return;
-    _isReshuffling = true;
+  void _setSmartBusy(bool busy) {
     try {
-      final currentIdx = state.currentIndex;
-      final currentSong = state.queue.isNotEmpty && currentIdx < state.queue.length
-          ? state.queue[currentIdx]
-          : null;
-      if (currentSong == null) return;
+      _ref.read(smartReshuffleBusyProvider.notifier).set(busy);
+    } catch (_) {
+      // The provider container is gone (disposal) — nothing to show.
+    }
+  }
 
-      // Candidate pool: if playing from playlist, strictly constrain to playlist songs
-      final fromLibrary = _audioHandler.unshuffledQueue.isEmpty && _playlistPool.isEmpty;
-      final pool = _audioHandler.unshuffledQueue.isNotEmpty
-          ? _audioHandler.unshuffledQueue
-          : (_playlistPool.isNotEmpty ? _playlistPool : allSongs);
+  Future<ReshuffleOutcome> _smartReshuffle(List<Song>? library) async {
+    // Let queued operations land first so the snapshot is current.
+    await _queueLock.idle;
+    final epoch = _queueEpoch;
+    final current = state.currentSong;
+    if (current == null) return ReshuffleOutcome.nothingToShuffle;
 
-      final candidateSongs = pool.where((s) => s.id != currentSong.id).toList();
-      final candidateTitles = candidateSongs.map((s) => s.title).toList();
+    // The candidates: what's being played — the playlist/album's original
+    // order, plus any pool not queued yet — else the queue itself; only a
+    // lone song reshuffles across the whole library.
+    final List<Song>? context = _audioHandler.unshuffledQueue.isNotEmpty
+        ? [..._audioHandler.unshuffledQueue, ..._playlistPool]
+        : (_playlistPool.isNotEmpty || state.queue.length > 1)
+            ? [...state.queue, ..._playlistPool]
+            : null;
+    final fromLibrary = context == null;
+    final pool = context ??
+        library ??
+        await _ref.read(allSongsProvider.future).catchError((Object _) => const <Song>[]);
+    final candidates = <String, Song>{
+      for (final s in pool)
+        if (s.id != current.id) s.id: s,
+    };
+    if (candidates.isEmpty) return ReshuffleOutcome.nothingToShuffle;
 
-      final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
+    List<Song>? picks;
+    try {
+      final recs = await _ref.read(shuffleQueueProvider.notifier).reshuffle(
+            source: 'smart',
+            playlistName: _currentPlaylistName,
+            // A library-wide reshuffle needs no list: the server's catalog
+            // is this library. A playlist/album is sent so picks stay in it.
+            candidates: fromLibrary ? const [] : [for (final s in candidates.values) s.title],
+            excludedTitlesOverride: [current.title],
+          );
+      picks = _resolveRecommendations(recs, candidates);
+      if (picks.isEmpty) picks = null;
+    } catch (e) {
+      debugPrint('[SmartReshuffle] server unavailable: $e');
+    }
+    if (!mounted) return ReshuffleOutcome.superseded;
 
-      // POST /next with reshuffle:true — session depth + played_titles preserved.
-      final recommendations = await shuffleNotifier.reshuffle(
-        source: 'smart',
-        playlistName: _currentPlaylistName,
-        candidates: candidateTitles.isNotEmpty ? candidateTitles : const [],
-        excludedTitlesOverride: [currentSong.title],
-      );
+    return _queueLock.run(() async {
+      if (_queueEpoch != epoch) {
+        debugPrint('[SmartReshuffle] queue changed while waiting — dropping stale picks');
+        return ReshuffleOutcome.superseded;
+      }
+      if (picks == null) {
+        // Offline / server error: still give the listener a new order.
+        _queueEpoch++;
+        state = state.copyWith(shuffleMode: true);
+        await _localShuffleLocked();
+        return ReshuffleOutcome.random;
+      }
+      final live = state.currentSong;
+      if (live == null) return ReshuffleOutcome.superseded;
 
-      if (!mounted) return;
+      // Rebase onto the song playing now (the track may have advanced).
+      final upNext = [for (final s in picks) if (s.id != live.id) s];
+      final used = {live.id, for (final s in upNext) s.id};
+      final rest = [for (final s in candidates.values) if (!used.contains(s.id)) s]..shuffle();
 
-      // Resolve RecommendedSongs → local Song objects.
-      final resolved = <Song>[];
-      for (final rec in recommendations) {
-        final match = candidateSongs.firstWhereOrNull(
-              (s) =>
-          s.title.toLowerCase() == rec.title.toLowerCase() &&
-              s.artist.toLowerCase() == rec.composer.toLowerCase(),
-        ) ??
-            candidateSongs.firstWhereOrNull(
-                  (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-            ) ??
-            allSongs.firstWhereOrNull(
-                  (s) =>
-              s.title.toLowerCase() == rec.title.toLowerCase() &&
-                  s.artist.toLowerCase() == rec.composer.toLowerCase(),
-            );
-        if (match != null && !resolved.contains(match)) {
-          resolved.add(match);
-        }
+      final smartStyle = _ref.read(settingsProvider).shuffleAlgorithm == ShuffleAlgorithm.smartLocal;
+      if (smartStyle) {
+        // Keep the rest in the pool: refills keep asking the server as the
+        // listener nears the end, so the queue stays smart.
+        _playlistPool = rest;
+      } else {
+        // Plain styles have no refill: append the rest in random order. A
+        // library-wide reshuffle is capped so the queue never holds thousands.
+        _playlistPool = [];
+        const libraryCap = 200;
+        upNext.addAll(fromLibrary ? rest.take(libraryCap - upNext.length.clamp(0, libraryCap)) : rest);
       }
 
-      // If server returned fewer items or none, pad with remaining candidate
-      // songs. A playlist keeps every song; the whole library is capped so a
-      // reshuffle never queues thousands of tracks.
-      const libraryPadCap = 200;
-      final picked = resolved.toSet();
-      for (final s in candidateSongs) {
-        if (fromLibrary && resolved.length >= libraryPadCap) break;
-        if (picked.add(s)) resolved.add(s);
-      }
-
-      if (resolved.isEmpty) {
-        throw Exception('No reshuffled songs found in local library');
-      }
-
-      await _queueOpLock?.future;
-      final completer = Completer<void>();
-      _queueOpLock = completer;
+      final newQueue = [live, ...upNext];
+      _queueEpoch++;
+      _lastFetchedForSongId = null; // allow the next refill
       _suppressDepth++;
       try {
-        // Keep the currently playing song at index 0 — only replace everything after it.
-        final newQueue = [
-          currentSong,
-          ...resolved,
-        ];
-        const newCurrentIndex = 0;
-
-        state = state.copyWith(queue: newQueue, currentIndex: newCurrentIndex);
-        _lastKnownIndex = newCurrentIndex;
-        _trackedIndexForCompletion = newCurrentIndex;
-
-        // Update the queue dynamically preserving current playback.
-        await _audioHandler.updateQueuePreservingCurrent(newQueue, newCurrentIndex);
+        state = state.copyWith(queue: newQueue, currentIndex: 0, shuffleMode: true);
+        _trackedIndexForCompletion = 0;
+        await _audioHandler.updateQueuePreservingCurrent(newQueue, 0);
       } finally {
         _suppressDepth--;
-        completer.complete();
-        if (_queueOpLock == completer) _queueOpLock = null;
       }
-    } finally {
-      _isReshuffling = false;
+      // Hold the anchor against stale index events from the old order.
+      _shuffleSettling = true;
+      _armShuffleGuard(0);
+      _persistState();
+      return ReshuffleOutcome.smart;
+    });
+  }
+
+  /// Server picks → local songs: by Navidrome id first (exact), then by
+  /// title + artist, then title. Duplicates are dropped.
+  List<Song> _resolveRecommendations(List<RecommendedSong> recs, Map<String, Song> candidates) {
+    final byTitle = <String, List<Song>>{};
+    for (final s in candidates.values) {
+      byTitle.putIfAbsent(s.title.toLowerCase(), () => []).add(s);
     }
+    final out = <Song>[];
+    final seen = <String>{};
+    for (final rec in recs) {
+      Song? match = rec.navidromeId != null ? candidates[rec.navidromeId] : null;
+      if (match == null) {
+        final same = byTitle[rec.title.toLowerCase()] ?? const <Song>[];
+        final artist = (rec.artist ?? rec.composer).toLowerCase();
+        match = same.firstWhereOrNull((s) => s.artist.toLowerCase() == artist) ?? same.firstOrNull;
+      }
+      if (match != null && seen.add(match.id)) out.add(match);
+    }
+    return out;
   }
 
   // ---------------------------------------------------------------------------
@@ -2266,161 +2130,76 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         '(pool remaining: ${_playlistPool.length})',
       );
 
-      // Await any queue mutation that might be in flight right now:
-      await _queueOpLock?.future;
-
-      // Snapshot anchor synchronously.
-      final safeIndex = (_audioHandler.currentIndex).clamp(
-        0,
-        _audioHandler.currentQueue.length - 1,
-      );
-      final currentQueueSnapshot = _audioHandler.currentQueue;
-      final existingFuture = currentQueueSnapshot.length > safeIndex + 1
-          ? List<Song>.from(currentQueueSnapshot.sublist(safeIndex + 1))
-          : <Song>[];
-
-      // Take next batch from pool — strictly from the original playlist.
-      final batch = _takeFromPool(_smartLocalBatchSize);
-      if (batch.isEmpty) {
+      // Phase 1 (locked): snapshot, take the next batch from the pool and
+      // append it, so it's playable even if the server never answers.
+      final snap = await _queueLock.run(() async {
+        final batch = _takeFromPool(_smartLocalBatchSize);
+        if (batch.isEmpty) return null;
+        final queue = _audioHandler.currentQueue;
+        final anchor = _audioHandler.currentIndex.clamp(0, queue.length - 1);
+        final ahead = queue.length > anchor + 1 ? queue.sublist(anchor + 1) : const <Song>[];
+        await _audioHandler.addAllToQueue(batch);
+        _syncQueueFromAudioHandler();
+        // Order the batch off the last song already queued, so transitions
+        // chain from what the listener will actually hear next.
+        return (batch: batch, epoch: _queueEpoch, seed: ahead.isNotEmpty ? ahead.last : seedSong);
+      });
+      if (snap == null) {
         debugPrint('[SMART LOCAL] Pool exhausted — no more songs to queue');
         return;
       }
 
-      // Order ONLY the new batch. Songs already queued ahead (existingFuture)
-      // keep their exact position — they must never be pushed below freshly
-      // generated songs. Seed the batch ordering off the last already-queued
-      // song so transitions chain cleanly from what the listener will actually
-      // hear next; fall back to the current song when nothing is queued ahead.
-      final seedForBatch = existingFuture.isNotEmpty
-          ? existingFuture.last
-          : seedSong;
-
-      // Concurrent: HTTP ordering fetch + playlist append.
-      final results = await Future.wait([
-        // A: HTTP — order the batch relative to seedForBatch.
-        () async {
-          try {
-            final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
-            final candidateTitles = batch.map((s) => s.title).toList();
-            debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart, candidates: ${candidateTitles.length})');
-
-            // source is always 'smart': the app has no Navidrome playlist_id here, so
-            // playlist isolation is enforced by `candidates`. playlist_name only sets the
-            // server-side genre streak and is passed regardless of mode.
-            final response = await shuffleNotifier.fetchNext(
+      // Phase 2 (unlocked): ask the server to order the batch.
+      List<Song>? orderedBatch;
+      try {
+        final response = await _ref.read(shuffleQueueProvider.notifier).fetchNext(
               source: 'smart',
               playlistName: _currentPlaylistName,
-              candidates: candidateTitles,
-              count: candidateTitles.length,
-              seedTitle: seedForBatch.title,
+              candidates: [for (final s in snap.batch) s.title],
+              count: snap.batch.length,
+              seedTitle: snap.seed.title,
             );
-            if (!mounted) return [];
+        final byId = {for (final s in snap.batch) s.id: s};
+        orderedBatch = _resolveRecommendations(response.queue, byId);
+        final placed = {for (final s in orderedBatch) s.id};
+        orderedBatch.addAll(snap.batch.where((s) => !placed.contains(s.id)));
+      } catch (e) {
+        debugPrint('[Smart Local Refill] API Error: $e — batch stays in pool order');
+      }
+      if (!mounted || orderedBatch == null) return;
 
-            final orderedBatch = <Song>[];
-            for (final rec in response.queue) {
-              final match = batch.firstWhereOrNull(
-                (s) =>
-                    s.title.toLowerCase() == rec.title.toLowerCase() &&
-                    s.artist.toLowerCase() == rec.composer.toLowerCase(),
-              ) ?? batch.firstWhereOrNull(
-                (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-              );
-              if (match != null && !orderedBatch.contains(match)) {
-                orderedBatch.add(match);
-              }
-            }
-
-            for (final s in batch) {
-              if (!orderedBatch.contains(s)) orderedBatch.add(s);
-            }
-
-            // Return just the ordered batch of new songs.
-            return orderedBatch;
-          } catch (e) {
-            debugPrint('[Smart Local Refill] API Error: $e');
-            return null;
-          }
-        }(),
-        // B: Append new batch to ConcatenatingAudioSource.
-        // State is NOT written here — the handler is the single source of truth
-        // for the queue during concurrent fetch. State is synced from
-        // _audioHandler.currentQueue in the success path and fallback below.
-        _audioHandler.addAllToQueue(batch).then((_) {
-          debugPrint('[SMART LOCAL] Appended ${batch.length} songs from pool');
-          return null;
-        }),
-      ]);
-
-      // Acquire lock before committing order to audioHandler and Riverpod state.
-      // This protects against race conditions with insertNext/addToQueue/reorderQueue.
-      await _queueOpLock?.future;
-      final commitCompleter = Completer<void>();
-      _queueOpLock = commitCompleter;
-      _suppressDepth++;
-      try {
-        final orderedBatch = results[0] as List<Song>?;
-
-        if (orderedBatch == null) {
-          // Server unreachable: batch already appended in random pool order.
-          // Acceptable fallback — Markov ordering will apply on next rebuild.
-          debugPrint('[SMART LOCAL] HTTP failed; batch appended unordered');
-          // Sync state from the handler since branch B no longer writes state.
-          _syncQueueFromAudioHandler();
-          _drainPoolOfQueuedSongs();
-          _prunePlayedSongs();
+      // Phase 3 (locked): commit the order if nothing superseded it.
+      await _queueLock.run(() async {
+        final liveQueue = List<Song>.from(_audioHandler.currentQueue);
+        final liveIds = {for (final s in liveQueue) s.id};
+        if (_queueEpoch != snap.epoch) {
+          // The listener replaced/reshuffled the queue meanwhile. Songs from
+          // this batch that are no longer queued go back to the pool.
+          _playlistPool.addAll(snap.batch.where((s) => !liveIds.contains(s.id)));
           return;
         }
-
-        // Check player hasn't moved past our snapshot.
-        final liveIndex = _audioHandler.currentIndex;
-        if (liveIndex != safeIndex) {
-          debugPrint(
-            '[SMART LOCAL] Player advanced during fetch '
-            '($safeIndex→$liveIndex), skipping reorder',
+        final anchor = _audioHandler.currentIndex.clamp(0, liveQueue.length - 1);
+        final batchIds = {for (final s in snap.batch) s.id};
+        // Everything after the live song that isn't from this batch (earlier
+        // queue + anything inserted meanwhile) keeps its place, ahead of it.
+        final userUpcoming = [for (final s in liveQueue.sublist(anchor + 1)) if (!batchIds.contains(s.id)) s];
+        final stillAhead = [for (final s in orderedBatch!) if (liveQueue.indexWhere((q) => q.id == s.id) > anchor) s];
+        _suppressDepth++;
+        try {
+          await _audioHandler.commitSmartLocalOrder(
+            pastAndPresent: liveQueue.sublist(0, anchor + 1),
+            orderedFuture: [...userUpcoming, ...stillAhead],
+            anchorIndex: anchor,
+            preferMoveBasedReorder: true,
           );
           _syncQueueFromAudioHandler();
           _drainPoolOfQueuedSongs();
           _prunePlayedSongs();
-          return;
+        } finally {
+          _suppressDepth--;
         }
-
-        // Re-read live queue from audio handler to capture any songs added
-        // concurrently during the HTTP fetch (e.g. insertNext or addToQueue).
-        final liveQueue = List<Song>.from(_audioHandler.currentQueue);
-        final pastAndPresent = liveQueue.sublist(0, safeIndex + 1);
-        final batchIds = batch.map((s) => s.id).toSet();
-
-        // Any upcoming song in liveQueue that was NOT part of this new batch
-        // represents existing future songs PLUS any concurrently inserted songs!
-        final liveFuture = liveQueue.sublist(safeIndex + 1);
-        final userUpcoming = liveFuture.where((s) => !batchIds.contains(s.id)).toList();
-
-        final orderedFuture = [...userUpcoming, ...orderedBatch];
-
-        // Commit with move-based reorder (no anchor rebuffer).
-        await _audioHandler.commitSmartLocalOrder(
-          pastAndPresent: pastAndPresent,
-          orderedFuture: orderedFuture,
-          anchorIndex: safeIndex,
-          preferMoveBasedReorder: true,
-        );
-
-        // The handler preserved the live active media item while moving the
-        // new batch. Read its index back instead of retaining the stale refill
-        // anchor from before the HTTP request.
-        _syncQueueFromAudioHandler();
-        _drainPoolOfQueuedSongs();
-        _prunePlayedSongs();
-
-        debugPrint(
-          '[SMART LOCAL] Refill complete. '
-          'Queue: ${state.queue.length}  Pool: ${_playlistPool.length}',
-        );
-      } finally {
-        _suppressDepth--;
-        commitCompleter.complete();
-        if (_queueOpLock == commitCompleter) _queueOpLock = null;
-      }
+        debugPrint('[SMART LOCAL] Refill complete. Queue: ${state.queue.length}  Pool: ${_playlistPool.length}');
+      });
     } catch (e) {
       debugPrint('[SMART LOCAL] Refill failed: $e');
     } finally {
