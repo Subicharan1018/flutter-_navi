@@ -77,6 +77,31 @@ abstract final class Motion {
   static const Duration slow = Duration(milliseconds: 400);
   static const Curve ease = Curves.easeOutCubic;
   static const Curve spring = Curves.easeOutBack;
+
+  /// Apple's spring, specified as a perceptual [duration] (seconds) and a
+  /// [bounce] (0 = critically damped, no overshoot; keep under ~0.4 in UI),
+  /// converted exactly as WWDC23 "Animate with springs" defines it:
+  /// mass 1, stiffness (2π/duration)², damping 4π(1−bounce)/duration for
+  /// bounce ≥ 0, else 4π/(duration·(1+bounce)). Unlike a curve, a spring
+  /// starts from the current velocity, so interrupted motion never jerks.
+  static SpringDescription appleSpring(double duration, {double bounce = 0}) {
+    final stiffness = math.pow(2 * math.pi / duration, 2).toDouble();
+    final damping = bounce >= 0
+        ? 4 * math.pi * (1 - bounce) / duration
+        : 4 * math.pi / (duration * (1 + bounce));
+    return SpringDescription(mass: 1, stiffness: stiffness, damping: damping);
+  }
+
+  /// The cover growing when music starts and receding on pause: a gentle
+  /// landing (Apple's default `.spring` feel with a touch of bounce).
+  static final SpringDescription cover = appleSpring(0.5, bounce: 0.15);
+
+  /// Covers moving along the deck (swipe release and skips): quick, settled.
+  static final SpringDescription deck = appleSpring(0.38, bounce: 0.06);
+
+  /// The cover-to-header flight when Lyrics or the Queue open: smooth, no
+  /// overshoot, so the header never overshoots its slot.
+  static final SpringDescription flight = appleSpring(0.5);
 }
 
 /// Inter's published "dynamic metrics" tracking curve (rsms.me/inter/dynmetrics):

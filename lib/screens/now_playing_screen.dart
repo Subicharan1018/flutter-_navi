@@ -151,11 +151,8 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
 class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with SingleTickerProviderStateMixin {
   _Pane _pane = _Pane.none;
   _Pane _shownPane = _Pane.lyrics; // what the pane slot renders (kept during close)
-  late final AnimationController _paneAnim = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 480),
-    reverseDuration: const Duration(milliseconds: 380),
-  );
+  /// 0 = player, 1 = Lyrics/Queue open; driven by springs (see [_flyTo]).
+  late final AnimationController _paneAnim = AnimationController(vsync: this);
 
   @override
   void dispose() {
@@ -168,11 +165,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
     setState(() {
       if (_pane == p) {
         _pane = _Pane.none;
-        _paneAnim.reverse();
+        _flyTo(0);
       } else {
         _pane = p;
         _shownPane = p;
-        _paneAnim.forward();
+        _flyTo(1);
       }
     });
   }
@@ -180,7 +177,18 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
   void _closePane() {
     if (_pane == _Pane.none) return;
     setState(() => _pane = _Pane.none);
-    _paneAnim.reverse();
+    _flyTo(0);
+  }
+
+  /// The cover-to-header flight runs on a spring that starts from the
+  /// flight's current velocity, so tapping Lyrics again mid-flight turns the
+  /// motion around smoothly instead of restarting a curve from rest.
+  void _flyTo(double target) {
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _paneAnim.value = target;
+      return;
+    }
+    _paneAnim.animateWith(SpringSimulation(Motion.flight, _paneAnim.value, target, _paneAnim.velocity));
   }
 
   @override
@@ -404,7 +412,10 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
   /// up and coming home (end of queue, a failed load).
   static const Duration _commitTimeout = Duration(seconds: 4);
 
-  static const SpringDescription _spring = SpringDescription(mass: 1, stiffness: 300, damping: 30);
+  static final SpringDescription _spring = Motion.deck;
+
+  /// How far the cover recedes while paused.
+  static const double _pausedScale = 0.84;
 
   // The carousel: the cover follows the finger 1:1 with the next and previous
   // covers riding alongside. Past the threshold it carries on to the
@@ -579,7 +590,11 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
             final dx = _swipe.value * (1 - t);
             // Covers shrink a touch as they leave the centre, like a deck.
             double depth(double offset) => 1 - 0.08 * (offset.abs() / stride).clamp(0.0, 1.0);
-            final pausedScale = reduce ? 1.0 : _lerp(widget.playing ? 1 : 0.84, 1, t);
+            // Apple's signature: the cover recedes while paused. The centre
+            // cover reaches it on a spring; side covers (seen only mid-swipe)
+            // simply match the resting size.
+            final restScale = reduce || widget.playing ? 1.0 : _pausedScale;
+            final pausedScale = _lerp(restScale, 1, t);
             // Null when there's nothing to show: a non-positioned placeholder
             // would collapse the Stack's width and shift the whole stage. A
             // neighbour wholly off screen is skipped too, so it isn't decoded
@@ -642,8 +657,8 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
                           song: widget.song,
                           size: artRect.width,
                           radius: _lerp(12, 7, t),
-                          // Apple's signature: the cover recedes while paused.
-                          scale: pausedScale,
+                          scale: restScale,
+                          flatten: t,
                           instantSwap: _committed || _gliding,
                         ),
                       ),
@@ -712,23 +727,34 @@ class _Cover extends ConsumerWidget {
   final Song song;
   final double size;
   final double radius;
+
+  /// Resting scale: 1 while playing, smaller while paused. Reached on a
+  /// spring (see [_SpringScale]).
   final double scale;
+
+  /// 0..1: how far the cover has flown into the pane header, where it sits
+  /// at full size whatever the play state.
+  final double flatten;
 
   /// Swap art without the cross-fade (the carousel already slid it in).
   final bool instantSwap;
 
-  const _Cover({required this.song, required this.size, required this.radius, required this.scale, this.instantSwap = false});
+  const _Cover({
+    required this.song,
+    required this.size,
+    required this.radius,
+    required this.scale,
+    this.flatten = 0,
+    this.instantSwap = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
     final deep = ref.watch(albumPaletteProvider).deep;
-    return AnimatedScale(
-      scale: scale,
-      duration: const Duration(milliseconds: 560),
-      // Grows with a little overshoot (it "lands" when music starts),
-      // recedes without one.
-      curve: scale >= 1 ? Curves.easeOutBack : Curves.easeOutCubic,
+    return _SpringScale(
+      target: scale,
+      flatten: flatten,
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: BorderRadius.circular(radius),
@@ -752,6 +778,54 @@ class _Cover extends ConsumerWidget {
           ),
         ),
       ),
+    );
+  }
+}
+
+/// Scales its child to [target] on Apple's spring ([Motion.cover]). A new
+/// target mid-flight (pause → play → pause in quick taps) carries the
+/// current velocity into the next spring, so the cover never jerks; the
+/// growth lands with a slight bounce, as Apple Music's cover does when music
+/// starts. [flatten] blends the result toward 1 for the pane header.
+class _SpringScale extends StatefulWidget {
+  final double target;
+  final double flatten;
+  final Widget child;
+  const _SpringScale({required this.target, required this.flatten, required this.child});
+
+  @override
+  State<_SpringScale> createState() => _SpringScaleState();
+}
+
+class _SpringScaleState extends State<_SpringScale> with SingleTickerProviderStateMixin {
+  late final AnimationController _scale = AnimationController.unbounded(vsync: this, value: widget.target);
+
+  @override
+  void didUpdateWidget(_SpringScale old) {
+    super.didUpdateWidget(old);
+    if (widget.target == old.target) return;
+    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+      _scale.value = widget.target;
+    } else {
+      _scale.animateWith(SpringSimulation(Motion.cover, _scale.value, widget.target, _scale.velocity));
+    }
+  }
+
+  @override
+  void dispose() {
+    _scale.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedBuilder(
+      animation: _scale,
+      builder: (context, child) => Transform.scale(
+        scale: _scale.value + (1 - _scale.value) * widget.flatten,
+        child: child,
+      ),
+      child: widget.child,
     );
   }
 }
