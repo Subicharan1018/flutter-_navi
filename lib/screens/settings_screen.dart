@@ -15,6 +15,7 @@ import '../services/subsonic_service.dart';
 import '../services/transcoding_service.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/grouped_list.dart';
+import '../widgets/ui/ion.dart';
 import '../widgets/ui/large_title_page.dart';
 
 final _appVersionProvider = FutureProvider<String>((ref) async {
@@ -203,6 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Server',
                 icon: CupertinoIcons.cloud,
+                ion: Ion.globe,
                 iconColor: AppThemeTokens.systemBlue,
                 value: host.isEmpty ? 'Not connected' : host,
               ),
@@ -211,6 +213,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 controller: _user,
                 placeholder: 'Required',
                 icon: CupertinoIcons.person_fill,
+                ion: Ion.person,
                 iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedTextFieldRow(
@@ -219,12 +222,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'Required',
                 obscure: true,
                 icon: CupertinoIcons.lock_fill,
+                ion: Ion.lock,
                 iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedSwitchRow(
                 title: 'Allow HTTP',
                 subtitle: 'Connects without encryption. Use only on your home network.',
                 icon: CupertinoIcons.lock_open,
+                ion: Ion.unlock,
                 iconColor: t.warning,
                 value: s.allowHttp,
                 onChanged: notifier.setAllowHttp,
@@ -238,12 +243,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Living Artwork',
                 subtitle: 'The Now Playing background moves with the music. Turn off to save battery.',
                 icon: CupertinoIcons.sparkles,
+                ion: Ion.palette,
                 value: s.fluidBgEnabled,
                 onChanged: notifier.setFluidBgEnabled,
               ),
               GroupedRow(
                 title: 'Shuffle Style',
                 icon: CupertinoIcons.shuffle,
+                ion: Ion.shuffle,
                 iconColor: AppThemeTokens.systemOrange,
                 value: s.shuffleAlgorithm.label,
                 onTap: () async {
@@ -262,6 +269,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 GroupedRow(
                   title: 'Spread Songs By',
                   icon: CupertinoIcons.square_grid_2x2,
+                  ion: Ion.options,
                   iconColor: AppThemeTokens.systemTeal,
                   value: s.shufflePreference.label,
                   onTap: () async {
@@ -286,6 +294,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Convert While Streaming',
                 icon: CupertinoIcons.waveform,
+                ion: Ion.convert,
                 iconColor: AppThemeTokens.systemRed,
                 value: _transcoding,
                 onChanged: (v) {
@@ -294,17 +303,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
               if (_transcoding) ...[
-                _bitrateRow('Wi-Fi Quality', CupertinoIcons.wifi, _wifiBitrate, (v) {
+                _bitrateRow('Wi-Fi Quality', CupertinoIcons.wifi, Ion.wifi, _wifiBitrate, (v) {
                   setState(() => _wifiBitrate = v);
                   ref.read(transcodingProvider).setWifiBitrate(v);
                 }),
-                _bitrateRow('Cellular Quality', CupertinoIcons.antenna_radiowaves_left_right, _mobileBitrate, (v) {
+                _bitrateRow('Cellular Quality', CupertinoIcons.antenna_radiowaves_left_right, Ion.cellular, _mobileBitrate, (v) {
                   setState(() => _mobileBitrate = v);
                   ref.read(transcodingProvider).setMobileBitrate(v);
                 }),
                 GroupedRow(
                   title: 'Format',
                   icon: CupertinoIcons.doc_text,
+                  ion: Ion.document,
                   iconColor: AppThemeTokens.systemGray,
                   value: TranscodeFormat.getLabel(_format),
                   onTap: () async {
@@ -324,6 +334,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Switch Automatically',
                   subtitle: 'Uses the Wi-Fi or cellular quality to match your connection.',
                   icon: CupertinoIcons.arrow_2_squarepath,
+                  ion: Ion.sync,
                   iconColor: AppThemeTokens.systemTeal,
                   value: _smartSwitch,
                   onChanged: (v) {
@@ -340,12 +351,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Downloaded Songs',
                 icon: CupertinoIcons.arrow_down_circle,
+                ion: Ion.download,
                 iconColor: AppThemeTokens.systemBlue,
                 value: downloads == 0 ? 'None' : '$downloads · $size',
               ),
               GroupedSwitchRow(
                 title: 'Cache Artwork',
                 icon: CupertinoIcons.photo,
+                ion: Ion.image,
                 iconColor: AppThemeTokens.systemTeal,
                 value: _imageCache,
                 onChanged: (v) {
@@ -357,6 +370,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Cache Music',
                 subtitle: 'Keeps recently played songs for instant replay.',
                 icon: CupertinoIcons.music_note_2,
+                ion: Ion.music,
                 iconColor: AppThemeTokens.systemRed,
                 value: _musicCache,
                 onChanged: (v) {
@@ -368,6 +382,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Cache Tempo',
                 subtitle: 'Measures song tempo ahead of time so Smart Shuffle starts faster.',
                 icon: CupertinoIcons.metronome,
+                ion: Ion.timer,
                 iconColor: AppThemeTokens.systemOrange,
                 value: _bpmCache,
                 onChanged: (v) {
@@ -395,6 +410,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Recommendations',
                 icon: CupertinoIcons.wand_stars,
+                ion: Ion.sparkles,
                 value: _recommendations,
                 onChanged: (v) {
                   setState(() => _recommendations = v);
@@ -418,6 +434,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Export as CSV',
                 subtitle: 'Saves your play history and song data to Downloads.',
                 icon: CupertinoIcons.square_arrow_down,
+                ion: Ion.share,
                 iconColor: AppThemeTokens.systemBlue,
                 trailing: _spinner('export'),
                 onTap: _busy == null
@@ -431,6 +448,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Sync to Server',
                 subtitle: 'Uploads your listening history for Replay and Smart Shuffle.',
                 icon: CupertinoIcons.arrow_2_circlepath,
+                ion: Ion.upload,
                 trailing: _spinner('sync'),
                 onTap: _busy == null
                     ? () => _run('sync', () async {
@@ -442,6 +460,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Sync Automatically',
                 icon: CupertinoIcons.calendar,
+                ion: Ion.calendar,
                 iconColor: AppThemeTokens.systemRed,
                 value: _scheduleLabel(s.analyticsUploadSchedule),
                 onTap: () async {
@@ -459,6 +478,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Remove Skipped Plays',
                 subtitle: 'Deletes plays that lasted under a second.',
                 icon: CupertinoIcons.trash,
+                ion: Ion.trash,
                 iconColor: AppThemeTokens.systemGray,
                 onTap: () => _run('purge', () async {
                   final n = await ref.read(listenerCollectorProvider).purgeNoiseEvents();
@@ -475,6 +495,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Upload a Song',
                 icon: CupertinoIcons.cloud_upload,
+                ion: Ion.add,
                 iconColor: AppThemeTokens.systemBlue,
                 trailing: _spinner('upload'),
                 onTap: _busy == null ? _upload : null,
@@ -484,6 +505,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 controller: _uploadDir,
                 placeholder: '/music',
                 icon: CupertinoIcons.folder_fill,
+                ion: Ion.folder,
                 iconColor: AppThemeTokens.systemTeal,
               ),
               GroupedTextFieldRow(
@@ -492,6 +514,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'https://',
                 keyboardType: TextInputType.url,
                 icon: CupertinoIcons.link,
+                ion: Ion.link,
                 iconColor: AppThemeTokens.systemGray,
               ),
               GroupedTextFieldRow(
@@ -499,6 +522,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 controller: _davUser,
                 placeholder: 'Optional',
                 icon: CupertinoIcons.person_fill,
+                ion: Ion.person,
                 iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedTextFieldRow(
@@ -507,6 +531,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'Optional',
                 obscure: true,
                 icon: CupertinoIcons.lock_fill,
+                ion: Ion.lock,
                 iconColor: AppThemeTokens.systemGray2,
               ),
             ],
@@ -520,9 +545,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _bitrateRow(String title, IconData icon, int current, ValueChanged<int> onPick) => GroupedRow(
+  Widget _bitrateRow(String title, IconData icon, Ion ion, int current, ValueChanged<int> onPick) =>
+      GroupedRow(
         title: title,
         icon: icon,
+        ion: ion,
         value: TranscodeBitrate.getLabel(current),
         onTap: () async {
           final v = await showChoiceSheet<int>(

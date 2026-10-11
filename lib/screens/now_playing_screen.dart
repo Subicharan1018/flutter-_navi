@@ -24,6 +24,7 @@ import '../utils/platform_utils.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/options_menu.dart';
 import '../widgets/ui/action_sheet.dart';
+import '../widgets/ui/ion.dart';
 
 // =============================================================================
 // Opening the player
@@ -774,7 +775,7 @@ class _TitleRow extends ConsumerWidget {
         ),
         const SizedBox(width: 8),
         GlassCircleButton(
-          icon: starred ? CupertinoIcons.star_fill : CupertinoIcons.star,
+          ion: starred ? Ion.star : Ion.starOutline,
           semanticLabel: starred ? 'Remove from favourites' : 'Add to favourites',
           onTap: () {
             HapticFeedback.mediumImpact();
@@ -782,7 +783,7 @@ class _TitleRow extends ConsumerWidget {
           },
         ),
         GlassCircleButton(
-          icon: CupertinoIcons.ellipsis,
+          ion: Ion.ellipsis,
           semanticLabel: 'More options',
           onTap: () => _showMore(context, song),
         ),
@@ -864,7 +865,7 @@ class _BottomRow extends ConsumerWidget {
           semanticLabel: 'Lyrics',
           selected: pane == _Pane.lyrics,
           onTap: () => onTogglePane(_Pane.lyrics),
-          child: Icon(CupertinoIcons.quote_bubble, size: 24, color: c(pane == _Pane.lyrics)),
+          child: IonIcon(Ion.lyrics, size: 24, color: c(pane == _Pane.lyrics)),
         ),
         GlyphButton(
           size: 48,
@@ -874,12 +875,12 @@ class _BottomRow extends ConsumerWidget {
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              Icon(CupertinoIcons.hifispeaker, size: 24, color: c(remote)),
+              IonIcon(Ion.devices, size: 24, color: c(remote)),
               if (sleeping)
                 const Positioned(
                   right: -5,
                   top: -3,
-                  child: Icon(CupertinoIcons.moon_fill, size: 11, color: Colors.white),
+                  child: IonIcon(Ion.moon, size: 11, color: Colors.white),
                 ),
             ],
           ),
@@ -889,7 +890,7 @@ class _BottomRow extends ConsumerWidget {
           semanticLabel: 'Queue',
           selected: pane == _Pane.queue,
           onTap: () => onTogglePane(_Pane.queue),
-          child: Icon(CupertinoIcons.list_bullet, size: 24, color: c(pane == _Pane.queue)),
+          child: IonIcon(Ion.queue, size: 24, color: c(pane == _Pane.queue)),
         ),
       ],
     );

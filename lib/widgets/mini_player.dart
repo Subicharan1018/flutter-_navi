@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +15,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../utils/platform_utils.dart';
+import 'ui/ion.dart';
 
 /// The floating mini player: a solid capsule in the album's colour (so the
 /// song you're hearing tints the bottom of every screen), with the cover,
@@ -174,7 +174,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
                           size: 44,
                           semanticLabel: 'Next',
                           onTap: notifier.playNext,
-                          child: const Icon(CupertinoIcons.forward_fill, color: Colors.white, size: 24),
+                          child: const IonIcon(Ion.playForward, color: Colors.white, size: 26),
                         ),
                       ],
                     ),
@@ -260,41 +260,18 @@ class _Content extends StatelessWidget {
   }
 }
 
-class _MiniPlayPause extends StatefulWidget {
+class _MiniPlayPause extends StatelessWidget {
   final bool playing;
   final VoidCallback onTap;
   const _MiniPlayPause({required this.playing, required this.onTap});
 
   @override
-  State<_MiniPlayPause> createState() => _MiniPlayPauseState();
-}
-
-class _MiniPlayPauseState extends State<_MiniPlayPause> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 240),
-    value: widget.playing ? 1 : 0,
-  );
-
-  @override
-  void didUpdateWidget(_MiniPlayPause old) {
-    super.didUpdateWidget(old);
-    if (old.playing != widget.playing) widget.playing ? _c.forward() : _c.reverse();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
     return GlyphButton(
       size: 48,
-      semanticLabel: widget.playing ? 'Pause' : 'Play',
-      onTap: widget.onTap,
-      child: AnimatedIcon(icon: AnimatedIcons.play_pause, progress: _c, color: Colors.white, size: 30),
+      semanticLabel: playing ? 'Pause' : 'Play',
+      onTap: onTap,
+      child: PlayPauseGlyph(playing: playing, size: 28, color: Colors.white),
     );
   }
 }

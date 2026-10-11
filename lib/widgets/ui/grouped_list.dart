@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import 'ion.dart';
 
 /// iOS "inset grouped" list section: optional header and footer, rows on a
 /// rounded #1C1C1E surface with separators inset past the leading icon.
@@ -11,7 +12,12 @@ class GroupedSection extends StatelessWidget {
   final String? footer;
   final List<Widget> children;
 
-  const GroupedSection({super.key, this.header, this.footer, required this.children});
+  const GroupedSection({
+    super.key,
+    this.header,
+    this.footer,
+    required this.children,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -20,29 +26,49 @@ class GroupedSection extends StatelessWidget {
     for (var i = 0; i < children.length; i++) {
       rows.add(children[i]);
       if (i < children.length - 1) {
-        rows.add(Padding(
-          padding: EdgeInsets.only(left: _separatorInset(children[i])),
-          child: Container(height: 0.5, color: t.outline),
-        ));
+        rows.add(
+          Padding(
+            padding: EdgeInsets.only(left: _separatorInset(children[i])),
+            child: Container(height: 0.5, color: t.outline),
+          ),
+        );
       }
     }
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        Space.gutter,
+        0,
+        Space.gutter,
+        Space.xxl,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           if (header != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(Space.lg, 0, Space.lg, Space.sm),
+              padding: const EdgeInsets.fromLTRB(
+                Space.lg,
+                0,
+                Space.lg,
+                Space.sm,
+              ),
               child: Text(header!, style: t.footnote),
             ),
           ClipRRect(
             borderRadius: BorderRadius.circular(Radii.group),
-            child: ColoredBox(color: t.bgSurface, child: Column(children: rows)),
+            child: ColoredBox(
+              color: t.bgSurface,
+              child: Column(children: rows),
+            ),
           ),
           if (footer != null)
             Padding(
-              padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.lg, 0),
+              padding: const EdgeInsets.fromLTRB(
+                Space.lg,
+                Space.sm,
+                Space.lg,
+                0,
+              ),
               child: Text(footer!, style: t.footnote),
             ),
         ],
@@ -51,12 +77,11 @@ class GroupedSection extends StatelessWidget {
   }
 
   static double _separatorInset(Widget row) => switch (row) {
-        GroupedRow(icon: final IconData _) ||
-        GroupedSwitchRow(icon: final IconData _) ||
-        GroupedTextFieldRow(icon: final IconData _) =>
-          _iconInset,
-        _ => Space.lg,
-      };
+    GroupedRow(icon: final IconData _) ||
+    GroupedSwitchRow(icon: final IconData _) ||
+    GroupedTextFieldRow(icon: final IconData _) => _iconInset,
+    _ => Space.lg,
+  };
 
   /// Where row text starts when the row has an icon square.
   static const double _iconInset = Space.lg + _iconSize + Space.md + 2;
@@ -64,11 +89,14 @@ class GroupedSection extends StatelessWidget {
 
 const double _iconSize = 30;
 
-/// The iOS Settings coloured square behind a row's glyph.
+/// The iOS Settings coloured square behind a row's glyph: the [ion] glyph
+/// when given (the app's Ionicons set), otherwise [icon].
 class _IconSquare extends StatelessWidget {
+  static const double _glyph = 18;
   final IconData icon;
   final Color? color;
-  const _IconSquare({required this.icon, this.color});
+  final Ion? ion;
+  const _IconSquare({required this.icon, this.color, this.ion});
 
   @override
   Widget build(BuildContext context) {
@@ -76,8 +104,14 @@ class _IconSquare extends StatelessWidget {
     return Container(
       width: _iconSize,
       height: _iconSize,
-      decoration: BoxDecoration(color: color ?? t.accent, borderRadius: BorderRadius.circular(7)),
-      child: Icon(icon, size: 18, color: t.textPrimary),
+      decoration: BoxDecoration(
+        color: color ?? t.accent,
+        borderRadius: BorderRadius.circular(7),
+      ),
+      alignment: Alignment.center,
+      child: ion != null
+          ? IonIcon(ion!, size: _glyph, color: t.textPrimary)
+          : Icon(icon, size: _glyph, color: t.textPrimary),
     );
   }
 }
@@ -90,6 +124,9 @@ class GroupedRow extends StatelessWidget {
   final String? subtitle;
   final IconData? icon;
   final Color? iconColor;
+
+  /// Ionicons glyph shown in the square instead of [icon].
+  final Ion? ion;
   final String? value;
   final Widget? trailing;
   final VoidCallback? onTap;
@@ -102,6 +139,7 @@ class GroupedRow extends StatelessWidget {
     this.subtitle,
     this.icon,
     this.iconColor,
+    this.ion,
     this.value,
     this.trailing,
     this.onTap,
@@ -118,11 +156,14 @@ class GroupedRow extends StatelessWidget {
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm + 2),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Space.lg,
+            vertical: Space.sm + 2,
+          ),
           child: Row(
             children: [
               if (icon != null) ...[
-                _IconSquare(icon: icon!, color: iconColor),
+                _IconSquare(icon: icon!, color: iconColor, ion: ion),
                 const SizedBox(width: Space.md + 2),
               ],
               Expanded(
@@ -158,7 +199,11 @@ class GroupedRow extends StatelessWidget {
                 trailing!,
               ] else if (onTap != null && showChevron && !destructive) ...[
                 const SizedBox(width: Space.sm),
-                Icon(CupertinoIcons.chevron_forward, size: 17, color: t.textMuted),
+                Icon(
+                  CupertinoIcons.chevron_forward,
+                  size: 17,
+                  color: t.textMuted,
+                ),
               ],
             ],
           ),
@@ -174,6 +219,7 @@ class GroupedSwitchRow extends StatelessWidget {
   final String? subtitle;
   final IconData? icon;
   final Color? iconColor;
+  final Ion? ion;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -183,6 +229,7 @@ class GroupedSwitchRow extends StatelessWidget {
     this.subtitle,
     this.icon,
     this.iconColor,
+    this.ion,
     required this.value,
     required this.onChanged,
   });
@@ -195,6 +242,7 @@ class GroupedSwitchRow extends StatelessWidget {
       subtitle: subtitle,
       icon: icon,
       iconColor: iconColor,
+      ion: ion,
       trailing: CupertinoSwitch(
         value: value,
         activeTrackColor: t.accent,
@@ -217,6 +265,7 @@ class GroupedTextFieldRow extends StatefulWidget {
   final TextInputType? keyboardType;
   final IconData? icon;
   final Color? iconColor;
+  final Ion? ion;
 
   const GroupedTextFieldRow({
     super.key,
@@ -227,6 +276,7 @@ class GroupedTextFieldRow extends StatefulWidget {
     this.keyboardType,
     this.icon,
     this.iconColor,
+    this.ion,
   });
 
   @override
@@ -246,7 +296,11 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
         child: Row(
           children: [
             if (widget.icon != null) ...[
-              _IconSquare(icon: widget.icon!, color: widget.iconColor),
+              _IconSquare(
+                icon: widget.icon!,
+                color: widget.iconColor,
+                ion: widget.ion,
+              ),
               const SizedBox(width: Space.md + 2),
             ],
             SizedBox(width: 104, child: Text(widget.title, style: t.body)),

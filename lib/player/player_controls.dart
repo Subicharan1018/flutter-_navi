@@ -1,12 +1,12 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../core/theme.dart';
 import '../models/song.dart';
+import '../widgets/ui/ion.dart';
 
 // =============================================================================
 // Shared playback controls. Every control here takes its colours as
@@ -457,11 +457,38 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Transport — rewind · play/pause · forward. Play/pause morphs between its
-// two glyphs instead of swapping icons.
+// Transport — rewind · play/pause · forward, in Ionicons. Play/pause swaps
+// its glyphs with a quick scale-and-fade.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class TransportControls extends StatefulWidget {
+/// Play or pause, cross-fading with a slight scale as it changes.
+class PlayPauseGlyph extends StatelessWidget {
+  final bool playing;
+  final double size;
+  final Color color;
+  const PlayPauseGlyph({super.key, required this.playing, required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, a) => FadeTransition(
+        opacity: a,
+        child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: child),
+      ),
+      child: IonIcon(
+        playing ? Ion.pause : Ion.play,
+        key: ValueKey(playing),
+        size: size,
+        color: color,
+      ),
+    );
+  }
+}
+
+class TransportControls extends StatelessWidget {
   final bool playing;
   final VoidCallback onPlayPause;
   final VoidCallback onPrevious;
@@ -486,67 +513,37 @@ class TransportControls extends StatefulWidget {
   });
 
   @override
-  State<TransportControls> createState() => _TransportControlsState();
-}
-
-class _TransportControlsState extends State<TransportControls> with SingleTickerProviderStateMixin {
-  late final AnimationController _morph = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 260),
-    value: widget.playing ? 1 : 0,
-  );
-
-  @override
-  void didUpdateWidget(TransportControls old) {
-    super.didUpdateWidget(old);
-    if (old.playing != widget.playing) {
-      widget.playing ? _morph.forward() : _morph.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _morph.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final s = widget.scale;
+    final s = scale;
     // With shuffle/repeat either side, tighten the transport hit areas (not
     // the glyphs) so all five fit a 360 dp phone: 48+60+76+60+48 = 292.
-    final flanked = widget.leading != null || widget.trailing != null;
+    final flanked = leading != null || trailing != null;
     final skipBox = (flanked ? 60.0 : 72.0) * s;
     final playBox = (flanked ? 76.0 : 84.0) * s;
     return Row(
       mainAxisAlignment:
           flanked ? MainAxisAlignment.spaceBetween : MainAxisAlignment.spaceEvenly,
       children: [
-        ?widget.leading,
+        ?leading,
         GlyphButton(
           size: skipBox,
           semanticLabel: 'Previous',
-          onTap: widget.onPrevious,
-          child: Icon(CupertinoIcons.backward_fill, size: 40 * s, color: widget.color),
+          onTap: onPrevious,
+          child: IonIcon(Ion.playBack, size: 42 * s, color: color),
         ),
         GlyphButton(
           size: playBox,
-          semanticLabel: widget.playing ? 'Pause' : 'Play',
-          onTap: widget.onPlayPause,
-          child: AnimatedIcon(
-            icon: AnimatedIcons.play_pause,
-            progress: _morph,
-            size: 58 * s,
-            color: widget.color,
-          ),
+          semanticLabel: playing ? 'Pause' : 'Play',
+          onTap: onPlayPause,
+          child: PlayPauseGlyph(playing: playing, size: 56 * s, color: color),
         ),
         GlyphButton(
           size: skipBox,
           semanticLabel: 'Next',
-          onTap: widget.onNext,
-          child: Icon(CupertinoIcons.forward_fill, size: 40 * s, color: widget.color),
+          onTap: onNext,
+          child: IonIcon(Ion.playForward, size: 42 * s, color: color),
         ),
-        ?widget.trailing,
+        ?trailing,
       ],
     );
   }
@@ -604,7 +601,7 @@ class _VolumeBarState extends State<VolumeBar> {
       children: [
         GestureDetector(
           onTap: () => _set(0),
-          child: Icon(CupertinoIcons.speaker_fill, size: 18, color: widget.iconColor),
+          child: IonIcon(Ion.volumeLow, size: 18, color: widget.iconColor),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -620,7 +617,7 @@ class _VolumeBarState extends State<VolumeBar> {
         const SizedBox(width: 10),
         GestureDetector(
           onTap: () => _set(1),
-          child: Icon(CupertinoIcons.speaker_3_fill, size: 18, color: widget.iconColor),
+          child: IonIcon(Ion.volumeHigh, size: 18, color: widget.iconColor),
         ),
       ],
     );
@@ -630,7 +627,10 @@ class _VolumeBarState extends State<VolumeBar> {
 /// Secondary action on the artwork (favourite, more): a plain glyph with a
 /// full-size hit area — no translucent disc behind it.
 class GlassCircleButton extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+
+  /// Ionicons glyph, drawn instead of [icon].
+  final Ion? ion;
   final VoidCallback onTap;
   final String semanticLabel;
   final Color? iconColor;
@@ -638,21 +638,24 @@ class GlassCircleButton extends StatelessWidget {
 
   const GlassCircleButton({
     super.key,
-    required this.icon,
+    this.icon,
+    this.ion,
     required this.onTap,
     required this.semanticLabel,
     this.iconColor,
     this.diameter = 34,
-  });
+  }) : assert(icon != null || ion != null);
 
   @override
   Widget build(BuildContext context) {
+    final color = iconColor ?? Colors.white;
+    final size = diameter * 0.7;
     return GlyphButton(
       size: 48,
       semanticLabel: semanticLabel,
       onTap: onTap,
       pressColor: const Color(0x00FFFFFF),
-      child: Icon(icon, size: diameter * 0.7, color: iconColor ?? Colors.white),
+      child: ion != null ? IonIcon(ion!, size: size, color: color) : Icon(icon, size: size, color: color),
     );
   }
 }

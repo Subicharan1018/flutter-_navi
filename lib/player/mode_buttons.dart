@@ -1,9 +1,10 @@
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../core/theme.dart';
 import '../providers/player_provider.dart';
+import '../widgets/ui/ion.dart';
 import 'player_controls.dart';
 
 // =============================================================================
@@ -14,7 +15,10 @@ import 'player_controls.dart';
 // =============================================================================
 
 class _ModeGlyph extends StatelessWidget {
-  final IconData icon;
+  final Ion ion;
+
+  /// Small mark on the glyph (the "1" of repeat-one).
+  final String? badge;
   final bool active;
   final String semanticLabel;
   final VoidCallback onTap;
@@ -22,7 +26,8 @@ class _ModeGlyph extends StatelessWidget {
   final double scale;
 
   const _ModeGlyph({
-    required this.icon,
+    required this.ion,
+    this.badge,
     required this.active,
     required this.semanticLabel,
     required this.onTap,
@@ -43,7 +48,18 @@ class _ModeGlyph extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             const SizedBox(height: 5),
-            Icon(icon, size: 24 * scale, color: c),
+            Stack(
+              clipBehavior: Clip.none,
+              children: [
+                IonIcon(ion, size: 24 * scale, color: c),
+                if (badge != null)
+                  Positioned(
+                    right: -5,
+                    top: -4,
+                    child: Text(badge!, style: naviText(10 * scale, FontWeight.w800, c)),
+                  ),
+              ],
+            ),
             const SizedBox(height: 3),
             AnimatedOpacity(
               opacity: active ? 1 : 0,
@@ -70,7 +86,7 @@ class ShuffleModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final on = ref.watch(playerProvider.select((s) => s.shuffleMode));
     return _ModeGlyph(
-      icon: CupertinoIcons.shuffle,
+      ion: Ion.shuffle,
       active: on,
       semanticLabel: on ? 'Shuffle on' : 'Shuffle off',
       onTap: () => ref.read(playerProvider.notifier).toggleShuffle(),
@@ -90,7 +106,8 @@ class RepeatModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(playerProvider.select((s) => s.repeatMode));
     return _ModeGlyph(
-      icon: mode == LoopMode.one ? CupertinoIcons.repeat_1 : CupertinoIcons.repeat,
+      ion: Ion.repeat,
+      badge: mode == LoopMode.one ? '1' : null,
       active: mode != LoopMode.off,
       semanticLabel: switch (mode) {
         LoopMode.off => 'Repeat off',

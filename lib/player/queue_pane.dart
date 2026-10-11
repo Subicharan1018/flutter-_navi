@@ -10,6 +10,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/ui/action_sheet.dart';
+import '../widgets/ui/ion.dart';
 import 'artwork.dart';
 import 'edge_fade.dart';
 import 'now_playing_style.dart';
@@ -180,7 +181,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                       child: SizedBox(
                         width: 48,
                         height: 48,
-                        child: Icon(CupertinoIcons.line_horizontal_3, color: st.textMuted, size: 22),
+                        child: IonIcon(Ion.dragHandle, color: st.textMuted, size: 18),
                       ),
                     ),
                   ),
@@ -218,7 +219,7 @@ class _ModePills extends ConsumerWidget {
         children: [
           Expanded(
             child: _Pill(
-              icon: CupertinoIcons.shuffle,
+              ion: Ion.shuffle,
               label: 'Shuffle',
               active: shuffle,
               style: st,
@@ -229,7 +230,8 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              icon: repeat == LoopMode.one ? CupertinoIcons.repeat_1 : CupertinoIcons.repeat,
+              ion: Ion.repeat,
+              badge: repeat == LoopMode.one ? '1' : null,
               label: switch (repeat) {
                 LoopMode.one => 'Repeat this song',
                 LoopMode.all => 'Repeat queue',
@@ -243,7 +245,7 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              icon: CupertinoIcons.infinite,
+              ion: Ion.infinite,
               label: 'Autoplay',
               active: autoplay,
               style: st,
@@ -253,7 +255,7 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              icon: CupertinoIcons.sparkles,
+              ion: Ion.sparkles,
               label: 'Smart Reshuffle',
               active: false,
               toggle: false,
@@ -341,7 +343,10 @@ class _ShuffleModeSheet extends ConsumerWidget {
 }
 
 class _Pill extends StatelessWidget {
-  final IconData icon;
+  final Ion ion;
+
+  /// Small mark on the glyph (the "1" of repeat-one).
+  final String? badge;
   final String label;
   final bool active;
   final NowPlayingStyle style;
@@ -355,7 +360,8 @@ class _Pill extends StatelessWidget {
   final bool busy;
 
   const _Pill({
-    required this.icon,
+    required this.ion,
+    this.badge,
     required this.label,
     required this.active,
     required this.style,
@@ -394,7 +400,19 @@ class _Pill extends StatelessWidget {
                   height: 20,
                   child: CircularProgressIndicator(strokeWidth: 2, color: fg),
                 )
-              : Icon(icon, key: const ValueKey('icon'), size: 20, color: fg),
+              : Stack(
+                  key: ValueKey(badge),
+                  clipBehavior: Clip.none,
+                  children: [
+                    IonIcon(ion, size: 20, color: fg),
+                    if (badge != null)
+                      Positioned(
+                        right: -5,
+                        top: -4,
+                        child: Text(badge!, style: naviText(10, FontWeight.w800, fg)),
+                      ),
+                  ],
+                ),
         ),
       ),
     );
@@ -508,7 +526,7 @@ class _Swipeable extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
         color: const Color(0xFFE5484D),
-        child: const Icon(CupertinoIcons.minus_circle, color: Colors.white),
+        child: const IonIcon(Ion.remove, color: Colors.white),
       ),
       child: child,
     );
