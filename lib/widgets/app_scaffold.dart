@@ -361,7 +361,7 @@ class _TabButton extends StatefulWidget {
 }
 
 class _TabButtonState extends State<_TabButton> {
-  static const double _illustrationSize = 26;
+  static const double _illustrationSize = 34;
   final _icon = GlobalKey<OneShotIconState>();
 
   @override
