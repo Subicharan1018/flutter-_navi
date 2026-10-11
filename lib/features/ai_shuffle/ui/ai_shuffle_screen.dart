@@ -143,11 +143,13 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               title: 'Smart Shuffle isn’t reachable',
               message: 'Check that your Smart Shuffle server is running, then try again.',
               onRetry: _fetch,
+              illustration: 'ai',
             ),
           )
         else if (mix.isEmpty)
           SliverToBoxAdapter(
             child: MessageState(
+              illustration: 'ai',
               icon: CupertinoIcons.sparkles,
               title: 'No picks yet',
               message: predict.mode.emptyMessage,

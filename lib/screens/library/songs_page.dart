@@ -92,6 +92,7 @@ class _SongsPageState extends ConsumerState<SongsPage> {
                         onRetry: () => ref.invalidate(allSongsProvider),
                       )
                     : MessageState(
+                        illustration: widget.downloadedOnly ? null : 'books',
                         icon: widget.downloadedOnly ? CupertinoIcons.arrow_down_circle : CupertinoIcons.music_note,
                         title: widget.downloadedOnly ? 'No downloads yet' : 'No songs yet',
                         message: widget.downloadedOnly

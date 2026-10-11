@@ -76,6 +76,10 @@ flutter:
   uses-material-design: true
   shaders:
     - shaders/artwork_field.frag
+  # Tab icons: a still (resting) frame plus a one-shot animation each, and
+  # illustration stills for empty states.
+  assets:
+    - assets/icons/
   # Inter 4.1 (SIL OFL, assets/fonts/Inter-OFL-LICENSE.txt). Bundled so the
   # first launch and offline launches render the real face, never a fallback.
   # "Inter" is the text cut; "InterDisplay" is the optical cut for ≥20pt type.

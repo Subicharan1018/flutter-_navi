@@ -15,6 +15,8 @@ class TrendChart extends StatelessWidget {
   /// but no daily series, the chart steps aside instead of claiming there's
   /// no listening.
   final int totalPlays;
+
+  static const double _emptyArt = 64;
   const TrendChart({super.key, required this.days, required this.window, required this.totalPlays});
 
   @override
@@ -35,7 +37,19 @@ class TrendChart extends StatelessWidget {
       if (totalPlays > 0) return const SizedBox.shrink();
       return StatSection(
         title: 'Plays per Day',
-        child: Text('Play some music and your daily listening is drawn here.', style: t.subheadline),
+        child: Row(
+          children: [
+            Image.asset(
+              'assets/icons/trend.png',
+              width: _emptyArt,
+              height: _emptyArt,
+              cacheWidth: (_emptyArt * MediaQuery.devicePixelRatioOf(context)).round(),
+              excludeFromSemantics: true,
+            ),
+            const SizedBox(width: Space.lg),
+            Expanded(child: Text('Play some music and your daily listening is drawn here.', style: t.subheadline)),
+          ],
+        ),
       );
     }
 

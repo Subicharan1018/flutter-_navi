@@ -34,6 +34,7 @@ import '../utils/platform_utils.dart';
 import 'cover_art.dart';
 import '../screens/playlist_editor.dart';
 import 'ui/dock_ground.dart';
+import 'ui/one_shot_icon.dart';
 import 'mini_player.dart';
 
 // =============================================================================
@@ -52,16 +53,21 @@ import 'mini_player.dart';
 /// The app's top-level destinations, in Apple Music's order (Search last).
 /// Everything that switches tabs refers to these by name, never by position.
 enum AppTab {
-  home('Home', CupertinoIcons.house, CupertinoIcons.house_fill),
-  shuffle('Shuffle', CupertinoIcons.sparkles, CupertinoIcons.sparkles),
-  stats('Stats', CupertinoIcons.chart_bar, CupertinoIcons.chart_bar_fill),
-  library('Library', CupertinoIcons.music_albums, CupertinoIcons.music_albums_fill),
-  search('Search', CupertinoIcons.search, CupertinoIcons.search);
+  home('Home', CupertinoIcons.house, CupertinoIcons.house_fill, 'tab_home', Duration(milliseconds: 1980)),
+  shuffle('Shuffle', CupertinoIcons.sparkles, CupertinoIcons.sparkles, 'tab_shuffle', Duration(milliseconds: 2970)),
+  stats('Stats', CupertinoIcons.chart_bar, CupertinoIcons.chart_bar_fill, 'tab_stats', Duration(milliseconds: 1980)),
+  library('Library', CupertinoIcons.music_albums, CupertinoIcons.music_albums_fill, 'tab_library', Duration(milliseconds: 1980)),
+  search('Search', CupertinoIcons.search, CupertinoIcons.search, null, Duration.zero);
 
-  const AppTab(this.label, this.icon, this.activeIcon);
+  const AppTab(this.label, this.icon, this.activeIcon, this.illustration, this.illustrationDuration);
   final String label;
   final IconData icon;
   final IconData activeIcon;
+
+  /// Animated illustration for the phone tab bar (see [OneShotIcon]); null
+  /// keeps the glyph. Desktop's sidebar keeps the glyphs.
+  final String? illustration;
+  final Duration illustrationDuration;
 
   Widget get screen => switch (this) {
         AppTab.home => const HomeScreen(),
@@ -344,27 +350,50 @@ class _TabBar extends StatelessWidget {
   }
 }
 
-class _TabButton extends StatelessWidget {
+class _TabButton extends StatefulWidget {
   final AppTab tab;
   final bool selected;
   final VoidCallback onTap;
   const _TabButton({required this.tab, required this.selected, required this.onTap});
 
   @override
+  State<_TabButton> createState() => _TabButtonState();
+}
+
+class _TabButtonState extends State<_TabButton> {
+  static const double _illustrationSize = 26;
+  final _icon = GlobalKey<OneShotIconState>();
+
+  @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    final tab = widget.tab;
+    final selected = widget.selected;
     final color = selected ? t.accent : t.textPrimary;
+    final illustration = tab.illustration;
     return Semantics(
       button: true,
       selected: selected,
       label: tab.label,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onTap,
+        onTap: () {
+          // Plays once per tap, then rests on its still frame.
+          _icon.currentState?.play();
+          widget.onTap();
+        },
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Icon(selected ? tab.activeIcon : tab.icon, size: 22, color: color),
+            if (illustration != null)
+              OneShotIcon(
+                key: _icon,
+                name: illustration,
+                size: _illustrationSize,
+                duration: tab.illustrationDuration,
+              )
+            else
+              Icon(selected ? tab.activeIcon : tab.icon, size: 22, color: color),
             const SizedBox(height: 3),
             Text(
               tab.label,

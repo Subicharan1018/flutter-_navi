@@ -12,6 +12,12 @@ class MessageState extends StatelessWidget {
   final String? actionLabel;
   final VoidCallback? onAction;
 
+  /// An illustration under `assets/icons/` (name without extension) shown in
+  /// place of [icon].
+  final String? illustration;
+
+  static const double _illustrationSize = 96;
+
   const MessageState({
     super.key,
     required this.icon,
@@ -19,6 +25,7 @@ class MessageState extends StatelessWidget {
     required this.message,
     this.actionLabel,
     this.onAction,
+    this.illustration,
   });
 
   /// Something failed to load.
@@ -27,6 +34,7 @@ class MessageState extends StatelessWidget {
     required String title,
     String message = 'Check your connection to the server, then try again.',
     required VoidCallback onRetry,
+    String? illustration,
   }) =>
       MessageState(
         key: key,
@@ -35,6 +43,7 @@ class MessageState extends StatelessWidget {
         message: message,
         actionLabel: 'Try again',
         onAction: onRetry,
+        illustration: illustration,
       );
 
   @override
@@ -48,7 +57,16 @@ class MessageState extends StatelessWidget {
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Icon(icon, size: 48, color: t.textMuted),
+              if (illustration != null)
+                Image.asset(
+                  'assets/icons/$illustration.png',
+                  width: _illustrationSize,
+                  height: _illustrationSize,
+                  cacheWidth: (_illustrationSize * MediaQuery.devicePixelRatioOf(context)).round(),
+                  excludeFromSemantics: true,
+                )
+              else
+                Icon(icon, size: 48, color: t.textMuted),
               const SizedBox(height: Space.lg),
               Text(title, textAlign: TextAlign.center, style: t.title3),
               const SizedBox(height: Space.sm),

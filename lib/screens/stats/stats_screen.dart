@@ -93,6 +93,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 title: 'Stats aren’t available',
                 message: 'Stats come from your Smart Shuffle server. Check that it’s running, then try again.',
                 onRetry: _refresh,
+                illustration: 'analytics',
               ),
             ),
           ],
