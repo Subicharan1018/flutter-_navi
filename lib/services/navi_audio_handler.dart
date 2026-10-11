@@ -848,28 +848,48 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint('🎵 [NaviAudioHandler] _moveBasedReorder at anchor: $anchorIndex');
     final int n = _currentQueue.length;
     final int playlistLen = _playlist!.children.length;
+    // Queues over the source cap load a window starting at _playlistOffset;
+    // reorder within that window rather than treating the size difference
+    // as divergence (which rebuilt the source: an audible gap on every
+    // Smart Shuffle reorder of a long playlist).
+    final int windowEnd = (_playlistOffset + playlistLen).clamp(0, n);
+    final List<Song> window = _playlistOffset < windowEnd
+        ? _currentQueue.sublist(_playlistOffset, windowEnd)
+        : const <Song>[];
+    final liveSet = {
+      for (final src in _playlist!.children)
+        if (src.sequence.isNotEmpty && src.sequence.first.tag is MediaItem) (src.sequence.first.tag as MediaItem).id,
+    };
+    final sameSongs = window.length == playlistLen && window.every((s) => liveSet.contains(s.id));
 
-    // Guard: if the playlist source count diverges from the queue count,
-    // move-based reorder is unsafe — fall back to a full source rebuild
-    // to prevent the "Not in inclusive range 0..N: N+1" RangeError.
-    if (playlistLen != n) {
-      debugPrint(
-        '⚠️ [Reorder] playlist.children ($playlistLen) ≠ queue ($n) — '
-        'falling back to rebuildSource at anchor $anchorIndex',
-      );
+    // Guard: if the loaded sources hold different songs from the queue
+    // window, move-based reorder is unsafe — fall back to a full source
+    // rebuild to prevent the "Not in inclusive range 0..N: N+1" RangeError.
+    if (!sameSongs) {
+      final activeId = preserveActiveSongId ?? _currentQueue[anchorIndex.clamp(0, n - 1)].id;
+      final activeIdx = _currentQueue.indexWhere((song) => song.id == activeId);
+      final liveIndex = player.currentIndex;
+      final liveTag = liveIndex != null && liveIndex < playlistLen
+          ? _playlist!.children[liveIndex].sequence.firstOrNull?.tag
+          : null;
+      if (activeIdx >= 0 && liveTag is MediaItem && liveTag.id == activeId) {
+        // The playing song is loaded: replace everything around it without
+        // touching it, so the audio never stops.
+        debugPrint('ℹ️ [Reorder] sources differ from queue — replacing around the playing song');
+        await updateQueuePreservingCurrent(List<Song>.from(_currentQueue), activeIdx);
+        return;
+      }
+      debugPrint('⚠️ [Reorder] playing song not loaded — rebuilding source at anchor $anchorIndex');
       final savedPosition = player.position;
-      final rebuildIndex = preserveActiveSongId == null
-          ? anchorIndex
-          : _currentQueue.indexWhere((song) => song.id == preserveActiveSongId);
       await _rebuildSource(
-        (rebuildIndex >= 0 ? rebuildIndex : currentIndex).clamp(0, n - 1),
+        (activeIdx >= 0 ? activeIdx : currentIndex).clamp(0, n - 1),
         initialPosition: savedPosition,
       );
       if (player.playing) player.play();
       return;
     }
 
-    final List<String> liveIds = List.generate(n, (i) {
+    final List<String> liveIds = List.generate(playlistLen, (i) {
       final src = _playlist!.children[i];
       if (src.sequence.isNotEmpty && src.sequence.first.tag is MediaItem) {
         return (src.sequence.first.tag as MediaItem).id;
@@ -877,8 +897,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return '';
     });
 
-    for (int targetIdx = 0; targetIdx < n; targetIdx++) {
-      final wantedId = _currentQueue[targetIdx].id;
+    for (int targetIdx = 0; targetIdx < playlistLen; targetIdx++) {
+      final wantedId = window[targetIdx].id;
       if (liveIds[targetIdx] == wantedId) continue;
       final fromIdx = liveIds.indexOf(wantedId, targetIdx + 1);
       if (fromIdx == -1) continue;
@@ -895,8 +915,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // preserve that item and let just_audio maintain its live index.
     if (preserveActiveSongId == null) {
       final currentLiveIndex = currentIndex;
-      if (currentLiveIndex != anchorIndex) {
-        await player.seek(player.position, index: anchorIndex);
+      final localAnchor = anchorIndex - _playlistOffset;
+      if (currentLiveIndex != anchorIndex && localAnchor >= 0 && localAnchor < playlistLen) {
+        await player.seek(player.position, index: localAnchor);
       }
     }
     if (player.playing) player.play();
@@ -1033,9 +1054,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (_playlistOffset == 0) {
         await _playlist!.removeRange(start, end);
       } else {
-        await _rebuildSource(
-          currentIndex.clamp(0, _currentQueue.length - 1),
-        );
+        // A windowed queue: songs before the loaded window just shift the
+        // offset; only the part inside the window touches the sources. (This
+        // used to rebuild the whole source, restarting the playing song.)
+        final oldOffset = _playlistOffset;
+        final len = _playlist!.children.length;
+        final beforeWindow = (end < oldOffset ? end : oldOffset) - start;
+        final localStart = (start > oldOffset ? start : oldOffset) - oldOffset;
+        final localEnd = ((end < oldOffset + len ? end : oldOffset + len) - oldOffset);
+        if (beforeWindow > 0) _playlistOffset -= beforeWindow;
+        if (localEnd > localStart) await _playlist!.removeRange(localStart, localEnd);
       }
     }
   }

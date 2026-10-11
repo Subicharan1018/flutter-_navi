@@ -26,13 +26,13 @@ class AlbumPalette {
   });
 
   /// Shown when nothing is playing or a cover has no usable pixels: the app's
-  /// own green-black ramp with the brand green, so an empty player matches
-  /// the chrome instead of inventing an identity.
+  /// own AMOLED black with the brand green, so an empty player matches the
+  /// chrome instead of inventing an identity.
   static const AlbumPalette fallback = AlbumPalette(
-    deep: Color(0xFF050B07),
-    base: Color(0xFF15261B),
+    deep: Color(0xFF000000),
+    base: Color(0xFF1C1C1E),
     vibrant: Color(0xFF30D158),
-    glow: Color(0xFF1F3326),
+    glow: Color(0xFF2C2C2E),
   );
 
   /// Page ground for album / playlist / artist pages (iOS 26.4 style): the
@@ -267,7 +267,7 @@ List<int> extractAlbumPalette(Uint8List rgba) {
   return [deep, base, vibrant, glow];
 }
 
-const List<int> _fallbackInts = [0xFF050B07, 0xFF15261B, 0xFF30D158, 0xFF1F3326];
+const List<int> _fallbackInts = [0xFF000000, 0xFF1C1C1E, 0xFF30D158, 0xFF2C2C2E];
 
 AlbumPalette albumPaletteFromInts(List<int> c) => AlbumPalette(
       deep: Color(c[0]),

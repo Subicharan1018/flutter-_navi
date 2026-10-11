@@ -412,12 +412,27 @@ class TintedButton extends StatelessWidget {
   final VoidCallback? onTap;
   final bool destructive;
 
-  const TintedButton({super.key, this.icon, required this.label, this.onTap, this.destructive = false});
+  /// The primary action of a pair: solid accent with dark text.
+  final bool filled;
+  final double height;
+
+  const TintedButton({
+    super.key,
+    this.icon,
+    required this.label,
+    this.onTap,
+    this.destructive = false,
+    this.filled = false,
+    this.height = 44,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final fg = onTap == null ? t.textMuted : (destructive ? t.danger : t.accent);
+    final fg = onTap == null
+        ? t.textMuted
+        : (filled ? t.onAccent : (destructive ? t.danger : t.accent));
+    final bg = filled && onTap != null ? t.accent : t.fill;
     return CupertinoClickable(
       onTap: onTap == null
           ? null
@@ -428,9 +443,9 @@ class TintedButton extends StatelessWidget {
       scaleFactor: 0.96,
       semanticLabel: label,
       child: Container(
-        height: 44,
+        height: height,
         padding: const EdgeInsets.symmetric(horizontal: Space.xl),
-        decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(Radii.capsule)),
+        decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Radii.capsule)),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,

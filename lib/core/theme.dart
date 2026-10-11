@@ -13,8 +13,8 @@ export 'album_palette.dart' show AlbumPalette;
 // NaviVibe's design language is Apple Music on iPhone, built for Android.
 //
 // Colour: Apple's dark-mode roles (ground, grouped surface, elevated, overlay,
-// secondary / tertiary labels, separators) translated onto a green-black ramp
-// instead of neutral grey, with one accent — system green. Every role is
+// secondary / tertiary labels, separators) on an AMOLED black ground, with
+// one accent — system green. Every role is
 // opaque; only artwork fades into its page. Collection pages take their
 // ground from the cover ([AppThemeTokens.tinted]).
 //
@@ -137,7 +137,7 @@ class AppThemeTokens {
   final bool tinted;
 
   const AppThemeTokens._({
-    this.fill = const Color(0xFF1A2D21),
+    this.fill = const Color(0xFF1C1C1E),
     this.tinted = false,
     required this.palette,
     required this.bgBase,
@@ -157,25 +157,25 @@ class AppThemeTokens {
   /// Apple's dark-mode systemGreen — the app's single accent.
   static const Color brandGreen = Color(0xFF30D158);
 
-  /// App chrome keeps the same green-black ramp whatever is playing. Album
+  /// App chrome stays AMOLED black whatever is playing. Album
   /// colour belongs to Now Playing, the mini player (they read [palette]
   /// directly) and collection pages ([AppThemeTokens.tinted]); tinting
   /// every page per song made the app a different app with each track.
   factory AppThemeTokens.fromPalette(AlbumPalette p) {
     return AppThemeTokens._(
       palette: p,
-      bgBase: const Color(0xFF050B07), // systemBackground
-      bgSurface: const Color(0xFF0F1D14), // secondarySystemBackground
-      bgElevated: const Color(0xFF17291D), // tertiarySystemBackground
-      bgOverlay: const Color(0xFF213628), // pressed fills, chips
+      bgBase: const Color(0xFF000000), // AMOLED black
+      bgSurface: const Color(0xFF111111), // secondarySystemBackground
+      bgElevated: const Color(0xFF1C1C1E), // tertiarySystemBackground
+      bgOverlay: const Color(0xFF2C2C2E), // pressed fills, chips
       accent: brandGreen,
       accentDim: const Color(0xFF248A3D), // systemGreen, accessible dark
       onAccent: const Color(0xFF000000),
       gold: const Color(0xFFFFD60A), // systemYellow
       textPrimary: const Color(0xFFFFFFFF), // label
-      textSecondary: const Color(0xFF97A59C), // secondaryLabel, ≥ 6:1 on every ground
-      textMuted: const Color(0xFF7E9284), // tertiaryLabel, ≥ 4.5:1 up to bgElevated
-      outline: const Color(0xFF223529), // separator
+      textSecondary: const Color(0xFF9E9EA4), // secondaryLabel, ≥ 6:1 on every ground
+      textMuted: const Color(0xFF86868C), // tertiaryLabel, ≥ 4.5:1 up to bgElevated
+      outline: const Color(0xFF262628), // separator
     );
   }
 

@@ -28,8 +28,8 @@ Music's finish.
 - **Apple Music, played straight.** The app is the iOS 26 Apple Music
   experience on Android, at full fidelity with no irony and no smuggled quirks. Its peers
   and craft bar are Apple Music and Apple Podcasts on iPhone. The only
-  translations are a green accent where Apple uses red, and a deep
-  green-black ground where Apple uses neutral grey.
+  translations are a green accent where Apple uses red, and a pure
+  AMOLED black ground (#000000) with no tint.
 - **Green, never purple or pink.** Sampled artwork colours are hue-guarded
   away from 250–340°.
 - **Opaque.** Chrome is opaque. The single exception is artwork fading

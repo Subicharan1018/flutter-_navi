@@ -1,22 +1,20 @@
 import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
-import '../../../features/ai_shuffle/data/models/contribution_graph_response.dart';
 import '../../../features/ai_shuffle/data/models/listening_stats_response.dart';
 import '../../../utils/format.dart';
 import 'stat_card.dart';
 
 /// The top of Stats: time listened as one big figure, the way Apple Fitness
 /// leads with the number you care about. Plays, skips and streak sit under
-/// it as supporting figures, then the last two weeks as a strip of days.
+/// it as supporting figures.
 class SummaryHero extends StatelessWidget {
   final ListeningStatsResponse stats;
-  final List<ContributionDay> days;
 
   /// "in the last 7 days", "all time"…
   final String periodPhrase;
 
-  const SummaryHero({super.key, required this.stats, required this.days, required this.periodPhrase});
+  const SummaryHero({super.key, required this.stats, required this.periodPhrase});
 
   @override
   Widget build(BuildContext context) {
@@ -72,10 +70,6 @@ class SummaryHero extends StatelessWidget {
                 ],
               ),
             ),
-            if (days.isNotEmpty) ...[
-              const SizedBox(height: Space.xxl),
-              _Fortnight(days: days),
-            ],
           ],
         ),
       ),
@@ -137,66 +131,3 @@ class _Counting extends StatelessWidget {
   }
 }
 
-/// The last 14 days as bars sized by plays, today on the right and lit;
-/// a day without music stays a short stub so gaps in a streak read at once.
-class _Fortnight extends StatelessWidget {
-  static const _window = 14;
-  static const _height = 44.0;
-  final List<ContributionDay> days;
-  const _Fortnight({required this.days});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final byDate = {for (final d in days) d.date: d.count};
-    final now = DateTime.now();
-    final counts = [
-      for (var i = 0; i < _window; i++) byDate[isoDate(now.subtract(Duration(days: _window - 1 - i)))] ?? 0,
-    ];
-    final max = counts.fold(0, (a, b) => a > b ? a : b);
-    const weekdays = ['M', 'T', 'W', 'T', 'F', 'S', 'S'];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('Last 2 weeks', style: t.footnote),
-        const SizedBox(height: Space.sm),
-        SizedBox(
-          height: _height,
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              for (var i = 0; i < _window; i++) ...[
-                if (i > 0) const SizedBox(width: 4),
-                Expanded(
-                  child: Container(
-                    height: max == 0 || counts[i] == 0 ? 4 : 8 + (_height - 8) * counts[i] / max,
-                    decoration: BoxDecoration(
-                      color: counts[i] == 0 ? t.fill : (i == _window - 1 ? t.accent : t.accentDim),
-                      borderRadius: BorderRadius.circular(3),
-                    ),
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-        const SizedBox(height: Space.xs + 2),
-        Row(
-          children: [
-            for (var i = 0; i < _window; i++) ...[
-              if (i > 0) const SizedBox(width: 4),
-              Expanded(
-                child: Text(
-                  weekdays[now.subtract(Duration(days: _window - 1 - i)).weekday - 1],
-                  textAlign: TextAlign.center,
-                  style: t.caption2.copyWith(color: i == _window - 1 ? t.textPrimary : t.textMuted),
-                ),
-              ),
-            ],
-          ],
-        ),
-      ],
-    );
-  }
-}

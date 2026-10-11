@@ -123,8 +123,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               mix: mix,
               busy: _applying || loading,
               onPlay: mix.isEmpty ? null : () => _play(mix),
-              onShuffle: mix.isEmpty ? null : () => _play([...mix]..shuffle()),
-              onNewPicks: loading ? null : () => _reshuffle(mix),
+              onReshuffle: loading ? null : () => _reshuffle(mix),
             ),
           ),
         ),
@@ -192,11 +191,8 @@ class _MixCard extends ConsumerWidget {
   final bool busy;
   final VoidCallback? onPlay;
 
-  /// Plays the same picks in a shuffled order (Apple's round Shuffle).
-  final VoidCallback? onShuffle;
-
   /// Swaps every pick on screen for new ones tuned to the same moment.
-  final VoidCallback? onNewPicks;
+  final VoidCallback? onReshuffle;
 
   const _MixCard({
     required this.context,
@@ -204,9 +200,10 @@ class _MixCard extends ConsumerWidget {
     required this.mix,
     required this.busy,
     required this.onPlay,
-    required this.onShuffle,
-    required this.onNewPicks,
+    required this.onReshuffle,
   });
+
+  static const double _buttonHeight = 50;
 
   static String _titleCase(String s) =>
       s.split('_').where((w) => w.isNotEmpty).map((w) => '${w[0].toUpperCase()}${w.substring(1)}').join(' ');
@@ -263,14 +260,29 @@ class _MixCard extends ConsumerWidget {
           Text(_confidence(c), textAlign: TextAlign.center, style: t.footnote),
         ],
         const SizedBox(height: Space.xl),
-        PlayShuffleButtons(
-          onPlay: busy ? null : onPlay,
-          onShuffle: busy ? null : onShuffle,
-          trailing: CircleIconButton(
-            icon: CupertinoIcons.arrow_2_circlepath,
-            label: 'New Picks',
-            onTap: onNewPicks,
-          ),
+        // Apple's paired capsules: play this mix, or reshuffle it into new
+        // picks for the same moment.
+        Row(
+          children: [
+            Expanded(
+              child: TintedButton(
+                filled: true,
+                height: _buttonHeight,
+                icon: CupertinoIcons.play_fill,
+                label: 'Play',
+                onTap: busy ? null : onPlay,
+              ),
+            ),
+            const SizedBox(width: Space.md),
+            Expanded(
+              child: TintedButton(
+                height: _buttonHeight,
+                icon: CupertinoIcons.shuffle,
+                label: 'Reshuffle',
+                onTap: onReshuffle,
+              ),
+            ),
+          ],
         ),
       ],
     );

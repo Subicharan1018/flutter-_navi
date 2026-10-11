@@ -209,6 +209,8 @@ class _ModePills extends ConsumerWidget {
     final autoplay = ref.watch(playerProvider.select((s) => s.autoplayMode));
     final n = ref.read(playerProvider.notifier);
 
+    // iOS 26's queue controls: four equal icon buttons. Reshuffle is an
+    // action, not a mode, so it never shows as "on".
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
@@ -228,8 +230,8 @@ class _ModePills extends ConsumerWidget {
             child: _Pill(
               icon: repeat == LoopMode.one ? CupertinoIcons.repeat_1 : CupertinoIcons.repeat,
               label: switch (repeat) {
-                LoopMode.one => 'Repeat 1',
-                LoopMode.all => 'Repeat',
+                LoopMode.one => 'Repeat this song',
+                LoopMode.all => 'Repeat queue',
                 LoopMode.off => 'Repeat',
               },
               active: repeat != LoopMode.off,
@@ -245,6 +247,21 @@ class _ModePills extends ConsumerWidget {
               active: autoplay,
               style: st,
               onTap: n.toggleAutoplay,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _Pill(
+              icon: CupertinoIcons.arrow_2_circlepath,
+              label: 'Reshuffle up next',
+              active: false,
+              toggle: false,
+              style: st,
+              onTap: () async {
+                final all = await ref.read(allSongsProvider.future).catchError((_) => const <Song>[]);
+                await n.reshuffleUpNext(all);
+              },
+              onLongPress: () => _showShuffleModes(context, ref),
             ),
           ),
         ],
@@ -330,6 +347,9 @@ class _Pill extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
+  /// False for one-shot actions (no on/off state to announce).
+  final bool toggle;
+
   const _Pill({
     required this.icon,
     required this.label,
@@ -337,13 +357,14 @@ class _Pill extends StatelessWidget {
     required this.style,
     required this.onTap,
     this.onLongPress,
+    this.toggle = true,
   });
 
   @override
   Widget build(BuildContext context) {
     final fg = active ? style.pillOnActive : style.textPrimary;
     return CupertinoClickable(
-      semanticLabel: '$label ${active ? 'on' : 'off'}',
+      semanticLabel: toggle ? '$label ${active ? 'on' : 'off'}' : label,
       onTap: () {
         HapticFeedback.selectionClick();
         onTap();
@@ -352,27 +373,13 @@ class _Pill extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        height: 40,
+        height: 44,
         decoration: BoxDecoration(
           color: active ? style.pillActive : style.pillIdle,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: fg),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.fade,
-                softWrap: false,
-                style: naviText(13.5, FontWeight.w600, fg),
-              ),
-            ),
-          ],
-        ),
+        alignment: Alignment.center,
+        child: Icon(icon, size: 20, color: fg),
       ),
     );
   }

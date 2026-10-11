@@ -8,6 +8,7 @@ import '../../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../../widgets/ui/controls.dart';
 import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/ui/states.dart';
+import 'widgets/fortnight_chart.dart';
 import 'widgets/genre_mix.dart';
 import 'widgets/hours_chart.dart';
 import 'widgets/model_status.dart';
@@ -97,6 +98,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           ],
           data: (s) {
             final sections = <Widget>[
+              FortnightChart(days: days),
               ListeningClock(byHour: s.hourlyHeatmap),
               TrendChart(days: days, window: _period.trendDays, totalPlays: s.totalPlays),
               TopArtistsCard(artists: s.topArtists),
@@ -109,7 +111,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, 0),
                 sliver: SliverToBoxAdapter(
-                  child: SummaryHero(stats: s, days: days, periodPhrase: _period.phrase),
+                  child: SummaryHero(stats: s, periodPhrase: _period.phrase),
                 ),
               ),
               SliverPadding(

@@ -137,9 +137,12 @@ class ArtworkRepository {
       final ints = await compute(extractAlbumPalette, bytes.buffer.asUint8List());
       final data = ArtworkData(key: key, image: image, palette: albumPaletteFromInts(ints));
       _cache[key] = data;
+      // Evicted entries are dropped, not disposed: an evicted image may still
+      // be on screen (the playing song's field and cover after browsing 40
+      // other covers), and disposing it blanked Now Playing until the next
+      // song. 64×64 images are tiny; they are freed once nothing holds them.
       while (_cache.length > _capacity) {
-        final evicted = _cache.remove(_cache.keys.first);
-        evicted?.image.dispose();
+        _cache.remove(_cache.keys.first);
       }
       return data;
     } catch (e) {
@@ -199,8 +202,27 @@ class NowPlayingArtworkNotifier extends Notifier<ArtworkData?> {
       return;
     }
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
+    _load(key, url, retriesLeft: _retries);
+  }
+
+  static const int _retries = 2;
+  static const Duration _retryDelay = Duration(seconds: 2);
+
+  /// A failed load (network busy while a new mix starts) is retried, and if
+  /// it still fails the key is forgotten so the next sync tries again —
+  /// previously the song stayed on the old artwork until a skip.
+  void _load(String key, String url, {required int retriesLeft}) {
     ArtworkRepository.instance.load(key, url).then((data) {
-      if (data != null && _requestedKey == key) state = data;
+      if (_requestedKey != key) return;
+      if (data != null) {
+        state = data;
+      } else if (retriesLeft > 0) {
+        Future.delayed(_retryDelay, () {
+          if (_requestedKey == key) _load(key, url, retriesLeft: retriesLeft - 1);
+        });
+      } else {
+        _requestedKey = null;
+      }
     });
   }
 }
