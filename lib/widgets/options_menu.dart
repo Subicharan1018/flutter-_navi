@@ -6,6 +6,7 @@ import '../core/theme.dart';
 import '../models/album.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
+import '../providers/catalog_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -62,6 +63,7 @@ class OptionsMenu extends ConsumerWidget {
         SheetHeader(
           title: song.title,
           subtitle: song.album.isEmpty ? song.artist : '${song.artist} — ${song.album}',
+          detail: catalogDetailLine(ref.watch(catalogSongProvider(song.id)), song),
           artUrl: service.getCoverArtUrl(song.coverArt),
         ),
         SheetGroup(children: [

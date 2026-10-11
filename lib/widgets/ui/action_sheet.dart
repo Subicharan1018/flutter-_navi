@@ -10,6 +10,9 @@ import '../desktop_dialogs.dart';
 class SheetHeader extends StatelessWidget {
   final String title;
   final String? subtitle;
+
+  /// A third, quieter line for facts about the item (language, genre, year).
+  final String? detail;
   final String? artUrl;
   final IconData placeholderIcon;
   final bool circularArt;
@@ -18,6 +21,7 @@ class SheetHeader extends StatelessWidget {
     super.key,
     required this.title,
     this.subtitle,
+    this.detail,
     this.artUrl,
     this.placeholderIcon = Icons.music_note_rounded,
     this.circularArt = false,
@@ -40,6 +44,10 @@ class SheetHeader extends StatelessWidget {
                 if (subtitle != null && subtitle!.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                ],
+                if (detail != null && detail!.isNotEmpty) ...[
+                  const SizedBox(height: 2),
+                  Text(detail!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
                 ],
               ],
             ),

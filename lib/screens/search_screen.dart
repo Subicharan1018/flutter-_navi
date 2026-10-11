@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
-import '../models/artist.dart';
+import '../models/catalog.dart';
 import '../models/search_results.dart';
 import '../player/artwork.dart' show coverPaletteProvider;
+import '../providers/catalog_provider.dart';
 import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/search_provider.dart';
@@ -22,7 +23,7 @@ import '../widgets/ui/media.dart';
 import '../widgets/ui/states.dart';
 import 'album_details_screen.dart';
 import 'artist_screen.dart';
-import 'genre_screen.dart';
+import 'category_screen.dart';
 
 /// Apple Music's Search: recent searches and Browse by genre while idle;
 /// Artists, Albums and Songs once you type.
@@ -79,9 +80,9 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           _remember();
         },
       ),
-      onRefresh: query.isEmpty ? () async => ref.invalidate(genresProvider) : null,
+      onRefresh: query.isEmpty ? () => ref.read(catalogProvider.notifier).refresh() : null,
       slivers: query.isEmpty
-          ? [_RecentSearches(onTap: _searchFor), const _BrowseGenres()]
+          ? [_RecentSearches(onTap: _searchFor), const _BrowseCategories()]
           : [_Results(query: query, onUsed: _remember)],
     );
   }
@@ -137,42 +138,67 @@ class _RecentSearches extends ConsumerWidget {
   }
 }
 
-class _BrowseGenres extends ConsumerWidget {
-  const _BrowseGenres();
+/// Browse the library by what the songs are: their language (Tamil, English,
+/// songs in more than one, then every other language) and their genre. Built
+/// from the shuffle server's catalog, which detects language from lyrics,
+/// vocals and sources and cleans up genre tags.
+class _BrowseCategories extends ConsumerWidget {
+  const _BrowseCategories();
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final genres = ref.watch(genresProvider).asData?.value ?? const <Genre>[];
-    if (genres.isEmpty) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    final doc = ref.watch(catalogProvider).asData?.value;
+    if (doc == null) return const SliverToBoxAdapter(child: SizedBox.shrink());
+    final languages = [
+      ...doc.languages.take(2),
+      ?doc.multilingual,
+      ...doc.languages.skip(2),
+    ];
     return SliverMainAxisGroup(slivers: [
-      const SliverToBoxAdapter(child: SectionHeader(title: 'Browse by Genre')),
-      SliverPadding(
-        padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-        sliver: SliverLayoutBuilder(
-          builder: (context, c) => SliverGrid(
-            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-              crossAxisCount: c.crossAxisExtent >= 900 ? 4 : c.crossAxisExtent >= 600 ? 3 : 2,
-              crossAxisSpacing: Space.md,
-              mainAxisSpacing: Space.md,
-              mainAxisExtent: 108,
-            ),
-            delegate: SliverChildBuilderDelegate(
-              (context, i) => _GenreTile(genre: genres[i]),
-              childCount: genres.length,
-            ),
-          ),
-        ),
-      ),
+      if (languages.isNotEmpty) ...[
+        const SliverToBoxAdapter(child: SectionHeader(title: 'Languages')),
+        _CategoryGrid(categories: languages),
+      ],
+      if (doc.genres.isNotEmpty) ...[
+        const SliverToBoxAdapter(child: SectionHeader(title: 'Genres')),
+        _CategoryGrid(categories: doc.genres),
+      ],
     ]);
   }
 }
 
+class _CategoryGrid extends StatelessWidget {
+  final List<CatalogCategory> categories;
+  const _CategoryGrid({required this.categories});
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.lg),
+      sliver: SliverLayoutBuilder(
+        builder: (context, c) => SliverGrid(
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: c.crossAxisExtent >= 900 ? 4 : c.crossAxisExtent >= 600 ? 3 : 2,
+            crossAxisSpacing: Space.md,
+            mainAxisSpacing: Space.md,
+            mainAxisExtent: 108,
+          ),
+          delegate: SliverChildBuilderDelegate(
+            (context, i) => _CategoryTile(category: categories[i]),
+            childCount: categories.length,
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// Apple Music's Browse tile: a block of colour sampled from one of the
-/// genre's albums, the name in bold white, and that album's cover tipped
-/// into the bottom-right corner.
-class _GenreTile extends ConsumerWidget {
-  final Genre genre;
-  const _GenreTile({required this.genre});
+/// category's covers, the name in bold white, and that cover tipped into the
+/// bottom-right corner.
+class _CategoryTile extends ConsumerWidget {
+  final CatalogCategory category;
+  const _CategoryTile({required this.category});
 
   /// Luminance at which white bold text still clears 4.5:1.
   static const double _maxLuminance = 0.18;
@@ -193,15 +219,16 @@ class _GenreTile extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
-    final cover = ref.watch(genreCoverProvider(genre.name)).asData?.value;
+    final cover = ref.watch(categoryCoverProvider(category));
     final palette = cover == null ? null : ref.watch(coverPaletteProvider(cover)).asData?.value;
     final fill = palette == null ? t.bgSurface : _tileColor(palette.base);
     final url = cover == null ? null : ref.read(subsonicServiceProvider).getCoverArtUrl(cover);
+    final count = category.count == 1 ? '1 song' : '${category.count} songs';
 
     return CupertinoClickable(
-      onTap: () => navigateInApp(context, GenreScreen(genre: genre.name)),
+      onTap: () => navigateInApp(context, CategoryScreen(category: category)),
       scaleFactor: 0.97,
-      semanticLabel: genre.name,
+      semanticLabel: '${category.name}, $count',
       child: LayoutBuilder(builder: (context, c) {
         final art = c.maxHeight * 0.78;
         return AnimatedContainer(
@@ -226,11 +253,18 @@ class _GenreTile extends ConsumerWidget {
                 ),
               Padding(
                 padding: const EdgeInsets.fromLTRB(Space.md, Space.md, Space.xxxl + Space.lg, Space.md),
-                child: Text(
-                  genre.name,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.headline.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      category.name,
+                      maxLines: 2,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.headline.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+                    ),
+                    const Spacer(),
+                    Text(count, style: t.caption1.copyWith(color: Colors.white.withValues(alpha: 0.78))),
+                  ],
                 ),
               ),
             ],

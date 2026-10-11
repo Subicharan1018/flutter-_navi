@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
+import '../providers/catalog_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -117,9 +118,11 @@ class _SongTileState extends ConsumerState<SongTile> {
                   ),
           );
 
+    final artist = displayArtist(song, ref.watch(catalogSongProvider(song.id)));
+
     return Semantics(
       button: true,
-      label: '${song.title}, ${song.artist}${isCurrent ? ', now playing' : ''}',
+      label: '${song.title}, $artist${isCurrent ? ', now playing' : ''}',
       onLongPressHint: 'Show song options',
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
@@ -157,7 +160,7 @@ class _SongTileState extends ConsumerState<SongTile> {
                             ),
                             if (widget.showArtist) ...[
                               const SizedBox(height: 1),
-                              Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                              Text(artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                             ],
                           ],
                         ),

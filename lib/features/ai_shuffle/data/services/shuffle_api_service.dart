@@ -18,6 +18,7 @@ import 'dart:math' as math;
 //   GET  /listening-log/composers
 //   GET  /listening-log/song
 //   GET  /listening-log/contribution-graph
+//   GET  /catalog/songs
 // =============================================================================
 
 import 'dart:convert';
@@ -406,6 +407,28 @@ class ShuffleApiService {
         '/replay/$year/$month',
       );
       return MonthlyReplayResponse.fromJson(response.data!);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /catalog/songs
+  // ---------------------------------------------------------------------------
+
+  /// The catalog document as raw JSON text plus its ETag. Pass the ETag of
+  /// the copy already held: when nothing changed the server answers 304 and
+  /// this returns null (the cached copy is current).
+  Future<({String body, String? etag})?> getCatalog({String? etag}) async {
+    return _wrap(() async {
+      final response = await _dio.get<String>(
+        '/catalog/songs',
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'If-None-Match': ?etag},
+          validateStatus: (s) => s != null && (s == 304 || (s >= 200 && s < 300)),
+        ),
+      );
+      if (response.statusCode == 304) return null;
+      return (body: response.data ?? '', etag: response.headers.value('etag'));
     });
   }
 

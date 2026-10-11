@@ -2,8 +2,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 
 import '../core/hive_boxes.dart';
-import '../models/album.dart';
-import '../models/artist.dart';
 import '../models/search_results.dart';
 import 'settings_provider.dart';
 
@@ -14,24 +12,6 @@ final searchQueryProvider = StateProvider<String>((ref) => '');
 final searchProvider = FutureProvider.autoDispose.family<SearchResults, String>((ref, query) {
   if (query.trim().isEmpty) return SearchResults.empty;
   return ref.watch(subsonicServiceProvider).search(query.trim());
-});
-
-/// Genres for the Browse grid shown before you type.
-final genresProvider = FutureProvider.autoDispose<List<Genre>>((ref) {
-  final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return const <Genre>[];
-  return ref.watch(subsonicServiceProvider).getGenres();
-});
-
-final genreAlbumsProvider = FutureProvider.autoDispose.family<List<Album>, String>((ref, genre) {
-  return ref.watch(subsonicServiceProvider).getAlbumsByGenre(genre);
-});
-
-/// One album cover that stands for a genre on its Browse tile. Kept for the
-/// session so the grid doesn't refetch every time Search is opened.
-final genreCoverProvider = FutureProvider.family<String?, String>((ref, genre) async {
-  final albums = await ref.watch(subsonicServiceProvider).getAlbumsByGenre(genre, size: 1);
-  return albums.firstOrNull?.coverArt;
 });
 
 class SearchHistoryNotifier extends StateNotifier<List<String>> {
