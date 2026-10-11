@@ -132,10 +132,7 @@ class ArtworkRepository {
         policy: ResizeImagePolicy.exact,
       );
       final image = await _resolve(provider);
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (bytes == null) return null;
-      final ints = await compute(extractAlbumPalette, bytes.buffer.asUint8List());
-      final data = ArtworkData(key: key, image: image, palette: albumPaletteFromInts(ints));
+      final data = ArtworkData(key: key, image: image, palette: await _paletteOf(key, image));
       _cache[key] = data;
       // Evicted entries are dropped, not disposed: an evicted image may still
       // be on screen (the playing song's field and cover after browsing 40
@@ -148,6 +145,22 @@ class ArtworkRepository {
     } catch (e) {
       debugPrint('[Artwork] $key failed: $e');
       return null;
+    }
+  }
+
+  /// The cover's palette from its pixels. Reading a decoded image back from
+  /// the GPU can fail on some Android GPUs (Impeller); that must not cost the
+  /// listener the moving background, which needs only the image itself, so a
+  /// failed readback falls back to the neutral palette and keeps the image.
+  Future<AlbumPalette> _paletteOf(String key, ui.Image image) async {
+    try {
+      final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+      if (bytes == null) throw StateError('pixel readback returned null');
+      final ints = await compute(extractAlbumPalette, bytes.buffer.asUint8List());
+      return albumPaletteFromInts(ints);
+    } catch (e) {
+      debugPrint('[Artwork] $key palette unavailable, keeping the image: $e');
+      return AlbumPalette.fallback;
     }
   }
 
