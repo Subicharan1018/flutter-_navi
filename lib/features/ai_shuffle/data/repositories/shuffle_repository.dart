@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 
 import '../services/shuffle_api_service.dart';
 import '../models/health_response.dart';
+import '../models/intent_response.dart';
 import '../models/next_response.dart';
 import '../models/feedback_request.dart';
 import '../models/model_status_response.dart';
@@ -137,6 +138,9 @@ class ShuffleRepository {
 
     return response;
   }
+
+  /// "Describe a mix": the library titles that fit [text].
+  Future<IntentResponse> interpretIntent(String text) => _api.interpretIntent(text);
 
   // ---------------------------------------------------------------------------
   // Feedback

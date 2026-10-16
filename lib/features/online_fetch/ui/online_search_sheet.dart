@@ -100,7 +100,7 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
               style: t.footnote),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(0, Space.md, 0, Space.sm),
+          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, Space.sm),
           child: NaviSearchField(
             controller: _field,
             placeholder: 'Song, film or artist',

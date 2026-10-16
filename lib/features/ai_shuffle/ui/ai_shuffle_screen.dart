@@ -24,8 +24,10 @@ import '../../../widgets/ui/mosaic_art.dart';
 import '../../../widgets/ui/states.dart';
 import '../data/models/next_response.dart';
 import '../data/models/predict_response.dart';
+import '../logic/mix_intent_provider.dart';
 import '../logic/recommendation_resolver.dart';
 import '../logic/shuffle_providers.dart';
+import 'widgets/describe_mix_field.dart';
 import 'widgets/smart_shuffle_status.dart';
 
 class AiShuffleScreen extends ConsumerStatefulWidget {
@@ -48,6 +50,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   /// reshuffle preview first so a stale batch never shows over the new
   /// picks. Only the preview: a mix that's already playing keeps its session.
   void _fetch([PredictMode? mode]) {
+    ref.read(mixIntentProvider.notifier).reset(); // leaving a described mix
     ref.read(shuffleQueueProvider.notifier).clearPreview();
     ref.read(predictQueueProvider.notifier).fetchPredict(mode: mode ?? ref.read(predictQueueProvider).mode);
   }
@@ -55,10 +58,14 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   /// New songs for the same moment: everything on screen is banned.
   Future<void> _reshuffle(List<Song> visible) async {
     HapticFeedback.selectionClick();
+    // A described mix reshuffles within the songs that fit the description.
+    final described = ref.read(mixIntentProvider).result?.candidates;
     try {
-      await ref
-          .read(shuffleQueueProvider.notifier)
-          .reshuffle(source: 'smart', visibleTitles: [for (final s in visible) s.title]);
+      await ref.read(shuffleQueueProvider.notifier).reshuffle(
+            source: described == null ? 'smart' : 'candidates',
+            candidates: described ?? const [],
+            visibleTitles: [for (final s in visible) s.title],
+          );
     } catch (_) {
       if (mounted) showToast(context, 'Couldn’t get new picks. Check your connection and try again.');
     }
@@ -114,6 +121,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
             ),
           ),
         ),
+        SliverToBoxAdapter(child: DescribeMixField(onClear: _fetch)),
         SliverPadding(
           padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
           sliver: SliverToBoxAdapter(

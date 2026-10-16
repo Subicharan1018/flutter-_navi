@@ -26,6 +26,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/health_response.dart';
+import '../models/intent_response.dart';
 import '../models/next_response.dart';
 import '../models/feedback_request.dart';
 import '../models/model_status_response.dart';
@@ -412,6 +413,24 @@ class ShuffleApiService {
       );
       if (response.statusCode == 304) return null;
       return (body: response.data ?? '', etag: response.headers.value('etag'));
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST /intent — "describe a mix"
+  // ---------------------------------------------------------------------------
+
+  /// Turns [text] ("calm Tamil melodies for night") into the library titles
+  /// that fit it. The server may ask an AI model first (up to ~20 s), so this
+  /// call waits longer than the default receive timeout.
+  Future<IntentResponse> interpretIntent(String text) async {
+    return _wrap(() async {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/intent',
+        data: {'text': text},
+        options: Options(receiveTimeout: const Duration(seconds: 40)),
+      );
+      return IntentResponse.fromJson(response.data!);
     });
   }
 
