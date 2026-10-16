@@ -494,6 +494,55 @@ class OfflineService {
     return null;
   }
 
+  /// After a server upgrade changed song ids: move every downloaded file
+  /// (`<id>.<ext>`, `.song.json`, `.lyrics.json`, `.jpg`) and the download and
+  /// pending-scrobble lists to the new ids, so downloads stay downloaded.
+  /// Two-phase rename: one song's old id can be another song's new id.
+  /// Returns how many songs moved.
+  Future<int> remapSongIds(Map<String, String> idMap) async {
+    if (_offlineDir == null) await initialize();
+    if (idMap.isEmpty) return 0;
+    const tmp = '__idmig__';
+    final dir = Directory(_offlineDir!);
+    final moved = <String>{};
+    final staged = <File>[];
+    await for (final entity in dir.list()) {
+      if (entity is! File) continue;
+      final name = entity.uri.pathSegments.last;
+      final dot = name.indexOf('.');
+      if (dot <= 0) continue;
+      final newId = idMap[name.substring(0, dot)];
+      if (newId == null) continue;
+      staged.add(await entity.rename('$_offlineDir/$tmp$newId${name.substring(dot)}'));
+      moved.add(newId);
+    }
+    for (final f in staged) {
+      final name = f.uri.pathSegments.last.substring(tmp.length);
+      final out = await f.rename('$_offlineDir/$name');
+      if (name.endsWith('.song.json')) {
+        // The saved song carries its id too; offline playback reads it.
+        try {
+          final data = jsonDecode(await out.readAsString()) as Map<String, dynamic>;
+          final oldId = data['id'];
+          if (oldId is String && idMap.containsKey(oldId)) {
+            data['id'] = idMap[oldId];
+            await out.writeAsString(jsonEncode(data));
+          }
+        } catch (e) {
+          debugPrint('remapSongIds: $name not rewritten: $e');
+        }
+      }
+    }
+    final downloaded = getDownloadedSongIds().map((id) => idMap[id] ?? id).toList();
+    await _prefs?.setStringList(_keyDownloadedSongs, downloaded);
+    final scrobbles = _getPendingScrobbles()
+        .map((s) => {...s, 'id': idMap[s['id']] ?? s['id'] ?? ''})
+        .toList();
+    await _prefs?.setString(_keyPendingScrobbles, json.encode(scrobbles));
+    await initialize(); // rebuild the in-memory file index from disk
+    return moved.length;
+  }
+
   Future<void> queueScrobble(String songId, {bool submission = true}) async {
     if (_prefs == null) await initialize();
     final scrobbles = _getPendingScrobbles();
