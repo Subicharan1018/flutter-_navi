@@ -354,6 +354,17 @@ Future<void> resetLibrarySyncClock() async {
   } catch (_) {}
 }
 
+/// A song that just arrived on the server (Search online): load it, add it to
+/// the local mirror and refresh the library lists now, instead of waiting up
+/// to [_librarySyncInterval] for the next full sync. Returns the song so the
+/// caller can play it or add it to a playlist.
+Future<Song> mirrorNewSong(Ref ref, String songId) async {
+  final song = await ref.read(subsonicServiceProvider).getSong(songId);
+  await _cacheSongs(ref.read(appDatabaseProvider), [song]);
+  ref.invalidate(allSongsProvider);
+  return song;
+}
+
 bool _syncInFlight = false;
 
 /// The whole library, mirrored into `song_metadata`.

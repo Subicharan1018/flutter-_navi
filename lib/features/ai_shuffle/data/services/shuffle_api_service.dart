@@ -40,63 +40,46 @@ import '../repositories/shuffle_exception.dart';
 /// The canonical base URL for the Smart Shuffle hosted service.
 const _kShuffleBaseUrl = 'https://shuffle.subimusic.me';
 
+/// The Dio client every caller of shuffle.subimusic.me shares: Basic auth read
+/// from [credentialsSupplier] on each request (so credentials loaded after
+/// construction are honoured; empty ones send no header and get a 401), and
+/// retries only where the server provably did no work. Also used by the
+/// "Search online" client (features/online_fetch), which talks to the same
+/// server's /fetch routes.
+Dio createShuffleDio((String, String) Function() credentialsSupplier, {String logTag = 'ShuffleApi'}) {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: _kShuffleBaseUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 20),
+      headers: {'Accept': 'application/json'},
+    ),
+  );
+  dio.interceptors.add(_BasicAuthInterceptor(credentialsSupplier));
+  dio.interceptors.add(_RetryInterceptor(dio));
+  if (kDebugMode) {
+    dio.interceptors.add(
+      LogInterceptor(
+        requestBody: false,
+        responseBody: false,
+        logPrint: (obj) => debugPrint('[$logTag] $obj'),
+      ),
+    );
+  }
+  return dio;
+}
+
 class ShuffleApiService {
   final Dio _dio;
 
-  /// Supplier called on every request to get the current credentials.
-  /// Returns `(username, password)`. When either is empty the interceptor
-  /// skips adding the Authorization header so the server can return 401
-  /// rather than the app crashing or silently sending bad auth.
-  final (String, String) Function() _credentialsSupplier;
-
   ShuffleApiService({required String username, required String password})
-    : _credentialsSupplier = (() => (username, password)),
-      _dio = Dio(
-        BaseOptions(
-          baseUrl: _kShuffleBaseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 20),
-          headers: {'Accept': 'application/json'},
-        ),
-      ) {
-    _dio.interceptors.add(_BasicAuthInterceptor(_credentialsSupplier));
-    _dio.interceptors.add(_RetryInterceptor(_dio));
-    if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestBody: false,
-          responseBody: false,
-          logPrint: (obj) => debugPrint('[ShuffleApi] $obj'),
-        ),
-      );
-    }
-  }
+    : _dio = createShuffleDio(() => (username, password));
 
   // Named constructor that accepts a live credentials supplier — used by
   // shuffleApiServiceProvider so auth is always taken from the latest
   // SettingsState rather than from a snapshot captured at construction time.
   ShuffleApiService.withSupplier((String, String) Function() credentialsSupplier)
-    : _credentialsSupplier = credentialsSupplier,
-      _dio = Dio(
-        BaseOptions(
-          baseUrl: _kShuffleBaseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 20),
-          headers: {'Accept': 'application/json'},
-        ),
-      ) {
-    _dio.interceptors.add(_BasicAuthInterceptor(_credentialsSupplier));
-    _dio.interceptors.add(_RetryInterceptor(_dio));
-    if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestBody: false,
-          responseBody: false,
-          logPrint: (obj) => debugPrint('[ShuffleApi] $obj'),
-        ),
-      );
-    }
-  }
+    : _dio = createShuffleDio(credentialsSupplier);
 
   // ---------------------------------------------------------------------------
   // GET /health

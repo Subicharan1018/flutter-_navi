@@ -5,6 +5,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/online_fetch/logic/online_fetch_providers.dart';
+import '../features/online_fetch/ui/online_search_sheet.dart';
+import '../features/online_fetch/ui/search_online_row.dart';
 import '../models/catalog.dart';
 import '../models/search_results.dart';
 import '../player/artwork.dart' show coverPaletteProvider;
@@ -314,12 +317,17 @@ class _ResultsState extends ConsumerState<_Results> {
       return const SliverToBoxAdapter(child: TrackListSkeleton());
     }
     if (data.isEmpty) {
+      final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
       return SliverFillRemaining(
         hasScrollBody: false,
         child: MessageState(
           icon: CupertinoIcons.search,
           title: 'No results for “$query”',
-          message: 'Check the spelling, or try an artist, album or song name.',
+          message: online
+              ? 'It isn’t in your library. Search online to add it.'
+              : 'Check the spelling, or try an artist, album or song name.',
+          actionLabel: online ? 'Search Online' : null,
+          onAction: online ? () => showOnlineSearch(context, query) : null,
         ),
       );
     }
@@ -397,6 +405,7 @@ class _ResultsState extends ConsumerState<_Results> {
           ),
         ),
       ],
+      SliverToBoxAdapter(child: SearchOnlineRow(query: query)),
     ]);
   }
 }
