@@ -9,6 +9,7 @@ import '../../../providers/settings_provider.dart';
 import '../../ai_shuffle/data/services/shuffle_api_service.dart';
 import '../data/fetch_models.dart';
 import '../data/online_fetch_api.dart';
+import 'fetch_playlists.dart';
 
 final onlineFetchApiProvider = Provider<OnlineFetchApi>((ref) {
   return OnlineFetchApi(createShuffleDio(() {
@@ -310,7 +311,7 @@ class FetchJobsController extends Notifier<FetchDownloads> {
     final api = ref.read(onlineFetchApiProvider);
     try {
       final id = await api.startBatch(ids);
-      batch = FetchBatch(id: id, candidateIds: ids, kind: batch.kind, title: batch.title, artist: batch.artist, coverUrl: batch.coverUrl);
+      batch = batch.copyWith(id: id);
       if (ref.mounted) _putBatch(key, batch);
     } on OnlineFetchException catch (e) {
       if (ref.mounted) _putBatch(key, _failed(batch, e.message));
@@ -325,12 +326,21 @@ class FetchJobsController extends Notifier<FetchDownloads> {
     if (_resumed) return;
     _resumed = true;
     try {
-      final recent = await ref.read(onlineFetchApiProvider).recentBatches();
-      for (final b in recent.where((b) => !b.isFinished)) {
+      final api = ref.read(onlineFetchApiProvider);
+      final recent = await api.recentBatches();
+      for (final b in recent.where((b) => !b.isFinished || b.needsPlaylist)) {
         if (!ref.mounted || state.batches.values.any((x) => x.id == b.id)) continue;
         final key = ++_nextBatchKey;
-        _putBatch(key, b);
-        unawaited(_followBatch(key, b));
+        if (b.isFinished) {
+          // Finished while the app was closed: make its playlist now.
+          final full = await api.batch(b.id);
+          if (!ref.mounted) return;
+          _putBatch(key, full);
+          await _finishBatch(key, full);
+        } else {
+          _putBatch(key, b);
+          unawaited(_followBatch(key, b));
+        }
       }
     } catch (_) {
       // Bookkeeping: the app works the same without it.
@@ -355,32 +365,45 @@ class FetchJobsController extends Notifier<FetchDownloads> {
       onGiveUp: (message) => _failed(state.batches[key] ?? start, message),
     );
     if (b == null) return;
-    if (b.status == FetchBatchStatus.done) {
-      final added = [for (final i in b.items) if (i.phase == FetchJobPhase.ready && i.songId != null) i.songId!];
-      // Bookkeeping: a failed mirror update must not fail the download.
-      if (added.isNotEmpty) unawaited(songsFor(added).then((_) {}, onError: (_) {}));
-      _finished.announce(headline: b.headline, detail: b.summary, coverUrl: b.coverUrl, songIds: b.songIds);
-    } else {
+    await _finishBatch(key, b);
+  }
+
+  Future<void> _finishBatch(int key, FetchBatch b) async {
+    if (b.status != FetchBatchStatus.done) {
       _finished.announce(headline: 'Couldn’t download ${b.title}', detail: b.error ?? 'Try again in a moment.', coverUrl: b.coverUrl);
+      return;
+    }
+    final added = [for (final i in b.items) if (i.phase == FetchJobPhase.ready && i.songId != null) i.songId!];
+    // Bookkeeping: a failed mirror update must not fail the download.
+    if (added.isNotEmpty) unawaited(songsFor(added).then((_) {}, onError: (_) {}));
+    if (b.needsPlaylist && !await _makePlaylist(key, b)) {
+      _finished.announce(
+        headline: 'Playlist downloaded',
+        detail: 'Couldn’t make the playlist yet. It’s tried again next time the app opens.',
+        coverUrl: b.coverUrl,
+        songIds: b.songIds,
+      );
+      return;
+    }
+    _finished.announce(headline: b.headline, detail: b.summary, coverUrl: b.coverUrl, songIds: b.songIds);
+  }
+
+  /// The bot playlist becomes the user's own playlist, in the bot's order,
+  /// owned and downloaded songs alike; the server remembers it was made.
+  Future<bool> _makePlaylist(int key, FetchBatch b) async {
+    if (b.songIds.isEmpty) return true;          // nothing to make it from
+    try {
+      final id = await upsertFetchPlaylist(ref.read(fetchPlaylistStoreProvider), b.title, b.songIds);
+      await ref.read(onlineFetchApiProvider).setBatchPlaylist(b.id, id);
+      if (ref.mounted) _putBatch(key, b.copyWith(playlistId: id));
+      return true;
+    } catch (_) {
+      return false;
     }
   }
 
-  static FetchBatch _failed(FetchBatch b, String message) => FetchBatch(
-        id: b.id,
-        candidateIds: b.candidateIds,
-        kind: b.kind,
-        title: b.title,
-        artist: b.artist,
-        coverUrl: b.coverUrl,
-        status: FetchBatchStatus.failed,
-        error: message,
-        total: b.total,
-        added: b.added,
-        owned: b.owned,
-        failed: b.failed,
-        progress: b.progress,
-        items: b.items,
-      );
+  static FetchBatch _failed(FetchBatch b, String message) =>
+      b.copyWith(status: FetchBatchStatus.failed, error: message);
 
   /// Polls [fetch] until [isFinished]; every answer goes to [put]. Returns
   /// the finished value, the [onGiveUp] value after too many failed polls or

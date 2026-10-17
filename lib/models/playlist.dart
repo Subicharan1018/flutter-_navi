@@ -6,6 +6,10 @@ class Playlist {
   final int duration;
   final String? coverArt;
 
+  /// The username that owns it (Subsonic also lists other users' public
+  /// playlists). Null when the server doesn't say.
+  final String? owner;
+
   Playlist({
     required this.id,
     required this.name,
@@ -13,6 +17,7 @@ class Playlist {
     required this.songCount,
     required this.duration,
     this.coverArt,
+    this.owner,
   });
 
   factory Playlist.fromJson(Map<String, dynamic> json) {
@@ -27,6 +32,7 @@ class Playlist {
           ? json['duration']
           : int.tryParse(json['duration']?.toString() ?? '') ?? 0,
       coverArt: json['coverArt']?.toString(),
+      owner: json['owner']?.toString(),
     );
   }
 

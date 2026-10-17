@@ -56,6 +56,11 @@ class OnlineFetchApi {
         return FetchBatch.fromJson(r.data!);
       });
 
+  /// Records that the user's playlist [playlistId] was made from batch [id].
+  Future<void> setBatchPlaylist(int id, String playlistId) => _wrap(() async {
+        await _dio.post<Map<String, dynamic>>('/fetch/batches/$id/playlist', data: {'playlist_id': playlistId});
+      });
+
   /// The account's recent batches (without items), to pick up ones still
   /// running after the app restarts.
   Future<List<FetchBatch>> recentBatches() => _wrap(() async {

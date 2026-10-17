@@ -170,9 +170,18 @@ class _ArtistHeader extends ConsumerWidget {
               padding: const EdgeInsets.only(left: Space.sm),
               child: TintedButton(
                 icon: busy ? null : CupertinoIcons.arrow_down,
-                label: busy ? fetchBatchStatus(batch) : 'Download Top Songs',
+                label: busy ? fetchBatchStatus(batch) : 'Download All ${songs.length} Songs',
                 filled: !busy,
-                onTap: busy ? null : () => ref.read(fetchJobsProvider.notifier).downloadAll([artist]),
+                onTap: busy
+                    ? null
+                    : () async {
+                        final ok = await confirmFetchDownload(
+                          context,
+                          title: 'Download ${artist.title}’s top songs?',
+                          count: songs.length,
+                        );
+                        if (ok) ref.read(fetchJobsProvider.notifier).downloadAll([artist]);
+                      },
               ),
             ),
           ],
@@ -180,6 +189,41 @@ class _ArtistHeader extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// "Download Maari 2? Adds 12 songs in lossless quality…" — asked before a
+/// whole album, playlist, artist's top songs or a big selection starts, so
+/// the count is clear (a playlist can be 200 songs).
+Future<bool> confirmFetchDownload(BuildContext context, {required String title, required int count, String? note}) async {
+  final ok = await showDialog<bool>(
+    context: context,
+    builder: (ctx) {
+      final t = ThemeTokens.of(ctx);
+      return AlertDialog(
+        title: Text(title, textAlign: TextAlign.center),
+        content: Text(
+          [
+            'Adds up to ${count == 1 ? '1 song' : '$count songs'} in lossless quality, one after another. '
+                'Songs you already have are skipped.',
+            ?note,
+          ].join(' '),
+          textAlign: TextAlign.center,
+        ),
+        actionsAlignment: MainAxisAlignment.spaceEvenly,
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text('Cancel', style: t.body.copyWith(color: t.accent)),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text('Download', style: t.headline.copyWith(color: t.accent)),
+          ),
+        ],
+      );
+    },
+  );
+  return ok == true;
 }
 
 class _Body extends ConsumerWidget {
@@ -260,41 +304,30 @@ class _ResultsState extends ConsumerState<_Results> {
     setState(() => _picked!.contains(c.id) ? _picked!.remove(c.id) : _picked!.add(c.id));
   }
 
-  void _downloadPicked() {
+  Future<void> _downloadPicked() async {
     final picks = [for (final c in _search.candidates) if (_picked!.contains(c.id)) c];
+    if (picks.length >= _confirmFrom &&
+        !await confirmFetchDownload(context, title: 'Download ${picks.length} songs?', count: picks.length)) {
+      return;
+    }
     ref.read(fetchJobsProvider.notifier).downloadAll(picks);
-    setState(() => _picked = null);
+    if (mounted) setState(() => _picked = null);
   }
+
+  /// Picking this many songs at once asks first.
+  static const _confirmFrom = 10;
 
   Future<void> _downloadCollection(FetchCandidate c) async {
     final n = c.trackCount;
     if (n != null && n > 1) {
-      final kind = c.type == FetchSearchType.playlist ? 'playlist' : 'album';
-      final ok = await showDialog<bool>(
-        context: context,
-        builder: (ctx) {
-          final t = ThemeTokens.of(ctx);
-          return AlertDialog(
-            title: Text('Download ${c.title}?', textAlign: TextAlign.center),
-            content: Text(
-              'Adds the $kind’s $n songs in lossless quality. Songs you already have are skipped.',
-              textAlign: TextAlign.center,
-            ),
-            actionsAlignment: MainAxisAlignment.spaceEvenly,
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, false),
-                child: Text('Cancel', style: t.body.copyWith(color: t.accent)),
-              ),
-              TextButton(
-                onPressed: () => Navigator.pop(ctx, true),
-                child: Text('Download', style: t.headline.copyWith(color: t.accent)),
-              ),
-            ],
-          );
-        },
+      final playlist = c.type == FetchSearchType.playlist;
+      final ok = await confirmFetchDownload(
+        context,
+        title: 'Download ${c.title}?',
+        count: n,
+        note: playlist ? 'It becomes a playlist in your library.' : null,
       );
-      if (ok != true) return;
+      if (!ok) return;
     }
     await ref.read(fetchJobsProvider.notifier).downloadAll([c]);
   }

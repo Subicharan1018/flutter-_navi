@@ -182,10 +182,10 @@ String fetchJobStatus(FetchJob job) => switch (job.phase) {
       FetchJobPhase.failed => job.error ?? 'Download didn’t finish. Tap to try again.',
     };
 
-/// Where a batch is: "Getting the songs…", "3 of 12 songs", or its summary.
+/// Where a batch is: "Getting the songs…", "23 of 80 songs", or its summary.
 String fetchBatchStatus(FetchBatch b) => switch (b.status) {
       FetchBatchStatus.starting => 'Getting the songs…',
-      FetchBatchStatus.running => '${b.added + b.owned + b.failed} of ${b.total} songs',
+      FetchBatchStatus.running => '${b.added + b.owned + b.lossy + b.failed} of ${b.total} songs',
       FetchBatchStatus.done => b.summary,
       FetchBatchStatus.failed => b.error ?? 'Download didn’t finish. Tap to try again.',
     };

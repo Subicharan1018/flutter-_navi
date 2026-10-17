@@ -9,6 +9,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/online_fetch/data/fetch_models.dart';
 import 'package:navivibe/features/online_fetch/data/online_fetch_api.dart';
+import 'package:navivibe/features/online_fetch/logic/fetch_playlists.dart';
+import 'package:navivibe/models/playlist.dart';
 import 'package:navivibe/features/online_fetch/logic/online_fetch_providers.dart';
 import 'package:navivibe/features/online_fetch/ui/fetch_activity.dart';
 import 'package:navivibe/features/online_fetch/ui/widgets/fetch_candidate_row.dart';
@@ -196,7 +198,7 @@ void main() {
       expect(b.kind, FetchSearchType.album);
       expect(b.isFinished, isTrue);
       expect(b.headline, 'Album downloaded');
-      expect(b.summary, '1 song added, 1 already owned, 1 not available');
+      expect(b.summary, '1 song added, 1 already owned, 1 isn’t available in lossless');
       expect(b.songIds, ['nd-owned', 'nd-new']);          // track order, owned ones too
       expect(FetchBatch.fromJson({..._batch('listing'), 'kind': 'songs'}).kind, isNull);
       expect(FetchBatch.fromJson(_batch('listing')).status, FetchBatchStatus.starting);
@@ -249,7 +251,7 @@ void main() {
       await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_album)]);
       expect(seen, [FetchBatchStatus.starting, FetchBatchStatus.running, FetchBatchStatus.done]);
       expect(announced.single.headline, 'Album downloaded');
-      expect(announced.single.detail, '1 song added, 1 already owned, 1 not available');
+      expect(announced.single.detail, '1 song added, 1 already owned, 1 isn’t available in lossless');
       expect(announced.single.songIds, ['nd-owned', 'nd-new']);
       expect(c.read(fetchJobsProvider).isActive, isFalse);
     });
@@ -332,6 +334,106 @@ void main() {
       ctrl.back();
       expect(c.read(onlineSearchProvider).type, FetchSearchType.artist);
       expect(c.read(onlineSearchProvider).artist, isNull);
+    });
+  });
+
+  group('playlists', () {
+    setUp(() => FetchJobsController.pollEvery = Duration.zero);
+
+    Playlist pl(String id, String name, {String? owner}) =>
+        Playlist(id: id, name: name, comment: '', songCount: 0, duration: 0, owner: owner);
+
+    test('a new playlist: made in the bot’s order, each song once', () async {
+      final store = _FakeStore();
+      final id = await upsertFetchPlaylist(store, 'Tamil Hits', ['a', 'b', 'a', 'c']);
+      expect(id, 'new-1');
+      expect(store.created, ['Tamil Hits']);
+      expect(store.songs['new-1'], ['a', 'b', 'c']);
+    });
+
+    test('asked again: the user’s playlist gets only the new songs, no copy', () async {
+      final store = _FakeStore(existing: [pl('p1', 'Tamil Hits', owner: 'Subi')])..songs['p1'] = ['b', 'x'];
+      final id = await upsertFetchPlaylist(store, 'Tamil Hits', ['a', 'b', 'c']);
+      expect(id, 'p1');
+      expect(store.created, isEmpty);
+      expect(store.songs['p1'], ['b', 'x', 'a', 'c']);       // kept the user's own edits
+      store.writes = 0;
+      await upsertFetchPlaylist(store, 'Tamil Hits', ['a', 'b']);
+      expect(store.writes, 0);                               // nothing new: nothing written
+    });
+
+    test('another user’s public playlist of the same name is left alone', () async {
+      final store = _FakeStore(existing: [pl('p9', 'Tamil Hits', owner: 'anish')]);
+      expect(await upsertFetchPlaylist(store, 'Tamil Hits', ['a']), 'new-1');
+      expect(store.songs.containsKey('p9'), isFalse);
+    });
+
+    test('playlist batch → the user’s playlist, recorded, “Playlist ready: 3 of 4”', () async {
+      final store = _FakeStore();
+      final posted = <String, Object?>{};
+      final api = _api((o) {
+        if (o.method == 'POST' && o.path.endsWith('/playlist')) {
+          posted[o.path] = o.data;
+          return _json(200, {'ok': true});
+        }
+        if (o.method == 'POST') return _json(202, {'batch_id': 7});
+        return _json(200, _playlistBatch());
+      });
+      final c = ProviderContainer(overrides: [
+        onlineFetchApiProvider.overrideWithValue(api),
+        fetchPlaylistStoreProvider.overrideWithValue(store),
+      ]);
+      addTearDown(c.dispose);
+      final announced = <FetchFinished>[];
+      c.listen(fetchFinishedProvider, (_, n) => n == null ? null : announced.add(n));
+
+      await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_playlist)]);
+      expect(store.songs['new-1'], ['nd-owned', 'nd-new', 'nd-shared']);
+      expect(posted, {'/fetch/batches/7/playlist': {'playlist_id': 'new-1'}});
+      expect(announced.single.headline, 'Playlist ready');
+      expect(announced.single.detail, '3 of 4 songs. 1 isn’t available in lossless.');
+      expect(c.read(fetchJobsProvider).batchFor(700)!.playlistId, 'new-1');
+    });
+
+    test('playlist can’t be made now: said so, and made on the next app start', () async {
+      final store = _FakeStore()..fail = true;
+      var made = false;
+      final api = _api((o) {
+        if (o.method == 'POST' && o.path.endsWith('/playlist')) {
+          made = true;
+          return _json(200, {'ok': true});
+        }
+        if (o.method == 'POST') return _json(202, {'batch_id': 7});
+        if (o.path == '/fetch/batches') return _json(200, [_playlistBatch()..remove('items')]);
+        return _json(200, _playlistBatch());
+      });
+      final c = ProviderContainer(overrides: [
+        onlineFetchApiProvider.overrideWithValue(api),
+        fetchPlaylistStoreProvider.overrideWithValue(store),
+      ]);
+      addTearDown(c.dispose);
+      final announced = <FetchFinished>[];
+      c.listen(fetchFinishedProvider, (_, n) => n == null ? null : announced.add(n));
+      await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_playlist)]);
+      expect(made, isFalse);
+      expect(announced.single.detail, contains('tried again'));
+
+      // Next app start: a fresh tracker finds the finished batch without a playlist.
+      final c2 = ProviderContainer(overrides: [
+        onlineFetchApiProvider.overrideWithValue(api),
+        fetchPlaylistStoreProvider.overrideWithValue(store..fail = false),
+      ]);
+      addTearDown(c2.dispose);
+      await c2.read(fetchJobsProvider.notifier).resume();
+      expect(made, isTrue);
+      expect(store.songs['new-1'], ['nd-owned', 'nd-new', 'nd-shared']);
+    });
+
+    test('summaries say what was skipped and why', () {
+      final album = FetchBatch.fromJson({..._batch('done'), 'lossy': 2, 'failed': 1});
+      expect(album.summary, '1 song added, 1 already owned, 2 aren’t available in lossless, 1 couldn’t be found');
+      final whole = FetchBatch.fromJson({..._playlistBatch(), 'lossy': 0, 'total': 3});
+      expect(whole.summary, '3 songs.');
     });
   });
 
@@ -424,7 +526,7 @@ void main() {
       await pump(tester, album, batch: FetchBatch.fromJson(_batch('running')));
       expect(find.text('2 of 3 songs'), findsOneWidget);
       await pump(tester, album, batch: FetchBatch.fromJson(_batch('done')));
-      expect(find.text('1 song added, 1 already owned, 1 not available'), findsOneWidget);
+      expect(find.text('1 song added, 1 already owned, 1 isn’t available in lossless'), findsOneWidget);
     });
 
     testWidgets('select mode shows a check circle instead of the action', (tester) async {
@@ -464,6 +566,60 @@ class _SeededJobs extends FetchJobsController {
   FetchDownloads build() => seed;
 }
 
+/// Records playlist writes instead of calling the music server.
+class _FakeStore implements FetchPlaylistStore {
+  final List<Playlist> existing;
+  final created = <String>[];
+  final songs = <String, List<String>>{};
+  var writes = 0;
+  var fail = false;
+  _FakeStore({this.existing = const []});
+
+  @override
+  String get user => 'subi';
+
+  @override
+  Future<List<Playlist>> playlists() async {
+    if (fail) throw Exception('offline');
+    return existing;
+  }
+
+  @override
+  Future<List<String>> songIds(String playlistId) async => [...?songs[playlistId]];
+
+  @override
+  Future<String> create(String name) async {
+    created.add(name);
+    return 'new-${created.length}';
+  }
+
+  @override
+  Future<void> setSongs(String playlistId, List<String> ids) async {
+    writes++;
+    songs[playlistId] = [...ids];
+  }
+}
+
+const _playlist = <String, dynamic>{
+  'id': 700, 'title': 'Tamil Hits', 'artist': 'Che', 'album': '', 'score': 0.0, 'kind': 'original',
+  'reasons': [], 'library': 'not_found', 'llm': null, 'type': 'playlist', 'track_count': 5,
+};
+
+/// A finished playlist batch: two songs owned (one listed twice by the bot,
+/// so one job), one new, one only in MP3. Another user already fetched
+/// 'nd-shared', so it's owned here too.
+Map<String, dynamic> _playlistBatch() => {
+      'id': 7, 'kind': 'playlist', 'title': 'Tamil Hits', 'artist': 'Che', 'cover_url': null,
+      'status': 'done', 'error': null, 'candidate_ids': [700], 'playlist_id': null,
+      'total': 4, 'added': 1, 'owned': 2, 'lossy': 1, 'failed': 0, 'pending': 0, 'progress': 1.0,
+      'items': [
+        {'candidate_id': 1, 'title': 'Kanne Kanne', 'status': 'duplicate', 'nd_song_id': 'nd-owned'},
+        {'candidate_id': 2, 'title': 'Maari Gethu', 'status': 'ready', 'nd_song_id': 'nd-new'},
+        {'candidate_id': 3, 'title': 'Lossy Song', 'status': 'rejected'},
+        {'candidate_id': 4, 'title': 'Shared', 'status': 'duplicate', 'nd_song_id': 'nd-shared'},
+      ],
+    };
+
 /// An album result, as tg-fetcher lists `.a maari 2` (2026-10-17).
 const _album = <String, dynamic>{
   'id': 500, 'title': 'Maari 2 (Original Motion Picture Soundtrack)', 'artist': 'Yuvan Shankar Raja',
@@ -484,7 +640,8 @@ Map<String, dynamic> _batch(String status) => {
       'total': status == 'listing' ? 0 : 3,
       'added': status == 'listing' ? 0 : 1,
       'owned': status == 'listing' ? 0 : 1,
-      'failed': status == 'done' ? 1 : 0,
+      'lossy': status == 'done' ? 1 : 0,       // Maari’s Aanandhi: MP3 only
+      'failed': 0,
       'pending': status == 'done' ? 0 : (status == 'listing' ? 0 : 1),
       'progress': status == 'done' ? 1.0 : 0.4,
       'items': [

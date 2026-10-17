@@ -277,11 +277,19 @@ class FetchBatch {
   final int total;
   final int added;
   final int owned;
+
+  /// Songs the source only has in a lossy format (skipped).
+  final int lossy;
+
+  /// Songs that couldn't be found or downloaded (skipped).
   final int failed;
 
   /// 0–1 over the whole batch.
   final double progress;
   final List<FetchJob> items;
+
+  /// Playlist batches: the user's own playlist the app made from it, once made.
+  final String? playlistId;
 
   const FetchBatch({
     required this.id,
@@ -295,35 +303,67 @@ class FetchBatch {
     this.total = 0,
     this.added = 0,
     this.owned = 0,
+    this.lossy = 0,
     this.failed = 0,
     this.progress = 0,
     this.items = const [],
+    this.playlistId,
   });
+
+  FetchBatch copyWith({int? id, FetchBatchStatus? status, String? error, String? playlistId}) => FetchBatch(
+        id: id ?? this.id,
+        candidateIds: candidateIds,
+        kind: kind,
+        title: title,
+        artist: artist,
+        coverUrl: coverUrl,
+        status: status ?? this.status,
+        error: error ?? this.error,
+        total: total,
+        added: added,
+        owned: owned,
+        lossy: lossy,
+        failed: failed,
+        progress: progress,
+        items: items,
+        playlistId: playlistId ?? this.playlistId,
+      );
 
   bool get isFinished => status == FetchBatchStatus.done || status == FetchBatchStatus.failed;
 
+  /// A finished playlist batch whose user playlist hasn't been made yet.
+  bool get needsPlaylist => kind == FetchSearchType.playlist && status == FetchBatchStatus.done && playlistId == null;
+
   /// Library songs the batch ended with: new ones and ones already owned, in
-  /// track order — what Play and Add to Playlist use.
-  List<String> get songIds => [
+  /// track order, each once — what Play, Add to Playlist and the playlist use.
+  List<String> get songIds => {
         for (final i in items)
           if (i.songId != null && (i.phase == FetchJobPhase.ready || i.phase == FetchJobPhase.duplicate)) i.songId!,
-      ];
+      }.toList();
 
-  /// "Album downloaded", "Playlist downloaded", "Songs downloaded".
+  /// "Album downloaded", "Playlist ready", "Songs downloaded".
   String get headline => switch (kind) {
         FetchSearchType.album => 'Album downloaded',
-        FetchSearchType.playlist => 'Playlist downloaded',
-        _ => added == 1 && owned == 0 && failed == 0 ? 'Song downloaded' : 'Songs downloaded',
+        FetchSearchType.playlist => 'Playlist ready',
+        _ => added == 1 && owned == 0 && failed == 0 && lossy == 0 ? 'Song downloaded' : 'Songs downloaded',
       };
 
-  /// "12 songs added, 2 already owned, 1 not available".
+  static String _songs(int n) => n == 1 ? '1 song' : '$n songs';
+
+  List<String> get _skipped => [
+        if (lossy > 0) '$lossy ${lossy == 1 ? 'isn’t' : 'aren’t'} available in lossless',
+        if (failed > 0) '$failed couldn’t be found',
+      ];
+
+  /// Album / songs: "12 songs added, 2 already owned, 1 isn’t available in
+  /// lossless". Playlist: "18 of 20 songs. 2 aren’t available in lossless."
   String get summary {
-    String songs(int n) => n == 1 ? '1 song' : '$n songs';
-    return [
-      '${songs(added)} added',
-      if (owned > 0) '$owned already owned',
-      if (failed > 0) '$failed not available',
-    ].join(', ');
+    if (kind == FetchSearchType.playlist) {
+      final have = added + owned;
+      final head = have < total ? '$have of ${_songs(total)}.' : '${_songs(have)}.';
+      return [head, for (final s in _skipped) '${s[0].toUpperCase()}${s.substring(1)}.'].join(' ');
+    }
+    return ['${_songs(added)} added', if (owned > 0) '$owned already owned', ..._skipped].join(', ');
   }
 
   static FetchBatchStatus _status(Object? v) => switch (v) {
@@ -347,9 +387,11 @@ class FetchBatch {
       total: (j['total'] as num?)?.toInt() ?? 0,
       added: (j['added'] as num?)?.toInt() ?? 0,
       owned: (j['owned'] as num?)?.toInt() ?? 0,
+      lossy: (j['lossy'] as num?)?.toInt() ?? 0,
       failed: (j['failed'] as num?)?.toInt() ?? 0,
       progress: ((j['progress'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0),
       items: [for (final i in (j['items'] as List? ?? const [])) FetchJob.fromJson(i as Map<String, dynamic>)],
+      playlistId: j['playlist_id'] as String?,
     );
   }
 }
