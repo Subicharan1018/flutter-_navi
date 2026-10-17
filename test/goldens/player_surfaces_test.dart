@@ -30,6 +30,8 @@ import 'package:navivibe/screens/now_playing_screen.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/widgets/mini_player.dart';
 
+import 'golden_fonts.dart';
+
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
 Song _song(String id, String title, String artist, {String suffix = 'flac', int dur = 243}) => Song(
@@ -161,40 +163,6 @@ class _FakeLyrics extends LyricsController {
 
 // ── Harness ──────────────────────────────────────────────────────────────────
 
-Future<void> _loadFonts() async {
-  Future<void> family(String name, List<String> files) async {
-    final loader = FontLoader(name);
-    for (final f in files) {
-      loader.addFont(Future.value(ByteData.sublistView(File(f).readAsBytesSync())));
-    }
-    await loader.load();
-  }
-
-  await family('Inter', [
-    for (final w in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) 'assets/fonts/Inter-$w.ttf',
-  ]);
-  await family('InterDisplay', [
-    for (final w in ['Medium', 'SemiBold', 'Bold', 'ExtraBold']) 'assets/fonts/InterDisplay-$w.ttf',
-  ]);
-  final flutterRoot = Platform.environment['FLUTTER_ROOT'] ??
-      File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.parent.path;
-  final icons = File('$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
-  if (icons.existsSync()) await family('MaterialIcons', [icons.path]);
-  // Cupertino glyphs come from the cupertino_icons package in the pub cache.
-  final pubCache = Platform.environment['PUB_CACHE'] ??
-      (Platform.isWindows
-          ? '${Platform.environment['LOCALAPPDATA']}/Pub/Cache'
-          : '${Platform.environment['HOME']}/.pub-cache');
-  final hosted = Directory('$pubCache/hosted/pub.dev');
-  if (hosted.existsSync()) {
-    final pkgs = hosted.listSync().whereType<Directory>().where((d) => d.path.contains('cupertino_icons-')).toList()
-      ..sort((a, b) => a.path.compareTo(b.path));
-    if (pkgs.isNotEmpty) {
-      await family('packages/cupertino_icons/CupertinoIcons', ['${pkgs.last.path}/assets/CupertinoIcons.ttf']);
-    }
-  }
-}
-
 Widget _app({
   required Song current,
   required ArtworkData art,
@@ -240,7 +208,7 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUpAll(() async {
-    await _loadFonts();
+    await loadGoldenFonts();
   });
 
   setUp(() {
