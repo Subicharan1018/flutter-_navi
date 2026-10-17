@@ -417,6 +417,21 @@ class ShuffleApiService {
   }
 
   // ---------------------------------------------------------------------------
+  // GET /id-map — song ids replaced by the last Navidrome upgrade
+  // ---------------------------------------------------------------------------
+
+  /// `(epoch, {oldId: newId})`. `epoch` is null before any upgrade. The app
+  /// remaps its local data once per epoch (see id_migration_provider).
+  Future<(String?, Map<String, String>)> getIdMap() async {
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>('/id-map');
+      final d = response.data ?? const {};
+      final map = (d['map'] as Map?) ?? const {};
+      return (d['epoch'] as String?, {for (final e in map.entries) e.key.toString(): e.value.toString()});
+    });
+  }
+
+  // ---------------------------------------------------------------------------
   // POST /intent — "describe a mix"
   // ---------------------------------------------------------------------------
 

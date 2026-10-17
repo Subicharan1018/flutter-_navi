@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -111,6 +113,26 @@ Song songFromMetadata(SongMetadataEntity r) => Song(
       starred: r.starred,
       created: r.createdAt != null ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!) : null,
     );
+
+/// After a complete sync: drop mirrored songs the server no longer has (a
+/// deleted file, or an id a server upgrade replaced), so they stop showing as
+/// unplayable duplicates. Guarded: an answer with under half the mirror is
+/// more likely a server hiccup than a mass deletion, and prunes nothing.
+Future<int> _pruneMissing(AppDatabase db, Set<String> seen) async {
+  final cached = await (db.selectOnly(db.songMetadata)..addColumns([db.songMetadata.songId]))
+      .map((r) => r.read(db.songMetadata.songId)!)
+      .get();
+  if (seen.isEmpty || seen.length < cached.length / 2) return 0;
+  final gone = cached.where((id) => !seen.contains(id)).toList();
+  for (var i = 0; i < gone.length; i += 500) {
+    final chunk = gone.sublist(i, math.min(i + 500, gone.length));
+    await (db.delete(db.songMetadata)..where((t) => t.songId.isIn(chunk))).go();
+  }
+  return gone.length;
+}
+
+@visibleForTesting
+Future<int> pruneMissingForTest(AppDatabase db, Set<String> seen) => _pruneMissing(db, seen);
 
 Future<List<Song>> _getCachedSongs(AppDatabase db) async {
   final rows = await db.select(db.songMetadata).get();
@@ -385,19 +407,29 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
     const pageSize = 500;
     const maxPages = 2000; // 1M songs: a misbehaving server can't spin forever
     String? previousFirstId;
+    final seen = <String>{};
+    var complete = false;
     progress._start();
     try {
       for (var page = 0, offset = 0; page < maxPages; page++) {
         final chunk = await service.getAllSongs(size: pageSize, offset: offset);
-        if (chunk.isEmpty) break;
+        if (chunk.isEmpty) {
+          complete = true;
+          break;
+        }
         // A server that ignores songOffset returns the same page every time.
         if (chunk.first.id == previousFirstId) break;
         previousFirstId = chunk.first.id;
         await _cacheSongs(db, chunk);
+        seen.addAll(chunk.map((s) => s.id));
         progress._page(chunk.length);
-        if (chunk.length < pageSize) break;
+        if (chunk.length < pageSize) {
+          complete = true;
+          break;
+        }
         offset += pageSize;
       }
+      if (complete) await _pruneMissing(db, seen);
       _markSynced();
       progress._done();
     } catch (e) {

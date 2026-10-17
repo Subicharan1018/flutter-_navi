@@ -139,6 +139,9 @@ class ShuffleRepository {
     return response;
   }
 
+  /// Song ids replaced by the last Navidrome upgrade: `(epoch, {old: new})`.
+  Future<(String?, Map<String, String>)> getIdMap() => _api.getIdMap();
+
   /// "Describe a mix": the library titles that fit [text].
   Future<IntentResponse> interpretIntent(String text) => _api.interpretIntent(text);
 

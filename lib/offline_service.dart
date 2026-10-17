@@ -494,6 +494,15 @@ class OfflineService {
     return null;
   }
 
+  /// Tests only: forget the cached preferences and folder of this app-wide
+  /// instance, so the next call re-reads them.
+  @visibleForTesting
+  void resetForTest() {
+    _prefs = null;
+    _offlineDir = null;
+    _downloadedFileNames.clear();
+  }
+
   /// After a server upgrade changed song ids: move every downloaded file
   /// (`<id>.<ext>`, `.song.json`, `.lyrics.json`, `.jpg`) and the download and
   /// pending-scrobble lists to the new ids, so downloads stay downloaded.

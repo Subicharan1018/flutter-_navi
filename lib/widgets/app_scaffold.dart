@@ -37,6 +37,7 @@ import 'ui/dock_ground.dart';
 import 'ui/ion.dart';
 import 'ui/one_shot_icon.dart';
 import 'mini_player.dart';
+import '../providers/id_migration_provider.dart';
 
 // =============================================================================
 // App shell.
@@ -120,8 +121,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WidgetsBindingOb
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
-    WidgetsBinding.instance.addPostFrameCallback((_) {
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
       ref.read(replayUploadServiceProvider).performUploadIfNeeded();
+      // After a server upgrade that renamed song ids, move local history and
+      // downloads to the new ids first (a no-op otherwise; gives up after 8 s).
+      await ref.read(idMigrationProvider).runIfNeeded();
+      if (!mounted) return;
       // Mirror the library now rather than when the Library tab first opens:
       // Home, Stats, Replay and Shuffle resolve titles from it.
       ref.read(allSongsProvider.future).ignore();
