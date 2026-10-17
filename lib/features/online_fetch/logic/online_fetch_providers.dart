@@ -426,7 +426,9 @@ class FetchJobsController extends Notifier<FetchDownloads> {
       );
       return;
     }
-    _finished.announce(headline: b.headline, detail: b.summary, coverUrl: b.coverUrl, songIds: b.songIds);
+    // "Playlist ready · India · 5 songs." — name the album / playlist.
+    final detail = b.kind == null ? b.summary : '${b.title} · ${b.summary}';
+    _finished.announce(headline: b.headline, detail: detail, coverUrl: b.coverUrl, songIds: b.songIds);
   }
 
   /// The bot playlist becomes the user's own playlist, in the bot's order,

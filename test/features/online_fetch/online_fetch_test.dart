@@ -92,6 +92,7 @@ void main() {
     test('server job statuses map to what the user sees', () {
       FetchJobPhase phase(String s) => FetchJob.fromJson({'id': 1, 'candidate_id': 2, 'status': s}).phase;
       expect(phase('picking'), FetchJobPhase.preparing);
+      expect(phase('waiting'), FetchJobPhase.preparing);     // a link's song before the bot sends it
       expect(phase('downloading'), FetchJobPhase.downloading);
       expect(phase('scanning'), FetchJobPhase.adding);
       expect(phase('imported'), FetchJobPhase.adding);
@@ -252,7 +253,8 @@ void main() {
       await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_album)]);
       expect(seen, [FetchBatchStatus.starting, FetchBatchStatus.running, FetchBatchStatus.done]);
       expect(announced.single.headline, 'Album downloaded');
-      expect(announced.single.detail, '1 song added, 1 already owned, 1 isn’t available in lossless');
+      expect(announced.single.detail,
+          'Maari 2 (Original Motion Picture Soundtrack) · 1 song added, 1 already owned, 1 isn’t available in lossless');
       expect(announced.single.songIds, ['nd-owned', 'nd-new']);
       expect(c.read(fetchJobsProvider).isActive, isFalse);
     });
@@ -408,7 +410,7 @@ void main() {
       expect(store.songs['new-1'], ['nd-owned', 'nd-new', 'nd-shared']);
       expect(posted, {'/fetch/batches/7/playlist': {'playlist_id': 'new-1'}});
       expect(announced.single.headline, 'Playlist ready');
-      expect(announced.single.detail, '3 of 4 songs. 1 isn’t available in lossless.');
+      expect(announced.single.detail, 'Tamil Hits · 3 of 4 songs. 1 isn’t available in lossless.');
       expect(c.read(fetchJobsProvider).batchFor(700)!.playlistId, 'new-1');
     });
 

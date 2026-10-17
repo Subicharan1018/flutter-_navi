@@ -261,7 +261,8 @@ class FetchJob {
       };
 
   static FetchJobPhase phaseOf(Object? v) => switch (v) {
-        'queued' || 'checking' || 'picking' => FetchJobPhase.preparing,
+        // 'waiting': a pasted link's song, waiting for the bot to post its file.
+        'queued' || 'checking' || 'picking' || 'waiting' => FetchJobPhase.preparing,
         'downloading' => FetchJobPhase.downloading,
         // 'downloaded' and 'imported' are on their way into the library.
         'downloaded' || 'tagging' || 'moving' || 'scanning' || 'imported' => FetchJobPhase.adding,
