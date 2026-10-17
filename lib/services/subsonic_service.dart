@@ -6,7 +6,6 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import '../core/constants.dart';
 import '../core/app_exception.dart';
 import '../core/hive_boxes.dart';
@@ -21,10 +20,6 @@ class SubsonicService {
   final String serverUrl;
   final String username;
   final String password;
-  final String? customUploadUrl;
-  final String? customUploadDir;
-  final String? webdavUsername;
-  final String? webdavPassword;
   final http.Client _client;
 
   /// SQLite-backed persistent playlist cache (injected by the provider).
@@ -54,18 +49,12 @@ class SubsonicService {
   late final String _coverArtSalt;
   late final String _coverArtToken;
 
-  static const int _webDavMaxAttempts = 3;
-
   SubsonicService({
     required String serverUrl,
     required this.username,
     required this.password,
     required PlaylistCacheService cache,
     http.Client? client,
-    this.customUploadUrl,
-    this.customUploadDir,
-    this.webdavUsername,
-    this.webdavPassword,
   }) : serverUrl = _normalizeServerUrl(serverUrl),
        _cache = cache,
        _client = client ?? http.Client() {
@@ -681,12 +670,6 @@ class SubsonicService {
   }
 
   Future<void> setPlaylistImage(String playlistId, File imageFile) async {
-    if (customUploadUrl != null && customUploadUrl!.isNotEmpty) {
-      final extension = imageFile.path.split('.').last.toLowerCase();
-      await _webDavUpload(imageFile, 'playlist_$playlistId.$extension');
-      return;
-    }
-
     final salt = _generateSalt();
     final token = _generateToken(salt);
 
@@ -843,207 +826,6 @@ class SubsonicService {
   }
 
   // ---------------------------------------------------------------------------
-  // File upload
-  // ---------------------------------------------------------------------------
-
-  Future<void> uploadSong(File file) async {
-    if (customUploadUrl != null && customUploadUrl!.isNotEmpty) {
-      final fileName = Uri.file(file.path).pathSegments.last;
-      await _webDavUpload(file, fileName);
-      return;
-    }
-
-    final salt = _generateSalt();
-    final token = _generateToken(salt);
-
-    final uri = Uri.parse('$serverUrl/upload.view');
-    final request = http.MultipartRequest('POST', uri);
-
-    request.fields.addAll({
-      'u': username,
-      't': token,
-      's': salt,
-      'v': Constants.apiVersion,
-      'c': Constants.defaultClient,
-      'f': 'json',
-    });
-
-    request.files.add(
-      await http.MultipartFile.fromPath(
-        'file',
-        file.path,
-        contentType: MediaType('audio', 'mpeg'),
-      ),
-    );
-
-    final response = await request.send();
-    if (response.statusCode != 200) {
-      throw Exception('Upload failed with status ${response.statusCode}');
-    }
-  }
-
-  Future<void> uploadTextToWebDav({
-    required String remoteFileName,
-    required String contents,
-    String contentType = 'text/csv; charset=utf-8',
-  }) async {
-    if (customUploadUrl == null || customUploadUrl!.isEmpty) {
-      throw Exception('WebDAV upload URL is not configured');
-    }
-
-    await _webDavUploadText(remoteFileName, contents, contentType: contentType);
-  }
-
-  // ---------------------------------------------------------------------------
-  // WebDAV Upload
-  // ---------------------------------------------------------------------------
-
-  Uri _buildWebDavUploadUri(String targetFileName) {
-    final baseUri = Uri.parse(
-      customUploadUrl!.trim().replaceAll(RegExp(r'/+$'), ''),
-    );
-
-    final remoteDir =
-        (customUploadDir == null || customUploadDir!.trim().isEmpty)
-        ? '/DATA/Media/Music'
-        : customUploadDir!.trim();
-
-    final normalizedDir = remoteDir.startsWith('/') ? remoteDir : '/$remoteDir';
-    final dirSegments = normalizedDir
-        .split('/')
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-    final fileSegments = targetFileName
-        .split('/')
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-
-    return baseUri.replace(
-      pathSegments: <String>[
-        ...baseUri.pathSegments.where((segment) => segment.isNotEmpty),
-        ...dirSegments,
-        ...fileSegments,
-      ],
-    );
-  }
-
-  bool _isRetryableWebDavStatus(int statusCode) {
-    return statusCode == 408 ||
-        statusCode == 425 ||
-        statusCode == 429 ||
-        statusCode >= 500;
-  }
-
-  Future<void> _webDavUploadText(
-    String targetFileName,
-    String contents, {
-    String contentType = 'text/csv; charset=utf-8',
-  }) async {
-    final bytes = utf8.encode(contents);
-    await _webDavUploadStream(
-      targetFileName: targetFileName,
-      bodyStreamFactory: () => Stream<List<int>>.value(bytes),
-      contentLength: bytes.length,
-      contentType: contentType,
-    );
-  }
-
-  Future<void> _webDavUploadStream({
-    required String targetFileName,
-    required Stream<List<int>> Function() bodyStreamFactory,
-    required int contentLength,
-    required String contentType,
-  }) async {
-    final uri = _buildWebDavUploadUri(targetFileName);
-
-    if (webdavUsername == null ||
-        webdavUsername!.isEmpty ||
-        webdavPassword == null ||
-        webdavPassword!.isEmpty) {
-      throw const AuthException();
-    }
-
-    final webdavUser = webdavUsername!;
-    final webdavPass = webdavPassword!;
-    final auth = base64Encode(utf8.encode('$webdavUser:$webdavPass'));
-
-    Object? lastError;
-    for (var attempt = 1; attempt <= _webDavMaxAttempts; attempt++) {
-      final request = http.StreamedRequest('PUT', uri)
-        ..headers.addAll({
-          'Authorization': 'Basic $auth',
-          'Content-Type': contentType,
-          'Content-Length': contentLength.toString(),
-        })
-        ..persistentConnection = true
-        ..followRedirects = false;
-
-      try {
-        final responseFuture = _client.send(request);
-
-        try {
-          await request.sink.addStream(bodyStreamFactory());
-        } finally {
-          await request.sink.close();
-        }
-
-        final streamedResponse = await responseFuture;
-        debugPrint(
-          'Upload(WebDAV): Response status: ${streamedResponse.statusCode}',
-        );
-
-        if (streamedResponse.statusCode == 200 ||
-            streamedResponse.statusCode == 201 ||
-            streamedResponse.statusCode == 204) {
-          return;
-        }
-
-        final body = await streamedResponse.stream.bytesToString();
-        debugPrint('Upload(WebDAV): Response body: $body');
-
-        if (_isRetryableWebDavStatus(streamedResponse.statusCode) &&
-            attempt < _webDavMaxAttempts) {
-          lastError = Exception(
-            'WebDAV upload failed (${streamedResponse.statusCode}): $body',
-          );
-        } else {
-          throw Exception(
-            'WebDAV upload failed (${streamedResponse.statusCode}): $body',
-          );
-        }
-      } on dart_io.SocketException catch (e) {
-        lastError = e;
-      } on dart_async.TimeoutException catch (e) {
-        lastError = e;
-      }
-
-      if (attempt < _webDavMaxAttempts) {
-        await dart_async.Future<void>.delayed(
-          Duration(milliseconds: 250 * attempt),
-        );
-      }
-    }
-
-    throw Exception(
-      'WebDAV upload failed after $_webDavMaxAttempts attempts: '
-      '$lastError',
-    );
-  }
-
-  Future<void> _webDavUpload(File file, String targetFileName) async {
-    if (!await file.exists()) {
-      throw Exception('WebDAV upload failed: file does not exist');
-    }
-
-    await _webDavUploadStream(
-      targetFileName: targetFileName,
-      bodyStreamFactory: () => file.openRead(),
-      contentLength: await file.length(),
-      contentType: 'application/octet-stream',
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // Cache invalidation helpers (call after mutations if needed)
   // ---------------------------------------------------------------------------
 
@@ -1058,12 +840,6 @@ class SubsonicService {
   /// Play history cache is owned by recentlyPlayedAlbumsProvider.keepAlive();
   /// call ref.invalidate(recentlyPlayedAlbumsProvider) to force a refresh.
   void invalidatePlayHistory() {}
-
-  /// Exposes the shared HTTP client for reuse by co-located services
-  /// (e.g. [ListeningLogService]).
-  ///
-  /// **Do NOT close this client** — [SubsonicService.dispose] owns its lifecycle.
-  http.Client get client => _client;
 
   // BUG-3: close the http.Client to release socket connections.
   void dispose() {

@@ -95,8 +95,6 @@ NaviVibe uses a **Multi-Engine Tokenized System** to decouple aesthetics from UI
 ### 🌐 Subsonic API (`SubsonicService`)
 - **Authentication**: Salted MD5 tokens ($password + salt$).
 - **Streaming**: Supports direct URLs and proxied streams. Proxied streams are used when transcoding is active (managed by `TranscodingService`).
-- **WebDAV**: Used for "Replay" data backups. **Note**: Hardcoded fallback credentials ('casaos') have been removed for security; explicit user config is now mandatory.
-
 ---
 
 
