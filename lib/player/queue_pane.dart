@@ -525,7 +525,7 @@ class _Swipeable extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
-        color: const Color(0xFFE5484D),
+        color: AppThemeTokens.systemRed, // destructive: the one hue kept in monochrome
         child: const IonIcon(Ion.remove, color: Colors.white),
       ),
       child: child,

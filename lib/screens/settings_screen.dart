@@ -205,7 +205,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Server',
                 icon: CupertinoIcons.cloud,
                 ion: Ion.globe,
-                iconColor: AppThemeTokens.systemBlue,
                 value: host.isEmpty ? 'Not connected' : host,
               ),
               GroupedTextFieldRow(
@@ -214,7 +213,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'Required',
                 icon: CupertinoIcons.person_fill,
                 ion: Ion.person,
-                iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedTextFieldRow(
                 title: 'Password',
@@ -223,14 +221,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 obscure: true,
                 icon: CupertinoIcons.lock_fill,
                 ion: Ion.lock,
-                iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedSwitchRow(
                 title: 'Allow HTTP',
                 subtitle: 'Connects without encryption. Use only on your home network.',
                 icon: CupertinoIcons.lock_open,
                 ion: Ion.unlock,
-                iconColor: t.warning,
                 value: s.allowHttp,
                 onChanged: notifier.setAllowHttp,
               ),
@@ -251,7 +247,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Shuffle Style',
                 icon: CupertinoIcons.shuffle,
                 ion: Ion.shuffle,
-                iconColor: AppThemeTokens.systemOrange,
                 value: s.shuffleAlgorithm.label,
                 onTap: () async {
                   final v = await showChoiceSheet<ShuffleAlgorithm>(
@@ -270,7 +265,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Spread Songs By',
                   icon: CupertinoIcons.square_grid_2x2,
                   ion: Ion.options,
-                  iconColor: AppThemeTokens.systemTeal,
                   value: s.shufflePreference.label,
                   onTap: () async {
                     final v = await showChoiceSheet<ShufflePreference>(
@@ -295,7 +289,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Convert While Streaming',
                 icon: CupertinoIcons.waveform,
                 ion: Ion.convert,
-                iconColor: AppThemeTokens.systemRed,
                 value: _transcoding,
                 onChanged: (v) {
                   setState(() => _transcoding = v);
@@ -315,7 +308,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Format',
                   icon: CupertinoIcons.doc_text,
                   ion: Ion.document,
-                  iconColor: AppThemeTokens.systemGray,
                   value: TranscodeFormat.getLabel(_format),
                   onTap: () async {
                     final v = await showChoiceSheet<String>(
@@ -335,7 +327,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   subtitle: 'Uses the Wi-Fi or cellular quality to match your connection.',
                   icon: CupertinoIcons.arrow_2_squarepath,
                   ion: Ion.sync,
-                  iconColor: AppThemeTokens.systemTeal,
                   value: _smartSwitch,
                   onChanged: (v) {
                     setState(() => _smartSwitch = v);
@@ -352,14 +343,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Downloaded Songs',
                 icon: CupertinoIcons.arrow_down_circle,
                 ion: Ion.download,
-                iconColor: AppThemeTokens.systemBlue,
                 value: downloads == 0 ? 'None' : '$downloads · $size',
               ),
               GroupedSwitchRow(
                 title: 'Cache Artwork',
                 icon: CupertinoIcons.photo,
                 ion: Ion.image,
-                iconColor: AppThemeTokens.systemTeal,
                 value: _imageCache,
                 onChanged: (v) {
                   setState(() => _imageCache = v);
@@ -371,7 +360,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 subtitle: 'Keeps recently played songs for instant replay.',
                 icon: CupertinoIcons.music_note_2,
                 ion: Ion.music,
-                iconColor: AppThemeTokens.systemRed,
                 value: _musicCache,
                 onChanged: (v) {
                   setState(() => _musicCache = v);
@@ -383,7 +371,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 subtitle: 'Measures song tempo ahead of time so Smart Shuffle starts faster.',
                 icon: CupertinoIcons.metronome,
                 ion: Ion.timer,
-                iconColor: AppThemeTokens.systemOrange,
                 value: _bpmCache,
                 onChanged: (v) {
                   setState(() => _bpmCache = v);
@@ -435,7 +422,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 subtitle: 'Saves your play history and song data to Downloads.',
                 icon: CupertinoIcons.square_arrow_down,
                 ion: Ion.share,
-                iconColor: AppThemeTokens.systemBlue,
                 trailing: _spinner('export'),
                 onTap: _busy == null
                     ? () => _run('export', () async {
@@ -461,7 +447,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Sync Automatically',
                 icon: CupertinoIcons.calendar,
                 ion: Ion.calendar,
-                iconColor: AppThemeTokens.systemRed,
                 value: _scheduleLabel(s.analyticsUploadSchedule),
                 onTap: () async {
                   final v = await showChoiceSheet<String>(
@@ -479,7 +464,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 subtitle: 'Deletes plays that lasted under a second.',
                 icon: CupertinoIcons.trash,
                 ion: Ion.trash,
-                iconColor: AppThemeTokens.systemGray,
                 onTap: () => _run('purge', () async {
                   final n = await ref.read(listenerCollectorProvider).purgeNoiseEvents();
                   return n == 0 ? 'Nothing to remove' : 'Removed $n skipped plays';
@@ -496,7 +480,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Upload a Song',
                 icon: CupertinoIcons.cloud_upload,
                 ion: Ion.add,
-                iconColor: AppThemeTokens.systemBlue,
                 trailing: _spinner('upload'),
                 onTap: _busy == null ? _upload : null,
               ),
@@ -506,7 +489,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: '/music',
                 icon: CupertinoIcons.folder_fill,
                 ion: Ion.folder,
-                iconColor: AppThemeTokens.systemTeal,
               ),
               GroupedTextFieldRow(
                 title: 'WebDAV URL',
@@ -515,7 +497,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 keyboardType: TextInputType.url,
                 icon: CupertinoIcons.link,
                 ion: Ion.link,
-                iconColor: AppThemeTokens.systemGray,
               ),
               GroupedTextFieldRow(
                 title: 'Username',
@@ -523,7 +504,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'Optional',
                 icon: CupertinoIcons.person_fill,
                 ion: Ion.person,
-                iconColor: AppThemeTokens.systemGray2,
               ),
               GroupedTextFieldRow(
                 title: 'Password',
@@ -532,7 +512,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 obscure: true,
                 icon: CupertinoIcons.lock_fill,
                 ion: Ion.lock,
-                iconColor: AppThemeTokens.systemGray2,
               ),
             ],
           ),

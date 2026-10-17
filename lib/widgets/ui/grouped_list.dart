@@ -89,14 +89,14 @@ class GroupedSection extends StatelessWidget {
 
 const double _iconSize = 30;
 
-/// The iOS Settings coloured square behind a row's glyph: the [ion] glyph
-/// when given (the app's Ionicons set), otherwise [icon].
+/// The iOS Settings square behind a row's glyph: the [ion] glyph when given
+/// (the app's Ionicons set), otherwise [icon]. Monochrome — every row gets
+/// the same neutral tile ([AppThemeTokens.iconTile]) with a white glyph.
 class _IconSquare extends StatelessWidget {
   static const double _glyph = 18;
   final IconData icon;
-  final Color? color;
   final Ion? ion;
-  const _IconSquare({required this.icon, this.color, this.ion});
+  const _IconSquare({required this.icon, this.ion});
 
   @override
   Widget build(BuildContext context) {
@@ -105,7 +105,7 @@ class _IconSquare extends StatelessWidget {
       width: _iconSize,
       height: _iconSize,
       decoration: BoxDecoration(
-        color: color ?? t.accent,
+        color: AppThemeTokens.iconTile,
         borderRadius: BorderRadius.circular(7),
       ),
       alignment: Alignment.center,
@@ -117,13 +117,12 @@ class _IconSquare extends StatelessWidget {
 }
 
 /// One row in a [GroupedSection]. Pass [icon] for the iOS Settings-style
-/// coloured square; [value] for trailing secondary text; [onTap] adds a
-/// chevron unless [trailing] is given.
+/// square; [value] for trailing secondary text; [onTap] adds a chevron
+/// unless [trailing] is given.
 class GroupedRow extends StatelessWidget {
   final String title;
   final String? subtitle;
   final IconData? icon;
-  final Color? iconColor;
 
   /// Ionicons glyph shown in the square instead of [icon].
   final Ion? ion;
@@ -138,7 +137,6 @@ class GroupedRow extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.icon,
-    this.iconColor,
     this.ion,
     this.value,
     this.trailing,
@@ -163,7 +161,7 @@ class GroupedRow extends StatelessWidget {
           child: Row(
             children: [
               if (icon != null) ...[
-                _IconSquare(icon: icon!, color: iconColor, ion: ion),
+                _IconSquare(icon: icon!, ion: ion),
                 const SizedBox(width: Space.md + 2),
               ],
               Expanded(
@@ -218,7 +216,6 @@ class GroupedSwitchRow extends StatelessWidget {
   final String title;
   final String? subtitle;
   final IconData? icon;
-  final Color? iconColor;
   final Ion? ion;
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -228,7 +225,6 @@ class GroupedSwitchRow extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.icon,
-    this.iconColor,
     this.ion,
     required this.value,
     required this.onChanged,
@@ -241,11 +237,14 @@ class GroupedSwitchRow extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       icon: icon,
-      iconColor: iconColor,
       ion: ion,
       trailing: CupertinoSwitch(
         value: value,
         activeTrackColor: t.accent,
+        // Monochrome: the accent track is white, so the "on" thumb is black;
+        // "off" keeps the white thumb on the dark track.
+        thumbColor: t.onAccent,
+        inactiveThumbColor: t.textPrimary,
         onChanged: (v) {
           HapticFeedback.selectionClick();
           onChanged(v);
@@ -264,7 +263,6 @@ class GroupedTextFieldRow extends StatefulWidget {
   final bool obscure;
   final TextInputType? keyboardType;
   final IconData? icon;
-  final Color? iconColor;
   final Ion? ion;
 
   const GroupedTextFieldRow({
@@ -275,7 +273,6 @@ class GroupedTextFieldRow extends StatefulWidget {
     this.obscure = false,
     this.keyboardType,
     this.icon,
-    this.iconColor,
     this.ion,
   });
 
@@ -296,11 +293,7 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
         child: Row(
           children: [
             if (widget.icon != null) ...[
-              _IconSquare(
-                icon: widget.icon!,
-                color: widget.iconColor,
-                ion: widget.ion,
-              ),
+              _IconSquare(icon: widget.icon!, ion: widget.ion),
               const SizedBox(width: Space.md + 2),
             ],
             SizedBox(width: 104, child: Text(widget.title, style: t.body)),

@@ -75,7 +75,7 @@ class FetchCandidateRow extends ConsumerWidget {
                     ),
                   ),
                   const SizedBox(width: Space.md),
-                  SizedBox(width: 28, height: 28, child: Center(child: _Trailing(job: job, inLibrary: c.inLibrary))),
+                  SizedBox(width: 28, height: 28, child: Center(child: FetchJobIndicator(job: job, inLibrary: c.inLibrary))),
                 ],
               ),
               const SizedBox(height: Space.sm),
@@ -93,7 +93,21 @@ class FetchCandidateRow extends ConsumerWidget {
 
   static String? _statusLine(FetchJob? job, FetchCandidate c) {
     if (job == null) return c.inLibrary ? 'In your library' : null;
-    return switch (job.phase) {
+    return fetchJobStatus(job);
+  }
+
+  static Color _statusColor(AppThemeTokens t, FetchJob? job, FetchCandidate c) => switch (job?.phase) {
+        FetchJobPhase.ready => t.positive,
+        FetchJobPhase.rejected || FetchJobPhase.failed => t.danger,
+        // "Cover", "Remix"…: information, so secondary text, not a warning hue.
+        null when c.kind != FetchKind.original && !c.inLibrary => t.textSecondary,
+        _ => t.textMuted,
+      };
+}
+
+/// Where a download is, in the user's words — shared by the result rows and
+/// the sheet's active-downloads banner.
+String fetchJobStatus(FetchJob job) => switch (job.phase) {
       FetchJobPhase.preparing => 'Preparing…',
       FetchJobPhase.downloading => 'Downloading ${(job.progress * 100).round()}%',
       FetchJobPhase.adding => 'Adding to your library…',
@@ -102,20 +116,14 @@ class FetchCandidateRow extends ConsumerWidget {
       FetchJobPhase.rejected => 'Not available in lossless quality',
       FetchJobPhase.failed => job.error ?? 'Download didn’t finish. Tap to try again.',
     };
-  }
 
-  static Color _statusColor(AppThemeTokens t, FetchJob? job, FetchCandidate c) => switch (job?.phase) {
-        FetchJobPhase.ready => t.positive,
-        FetchJobPhase.rejected || FetchJobPhase.failed => t.danger,
-        null when c.kind != FetchKind.original && !c.inLibrary => t.warning,
-        _ => t.textMuted,
-      };
-}
-
-class _Trailing extends StatelessWidget {
+/// A download's state as a 24 pt glyph: spinner, progress ring, check or
+/// warning. With no job yet: the action the row offers (download, or play
+/// when the song is already in the library).
+class FetchJobIndicator extends StatelessWidget {
   final FetchJob? job;
   final bool inLibrary;
-  const _Trailing({required this.job, required this.inLibrary});
+  const FetchJobIndicator({super.key, required this.job, this.inLibrary = false});
 
   @override
   Widget build(BuildContext context) {

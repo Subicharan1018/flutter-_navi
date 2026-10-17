@@ -12,7 +12,7 @@ import '../../logic/shuffle_providers.dart';
 import '../smart_shuffle_login_screen.dart';
 
 /// Nav-bar button for Smart Shuffle's server: a glyph with a status dot
-/// (green online, red offline). Opens the server + model sheet, or sign-in
+/// (white online, red offline). Opens the server + model sheet, or sign-in
 /// when the server rejected our credentials.
 class SmartShuffleStatusButton extends ConsumerWidget {
   const SmartShuffleStatusButton({super.key});
@@ -60,7 +60,6 @@ class _StatusSheet extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
     final health = ref.watch(serverHealthProvider);
     final model = ref.watch(modelStatusProvider);
     final HealthResponse? h = health.asData?.value;
@@ -75,26 +74,22 @@ class _StatusSheet extends ConsumerWidget {
             GroupedRow(
               title: 'Status',
               icon: CupertinoIcons.dot_radiowaves_left_right,
-              iconColor: h?.isHealthy == true ? t.positive : AppThemeTokens.systemRed,
               value: health.isLoading ? 'Checking…' : (h?.isHealthy == true ? 'Online' : 'Offline'),
             ),
             if (w != null) ...[
               GroupedRow(
                 title: 'Weather',
                 icon: CupertinoIcons.cloud_sun,
-                iconColor: AppThemeTokens.systemBlue,
                 value: '${w.moodIcon} ${w.mood}',
               ),
               GroupedRow(
                 title: 'Temperature',
                 icon: CupertinoIcons.thermometer,
-                iconColor: AppThemeTokens.systemOrange,
                 value: '${w.temperatureC.toStringAsFixed(1)}°C',
               ),
               GroupedRow(
                 title: 'Humidity',
                 icon: CupertinoIcons.drop,
-                iconColor: AppThemeTokens.systemTeal,
                 value: '${w.humidityPct}%',
               ),
             ],

@@ -107,6 +107,7 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
             onSubmitted: _search,
           ),
         ),
+        _ActiveDownloads(onPlay: _play, onAddToPlaylist: _addToPlaylist),
         _Body(state: s, onSearch: _search, onPlay: _play, onAddToPlaylist: _addToPlaylist),
         const SizedBox(height: Space.lg),
       ],
@@ -281,6 +282,103 @@ class _DoneActions extends ConsumerWidget {
               onTap: () => onAddToPlaylist(job),
             ),
           ),
+        ],
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Active-download banner — survives sheet close/reopen
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Downloads started earlier (this sheet or a previous one) that aren't among
+/// the results on screen, so closing and reopening the sheet never hides one.
+/// Running and finished jobs show; failed ones are retried from their result
+/// row, and a job whose result is listed below shows its progress there.
+class _ActiveDownloads extends ConsumerWidget {
+  final Future<void> Function(Future<Song> Function() load) onPlay;
+  final ValueChanged<FetchJob> onAddToPlaylist;
+
+  const _ActiveDownloads({required this.onPlay, required this.onAddToPlaylist});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final listed = ref.watch(onlineSearchProvider.select(
+        (s) => {for (final c in s.search?.candidates ?? const <FetchCandidate>[]) c.id}));
+    final active = ref.watch(fetchJobsProvider.select((jobs) => [
+          for (final j in jobs.values)
+            if (j.phase != FetchJobPhase.failed && j.phase != FetchJobPhase.rejected && !listed.contains(j.candidateId)) j,
+        ]));
+    if (active.isEmpty) return const SizedBox.shrink();
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final job in active)
+          _ActiveDownloadRow(job: job, onPlay: onPlay, onAddToPlaylist: onAddToPlaylist),
+        Container(height: 0.5, color: t.outline, margin: const EdgeInsets.only(bottom: Space.sm)),
+      ],
+    );
+  }
+}
+
+class _ActiveDownloadRow extends ConsumerWidget {
+  final FetchJob job;
+  final Future<void> Function(Future<Song> Function() load) onPlay;
+  final ValueChanged<FetchJob> onAddToPlaylist;
+
+  const _ActiveDownloadRow({
+    required this.job,
+    required this.onPlay,
+    required this.onAddToPlaylist,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final j = job;
+    // Play / Add to Playlist need the library song, which a finished job names.
+    final isFinished = j.songId != null &&
+        (j.phase == FetchJobPhase.ready || j.phase == FetchJobPhase.duplicate);
+
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.md, Space.sm),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  j.title ?? 'Downloading…',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.body,
+                ),
+                if (j.artist != null && j.artist!.isNotEmpty)
+                  Text(j.artist!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                Text(fetchJobStatus(j), style: t.footnote.copyWith(color: t.textMuted)),
+              ],
+            ),
+          ),
+          const SizedBox(width: Space.md),
+          if (isFinished) ...[
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(44, 44),
+              onPressed: () => onPlay(() => ref.read(fetchJobsProvider.notifier).songFor(j)),
+              child: Icon(CupertinoIcons.play_circle, size: 28, color: t.accent, semanticLabel: 'Play'),
+            ),
+            CupertinoButton(
+              padding: EdgeInsets.zero,
+              minimumSize: const Size(44, 44),
+              onPressed: () => onAddToPlaylist(j),
+              child: Icon(CupertinoIcons.text_badge_plus, size: 26, color: t.accent, semanticLabel: 'Add to Playlist'),
+            ),
+          ] else
+            SizedBox(width: 28, height: 28, child: Center(child: FetchJobIndicator(job: j))),
         ],
       ),
     );

@@ -24,21 +24,22 @@ class SwipeActions extends StatelessWidget {
     required VoidCallback onPlayNext,
     required VoidCallback onPlayLast,
   }) {
-    // System colours, not the theme accent: on artwork-tinted pages the
-    // accent is white, and the actions must read the same on every page.
+    // Brand constants, not page tokens: the actions must read the same on
+    // artwork-tinted pages. Monochrome — white leads, grey follows; the
+    // glyph colour flips automatically for contrast.
     return SwipeActions(
       key: key,
       rowKey: rowKey,
       leading: SwipeAction(
         label: 'Play Next',
         icon: CupertinoIcons.text_insert,
-        color: AppThemeTokens.brandGreen,
+        color: AppThemeTokens.brandAccent,
         onTrigger: onPlayNext,
       ),
       trailing: SwipeAction(
         label: 'Play Last',
         icon: CupertinoIcons.text_append,
-        color: AppThemeTokens.systemOrange,
+        color: AppThemeTokens.brandAccentDim,
         onTrigger: onPlayLast,
       ),
       child: child,

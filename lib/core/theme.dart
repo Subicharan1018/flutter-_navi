@@ -13,8 +13,8 @@ export 'album_palette.dart' show AlbumPalette;
 // NaviVibe's design language is Apple Music on iPhone, built for Android.
 //
 // Colour: Apple's dark-mode roles (ground, grouped surface, elevated, overlay,
-// secondary / tertiary labels, separators) on an AMOLED black ground, with
-// one accent — system green. Every role is
+// secondary / tertiary labels, separators) on an AMOLED black ground, in
+// monochrome: the one accent is white (black text on it). Every role is
 // opaque; only artwork fades into its page. Collection pages take their
 // ground from the cover ([AppThemeTokens.tinted]).
 //
@@ -141,7 +141,7 @@ class AppThemeTokens {
   final Color bgElevated; // popovers, menus, raised rows
   final Color bgOverlay; // chips, scrims, pressed fills
 
-  // ── Accent (the album's vibrant tone) ─────────────────────────────────────
+  // ── Accent (monochrome: white, with a grey for secondary marks) ───────────
   final Color accent;
   final Color accentDim;
   final Color onAccent;
@@ -179,8 +179,17 @@ class AppThemeTokens {
     required this.outline,
   });
 
-  /// Apple's dark-mode systemGreen — the app's single accent.
-  static const Color brandGreen = Color(0xFF30D158);
+  /// The app's single accent. Monochrome: white on the black chrome; things
+  /// filled with it put [onAccent] (black) on top.
+  static const Color brandAccent = Color(0xFFFFFFFF);
+
+  /// Secondary marks next to the accent (dim chart bars, the second swipe
+  /// action) — systemGray2, so white still leads.
+  static const Color brandAccentDim = Color(0xFF636366);
+
+  /// Fill behind Settings-style row glyphs: one neutral tile for every row
+  /// (monochrome — no per-row colours).
+  static const Color iconTile = Color(0xFF2C2C2E);
 
   /// App chrome stays AMOLED black whatever is playing. Album
   /// colour belongs to Now Playing, the mini player (they read [palette]
@@ -193,8 +202,8 @@ class AppThemeTokens {
       bgSurface: const Color(0xFF111111), // secondarySystemBackground
       bgElevated: const Color(0xFF1C1C1E), // tertiarySystemBackground
       bgOverlay: const Color(0xFF2C2C2E), // pressed fills, chips
-      accent: brandGreen,
-      accentDim: const Color(0xFF248A3D), // systemGreen, accessible dark
+      accent: brandAccent,
+      accentDim: brandAccentDim,
       onAccent: const Color(0xFF000000),
       gold: const Color(0xFFFFD60A), // systemYellow
       textPrimary: const Color(0xFFFFFFFF), // label
@@ -260,15 +269,13 @@ class AppThemeTokens {
   /// Opaque hairline for places a translucent separator would double up.
   Color get separatorOpaque => outline;
 
-  // ── Semantic state colours (iOS system colours, dark) ─────────────────────
-  Color get positive => brandGreen;
+  // ── Semantic state colours ────────────────────────────────────────────────
+  // Monochrome: success is plain white. Only warnings and destructive /
+  // failure states keep a hue (iOS orange / red), because they must stand out.
+  Color get positive => textPrimary;
   Color get warning => const Color(0xFFFF9F0A); // systemOrange
   Color get danger => const Color(0xFFFF453A); // systemRed
 
-  /// iOS system colours for Settings-style icon squares. Deliberately no
-  /// purple / pink: green leads, the rest are Apple's cooler and warm tones.
-  static const Color systemBlue = Color(0xFF0A84FF);
-  static const Color systemTeal = Color(0xFF40C8E0);
   static const Color systemOrange = Color(0xFFFF9F0A);
   static const Color systemRed = Color(0xFFFF453A);
   static const Color systemYellow = Color(0xFFFFD60A);
