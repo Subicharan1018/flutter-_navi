@@ -17,6 +17,7 @@ import '../data/fetch_models.dart';
 import '../data/online_fetch_api.dart';
 import '../logic/online_fetch_providers.dart';
 import 'fetch_activity.dart';
+import 'send_playlist_sheet.dart';
 import 'widgets/fetch_candidate_row.dart';
 
 /// "Search online": find songs, albums, artists or playlists that aren't in
@@ -92,8 +93,26 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.xs),
-          child: Text('Search online', style: t.title3),
+          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.sm, Space.xs),
+          child: Row(
+            children: [
+              Expanded(child: Text('Search online', style: t.title3)),
+              // The other way in: a playlist link the user already has.
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                minimumSize: const Size(44, 44),
+                onPressed: () => showSendPlaylist(context),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(CupertinoIcons.link, size: 16, color: t.accent),
+                    const SizedBox(width: Space.xs),
+                    Text('Send a Playlist', style: t.subheadline.copyWith(color: t.accent)),
+                  ],
+                ),
+              ),
+            ],
+          ),
         ),
         Padding(
           padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, 0),
@@ -203,8 +222,11 @@ Future<bool> confirmFetchDownload(BuildContext context, {required String title, 
         title: Text(title, textAlign: TextAlign.center),
         content: Text(
           [
-            'Adds up to ${count == 1 ? '1 song' : '$count songs'} in lossless quality, one after another. '
-                'Songs you already have are skipped.',
+            if (count == 0)
+              'Nothing new to download.'
+            else
+              'Adds up to ${count == 1 ? '1 song' : '$count songs'} in lossless quality, one after another. '
+                  'Songs you already have are skipped.',
             ?note,
           ].join(' '),
           textAlign: TextAlign.center,

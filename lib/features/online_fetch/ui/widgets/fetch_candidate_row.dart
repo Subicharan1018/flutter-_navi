@@ -25,6 +25,10 @@ class FetchCandidateRow extends ConsumerWidget {
   /// Tapping then toggles it ([onDownload] is called).
   final bool? selected;
 
+  /// False for a pasted link's songs: they download together, so a row only
+  /// shows whether the song is owned and, once started, its progress.
+  final bool interactive;
+
   const FetchCandidateRow({
     super.key,
     required this.candidate,
@@ -32,6 +36,7 @@ class FetchCandidateRow extends ConsumerWidget {
     required this.onPlayOwned,
     this.showSeparator = true,
     this.selected,
+    this.interactive = true,
   });
 
   @override
@@ -44,6 +49,7 @@ class FetchCandidateRow extends ConsumerWidget {
     final status = song ? _songStatus(job, c) : (batch == null ? null : fetchBatchStatus(batch));
     final selecting = selected != null;
     final tappable = switch (c.type) {
+      _ when !interactive => false,
       _ when selecting => !c.inLibrary && (job == null || job.phase == FetchJobPhase.failed),
       FetchSearchType.song => c.inLibrary || job == null || job.phase == FetchJobPhase.failed,
       FetchSearchType.artist => true,
@@ -112,6 +118,9 @@ class FetchCandidateRow extends ConsumerWidget {
                       height: 28,
                       child: Center(
                         child: switch (c.type) {
+                          _ when !interactive && job == null => c.inLibrary
+                              ? Icon(CupertinoIcons.checkmark_circle, size: 22, color: t.textMuted)
+                              : const SizedBox.shrink(),
                           FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary),
                           FetchSearchType.artist => Icon(CupertinoIcons.chevron_right, size: 16, color: t.textMuted),
                           _ => FetchBatchIndicator(batch: batch),

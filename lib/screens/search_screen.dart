@@ -5,9 +5,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/online_fetch/data/fetch_models.dart' show looksLikeLink;
 import '../features/online_fetch/logic/online_fetch_providers.dart';
 import '../features/online_fetch/ui/online_search_sheet.dart';
 import '../features/online_fetch/ui/search_online_row.dart';
+import '../features/online_fetch/ui/send_playlist_sheet.dart';
 import '../models/catalog.dart';
 import '../models/search_results.dart';
 import '../player/artwork.dart' show coverPaletteProvider;
@@ -318,6 +320,19 @@ class _ResultsState extends ConsumerState<_Results> {
     }
     if (data.isEmpty) {
       final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
+      if (online && looksLikeLink(query)) {
+        // A pasted playlist link: offer to send it rather than "no results".
+        return SliverFillRemaining(
+          hasScrollBody: false,
+          child: MessageState(
+            icon: CupertinoIcons.link,
+            title: 'Playlist link',
+            message: 'Add its songs in lossless quality and make it a playlist in your library.',
+            actionLabel: 'Send Playlist',
+            onAction: () => showSendPlaylist(context, link: query),
+          ),
+        );
+      }
       return SliverFillRemaining(
         hasScrollBody: false,
         child: MessageState(
