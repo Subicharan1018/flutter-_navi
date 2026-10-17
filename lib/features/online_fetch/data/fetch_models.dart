@@ -45,6 +45,9 @@ class FetchCandidate {
   /// The AI check has looked at this result.
   final bool aiChecked;
 
+  /// Album art the source shows with this result (a public CDN image).
+  final String? coverUrl;
+
   const FetchCandidate({
     required this.id,
     required this.title,
@@ -54,6 +57,7 @@ class FetchCandidate {
     required this.kind,
     required this.inLibrary,
     required this.aiChecked,
+    this.coverUrl,
   });
 
   factory FetchCandidate.fromJson(Map<String, dynamic> j) => FetchCandidate(
@@ -65,6 +69,7 @@ class FetchCandidate {
         kind: FetchKind.parse(j['kind']),
         inLibrary: j['library'] == 'in_library',
         aiChecked: j['llm'] != null,
+        coverUrl: j['cover_url'] as String?,
       );
 }
 

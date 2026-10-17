@@ -48,7 +48,7 @@ class FetchCandidateRow extends ConsumerWidget {
             children: [
               Row(
                 children: [
-                  const CoverArt(url: null, size: 44, radius: Radii.thumb, placeholderIcon: CupertinoIcons.music_note),
+                  CoverArt(url: c.coverUrl, size: 44, radius: Radii.thumb, placeholderIcon: CupertinoIcons.music_note),
                   const SizedBox(width: Space.md),
                   Expanded(
                     child: Column(

@@ -34,6 +34,7 @@ Map<String, dynamic> _results({String llm = 'done', String status = 'done'}) => 
           'album': 'Guna (Original Motion Picture Soundtrack)', 'score': 100.0, 'kind': 'original',
           'reasons': ['film release', 'AI: best match'], 'library': 'not_found',
           'llm': {'kind': 'original', 'is_requested_song': true},
+          'cover_url': 'https://e-cdns-images.dzcdn.net/images/cover/ab/250x250-000000-80-0-0.jpg',
         },
         {
           'id': 63, 'title': 'Kanmani Anbodu', 'artist': 'Suhail Kadavath', 'album': 'Kanmani Anbodu',
@@ -77,6 +78,8 @@ void main() {
       expect(s.candidates.first.kind, FetchKind.original);
       expect(s.candidates.first.aiChecked, isTrue);
       expect(s.candidates.last.kind.label, 'Cover');
+      expect(s.candidates.first.coverUrl, endsWith('250x250-000000-80-0-0.jpg'));
+      expect(s.candidates.last.coverUrl, isNull);       // older servers send none
       expect(s.isSettled, isFalse);
     });
 
