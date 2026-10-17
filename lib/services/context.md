@@ -15,7 +15,7 @@ To maintain 120 FPS UI performance, all heavy computation is offloaded to OS-lev
 - **No Flutter Engine**: Workers should avoid `dart:ui` or Flutter-dependent libraries, relying solely on `dart:math` and pure Dart logic.
 
 ### 🧠 State Management (Riverpod 2.0)
-- **Code Generation**: Uses `@riverpod` annotations to generate type-safe providers.
+- **Providers**: hand-written Riverpod providers (no code generation).
 - **Logic Separation**: UI calls methods on Notifiers; Notifiers orchestrate Services; Services interact with the Database or API.
 - **Provider Ref Tracking**: Services receive a `Ref` or specific dependencies via constructors to enable mocking in tests.
 

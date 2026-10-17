@@ -32,15 +32,3 @@ final sessionSyncServiceProvider = Provider<SessionSyncService>((ref) {
   ref.onDispose(service.dispose);
   return service;
 });
-
-/// Stream provider for real-time playback state updates from the session server.
-final sessionPlaybackStateProvider = StreamProvider<PlaybackState>((ref) {
-  final service = ref.watch(sessionSyncServiceProvider);
-  return service.stateStream;
-});
-
-/// Stream provider tracking WebSocket reconnection attempt counts.
-final sessionReconnectAttemptProvider = StreamProvider<int>((ref) {
-  final service = ref.watch(sessionSyncServiceProvider);
-  return service.reconnectAttemptStream;
-});

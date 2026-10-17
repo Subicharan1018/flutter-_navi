@@ -6,11 +6,9 @@ import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
 import '../services/cache_settings_service.dart';
-import '../services/bpm_analyzer_service.dart';
 
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
-import '../services/search_history_service.dart';
 import '../database/app_database.dart';
 import 'library_provider.dart' show resetLibrarySyncClock;
 
@@ -364,13 +362,6 @@ final cacheSettingsProvider = Provider<CacheSettingsService>((ref) {
   return CacheSettingsService();
 });
 
-/// Singleton [BpmAnalyzerService] — BPM estimation and caching.
-final bpmAnalyzerProvider = Provider<BpmAnalyzerService>((ref) {
-  return BpmAnalyzerService();
-});
-
-
-
 /// [TranscodingService] — network-aware bitrate/format management.
 /// ChangeNotifierProvider disposes the service itself; disposing it again in
 /// onDispose asserted "used after being disposed" on teardown.
@@ -384,10 +375,4 @@ final recommendationProvider = ChangeNotifierProvider<RecommendationService>((
   ref,
 ) {
   return RecommendationService();
-});
-
-/// Singleton [SearchHistoryService].
-final searchHistoryServiceProvider = Provider<SearchHistoryService>((ref) {
-  final db = ref.watch(appDatabaseProvider);
-  return SearchHistoryService(db);
 });

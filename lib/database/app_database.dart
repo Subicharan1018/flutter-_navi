@@ -4,11 +4,10 @@ import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'tables/analytics_tables.dart';
 import 'tables/playlist_cache_table.dart';
-import 'tables/search_history_table.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [PlayEvents, SongMetadata, PlaylistCache, SearchHistory])
+@DriftDatabase(tables: [PlayEvents, SongMetadata, PlaylistCache])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'navivibe_drift'));
 
@@ -18,7 +17,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   /// Tables from schema 3 that were written but never read (co-play pairs,
   /// suggest feedback, song weights) or never used at all (recommendation
@@ -31,6 +30,9 @@ class AppDatabase extends _$AppDatabase {
     'artist_affinity',
     'genre_affinity',
   ];
+
+  /// Search history lives in Hive (search_provider); this copy was never read.
+  static const _droppedInV5 = ['search_history'];
 
   @override
   MigrationStrategy get migration {
@@ -55,6 +57,11 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 4) {
           for (final table in _droppedInV4) {
+            await m.deleteTable(table);
+          }
+        }
+        if (from < 5) {
+          for (final table in _droppedInV5) {
             await m.deleteTable(table);
           }
         }

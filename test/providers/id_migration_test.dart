@@ -92,18 +92,20 @@ void main() {
         await _song(v3, 'A1', 'kept');
         await v3.customStatement('CREATE TABLE song_pairs (prev_song_id TEXT, current_song_id TEXT)');
         await v3.customStatement('CREATE TABLE song_weights (song_id TEXT PRIMARY KEY, weight REAL)');
+        await v3.customStatement('CREATE TABLE IF NOT EXISTS search_history (query TEXT PRIMARY KEY, last_searched_at INTEGER)');
         await v3.customStatement('PRAGMA user_version = 3');
         await v3.close();
 
-        final v4 = AppDatabase.forTesting(NativeDatabase(file));
+        final latest = AppDatabase.forTesting(NativeDatabase(file));
         final tables = [
-          for (final r in await v4.customSelect("SELECT name FROM sqlite_master WHERE type = 'table'").get())
+          for (final r in await latest.customSelect("SELECT name FROM sqlite_master WHERE type = 'table'").get())
             r.read<String>('name'),
         ];
         expect(tables, isNot(contains('song_pairs')));
         expect(tables, isNot(contains('song_weights')));
-        expect(await _titles(v4), {'A1': 'kept'});
-        await v4.close();
+        expect(tables, isNot(contains('search_history')));
+        expect(await _titles(latest), {'A1': 'kept'});
+        await latest.close();
       } finally {
         await dir.delete(recursive: true);
       }
