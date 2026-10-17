@@ -300,7 +300,6 @@ class MockListeningEventCollector extends Fake implements ListeningEventCollecto
   void onSongStarted({
     required Song song,
     required String sourceContext,
-    required String transitionType,
     Song? prevSong,
     Duration positionAtSwitch = Duration.zero,
     int queuePosition = 0,
@@ -316,12 +315,6 @@ class MockListeningEventCollector extends Fake implements ListeningEventCollecto
 
   @override
   void onSongRepeated() {}
-
-  @override
-  void recordSuggestFeedback(Song song, bool isMore) {}
-
-  @override
-  void persistWeight(String songId, double weight) {}
 }
 
 /// A configurable mock repository for Smart Shuffle

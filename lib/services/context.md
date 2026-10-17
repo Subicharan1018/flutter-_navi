@@ -88,9 +88,7 @@ NaviVibe uses a **Multi-Engine Tokenized System** to decouple aesthetics from UI
 ### 🗄️ Database (Drift/SQLite)
 - **Tables**:
     - `PlayEvents`: UUID-primary-key, tracks timestamps, duration, skip status, and context.
-    - `SongMetadata`: Denormalized cache of Subsonic metadata for offline analytics queries.
-    - `SongPairs`: Relational table tracking $Song A \to Song B$ transitions for the recommendation engine.
-- **Sync**: Metadata is upserted on every "Song Started" event to ensure the local library stays current with the server.
+    - `SongMetadata`: Denormalized cache of Subsonic metadata for offline analytics queries.- **Sync**: Metadata is upserted on every "Song Started" event to ensure the local library stays current with the server.
 
 ### 🌐 Subsonic API (`SubsonicService`)
 - **Authentication**: Salted MD5 tokens ($password + salt$).

@@ -56,25 +56,24 @@ void main() {
     test('every table follows the map, swaps included', () async {
       for (final (id, title) in [('A1', 'a'), ('B1', 'b'), ('C1', 'c'), ('D1', 'd')]) {
         await _song(db, id, title);
-        await db.customStatement('INSERT INTO song_weights (song_id, weight) VALUES (?, 2.0)', [id]);
       }
-      await db.customStatement(
-          "INSERT INTO song_pairs (prev_song_id, current_song_id, transition_type, play_count, last_seen) "
-          "VALUES ('C1', 'D1', 'natural', 3, 0)");
-      await db.customStatement(
-          "INSERT INTO user_feedback (song_id, feedback_type, ts, session_id) VALUES ('D1', 'like', 0, 's')");
+      for (final (play, id) in [('p1', 'C1'), ('p2', 'D1')]) {
+        await db.customStatement(
+            'INSERT INTO play_events (play_id, song_id, session_id, ts_start, source_context, hour_of_day, day_of_week) '
+            "VALUES (?, ?, 's', 0, 'library', 0, 0)",
+            [play, id]);
+      }
       await db.customStatement(
           "INSERT INTO playlist_cache (playlist_id, position, song_json, cached_at) VALUES ('p', 0, '{}', 0)");
 
       await db.remapSongIds(_map);
 
       expect(await _titles(db), {'A2': 'a', 'B1': 'b', 'C2': 'c', 'C1': 'd'});
-      final pair = await db.customSelect('SELECT prev_song_id, current_song_id, play_count FROM song_pairs').getSingle();
-      expect([pair.read<String>('prev_song_id'), pair.read<String>('current_song_id'), pair.read<int>('play_count')],
-          ['C2', 'C1', 3]);
-      final fb = await db.customSelect('SELECT song_id FROM user_feedback').getSingle();
-      expect(fb.read<String>('song_id'), 'C1');                      // D's feedback, under D's new id
-      expect((await db.customSelect('SELECT COUNT(*) AS n FROM song_weights').getSingle()).read<int>('n'), 4);
+      final plays = {
+        for (final r in await db.customSelect('SELECT play_id, song_id FROM play_events').get())
+          r.read<String>('play_id'): r.read<String>('song_id'),
+      };
+      expect(plays, {'p1': 'C2', 'p2': 'C1'});                       // D's play, under D's new id
       expect((await db.customSelect('SELECT COUNT(*) AS n FROM playlist_cache').getSingle()).read<int>('n'), 0);
     });
 
@@ -83,6 +82,31 @@ void main() {
       await _song(db, 'A2', 'fresh from sync');
       await db.remapSongIds({'A1': 'A2'});
       expect(await _titles(db), {'A2': 'with history'});
+    });
+
+    test('upgrading from schema 3 drops the retired tables and keeps play history', () async {
+      final dir = await Directory.systemTemp.createTemp('navivibe_db_');
+      final file = File('${dir.path}/v3.sqlite');
+      try {
+        final v3 = AppDatabase.forTesting(NativeDatabase(file));
+        await _song(v3, 'A1', 'kept');
+        await v3.customStatement('CREATE TABLE song_pairs (prev_song_id TEXT, current_song_id TEXT)');
+        await v3.customStatement('CREATE TABLE song_weights (song_id TEXT PRIMARY KEY, weight REAL)');
+        await v3.customStatement('PRAGMA user_version = 3');
+        await v3.close();
+
+        final v4 = AppDatabase.forTesting(NativeDatabase(file));
+        final tables = [
+          for (final r in await v4.customSelect("SELECT name FROM sqlite_master WHERE type = 'table'").get())
+            r.read<String>('name'),
+        ];
+        expect(tables, isNot(contains('song_pairs')));
+        expect(tables, isNot(contains('song_weights')));
+        expect(await _titles(v4), {'A1': 'kept'});
+        await v4.close();
+      } finally {
+        await dir.delete(recursive: true);
+      }
     });
   });
 
