@@ -5,8 +5,8 @@ import 'package:shared_preferences/shared_preferences.dart';
 // device_utils.dart — Stable anonymous device identity
 //
 // Provides a per-device UUID that persists across app sessions.
-// Used by ListeningLogService to attribute listening logs without linking to
-// any personal identity — purely for aggregate per-device stats.
+// Used to attribute plays and sessions to a device without linking to any
+// personal identity — purely for aggregate per-device stats.
 // =============================================================================
 
 const _kDeviceIdKey = 'device_id';

@@ -1,6 +1,3 @@
-import 'dart:io';
-
-import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -10,8 +7,6 @@ import '../core/theme.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
-import '../services/replay_upload_service.dart';
-import '../services/subsonic_service.dart';
 import '../services/transcoding_service.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/grouped_list.dart';
@@ -36,10 +31,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final SettingsState _initial = ref.read(settingsProvider);
   late final _user = TextEditingController(text: _initial.username);
   late final _pass = TextEditingController(text: _initial.password);
-  late final _uploadDir = TextEditingController(text: _initial.uploadDirectory);
-  late final _davUrl = TextEditingController(text: _initial.webdavUrl);
-  late final _davUser = TextEditingController(text: _initial.webdavUsername);
-  late final _davPass = TextEditingController(text: _initial.webdavPassword);
 
   // Preferences held by services rather than SettingsState.
   bool _imageCache = true;
@@ -82,7 +73,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
-    for (final c in [_user, _pass, _uploadDir, _davUrl, _davUser, _davPass]) {
+    for (final c in [_user, _pass]) {
       c.dispose();
     }
     super.dispose();
@@ -92,15 +83,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _save() async {
     final settings = ref.read(settingsProvider);
-    await ref.read(settingsProvider.notifier).saveSettings(
-          settings.serverUrl,
-          _user.text.trim(),
-          _pass.text,
-          webdavUrl: _davUrl.text.trim(),
-          uploadDir: _uploadDir.text.trim(),
-          webdavUser: _davUser.text.trim(),
-          webdavPass: _davPass.text,
-        );
+    await ref.read(settingsProvider.notifier).saveSettings(settings.serverUrl, _user.text.trim(), _pass.text);
     ref.read(playerProvider.notifier).refreshShuffleUrl();
     HapticFeedback.mediumImpact();
     if (!mounted) return;
@@ -119,27 +102,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     } finally {
       if (mounted) setState(() => _busy = null);
     }
-  }
-
-  Future<void> _upload() async {
-    final picked = await FilePicker.platform.pickFiles(type: FileType.audio);
-    final path = picked?.files.single.path;
-    if (path == null) return;
-    await _run('upload', () async {
-      final s = ref.read(settingsProvider);
-      final uploadUrl = s.uploadApiUrl;
-      await SubsonicService(
-        serverUrl: s.serverUrl,
-        username: _user.text.trim(),
-        password: _pass.text,
-        cache: ref.read(playlistCacheServiceProvider),
-        customUploadUrl: uploadUrl.isEmpty ? null : uploadUrl,
-        customUploadDir: _uploadDir.text.trim().isEmpty ? null : _uploadDir.text.trim(),
-        webdavUsername: _davUser.text.trim(),
-        webdavPassword: _davPass.text,
-      ).uploadSong(File(path));
-      return 'Uploaded ${picked!.files.single.name}';
-    }, 'Upload failed. Check your connection and the upload folder, then try again.');
   }
 
   Future<void> _deleteAllDownloads(int count, String size) async {
@@ -431,35 +393,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                     : null,
               ),
               GroupedRow(
-                title: 'Sync to Server',
-                subtitle: 'Uploads your listening history for Replay and Smart Shuffle.',
-                icon: CupertinoIcons.arrow_2_circlepath,
-                ion: Ion.upload,
-                trailing: _spinner('sync'),
-                onTap: _busy == null
-                    ? () => _run('sync', () async {
-                          await ref.read(replayUploadServiceProvider).uploadData('manual');
-                          return 'Listening data synced';
-                        }, 'Sync failed. Check your sync account below, then try again.')
-                    : null,
-              ),
-              GroupedRow(
-                title: 'Sync Automatically',
-                icon: CupertinoIcons.calendar,
-                ion: Ion.calendar,
-                value: _scheduleLabel(s.analyticsUploadSchedule),
-                onTap: () async {
-                  final v = await showChoiceSheet<String>(
-                    context,
-                    title: 'Sync Automatically',
-                    options: const ['none', 'weekly', 'monthly'],
-                    selected: s.analyticsUploadSchedule,
-                    label: _scheduleLabel,
-                  );
-                  if (v != null) notifier.setAnalyticsUploadSchedule(v);
-                },
-              ),
-              GroupedRow(
                 title: 'Remove Skipped Plays',
                 subtitle: 'Deletes plays that lasted under a second.',
                 icon: CupertinoIcons.trash,
@@ -468,50 +401,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   final n = await ref.read(listenerCollectorProvider).purgeNoiseEvents();
                   return n == 0 ? 'Nothing to remove' : 'Removed $n skipped plays';
                 }, 'Couldn’t clean up. Try again.'),
-              ),
-            ],
-          ),
-          GroupedSection(
-            header: 'Uploads & Sync Account',
-            footer: 'Needed only for uploading songs and syncing listening data. '
-                'Stored encrypted on this device.',
-            children: [
-              GroupedRow(
-                title: 'Upload a Song',
-                icon: CupertinoIcons.cloud_upload,
-                ion: Ion.add,
-                trailing: _spinner('upload'),
-                onTap: _busy == null ? _upload : null,
-              ),
-              GroupedTextFieldRow(
-                title: 'Folder',
-                controller: _uploadDir,
-                placeholder: '/music',
-                icon: CupertinoIcons.folder_fill,
-                ion: Ion.folder,
-              ),
-              GroupedTextFieldRow(
-                title: 'WebDAV URL',
-                controller: _davUrl,
-                placeholder: 'https://',
-                keyboardType: TextInputType.url,
-                icon: CupertinoIcons.link,
-                ion: Ion.link,
-              ),
-              GroupedTextFieldRow(
-                title: 'Username',
-                controller: _davUser,
-                placeholder: 'Optional',
-                icon: CupertinoIcons.person_fill,
-                ion: Ion.person,
-              ),
-              GroupedTextFieldRow(
-                title: 'Password',
-                controller: _davPass,
-                placeholder: 'Optional',
-                obscure: true,
-                icon: CupertinoIcons.lock_fill,
-                ion: Ion.lock,
               ),
             ],
           ),
@@ -541,10 +430,4 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (v != null) onPick(v);
         },
       );
-
-  static String _scheduleLabel(String v) => switch (v) {
-        'weekly' => 'Weekly',
-        'monthly' => 'Monthly',
-        _ => 'Off',
-      };
 }

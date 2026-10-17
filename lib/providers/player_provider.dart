@@ -737,7 +737,6 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             _collector.onSongStarted(
               song: capturedNew,
               sourceContext: sourceCtx,
-              transitionType: transCtx,
               prevSong: capturedPrev,
               positionAtSwitch: capturedPos,
               queuePosition: capturedIdx,
@@ -1792,17 +1791,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (song.starred) await toggleStar(song.id);
       await _subsonicService.setRating(song.id, 1);
     }
-    final settings = _ref.read(settingsProvider);
-    if (settings.dataCollectionEnabled) {
-      _collector.recordSuggestFeedback(song, isMore);
-    }
     _audioHandler.updateSongWeight(song, isMore);
-    final updatedSong = _audioHandler.currentQueue
-        .where((s) => s.id == song.id)
-        .firstOrNull;
-    if (updatedSong != null) {
-      _collector.persistWeight(updatedSong.id, updatedSong.dynamicWeight);
-    }
     state = state.copyWith(queue: _audioHandler.currentQueue);
   }
 

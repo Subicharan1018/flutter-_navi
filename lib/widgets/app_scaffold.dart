@@ -29,8 +29,6 @@ import '../screens/now_playing_screen.dart';
 import '../screens/playlist_details_screen.dart';
 import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
-import '../services/listening_log_service.dart';
-import '../services/replay_upload_service.dart';
 import '../services/window_manager_service.dart';
 import '../utils/platform_utils.dart';
 import 'cover_art.dart';
@@ -112,7 +110,7 @@ class AppScaffold extends ConsumerStatefulWidget {
   ConsumerState<AppScaffold> createState() => _AppScaffoldState();
 }
 
-class _AppScaffoldState extends ConsumerState<AppScaffold> with WidgetsBindingObserver, WindowLifecycleMixin {
+class _AppScaffoldState extends ConsumerState<AppScaffold> with WindowLifecycleMixin {
   AppTab _tab = AppTab.home;
 
   /// Tabs built so far. A tab is built the first time it's opened and kept
@@ -122,9 +120,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WidgetsBindingOb
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
-      ref.read(replayUploadServiceProvider).performUploadIfNeeded();
       // After a server upgrade that renamed song ids, move local history and
       // downloads to the new ids first (a no-op otherwise; gives up after 8 s).
       await ref.read(idMigrationProvider).runIfNeeded();
@@ -133,19 +129,6 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WidgetsBindingOb
       // Home, Stats, Replay and Shuffle resolve titles from it.
       ref.read(allSongsProvider.future).ignore();
     });
-  }
-
-  @override
-  void dispose() {
-    WidgetsBinding.instance.removeObserver(this);
-    super.dispose();
-  }
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
-      ref.read(listeningLogServiceProvider).flushQueue();
-    }
   }
 
   void _select(AppTab tab) {

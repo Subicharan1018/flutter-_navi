@@ -41,33 +41,3 @@ class SongMetadata extends Table {
   @override
   Set<Column> get primaryKey => {songId};
 }
-
-@DataClassName('SongPairEntity')
-class SongPairs extends Table {
-  TextColumn get prevSongId => text()();
-  TextColumn get currentSongId => text()();
-  TextColumn get transitionType => text()();
-  IntColumn get playCount => integer().withDefault(const Constant(1))();
-  IntColumn get lastSeen => integer()();
-
-  @override
-  Set<Column> get primaryKey => {prevSongId, currentSongId, transitionType};
-}
-
-@DataClassName('UserFeedbackEntity')
-class UserFeedback extends Table {
-  IntColumn get id => integer().autoIncrement()();
-  TextColumn get songId => text()();
-  TextColumn get feedbackType => text()();
-  IntColumn get ts => integer()();
-  TextColumn get sessionId => text()();
-}
-
-@DataClassName('SongWeightEntity')
-class SongWeights extends Table {
-  TextColumn get songId => text()();
-  RealColumn get weight => real().withDefault(const Constant(1.0))();
-
-  @override
-  Set<Column> get primaryKey => {songId};
-}
