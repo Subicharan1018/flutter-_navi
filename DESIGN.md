@@ -1,6 +1,6 @@
 ---
 name: NaviVibe
-description: Apple Music (iOS 26), played straight, on Android. A Navidrome client on an AMOLED black ground with one green accent, where only the artwork brings colour.
+description: Apple Music (iOS 26), played straight, on Android. A Navidrome client on an AMOLED black ground, monochrome with a white accent, where only the artwork brings colour.
 colors:
   ground: "#000000"
   grouped-surface: "#111111"
@@ -8,17 +8,16 @@ colors:
   overlay-fill: "#2C2C2E"
   tertiary-fill: "#1C1C1E"
   separator: "#262628"
-  system-green: "#30D158"
-  system-green-dim: "#248A3D"
-  on-green: "#000000"
+  accent: "#FFFFFF"
+  accent-dim: "#636366"
+  on-accent: "#000000"
+  icon-tile: "#2C2C2E"
   label: "#FFFFFF"
   secondary-label: "#9E9EA4"
   tertiary-label: "#86868C"
   system-yellow: "#FFD60A"
   system-orange: "#FF9F0A"
   system-red: "#FF453A"
-  system-blue: "#0A84FF"
-  system-teal: "#40C8E0"
   system-gray: "#8E8E93"
   system-gray-2: "#636366"
   fallback-base: "#1C1C1E"
@@ -120,8 +119,8 @@ spacing:
   player-clearance: "152px"
 components:
   button-play-capsule:
-    backgroundColor: "{colors.system-green}"
-    textColor: "{colors.on-green}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.on-accent}"
     typography: "{typography.headline}"
     rounded: "{rounded.capsule}"
     padding: "0 24px"
@@ -133,14 +132,14 @@ components:
     size: "44px"
   button-tinted:
     backgroundColor: "{colors.tertiary-fill}"
-    textColor: "{colors.system-green}"
+    textColor: "{colors.accent}"
     typography: "{typography.headline}"
     rounded: "{rounded.capsule}"
     padding: "0 20px"
     height: "44px"
   button-tinted-filled:
-    backgroundColor: "{colors.system-green}"
-    textColor: "{colors.on-green}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.on-accent}"
     typography: "{typography.headline}"
     rounded: "{rounded.capsule}"
     padding: "0 20px"
@@ -149,8 +148,8 @@ components:
     rounded: "{rounded.dialog}"
     height: "44px"
   button-filled:
-    backgroundColor: "{colors.system-green}"
-    textColor: "{colors.on-green}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.on-accent}"
     typography: "{typography.headline}"
     rounded: "{rounded.control}"
     padding: "0 24px"
@@ -175,8 +174,8 @@ components:
     padding: "0 16px"
     height: "34px"
   filter-pill-selected:
-    backgroundColor: "{colors.system-green}"
-    textColor: "{colors.on-green}"
+    backgroundColor: "{colors.accent}"
+    textColor: "{colors.on-accent}"
   grouped-section:
     backgroundColor: "{colors.grouped-surface}"
     textColor: "{colors.label}"
@@ -223,14 +222,14 @@ components:
 
 **Creative North Star: "Apple Music, played straight"**
 
-NaviVibe is the iOS 26 Apple Music app rebuilt at full fidelity for Android phones, with a faithful wide layout on Linux and Windows desktops. It has two translations and no others: green (systemGreen #30D158) where Apple uses red, and a pure AMOLED black ground (with no tint) where Apple uses its neutral system greys. Everything else follows Apple's conventions. That means large titles that collapse into a compact bar, inset grouped lists, a floating capsule tab bar with Search split into its own circle, a capsule mini player, iOS page transitions with edge-swipe back, rubber-band scrolling, and presses that respond on touch-down by scaling instead of rippling.
+NaviVibe is the iOS 26 Apple Music app rebuilt at full fidelity for Android phones, with a faithful wide layout on Linux and Windows desktops. It has two translations and no others: a monochrome white accent where Apple uses red, and a pure AMOLED black ground (with no tint) where Apple uses its neutral system greys. Everything else follows Apple's conventions. That means large titles that collapse into a compact bar, inset grouped lists, a floating capsule tab bar with Search split into its own circle, a capsule mini player, iOS page transitions with edge-swipe back, rubber-band scrolling, and presses that respond on touch-down by scaling instead of rippling.
 
 The chrome is exact, quiet and opaque. Artwork is the main decoration and the only source of chrome colour. The default chrome stays on the same black ramp whatever is playing. Icons are monochrome and tinted by their role (Ionicons in the player and Settings, CupertinoIcons elsewhere); the one place fixed colour is drawn by hand is the illustrated set: the phone tab icons and the empty-state illustrations. Album colour appears in three places only: the living artwork field behind Now Playing, the mini player (filled with the playing cover's ground), and collection pages (album, playlist, artist), whose ground is sampled from the cover with the artwork dissolving into it. Every sampled colour passes a hue guard, so purple and pink never reach the chrome.
 
 The density is Apple's. The page gutter is 16, rows are at least 48 to 52 tall with hairline separators inset past the art, and sections are separated by space rather than boxes. Stats reads like Apple Fitness or Health: big figures and charts set straight on the page, with no cards.
 
 **Key Characteristics:**
-- There is one theme. The chrome uses a single AMOLED black ramp, and system green is the only accent.
+- There is one theme. The chrome uses a single AMOLED black ramp and is monochrome: white is the only accent.
 - Every role is an opaque colour. The only gradient seam is artwork dissolving into its own page colour.
 - Collection pages and the mini player take a hue-guarded ground from the cover. On those pages foreground is white only.
 - The type is Inter and Inter Display on Apple's text-style ladder, with size-specific (dynamic-metrics) tracking.
@@ -240,12 +239,12 @@ The density is Apple's. The page gutter is 16, rows are at least 48 to 52 tall w
 
 ## Colors
 
-The palette is an AMOLED black ramp with one green accent. Colour beyond that comes only from the cover that is playing.
+The palette is an AMOLED black ramp with a white accent: monochrome. Colour beyond that comes only from the cover that is playing, plus red for destructive and failure states.
 
 ### Primary
-- **System Green** (#30D158): the single accent. Used for the Play capsule fill, the selected tab label and Search glyph, active filter pills, switch tracks, text cursor and selection, Library destination glyphs, the Stats hero figure, the Last 2 Weeks readout, and today's bar. It reaches 10.4:1 on the ground.
-- **System Green, Dim** (#248A3D): the secondary data tone (past days in the Last 2 Weeks chart, the lower clock bars). It is never used for text.
-- **On Green** (#000000): glyphs and labels on a green fill (10.4:1).
+- **Accent** (#FFFFFF): the single accent, white. Used for the Play capsule fill, the selected tab label and Search glyph, active filter pills, switch tracks, text cursor and selection, Library destination glyphs, the Stats hero figure, the Last 2 Weeks readout, and today's bar. It reaches 21:1 on the ground. Defined once as the `accent` token (`AppThemeTokens.brandAccent`); nothing hard-codes it.
+- **Accent, Dim** (#636366, systemGray2): the secondary data tone (past days in the Last 2 Weeks chart, the lower clock bars, the second swipe action). It is never used for text.
+- **On Accent** (#000000): glyphs and labels on a white fill. A switch that is on shows a black thumb on the white track.
 
 ### Neutral
 - **AMOLED Black Ground** (#000000): systemBackground, pure black with no tint. Used for every default page, the collapsed nav bar, pinned headers, and the dock band.
@@ -262,19 +261,20 @@ The palette is an AMOLED black ramp with one green accent. Colour beyond that co
 - **System Yellow** (#FFD60A): ratings and stars.
 - **System Orange** (#FF9F0A): warnings (the offline banner glyph).
 - **System Red** (#FF453A): destructive actions and errors.
-- **System Blue / Teal / Gray / Gray 2** (#0A84FF / #40C8E0 / #8E8E93 / #636366): Settings icon squares only, alongside green.
+- **Icon Tile** (#2C2C2E): the one neutral square behind every Settings-style row glyph (white glyph). Rows carry no per-row colour.
+- **System Gray / Gray 2** (#8E8E93 / #636366): neutral marks only.
 
 ### Album-Derived Roles
-Each cover is reduced off the main isolate to four roles: deep, base, vibrant, and glow. When nothing is playing they fall back to the app's own ramp: #000000 / #1C1C1E / #30D158 / #2C2C2E. `AlbumPalette.ground` is the page colour for collection pages and the mini player. It is the base hue with saturation × 0.8 (capped at 0.6) and lightness clamped to 13–19%, so white text always reads. `AppThemeTokens.tinted(ground)` then resolves every role as an opaque lerp toward white:
+Each cover is reduced off the main isolate to four roles: deep, base, vibrant, and glow. When nothing is playing they fall back to the app's own ramp: #000000 / #1C1C1E / #FFFFFF / #2C2C2E. `AlbumPalette.ground` is the page colour for collection pages and the mini player. It is the base hue with saturation × 0.8 (capped at 0.6) and lightness clamped to 13–19%, so white text always reads. `AppThemeTokens.tinted(ground)` then resolves every role as an opaque lerp toward white:
 - Surface is ground + 7%, elevated + 12%, overlay + 18%, fill + 12%, separator + 14%.
 - The accent becomes white with black on it. Secondary text is ground + 68%, which measured 6.5–7.6:1 on sample grounds. Tertiary text and the dim accent are ground + 55%.
 
 ### Named Rules
 **The Opaque Chrome Rule.** Every chrome role is a solid colour. No blur, no translucent bars, no glass. The only gradient allowed is artwork dissolving into its own page colour: the collection-page seam, the Top Picks card seam, and the edge fade on scrolling panes.
 
-**The Green, Never Purple Rule.** Any colour derived from a cover goes through the hue guard. Hues from 250° to 340° are moved to 215° (blue) or 8° (red), and saturation within 20° of either edge of that band is capped at 0.3. The cover image itself is never altered. No purple or pink chrome is ever authored by hand either.
+**The Never Purple Rule.** Any colour derived from a cover goes through the hue guard. Hues from 250° to 340° are moved to 215° (blue) or 8° (red), and saturation within 20° of either edge of that band is capped at 0.3. The cover image itself is never altered. No purple or pink chrome is ever authored by hand either.
 
-**The One Accent Rule.** System green is the only accent in default chrome. On artwork-coloured pages and on Now Playing the accent becomes white. Nothing else gets a brand colour. Monochrome glyphs take their colour from their role, never from the asset.
+**The One Accent Rule.** White is the only accent, in default chrome and on artwork-coloured pages and Now Playing alike: the app is monochrome. Red is kept only for destructive actions and failures; nothing else gets a hue. Colour comes from theme tokens, never from values written into a screen. Monochrome glyphs take their colour from their role, never from the asset.
 
 ## Typography
 
@@ -342,31 +342,31 @@ On Now Playing the cover radius lerps from 12 to 7 as it becomes the header thum
 ## Components
 
 ### Buttons
-- **Play capsule:** 50 tall, at least 148 wide, green fill with black glyph and label (headline). On tinted pages it is a white fill with black. Press scale is 0.95 with a medium haptic. Disabled, it shows the tertiary fill with the tertiary label.
+- **Play capsule:** 50 tall, at least 148 wide, white fill with black glyph and label (headline), on every page. Press scale is 0.95 with a medium haptic. Disabled, it shows the tertiary fill with the tertiary label.
 - **Circle button:** a 44 disc on the tertiary fill with a 19 glyph in the label colour, scale 0.9 on press. It sits either side of Play (Shuffle on the left, Download or More on the right).
-- **Tinted capsule:** 44 tall, tertiary fill, green glyph and headline label (red when destructive). It is for single secondary actions such as Try Again and Add Songs.
-- **Paired capsules:** when two actions share a row they split it equally with a 12 gap and rise to 50 tall. The primary is the filled tinted capsule (green fill, black label); the other stays tinted. Smart Shuffle pairs Play (filled) with Reshuffle.
-- **Filled / Outlined (Material):** 50 tall, radius 12. Filled is green on black. Outlined is the tertiary fill with a green label and no border.
+- **Tinted capsule:** 44 tall, tertiary fill, white glyph and headline label (red when destructive). It is for single secondary actions such as Try Again and Add Songs.
+- **Paired capsules:** when two actions share a row they split it equally with a 12 gap and rise to 50 tall. The primary is the filled tinted capsule (white fill, black label); the other stays tinted. Smart Shuffle pairs Play (filled) with Reshuffle.
+- **Filled / Outlined (Material):** 50 tall, radius 12. Filled is white with a black label. Outlined is the tertiary fill with a white label and no border.
 - **Press behaviour:** everything scales on pointer-down (90ms) and springs back with easeOutBack (260ms). There are no ink ripples. Rows instead dim to the overlay fill while held.
 
 ### Chips
-- **Filter pills:** a horizontal row 34 tall on the tertiary fill with a subheadline 600 label. When selected the fill is green and the label is black. A selection haptic fires on change.
+- **Filter pills:** a horizontal row 34 tall on the tertiary fill with a subheadline 600 label. When selected the fill is white and the label is black. A selection haptic fires on change.
 
 ### Cards / Containers
 - **Media card:** a square cover (radius 8) with a one-line footnote title (label, 500) and a subtitle (secondary). There is no box around it.
 - **Top Picks feature card:** a tall card (radius 12). The cover or mosaic fills the top, and a short seam dissolves it into a solid panel of the cover's ground. The title (Title 3, white) and subtitle sit on that panel.
 - **Grouped section:** inset 16, radius 12, on the grouped surface. Rows are at least 48 tall. Separators are inset past the 30 icon square. Headers and footers are footnote.
 - **Stats:** no containers. `StatSection` is a Title 2, an optional large readout, then the chart or list. The page opens on the summary hero (the time-listened figure and its supporting figures, with no chart inside it), followed by Last 2 Weeks, the listening clock, the trend, top artists, top songs, genre mix and the year grid.
-- **Last 2 Weeks:** fourteen tall bars (168 area, radius 5) sized by plays, each with its count above. The readout is the fortnight's total in green; tapping a day lights that bar and reads that day instead (selection haptic). Today is green, past days the dim green, and silent days a stub in the tertiary fill.
+- **Last 2 Weeks:** fourteen tall bars (168 area, radius 5) sized by plays, each with its count above. The readout is the fortnight's total in white; tapping a day lights that bar and reads that day instead (selection haptic). Today is white, past days the dim accent grey, and silent days a stub in the tertiary fill.
 
 ### Inputs / Fields
 - **Search field:** the Cupertino search field on the tertiary fill, radius 12, body text, secondary-label placeholder and glyphs.
-- **Grouped text row:** a 104 label column and a borderless field, with a green cursor. Password rows have a show/hide eye.
+- **Grouped text row:** a 104 label column and a borderless field, with a white cursor. Password rows have a show/hide eye.
 - **Segmented control:** the tertiary-fill track with an overlay-fill thumb. Footnote labels, 600 when selected.
 
 ### Navigation
 - **Large-title page:** a Cupertino sliver nav bar on the opaque ground. There is no hairline until content scrolls under it, and no transitions between tab routes.
-- **Tab bar:** a 62 floating capsule (ground + 9%, hairline at ground + 16%) holding Home, Shuffle, Stats and Library. The selected tab sits on a lighter pill (ground + 18%) that slides with easeOutBack, with a green label. Each tab's glyph is a 34 illustration that plays once per tap and rests on its still frame. Search is a separate 62 circle at the trailing end with a 26 Ionicons glyph, green when selected.
+- **Tab bar:** a 62 floating capsule (ground + 9%, hairline at ground + 16%) holding Home, Shuffle, Stats and Library. The selected tab sits on a lighter pill (ground + 18%) that slides with easeOutBack, with a white label. Each tab's glyph is a 34 illustration that plays once per tap and rests on its still frame. Search is a separate 62 circle at the trailing end with a 26 Ionicons glyph, white when selected.
 - **Collection top bar:** 36 discs inside 44 targets float over the art. Past the art, the bar fills with the ground and shows the title.
 
 ### Icons

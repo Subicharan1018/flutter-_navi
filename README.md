@@ -20,9 +20,13 @@ Whether you're an audiophile looking for bit-perfect playback or a casual listen
 
 - **🚀 High Performance**: Built with Flutter and Riverpod for smooth interactions and instant library loading.
 - **🎨 Premium UI/UX**:
-  - Spotify-inspired dark mode.
+  - Apple Music–style design on an AMOLED black ground, monochrome with a white accent (see [DESIGN.md](DESIGN.md)).
   - Dynamic "Fluid" mesh-gradient backgrounds that react to your music.
   - Palette extraction from cover art for a truly immersive experience.
+- **🔎 Search Online** (with the tg-fetcher server add-on):
+  - Can't find a song in your library? Search online, confirm it's the right version (covers, remixes and other-language versions are labelled), and it's added to your library in lossless FLAC.
+  - Songs you already own are never fetched; downloads keep running when you close the sheet.
+- **🗣️ Describe a Mix**: type "calm Tamil melodies for night" on Smart Shuffle and get a mix of your own songs that fit, still ranked by your listening.
 - **🎧 Advanced Audio Engine**:
   - Powered by `just_audio` with full background playback support.
   - **Replay Gain**: Automatic volume normalization (Pre-amp, Clipping prevention).
@@ -36,12 +40,10 @@ Whether you're an audiophile looking for bit-perfect playback or a casual listen
   - Intelligent multi-layer caching (Images, Music, BPM data).
   - Persistent playlist storage with SQLite (Drift).
 - **📊 Listening Intelligence**:
-  - Local stats collection (Play events, song pairs, feedback signals).
-  - WebDAV sync for analytics and backup.
+  - Listening history, stats and Replay from the NaviVibe server, which also learns from plays made outside Smart Shuffle.
   - Personalized recommendations based on your listening history.
-- **📁 Cloud Integration**:
-  - WebDAV support for remote song uploads and analytics syncing.
   - Subsonic-native starring and rating support.
+- **🔁 Survives server upgrades**: when a Navidrome upgrade renames song ids, the app moves its history and downloads to the new ids on its next start, and full syncs drop songs the server no longer has.
 
 ## 🛠️ Tech Stack
 
