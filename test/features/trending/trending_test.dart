@@ -11,6 +11,7 @@ import 'package:navivibe/features/trending/logic/trending_providers.dart';
 import 'package:navivibe/features/trending/ui/chart_actions.dart';
 import 'package:navivibe/features/trending/ui/trending_screen.dart';
 import 'package:navivibe/features/trending/ui/trending_section.dart';
+import 'package:navivibe/features/trending/ui/widgets/chart_details.dart';
 import 'package:navivibe/features/trending/ui/widgets/chart_row.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/subsonic_service.dart';
@@ -59,6 +60,64 @@ Map<String, dynamic> _payload() => {
           'note': 'Stand-in: …',
           'date': '2026-10-17',
           'entries': [_entry(1, songId: 'nd9', status: 'available')],
+        },
+      ],
+    };
+
+Map<String, dynamic> _billboardPayload() => {
+      'charts': [
+        {
+          'key': 'billboard_hot_100',
+          'title': 'Hot 100',
+          'source': 'Billboard · Hot 100 (US, weekly)',
+          'kind': 'billboard',
+          'date': '2026-10-18',
+          'week_of': 'October 17, 2026',
+          'description': 'The week’s most popular current songs.',
+          'entries': [
+            {
+              ..._entry(1, songId: 'nd1', status: 'available', movement: 'same'),
+              'title': 'Patient Zero',
+              'previous_rank': 1,
+              'details': {
+                'billboard': {
+                  'status': null, 'last_week': 1, 'peak': 1, 'weeks_on_chart': 2, 'weeks_at_no1': 2,
+                  'debut_position': 1, 'debut_date': '10/10/26', 'peak_position': 1, 'peak_date': '10/10/26',
+                  'awards': [], 'songwriters': ['T.Swift', 'Max Martin'], 'producers': ['Shellback'],
+                  'label': 'Republic',
+                },
+              },
+            },
+            {
+              ..._entry(2, movement: 'reentry'),
+              'title': 'Back Again',
+              'details': {
+                'billboard': {'status': 're-entry', 'last_week': null, 'peak': 9, 'weeks_on_chart': 4,
+                  'awards': ['Gains In Performance']},
+              },
+            },
+          ],
+        },
+        {
+          'key': 'india',
+          'title': 'India',
+          'source': 'JioSaavn · India Superhits Top 50',
+          'kind': 'saavn',
+          'date': '2026-10-18',
+          'entries': [
+            {
+              ..._entry(1, songId: 'nd5', status: 'available'),
+              'title': 'Yeshanagula',
+              'details': {
+                'saavn': {
+                  'play_count': 6739865, 'year': 2026, 'release_date': '2026-08-29', 'language': 'Telugu',
+                  'label': 'SaReGaMA India Ltd', 'album': 'Yeshanagula', 'duration_s': 188, 'explicit': false,
+                  'music': ['Anirudh Ravichander'], 'lyricists': ['Kasarla Shyam'], 'singers': [],
+                  'copyright': '℗ 2026 Saregama India Ltd', 'has_lyrics': false,
+                },
+              },
+            },
+          ],
         },
       ],
     };
@@ -122,6 +181,41 @@ void main() {
       final byId = {'nd1': makeSong(id: 'nd1'), 'nd2': makeSong(id: 'nd2')};
       expect(chartQueue(tamil, byId).map((s) => s.id), ['nd1', 'nd2']);
       expect(chartQueue(tamil, {'nd2': makeSong(id: 'nd2')}).map((s) => s.id), ['nd2']);
+    });
+
+    test('Billboard and JioSaavn details', () {
+      final c = TrendingCharts.fromJson(_billboardPayload()).charts;
+      final hot = c[0];
+      expect(hot.kind, ChartKind.billboard);
+      expect(hot.weekOf, 'October 17, 2026');
+      final bb = hot.entries[0].billboard!;
+      expect([bb.lastWeek, bb.peak, bb.weeksOnChart, bb.weeksAtNo1, bb.debutPosition], [1, 1, 2, 2, 1]);
+      expect(bb.songwriters, ['T.Swift', 'Max Martin']);
+      expect(hot.entries[1].movement, ChartMovement.reentry);
+      expect(chartStatsLine(hot.entries[0]), 'LW 1 · Peak 1 · 2 wks');
+      expect(chartStatsLine(hot.entries[1]), 'LW – · Peak 9 · 4 wks');
+      expect(ChartBadges.labels(hot.entries[0]), ['No. 1 · 2 wks']);
+      expect(ChartBadges.labels(hot.entries[1]), ['Gains In Performance']);
+
+      final india = c[1];
+      expect(india.kind, ChartKind.saavn);
+      final sv = india.entries[0].saavn!;
+      expect(sv.playCount, 6739865);
+      expect(sv.releaseDate, DateTime(2026, 8, 29));
+      expect(chartStatsLine(india.entries[0]), '6.7M plays · Telugu · 2026');
+      final facts = Map.fromEntries(ChartDetailsPanel.facts(india.entries[0]).map((f) => MapEntry(f.$1, f.$2)));
+      expect(facts['Plays'], '6,739,865');
+      expect(facts['Released'], '29 Aug 2026');
+      expect(facts['Length'], '3:08');
+      expect(facts['Lyrics'], 'Kasarla Shyam');
+      expect(facts.containsKey('Explicit'), isFalse);
+    });
+
+    test('a row without details has no stats', () {
+      final e = TrendingCharts.fromJson(_payload()).charts.first.entries.first;
+      expect(e.hasDetails, isFalse);
+      expect(chartStatsLine(e), isNull);
+      expect(ChartDetailsPanel.facts(e), isEmpty);
     });
 
     test('date line', () {
@@ -209,6 +303,71 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.text('Charts didn’t load'), findsOneWidget);
       expect(find.text('Nope.'), findsOneWidget);
+    });
+
+    void phone(WidgetTester tester) {
+      tester.view.physicalSize = const Size(390, 844) * 3;
+      tester.view.devicePixelRatio = 3;
+      addTearDown(tester.view.reset);
+    }
+
+    testWidgets('page, wide: Billboard LW · PEAK · WKS columns instead of the stats line', (tester) async {
+      tester.view.physicalSize = const Size(900, 1000);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(host(const TrendingScreen(), () async => TrendingCharts.fromJson(_billboardPayload())));
+      await tester.pumpAndSettle();
+      expect(find.text('LW'), findsOneWidget);
+      expect(find.text('PEAK'), findsOneWidget);
+      expect(find.text('WKS'), findsOneWidget);
+      expect(find.byType(BillboardColumns), findsNWidgets(3));         // header + 2 rows
+      expect(find.text('LW 1 · Peak 1 · 2 wks'), findsNothing);
+    });
+
+    testWidgets('page: Billboard week, stats, chips, RE marker; a tap opens the details', (tester) async {
+      phone(tester);
+      await tester.pumpWidget(host(const TrendingScreen(), () async => TrendingCharts.fromJson(_billboardPayload())));
+      await tester.pumpAndSettle();
+      expect(find.text('Week of October 17, 2026'), findsOneWidget);
+      expect(find.text('The week’s most popular current songs.'), findsOneWidget);
+      expect(find.text('LW 1 · Peak 1 · 2 wks'), findsOneWidget);
+      expect(find.text('No. 1 · 2 wks'), findsOneWidget);
+      expect(find.text('Gains In Performance'), findsOneWidget);
+      expect(find.text('RE'), findsOneWidget);
+      expect(find.text('Songwriters'), findsNothing);
+
+      await tester.tap(find.text('Patient Zero'));
+      await tester.pumpAndSettle();
+      expect(find.text('Songwriters'), findsOneWidget);
+      expect(find.text('T.Swift, Max Martin'), findsOneWidget);
+      expect(find.text('No. 1 · 10/10/26'), findsNWidgets(2));       // debut and peak
+      expect(find.text('Play'), findsNWidgets(2));                     // header + the open row
+
+      await tester.tap(find.text('Patient Zero'));
+      await tester.pumpAndSettle();
+      expect(find.text('Songwriters'), findsNothing);
+    });
+
+    testWidgets('page: JioSaavn details open the same way', (tester) async {
+      phone(tester);
+      final container = ProviderContainer(overrides: [
+        trendingChartsProvider.overrideWith((ref) async => TrendingCharts.fromJson(_billboardPayload())),
+        subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
+      ]);
+      addTearDown(container.dispose);
+      container.read(selectedChartProvider.notifier).select('india');
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: container,
+        child: MaterialApp(
+          home: Scaffold(body: ThemeTokens(tokens: AppThemeTokens.fallback, child: const TrendingScreen())),
+        ),
+      ));
+      await tester.pumpAndSettle();
+      expect(find.text('6.7M plays · Telugu · 2026'), findsOneWidget);
+      await tester.tap(find.text('Yeshanagula'));
+      await tester.pumpAndSettle();
+      expect(find.text('29 Aug 2026'), findsOneWidget);
+      expect(find.text('SaReGaMA India Ltd'), findsOneWidget);
     });
 
     testWidgets('page: a stand-in chart shows its note', (tester) async {

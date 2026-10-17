@@ -67,6 +67,48 @@ TrendingCharts _charts() => TrendingCharts.fromJson({
       ],
     });
 
+Map<String, dynamic> _bb(int? lw, int peak, int wks,
+        {String? status, int? no1, List<String> awards = const [], String label = 'Republic'}) =>
+    {
+      'billboard': {
+        'status': status, 'last_week': lw, 'peak': peak, 'weeks_on_chart': wks, 'weeks_at_no1': no1,
+        'debut_position': peak, 'debut_date': '10/10/26', 'peak_position': peak, 'peak_date': '10/10/26',
+        'awards': awards, 'songwriters': ['T.Swift', 'Max Martin', 'Shellback'],
+        'producers': ['Max Martin', 'Shellback', 'T.Swift'], 'label': label,
+      },
+    };
+
+TrendingCharts _billboard() => TrendingCharts.fromJson({
+      'charts': [
+        {
+          'key': 'billboard_hot_100',
+          'title': 'Hot 100',
+          'source': 'Billboard · Hot 100 (US, weekly)',
+          'kind': 'billboard',
+          'date': DateTime.now().toIso8601String().substring(0, 10),
+          'week_of': 'October 17, 2026',
+          'description': 'The week’s most popular current songs across all genres, ranked by streaming, '
+              'radio airplay and sales data as compiled by Luminate.',
+          'entries': [
+            for (final (i, s) in [
+              ('Patient Zero', 'Taylor Swift', 'nd1', 'same', 0, _bb(1, 1, 2, no1: 2)),
+              ("Choosin' Texas", 'Ella Langley', null, 'same', 0, _bb(2, 1, 51, no1: 24)),
+              ('Boston', 'Stella Lefty', 'nd3', 'up', 3, _bb(6, 2, 27)),
+              ('Been By Now', 'Morgan Wallen', null, 'down', 1, _bb(3, 3, 12)),
+              ('Solar Eclipse', 'Drake, Don Toliver', null, 'new', 0,
+                  _bb(null, 5, 1, status: 'new', awards: ['Highest ranking debut', 'Gains In Performance'])),
+              ('Dracula', 'Tame Impala, JENNIE', 'nd6', 'reentry', 0, _bb(null, 6, 9, status: 're-entry')),
+            ].indexed)
+              {
+                'rank': i + 1, 'title': s.$1, 'artist': s.$2, 'song_id': s.$3,
+                'status': s.$3 == null ? 'pending' : 'available', 'movement': s.$4, 'change': s.$5,
+                'details': s.$6,
+              },
+          ],
+        },
+      ],
+    });
+
 Widget _app(Widget home) {
   final tokens = AppThemeTokens.fallback;
   return ProviderScope(
@@ -95,6 +137,27 @@ void main() {
     await tester.pumpWidget(_app(const TrendingScreen()));
     await tester.pumpAndSettle();
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('trending/page.png'));
+  });
+
+  testWidgets('billboard page, first row open', (tester) async {
+    await phone(tester);
+    final container = ProviderContainer(overrides: [
+      trendingChartsProvider.overrideWith((ref) async => _billboard()),
+      subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
+    ]);
+    addTearDown(container.dispose);
+    final tokens = AppThemeTokens.fallback;
+    await tester.pumpWidget(UncontrolledProviderScope(
+      container: container,
+      child: ThemeTokens(
+        tokens: tokens,
+        child: MaterialApp(debugShowCheckedModeBanner: false, theme: AppTheme.build(tokens), home: const TrendingScreen()),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Patient Zero'));
+    await tester.pumpAndSettle();
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('trending/billboard_open.png'));
   });
 
   testWidgets('home trending shelf', (tester) async {

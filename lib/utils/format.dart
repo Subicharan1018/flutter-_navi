@@ -18,11 +18,11 @@ String formatTrackDuration(int seconds) {
 /// "12 songs", "1 song".
 String songCount(int n) => n == 1 ? '1 song' : '$n songs';
 
-/// "980", "4.3k", "12k" — counts in a big figure.
+/// "980", "4.3k", "12k", "6.7M", "1.2B" — counts in a big figure.
 String compactCount(int v) {
   if (v < 1000) return '$v';
-  final k = v / 1000;
-  return '${k.toStringAsFixed(k >= 10 || k.truncateToDouble() == k ? 0 : 1)}k';
+  final (n, unit) = v >= 1e9 ? (v / 1e9, 'B') : v >= 1e6 ? (v / 1e6, 'M') : (v / 1000, 'k');
+  return '${n.toStringAsFixed(n >= 10 || n.truncateToDouble() == n ? 0 : 1)}$unit';
 }
 
 /// Listening time as a reader wants it: "45m", "3h 20m", "120h".

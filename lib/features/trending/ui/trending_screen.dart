@@ -9,7 +9,9 @@ import '../../../widgets/ui/states.dart';
 import '../data/trending_models.dart';
 import '../logic/trending_providers.dart';
 import 'chart_actions.dart';
+import 'widgets/chart_details.dart' show BillboardColumns;
 import 'widgets/chart_row.dart';
+import 'widgets/expandable_chart_row.dart';
 
 /// The Trending page: the charts as pills, the picked chart's 50
 /// songs ranked with their movement, and Play / Shuffle for the whole chart.
@@ -30,10 +32,12 @@ class TrendingScreen extends ConsumerWidget {
           SliverToBoxAdapter(child: _ChartHeader(chart: chart)),
           SliverList.builder(
             itemCount: chart.entries.length,
-            itemBuilder: (context, i) => ChartRow(
+            itemBuilder: (context, i) => ExpandableChartRow(
+              // Open rows close when the chart changes.
+              key: ValueKey('${chart.key}/${chart.entries[i].rank}'),
               entry: chart.entries[i],
               showSeparator: i < chart.entries.length - 1,
-              onTap: () => playFromChart(context, ref, chart, chart.entries[i]),
+              onPlay: () => playFromChart(context, ref, chart, chart.entries[i]),
             ),
           ),
         ] else
@@ -90,12 +94,22 @@ class _ChartHeader extends ConsumerWidget {
       [chart.source, chartDateLine(chart.date)].where((s) => s.isNotEmpty).join(' · '),
       '$playable of ${chart.entries.length} in your library',
     ];
+    final columns = chart.kind == ChartKind.billboard && MediaQuery.sizeOf(context).width >= ChartRow.columnsFrom;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, Space.lg),
+      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, Space.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // Billboard's chart week leads, as on billboard.com.
+          if (chart.weekOf != null) ...[
+            Text('Week of ${chart.weekOf}', style: t.headline),
+            const SizedBox(height: Space.xxs),
+          ],
           for (final l in lines) Text(l, style: t.footnote),
+          if (chart.description != null) ...[
+            const SizedBox(height: Space.xs),
+            Text(chart.description!, style: t.footnote.copyWith(color: t.textMuted)),
+          ],
           if (chart.note != null) ...[
             const SizedBox(height: Space.xs),
             Text(chart.note!, style: t.footnote.copyWith(color: t.textMuted)),
@@ -107,6 +121,14 @@ class _ChartHeader extends ConsumerWidget {
               onShuffle: playable == 0 ? null : () => playChart(context, ref, chart, shuffle: true),
             ),
           ),
+          if (columns) ...[
+            const SizedBox(height: Space.md),
+            // Above the rows' LW · PEAK · WKS, clear of the chevron.
+            const Align(
+              alignment: Alignment.centerRight,
+              child: Padding(padding: EdgeInsets.only(right: 22), child: BillboardColumns.header()),
+            ),
+          ],
         ],
       ),
     );
