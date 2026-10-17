@@ -1,6 +1,8 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -8,6 +10,7 @@ import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/online_fetch/data/fetch_models.dart';
 import 'package:navivibe/features/online_fetch/data/online_fetch_api.dart';
 import 'package:navivibe/features/online_fetch/logic/online_fetch_providers.dart';
+import 'package:navivibe/features/online_fetch/ui/fetch_activity.dart';
 import 'package:navivibe/features/online_fetch/ui/widgets/fetch_candidate_row.dart';
 
 /// The exact body the live server returned for "rowdy baby" (2026-10-16).
@@ -150,13 +153,13 @@ void main() {
       final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
       addTearDown(c.dispose);
       c.listen(fetchJobsProvider, (_, next) {
-        final p = next[71]?.phase;
+        final p = next.jobs[71]?.phase;
         if (p != null && (seen.isEmpty || seen.last != p)) seen.add(p);
       });
 
       await c.read(fetchJobsProvider.notifier).download(71);
       expect(seen, [FetchJobPhase.preparing, FetchJobPhase.downloading, FetchJobPhase.adding, FetchJobPhase.ready]);
-      expect(c.read(fetchJobsProvider)[71]!.songId, 'nd-new');
+      expect(c.read(fetchJobsProvider).jobs[71]!.songId, 'nd-new');
     });
 
     test('a failed start is shown, and tapping again retries', () async {
@@ -171,33 +174,265 @@ void main() {
       final jobs = c.read(fetchJobsProvider.notifier);
 
       await jobs.download(71);
-      expect(c.read(fetchJobsProvider)[71]!.phase, FetchJobPhase.failed);
-      expect(c.read(fetchJobsProvider)[71]!.error, 'daily download limit reached');
+      expect(c.read(fetchJobsProvider).jobs[71]!.phase, FetchJobPhase.failed);
+      expect(c.read(fetchJobsProvider).jobs[71]!.error, 'daily download limit reached');
 
       await jobs.download(71);                       // a failed job can be retried…
       expect(posts, 2);
-      expect(c.read(fetchJobsProvider)[71]!.phase, FetchJobPhase.rejected);
+      expect(c.read(fetchJobsProvider).jobs[71]!.phase, FetchJobPhase.rejected);
       await jobs.download(71);                       // …a finished one is not restarted
       expect(posts, 2);
     });
   });
 
+  group('batches', () {
+    setUp(() {
+      OnlineSearchController.pollEvery = Duration.zero;
+      FetchJobsController.pollEvery = Duration.zero;
+    });
+
+    test('batch json: counts, summary, songs to play', () {
+      final b = FetchBatch.fromJson(_batch('done'));
+      expect(b.kind, FetchSearchType.album);
+      expect(b.isFinished, isTrue);
+      expect(b.headline, 'Album downloaded');
+      expect(b.summary, '1 song added, 1 already owned, 1 not available');
+      expect(b.songIds, ['nd-owned', 'nd-new']);          // track order, owned ones too
+      expect(FetchBatch.fromJson({..._batch('listing'), 'kind': 'songs'}).kind, isNull);
+      expect(FetchBatch.fromJson(_batch('listing')).status, FetchBatchStatus.starting);
+    });
+
+    test('album / artist / playlist results carry their type', () {
+      final c = FetchCandidate.fromJson(_album);
+      expect(c.type, FetchSearchType.album);
+      expect(c.trackCount, 3);
+      expect(c.isSong, isFalse);
+    });
+
+    test('search kind and batch picks are sent', () async {
+      final sent = <Object?>[];
+      final api = _api((o) {
+        sent.add(o.data);
+        return _json(202, o.path.endsWith('batches') ? {'batch_id': 2} : {'search_id': 9});
+      });
+      await api.startSearch('maari 2', type: FetchSearchType.album);
+      await api.startSearch('rowdy baby');
+      await api.startArtistSongs(12);
+      await api.startBatch([3, 4]);
+      expect(sent, [
+        {'query': 'maari 2', 'kind': 'album'},
+        {'query': 'rowdy baby'},
+        {'candidate_id': 12},
+        {'candidate_ids': [3, 4]},
+      ]);
+    });
+
+    test('an album downloads as a batch and is announced once', () async {
+      final statuses = ['listing', 'running', 'running', 'done'];
+      var i = 0;
+      final api = _api((o) {
+        if (o.method == 'POST') return _json(202, {'batch_id': 2});
+        return _json(200, _batch(statuses[i < statuses.length - 1 ? i++ : i]));
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      final announced = <FetchFinished>[];
+      c.listen(fetchFinishedProvider, (_, next) {
+        if (next != null) announced.add(next);
+      });
+      final seen = <FetchBatchStatus>[];
+      c.listen(fetchJobsProvider, (_, next) {
+        final s = next.batchFor(500)?.status;
+        if (s != null && (seen.isEmpty || seen.last != s)) seen.add(s);
+      });
+
+      await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_album)]);
+      expect(seen, [FetchBatchStatus.starting, FetchBatchStatus.running, FetchBatchStatus.done]);
+      expect(announced.single.headline, 'Album downloaded');
+      expect(announced.single.detail, '1 song added, 1 already owned, 1 not available');
+      expect(announced.single.songIds, ['nd-owned', 'nd-new']);
+      expect(c.read(fetchJobsProvider).isActive, isFalse);
+    });
+
+    test('one bad poll doesn’t fail a download', () async {
+      var gets = 0;
+      final api = _api((o) {
+        if (o.method == 'POST') return _json(202, {'batch_id': 2});
+        gets++;
+        return gets == 1 ? _json(429, {'error': 'Too many requests'}) : _json(200, _batch('done'));
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_album)]);
+      expect(c.read(fetchJobsProvider).batchFor(500)!.status, FetchBatchStatus.done);
+    });
+
+    test('several songs: one batch; their rows follow its items; owned ones left out', () async {
+      final posts = <String>[];
+      final api = _api((o) {
+        if (o.method == 'POST') {
+          posts.add(o.path);
+          return _json(202, {'batch_id': 3});
+        }
+        return _json(200, {
+          ..._batch('running'), 'kind': 'songs', 'candidate_ids': [71, 63],
+          'items': [
+            {'candidate_id': 71, 'status': 'downloading', 'progress': 0.5},
+            {'candidate_id': 63, 'status': 'queued'},
+          ],
+        });
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      final s = FetchSearch.fromJson(_results());
+      final owned = FetchCandidate.fromJson({..._album, 'id': 99, 'type': 'song', 'library': 'in_library'});
+      final ctrl = c.read(fetchJobsProvider.notifier);
+      unawaited(ctrl.downloadAll([...s.candidates, owned]));
+      await Future<void>.delayed(Duration.zero);
+      expect(c.read(fetchJobsProvider).jobFor(71)!.phase, FetchJobPhase.preparing);   // before the server answers
+      await pumpEventQueue();
+      expect(posts, ['/fetch/batches']);
+      expect(c.read(fetchJobsProvider).jobFor(71)!.phase, FetchJobPhase.downloading);
+      expect(c.read(fetchJobsProvider).isActive, isTrue);
+    });
+
+    test('a single picked song is a plain download', () async {
+      final posts = <String>[];
+      final api = _api((o) {
+        if (o.method == 'POST') posts.add(o.path);
+        return o.method == 'POST'
+            ? _json(202, {'job_id': 4})
+            : _json(200, {'id': 4, 'candidate_id': 71, 'status': 'rejected'});
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      await c.read(fetchJobsProvider.notifier).downloadAll([FetchSearch.fromJson(_results()).candidates.first]);
+      expect(posts, ['/fetch/jobs']);
+    });
+
+    test('artist top songs, and back to the artists', () async {
+      final api = _api((o) {
+        if (o.method == 'POST') return _json(202, {'search_id': o.data is Map && (o.data as Map).containsKey('candidate_id') ? 11 : 10});
+        return _json(200, o.path.endsWith('/11') ? _results() : {..._results(), 'candidates': [_artist]});
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      final sub = c.listen(onlineSearchProvider, (_, _) {});
+      addTearDown(sub.close);
+      final ctrl = c.read(onlineSearchProvider.notifier);
+
+      await ctrl.start('anirudh', type: FetchSearchType.artist);
+      final artist = c.read(onlineSearchProvider).search!.candidates.single;
+      expect(artist.type, FetchSearchType.artist);
+      await ctrl.openArtist(artist);
+      final top = c.read(onlineSearchProvider);
+      expect(top.artist!.id, artist.id);
+      expect(top.listsSongs, isTrue);
+      expect(top.search!.candidates.first.title, startsWith('Kanmani'));
+      ctrl.back();
+      expect(c.read(onlineSearchProvider).type, FetchSearchType.artist);
+      expect(c.read(onlineSearchProvider).artist, isNull);
+    });
+  });
+
+  group('app-wide', () {
+    Widget host(Widget child, List overrides) => ProviderScope(
+          key: UniqueKey(),
+          overrides: [
+            onlineFetchEnabledProvider.overrideWith((ref) async => false),
+            ...overrides.cast(),
+          ],
+          child: MaterialApp(home: Scaffold(body: ThemeTokens(tokens: AppThemeTokens.fallback, child: child))),
+        );
+
+    testWidgets('ring shows only while something downloads', (tester) async {
+      await tester.pumpWidget(host(const FetchActivityRing(child: SizedBox(width: 62, height: 62)), []));
+      expect(find.byType(CircularProgressIndicator), findsNothing);
+      await tester.pumpWidget(host(const FetchActivityRing(child: SizedBox(width: 62, height: 62)), [
+        fetchJobsProvider.overrideWith(() => _SeededJobs(const FetchDownloads(jobs: {
+              71: FetchJob(id: 3, candidateId: 71, phase: FetchJobPhase.downloading, progress: 0.5),
+            }))),
+      ]));
+      final ring = tester.widget<CircularProgressIndicator>(find.byType(CircularProgressIndicator));
+      expect(ring.value, closeTo(0.45, 0.001));
+    });
+
+    testWidgets('finish pop-up: headline, actions, then dismisses itself', (tester) async {
+      final c = ProviderContainer(overrides: [onlineFetchEnabledProvider.overrideWith((ref) async => false)]);
+      addTearDown(c.dispose);
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: MaterialApp(
+          home: Scaffold(body: ThemeTokens(tokens: AppThemeTokens.fallback, child: const FetchFinishedBanner())),
+        ),
+      ));
+      expect(find.text('Album downloaded'), findsNothing);
+      c.read(fetchFinishedProvider.notifier).announce(
+          headline: 'Album downloaded', detail: '12 songs added, 2 already owned', songIds: ['a', 'b']);
+      await tester.pumpAndSettle();
+      expect(find.text('Album downloaded'), findsOneWidget);
+      expect(find.text('12 songs added, 2 already owned'), findsOneWidget);
+      expect(find.bySemanticsLabel('Play'), findsOneWidget);
+      expect(find.bySemanticsLabel('Add to Playlist'), findsOneWidget);
+      await tester.pump(FetchFinishedBanner.showFor + const Duration(seconds: 1));
+      await tester.pumpAndSettle();
+      expect(find.text('Album downloaded'), findsNothing);
+    });
+
+    testWidgets('a failed download shows no Play', (tester) async {
+      final c = ProviderContainer(overrides: [onlineFetchEnabledProvider.overrideWith((ref) async => false)]);
+      addTearDown(c.dispose);
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: MaterialApp(
+          home: Scaffold(body: ThemeTokens(tokens: AppThemeTokens.fallback, child: const FetchFinishedBanner())),
+        ),
+      ));
+      c.read(fetchFinishedProvider.notifier).announce(headline: 'Not available in lossless quality', detail: 'X');
+      await tester.pumpAndSettle();
+      expect(find.bySemanticsLabel('Play'), findsNothing);
+      await tester.pump(FetchFinishedBanner.showFor + const Duration(seconds: 1));
+    });
+  });
+
   group('row', () {
-    Future<void> pump(WidgetTester tester, FetchCandidate cand, {FetchJob? job}) async {
+    Future<void> pump(WidgetTester tester, FetchCandidate cand, {FetchJob? job, FetchBatch? batch, bool? selected}) async {
       await tester.pumpWidget(ProviderScope(
+        key: UniqueKey(),     // a fresh scope per pump: overrides can't change in place
         overrides: [
-          if (job != null) fetchJobsProvider.overrideWith(() => _SeededJobs({cand.id: job})),
+          if (job != null || batch != null)
+            fetchJobsProvider.overrideWith(() => _SeededJobs(FetchDownloads(
+                  jobs: {cand.id: ?job},
+                  batches: {1: ?batch},
+                ))),
         ],
         child: MaterialApp(
           home: Scaffold(
             body: ThemeTokens(
               tokens: AppThemeTokens.fallback,
-              child: FetchCandidateRow(candidate: cand, onDownload: () {}, onPlayOwned: () {}),
+              child: FetchCandidateRow(candidate: cand, onDownload: () {}, onPlayOwned: () {}, selected: selected),
             ),
           ),
         ),
       ));
     }
+
+    testWidgets('an album shows its song count, then the batch’s progress', (tester) async {
+      final album = FetchCandidate.fromJson(_album);
+      await pump(tester, album);
+      expect(find.text('Album · Yuvan Shankar Raja · 3 songs'), findsOneWidget);
+      await pump(tester, album, batch: FetchBatch.fromJson(_batch('running')));
+      expect(find.text('2 of 3 songs'), findsOneWidget);
+      await pump(tester, album, batch: FetchBatch.fromJson(_batch('done')));
+      expect(find.text('1 song added, 1 already owned, 1 not available'), findsOneWidget);
+    });
+
+    testWidgets('select mode shows a check circle instead of the action', (tester) async {
+      final song = FetchSearch.fromJson(_results()).candidates.first;
+      await pump(tester, song, selected: true);
+      expect(find.byIcon(CupertinoIcons.checkmark_circle_fill), findsOneWidget);
+      expect(find.byIcon(CupertinoIcons.arrow_down_circle), findsNothing);
+    });
 
     final cover = FetchCandidate.fromJson((_results()['candidates'] as List).last as Map<String, dynamic>);
 
@@ -222,9 +457,45 @@ void main() {
 }
 
 class _SeededJobs extends FetchJobsController {
-  final Map<int, FetchJob> seed;
+  final FetchDownloads seed;
   _SeededJobs(this.seed);
 
   @override
-  Map<int, FetchJob> build() => seed;
+  FetchDownloads build() => seed;
 }
+
+/// An album result, as tg-fetcher lists `.a maari 2` (2026-10-17).
+const _album = <String, dynamic>{
+  'id': 500, 'title': 'Maari 2 (Original Motion Picture Soundtrack)', 'artist': 'Yuvan Shankar Raja',
+  'album': '', 'score': 0.0, 'kind': 'original', 'reasons': [], 'library': 'not_found', 'llm': null,
+  'cover_url': null, 'type': 'album', 'track_count': 3, 'duration_s': null,
+};
+
+const _artist = <String, dynamic>{
+  'id': 600, 'title': 'Anirudh Ravichander', 'artist': '', 'album': '', 'score': 0.0, 'kind': 'original',
+  'reasons': [], 'library': 'not_found', 'llm': null, 'type': 'artist', 'track_count': null,
+};
+
+/// `GET /fetch/batches/{id}` for the album above, at [status].
+Map<String, dynamic> _batch(String status) => {
+      'id': 2, 'kind': 'album', 'title': 'Maari 2 (Original Motion Picture Soundtrack)',
+      'artist': 'Yuvan Shankar Raja', 'cover_url': null, 'status': status, 'error': null,
+      'candidate_ids': [500],
+      'total': status == 'listing' ? 0 : 3,
+      'added': status == 'listing' ? 0 : 1,
+      'owned': status == 'listing' ? 0 : 1,
+      'failed': status == 'done' ? 1 : 0,
+      'pending': status == 'done' ? 0 : (status == 'listing' ? 0 : 1),
+      'progress': status == 'done' ? 1.0 : 0.4,
+      'items': [
+        if (status != 'listing') {'candidate_id': 901, 'title': 'Rowdy Baby', 'status': 'duplicate', 'nd_song_id': 'nd-owned'},
+        if (status == 'running') ...[
+          {'candidate_id': 902, 'title': 'Maari Gethu', 'status': 'ready', 'nd_song_id': 'nd-new'},
+          {'candidate_id': 903, 'title': 'Maari’s Aanandhi', 'status': 'downloading', 'progress': 0.2},
+        ],
+        if (status == 'done') ...[
+          {'candidate_id': 902, 'title': 'Maari Gethu', 'status': 'ready', 'nd_song_id': 'nd-new'},
+          {'candidate_id': 903, 'title': 'Maari’s Aanandhi', 'status': 'rejected'},
+        ],
+      ],
+    };

@@ -7,6 +7,8 @@ import 'package:just_audio/just_audio.dart';
 import '../core/keyboard_shortcuts.dart';
 import '../core/theme.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
+import '../features/online_fetch/logic/online_fetch_providers.dart';
+import '../features/online_fetch/ui/fetch_activity.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
 import '../player/lyrics_pane.dart';
@@ -238,6 +240,7 @@ class _PhoneShell extends ConsumerWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       if (offline) const _OfflineBanner(),
+                      const FetchFinishedBanner(),
                       const MiniPlayer(),
                       _TabBar(tab: tab, onSelect: onSelect, ground: band),
                     ],
@@ -335,17 +338,26 @@ class _TabBar extends StatelessWidget {
               button: true,
               selected: tab == AppTab.search,
               label: 'Search',
+              onLongPressHint: 'Show downloads',
               child: GestureDetector(
                 onTap: () => onSelect(AppTab.search),
-                child: Container(
-                  width: _height,
-                  height: _height,
-                  decoration: _surface(circle: true),
-                  alignment: Alignment.center,
-                  child: IonIcon(
-                    Ion.search,
-                    size: 26,
-                    color: tab == AppTab.search ? t.accent : t.textPrimary,
+                // Search online downloads: a thin ring while they run; long
+                // press lists them.
+                onLongPress: () {
+                  HapticFeedback.mediumImpact();
+                  showFetchDownloads(context);
+                },
+                child: FetchActivityRing(
+                  child: Container(
+                    width: _height,
+                    height: _height,
+                    decoration: _surface(circle: true),
+                    alignment: Alignment.center,
+                    child: IonIcon(
+                      Ion.search,
+                      size: 26,
+                      color: tab == AppTab.search ? t.accent : t.textPrimary,
+                    ),
                   ),
                 ),
               ),
@@ -481,6 +493,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                           ),
                         ),
                       ),
+                      const FetchFinishedBanner(),
                     ],
                   ),
                 ),
@@ -554,6 +567,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
             },
           ),
           const SizedBox(height: Space.lg),
+          const _DownloadsRow(),
           for (final dest in const [AppTab.home, AppTab.shuffle, AppTab.stats])
             _SidebarRow(
               icon: widget.tab == dest ? dest.activeIcon : dest.icon,
@@ -636,6 +650,27 @@ class _SidebarHeader extends StatelessWidget {
           ?action,
         ],
       ),
+    );
+  }
+}
+
+/// "Downloads" in the sidebar while anything from Search online is (or was,
+/// this session) downloading, with a thin progress ring.
+class _DownloadsRow extends ConsumerWidget {
+  const _DownloadsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    if (ref.watch(fetchJobsProvider.select((d) => d.isEmpty))) return const SizedBox.shrink();
+    return _SidebarRow(
+      art: SizedBox(
+        width: 18,
+        height: 18,
+        child: FetchActivityRing(child: Icon(CupertinoIcons.arrow_down, size: 12, color: t.accent)),
+      ),
+      label: 'Downloads',
+      onTap: () => showFetchDownloads(context),
     );
   }
 }

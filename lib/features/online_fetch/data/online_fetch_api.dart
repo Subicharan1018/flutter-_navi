@@ -31,9 +31,36 @@ class OnlineFetchApi {
     }
   }
 
-  Future<int> startSearch(String query) => _wrap(() async {
-        final r = await _dio.post<Map<String, dynamic>>('/fetch/searches', data: {'query': query});
+  Future<int> startSearch(String query, {FetchSearchType type = FetchSearchType.song}) => _wrap(() async {
+        final r = await _dio.post<Map<String, dynamic>>('/fetch/searches', data: {
+          'query': query,
+          if (type != FetchSearchType.song) 'kind': type.name,
+        });
         return (r.data!['search_id'] as num).toInt();
+      });
+
+  /// An artist result's top songs, as a search to poll like any other.
+  Future<int> startArtistSongs(int artistCandidateId) => _wrap(() async {
+        final r = await _dio.post<Map<String, dynamic>>('/fetch/searches', data: {'candidate_id': artistCandidateId});
+        return (r.data!['search_id'] as num).toInt();
+      });
+
+  /// Several songs, or whole albums / playlists, downloaded as one batch.
+  Future<int> startBatch(List<int> candidateIds) => _wrap(() async {
+        final r = await _dio.post<Map<String, dynamic>>('/fetch/batches', data: {'candidate_ids': candidateIds});
+        return (r.data!['batch_id'] as num).toInt();
+      });
+
+  Future<FetchBatch> batch(int id) => _wrap(() async {
+        final r = await _dio.get<Map<String, dynamic>>('/fetch/batches/$id');
+        return FetchBatch.fromJson(r.data!);
+      });
+
+  /// The account's recent batches (without items), to pick up ones still
+  /// running after the app restarts.
+  Future<List<FetchBatch>> recentBatches() => _wrap(() async {
+        final r = await _dio.get<List<dynamic>>('/fetch/batches');
+        return [for (final b in r.data ?? const []) FetchBatch.fromJson(b as Map<String, dynamic>)];
       });
 
   Future<FetchSearch> search(int id) => _wrap(() async {

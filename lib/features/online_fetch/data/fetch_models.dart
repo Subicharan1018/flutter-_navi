@@ -30,14 +30,37 @@ enum FetchKind {
       };
 }
 
-/// One result the user can pick ("Is this the song?").
+/// What to search online for. [song] is the default; the others list whole
+/// albums, artists or playlists.
+enum FetchSearchType {
+  song('Songs', 'Song, film or artist'),
+  album('Albums', 'Album or film'),
+  artist('Artists', 'Artist'),
+  playlist('Playlists', 'Playlist');
+
+  const FetchSearchType(this.label, this.placeholder);
+  final String label;
+  final String placeholder;
+
+  static FetchSearchType parse(Object? v) =>
+      FetchSearchType.values.firstWhere((t) => t.name == v, orElse: () => FetchSearchType.song);
+}
+
+/// One result the user can pick ("Is this the song?"), or an album, artist or
+/// playlist ([type]).
 class FetchCandidate {
   final int id;
   final String title;
+
+  /// The artist; for a playlist, who made it.
   final String artist;
   final String album;
   final double score;
   final FetchKind kind;
+  final FetchSearchType type;
+
+  /// Albums and playlists: how many songs.
+  final int? trackCount;
 
   /// Already in the Navidrome library under this exact title and artist.
   final bool inLibrary;
@@ -58,7 +81,11 @@ class FetchCandidate {
     required this.inLibrary,
     required this.aiChecked,
     this.coverUrl,
+    this.type = FetchSearchType.song,
+    this.trackCount,
   });
+
+  bool get isSong => type == FetchSearchType.song;
 
   factory FetchCandidate.fromJson(Map<String, dynamic> j) => FetchCandidate(
         id: (j['id'] as num).toInt(),
@@ -70,6 +97,8 @@ class FetchCandidate {
         inLibrary: j['library'] == 'in_library',
         aiChecked: j['llm'] != null,
         coverUrl: j['cover_url'] as String?,
+        type: FetchSearchType.parse(j['type']),
+        trackCount: (j['track_count'] as num?)?.toInt(),
       );
 }
 
@@ -197,7 +226,7 @@ class FetchJob {
         _ => false,
       };
 
-  static FetchJobPhase _phase(Object? v) => switch (v) {
+  static FetchJobPhase phaseOf(Object? v) => switch (v) {
         'queued' || 'checking' || 'picking' => FetchJobPhase.preparing,
         'downloading' => FetchJobPhase.downloading,
         // 'downloaded' and 'imported' are on their way into the library.
@@ -208,14 +237,119 @@ class FetchJob {
         _ => FetchJobPhase.failed,
       };
 
+  /// Also reads a batch's items, which carry no job id.
   factory FetchJob.fromJson(Map<String, dynamic> j) => FetchJob(
-        id: (j['id'] as num).toInt(),
+        id: (j['id'] as num?)?.toInt() ?? 0,
         candidateId: (j['candidate_id'] as num?)?.toInt() ?? 0,
-        phase: _phase(j['status']),
+        phase: phaseOf(j['status']),
         progress: ((j['progress'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0),
         songId: j['nd_song_id'] as String?,
         error: j['error'] as String?,
         title: j['title'] as String?,
         artist: j['artist'] as String?,
       );
+}
+
+enum FetchBatchStatus {
+  /// Created, or the server is fetching the album's / playlist's track list.
+  starting,
+  running,
+  done,
+  failed,
+}
+
+/// Several songs downloaded together, or a whole album / playlist / an
+/// artist's top songs: one entry with overall progress, one item per track.
+class FetchBatch {
+  /// The server's id; 0 until it has answered the request.
+  final int id;
+
+  /// album, playlist or artist for one picked collection; null for songs.
+  final FetchSearchType? kind;
+  final String title;
+  final String artist;
+  final String? coverUrl;
+  final FetchBatchStatus status;
+  final String? error;
+
+  /// What the user picked (result ids); used to show progress on those rows.
+  final List<int> candidateIds;
+  final int total;
+  final int added;
+  final int owned;
+  final int failed;
+
+  /// 0–1 over the whole batch.
+  final double progress;
+  final List<FetchJob> items;
+
+  const FetchBatch({
+    required this.id,
+    required this.candidateIds,
+    this.kind,
+    this.title = '',
+    this.artist = '',
+    this.coverUrl,
+    this.status = FetchBatchStatus.starting,
+    this.error,
+    this.total = 0,
+    this.added = 0,
+    this.owned = 0,
+    this.failed = 0,
+    this.progress = 0,
+    this.items = const [],
+  });
+
+  bool get isFinished => status == FetchBatchStatus.done || status == FetchBatchStatus.failed;
+
+  /// Library songs the batch ended with: new ones and ones already owned, in
+  /// track order — what Play and Add to Playlist use.
+  List<String> get songIds => [
+        for (final i in items)
+          if (i.songId != null && (i.phase == FetchJobPhase.ready || i.phase == FetchJobPhase.duplicate)) i.songId!,
+      ];
+
+  /// "Album downloaded", "Playlist downloaded", "Songs downloaded".
+  String get headline => switch (kind) {
+        FetchSearchType.album => 'Album downloaded',
+        FetchSearchType.playlist => 'Playlist downloaded',
+        _ => added == 1 && owned == 0 && failed == 0 ? 'Song downloaded' : 'Songs downloaded',
+      };
+
+  /// "12 songs added, 2 already owned, 1 not available".
+  String get summary {
+    String songs(int n) => n == 1 ? '1 song' : '$n songs';
+    return [
+      '${songs(added)} added',
+      if (owned > 0) '$owned already owned',
+      if (failed > 0) '$failed not available',
+    ].join(', ');
+  }
+
+  static FetchBatchStatus _status(Object? v) => switch (v) {
+        'queued' || 'listing' => FetchBatchStatus.starting,
+        'running' => FetchBatchStatus.running,
+        'done' => FetchBatchStatus.done,
+        _ => FetchBatchStatus.failed,
+      };
+
+  factory FetchBatch.fromJson(Map<String, dynamic> j) {
+    final kind = j['kind'];
+    return FetchBatch(
+      id: (j['id'] as num).toInt(),
+      kind: kind == 'songs' ? null : FetchSearchType.parse(kind),
+      title: j['title'] as String? ?? '',
+      artist: j['artist'] as String? ?? '',
+      coverUrl: j['cover_url'] as String?,
+      status: _status(j['status']),
+      error: j['error'] as String?,
+      candidateIds: [for (final c in (j['candidate_ids'] as List? ?? const [])) (c as num).toInt()],
+      total: (j['total'] as num?)?.toInt() ?? 0,
+      added: (j['added'] as num?)?.toInt() ?? 0,
+      owned: (j['owned'] as num?)?.toInt() ?? 0,
+      failed: (j['failed'] as num?)?.toInt() ?? 0,
+      progress: ((j['progress'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0),
+      items: [for (final i in (j['items'] as List? ?? const [])) FetchJob.fromJson(i as Map<String, dynamic>)],
+    );
+  }
 }
