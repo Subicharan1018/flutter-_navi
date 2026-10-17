@@ -1,5 +1,6 @@
 /// Today's charts as the server's `GET /fetch/trending` reports them
-/// (tg-fetcher's trending module): seven charts, up to 50 songs each, with
+/// (tg-fetcher's trending module): the server's charts in its order, up to
+/// 50 songs each, with
 /// today's rank, movement since the last edition and, when the song is in the
 /// library, its Navidrome id.
 library;
@@ -105,7 +106,8 @@ class ChartEntry {
 }
 
 class TrendingChart {
-  /// tamil | english | hindi | malayalam | worldwide | india | tamil_nadu
+  /// tamil | english | hindi | malayalam | worldwide | india | tamil_nadu |
+  /// billboard_hot_100 | billboard_global_200 (the server may add more)
   final String key;
   final String title;
 

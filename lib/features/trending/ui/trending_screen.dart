@@ -11,7 +11,7 @@ import '../logic/trending_providers.dart';
 import 'chart_actions.dart';
 import 'widgets/chart_row.dart';
 
-/// The Trending page: the seven charts as pills, the picked chart's 50
+/// The Trending page: the charts as pills, the picked chart's 50
 /// songs ranked with their movement, and Play / Shuffle for the whole chart.
 class TrendingScreen extends ConsumerWidget {
   const TrendingScreen({super.key});
@@ -60,7 +60,7 @@ class TrendingScreen extends ConsumerWidget {
   }
 }
 
-/// The seven charts as filter pills (Home and the Trending page share the pick).
+/// The charts as filter pills (Home and the Trending page share the pick).
 class ChartPills extends ConsumerWidget {
   final TrendingCharts charts;
   final String selected;
