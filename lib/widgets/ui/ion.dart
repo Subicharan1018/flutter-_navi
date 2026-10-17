@@ -40,12 +40,8 @@ enum Ion {
   timer('timer-outline'),
   sparkles('sparkles-outline'),
   share('share-outline'),
-  upload('cloud-upload-outline'),
-  calendar('calendar-outline'),
   trash('trash-outline'),
   add('add-circle-outline'),
-  folder('folder-outline'),
-  link('link-outline'),
   moon('moon-outline');
 
   const Ion(this.file);

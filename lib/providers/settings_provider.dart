@@ -116,9 +116,6 @@ class SettingsState {
     this.fluidBgEnabled = true,
   });
 
-  /// Full URL for the local shuffle model server.
-  String get localShuffleUrl => 'https://shuffle.subimusic.me';
-
   SettingsState copyWith({
     String? serverUrl,
     String? username,
