@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
+import '../features/trending/logic/trending_providers.dart' show trendingChartsProvider;
+import '../features/trending/ui/trending_section.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -53,9 +55,11 @@ class HomeScreen extends ConsumerWidget {
         ref.invalidate(recentlyPlayedSongsProvider);
         ref.invalidate(recentlyAddedAlbumsProvider);
         ref.invalidate(favoritesProvider);
+        ref.invalidate(trendingChartsProvider);
       },
       slivers: const [
         SliverToBoxAdapter(child: _TopPicks()),
+        SliverToBoxAdapter(child: TrendingSection()),
         SliverToBoxAdapter(child: _RecentlyPlayed()),
         SliverToBoxAdapter(child: _YourPlaylists()),
         SliverToBoxAdapter(child: _RecentlyAdded()),
