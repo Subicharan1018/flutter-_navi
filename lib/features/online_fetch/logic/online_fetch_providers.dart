@@ -239,9 +239,10 @@ class FetchJobsController extends Notifier<FetchDownloads> {
   /// Give up following a download that hasn't changed for this long.
   static const stallLimit = Duration(minutes: 15);
 
-  /// Poll failures in a row (offline, rate limited) before a download is
-  /// shown as failed; one bad poll never fails it.
+  /// Server errors in a row (e.g. rate limited) before a download is shown as
+  /// failed; one bad poll never fails it. Being offline never does.
   static const maxPollErrors = 5;
+  static const maxBackoff = Duration(seconds: 30);
 
   final _songs = <String, Song>{};
   final _cover = <int, String?>{};
@@ -415,16 +416,27 @@ class FetchJobsController extends Notifier<FetchDownloads> {
     required T Function(String message) onGiveUp,
   }) async {
     var errors = 0;
+    var offline = 0;
     var lastChange = DateTime.now();
     String? lastSeen;
     while (true) {
-      await Future<void>.delayed(_interval);
+      // Unreachable (phone asleep, no network): back off, up to 30 s.
+      final wait = offline == 0 ? _interval : _interval * (1 << (offline.clamp(1, 4)));
+      await Future<void>.delayed(wait > maxBackoff ? maxBackoff : wait);
       if (!ref.mounted) return null;
       T value;
       try {
         value = await fetch();
         errors = 0;
+        offline = 0;
       } on OnlineFetchException catch (e) {
+        if (e.statusCode == null) {
+          // The download carries on on the server; never fail it for being
+          // offline, and don't count the time towards a stall.
+          offline++;
+          lastChange = DateTime.now();
+          continue;
+        }
         if (++errors < maxPollErrors) continue;
         final failed = onGiveUp(e.message);
         if (ref.mounted) put(failed);

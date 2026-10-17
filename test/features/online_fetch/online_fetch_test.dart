@@ -269,6 +269,22 @@ void main() {
       expect(c.read(fetchJobsProvider).batchFor(500)!.status, FetchBatchStatus.done);
     });
 
+    test('being offline (phone asleep) never fails a download', () async {
+      var gets = 0;
+      final api = _api((o) {
+        if (o.method == 'POST') return _json(202, {'batch_id': 2});
+        // More failed polls than maxPollErrors, all "can't reach the server".
+        if (++gets <= FetchJobsController.maxPollErrors + 3) {
+          throw DioException(requestOptions: o, type: DioExceptionType.connectionError);
+        }
+        return _json(200, _batch('done'));
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_album)]);
+      expect(c.read(fetchJobsProvider).batchFor(500)!.status, FetchBatchStatus.done);
+    });
+
     test('several songs: one batch; their rows follow its items; owned ones left out', () async {
       final posts = <String>[];
       final api = _api((o) {
