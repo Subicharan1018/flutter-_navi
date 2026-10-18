@@ -46,6 +46,35 @@ enum FetchSearchType {
       FetchSearchType.values.firstWhere((t) => t.name == v, orElse: () => FetchSearchType.song);
 }
 
+/// Why [text] can't be sent as a playlist link, or null when it can — the
+/// same rules (and words) as the server, so a bad paste is caught at once.
+/// The music bot takes Deezer and Spotify playlist links; it ignores YouTube.
+String? playlistLinkProblem(String text) {
+  final uri = Uri.tryParse(text.trim());
+  if (uri == null || !(uri.scheme == 'https' || uri.scheme == 'http') || uri.host.isEmpty) {
+    return 'Paste a playlist link (it starts with https://).';
+  }
+  final host = uri.host.toLowerCase();
+  final path = uri.path;
+  if (host == 'deezer.com' || host == 'www.deezer.com') {
+    return RegExp(r'^/(?:[a-z]{2}(?:-[a-z]{2})?/)?playlist/\d+/?$', caseSensitive: false).hasMatch(path)
+        ? null
+        : 'That Deezer link isn’t a playlist. Open the playlist and copy its link.';
+  }
+  if (host == 'open.spotify.com') {
+    return RegExp(r'^/(?:intl-[a-z]{2}(?:-[a-z]{2})?/)?playlist/[A-Za-z0-9]{10,40}/?$').hasMatch(path)
+        ? null
+        : 'That Spotify link isn’t a playlist. Open the playlist and copy its link.';
+  }
+  if (host.endsWith('youtube.com') || host == 'youtu.be' || host.endsWith('music.apple.com')) {
+    return 'Only Deezer and Spotify playlist links work. The music bot doesn’t take this site.';
+  }
+  return 'Only Deezer and Spotify playlist links work.';
+}
+
+/// Looks like a link the user meant to send (anything starting with http).
+bool looksLikeLink(String text) => RegExp(r'^\s*https?://', caseSensitive: false).hasMatch(text);
+
 /// One result the user can pick ("Is this the song?"), or an album, artist or
 /// playlist ([type]).
 class FetchCandidate {
@@ -121,6 +150,9 @@ enum FetchSearchStatus { queued, searching, done, noResults, inLibrary, failed }
 class FetchSearch {
   final int id;
   final String query;
+
+  /// A pasted playlist link's playlist name.
+  final String? title;
   final FetchSearchStatus status;
   final String? didYouMean;
 
@@ -136,6 +168,7 @@ class FetchSearch {
     required this.id,
     required this.query,
     required this.status,
+    this.title,
     this.didYouMean,
     this.aiPending = false,
     this.error,
@@ -166,6 +199,7 @@ class FetchSearch {
     return FetchSearch(
       id: (j['id'] as num).toInt(),
       query: j['query'] as String? ?? '',
+      title: j['title'] as String?,
       status: _status(j['status']),
       didYouMean: j['did_you_mean'] as String?,
       aiPending: j['llm_state'] == 'pending',
@@ -227,7 +261,8 @@ class FetchJob {
       };
 
   static FetchJobPhase phaseOf(Object? v) => switch (v) {
-        'queued' || 'checking' || 'picking' => FetchJobPhase.preparing,
+        // 'waiting': a pasted link's song, waiting for the bot to post its file.
+        'queued' || 'checking' || 'picking' || 'waiting' => FetchJobPhase.preparing,
         'downloading' => FetchJobPhase.downloading,
         // 'downloaded' and 'imported' are on their way into the library.
         'downloaded' || 'tagging' || 'moving' || 'scanning' || 'imported' => FetchJobPhase.adding,

@@ -41,6 +41,9 @@ class OnlineSearchState {
   final FetchCandidate? artist;
   final OnlineSearchState? parent;
 
+  /// [query] is a pasted playlist link; the results are its songs.
+  final bool isLink;
+
   const OnlineSearchState({
     this.query = '',
     this.type = FetchSearchType.song,
@@ -48,13 +51,14 @@ class OnlineSearchState {
     this.error,
     this.artist,
     this.parent,
+    this.isLink = false,
   });
 
   bool get isLoading => error == null && (search == null || search!.isSearching);
 
   /// The results are songs (a song search, or an artist's top songs), so
-  /// several can be picked at once.
-  bool get listsSongs => type == FetchSearchType.song || artist != null;
+  /// several can be picked at once. A link's songs go all together.
+  bool get listsSongs => !isLink && (type == FetchSearchType.song || artist != null);
 
   OnlineSearchState withResult({FetchSearch? search, String? error}) => OnlineSearchState(
         query: query,
@@ -63,6 +67,7 @@ class OnlineSearchState {
         error: error,
         artist: artist,
         parent: parent,
+        isLink: isLink,
       );
 }
 
@@ -87,6 +92,20 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
     if (q.length < 2) return;
     final api = ref.read(onlineFetchApiProvider);
     await _run(OnlineSearchState(query: q, type: type), () => api.startSearch(q, type: type));
+  }
+
+  /// Lists a pasted playlist link's songs, owned or new. A link the app can
+  /// already tell is unusable fails at once, in the server's words.
+  Future<void> startLink(String link) async {
+    final base = OnlineSearchState(query: link.trim(), isLink: true);
+    final problem = playlistLinkProblem(link);
+    if (problem != null) {
+      _generation++;
+      state = base.withResult(error: problem);
+      return;
+    }
+    final api = ref.read(onlineFetchApiProvider);
+    await _run(base, () => api.startLinkSearch(link));
   }
 
   /// Shows [artist]'s top songs; [back] returns to the artist results.
@@ -321,6 +340,27 @@ class FetchJobsController extends Notifier<FetchDownloads> {
     await _followBatch(key, batch);
   }
 
+  /// Downloads a pasted link's playlist ([listed] is its preview): every song,
+  /// owned ones included, so the user's playlist gets all of them. Throws
+  /// [OnlineFetchException] when the server refuses (e.g. another link is
+  /// still downloading) — nothing is added to the downloads then.
+  Future<void> downloadLink(FetchSearch listed) async {
+    final ids = [for (final c in listed.candidates) c.id];
+    if (ids.isNotEmpty && state.batchFor(ids.first)?.isFinished == false) return;
+    final id = await ref.read(onlineFetchApiProvider).startLinkBatch(listed.id);
+    if (!ref.mounted) return;
+    final key = ++_nextBatchKey;
+    final batch = FetchBatch(
+      id: id,
+      candidateIds: ids,
+      kind: FetchSearchType.playlist,
+      title: listed.title ?? 'Playlist',
+      coverUrl: listed.candidates.firstOrNull?.coverUrl,
+    );
+    _putBatch(key, batch);
+    await _followBatch(key, batch);
+  }
+
   /// Picks up batches still running on the server (e.g. after the app was
   /// restarted mid-album). Once per session; any failure is ignored.
   Future<void> resume() async {
@@ -386,7 +426,9 @@ class FetchJobsController extends Notifier<FetchDownloads> {
       );
       return;
     }
-    _finished.announce(headline: b.headline, detail: b.summary, coverUrl: b.coverUrl, songIds: b.songIds);
+    // "Playlist ready · India · 5 songs." — name the album / playlist.
+    final detail = b.kind == null ? b.summary : '${b.title} · ${b.summary}';
+    _finished.announce(headline: b.headline, detail: detail, coverUrl: b.coverUrl, songIds: b.songIds);
   }
 
   /// The bot playlist becomes the user's own playlist, in the bot's order,

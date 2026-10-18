@@ -13,6 +13,7 @@ import 'package:navivibe/features/online_fetch/logic/fetch_playlists.dart';
 import 'package:navivibe/models/playlist.dart';
 import 'package:navivibe/features/online_fetch/logic/online_fetch_providers.dart';
 import 'package:navivibe/features/online_fetch/ui/fetch_activity.dart';
+import 'package:navivibe/features/online_fetch/ui/send_playlist_sheet.dart';
 import 'package:navivibe/features/online_fetch/ui/widgets/fetch_candidate_row.dart';
 
 /// The exact body the live server returned for "rowdy baby" (2026-10-16).
@@ -91,6 +92,7 @@ void main() {
     test('server job statuses map to what the user sees', () {
       FetchJobPhase phase(String s) => FetchJob.fromJson({'id': 1, 'candidate_id': 2, 'status': s}).phase;
       expect(phase('picking'), FetchJobPhase.preparing);
+      expect(phase('waiting'), FetchJobPhase.preparing);     // a link's song before the bot sends it
       expect(phase('downloading'), FetchJobPhase.downloading);
       expect(phase('scanning'), FetchJobPhase.adding);
       expect(phase('imported'), FetchJobPhase.adding);
@@ -251,7 +253,8 @@ void main() {
       await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_album)]);
       expect(seen, [FetchBatchStatus.starting, FetchBatchStatus.running, FetchBatchStatus.done]);
       expect(announced.single.headline, 'Album downloaded');
-      expect(announced.single.detail, '1 song added, 1 already owned, 1 isn’t available in lossless');
+      expect(announced.single.detail,
+          'Maari 2 (Original Motion Picture Soundtrack) · 1 song added, 1 already owned, 1 isn’t available in lossless');
       expect(announced.single.songIds, ['nd-owned', 'nd-new']);
       expect(c.read(fetchJobsProvider).isActive, isFalse);
     });
@@ -407,7 +410,7 @@ void main() {
       expect(store.songs['new-1'], ['nd-owned', 'nd-new', 'nd-shared']);
       expect(posted, {'/fetch/batches/7/playlist': {'playlist_id': 'new-1'}});
       expect(announced.single.headline, 'Playlist ready');
-      expect(announced.single.detail, '3 of 4 songs. 1 isn’t available in lossless.');
+      expect(announced.single.detail, 'Tamil Hits · 3 of 4 songs. 1 isn’t available in lossless.');
       expect(c.read(fetchJobsProvider).batchFor(700)!.playlistId, 'new-1');
     });
 
@@ -450,6 +453,119 @@ void main() {
       expect(album.summary, '1 song added, 1 already owned, 2 aren’t available in lossless, 1 couldn’t be found');
       final whole = FetchBatch.fromJson({..._playlistBatch(), 'lossy': 0, 'total': 3});
       expect(whole.summary, '3 songs.');
+    });
+  });
+
+  group('send a playlist', () {
+    setUp(() {
+      OnlineSearchController.pollEvery = Duration.zero;
+      FetchJobsController.pollEvery = Duration.zero;
+    });
+
+    test('link check: what works, and why the rest doesn’t', () {
+      expect(playlistLinkProblem('https://www.deezer.com/en/playlist/1032500191?utm=x'), isNull);
+      expect(playlistLinkProblem(' https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=1 '), isNull);
+      expect(playlistLinkProblem('tamil hits'), contains('Paste a playlist link'));
+      expect(playlistLinkProblem('https://www.youtube.com/playlist?list=PLx'), contains('doesn’t take this site'));
+      expect(playlistLinkProblem('https://www.deezer.com/album/81950092'), contains('isn’t a playlist'));
+      expect(playlistLinkProblem('https://example.com/x'), 'Only Deezer and Spotify playlist links work.');
+      expect(looksLikeLink('https://x'), isTrue);
+      expect(looksLikeLink('maari 2'), isFalse);
+    });
+
+    test('a bad link fails at once, without asking the server', () async {
+      var calls = 0;
+      final api = _api((o) {
+        calls++;
+        return _json(500, {});
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      final sub = c.listen(sendPlaylistProvider, (_, _) {});
+      addTearDown(sub.close);
+      await c.read(sendPlaylistProvider.notifier).startLink('https://youtu.be/abc');
+      expect(calls, 0);
+      expect(c.read(sendPlaylistProvider).error, contains('Only Deezer and Spotify'));
+    });
+
+    test('a good link lists its songs, owned or new, under the playlist’s name', () async {
+      final sent = <Object?>[];
+      final api = _api((o) {
+        if (o.method == 'POST') {
+          sent.add(o.data);
+          return _json(202, {'search_id': 52});
+        }
+        return _json(200, _linkSearch());
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      final sub = c.listen(sendPlaylistProvider, (_, _) {});
+      addTearDown(sub.close);
+      await c.read(sendPlaylistProvider.notifier).startLink('https://www.deezer.com/playlist/15824893581');
+      final s = c.read(sendPlaylistProvider);
+      expect(sent, [{'link': 'https://www.deezer.com/playlist/15824893581'}]);
+      expect(s.isLink, isTrue);
+      expect(s.listsSongs, isFalse);                       // they go all together
+      expect(s.search!.title, 'B.K.lywood-M-hits');
+      expect([for (final x in s.search!.candidates) x.inLibrary], [true, false, true]);
+    });
+
+    test('download: one playlist batch with every song; a refusal adds nothing', () async {
+      var refuse = true;
+      final sent = <Object?>[];
+      final api = _api((o) {
+        if (o.method == 'POST') {
+          sent.add(o.data);
+          return refuse
+              ? _json(409, {'error': 'A playlist link is already downloading. Wait for it to finish.'})
+              : _json(202, {'batch_id': 4});
+        }
+        return _json(200, {..._playlistBatch(), 'id': 4, 'candidate_ids': [801, 802, 803], 'playlist_id': 'p'});
+      });
+      final c = ProviderContainer(overrides: [
+        onlineFetchApiProvider.overrideWithValue(api),
+        fetchPlaylistStoreProvider.overrideWithValue(_FakeStore()),
+      ]);
+      addTearDown(c.dispose);
+      final listed = FetchSearch.fromJson(_linkSearch());
+      final jobs = c.read(fetchJobsProvider.notifier);
+      await expectLater(jobs.downloadLink(listed),
+          throwsA(isA<OnlineFetchException>().having((e) => e.message, 'message', contains('already downloading'))));
+      expect(c.read(fetchJobsProvider).isEmpty, isTrue);
+      refuse = false;
+      await jobs.downloadLink(listed);
+      expect(sent.last, {'search_id': 52});
+      final b = c.read(fetchJobsProvider).batchFor(801)!;
+      expect(b.kind, FetchSearchType.playlist);
+      expect(b.title, 'Tamil Hits');                       // from the server's batch
+      expect(b.status, FetchBatchStatus.done);
+    });
+
+    testWidgets('the sheet shows the playlist, its counts and the download button', (tester) async {
+      final c = ProviderContainer(overrides: [onlineFetchEnabledProvider.overrideWith((ref) async => false)]);
+      addTearDown(c.dispose);
+      await tester.pumpWidget(UncontrolledProviderScope(
+        container: c,
+        child: MaterialApp(
+          home: Scaffold(
+            body: ThemeTokens(
+              tokens: AppThemeTokens.fallback,
+              child: const SingleChildScrollView(child: SendPlaylistSheet()),
+            ),
+          ),
+        ),
+      ));
+      c.read(sendPlaylistProvider.notifier).state = OnlineSearchState(
+        query: 'https://www.deezer.com/playlist/15824893581',
+        isLink: true,
+        search: FetchSearch.fromJson(_linkSearch()),
+      );
+      await tester.pump();
+      expect(find.text('B.K.lywood-M-hits'), findsOneWidget);
+      expect(find.text('3 songs · 1 new · 2 in your library'), findsOneWidget);
+      expect(find.text('Download 1 New Song'), findsOneWidget);
+      expect(find.text('In your library'), findsNWidgets(2));
+      expect(find.byIcon(CupertinoIcons.arrow_down_circle), findsNothing);   // rows don't download one by one
     });
   });
 
@@ -580,6 +696,20 @@ class _SeededJobs extends FetchJobsController {
 
   @override
   FetchDownloads build() => seed;
+}
+
+/// GET /fetch/searches/{id} for a pasted Deezer link (live shape, 2026-10-17).
+Map<String, dynamic> _linkSearch() {
+  Map<String, dynamic> song(int id, String title, bool owned) => {
+        'id': id, 'title': title, 'artist': 'A', 'album': '', 'score': 0.0, 'kind': 'original', 'reasons': [],
+        'library': owned ? 'in_library' : 'not_found', 'llm': null, 'type': 'song', 'track_count': null,
+        'duration_s': 200,
+      };
+  return {
+    'id': 52, 'query': 'https://www.deezer.com/playlist/15824893581', 'kind': 'link', 'title': 'B.K.lywood-M-hits',
+    'status': 'done', 'did_you_mean': null, 'llm_state': 'off', 'error': null, 'library': null,
+    'candidates': [song(801, 'Jujubee', true), song(802, 'Oh Mama! TETEMA', false), song(803, 'Marana Mass', true)],
+  };
 }
 
 /// Records playlist writes instead of calling the music server.

@@ -45,6 +45,18 @@ class OnlineFetchApi {
         return (r.data!['search_id'] as num).toInt();
       });
 
+  /// A pasted playlist link: the server lists its songs (owned or new).
+  Future<int> startLinkSearch(String link) => _wrap(() async {
+        final r = await _dio.post<Map<String, dynamic>>('/fetch/searches', data: {'link': link.trim()});
+        return (r.data!['search_id'] as num).toInt();
+      });
+
+  /// Downloads a listed link's whole playlist (it becomes the user's playlist).
+  Future<int> startLinkBatch(int searchId) => _wrap(() async {
+        final r = await _dio.post<Map<String, dynamic>>('/fetch/batches', data: {'search_id': searchId});
+        return (r.data!['batch_id'] as num).toInt();
+      });
+
   /// Several songs, or whole albums / playlists, downloaded as one batch.
   Future<int> startBatch(List<int> candidateIds) => _wrap(() async {
         final r = await _dio.post<Map<String, dynamic>>('/fetch/batches', data: {'candidate_ids': candidateIds});
