@@ -32,7 +32,10 @@ class TrendingSection extends ConsumerWidget {
       ),
       error: (e, _) => Column(
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: [header, _InlineError(message: '$e', onRetry: () => ref.invalidate(trendingChartsProvider))],
+        children: [
+          header,
+          InlineError(message: 'Charts didn’t load. $e', onRetry: () => ref.invalidate(trendingChartsProvider)),
+        ],
       ),
       data: (charts) {
         final chart = pickChart(charts, ref.watch(selectedChartProvider));
@@ -91,27 +94,6 @@ class _ChartColumns extends ConsumerWidget {
             ],
           );
         },
-      ),
-    );
-  }
-}
-
-class _InlineError extends StatelessWidget {
-  final String message;
-  final VoidCallback onRetry;
-  const _InlineError({required this.message, required this.onRetry});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-      child: Row(
-        children: [
-          Expanded(child: Text('Charts didn’t load. $message', style: t.footnote)),
-          const SizedBox(width: Space.md),
-          TintedButton(label: 'Try again', onTap: onRetry),
-        ],
       ),
     );
   }

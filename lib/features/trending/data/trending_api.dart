@@ -17,10 +17,23 @@ class TrendingApi {
   final Dio _dio;
   const TrendingApi(this._dio);
 
-  Future<TrendingCharts> charts() async {
+  Future<TrendingCharts> charts() => _wrap(() async {
+        final r = await _dio.get<Map<String, dynamic>>('/fetch/trending');
+        return TrendingCharts.fromJson(r.data ?? const {});
+      });
+
+  /// Songs the charts brought into the library, newest first.
+  Future<List<ChartArrival>> recentlyAdded({int limit = 30}) => _wrap(() async {
+        final r = await _dio.get<Map<String, dynamic>>('/fetch/trending/new', queryParameters: {'limit': limit});
+        return [
+          for (final s in (r.data?['songs'] as List? ?? const []))
+            if (s is Map) ChartArrival.fromJson(Map<String, dynamic>.from(s)),
+        ]..removeWhere((a) => a.songId.isEmpty);
+      });
+
+  Future<T> _wrap<T>(Future<T> Function() call) async {
     try {
-      final r = await _dio.get<Map<String, dynamic>>('/fetch/trending');
-      return TrendingCharts.fromJson(r.data ?? const {});
+      return await call();
     } on DioException catch (e) {
       throw TrendingException(switch (e.response?.statusCode) {
         null => 'Can’t reach the server. Check your connection.',

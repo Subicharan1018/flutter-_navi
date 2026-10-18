@@ -5,6 +5,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
+import '../features/discover/logic/discover_providers.dart' show discoverProvider;
+import '../features/discover/ui/discover_section.dart';
 import '../features/trending/logic/trending_providers.dart' show trendingChartsProvider;
 import '../features/trending/ui/trending_section.dart';
 import '../models/album.dart';
@@ -56,10 +58,13 @@ class HomeScreen extends ConsumerWidget {
         ref.invalidate(recentlyAddedAlbumsProvider);
         ref.invalidate(favoritesProvider);
         ref.invalidate(trendingChartsProvider);
+        ref.invalidate(discoverProvider);
       },
       slivers: const [
-        SliverToBoxAdapter(child: _TopPicks()),
+        // What's new leads; the charts it came from right below.
+        SliverToBoxAdapter(child: DiscoverSection()),
         SliverToBoxAdapter(child: TrendingSection()),
+        SliverToBoxAdapter(child: _TopPicks()),
         SliverToBoxAdapter(child: _RecentlyPlayed()),
         SliverToBoxAdapter(child: _YourPlaylists()),
         SliverToBoxAdapter(child: _RecentlyAdded()),
@@ -154,10 +159,7 @@ class _TopPicks extends ConsumerWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(
-          title: 'Top Picks for You',
-          padding: EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.md),
-        ),
+        const SectionHeader(title: 'Top Picks for You'),
         SizedBox(
           height: cardWidth + _FeatureCard.chrome,
           child: ListView.separated(

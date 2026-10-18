@@ -454,7 +454,10 @@ class TintedButton extends StatelessWidget {
               Icon(icon, size: 17, color: fg),
               const SizedBox(width: Space.sm),
             ],
-            Text(label, style: t.headline.copyWith(color: fg)),
+            // Shrinks with an ellipsis when it shares a row (paired capsules).
+            Flexible(
+              child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.headline.copyWith(color: fg)),
+            ),
           ],
         ),
       ),

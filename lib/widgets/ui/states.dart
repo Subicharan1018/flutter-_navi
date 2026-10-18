@@ -83,6 +83,29 @@ class MessageState extends StatelessWidget {
   }
 }
 
+/// A shelf that failed to load, said in one line with Try again beside it —
+/// for sections inside a page (Home), where a full [MessageState] is too loud.
+class InlineError extends StatelessWidget {
+  final String message;
+  final VoidCallback onRetry;
+  const InlineError({super.key, required this.message, required this.onRetry});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+      child: Row(
+        children: [
+          Expanded(child: Text(message, style: t.footnote)),
+          const SizedBox(width: Space.md),
+          TintedButton(label: 'Try again', onTap: onRetry),
+        ],
+      ),
+    );
+  }
+}
+
 /// iOS activity indicator centred in the available space.
 class LoadingState extends StatelessWidget {
   final String? label;

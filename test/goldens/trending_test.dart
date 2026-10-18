@@ -7,6 +7,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/features/discover/logic/discover_providers.dart';
+import 'package:navivibe/features/discover/ui/discover_section.dart';
 import 'package:navivibe/features/trending/data/trending_models.dart';
 import 'package:navivibe/features/trending/logic/trending_providers.dart';
 import 'package:navivibe/features/trending/ui/trending_screen.dart';
@@ -158,6 +160,40 @@ void main() {
     await tester.tap(find.text('Patient Zero'));
     await tester.pumpAndSettle();
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('trending/billboard_open.png'));
+  });
+
+  testWidgets('home lead: discover, then trending', (tester) async {
+    await phone(tester);
+    final tokens = AppThemeTokens.fallback;
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        trendingChartsProvider.overrideWith((ref) async => _charts()),
+        discoverProvider.overrideWith((ref) async => mergeDiscover(const [
+              ChartArrival(songId: 'a1', title: 'Patient Zero', artist: 'Taylor Swift', charts: ['Hot 100']),
+              ChartArrival(songId: 'a2', title: 'Pesamale', artist: 'Siri Xander', charts: ['Tamil']),
+            ], const [
+              (id: 'u1', title: 'Ilamai Itho Itho', artist: 'Ilaiyaraaja'),
+            ])),
+        subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
+      ],
+      child: ThemeTokens(
+        tokens: tokens,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: AppTheme.build(tokens),
+          home: Builder(
+            builder: (context) => Scaffold(
+              backgroundColor: ThemeTokens.of(context).bgBase,
+              body: const SafeArea(
+                child: SingleChildScrollView(child: Column(children: [DiscoverSection(), TrendingSection()])),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.pumpAndSettle();
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('trending/home_lead.png'));
   });
 
   testWidgets('home trending shelf', (tester) async {

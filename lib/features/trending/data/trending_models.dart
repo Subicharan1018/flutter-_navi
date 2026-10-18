@@ -287,6 +287,35 @@ class TrendingChart {
       );
 }
 
+/// A song a chart brought into the library (`GET /fetch/trending/new`).
+class ChartArrival {
+  final String songId;
+  final String title;
+  final String artist;
+  final DateTime? addedAt;
+
+  /// The charts it's on today ("Hot 100", "Tamil").
+  final List<String> charts;
+
+  const ChartArrival({
+    required this.songId,
+    required this.title,
+    required this.artist,
+    this.addedAt,
+    this.charts = const [],
+  });
+
+  factory ChartArrival.fromJson(Map<String, dynamic> j) => ChartArrival(
+        songId: j['song_id'] as String? ?? '',
+        title: j['title'] as String? ?? '',
+        artist: j['artist'] as String? ?? '',
+        addedAt: j['added_at'] is num
+            ? DateTime.fromMillisecondsSinceEpoch(((j['added_at'] as num) * 1000).round())
+            : null,
+        charts: _strs(j['charts']),
+      );
+}
+
 class TrendingCharts {
   final List<TrendingChart> charts;
   const TrendingCharts(this.charts);
