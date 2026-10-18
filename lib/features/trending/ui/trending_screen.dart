@@ -26,6 +26,8 @@ class TrendingScreen extends ConsumerWidget {
     return LargeTitlePage(
       title: 'Trending',
       header: chart == null ? null : ChartPills(charts: charts!, selected: chart.key),
+      // The pills pad themselves to the gutter and scroll edge to edge.
+      headerPadding: const EdgeInsets.symmetric(vertical: Space.xs),
       onRefresh: () => ref.refresh(trendingChartsProvider.future),
       slivers: [
         if (chart != null) ...[

@@ -16,6 +16,10 @@ class LargeTitlePage extends StatelessWidget {
   /// Pinned under the title, e.g. the Search field. Fixed [headerHeight].
   final Widget? header;
   final double headerHeight;
+
+  /// Around [header]. A header that scrolls sideways (filter pills) pads
+  /// itself, so it passes no horizontal padding and runs edge to edge.
+  final EdgeInsets headerPadding;
   final Future<void> Function()? onRefresh;
   final ScrollController? controller;
 
@@ -30,6 +34,7 @@ class LargeTitlePage extends StatelessWidget {
     this.trailing,
     this.header,
     this.headerHeight = 52,
+    this.headerPadding = const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.xs),
     this.onRefresh,
     this.controller,
     this.clearPlayer = true,
@@ -65,7 +70,7 @@ class LargeTitlePage extends StatelessWidget {
           if (header != null)
             SliverPersistentHeader(
               pinned: true,
-              delegate: _PinnedHeader(height: headerHeight, color: t.bgBase, child: header!),
+              delegate: _PinnedHeader(height: headerHeight, color: t.bgBase, child: header!, padding: headerPadding),
             ),
           if (onRefresh != null) CupertinoSliverRefreshControl(onRefresh: onRefresh),
           ...slivers,
@@ -87,7 +92,8 @@ class _PinnedHeader extends SliverPersistentHeaderDelegate {
   final double height;
   final Color color;
   final Widget child;
-  _PinnedHeader({required this.height, required this.color, required this.child});
+  final EdgeInsets padding;
+  _PinnedHeader({required this.height, required this.color, required this.child, required this.padding});
 
   @override
   double get minExtent => height;
@@ -98,13 +104,14 @@ class _PinnedHeader extends SliverPersistentHeaderDelegate {
   Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => ColoredBox(
         color: color,
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.xs),
+          padding: padding,
           child: Align(alignment: Alignment.topCenter, child: child),
         ),
       );
 
   @override
-  bool shouldRebuild(_PinnedHeader old) => old.height != height || old.color != color || old.child != child;
+  bool shouldRebuild(_PinnedHeader old) =>
+      old.height != height || old.color != color || old.child != child || old.padding != padding;
 }
 
 /// Page padding for content inside a [LargeTitlePage].
