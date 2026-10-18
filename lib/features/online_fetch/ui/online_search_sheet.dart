@@ -470,8 +470,11 @@ class _ResultsState extends ConsumerState<_Results> {
             },
             onPlayOwned: () => widget.onPlay(() async {
               // The exact title + artist is owned; find it through the library search.
+              // Navidrome's search matches any word ("naan naan" also finds
+              // "Naan Nee"), so only a song with this very title may play.
               final songs = (await ref.read(subsonicServiceProvider).search(c.title)).songs;
-              final match = songs.where((s) => s.artist == c.artist).firstOrNull ?? songs.firstOrNull;
+              final sameTitle = songs.where((s) => s.title.trim().toLowerCase() == c.title.trim().toLowerCase());
+              final match = sameTitle.where((s) => s.artist == c.artist).firstOrNull ?? sameTitle.firstOrNull;
               if (match == null) throw const OnlineFetchException('Couldn’t find it in your library.');
               return match;
             }),
