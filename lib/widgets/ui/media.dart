@@ -222,7 +222,7 @@ class CollectionRow extends StatelessWidget {
     this.titleStyle,
   });
 
-  /// Library destination row: green glyph instead of artwork.
+  /// Library destination row: accent glyph instead of artwork.
   factory CollectionRow.destination({
     Key? key,
     required BuildContext context,
@@ -257,43 +257,50 @@ class CollectionRow extends StatelessWidget {
       semanticLabel: subtitle == null ? title : '$title, $subtitle',
       child: Padding(
         padding: const EdgeInsets.only(left: Space.gutter),
-        child: Row(
-          children: [
-            leading,
-            const SizedBox(width: Space.md),
-            Expanded(
-              child: Container(
-                constraints: const BoxConstraints(minHeight: 52),
-                padding: const EdgeInsets.only(right: Space.gutter, top: Space.sm, bottom: Space.sm),
-                decoration: BoxDecoration(
-                  border: showSeparator ? Border(bottom: BorderSide(color: t.outline, width: 0.5)) : null,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            title,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: (titleStyle ?? t.body).copyWith(color: titleColor ?? t.textPrimary),
-                          ),
-                          if (subtitle != null && subtitle!.isNotEmpty) ...[
-                            const SizedBox(height: 1),
-                            Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
+        // Artwork sits inset in its row (never touching the next row's), and
+        // the hairline stays on the row's bottom edge whichever side is taller.
+        child: IntrinsicHeight(
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Padding(padding: const EdgeInsets.symmetric(vertical: Space.sm), child: leading),
+              ),
+              const SizedBox(width: Space.md),
+              Expanded(
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 52),
+                  padding: const EdgeInsets.only(right: Space.gutter, top: Space.sm, bottom: Space.sm),
+                  decoration: BoxDecoration(
+                    border: showSeparator ? Border(bottom: BorderSide(color: t.outline, width: 0.5)) : null,
+                  ),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              title,
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: (titleStyle ?? t.body).copyWith(color: titleColor ?? t.textPrimary),
+                            ),
+                            if (subtitle != null && subtitle!.isNotEmpty) ...[
+                              const SizedBox(height: 1),
+                              Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
+                            ],
                           ],
-                        ],
+                        ),
                       ),
-                    ),
-                    if (showChevron) Icon(CupertinoIcons.chevron_forward, size: 16, color: t.textMuted),
-                  ],
+                      if (showChevron) Icon(CupertinoIcons.chevron_forward, size: 16, color: t.textMuted),
+                    ],
+                  ),
                 ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
