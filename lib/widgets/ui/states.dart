@@ -4,13 +4,18 @@ import '../../core/theme.dart';
 import 'media.dart';
 
 /// Empty or error content: a quiet glyph, one line saying what's going on,
-/// one saying what to do, and at most one action. Centred, like iOS.
+/// one saying what to do, one action (plus, rarely, a lesser second one).
+/// Centred, like iOS.
 class MessageState extends StatelessWidget {
   final IconData icon;
   final String title;
   final String message;
   final String? actionLabel;
   final VoidCallback? onAction;
+
+  /// A lesser second action, shown as plain accent text under [actionLabel].
+  final String? secondaryLabel;
+  final VoidCallback? onSecondary;
 
   /// An illustration under `assets/icons/` (name without extension) shown in
   /// place of [icon].
@@ -25,6 +30,8 @@ class MessageState extends StatelessWidget {
     required this.message,
     this.actionLabel,
     this.onAction,
+    this.secondaryLabel,
+    this.onSecondary,
     this.illustration,
   });
 
@@ -74,6 +81,15 @@ class MessageState extends StatelessWidget {
               if (actionLabel != null && onAction != null) ...[
                 const SizedBox(height: Space.xl),
                 TintedButton(label: actionLabel!, onTap: onAction),
+              ],
+              if (secondaryLabel != null && onSecondary != null) ...[
+                const SizedBox(height: Space.sm),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                  minimumSize: const Size(44, 44),
+                  onPressed: onSecondary,
+                  child: Text(secondaryLabel!, style: t.subheadline.copyWith(color: t.accent)),
+                ),
               ],
             ],
           ),

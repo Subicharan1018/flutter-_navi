@@ -13,6 +13,7 @@ import 'package:navivibe/features/online_fetch/logic/fetch_playlists.dart';
 import 'package:navivibe/models/playlist.dart';
 import 'package:navivibe/features/online_fetch/logic/online_fetch_providers.dart';
 import 'package:navivibe/features/online_fetch/ui/fetch_activity.dart';
+import 'package:navivibe/features/online_fetch/ui/search_online_row.dart';
 import 'package:navivibe/features/online_fetch/ui/send_playlist_sheet.dart';
 import 'package:navivibe/features/online_fetch/ui/widgets/fetch_candidate_row.dart';
 
@@ -566,6 +567,38 @@ void main() {
       expect(find.text('Download 1 New Song'), findsOneWidget);
       expect(find.text('In your library'), findsNWidgets(2));
       expect(find.byIcon(CupertinoIcons.arrow_down_circle), findsNothing);   // rows don't download one by one
+    });
+  });
+
+  group('no library results', () {
+    Future<void> pump(WidgetTester tester, {required bool online}) => tester.pumpWidget(ProviderScope(
+          key: UniqueKey(),
+          overrides: [onlineFetchEnabledProvider.overrideWith((ref) async => online)],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ThemeTokens(tokens: AppThemeTokens.fallback, child: const NoLibraryResults(query: 'kaavaalaa')),
+            ),
+          ),
+        ));
+
+    testWidgets('offers Search Online and, under it, Send a playlist link', (tester) async {
+      await pump(tester, online: true);
+      await tester.pump();
+      expect(find.text('No results for “kaavaalaa”'), findsOneWidget);
+      expect(find.text('Search Online'), findsOneWidget);
+      expect(find.text('Send a playlist link'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Send a playlist link')).dy,
+          greaterThan(tester.getTopLeft(find.text('Search Online')).dy));
+      await tester.tap(find.text('Send a playlist link'));
+      await tester.pumpAndSettle();
+      expect(find.text('Send a Playlist'), findsOneWidget);       // its sheet opened
+    });
+
+    testWidgets('without online search: neither action', (tester) async {
+      await pump(tester, online: false);
+      await tester.pump();
+      expect(find.text('Search Online'), findsNothing);
+      expect(find.text('Send a playlist link'), findsNothing);
     });
   });
 
