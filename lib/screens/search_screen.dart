@@ -7,7 +7,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../features/online_fetch/data/fetch_models.dart' show looksLikeLink;
 import '../features/online_fetch/logic/online_fetch_providers.dart';
-import '../features/online_fetch/ui/online_search_sheet.dart';
 import '../features/online_fetch/ui/search_online_row.dart';
 import '../features/online_fetch/ui/send_playlist_sheet.dart';
 import '../models/catalog.dart';
@@ -333,18 +332,7 @@ class _ResultsState extends ConsumerState<_Results> {
           ),
         );
       }
-      return SliverFillRemaining(
-        hasScrollBody: false,
-        child: MessageState(
-          icon: CupertinoIcons.search,
-          title: 'No results for “$query”',
-          message: online
-              ? 'It isn’t in your library. Search online to add it.'
-              : 'Check the spelling, or try an artist, album or song name.',
-          actionLabel: online ? 'Search Online' : null,
-          onAction: online ? () => showOnlineSearch(context, query) : null,
-        ),
-      );
+      return SliverFillRemaining(hasScrollBody: false, child: NoLibraryResults(query: query));
     }
 
     final svc = ref.read(subsonicServiceProvider);

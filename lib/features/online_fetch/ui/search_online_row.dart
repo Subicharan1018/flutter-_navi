@@ -3,10 +3,35 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
 import '../../../widgets/ui/media.dart';
+import '../../../widgets/ui/states.dart';
 import '../data/fetch_models.dart';
 import '../logic/online_fetch_providers.dart';
 import 'online_search_sheet.dart';
 import 'send_playlist_sheet.dart';
+
+/// Search found nothing in the library. With online search allowed: Search
+/// Online, and the other way in, "Send a playlist link" (the same two the
+/// row under results offers). A pasted link is handled before this.
+class NoLibraryResults extends ConsumerWidget {
+  final String query;
+  const NoLibraryResults({super.key, required this.query});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
+    return MessageState(
+      icon: CupertinoIcons.search,
+      title: 'No results for “$query”',
+      message: online
+          ? 'It isn’t in your library. Search online to add it.'
+          : 'Check the spelling, or try an artist, album or song name.',
+      actionLabel: online ? 'Search Online' : null,
+      onAction: online ? () => showOnlineSearch(context, query) : null,
+      secondaryLabel: online ? 'Send a playlist link' : null,
+      onSecondary: online ? () => showSendPlaylist(context) : null,
+    );
+  }
+}
 
 /// Under the library results: "Can't find it? Search online", and the other
 /// way in, "Send a playlist link". A pasted link goes straight to the latter.
