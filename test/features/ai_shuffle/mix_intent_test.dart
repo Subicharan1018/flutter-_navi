@@ -4,6 +4,7 @@ import 'package:navivibe/features/ai_shuffle/data/models/intent_response.dart';
 import 'package:navivibe/features/ai_shuffle/data/repositories/shuffle_exception.dart';
 import 'package:navivibe/features/ai_shuffle/logic/mix_intent_provider.dart';
 import 'package:navivibe/features/ai_shuffle/logic/shuffle_providers.dart';
+import 'package:navivibe/models/song.dart';
 
 import '../../helpers/reversing_shuffle_repository.dart';
 
@@ -68,6 +69,21 @@ void main() {
     final c = _container(_IntentRepo(const ShuffleNetworkError()));
     await c.read(mixIntentProvider.notifier).apply('calm tamil');
     expect(c.read(mixIntentProvider).error, contains('Cannot reach'));
+  });
+
+  test('a played mix stays on screen after its preview batches are cleared', () {
+    Song s(String t) =>
+        Song(id: t, title: t, artist: 'a', album: 'x', coverArt: '', duration: 100, track: 1, year: 2024);
+    final described = (songs: [s('Sad 1'), s('Sad 2')], missing: 1);
+    final normal = (songs: [s('Normal 1')], missing: 0);
+    // A described mix is previewed: its batches win.
+    expect(pickShownMix(hasPreview: true, fresh: described, pinned: null), described);
+    // The user taps a song: playback clears the batches and the screen would fall back to the normal mix...
+    expect(pickShownMix(hasPreview: false, fresh: normal, pinned: null), normal);
+    // ...so the mix they played is pinned and keeps being listed (with its own missing count).
+    expect(pickShownMix(hasPreview: false, fresh: normal, pinned: described), described);
+    // New previews (reshuffle, a new description) override the pin.
+    expect(pickShownMix(hasPreview: true, fresh: described, pinned: normal), described);
   });
 
   test('reset clears a described mix', () async {

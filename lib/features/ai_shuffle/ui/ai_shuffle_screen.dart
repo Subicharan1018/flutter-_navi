@@ -40,6 +40,9 @@ class AiShuffleScreen extends ConsumerStatefulWidget {
 class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   bool _applying = false;
 
+  /// The mix being played from this screen (see [pickShownMix]).
+  ShownMix? _pinned;
+
   @override
   void initState() {
     super.initState();
@@ -50,6 +53,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   /// reshuffle preview first so a stale batch never shows over the new
   /// picks. Only the preview: a mix that's already playing keeps its session.
   void _fetch([PredictMode? mode]) {
+    _pinned = null;
     ref.read(mixIntentProvider.notifier).reset(); // leaving a described mix
     ref.read(shuffleQueueProvider.notifier).clearPreview();
     ref.read(predictQueueProvider.notifier).fetchPredict(mode: mode ?? ref.read(predictQueueProvider).mode);
@@ -58,6 +62,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   /// New songs for the same moment: everything on screen is banned.
   Future<void> _reshuffle(List<Song> visible) async {
     HapticFeedback.selectionClick();
+    _pinned = null;
     // A described mix reshuffles within the songs that fit the description.
     final described = ref.read(mixIntentProvider).result?.candidates;
     try {
@@ -72,9 +77,13 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   }
 
   /// Plays the resolved mix from [start] and opens Now Playing.
-  Future<void> _play(List<Song> mix, {int start = 0}) async {
+  Future<void> _play(ShownMix shown, {int start = 0}) async {
+    final mix = shown.songs;
     if (_applying || mix.isEmpty) return;
-    setState(() => _applying = true);
+    setState(() {
+      _applying = true;
+      _pinned = shown; // starting playback clears the preview batches; keep listing this mix
+    });
     try {
       final shuffle = ref.read(shuffleQueueProvider.notifier);
       shuffle.clearQueue(); // drop preview batches before real playback
@@ -99,9 +108,14 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
     // After a reshuffle the /next batches are newest; otherwise /predict.
     final recs = shuffleState.batches.isNotEmpty ? shuffleState.allRecommendedSongs : predict.songs;
-    final resolver = RecommendationResolver(library);
-    final mix = resolver.resolveAll(recs);
-    final missing = recs.length - mix.length;
+    final resolved = RecommendationResolver(library).resolveAll(recs);
+    final shown = pickShownMix(
+      hasPreview: shuffleState.batches.isNotEmpty,
+      fresh: (songs: resolved, missing: recs.length - resolved.length),
+      pinned: _pinned,
+    );
+    final mix = shown.songs;
+    final missing = shown.missing;
     final starter = shuffleState.batches.map((b) => b.sessionStarter).whereType<SessionStarter>().firstOrNull;
     final loading = shuffleState.isLoading || predict.isLoading || syncing;
     final error = shuffleState.error ?? (predict.hasError ? predict.errorMessage : null);
@@ -130,7 +144,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               mode: predict.mode,
               mix: mix,
               busy: _applying || loading,
-              onPlay: mix.isEmpty ? null : () => _play(mix),
+              onPlay: mix.isEmpty ? null : () => _play(shown),
               onReshuffle: loading ? null : () => _reshuffle(mix),
             ),
           ),
@@ -168,7 +182,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           SliverFixedExtentList(
             itemExtent: SongTile.extent,
             delegate: SliverChildBuilderDelegate(
-              (context, i) => SongTile(song: mix[i], onTap: () => _play(mix, start: i)),
+              (context, i) => SongTile(song: mix[i], onTap: () => _play(shown, start: i)),
               childCount: mix.length,
             ),
           ),

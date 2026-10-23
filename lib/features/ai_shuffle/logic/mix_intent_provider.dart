@@ -1,8 +1,20 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../models/song.dart';
 import '../data/models/intent_response.dart';
 import '../data/repositories/shuffle_exception.dart';
 import 'shuffle_providers.dart';
+
+/// The mix the Smart Shuffle screen lists, and how many of its picks aren't in
+/// the library.
+typedef ShownMix = ({List<Song> songs, int missing});
+
+/// Which mix to show. Preview batches (a described mix, a reshuffle) win. Once
+/// playback starts they are cleared to begin a clean session, and the list must
+/// not fall back to the normal prediction under the listener's finger: it keeps
+/// the [pinned] mix they just played, until something refreshes the screen.
+ShownMix pickShownMix({required bool hasPreview, required ShownMix fresh, required ShownMix? pinned}) =>
+    hasPreview || pinned == null ? fresh : pinned;
 
 /// "Describe a mix" on the Smart Shuffle screen.
 class MixIntentState {
