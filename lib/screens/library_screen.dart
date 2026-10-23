@@ -18,6 +18,7 @@ import 'artist_screen.dart';
 import 'favorites_screen.dart';
 import 'library/albums_page.dart';
 import 'library/artists_page.dart';
+import 'library/composers_page.dart';
 import 'library/playlists_page.dart';
 import 'library/songs_page.dart';
 import 'playlist_details_screen.dart';
@@ -37,6 +38,7 @@ class LibraryScreen extends ConsumerWidget {
     final destinations = <(IconData, String, Widget)>[
       (CupertinoIcons.music_note_list, 'Playlists', const PlaylistsPage()),
       (CupertinoIcons.music_mic, 'Artists', const ArtistsPage()),
+      (CupertinoIcons.music_albums_fill, 'Composers', const ComposersPage()),
       (CupertinoIcons.square_stack, 'Albums', const AlbumsPage()),
       (CupertinoIcons.music_note, 'Songs', const SongsPage()),
       (CupertinoIcons.star, 'Favorites', const FavoritesScreen()),
