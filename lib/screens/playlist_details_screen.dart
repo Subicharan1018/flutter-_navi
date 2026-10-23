@@ -8,6 +8,7 @@ import '../features/smart_playlists/ui/smart_widgets.dart' show FolderMoveAction
 
 import '../core/motion.dart';
 import '../core/theme.dart';
+import '../models/composer.dart';
 import '../models/download_state.dart';
 import '../models/playlist.dart';
 import '../models/playlist_access.dart';
@@ -527,7 +528,7 @@ class _EditRow extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
-                  Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                  Text(songCreditLine(composer: song.composer, artist: song.artist), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                 ],
               ),
             ),
