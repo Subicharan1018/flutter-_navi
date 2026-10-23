@@ -20,6 +20,7 @@ import '../models/search_results.dart';
 import '../models/song.dart';
 import '../player/artwork.dart' show coverPaletteProvider;
 import '../providers/catalog_provider.dart';
+import '../providers/composer_provider.dart';
 import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/search_provider.dart';
@@ -40,6 +41,7 @@ import '../widgets/ui/states.dart';
 import 'album_details_screen.dart';
 import 'artist_screen.dart';
 import 'category_screen.dart';
+import 'library/composers_page.dart' show ComposerRow;
 
 /// Apple Music's Search: recent searches and Browse by genre while idle;
 /// Artists, Albums and Songs once you type.
@@ -375,6 +377,7 @@ class _ResultsState extends ConsumerState<_Results> {
     final query = widget.query;
     final onUsed = widget.onUsed;
     final results = ref.watch(searchProvider(query));
+    final composers = ref.watch(composerSearchProvider(query));
     if (results.asData?.value case final value?) _last = value;
     final data = results.isLoading ? _last : (results.asData?.value ?? SearchResults.empty);
 
@@ -396,14 +399,14 @@ class _ResultsState extends ConsumerState<_Results> {
       return const SliverToBoxAdapter(child: TrackListSkeleton());
     }
     final lyricMatches = ref.watch(lyricsSearchProvider(query)).asData?.value ?? const <LyricMatch>[];
-    if (data.isEmpty && (lyricMatches.isNotEmpty || onDevice.isNotEmpty)) {
+    if (data.isEmpty && composers.isEmpty && (lyricMatches.isNotEmpty || onDevice.isNotEmpty)) {
       return SliverMainAxisGroup(slivers: [
         LocalSearchSection(songs: onDevice, onUsed: onUsed),
         if (lyricMatches.isNotEmpty) _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),
         SliverToBoxAdapter(child: SearchOnlineRow(query: query)),
       ]);
     }
-    if (data.isEmpty) {
+    if (data.isEmpty && composers.isEmpty) {
       final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
       if (online && looksLikeLink(query)) {
         // A pasted playlist link: offer to send it rather than "no results".
@@ -478,6 +481,13 @@ class _ResultsState extends ConsumerState<_Results> {
             },
           ),
         ),
+      if (composers.isNotEmpty) ...[
+        const SliverToBoxAdapter(child: SectionHeader(title: 'Composers')),
+        SliverList.list(children: [
+          for (final (i, c) in composers.indexed)
+            ComposerRow(composer: c, showSeparator: i < composers.length - 1, onBeforeOpen: onUsed),
+        ]),
+      ],
       if (songs.isNotEmpty) ...[
         const SliverToBoxAdapter(child: SectionHeader(title: 'Songs')),
         if (useSongTable())

@@ -27,6 +27,7 @@ import 'artist_screen.dart';
 import 'favorites_screen.dart';
 import 'library/albums_page.dart';
 import 'library/artists_page.dart';
+import 'library/composers_page.dart';
 import 'library/playlists_page.dart';
 import 'library/songs_page.dart';
 import 'playlist_details_screen.dart';
@@ -55,6 +56,7 @@ class LibraryScreen extends ConsumerWidget {
     final destinations = <(NaviGlyph, String, Widget)>[
       if (!inSidebar) (NaviGlyph.playlist, 'Playlists', const PlaylistsPage()),
       (NaviGlyph.mic, 'Artists', const ArtistsPage()),
+      (NaviGlyph.edit, 'Composers', const ComposersPage()),
       if (!inSidebar) (NaviGlyph.stack, 'Albums', const AlbumsPage()),
       if (!inSidebar) (NaviGlyph.note, 'Songs', const SongsPage()),
       (NaviGlyph.star, 'Favorites', const FavoritesScreen()),
