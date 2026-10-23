@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
 import '../models/album.dart';
+import '../models/composer.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
 import '../providers/catalog_provider.dart';
@@ -12,6 +13,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/album_details_screen.dart';
 import '../screens/artist_screen.dart';
+import '../screens/composer_screen.dart';
 import 'add_to_playlist_dialog.dart';
 import 'app_scaffold.dart' show navigateInApp;
 import 'desktop_dialogs.dart';
@@ -62,10 +64,10 @@ class OptionsMenu extends ConsumerWidget {
       children: [
         SheetHeader(
           title: song.title,
-          subtitle: song.album.isEmpty ? song.artist : '${song.artist} — ${song.album}',
-          detail: catalogDetailLine(ref.watch(catalogSongProvider(song.id)), song),
+          subtitle: song.album.isEmpty ? song.artist : '${song.artist} — ${song.album}',          detail: catalogDetailLine(ref.watch(catalogSongProvider(song.id)), song),
           artUrl: service.getCoverArtUrl(song.coverArt),
         ),
+        _CreditRows(song: song, page: page),
         SheetGroup(children: [
           SheetAction(
             label: 'Play Next',
@@ -153,6 +155,35 @@ class OptionsMenu extends ConsumerWidget {
         const SizedBox(height: Space.sm),
       ],
     );
+  }
+}
+
+/// Composer (one row each, opening their page), lyricist and film as labelled
+/// rows under the sheet header. Nothing is drawn for a song with no credits.
+class _CreditRows extends ConsumerWidget {
+  final Song song;
+  final BuildContext page;
+  const _CreditRows({required this.song, required this.page});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final meta = ref.watch(catalogSongProvider(song.id));
+    final composerNames = splitComposers(song.composer.isNotEmpty ? song.composer : (meta?.composer ?? ''));
+    final lyricist = meta?.lyricist?.trim() ?? '';
+    // The header already names the album; the film is only news when it differs.
+    final rawFilm = meta?.film?.trim() ?? '';
+    final film = rawFilm.toLowerCase() == song.album.trim().toLowerCase() ? '' : rawFilm;
+    if (composerNames.isEmpty && lyricist.isEmpty && film.isEmpty) return const SizedBox.shrink();
+    return SheetGroup(children: [
+      for (final name in composerNames)
+        SheetInfoRow(
+          label: 'Composer',
+          value: name,
+          onTap: () => navigateInApp(page, ComposerScreen(composerKey: nameKey(name), name: name)),
+        ),
+      if (lyricist.isNotEmpty) SheetInfoRow(label: 'Lyricist', value: lyricist),
+      if (film.isNotEmpty) SheetInfoRow(label: 'Film', value: film),
+    ]);
   }
 }
 

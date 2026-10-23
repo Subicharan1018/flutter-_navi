@@ -153,6 +153,56 @@ class SheetAction extends StatelessWidget {
   }
 }
 
+/// A labelled fact in a sheet ("Composer" over a name). With [onTap] it is a
+/// link: it closes the sheet and shows a chevron.
+class SheetInfoRow extends StatelessWidget {
+  final String label;
+  final String value;
+  final VoidCallback? onTap;
+
+  const SheetInfoRow({super.key, required this.label, required this.value, this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Semantics(
+      button: onTap != null,
+      label: '$label, $value',
+      excludeSemantics: true,
+      child: InkWell(
+        onTap: onTap == null
+            ? null
+            : () {
+                HapticFeedback.selectionClick();
+                Navigator.of(context).pop();
+                onTap!();
+              },
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 50),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
+            child: Row(
+              children: [
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(label, style: t.footnote),
+                      Text(value, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.body),
+                    ],
+                  ),
+                ),
+                if (onTap != null) Icon(Icons.chevron_right_rounded, size: 22, color: t.textMuted),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
 /// One-of-many picker as a sheet: each option with an optional explanation,
 /// a checkmark on the current one. Returns the picked value, or null.
 Future<T?> showChoiceSheet<T>(

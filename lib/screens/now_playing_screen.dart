@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:marquee/marquee.dart';
 
 import '../core/theme.dart';
+import '../models/composer.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
 import '../player/artwork_field.dart';
@@ -395,7 +396,7 @@ class _Stage extends StatefulWidget {
 class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
   static const double _headerArt = 60;
   static const double _headerTop = 6;
-  static const double _titleH = 58;
+  static const double _titleH = 80; // title + composer + artist
   static const double _titleGap = 26;
 
   /// Space between covers in the carousel.
@@ -875,7 +876,12 @@ class _TitleRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final starred = ref.watch(playerProvider.select((s) => s.starredIds.contains(song.id)));
     final titleStyle = naviText(22, FontWeight.w700, Colors.white);
-    final artistStyle = naviText(19, FontWeight.w500, Colors.white.withValues(alpha: 0.68));
+    final composer = composerLineFor(song);
+    // The composer leads; singers sit quieter beneath it.
+    final composerStyle = naviText(18, FontWeight.w500, Colors.white.withValues(alpha: 0.82));
+    final artistStyle = composer == null
+        ? naviText(19, FontWeight.w500, Colors.white.withValues(alpha: 0.68))
+        : naviText(15, FontWeight.w400, Colors.white.withValues(alpha: 0.58));
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -886,6 +892,8 @@ class _TitleRow extends ConsumerWidget {
             children: [
               SizedBox(height: 28, child: _FittingTitle(text: song.title, style: titleStyle)),
               const SizedBox(height: 2),
+              if (composer != null)
+                Text(composer, maxLines: 1, overflow: TextOverflow.ellipsis, style: composerStyle),
               Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: artistStyle),
             ],
           ),
@@ -1155,8 +1163,8 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 440),
                         child: LayoutBuilder(builder: (context, c) {
-                          // Cover takes what the controls below leave (they need ~330dp).
-                          final art = math.max(160.0, math.min(c.maxWidth, c.maxHeight - 330));
+                          // Cover takes what the controls below leave (they need ~356dp with the composer line).
+                          final art = math.max(160.0, math.min(c.maxWidth, c.maxHeight - 356));
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [

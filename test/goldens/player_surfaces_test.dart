@@ -39,6 +39,7 @@ Song _song(String id, String title, String artist, {String suffix = 'flac', int 
       title: title,
       artist: artist,
       album: 'Album $id',
+      composer: 'Anirudh Ravichander',
       coverArt: id,
       duration: dur,
       track: 1,
