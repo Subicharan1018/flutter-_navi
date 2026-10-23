@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../models/composer.dart';
 import '../models/download_state.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -373,7 +374,7 @@ class _EditRow extends ConsumerWidget {
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
-                  Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                  Text(songCreditLine(composer: song.composer, artist: song.artist), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                 ],
               ),
             ),

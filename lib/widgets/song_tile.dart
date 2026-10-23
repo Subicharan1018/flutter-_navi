@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../models/composer.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
 import '../providers/catalog_provider.dart';
@@ -32,8 +33,7 @@ class SongTile extends ConsumerStatefulWidget {
   final bool showDuration;
   final bool showSeparator;
 
-  /// Albums hide the artist line unless a track's artist differs from the
-  /// album's, as Apple Music does.
+  /// Whether the second line (composer · artist) is shown.
   final bool showArtist;
 
   /// Kept for call sites that open a custom menu; defaults to the song menu.
@@ -118,7 +118,10 @@ class _SongTileState extends ConsumerState<SongTile> {
                   ),
           );
 
-    final artist = displayArtist(song, ref.watch(catalogSongProvider(song.id)));
+    final artist = songCreditLine(
+      composer: song.composer,
+      artist: displayArtist(song, ref.watch(catalogSongProvider(song.id))),
+    );
 
     return Semantics(
       button: true,

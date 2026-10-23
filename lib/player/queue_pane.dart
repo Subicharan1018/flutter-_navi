@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../core/theme.dart';
+import '../models/composer.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -490,7 +491,7 @@ class _QueueRow extends StatelessWidget {
                   ),
                   const SizedBox(height: 2),
                   Text(
-                    song.artist,
+                    songCreditLine(composer: song.composer, artist: song.artist),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: naviText(13, FontWeight.w400, style.textSecondary),

@@ -120,7 +120,7 @@ class AlbumDetailsScreen extends ConsumerWidget {
                   child: SongTile(
                     song: songs[i],
                     showArtwork: false,
-                    showArtist: songs[i].artist != full.artist,
+                    showArtist: songs[i].composer.isNotEmpty || songs[i].artist != full.artist,
                     trackNumber: songs[i].track > 0 ? songs[i].track : i + 1,
                     showDuration: PlatformUtils.isDesktop,
                     onTap: () => play(from: i),

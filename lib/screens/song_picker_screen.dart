@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../models/composer.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
@@ -168,7 +169,7 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                                   crossAxisAlignment: CrossAxisAlignment.start,
                                   children: [
                                     Text(s.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
-                                    Text(s.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                                    Text(songCreditLine(composer: s.composer, artist: s.artist), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                                   ],
                                 ),
                               ),

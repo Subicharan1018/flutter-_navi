@@ -117,7 +117,6 @@ class ArtistScreen extends ConsumerWidget {
               delegate: SliverChildBuilderDelegate(
                 (context, i) => SongTile(
                   song: top[i],
-                  showArtist: false,
                   onTap: () => ref.read(playerProvider.notifier).setQueue(top.take(5).toList(), i, playlistName: name),
                 ),
                 childCount: top.length.clamp(0, 5),
