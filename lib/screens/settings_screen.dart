@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../core/theme.dart';
+import '../widgets/last_error_row.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -149,6 +150,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final size = bytes == null ? '…' : ref.read(offlineServiceProvider).formatSize(bytes);
     final learned = ref.read(recommendationProvider).profiles.length;
     final version = ref.watch(_appVersionProvider).asData?.value ?? '';
+    final lastError = ref.watch(lastErrorProvider).asData?.value;
 
     return LargeTitlePage(
       title: 'Settings',
@@ -443,7 +445,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           GroupedSection(
             header: 'About',
-            children: [GroupedRow(title: 'Version', value: version)],
+            children: [
+              GroupedRow(title: 'Version', value: version),
+              if (lastError != null)
+                LastErrorRow(
+                  text: lastError,
+                  onCleared: () => ref.invalidate(lastErrorProvider),
+                ),
+            ],
           ),
         ]),
       ],

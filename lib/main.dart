@@ -17,6 +17,9 @@ import 'dart:async';
 import 'providers/settings_provider.dart';
 import 'offline_service.dart';
 import 'services/navi_audio_handler.dart';
+import 'services/android_integration.dart';
+import 'core/crash_log.dart';
+import 'providers/player_provider.dart';
 
 // ---------------------------------------------------------------------------
 // globalAudioHandler — the single NaviAudioHandler instance shared across
@@ -26,6 +29,7 @@ late final NaviAudioHandler globalAudioHandler;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  CrashLog.install();
 
   // MEM-OPT: Reduced from 40 MB / 100 items. Flutter's image cache holds
   // decoded RGBA bitmaps. At 60 items × ~100 KB average = ~6 MB retained.
@@ -49,6 +53,7 @@ Future<void> main() async {
   } catch (e, st) {
     // Offline songs just won't show as downloaded; the app must still open.
     debugPrint('⚠️  OfflineService.initialize failed ($e)\n$st');
+    CrashLog.record(e, st);
   }
 
   // ── Media kit: required on Linux / Windows for just_audio playback ─────────
@@ -99,11 +104,19 @@ Future<void> main() async {
     );
   } catch (e, st) {
     debugPrint('⚠️  AudioService.init failed ($e)\n$st');
+    CrashLog.record(e, st);
     globalAudioHandler = NaviAudioHandler(
       container.read(subsonicServiceProvider),
       transcodingService: container.read(transcodingProvider),
     );
   }
+
+  // Car / browse-tree playback goes through the same path as the UI.
+  globalAudioHandler.onPlaySongs = (songs, {bool shuffle = false, String? name}) =>
+      container
+          .read(playerProvider.notifier)
+          .playPlaylist(songs, shuffle: shuffle, playlistName: name);
+  AndroidIntegration.init(globalAudioHandler);
 
   // Compile the Now Playing artwork-field shader before it's first shown.
   unawaited(ArtworkField.precache());
