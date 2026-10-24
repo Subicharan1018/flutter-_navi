@@ -24,6 +24,12 @@ final offlineServiceProvider = Provider<OfflineService>((ref) {
   return OfflineService();
 });
 
+/// Bytes used by downloads; recomputed whenever the set of downloads changes.
+final downloadedBytesProvider = FutureProvider.autoDispose<int>((ref) {
+  ref.watch(downloadStateProvider.select((m) => m.length));
+  return ref.read(offlineServiceProvider).getDownloadedSize();
+});
+
 /// Provides the [Connectivity] instance used for pre-flight checks.
 /// Override in tests to avoid platform channel initialisation.
 final connectivityProvider = Provider<Connectivity>((ref) => Connectivity());
@@ -205,6 +211,13 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
     final updated = Map<String, SongDownloadState>.from(state);
     updated.remove(songId);
     state = updated;
+  }
+
+  /// Removes every downloaded file. Goes through the notifier so every
+  /// download badge and the Downloaded list update at once.
+  Future<void> deleteAll() async {
+    await ref.read(offlineServiceProvider).deleteAllDownloads();
+    state = const {};
   }
 
   // -------------------------------------------------------------------------

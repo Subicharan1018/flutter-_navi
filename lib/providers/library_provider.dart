@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -18,34 +20,20 @@ import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 // Metadata Caching helpers (using AppDatabase/Drift)
 // ---------------------------------------------------------------------------
 
-/// Looks up a cached song's cover art URL by title and artist.
-/// Returns null if not found in the local database.
-final songCoverUrlProvider = FutureProvider.autoDispose
-    .family<String?, String>((ref, key) async {
+/// Cover-art id for a song the stats server names by "title|artist", via the
+/// local mirror. Null when the song isn't in the library.
+final songCoverIdProvider = FutureProvider.autoDispose.family<String?, String>((ref, key) async {
   final parts = key.split('|');
   if (parts.length < 2) return null;
-  final title = parts[0];
-  final artist = parts[1];
+  final song = await resolveLibrarySong(ref.watch(appDatabaseProvider), parts[0], parts[1]);
+  if (song == null) return null;
+  return song.coverArt.isNotEmpty ? song.coverArt : song.id;
+});
 
-  final db = ref.watch(appDatabaseProvider);
-
-  // Try exact match first
-  var match = await (db.select(db.songMetadata)
-        ..where((t) => t.trackName.equals(title) & t.artistName.equals(artist))
-        ..limit(1))
-      .getSingleOrNull();
-
-  // Fallback to title-only match if exact match fails
-  match ??= await (db.select(db.songMetadata)
-        ..where((t) => t.trackName.equals(title))
-        ..limit(1))
-      .getSingleOrNull();
-
-  if (match != null) {
-    final coverId = match.songId;
-    return ref.read(subsonicServiceProvider).getCoverArtUrl(coverId);
-  }
-  return null;
+/// Cover-art URL for "title|artist" (see [songCoverIdProvider]).
+final songCoverUrlProvider = FutureProvider.autoDispose.family<String?, String>((ref, key) async {
+  final id = await ref.watch(songCoverIdProvider(key).future);
+  return id == null ? null : ref.read(subsonicServiceProvider).getCoverArtUrl(id);
 });
 
 /// Looks up a cover art URL to represent an *artist*, by finding any cached
@@ -94,6 +82,58 @@ Future<void> _cacheSongs(AppDatabase db, List<Song> songs) async {
   });
 }
 
+/// Resolves a stats-server entry (title + artist is all it reports) to a
+/// playable library [Song]. Exact title+artist first, then title alone.
+Future<Song?> resolveLibrarySong(AppDatabase db, String title, String artist) async {
+  var match = await (db.select(db.songMetadata)
+        ..where((t) => t.trackName.equals(title) & t.artistName.equals(artist))
+        ..limit(1))
+      .getSingleOrNull();
+  match ??= await (db.select(db.songMetadata)
+        ..where((t) => t.trackName.equals(title))
+        ..limit(1))
+      .getSingleOrNull();
+  return match == null ? null : songFromMetadata(match);
+}
+
+/// The one mapping from a cached `song_metadata` row to a [Song].
+Song songFromMetadata(SongMetadataEntity r) => Song(
+      id: r.songId,
+      title: r.trackName,
+      artist: r.artistName,
+      album: r.albumName,
+      duration: r.durationSec,
+      genre: r.genre ?? '',
+      composer: r.composer ?? '',
+      coverArt: r.songId,
+      track: 0,
+      year: r.year ?? 0,
+      playCount: r.playCount,
+      rating: r.rating,
+      starred: r.starred,
+      created: r.createdAt != null ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!) : null,
+    );
+
+/// After a complete sync: drop mirrored songs the server no longer has (a
+/// deleted file, or an id a server upgrade replaced), so they stop showing as
+/// unplayable duplicates. Guarded: an answer with under half the mirror is
+/// more likely a server hiccup than a mass deletion, and prunes nothing.
+Future<int> _pruneMissing(AppDatabase db, Set<String> seen) async {
+  final cached = await (db.selectOnly(db.songMetadata)..addColumns([db.songMetadata.songId]))
+      .map((r) => r.read(db.songMetadata.songId)!)
+      .get();
+  if (seen.isEmpty || seen.length < cached.length / 2) return 0;
+  final gone = cached.where((id) => !seen.contains(id)).toList();
+  for (var i = 0; i < gone.length; i += 500) {
+    final chunk = gone.sublist(i, math.min(i + 500, gone.length));
+    await (db.delete(db.songMetadata)..where((t) => t.songId.isIn(chunk))).go();
+  }
+  return gone.length;
+}
+
+@visibleForTesting
+Future<int> pruneMissingForTest(AppDatabase db, Set<String> seen) => _pruneMissing(db, seen);
+
 Future<List<Song>> _getCachedSongs(AppDatabase db) async {
   final rows = await db.select(db.songMetadata).get();
   return rows
@@ -120,11 +160,8 @@ Future<List<Song>> _getCachedSongs(AppDatabase db) async {
       .toList();
 }
 
+/// Library sections; keys the per-section sort preference and the song pager.
 enum LibraryFilter { allSongs, playlists, albums, downloaded }
-
-final libraryFilterProvider = StateProvider<LibraryFilter>(
-  (ref) => LibraryFilter.allSongs,
-);
 
 // ---------------------------------------------------------------------------
 // Connectivity-aware providers (Feature 3: Offline Mode)
@@ -147,26 +184,6 @@ final isOfflineProvider = Provider<bool>((ref) {
   );
 });
 
-/// Wraps [allSongsProvider] and filters to downloaded-only when offline.
-/// When online, returns the full song list unchanged.
-final offlineAwareSongsProvider = Provider.autoDispose<AsyncValue<List<Song>>>((ref) {
-  final isOffline = ref.watch(isOfflineProvider);
-  final allSongs = ref.watch(allSongsProvider);
-
-  if (!isOffline) return allSongs;
-
-  // When offline, filter to only downloaded songs.
-  final downloadState = ref.watch(downloadStateProvider);
-  final downloadedIds = downloadState.entries
-      .where((e) => e.value.status == SongDownloadStatus.downloaded)
-      .map((e) => e.key)
-      .toSet();
-
-  return allSongs.whenData(
-    (songs) => songs.where((s) => downloadedIds.contains(s.id)).toList(),
-  );
-});
-
 // MEM-OPT: Changed from keepAlive to autoDispose. The home screen data is
 // released when the user navigates away, preventing permanent retention.
 final recentlyPlayedAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
@@ -180,6 +197,9 @@ final recentlyPlayedAlbumsProvider = FutureProvider.autoDispose<List<Album>>((re
 /// Joins play_events with song_metadata, ordered by tsStart DESC,
 /// deduplicates by songId, and returns at most 30 results.
 final recentlyPlayedSongsProvider = FutureProvider<List<Song>>((ref) async {
+  // Play events can only be joined to titles once the mirror has them, so
+  // recompute as sync pages land (PlayerNotifier also invalidates on play).
+  ref.watch(librarySyncProvider.select((s) => s.revision));
   final db = ref.watch(appDatabaseProvider);
   // Fetch the 150 most-recent play events so we can de-duplicate by songId
   // down to 30 distinct tracks without a complex SQL window query.
@@ -283,52 +303,182 @@ final favoritesProvider =
       return service.getStarred();
     });
 
-DateTime? _lastRefreshTime;
+// ---------------------------------------------------------------------------
+// Library mirror sync
+// ---------------------------------------------------------------------------
 
-final allSongsProvider = FutureProvider.autoDispose<List<Song>>((ref) async {
+/// Progress of the full-library mirror into the local `song_metadata` table.
+/// [revision] bumps after every page lands so lists reading the mirror
+/// (All Songs, Song picker, Recently played) refresh while the first sync on
+/// a fresh install is still running.
+@immutable
+class LibrarySyncState {
+  final bool syncing;
+  final int synced;
+  final int revision;
+  final Object? error;
+
+  const LibrarySyncState({
+    this.syncing = false,
+    this.synced = 0,
+    this.revision = 0,
+    this.error,
+  });
+
+  LibrarySyncState copyWith({bool? syncing, int? synced, int? revision, Object? error, bool clearError = false}) =>
+      LibrarySyncState(
+        syncing: syncing ?? this.syncing,
+        synced: synced ?? this.synced,
+        revision: revision ?? this.revision,
+        error: clearError ? null : (error ?? this.error),
+      );
+}
+
+class LibrarySyncNotifier extends Notifier<LibrarySyncState> {
+  @override
+  LibrarySyncState build() => const LibrarySyncState();
+
+  void _start() => state = state.copyWith(syncing: true, synced: 0, clearError: true);
+  void _page(int count) =>
+      state = state.copyWith(synced: state.synced + count, revision: state.revision + 1);
+  void _done() => state = state.copyWith(syncing: false, revision: state.revision + 1);
+  void _failed(Object e) => state = state.copyWith(syncing: false, error: e);
+}
+
+final librarySyncProvider =
+    NotifierProvider<LibrarySyncNotifier, LibrarySyncState>(LibrarySyncNotifier.new);
+
+/// When the last *complete* sync finished — persisted so a cold start doesn't
+/// re-download every song's metadata.
+const _kLibrarySyncedAtMs = 'library_synced_at_ms';
+const _librarySyncInterval = Duration(hours: 6);
+
+DateTime? _lastSyncedAt() {
+  try {
+    final ms = HiveBoxes.prefs.get(_kLibrarySyncedAtMs);
+    return ms is int ? DateTime.fromMillisecondsSinceEpoch(ms) : null;
+  } catch (_) {
+    return null;
+  }
+}
+
+void _markSynced() {
+  try {
+    HiveBoxes.prefs.put(_kLibrarySyncedAtMs, DateTime.now().millisecondsSinceEpoch);
+  } catch (_) {}
+}
+
+/// Forget the last sync, so the next library load does a full one (used when
+/// the account changes).
+Future<void> resetLibrarySyncClock() async {
+  try {
+    await HiveBoxes.prefs.delete(_kLibrarySyncedAtMs);
+  } catch (_) {}
+}
+
+/// A song that just arrived on the server (Search online): load it, add it to
+/// the local mirror and refresh the library lists now, instead of waiting up
+/// to [_librarySyncInterval] for the next full sync. Returns the song so the
+/// caller can play it or add it to a playlist.
+Future<Song> mirrorNewSong(Ref ref, String songId) async => (await mirrorNewSongs(ref, [songId])).single;
+
+/// [mirrorNewSong] for a whole album or playlist that just arrived: one
+/// mirror write and one list refresh for all of them.
+Future<List<Song>> mirrorNewSongs(Ref ref, List<String> songIds) async {
+  final svc = ref.read(subsonicServiceProvider);
+  final songs = [for (final id in songIds) await svc.getSong(id)];
+  await _cacheSongs(ref.read(appDatabaseProvider), songs);
+  ref.invalidate(allSongsProvider);
+  return songs;
+}
+
+bool _syncInFlight = false;
+
+/// The whole library, mirrored into `song_metadata`.
+///
+/// Keep-alive on purpose: AI Shuffle and Now Playing `ref.read(.future)` it
+/// without listening, and on a fresh install the first sync is a long
+/// multi-page fetch — an autoDispose provider was torn down mid-await, so the
+/// sync never finished and every list built on the mirror stayed empty.
+final allSongsProvider = FutureProvider<List<Song>>((ref) async {
   final settings = ref.watch(settingsProvider);
   if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
 
   final db = ref.watch(appDatabaseProvider);
   final service = ref.watch(subsonicServiceProvider);
+  final progress = ref.read(librarySyncProvider.notifier);
 
-  Future<void> fetchAndSyncSongs() async {
-    const chunkSize = 500;
-    int offset = 0;
-    while (true) {
-      final chunk = await service.getAllSongs(size: chunkSize, offset: offset);
-      if (chunk.isEmpty) break;
-      await _cacheSongs(db, chunk);
-      if (chunk.length < chunkSize) break;
-      offset += chunkSize;
+  Future<void> fetchAndSync() async {
+    const pageSize = 500;
+    const maxPages = 2000; // 1M songs: a misbehaving server can't spin forever
+    String? previousFirstId;
+    final seen = <String>{};
+    var complete = false;
+    progress._start();
+    try {
+      for (var page = 0, offset = 0; page < maxPages; page++) {
+        final chunk = await service.getAllSongs(size: pageSize, offset: offset);
+        if (chunk.isEmpty) {
+          complete = true;
+          break;
+        }
+        // A server that ignores songOffset returns the same page every time.
+        if (chunk.first.id == previousFirstId) break;
+        previousFirstId = chunk.first.id;
+        await _cacheSongs(db, chunk);
+        seen.addAll(chunk.map((s) => s.id));
+        progress._page(chunk.length);
+        if (chunk.length < pageSize) {
+          complete = true;
+          break;
+        }
+        offset += pageSize;
+      }
+      if (complete) await _pruneMissing(db, seen);
+      _markSynced();
+      progress._done();
+    } catch (e) {
+      progress._failed(e);
+      rethrow;
     }
   }
 
   final cached = await _getCachedSongs(db);
-  final now = DateTime.now();
-  final shouldRefresh = _lastRefreshTime == null ||
-      now.difference(_lastRefreshTime!) > const Duration(minutes: 5);
+  final last = _lastSyncedAt();
+  final stale = last == null || DateTime.now().difference(last) > _librarySyncInterval;
 
   if (cached.isNotEmpty) {
-    if (shouldRefresh) {
-      _lastRefreshTime = now;
-      fetchAndSyncSongs()
+    if (stale && !_syncInFlight) {
+      _syncInFlight = true;
+      fetchAndSync()
           .then((_) {
-            ref.invalidateSelf();
+            if (ref.mounted) ref.invalidateSelf();
           })
           .catchError((_) {
-            // Background refresh failed — stale cache is still valid.
-          });
+            // Background refresh failed — the cached mirror is still valid.
+          })
+          .whenComplete(() => _syncInFlight = false);
     }
     _sortSongsByCreated(cached);
     return cached;
   }
 
-  await fetchAndSyncSongs();
-  _lastRefreshTime = DateTime.now();
+  _syncInFlight = true;
+  try {
+    await fetchAndSync();
+  } finally {
+    _syncInFlight = false;
+  }
   final fresh = await _getCachedSongs(db);
   _sortSongsByCreated(fresh);
   return fresh;
+});
+
+/// Newest albums on the server — Library's "Recently Added" grid.
+final recentlyAddedAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
+  final settings = ref.watch(settingsProvider);
+  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
+  return ref.watch(subsonicServiceProvider).getAlbumList(type: 'newest', size: 24);
 });
 
 // MEM-OPT: autoDispose — library albums only held while the albums tab is open.
@@ -337,33 +487,6 @@ final libraryAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) asyn
   if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
   final service = ref.watch(subsonicServiceProvider);
   return service.getAlbums(size: 1000);
-});
-
-final filteredLibraryProvider = Provider<AsyncValue<List<dynamic>>>((ref) {
-  final filter = ref.watch(libraryFilterProvider);
-
-  switch (filter) {
-    case LibraryFilter.allSongs:
-      // Use offline-aware provider: filters to downloaded-only when offline.
-      return ref.watch(offlineAwareSongsProvider);
-    case LibraryFilter.playlists:
-      return ref.watch(playlistsProvider);
-    case LibraryFilter.albums:
-      return ref.watch(libraryAlbumsProvider);
-    case LibraryFilter.downloaded:
-      // Show downloaded songs explicitly when the user picks this filter.
-      final downloadState = ref.watch(downloadStateProvider);
-      final downloadedIds = downloadState.entries
-          .where((e) => e.value.status == SongDownloadStatus.downloaded)
-          .map((e) => e.key)
-          .toSet();
-      return ref
-          .watch(allSongsProvider)
-          .whenData(
-            (songs) =>
-                songs.where((s) => downloadedIds.contains(s.id)).toList(),
-          );
-  }
 });
 
 List<Song> _sortSongsByCreated(List<Song> songs) {
@@ -379,28 +502,6 @@ List<Song> _sortSongsByCreated(List<Song> songs) {
 // ---------------------------------------------------------------------------
 // Sort comparators (pure top-level functions — safe to call from isolates)
 // ---------------------------------------------------------------------------
-
-int _compareDatesAsc(DateTime? a, DateTime? b) {
-  if (a == null && b == null) return 0;
-  if (a == null) return 1; // nulls sort last
-  if (b == null) return -1;
-  return a.compareTo(b);
-}
-
-int _sortCompareSong(Song a, Song b, LibrarySortPreference pref) {
-  final cmp = switch (pref.field) {
-    LibrarySortField.name => a.title.toLowerCase().compareTo(
-      b.title.toLowerCase(),
-    ),
-    LibrarySortField.recentlyAdded => _compareDatesAsc(a.created, b.created),
-    LibrarySortField.playCount => a.playCount.compareTo(b.playCount),
-    LibrarySortField.duration => a.duration.compareTo(b.duration),
-    LibrarySortField.artistName => a.artist.toLowerCase().compareTo(
-      b.artist.toLowerCase(),
-    ),
-  };
-  return pref.direction == LibrarySortDirection.asc ? cmp : -cmp;
-}
 
 int _sortCompareAlbum(Album a, Album b, LibrarySortPreference pref) {
   final cmp = switch (pref.field) {
@@ -494,42 +595,8 @@ final librarySortProvider =
 // ---------------------------------------------------------------------------
 // Typed sorted providers
 // Each wraps its corresponding data provider and applies the active sort pref.
-// The `downloaded` filter re-uses the `allSongs` sort key explicitly.
+// Songs are sorted in SQL by the paginator instead.
 // ---------------------------------------------------------------------------
-
-/// Sorted songs — used by allSongs and downloaded tabs.
-/// The caller is responsible for passing the correctly-filtered song list via
-/// [offlineAwareSongsProvider] (allSongs) or the downloaded filter (downloaded).
-final sortedSongsProvider = Provider<AsyncValue<List<Song>>>((ref) {
-  final sortPrefs = ref.watch(librarySortProvider);
-  final filter = ref.watch(libraryFilterProvider);
-  // downloaded has no own key — explicitly falls back to allSongs pref
-  final effectiveSection = filter == LibraryFilter.downloaded
-      ? LibraryFilter.allSongs
-      : filter;
-  final pref = sortPrefs[effectiveSection] ?? const LibrarySortPreference();
-
-  final AsyncValue<List<Song>> source;
-  if (filter == LibraryFilter.downloaded) {
-    final downloadState = ref.watch(downloadStateProvider);
-    final downloadedIds = downloadState.entries
-        .where((e) => e.value.status == SongDownloadStatus.downloaded)
-        .map((e) => e.key)
-        .toSet();
-    source = ref
-        .watch(allSongsProvider)
-        .whenData(
-          (s) => s.where((song) => downloadedIds.contains(song.id)).toList(),
-        );
-  } else {
-    source = ref.watch(offlineAwareSongsProvider);
-  }
-
-  return source.whenData((songs) {
-    final sorted = [...songs]..sort((a, b) => _sortCompareSong(a, b, pref));
-    return sorted;
-  });
-});
 
 /// Sorted albums.
 final sortedAlbumsProvider = Provider<AsyncValue<List<Album>>>((ref) {
@@ -560,20 +627,25 @@ class PlaylistController {
   final Ref ref;
   PlaylistController(this.ref);
 
-  Future<void> createAndAdd(String name, String songId) async {
+  /// Creates a playlist and returns it. Uses the server's echo when it has
+  /// one; older servers are asked for the list directly (not through the
+  /// autoDispose [playlistsProvider], which could be torn down mid-await).
+  Future<Playlist> create(String name) async {
     final service = ref.read(subsonicServiceProvider);
-    await service.createPlaylist(name);
-
+    final created = await service.createPlaylist(name) ??
+        (await service.getPlaylists()).lastWhere(
+          (p) => p.name == name,
+          orElse: () => throw Exception('Playlist not found after creation'),
+        );
     ref.invalidate(playlistsProvider);
-    final playlists = await ref.read(playlistsProvider.future);
+    return created;
+  }
 
-    final newPlaylist = playlists.firstWhere(
-      (p) => p.name == name,
-      orElse: () => throw Exception('Playlist not found after creation'),
-    );
-    await service.updatePlaylist(newPlaylist.id, songIdToAdd: songId);
-
-    ref.invalidate(songsInPlaylistProvider(newPlaylist.id));
+  Future<void> createAndAdd(String name, String songId) async {
+    final playlist = await create(name);
+    await ref.read(subsonicServiceProvider).updatePlaylist(playlist.id, songIdToAdd: songId);
+    ref.invalidate(songsInPlaylistProvider(playlist.id));
+    ref.invalidate(playlistsProvider);
   }
 
   Future<int> batchUpdate({
@@ -694,6 +766,17 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
         loadNextPage(isRefresh: true);
       });
     }
+
+    // While the library mirror is filling (first sync on a fresh install),
+    // a list that was empty or short reloads its first page as songs land; a
+    // list the user has scrolled keeps its place and just re-enables paging.
+    ref.listen(librarySyncProvider.select((s) => s.revision), (prev, next) {
+      if (state.songs.length < pageSize) {
+        loadNextPage(isRefresh: true);
+      } else if (!state.hasMore) {
+        state = state.copyWith(hasMore: true);
+      }
+    });
 
     // Schedule initial load
     Future.microtask(() => loadNextPage(isRefresh: true));

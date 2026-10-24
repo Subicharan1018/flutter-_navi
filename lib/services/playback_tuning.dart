@@ -5,7 +5,25 @@ import '../models/song.dart';
 /// Pure maths for ReplayGain, crossfade and playback speed. Kept free of
 /// player and Flutter dependencies so it can be unit tested directly.
 
-enum ReplayGainMode { off, track, album }
+enum ReplayGainMode {
+  off,
+  track,
+  album;
+
+  String get label => switch (this) {
+        off => 'Off',
+        track => 'Track',
+        album => 'Album',
+      };
+
+  String get summary => switch (this) {
+        off => 'Songs play at their original loudness.',
+        track => 'Evens out loudness song to song. Quiet songs are never boosted past full volume.',
+        album => 'Keeps the loudness balance within an album and evens out between albums.',
+      };
+}
+
+String crossfadeLabel(int seconds) => seconds == 0 ? 'Off' : '$seconds s';
 
 const double kMinPlaybackSpeed = 0.5;
 const double kMaxPlaybackSpeed = 2.0;

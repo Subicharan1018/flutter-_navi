@@ -10,6 +10,7 @@ import '../core/theme.dart';
 import '../lyrics/controllers/lyrics_controller.dart';
 import '../lyrics/models/lyric_line.dart';
 import '../providers/player_provider.dart';
+import 'edge_fade.dart';
 import 'now_playing_style.dart';
 
 /// Time-synced lyrics in the Apple manner: big, bold, left-aligned lines; the
@@ -119,15 +120,9 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
     return NotificationListener<UserScrollNotification>(
       key: const ValueKey('synced'),
       onNotification: _onUserScroll,
-      child: ShaderMask(
-        // Soft fade at both edges instead of hard clipping.
-        shaderCallback: (r) => const LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color(0x00FFFFFF), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
-          stops: [0, 0.07, 0.86, 1],
-        ).createShader(r),
-        blendMode: BlendMode.dstIn,
+      child: EdgeFade(
+        top: 0.07,
+        bottom: 0.14,
         child: SingleChildScrollView(
           controller: _scroll,
           physics: const BouncingScrollPhysics(),

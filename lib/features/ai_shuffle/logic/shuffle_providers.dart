@@ -253,6 +253,13 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
     await _repo.postImpressions(shown: shown, played: played);
   }
 
+  /// Drops preview batches (what the Smart Shuffle screen shows) without
+  /// touching the playback session, so browsing the screen while a mix plays
+  /// never ends that mix's feedback session.
+  void clearPreview() {
+    state = state.copyWith(batches: const [], isLoading: false);
+  }
+
   /// Clears the queue and resets all session tracking.
   /// Call initSession() after this to begin a new session.
   void clearQueue() {
@@ -276,10 +283,14 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
   /// The resulting batch REPLACES state.batches (not appended).
   /// Fetches a fresh batch with reshuffle:true.
   ///
-  /// [excludedTitlesOverride] — when provided (by [PlayerNotifier.reshuffleActiveQueue]),
+  /// [excludedTitlesOverride] — when provided (by [PlayerNotifier.smartReshuffle]),
   /// these titles are sent as the ban list instead of the preview batch in
   /// state.batches.  The state update (batches replacement) is skipped when
   /// called this way so the preview UI is left unchanged.
+  ///
+  /// [visibleTitles] — preview calls only: titles on screen that didn't come
+  /// from a /next batch (the /predict picks), banned too so a reshuffle
+  /// always shows new songs.
   Future<List<RecommendedSong>> reshuffle({
     String source = 'smart',
     String? playlistId,
@@ -288,11 +299,15 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
     int genreStreakCount = 0,
     List<String> candidates = const [],
     List<String>? excludedTitlesOverride,
+    List<String> visibleTitles = const [],
   }) async {
     // When called from the preview UI, ban titles the user can currently see.
     // When called from PlayerNotifier, ban the active playback queue instead.
     final excludedTitles = excludedTitlesOverride ??
-        state.batches.expand((b) => b.queue).map((s) => s.title).toList();
+        {
+          ...visibleTitles,
+          ...state.batches.expand((b) => b.queue).map((s) => s.title),
+        }.toList();
 
     final isPreviewCall = excludedTitlesOverride == null;
 

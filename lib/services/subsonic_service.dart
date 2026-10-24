@@ -6,23 +6,20 @@ import 'dart:math';
 import 'package:flutter/foundation.dart';
 import 'package:crypto/crypto.dart';
 import 'package:http/http.dart' as http;
-import 'package:http_parser/http_parser.dart';
 import '../core/constants.dart';
 import '../core/app_exception.dart';
 import '../core/hive_boxes.dart';
 import '../models/song.dart';
 import '../models/album.dart';
+import '../models/artist.dart';
 import '../models/playlist.dart';
+import '../models/search_results.dart';
 import 'playlist_cache_service.dart';
 
 class SubsonicService {
   final String serverUrl;
   final String username;
   final String password;
-  final String? customUploadUrl;
-  final String? customUploadDir;
-  final String? webdavUsername;
-  final String? webdavPassword;
   final http.Client _client;
 
   /// SQLite-backed persistent playlist cache (injected by the provider).
@@ -52,18 +49,12 @@ class SubsonicService {
   late final String _coverArtSalt;
   late final String _coverArtToken;
 
-  static const int _webDavMaxAttempts = 3;
-
   SubsonicService({
     required String serverUrl,
     required this.username,
     required this.password,
     required PlaylistCacheService cache,
     http.Client? client,
-    this.customUploadUrl,
-    this.customUploadDir,
-    this.webdavUsername,
-    this.webdavPassword,
   }) : serverUrl = _normalizeServerUrl(serverUrl),
        _cache = cache,
        _client = client ?? http.Client() {
@@ -276,6 +267,10 @@ class SubsonicService {
   // Auth / Connectivity
   // ---------------------------------------------------------------------------
 
+  /// Checks the server and credentials, letting the typed [AppException]
+  /// through (AuthException, NetworkException, …) so sign-in can say which.
+  Future<void> verifyCredentials() => _get('ping.view');
+
   Future<bool> ping() async {
     try {
       await _get('ping.view');
@@ -309,26 +304,32 @@ class SubsonicService {
   // Song library
   // ---------------------------------------------------------------------------
 
-  Future<List<Song>> getAllSongs({int size = 5000, int offset = 0}) async {
-    // BUG-29: Song.fromJson mapping moved to background isolate.
-    // BUG-31: in-memory cache removed — Riverpod allSongsProvider.keepAlive()
-    //         is the authoritative cache.
-    try {
+  /// One page of the whole library, for full-library sync.
+  ///
+  /// Uses an **empty** search3 query — the "browse all" contract Navidrome,
+  /// Gonic, Ampache and LMS implement for offline-sync clients — with `*`
+  /// only as a fallback for servers that return nothing for it.
+  ///
+  /// The page is returned as-is: a short or empty page is what ends the
+  /// caller's pagination. (A former fallback to getRandomSongs() for pages of
+  /// ≤10 songs turned the last page into 500 random songs, so a fresh install
+  /// never finished syncing.)
+  Future<List<Song>> getAllSongs({int size = 500, int offset = 0}) async {
+    Future<List<Song>> page(String query) async {
       final res = await _get('search3.view', {
-        'query': '*',
+        'query': query,
         'songCount': size.toString(),
         'songOffset': offset.toString(),
+        'artistCount': '0',
+        'albumCount': '0',
       });
-      final searchResult = _getMap(res, 'searchResult3');
-      final rawList = _getList(searchResult, 'song');
-      // Parse 5000 Song objects on a background isolate.
-      final songs = await compute(_parseSongList, rawList);
-      if (songs.length > 10) return songs;
-    } catch (e) {
-      debugPrint('Wildcard search failed: $e');
+      final rawList = _getList(_getMap(res, 'searchResult3'), 'song');
+      return compute(_parseSongList, rawList); // parse off the UI isolate
     }
 
-    return getRandomSongs(size: size);
+    final songs = await page('');
+    if (songs.isNotEmpty || offset > 0) return songs;
+    return page('*');
   }
 
   Future<List<Song>> getRandomSongs({int size = 50}) async {
@@ -433,10 +434,36 @@ class SubsonicService {
         .toList();
   }
 
-  Future<List<Song>> getAlbum(String id) async {
+  Future<List<Song>> getAlbum(String id) async => (await getAlbumDetails(id)).songs;
+
+  /// The album's full record (artist id, year, genre) together with its
+  /// tracks — pages opened from a song only know the album's id and name.
+  Future<({Album album, List<Song> songs})> getAlbumDetails(String id) async {
     final res = await _get('getAlbum.view', {'id': id});
-    final songs = _getList(_getMap(res, 'album'), 'song');
-    return songs
+    final map = _getMap(res, 'album');
+    final songs = _getList(map, 'song')
+        .whereType<Map>()
+        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
+        .toList();
+    return (album: Album.fromJson(map), songs: songs);
+  }
+
+  /// Every album by one artist, newest first.
+  Future<List<Album>> getArtistAlbums(String artistId) async {
+    final res = await _get('getArtist.view', {'id': artistId});
+    final albums = _getList(_getMap(res, 'artist'), 'album')
+        .whereType<Map>()
+        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
+        .toList()
+      ..sort((a, b) => b.year.compareTo(a.year));
+    return albums;
+  }
+
+  /// The artist's most played songs, as ranked by the server (Navidrome uses
+  /// Last.fm data when configured; empty otherwise).
+  Future<List<Song>> getTopSongs(String artistName, {int count = 10}) async {
+    final res = await _get('getTopSongs.view', {'artist': artistName, 'count': '$count'});
+    return _getList(_getMap(res, 'topSongs'), 'song')
         .whereType<Map>()
         .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
         .toList();
@@ -575,9 +602,13 @@ class SubsonicService {
   /// Call this after adding or removing songs so the next open re-fetches.
   Future<void> invalidatePlaylist(String id) => _cache.invalidate(id);
 
-  Future<void> createPlaylist(String name) async {
-    await _get('createPlaylist.view', {'name': name});
-    // Playlist list is owned by playlistsProvider — callers invalidate via ref.invalidate(playlistsProvider).
+  /// Creates a playlist and returns it when the server echoes it back
+  /// (Subsonic API 1.14+, Navidrome); null on older servers.
+  /// Playlist list is owned by playlistsProvider — callers invalidate it.
+  Future<Playlist?> createPlaylist(String name) async {
+    final res = await _get('createPlaylist.view', {'name': name});
+    final map = _getMap(res, 'playlist');
+    return map.isEmpty ? null : Playlist.fromJson(map);
   }
 
   Future<void> deletePlaylist(String id) async {
@@ -639,12 +670,6 @@ class SubsonicService {
   }
 
   Future<void> setPlaylistImage(String playlistId, File imageFile) async {
-    if (customUploadUrl != null && customUploadUrl!.isNotEmpty) {
-      final extension = imageFile.path.split('.').last.toLowerCase();
-      await _webDavUpload(imageFile, 'playlist_$playlistId.$extension');
-      return;
-    }
-
     final salt = _generateSalt();
     final token = _generateToken(salt);
 
@@ -675,25 +700,41 @@ class SubsonicService {
   // Search
   // ---------------------------------------------------------------------------
 
-  Future<Map<String, List<dynamic>>> search(String query) async {
-    final res = await _get('search3.view', {'query': query});
-    final searchResult = _getMap(res, 'searchResult3');
-    final songs = _getList(searchResult, 'song')
+  Future<SearchResults> search(String query) async {
+    final res = await _get('search3.view', {
+      'query': query,
+      'artistCount': '10',
+      'albumCount': '20',
+      'songCount': '50',
+    });
+    final r = _getMap(res, 'searchResult3');
+    List<T> parse<T>(String key, T Function(Map<String, dynamic>) f) =>
+        _getList(r, key).whereType<Map>().map((e) => f(Map<String, dynamic>.from(e))).toList();
+    return SearchResults(
+      artists: parse('artist', Artist.fromJson),
+      albums: parse('album', Album.fromJson),
+      songs: parse('song', Song.fromJson),
+    );
+  }
+
+  /// All genres, largest first.
+  Future<List<Genre>> getGenres() async {
+    final res = await _get('getGenres.view');
+    return _getList(_getMap(res, 'genres'), 'genre')
         .whereType<Map>()
-        .map((e) => Song.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
-    final albums = _getList(searchResult, 'album')
+        .map((e) => Genre.fromJson(Map<String, dynamic>.from(e)))
+        .where((g) => g.name.isNotEmpty)
+        .toList()
+      ..sort((a, b) => b.albumCount.compareTo(a.albumCount));
+  }
+
+  /// Albums tagged with [genre].
+  Future<List<Album>> getAlbumsByGenre(String genre, {int size = 200}) async {
+    final res = await _get('getAlbumList2.view', {'type': 'byGenre', 'genre': genre, 'size': '$size'});
+    return _getList(_getMap(res, 'albumList2'), 'album')
         .whereType<Map>()
         .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
         .toList();
-    final artists = _getList(searchResult, 'artist')
-        .whereType<Map>()
-        .map((e) {
-          final m = Map<String, dynamic>.from(e);
-          return m['name']?.toString() ?? '';
-        })
-        .toList();
-    return {'songs': songs, 'albums': albums, 'artists': artists};
   }
 
   // ---------------------------------------------------------------------------
@@ -785,207 +826,6 @@ class SubsonicService {
   }
 
   // ---------------------------------------------------------------------------
-  // File upload
-  // ---------------------------------------------------------------------------
-
-  Future<void> uploadSong(File file) async {
-    if (customUploadUrl != null && customUploadUrl!.isNotEmpty) {
-      final fileName = Uri.file(file.path).pathSegments.last;
-      await _webDavUpload(file, fileName);
-      return;
-    }
-
-    final salt = _generateSalt();
-    final token = _generateToken(salt);
-
-    final uri = Uri.parse('$serverUrl/upload.view');
-    final request = http.MultipartRequest('POST', uri);
-
-    request.fields.addAll({
-      'u': username,
-      't': token,
-      's': salt,
-      'v': Constants.apiVersion,
-      'c': Constants.defaultClient,
-      'f': 'json',
-    });
-
-    request.files.add(
-      await http.MultipartFile.fromPath(
-        'file',
-        file.path,
-        contentType: MediaType('audio', 'mpeg'),
-      ),
-    );
-
-    final response = await request.send();
-    if (response.statusCode != 200) {
-      throw Exception('Upload failed with status ${response.statusCode}');
-    }
-  }
-
-  Future<void> uploadTextToWebDav({
-    required String remoteFileName,
-    required String contents,
-    String contentType = 'text/csv; charset=utf-8',
-  }) async {
-    if (customUploadUrl == null || customUploadUrl!.isEmpty) {
-      throw Exception('WebDAV upload URL is not configured');
-    }
-
-    await _webDavUploadText(remoteFileName, contents, contentType: contentType);
-  }
-
-  // ---------------------------------------------------------------------------
-  // WebDAV Upload
-  // ---------------------------------------------------------------------------
-
-  Uri _buildWebDavUploadUri(String targetFileName) {
-    final baseUri = Uri.parse(
-      customUploadUrl!.trim().replaceAll(RegExp(r'/+$'), ''),
-    );
-
-    final remoteDir =
-        (customUploadDir == null || customUploadDir!.trim().isEmpty)
-        ? '/DATA/Media/Music'
-        : customUploadDir!.trim();
-
-    final normalizedDir = remoteDir.startsWith('/') ? remoteDir : '/$remoteDir';
-    final dirSegments = normalizedDir
-        .split('/')
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-    final fileSegments = targetFileName
-        .split('/')
-        .where((segment) => segment.isNotEmpty)
-        .toList(growable: false);
-
-    return baseUri.replace(
-      pathSegments: <String>[
-        ...baseUri.pathSegments.where((segment) => segment.isNotEmpty),
-        ...dirSegments,
-        ...fileSegments,
-      ],
-    );
-  }
-
-  bool _isRetryableWebDavStatus(int statusCode) {
-    return statusCode == 408 ||
-        statusCode == 425 ||
-        statusCode == 429 ||
-        statusCode >= 500;
-  }
-
-  Future<void> _webDavUploadText(
-    String targetFileName,
-    String contents, {
-    String contentType = 'text/csv; charset=utf-8',
-  }) async {
-    final bytes = utf8.encode(contents);
-    await _webDavUploadStream(
-      targetFileName: targetFileName,
-      bodyStreamFactory: () => Stream<List<int>>.value(bytes),
-      contentLength: bytes.length,
-      contentType: contentType,
-    );
-  }
-
-  Future<void> _webDavUploadStream({
-    required String targetFileName,
-    required Stream<List<int>> Function() bodyStreamFactory,
-    required int contentLength,
-    required String contentType,
-  }) async {
-    final uri = _buildWebDavUploadUri(targetFileName);
-
-    if (webdavUsername == null ||
-        webdavUsername!.isEmpty ||
-        webdavPassword == null ||
-        webdavPassword!.isEmpty) {
-      throw const AuthException();
-    }
-
-    final webdavUser = webdavUsername!;
-    final webdavPass = webdavPassword!;
-    final auth = base64Encode(utf8.encode('$webdavUser:$webdavPass'));
-
-    Object? lastError;
-    for (var attempt = 1; attempt <= _webDavMaxAttempts; attempt++) {
-      final request = http.StreamedRequest('PUT', uri)
-        ..headers.addAll({
-          'Authorization': 'Basic $auth',
-          'Content-Type': contentType,
-          'Content-Length': contentLength.toString(),
-        })
-        ..persistentConnection = true
-        ..followRedirects = false;
-
-      try {
-        final responseFuture = _client.send(request);
-
-        try {
-          await request.sink.addStream(bodyStreamFactory());
-        } finally {
-          await request.sink.close();
-        }
-
-        final streamedResponse = await responseFuture;
-        debugPrint(
-          'Upload(WebDAV): Response status: ${streamedResponse.statusCode}',
-        );
-
-        if (streamedResponse.statusCode == 200 ||
-            streamedResponse.statusCode == 201 ||
-            streamedResponse.statusCode == 204) {
-          return;
-        }
-
-        final body = await streamedResponse.stream.bytesToString();
-        debugPrint('Upload(WebDAV): Response body: $body');
-
-        if (_isRetryableWebDavStatus(streamedResponse.statusCode) &&
-            attempt < _webDavMaxAttempts) {
-          lastError = Exception(
-            'WebDAV upload failed (${streamedResponse.statusCode}): $body',
-          );
-        } else {
-          throw Exception(
-            'WebDAV upload failed (${streamedResponse.statusCode}): $body',
-          );
-        }
-      } on dart_io.SocketException catch (e) {
-        lastError = e;
-      } on dart_async.TimeoutException catch (e) {
-        lastError = e;
-      }
-
-      if (attempt < _webDavMaxAttempts) {
-        await dart_async.Future<void>.delayed(
-          Duration(milliseconds: 250 * attempt),
-        );
-      }
-    }
-
-    throw Exception(
-      'WebDAV upload failed after $_webDavMaxAttempts attempts: '
-      '$lastError',
-    );
-  }
-
-  Future<void> _webDavUpload(File file, String targetFileName) async {
-    if (!await file.exists()) {
-      throw Exception('WebDAV upload failed: file does not exist');
-    }
-
-    await _webDavUploadStream(
-      targetFileName: targetFileName,
-      bodyStreamFactory: () => file.openRead(),
-      contentLength: await file.length(),
-      contentType: 'application/octet-stream',
-    );
-  }
-
-  // ---------------------------------------------------------------------------
   // Cache invalidation helpers (call after mutations if needed)
   // ---------------------------------------------------------------------------
 
@@ -1000,12 +840,6 @@ class SubsonicService {
   /// Play history cache is owned by recentlyPlayedAlbumsProvider.keepAlive();
   /// call ref.invalidate(recentlyPlayedAlbumsProvider) to force a refresh.
   void invalidatePlayHistory() {}
-
-  /// Exposes the shared HTTP client for reuse by co-located services
-  /// (e.g. [ListeningLogService]).
-  ///
-  /// **Do NOT close this client** — [SubsonicService.dispose] owns its lifecycle.
-  http.Client get client => _client;
 
   // BUG-3: close the http.Client to release socket connections.
   void dispose() {

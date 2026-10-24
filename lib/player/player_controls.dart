@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../core/theme.dart';
 import '../models/song.dart';
+import '../widgets/ui/ion.dart';
 
 // =============================================================================
 // Shared playback controls. Every control here takes its colours as
@@ -456,17 +457,48 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// Transport — rewind · play/pause · forward. Play/pause morphs between its
-// two glyphs instead of swapping icons.
+// Transport — rewind · play/pause · forward, in Ionicons. Play/pause swaps
+// its glyphs with a quick scale-and-fade.
 // ─────────────────────────────────────────────────────────────────────────────
 
-class TransportControls extends StatefulWidget {
+/// Play or pause, cross-fading with a slight scale as it changes.
+class PlayPauseGlyph extends StatelessWidget {
+  final bool playing;
+  final double size;
+  final Color color;
+  const PlayPauseGlyph({super.key, required this.playing, required this.size, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 200),
+      switchInCurve: Curves.easeOutBack,
+      switchOutCurve: Curves.easeInCubic,
+      transitionBuilder: (child, a) => FadeTransition(
+        opacity: a,
+        child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: child),
+      ),
+      child: IonIcon(
+        playing ? Ion.pause : Ion.play,
+        key: ValueKey(playing),
+        size: size,
+        color: color,
+      ),
+    );
+  }
+}
+
+class TransportControls extends StatelessWidget {
   final bool playing;
   final VoidCallback onPlayPause;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
   final Color color;
   final double scale; // 1.0 = phone Now Playing
+
+  /// Optional mode buttons either side (shuffle / repeat on Now Playing).
+  final Widget? leading;
+  final Widget? trailing;
 
   const TransportControls({
     super.key,
@@ -476,62 +508,42 @@ class TransportControls extends StatefulWidget {
     required this.onNext,
     this.color = Colors.white,
     this.scale = 1,
+    this.leading,
+    this.trailing,
   });
 
   @override
-  State<TransportControls> createState() => _TransportControlsState();
-}
-
-class _TransportControlsState extends State<TransportControls> with SingleTickerProviderStateMixin {
-  late final AnimationController _morph = AnimationController(
-    vsync: this,
-    duration: const Duration(milliseconds: 260),
-    value: widget.playing ? 1 : 0,
-  );
-
-  @override
-  void didUpdateWidget(TransportControls old) {
-    super.didUpdateWidget(old);
-    if (old.playing != widget.playing) {
-      widget.playing ? _morph.forward() : _morph.reverse();
-    }
-  }
-
-  @override
-  void dispose() {
-    _morph.dispose();
-    super.dispose();
-  }
-
-  @override
   Widget build(BuildContext context) {
-    final s = widget.scale;
+    final s = scale;
+    // With shuffle/repeat either side, tighten the transport hit areas (not
+    // the glyphs) so all five fit a 360 dp phone: 48+60+76+60+48 = 292.
+    final flanked = leading != null || trailing != null;
+    final skipBox = (flanked ? 60.0 : 72.0) * s;
+    final playBox = (flanked ? 76.0 : 84.0) * s;
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment:
+          flanked ? MainAxisAlignment.spaceBetween : MainAxisAlignment.spaceEvenly,
       children: [
+        ?leading,
         GlyphButton(
-          size: 72 * s,
+          size: skipBox,
           semanticLabel: 'Previous',
-          onTap: widget.onPrevious,
-          child: Icon(Icons.fast_rewind_rounded, size: 44 * s, color: widget.color),
+          onTap: onPrevious,
+          child: IonIcon(Ion.playBack, size: 42 * s, color: color),
         ),
         GlyphButton(
-          size: 84 * s,
-          semanticLabel: widget.playing ? 'Pause' : 'Play',
-          onTap: widget.onPlayPause,
-          child: AnimatedIcon(
-            icon: AnimatedIcons.play_pause,
-            progress: _morph,
-            size: 58 * s,
-            color: widget.color,
-          ),
+          size: playBox,
+          semanticLabel: playing ? 'Pause' : 'Play',
+          onTap: onPlayPause,
+          child: PlayPauseGlyph(playing: playing, size: 56 * s, color: color),
         ),
         GlyphButton(
-          size: 72 * s,
+          size: skipBox,
           semanticLabel: 'Next',
-          onTap: widget.onNext,
-          child: Icon(Icons.fast_forward_rounded, size: 44 * s, color: widget.color),
+          onTap: onNext,
+          child: IonIcon(Ion.playForward, size: 42 * s, color: color),
         ),
+        ?trailing,
       ],
     );
   }
@@ -589,7 +601,7 @@ class _VolumeBarState extends State<VolumeBar> {
       children: [
         GestureDetector(
           onTap: () => _set(0),
-          child: Icon(Icons.volume_mute_rounded, size: 20, color: widget.iconColor),
+          child: IonIcon(Ion.volumeLow, size: 18, color: widget.iconColor),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -605,16 +617,20 @@ class _VolumeBarState extends State<VolumeBar> {
         const SizedBox(width: 10),
         GestureDetector(
           onTap: () => _set(1),
-          child: Icon(Icons.volume_up_rounded, size: 20, color: widget.iconColor),
+          child: IonIcon(Ion.volumeHigh, size: 18, color: widget.iconColor),
         ),
       ],
     );
   }
 }
 
-/// Small frosted circle holding a secondary action (favourite, more).
+/// Secondary action on the artwork (favourite, more): a plain glyph with a
+/// full-size hit area — no translucent disc behind it.
 class GlassCircleButton extends StatelessWidget {
-  final IconData icon;
+  final IconData? icon;
+
+  /// Ionicons glyph, drawn instead of [icon].
+  final Ion? ion;
   final VoidCallback onTap;
   final String semanticLabel;
   final Color? iconColor;
@@ -622,25 +638,31 @@ class GlassCircleButton extends StatelessWidget {
 
   const GlassCircleButton({
     super.key,
-    required this.icon,
+    this.icon,
+    this.ion,
     required this.onTap,
     required this.semanticLabel,
     this.iconColor,
     this.diameter = 34,
-  });
+  }) : assert(icon != null || ion != null);
 
   @override
   Widget build(BuildContext context) {
+    final color = iconColor ?? Colors.white;
+    final size = diameter * 0.7;
     return GlyphButton(
       size: 48,
       semanticLabel: semanticLabel,
       onTap: onTap,
       pressColor: const Color(0x00FFFFFF),
-      child: Container(
-        width: diameter,
-        height: diameter,
-        decoration: const BoxDecoration(shape: BoxShape.circle, color: Color(0x26FFFFFF)),
-        child: Icon(icon, size: diameter * 0.56, color: iconColor ?? Colors.white),
+      // A glyph that changes (☆ → ★) pops in, so the state change reads.
+      child: AnimatedSwitcher(
+        duration: const Duration(milliseconds: 240),
+        switchInCurve: Curves.easeOutBack,
+        transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
+        child: ion != null
+            ? IonIcon(ion!, key: ValueKey(ion), size: size, color: color)
+            : Icon(icon, key: ValueKey(icon), size: size, color: color),
       ),
     );
   }

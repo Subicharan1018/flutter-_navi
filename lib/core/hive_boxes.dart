@@ -31,13 +31,7 @@ class HiveBoxes {
   static Future<void> init() async {
     await Hive.initFlutter();
 
-    // Secure encryption for sensitive data (credentials)
-    final encryptionKey = await _getEncryptionKey();
-
-    auth = await Hive.openBox(
-      _authBox,
-      encryptionCipher: HiveAesCipher(encryptionKey),
-    );
+    auth = await _openAuthBox();
     session = await Hive.openBox(_sessionBox);
     prefs = await Hive.openBox(_prefsBox);
     audio = await Hive.openBox(_audioBox);
@@ -45,17 +39,52 @@ class HiveBoxes {
 
     // One-time migration from SharedPreferences → Hive
     await _migrateFromSharedPreferences();
+    await _dropRetiredKeys();
   }
+
+  /// Settings of removed features (WebDAV upload, scheduled Replay upload).
+  /// Deleting a key that isn't there writes nothing, so this is free after
+  /// the first launch; it also takes the old WebDAV password off the device.
+  static Future<void> _dropRetiredKeys() async {
+    try {
+      await auth.deleteAll(const ['webdavUsername', 'webdavPassword']);
+      await prefs.deleteAll(const [
+        'webdavUrl',
+        'uploadDirectory',
+        'analytics_upload_schedule',
+        'analytics_last_upload',
+      ]);
+    } catch (e) {
+      debugPrint('[Hive] ❌ Dropping retired keys: $e');
+    }
+  }
+
+  /// Credentials box, encrypted with a key kept in the Android Keystore.
+  /// On some phones the Keystore entry becomes unreadable (restored backup,
+  /// OS update, a security-chip reset) and reading it throws; that used to end
+  /// the app before the first screen. Then the unreadable box is dropped and
+  /// recreated: the user signs in again instead of the app closing.
+  static Future<Box> _openAuthBox() async {
+    try {
+      return await Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(await _getEncryptionKey()));
+    } catch (e) {
+      debugPrint('[Hive] ❌ Credentials box unreadable, recreating it: $e');
+      await Hive.deleteBoxFromDisk(_authBox);
+      try {
+        await const FlutterSecureStorage().delete(key: _keyName);
+      } catch (_) {}
+      return Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(await _getEncryptionKey()));
+    }
+  }
+
+  static const _keyName = 'hive_encryption_key';
 
   static Future<List<int>> _getEncryptionKey() async {
     const storage = FlutterSecureStorage();
-    final encodedKey = await storage.read(key: 'hive_encryption_key');
+    final encodedKey = await storage.read(key: _keyName);
     if (encodedKey == null) {
       final key = Hive.generateSecureKey();
-      await storage.write(
-        key: 'hive_encryption_key',
-        value: base64UrlEncode(key),
-      );
+      await storage.write(key: _keyName, value: base64UrlEncode(key));
       return key;
     }
     return base64Url.decode(encodedKey);
@@ -67,8 +96,6 @@ class HiveBoxes {
   static const kServerUrl = 'serverUrl';
   static const kUsername = 'username';
   static const kPassword = 'password';
-  static const kWebdavUsername = 'webdavUsername';
-  static const kWebdavPassword = 'webdavPassword';
 
   // ---------------------------------------------------------------------------
   // Session keys
@@ -83,11 +110,7 @@ class HiveBoxes {
   static const kShuffleAlgorithm = 'shuffleAlgorithm';
   static const kShufflePreference = 'shufflePreference';
   static const kAutoplayPreference = 'autoplay_enabled';
-  static const kWebdavUrl = 'webdavUrl';
-  static const kUploadDirectory = 'uploadDirectory';
   static const kDataCollectionEnabled = 'dataCollectionEnabled';
-  static const kAnalyticsUploadSchedule = 'analytics_upload_schedule';
-  static const kAnalyticsLastUpload = 'analytics_last_upload';
   static const kThemeMode = 'theme_mode';
   static const kMeshGradientEnabled = 'mesh_gradient_enabled';
   static const kImageCacheEnabled = 'cache_images_enabled';
@@ -134,26 +157,11 @@ class HiveBoxes {
       // Prefs
       await _migrateString(sp, 'shuffleAlgorithm', prefs, kShuffleAlgorithm);
       await _migrateString(sp, 'shufflePreference', prefs, kShufflePreference);
-      await _migrateString(sp, 'webdavUrl', prefs, kWebdavUrl);
-
-      await _migrateString(sp, 'uploadDirectory', prefs, kUploadDirectory);
       await _migrateBool(
         sp,
         'dataCollectionEnabled',
         prefs,
         kDataCollectionEnabled,
-      );
-      await _migrateString(
-        sp,
-        'analytics_upload_schedule',
-        prefs,
-        kAnalyticsUploadSchedule,
-      );
-      await _migrateString(
-        sp,
-        'analytics_last_upload',
-        prefs,
-        kAnalyticsLastUpload,
       );
       await _migrateBool(sp, 'cache_images_enabled', prefs, kImageCacheEnabled);
       await _migrateBool(sp, 'cache_music_enabled', prefs, kMusicCacheEnabled);

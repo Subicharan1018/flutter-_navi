@@ -1,0 +1,47 @@
+<!doctype html>
+<html><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{width:390px;height:844px;overflow:hidden;background:#0B0B0B;color:#F4F4F4;font-family:Inter,sans-serif}
+.status{height:47px}
+h1{font-size:34px;font-weight:700;padding:8px 16px 0;letter-spacing:-.6px}
+.board{margin:18px 16px 0;background:#141414;border-radius:10px;padding:14px 12px}
+.bh{display:flex;justify-content:space-between;font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:13px;letter-spacing:.16em;color:#8A8A8A;margin-bottom:10px}
+.r{display:flex;align-items:center;gap:10px;height:44px;border-top:1px solid #222}
+.lamp{width:8px;height:8px;border-radius:50%;background:#333}
+.r.now .lamp{background:#30D158}.r.next .lamp{background:#F2A93B}
+.cells{display:flex;gap:2px;flex:1;overflow:hidden}
+.cells span{width:16px;height:28px;background:#1E1E1E;border-radius:2px;display:flex;align-items:center;justify-content:center;font-family:'Barlow Condensed',sans-serif;font-weight:800;font-size:20px;position:relative}
+.cells span::after{content:"";position:absolute;left:0;right:0;top:50%;height:1px;background:#0B0B0B}
+.time{font-family:'Barlow Condensed',sans-serif;font-weight:700;font-size:18px;color:#F2A93B;width:48px;text-align:right}
+.r.now .time{color:#30D158}
+.sec{display:flex;justify-content:space-between;padding:22px 16px 10px}.sec h2{font-size:19px;font-weight:700}
+.shelf{display:flex;gap:12px;padding:0 16px}
+.alb .c{width:140px;height:140px;border-radius:6px}.alb .n{font-size:13px;font-weight:600;margin-top:7px}.alb .a{font-size:12px;color:#8A8A8A}
+.mini{position:absolute;left:16px;right:16px;bottom:100px;height:58px;border-radius:29px;background:#1A1A1A;display:flex;align-items:center;padding:0 16px 0 8px;gap:12px}
+.mini .c{width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#4FB89A,#123F33)}
+.mini b{font-size:15px;display:block}.mini span{font-size:12.5px;color:#8A8A8A}.mini .ctl{margin-left:auto;font-size:20px;letter-spacing:10px}
+.tabs{position:absolute;left:16px;right:88px;bottom:28px;height:62px;border-radius:31px;background:#141414;display:flex;align-items:center;padding:4px}
+.tab{flex:1;height:54px;border-radius:27px;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10.5px;gap:4px}
+.tab i{width:20px;height:20px;border:2px solid currentColor;border-radius:5px}.tab.on{background:#222;color:#30D158}
+.search{position:absolute;right:16px;bottom:28px;width:62px;height:62px;border-radius:50%;background:#141414}
+</style></head><body>
+<div class="status"></div>
+<h1>Home</h1>
+<div class="board">
+ <div class="bh"><span>UP NEXT</span><span>IN</span></div>
+ <div class="r now"><div class="lamp"></div><div class="cells"><span>T</span><span>H</span><span>A</span><span>N</span><span>I</span><span>Y</span><span>E</span></div><div class="time">NOW</div></div>
+ <div class="r next"><div class="lamp"></div><div class="cells"><span>M</span><span>I</span><span>D</span><span>N</span><span>I</span><span>G</span><span>H</span><span>T</span><span> </span><span>C</span><span>I</span><span>T</span><span>Y</span></div><div class="time">2:46</div></div>
+ <div class="r"><div class="lamp"></div><div class="cells"><span>K</span><span>A</span><span>N</span><span>N</span><span>U</span><span>K</span><span>U</span><span>L</span><span>L</span><span>A</span></div><div class="time">6:49</div></div>
+</div>
+<div class="sec"><h2>Recently Played</h2><span>›</span></div>
+<div class="shelf">
+ <div class="alb"><div class="c" style="background:linear-gradient(135deg,#5C86C9,#1E2A6B)"></div><div class="n">Hurry Up, We’re…</div><div class="a">M83</div></div>
+ <div class="alb"><div class="c" style="background:linear-gradient(135deg,#D8B04F,#4D3A12)"></div><div class="n">Short n’ Sweet</div><div class="a">Sabrina Carpenter</div></div>
+ <div class="alb"><div class="c" style="background:linear-gradient(135deg,#4FB89A,#123F33)"></div><div class="n">Vidaamuyarchi</div><div class="a">Anirudh</div></div>
+</div>
+<div class="mini"><div class="c"></div><div><b>Thaniye</b><span>Anirudh Ravichander</span></div><div class="ctl">❚❚ ▶▶</div></div>
+<div class="tabs"><div class="tab on"><i></i>Home</div><div class="tab"><i></i>Shuffle</div><div class="tab"><i></i>Stats</div><div class="tab"><i></i>Library</div></div>
+<div class="search"></div>
+</body></html>

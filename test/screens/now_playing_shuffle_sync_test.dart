@@ -27,6 +27,7 @@ import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:navivibe/core/hive_boxes.dart';
+import 'package:navivibe/features/ai_shuffle/logic/shuffle_providers.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart' hide PlayerState;
 import 'package:navivibe/providers/settings_provider.dart';
@@ -34,6 +35,8 @@ import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
+
+import '../helpers/reversing_shuffle_repository.dart';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -190,8 +193,8 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
   Future<void> dispose() async {}
 }
 
-/// TestAudioHandler simulates a Smart Local shuffle by reversing the future
-/// queue — deterministic enough for assertions.
+/// Test handler: mirrors the controlled player's index onto mediaItem. The
+/// Smart Local order itself comes from [ReversingShuffleRepository].
 class TestAudioHandler extends NaviAudioHandler {
   TestAudioHandler(super.subsonicService, {super.player}) {
     player.currentIndexStream.listen((index) {
@@ -216,16 +219,12 @@ class TestAudioHandler extends NaviAudioHandler {
   }) async {
     currentQueue = List<Song>.from(songs);
   }
-
-  Future<List<Song>?> computeSmartLocalOrder({
-    required Song currentSong,
-    required List<Song> future,
-    String? contextName,
-  }) async {
-    // Deterministic: reverse the future slice.
-    return future.reversed.toList();
-  }
 }
+
+/// A reshuffle keeps the playing song playing and moves it to the front of
+/// the new order; this is the index the guard must hold.
+int _anchorIndex(ProviderContainer c, String songId) =>
+    c.read(playerProvider).queue.indexWhere((s) => s.id == songId);
 
 // ---------------------------------------------------------------------------
 // Test setup
@@ -298,6 +297,7 @@ void main() {
         audioHandlerProvider.overrideWithValue(handler),
         subsonicServiceProvider.overrideWithValue(mockService),
         listenerCollectorProvider.overrideWithValue(mockCollector),
+        shuffleRepositoryProvider.overrideWithValue(ReversingShuffleRepository()),
       ],
     );
 
@@ -316,8 +316,8 @@ void main() {
   group('BUG-004 — NowPlayingScreen UI Sync (provider layer)', () {
     // ── Test A ───────────────────────────────────────────────────────────────
     // Core regression: reshuffle must keep currentIndex on the anchor song
-    // even when just_audio emits a transient index=0 immediately after.
-    test('currentSong unchanged after reshuffle + transient index=0', () async {
+    // even when just_audio emits a stale pre-reorder index immediately after.
+    test('currentSong unchanged after reshuffle + transient stale index', () async {
       final (container, notifier, mockPlayer) = await buildContainer();
       addTearDown(container.dispose);
 
@@ -338,18 +338,18 @@ void main() {
 
       // Reshuffle (Smart Local path).
       await notifier.applyShuffleAlgorithm();
+      final anchor = _anchorIndex(container, '3');
 
-      // just_audio emits a transient 0 immediately after move-based reorder.
-      await mockPlayer.emitCurrentIndex(0);
+      // just_audio emits the stale pre-reorder index right after the reorder.
+      await mockPlayer.emitCurrentIndex(2);
       await Future.delayed(const Duration(milliseconds: 10));
 
-      // UI must NOT jump to index 0.
+      // UI must NOT jump to whatever song now sits at that stale index.
       final stateAfterTransient = container.read(playerProvider);
       expect(
         stateAfterTransient.currentIndex,
-        2,
-        reason:
-            'Transient index=0 from just_audio must be suppressed by the guard',
+        anchor,
+        reason: 'A transient index from just_audio must be suppressed by the guard',
       );
       expect(
         stateAfterTransient.currentSong?.id,
@@ -379,23 +379,20 @@ void main() {
       await Future.delayed(const Duration(milliseconds: 50));
 
       await notifier.applyShuffleAlgorithm();
+      final anchor = _anchorIndex(container, '3');
 
       // Wait for guard timer to fully expire (> 500ms).
       await Future.delayed(const Duration(milliseconds: 600));
 
       // Confirm correct state after guard expires.
-      expect(container.read(playerProvider).currentIndex, 2);
+      expect(container.read(playerProvider).currentIndex, anchor);
       expect(container.read(playerProvider).currentSong?.id, '3');
 
-      // Post-guard transient emission: simulate an out-of-order 0 from just_audio.
-      // Because _lastKnownIndex is now synced to 2, index=0 should be treated
-      // as a real track change (prevIndex=2, index=0 — different songs), which
-      // the handler accepts. This is correct behaviour: after the guard window
-      // the player state IS the source of truth and a genuine track change to
-      // index 0 should be honoured.
+      // After the guard window the player state IS the source of truth, so a
+      // later index change would be honoured as a genuine track change.
       //
-      // What must NOT happen: state.currentIndex jumping to 0 DURING the guard
-      // window (covered by Test A above).
+      // What must NOT happen: state.currentIndex jumping off the anchor DURING
+      // the guard window (covered by Test A above).
       //
       // This test verifies the state is correct at guard expiry, not that a
       // post-guard emission is suppressed (it shouldn't be — the guard is gone).
@@ -429,23 +426,21 @@ void main() {
         await Future.delayed(const Duration(milliseconds: 50));
 
         await notifier.applyShuffleAlgorithm();
+        final anchor = _anchorIndex(container, '3');
 
         // Emit the correct index early (before 500ms timer).
-        await mockPlayer.emitCurrentIndex(2);
+        await mockPlayer.emitCurrentIndex(anchor);
         await Future.delayed(const Duration(milliseconds: 20));
 
-        expect(container.read(playerProvider).currentIndex, 2);
+        // The guard cleared on the early match and the anchor held.
+        expect(container.read(playerProvider).currentIndex, anchor);
         expect(container.read(playerProvider).currentSong?.id, '3');
 
-        // Emit transient 0 AFTER the guard has already cleared via early match.
-        await mockPlayer.emitCurrentIndex(0);
+        // After the early clear, stream events are live again: a later index
+        // change is accepted as a genuine track change (the guard is gone).
+        await mockPlayer.emitCurrentIndex(anchor + 1);
         await Future.delayed(const Duration(milliseconds: 10));
-
-        // After early clear, stream events are live again. Index=0 is accepted as
-        // a legitimate change (this is correct — guard is gone). The important
-        // guarantee is that the currentIndex was correctly 2 before this point.
-        // We verify the anchor was correctly maintained at the moment of early clear.
-        // (State after the subsequent 0 emission is not constrained here.)
+        expect(container.read(playerProvider).currentIndex, anchor + 1);
       },
     );
 

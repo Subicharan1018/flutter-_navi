@@ -1,18 +1,44 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import '../models/song.dart';
-import '../models/download_state.dart';
-import '../providers/player_provider.dart';
-import '../providers/download_provider.dart';
-import '../core/theme.dart';
-import 'add_to_playlist_dialog.dart';
 
+import '../core/theme.dart';
+import '../models/album.dart';
+import '../models/download_state.dart';
+import '../models/song.dart';
+import '../providers/catalog_provider.dart';
+import '../providers/download_provider.dart';
+import '../providers/player_provider.dart';
+import '../providers/settings_provider.dart';
+import '../screens/album_details_screen.dart';
+import '../screens/artist_screen.dart';
+import 'add_to_playlist_dialog.dart';
+import 'app_scaffold.dart' show navigateInApp;
+import 'desktop_dialogs.dart';
+import 'ui/action_sheet.dart';
+
+/// Opens the song context menu. Pass [playlistId] + [onRemoveFromPlaylist]
+/// when the song is shown inside a playlist.
+Future<void> showSongActions(
+  BuildContext context,
+  Song song, {
+  String? playlistId,
+  VoidCallback? onRemoveFromPlaylist,
+}) =>
+    showPlatformSheet(
+      context: context,
+      builder: (_) => OptionsMenu(
+        song: song,
+        playlistId: playlistId,
+        onRemoveFromPlaylist: onRemoveFromPlaylist,
+      ),
+    );
+
+/// The song context menu: queue actions, library actions, Smart Shuffle
+/// feedback. Every action confirms with a short toast.
 class OptionsMenu extends ConsumerWidget {
   final Song song;
   final String? playlistId;
-
-  /// Called when the user confirms "Remove from Playlist".
-  /// Provide this when [playlistId] is non-null (e.g. from PlaylistDetailsScreen).
   final VoidCallback? onRemoveFromPlaylist;
 
   const OptionsMenu({
@@ -24,441 +50,167 @@ class OptionsMenu extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    return Container(
-      decoration: BoxDecoration(
-        color: ThemeTokens.of(context).bgSurface,
-        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-      ),
-      child: SafeArea(
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            // Handle
-            SizedBox(height: 12),
-            Container(
-              width: 36,
-              height: 5,
-              decoration: BoxDecoration(
-                color: ThemeTokens.of(
-                  context,
-                ).textPrimary.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(4),
-              ),
-            ),
-            SizedBox(height: 12),
+    final player = ref.read(playerProvider.notifier);
+    final service = ref.read(subsonicServiceProvider);
+    // Actions run after the sheet closes, so they act through the page's
+    // context (captured here), not the sheet's.
+    final page = Navigator.of(context).context;
+    final starred = ref.watch(playerProvider.select((s) => s.starredIds.contains(song.id)));
 
-            // Song info header
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          song.title,
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textPrimary,
-                            fontSize: 15,
-                            fontWeight: FontWeight.bold,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                        SizedBox(height: 2),
-                        Text(
-                          song.artist,
-                          style: TextStyle(
-                            color: ThemeTokens.of(context).textMuted,
-                            fontSize: 13,
-                          ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
-            ),
-
-            Divider(
-              color: ThemeTokens.of(context).outline,
-              indent: 24,
-              endIndent: 24,
-            ),
-
-            // Play Next
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 4,
-              ),
-              leading: Icon(
-                Icons.playlist_play_rounded,
-                color: ThemeTokens.of(context).textPrimary,
-                size: 24,
-              ),
-              title: Text(
-                'Play Next',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: () {
-                ref.read(playerProvider.notifier).insertNext(song);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Playing next')));
-              },
-            ),
-
-            // Add to Queue
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 4,
-              ),
-              leading: Icon(
-                Icons.queue_music_rounded,
-                color: ThemeTokens.of(context).textPrimary,
-                size: 24,
-              ),
-              title: Text(
-                'Add to Queue',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: () {
-                ref.read(playerProvider.notifier).addToQueue(song);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(
-                  context,
-                ).showSnackBar(const SnackBar(content: Text('Added to queue')));
-              },
-            ),
-
-            // ----------------------------------------------------------------
-            // Download for Offline Playback — driven by downloadStateProvider
-            // ----------------------------------------------------------------
-            Consumer(
-              builder: (context, ref, _) {
-                final dlState = ref.watch(
-                  downloadStateProvider.select((m) => m[song.id]),
-                );
-                final status =
-                    dlState?.status ?? SongDownloadStatus.notDownloaded;
-                final progress = dlState?.progress ?? 0.0;
-                final tokens = ThemeTokens.of(context);
-
-                Widget leadingWidget;
-                String titleText;
-                VoidCallback? onTapAction;
-
-                switch (status) {
-                  case SongDownloadStatus.notDownloaded:
-                    leadingWidget = Icon(
-                      Icons.download_rounded,
-                      color: tokens.textPrimary,
-                      size: 24,
-                    );
-                    titleText = 'Download';
-                    onTapAction = () async {
-                      // Fire-and-forget; menu stays open so user sees progress.
-                      ref
-                          .read(downloadStateProvider.notifier)
-                          .downloadSong(song);
-                      // BUG-2 FIX: Give a brief window for the pre-flight
-                      // check to resolve, then show a snackbar if it failed.
-                      await Future<void>.delayed(
-                        const Duration(milliseconds: 200),
-                      );
-                      final postStatus = ref
-                          .read(downloadStateProvider.notifier)
-                          .statusOf(song.id);
-                      if (postStatus == SongDownloadStatus.failed &&
-                          context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('No internet — download failed'),
-                            duration: Duration(seconds: 3),
-                          ),
-                        );
-                      }
-                    };
-
-                  case SongDownloadStatus.queued:
-                    leadingWidget = Icon(
-                      Icons.hourglass_top_rounded,
-                      color: tokens.textMuted,
-                      size: 24,
-                    );
-                    titleText = 'Queued…';
-                    onTapAction = null;
-
-                  case SongDownloadStatus.downloading:
-                    leadingWidget = SizedBox(
-                      width: 24,
-                      height: 24,
-                      child: CircularProgressIndicator(
-                        value: progress > 0 ? progress : null,
-                        strokeWidth: 2.5,
-                        color: tokens.accent,
-                      ),
-                    );
-                    final pct = (progress * 100).toStringAsFixed(0);
-                    titleText = 'Downloading… $pct%';
-                    onTapAction = null;
-
-                  case SongDownloadStatus.downloaded:
-                    leadingWidget = Icon(
-                      Icons.download_done_rounded,
-                      color: tokens.accent,
-                      size: 24,
-                    );
-                    titleText = 'Downloaded';
-                    // Tap to remove
-                    onTapAction = () {
-                      ref
-                          .read(downloadStateProvider.notifier)
-                          .deleteSong(song.id);
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(content: Text('Download removed')),
-                        );
-                      }
-                    };
-
-                  case SongDownloadStatus.failed:
-                    leadingWidget = Icon(
-                      Icons.error_outline_rounded,
-                      color: Colors.redAccent,
-                      size: 24,
-                    );
-                    titleText = 'Failed — tap to retry';
-                    onTapAction = () {
-                      ref
-                          .read(downloadStateProvider.notifier)
-                          .downloadSong(song);
-                      // BUG-2 FIX: Acknowledge retry so user knows the
-                      // button worked (especially important on poor networks
-                      // where state change is delayed).
-                      if (context.mounted) {
-                        ScaffoldMessenger.of(context).showSnackBar(
-                          const SnackBar(
-                            content: Text('Retrying download…'),
-                            duration: Duration(seconds: 2),
-                          ),
-                        );
-                      }
-                    };
-                }
-
-                return ListTile(
-                  contentPadding: const EdgeInsets.symmetric(
-                    horizontal: 24,
-                    vertical: 4,
-                  ),
-                  leading: leadingWidget,
-                  title: Text(
-                    titleText,
-                    style: TextStyle(
-                      color: status == SongDownloadStatus.downloaded
-                          ? tokens.accent
-                          : status == SongDownloadStatus.failed
-                          ? Colors.redAccent
-                          : tokens.textPrimary,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
-                  ),
-                  onTap: onTapAction,
-                );
-              },
-            ),
-
-            // Add to Playlist — always visible so users can add the song
-            // to any other playlist regardless of context.
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 4,
-              ),
-              leading: Icon(
-                Icons.playlist_add_rounded,
-                color: ThemeTokens.of(context).textPrimary,
-                size: 24,
-              ),
-              title: Text(
-                'Add to Playlist',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                showDialog(
-                  context: context,
-                  builder: (context) => AddToPlaylistDialog(song: song),
-                );
-              },
-            ),
-
-            // Remove from Playlist — only visible when inside a playlist.
-            if (playlistId != null)
-              ListTile(
-                contentPadding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 4,
-                ),
-                leading: Icon(
-                  Icons.delete_outline_rounded,
-                  color: Colors.redAccent,
-                  size: 24,
-                ),
-                title: Text(
-                  'Remove from Playlist',
-                  style: TextStyle(
-                    color: Colors.redAccent,
-                    fontSize: 15,
-                    fontWeight: FontWeight.w500,
-                  ),
-                ),
-                onTap: () {
-                  Navigator.pop(context);
-                  onRemoveFromPlaylist?.call();
-                },
-              ),
-
-            // Go to Album
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 4,
-              ),
-              leading: Icon(
-                Icons.album_rounded,
-                color: ThemeTokens.of(context).textPrimary,
-                size: 24,
-              ),
-              title: Text(
-                'Go to Album',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              onTap: () {
-                Navigator.pop(context);
-                // TODO: navigate to album screen
-              },
-            ),
-
-            Divider(
-              color: ThemeTokens.of(context).outline,
-              indent: 24,
-              endIndent: 24,
-            ),
-
-            // ----------------------------------------------------------------
-            // Smart Shuffle feedback: Suggest More / Suggest Less
-            // These update the song's dynamic weight AND sync star+rating with
-            // Navidrome so the YouTube Weighted algorithm picks up on it.
-            // ----------------------------------------------------------------
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 4,
-              ),
-              leading: Icon(
-                Icons.thumb_up_alt_outlined,
-                color: ThemeTokens.of(context).textPrimary,
-                size: 24,
-              ),
-              title: Text(
-                'Suggest More',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              subtitle: Text(
-                'Boost this song in Smart Shuffle',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textMuted,
-                  fontSize: 12,
-                ),
-              ),
-              onTap: () {
-                ref
-                    .read(playerProvider.notifier)
-                    .handleSuggestAction(song, true);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '"${song.title}" will appear more often in Smart Shuffle',
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            ListTile(
-              contentPadding: const EdgeInsets.symmetric(
-                horizontal: 24,
-                vertical: 4,
-              ),
-              leading: Icon(
-                Icons.thumb_down_alt_outlined,
-                color: ThemeTokens.of(context).textMuted,
-                size: 24,
-              ),
-              title: Text(
-                'Suggest Less',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textPrimary,
-                  fontSize: 15,
-                  fontWeight: FontWeight.w500,
-                ),
-              ),
-              subtitle: Text(
-                'Reduce this song in Smart Shuffle',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textMuted,
-                  fontSize: 12,
-                ),
-              ),
-              onTap: () {
-                ref
-                    .read(playerProvider.notifier)
-                    .handleSuggestAction(song, false);
-                Navigator.pop(context);
-                ScaffoldMessenger.of(context).showSnackBar(
-                  SnackBar(
-                    content: Text(
-                      '"${song.title}" will appear less often in Smart Shuffle',
-                    ),
-                  ),
-                );
-              },
-            ),
-
-            SizedBox(height: 24),
-          ],
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SheetHeader(
+          title: song.title,
+          subtitle: song.album.isEmpty ? song.artist : '${song.artist} — ${song.album}',
+          detail: catalogDetailLine(ref.watch(catalogSongProvider(song.id)), song),
+          artUrl: service.getCoverArtUrl(song.coverArt),
         ),
-      ),
+        SheetGroup(children: [
+          SheetAction(
+            label: 'Play Next',
+            icon: CupertinoIcons.text_insert,
+            onTap: () {
+              player.insertNext(song);
+              showToast(page, 'Playing next');
+            },
+          ),
+          SheetAction(
+            label: 'Play Last',
+            icon: CupertinoIcons.text_append,
+            onTap: () {
+              player.addToQueue(song);
+              showToast(page, 'Added to the end of the queue');
+            },
+          ),
+        ]),
+        SheetGroup(children: [
+          SheetAction(
+            label: 'Add to Playlist…',
+            icon: CupertinoIcons.text_badge_plus,
+            onTap: () => showAddToPlaylist(page, song),
+          ),
+          SheetAction(
+            label: starred ? 'Remove from Favorites' : 'Favorite',
+            icon: starred ? CupertinoIcons.star_slash : CupertinoIcons.star,
+            onTap: () {
+              player.toggleStar(song.id);
+              showToast(page, starred ? 'Removed from Favorites' : 'Added to Favorites');
+            },
+          ),
+          _DownloadAction(song: song, toastContext: page),
+          if (song.albumId.isNotEmpty)
+            SheetAction(
+              label: 'Go to Album',
+              icon: CupertinoIcons.music_albums,
+              onTap: () => navigateInApp(
+                page,
+                AlbumDetailsScreen(
+                  album: Album.fromJson({
+                    'id': song.albumId,
+                    'name': song.album,
+                    'artist': song.artist,
+                    'artistId': song.artistId,
+                    'coverArt': song.coverArt,
+                  }),
+                ),
+              ),
+            ),
+          if (song.artistId.isNotEmpty)
+            SheetAction(
+              label: 'Go to Artist',
+              icon: CupertinoIcons.music_mic,
+              onTap: () => navigateInApp(page, ArtistScreen(artistId: song.artistId, name: song.artist)),
+            ),
+        ]),
+        SheetGroup(children: [
+          SheetAction(
+            label: 'Suggest More Like This',
+            icon: CupertinoIcons.hand_thumbsup,
+            onTap: () {
+              player.handleSuggestAction(song, true);
+              showToast(page, 'Smart Shuffle will play this more often');
+            },
+          ),
+          SheetAction(
+            label: 'Suggest Less Like This',
+            icon: CupertinoIcons.hand_thumbsdown,
+            onTap: () {
+              player.handleSuggestAction(song, false);
+              showToast(page, 'Smart Shuffle will play this less often');
+            },
+          ),
+        ]),
+        if (playlistId != null && onRemoveFromPlaylist != null)
+          SheetGroup(children: [
+            SheetAction(
+              label: 'Remove from Playlist',
+              icon: CupertinoIcons.minus_circle,
+              destructive: true,
+              onTap: onRemoveFromPlaylist,
+            ),
+          ]),
+        const SizedBox(height: Space.sm),
+      ],
     );
+  }
+}
+
+/// Download row that tracks the song's live download state; stays open so
+/// progress is visible.
+class _DownloadAction extends ConsumerWidget {
+  final Song song;
+  final BuildContext toastContext;
+  const _DownloadAction({required this.song, required this.toastContext});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final dl = ref.watch(downloadStateProvider.select((m) => m[song.id]));
+    final notifier = ref.read(downloadStateProvider.notifier);
+    final status = dl?.status ?? SongDownloadStatus.notDownloaded;
+
+    return switch (status) {
+      SongDownloadStatus.notDownloaded => SheetAction(
+          label: 'Download',
+          icon: CupertinoIcons.arrow_down_circle,
+          keepOpen: true,
+          onTap: () => notifier.downloadSong(song),
+        ),
+      SongDownloadStatus.queued => const SheetAction(
+          label: 'Waiting to download…',
+          trailing: CupertinoActivityIndicator(radius: 9),
+        ),
+      SongDownloadStatus.downloading => SheetAction(
+          label: 'Downloading',
+          detail: '${((dl?.progress ?? 0) * 100).round()}%',
+          trailing: SizedBox(
+            width: 21,
+            height: 21,
+            child: CircularProgressIndicator(
+              value: (dl?.progress ?? 0) > 0 ? dl!.progress : null,
+              strokeWidth: 2.5,
+              color: t.accent,
+              backgroundColor: t.fill,
+            ),
+          ),
+        ),
+      SongDownloadStatus.downloaded => SheetAction(
+          label: 'Remove Download',
+          icon: CupertinoIcons.trash,
+          destructive: true,
+          onTap: () {
+            notifier.deleteSong(song.id);
+            showToast(toastContext, 'Download removed');
+          },
+        ),
+      SongDownloadStatus.failed => SheetAction(
+          label: 'Download Failed',
+          detail: 'Tap to try again',
+          icon: CupertinoIcons.exclamationmark_circle,
+          keepOpen: true,
+          onTap: () => notifier.downloadSong(song),
+        ),
+    };
   }
 }

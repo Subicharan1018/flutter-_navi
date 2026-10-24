@@ -6,13 +6,12 @@ import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
 import '../services/cache_settings_service.dart';
-import '../services/bpm_analyzer_service.dart';
 import '../services/playback_tuning.dart';
 
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
-import '../services/search_history_service.dart';
 import '../database/app_database.dart';
+import 'library_provider.dart' show resetLibrarySyncClock;
 
 // ---------------------------------------------------------------------------
 // Shuffle Algorithm enum
@@ -48,13 +47,43 @@ enum ShuffleAlgorithm {
   /// Smart Shuffle via shuffle.subimusic.me — queries the hosted AI server
   /// for intelligent, context-aware song recommendations using the user's
   /// personal Navidrome listening history and real-time weather/time context.
-  smartLocal,
+  smartLocal;
+
+  /// Name shown in Settings and the queue's shuffle-style sheet.
+  String get label => switch (this) {
+        standard => 'Random',
+        spotify => 'Balanced',
+        youtube => 'Favorites First',
+        albumAware => 'By Album',
+        mergeShuffle => 'Evenly Mixed',
+        recencyDampened => 'Fresh Mix',
+        smartLocal => 'Smart Shuffle',
+      };
+
+  /// One line on what the listener will hear.
+  String get summary => switch (this) {
+        standard => 'Every song is equally likely to play next.',
+        spotify => 'Spreads out songs from the same group so they never play back to back.',
+        youtube => 'Leans toward songs you starred, rated highly or play most.',
+        albumAware => 'Plays whole albums in order, with the albums shuffled.',
+        mergeShuffle => 'Interleaves groups as evenly as mathematically possible.',
+        recencyDampened => 'Like Favorites First, but holds back songs you heard this session.',
+        smartLocal => 'Uses your Smart Shuffle server to pick songs for the time, weather and your habits.',
+      };
+
+  /// Whether [ShufflePreference] grouping applies to this style.
+  bool get usesGrouping => this == spotify || this == mergeShuffle;
 }
 
 // ---------------------------------------------------------------------------
 // Shuffle Preference enum
 // ---------------------------------------------------------------------------
-enum ShufflePreference { composer, genre }
+enum ShufflePreference {
+  composer,
+  genre;
+
+  String get label => switch (this) { composer => 'Composer', genre => 'Genre' };
+}
 
 // ---------------------------------------------------------------------------
 // Settings state
@@ -63,20 +92,11 @@ class SettingsState {
   final String serverUrl;
   final String username;
   final String password;
-  final String webdavUsername;
-  final String webdavPassword;
   final ShuffleAlgorithm shuffleAlgorithm;
   final ShufflePreference shufflePreference;
 
-  /// Base URL for the WebDAV upload service.
-  final String webdavUrl;
-
-  final String uploadDirectory;
-
   /// When false the [ListeningEventCollector] is a no-op — no rows written.
   final bool dataCollectionEnabled;
-  final String analyticsUploadSchedule; // 'none', 'weekly', 'monthly'
-  final String? analyticsLastUpload;
 
   final bool allowHttp;
 
@@ -97,15 +117,9 @@ class SettingsState {
     required this.serverUrl,
     required this.username,
     required this.password,
-    this.webdavUsername = '',
-    this.webdavPassword = '',
     this.shuffleAlgorithm = ShuffleAlgorithm.standard,
     this.shufflePreference = ShufflePreference.composer,
-    this.webdavUrl = '',
-    this.uploadDirectory = '',
     this.dataCollectionEnabled = true,
-    this.analyticsUploadSchedule = 'none',
-    this.analyticsLastUpload,
     this.allowHttp = false,
     this.fluidBgEnabled = true,
     this.replayGainMode = ReplayGainMode.off,
@@ -113,30 +127,13 @@ class SettingsState {
     this.playbackSpeed = 1.0,
   });
 
-  // ── Computed URL getters — single source of truth ───────────────────────────
-
-  /// Full URL for the logging/telemetry service.
-  String get loggingApiUrl => 'https://shuffle.subimusic.me';
-
-  /// Full URL for the WebDAV/upload service.
-  String get uploadApiUrl => webdavUrl;
-
-  /// Full URL for the local shuffle model server.
-  String get localShuffleUrl => 'https://shuffle.subimusic.me';
-
   SettingsState copyWith({
     String? serverUrl,
     String? username,
     String? password,
-    String? webdavUsername,
-    String? webdavPassword,
     ShuffleAlgorithm? shuffleAlgorithm,
     ShufflePreference? shufflePreference,
-    String? webdavUrl,
-    String? uploadDirectory,
     bool? dataCollectionEnabled,
-    String? analyticsUploadSchedule,
-    String? analyticsLastUpload,
     bool? allowHttp,
     bool? fluidBgEnabled,
     ReplayGainMode? replayGainMode,
@@ -147,17 +144,10 @@ class SettingsState {
       serverUrl: serverUrl ?? this.serverUrl,
       username: username ?? this.username,
       password: password ?? this.password,
-      webdavUsername: webdavUsername ?? this.webdavUsername,
-      webdavPassword: webdavPassword ?? this.webdavPassword,
       shuffleAlgorithm: shuffleAlgorithm ?? this.shuffleAlgorithm,
       shufflePreference: shufflePreference ?? this.shufflePreference,
-      webdavUrl: webdavUrl ?? this.webdavUrl,
-      uploadDirectory: uploadDirectory ?? this.uploadDirectory,
       dataCollectionEnabled:
           dataCollectionEnabled ?? this.dataCollectionEnabled,
-      analyticsUploadSchedule:
-          analyticsUploadSchedule ?? this.analyticsUploadSchedule,
-      analyticsLastUpload: analyticsLastUpload ?? this.analyticsLastUpload,
       allowHttp: allowHttp ?? this.allowHttp,
       fluidBgEnabled: fluidBgEnabled ?? this.fluidBgEnabled,
       replayGainMode: replayGainMode ?? this.replayGainMode,
@@ -196,8 +186,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       return val.isEmpty ? defaultValue : val;
     }
 
-    String webdavUrl = p.get(HiveBoxes.kWebdavUrl)?.toString() ?? '';
-
     state = SettingsState(
       serverUrl: getString(
         auth,
@@ -206,8 +194,6 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       ),
       username: getString(auth, HiveBoxes.kUsername, Constants.defaultUsername),
       password: auth.get(HiveBoxes.kPassword)?.toString() ?? '',
-      webdavUsername: auth.get(HiveBoxes.kWebdavUsername)?.toString() ?? '',
-      webdavPassword: auth.get(HiveBoxes.kWebdavPassword)?.toString() ?? '',
       shuffleAlgorithm: ShuffleAlgorithm.values.firstWhere(
         (e) => e.name == algoName,
         orElse: () => ShuffleAlgorithm.standard,
@@ -216,18 +202,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         (e) => e.name == prefName,
         orElse: () => ShufflePreference.composer,
       ),
-      webdavUrl: webdavUrl,
-      uploadDirectory: p.get(HiveBoxes.kUploadDirectory)?.toString() ?? '',
       dataCollectionEnabled:
           p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) is bool
           ? p.get(HiveBoxes.kDataCollectionEnabled, defaultValue: true) as bool
           : true,
-      analyticsUploadSchedule:
-          p
-              .get(HiveBoxes.kAnalyticsUploadSchedule, defaultValue: 'none')
-              ?.toString() ??
-          'none',
-      analyticsLastUpload: p.get(HiveBoxes.kAnalyticsLastUpload)?.toString(),
       allowHttp: p.get(HiveBoxes.kAllowHttp, defaultValue: false) == true,
       fluidBgEnabled:
           p.get(HiveBoxes.kFluidBgEnabled, defaultValue: true) is bool
@@ -250,69 +228,38 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     );
   }
 
-  Future<void> saveSettings(
-    String url,
-    String user,
-    String pass, {
-    String? webdavUrl,
-    String? uploadDir,
-    String? webdavUser,
-    String? webdavPass,
-  }) async {
+  Future<void> saveSettings(String url, String user, String pass) async {
     final auth = HiveBoxes.auth;
-    final p = HiveBoxes.prefs;
+
+    // A different server or account means the local library mirror belongs
+    // to someone else: make the next library load a full sync.
+    if (url != state.serverUrl || user != state.username) {
+      await resetLibrarySyncClock();
+    }
 
     await auth.put(HiveBoxes.kServerUrl, url);
     await auth.put(HiveBoxes.kUsername, user);
     await auth.put(HiveBoxes.kPassword, pass);
-    if (webdavUser != null) {
-      await auth.put(HiveBoxes.kWebdavUsername, webdavUser);
-    }
-    if (webdavPass != null) {
-      await auth.put(HiveBoxes.kWebdavPassword, webdavPass);
-    }
-    if (webdavUrl != null) await p.put(HiveBoxes.kWebdavUrl, webdavUrl);
-    if (uploadDir != null) await p.put(HiveBoxes.kUploadDirectory, uploadDir);
 
-    state = state.copyWith(
-      serverUrl: url,
-      username: user,
-      password: pass,
-      webdavUsername: webdavUser,
-      webdavPassword: webdavPass,
-      webdavUrl: webdavUrl,
-      uploadDirectory: uploadDir,
-    );
+    state = state.copyWith(serverUrl: url, username: user, password: pass);
   }
 
-  Future<void> setWebdavUrl(String url) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kWebdavUrl, url);
-    state = state.copyWith(webdavUrl: url);
-  }
-
+  // State first, then persist: callers reshuffle straight after choosing a
+  // style, and waiting on the disk write meant the reshuffle could still see
+  // the old one.
   Future<void> setShuffleAlgorithm(ShuffleAlgorithm algo) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kShuffleAlgorithm, algo.name);
     state = state.copyWith(shuffleAlgorithm: algo);
+    await HiveBoxes.prefs.put(HiveBoxes.kShuffleAlgorithm, algo.name);
   }
 
   Future<void> setShufflePreference(ShufflePreference pref) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kShufflePreference, pref.name);
     state = state.copyWith(shufflePreference: pref);
+    await HiveBoxes.prefs.put(HiveBoxes.kShufflePreference, pref.name);
   }
 
   Future<void> setDataCollectionEnabled(bool enabled) async {
     await HiveBoxes.prefs.put(HiveBoxes.kDataCollectionEnabled, enabled);
     state = state.copyWith(dataCollectionEnabled: enabled);
-  }
-
-  Future<void> setAnalyticsUploadSchedule(String schedule) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kAnalyticsUploadSchedule, schedule);
-    state = state.copyWith(analyticsUploadSchedule: schedule);
-  }
-
-  Future<void> setAnalyticsLastUpload(String timestamp) async {
-    await HiveBoxes.prefs.put(HiveBoxes.kAnalyticsLastUpload, timestamp);
-    state = state.copyWith(analyticsLastUpload: timestamp);
   }
 
   Future<void> setAllowHttp(bool allow) async {
@@ -382,23 +329,11 @@ final _credentialsProvider =
 final subsonicServiceProvider = Provider<SubsonicService>((ref) {
   final creds = ref.watch(_credentialsProvider);
   final cache = ref.watch(playlistCacheServiceProvider);
-  final settings = ref.read(settingsProvider);
-  final uploadUrl = settings.uploadApiUrl; // computed getter: base + uploadPort
   final service = SubsonicService(
     serverUrl: creds.serverUrl,
     username: creds.username,
     password: creds.password,
     cache: cache,
-    customUploadUrl: uploadUrl.isEmpty ? null : uploadUrl,
-    customUploadDir: settings.uploadDirectory.isEmpty
-        ? null
-        : settings.uploadDirectory,
-    webdavUsername: settings.webdavUsername.isEmpty
-        ? null
-        : settings.webdavUsername,
-    webdavPassword: settings.webdavPassword.isEmpty
-        ? null
-        : settings.webdavPassword,
   );
 
   ref.onDispose(service.dispose);
@@ -477,33 +412,17 @@ final cacheSettingsProvider = Provider<CacheSettingsService>((ref) {
   return CacheSettingsService();
 });
 
-/// Singleton [BpmAnalyzerService] — BPM estimation and caching.
-final bpmAnalyzerProvider = Provider<BpmAnalyzerService>((ref) {
-  return BpmAnalyzerService();
-});
-
-
-
 /// [TranscodingService] — network-aware bitrate/format management.
-final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) {
-  final service = TranscodingService();
-  ref.onDispose(service.dispose);
-  return service;
-});
+/// ChangeNotifierProvider disposes the service itself; disposing it again in
+/// onDispose asserted "used after being disposed" on teardown.
+final transcodingProvider = ChangeNotifierProvider<TranscodingService>((ref) => TranscodingService());
 
 /// [RecommendationService] — play pattern tracking and personalised feeds.
 /// MEM-OPT: initialize() is NOT called here. The service lazy-loads its data
-/// from SharedPreferences on the first call to trackSongPlay() or setEnabled().
-/// This avoids decoding 500 profiles into memory at app startup when the user
-/// never visits the Made For You screen.
+/// from SharedPreferences on the first call to trackSongPlay() or setEnabled(),
+/// so profiles aren't decoded at startup.
 final recommendationProvider = ChangeNotifierProvider<RecommendationService>((
   ref,
 ) {
   return RecommendationService();
-});
-
-/// Singleton [SearchHistoryService].
-final searchHistoryServiceProvider = Provider<SearchHistoryService>((ref) {
-  final db = ref.watch(appDatabaseProvider);
-  return SearchHistoryService(db);
 });

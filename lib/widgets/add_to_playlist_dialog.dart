@@ -1,436 +1,252 @@
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../core/theme.dart';
+import '../models/playlist.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
-import '../core/theme.dart';
+import '../providers/settings_provider.dart';
+import '../utils/format.dart';
+import 'cover_art.dart';
+import 'desktop_dialogs.dart';
+import 'ui/action_sheet.dart';
+import 'ui/states.dart';
 
-class AddToPlaylistDialog extends ConsumerStatefulWidget {
+/// Opens the "Add to Playlist" sheet for [song].
+Future<void> showAddToPlaylist(BuildContext context, Song song) =>
+    showPlatformSheet<void>(context: context, builder: (_) => AddToPlaylistSheet(song: song));
+
+/// Every playlist with a checkmark showing whether [song] is in it. Taps are
+/// staged locally and committed together on Done, so a mis-tap costs nothing.
+class AddToPlaylistSheet extends ConsumerStatefulWidget {
   final Song song;
-
-  const AddToPlaylistDialog({super.key, required this.song});
+  const AddToPlaylistSheet({super.key, required this.song});
 
   @override
-  ConsumerState<AddToPlaylistDialog> createState() =>
-      _AddToPlaylistDialogState();
+  ConsumerState<AddToPlaylistSheet> createState() => _AddToPlaylistSheetState();
 }
 
-class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
-  final TextEditingController _nameController = TextEditingController();
-  bool _isCreating = false;
+class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
+  final _name = TextEditingController();
+  final _adds = <String>{};
+  final _removes = <String>{};
+  bool _naming = false;
+  bool _busy = false;
 
-  // UX FIX: Pending changes tracked locally, committed on Save.
-  final Set<String> _pendingAdds = {};
-  final Set<String> _pendingRemoves = {};
-  bool _isSaving = false;
+  bool get _dirty => _adds.isNotEmpty || _removes.isNotEmpty;
 
   @override
   void dispose() {
-    _nameController.dispose();
+    _name.dispose();
     super.dispose();
   }
 
-  Future<void> _createAndAdd() async {
-    final name = _nameController.text.trim();
-    if (name.isEmpty) return;
+  bool _checked(String id, bool original) =>
+      _adds.contains(id) || (original && !_removes.contains(id));
 
-    setState(() => _isCreating = true);
-    try {
-      await ref
-          .read(playlistControllerProvider)
-          .createAndAdd(name, widget.song.id);
-
-      if (mounted) {
-        _nameController.clear();
-        setState(() => _isCreating = false);
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Created and added to $name'),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Failed to create playlist: $e')),
-        );
-        setState(() => _isCreating = false);
-      }
-    }
-  }
-
-  // UX FIX: Toggle is purely local — no network call. Committed in _save().
-  void _toggleEntry(String playlistId, bool currentlyInPlaylist) {
+  void _toggle(String id, bool original) {
+    HapticFeedback.selectionClick();
     setState(() {
-      if (currentlyInPlaylist) {
-        if (_pendingRemoves.contains(playlistId)) {
-          _pendingRemoves.remove(playlistId);
-        } else {
-          _pendingRemoves.add(playlistId);
-          _pendingAdds.remove(playlistId);
-        }
+      if (original) {
+        _removes.contains(id) ? _removes.remove(id) : _removes.add(id);
       } else {
-        if (_pendingAdds.contains(playlistId)) {
-          _pendingAdds.remove(playlistId);
-        } else {
-          _pendingAdds.add(playlistId);
-          _pendingRemoves.remove(playlistId);
-        }
+        _adds.contains(id) ? _adds.remove(id) : _adds.add(id);
       }
     });
   }
 
-  bool _hasChanges() => _pendingAdds.isNotEmpty || _pendingRemoves.isNotEmpty;
-
-  bool _isChecked(String playlistId, bool originallyIn) {
-    if (_pendingAdds.contains(playlistId)) return true;
-    if (_pendingRemoves.contains(playlistId)) return false;
-    return originallyIn;
+  Future<void> _create() async {
+    final name = _name.text.trim();
+    if (name.isEmpty || _busy) return;
+    setState(() => _busy = true);
+    try {
+      await ref.read(playlistControllerProvider).createAndAdd(name, widget.song.id);
+      if (!mounted) return;
+      _name.clear();
+      setState(() {
+        _busy = false;
+        _naming = false;
+      });
+      showToast(context, 'Added to $name');
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showToast(context, 'Couldn’t create “$name”. Check your connection and try again.');
+    }
   }
 
-  // UX FIX: Batch-save all pending changes.
-  Future<void> _save() async {
-    if (!_hasChanges()) {
+  Future<void> _done() async {
+    if (!_dirty) {
       Navigator.pop(context);
       return;
     }
-    setState(() => _isSaving = true);
-    final songId = widget.song.id;
+    setState(() => _busy = true);
     try {
-      final successCount = await ref
+      final n = await ref
           .read(playlistControllerProvider)
-          .batchUpdate(
-            songId: songId,
-            adds: _pendingAdds,
-            removes: _pendingRemoves,
-          );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Updated $successCount playlist${successCount == 1 ? '' : 's'}',
-            ),
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-        Navigator.pop(context);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Save failed: $e')));
-        setState(() => _isSaving = false);
-      }
+          .batchUpdate(songId: widget.song.id, adds: _adds, removes: _removes);
+      if (!mounted) return;
+      showToast(context, n == 1 ? 'Updated 1 playlist' : 'Updated $n playlists');
+      Navigator.pop(context);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _busy = false);
+      showToast(context, 'Couldn’t update playlists. Check your connection and try again.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final playlistsAsync = ref.watch(playlistsProvider);
+    final t = ThemeTokens.of(context);
+    final playlists = ref.watch(playlistsProvider);
+    final svc = ref.read(subsonicServiceProvider);
 
-    return Dialog(
-      backgroundColor: ThemeTokens.of(context).bgSurface,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(24),
-        side: BorderSide(color: ThemeTokens.of(context).outline, width: 1),
-      ),
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 400, maxHeight: 600),
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(24, 24, 24, 16),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.sm, Space.md),
+          child: Row(
             children: [
-              // ── Header ────────────────────────────────────────────────
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text(
-                    'Add to Playlist',
-                    style: ThemeTokens.of(context).headingMd,
-                  ),
-                  IconButton(
-                    onPressed: () => Navigator.pop(context),
-                    icon: Icon(
-                      Icons.close,
-                      color: ThemeTokens.of(context).textSecondary,
+              Expanded(child: Text('Add to Playlist', style: t.title3)),
+              _busy
+                  ? const Padding(padding: EdgeInsets.all(Space.md), child: CupertinoActivityIndicator())
+                  : CupertinoButton(
+                      padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                      onPressed: _done,
+                      child: Text('Done', style: t.headline.copyWith(color: t.accent)),
                     ),
-                  ),
-                ],
-              ),
-              SizedBox(height: 16),
-
-              // ── New playlist creation ──────────────────────────────────
-              Container(
-                decoration: BoxDecoration(
-                  color: ThemeTokens.of(context).bgSurface,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(color: ThemeTokens.of(context).outline),
-                ),
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 12,
-                  vertical: 4,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: TextField(
-                        controller: _nameController,
-                        style: ThemeTokens.of(context).bodyMd,
-                        cursorColor: ThemeTokens.of(context).accent,
-                        decoration: InputDecoration(
-                          hintText: 'Create new playlist...',
-                          hintStyle: ThemeTokens.of(context).technicalSm
-                              .copyWith(
-                                color: ThemeTokens.of(context).textMuted,
-                              ),
-                          border: InputBorder.none,
-                          isDense: true,
-                        ),
-                        onSubmitted: (_) => _createAndAdd(),
-                      ),
-                    ),
-                    _isCreating
-                        ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: ThemeTokens.of(context).accent,
-                            ),
-                          )
-                        : IconButton(
-                            icon: Icon(
-                              Icons.add_circle,
-                              color: ThemeTokens.of(context).accent,
-                              size: 28,
-                            ),
-                            onPressed: _createAndAdd,
-                          ),
-                  ],
-                ),
-              ),
-
-              SizedBox(height: 20),
-              Text('Your Playlists', style: ThemeTokens.of(context).labelMd),
-              SizedBox(height: 8),
-
-              // ── Playlist list ──────────────────────────────────────────
-              Flexible(
-                child: playlistsAsync.when(
-                  data: (playlists) {
-                    if (playlists.isEmpty) {
-                      return Padding(
-                        padding: const EdgeInsets.symmetric(vertical: 32),
-                        child: Center(
-                          child: Column(
-                            children: [
-                              Icon(
-                                Icons.playlist_add,
-                                size: 48,
-                                color: ThemeTokens.of(context).textMuted,
-                              ),
-                              SizedBox(height: 12),
-                              Text(
-                                'No playlists yet',
-                                style: ThemeTokens.of(context).technicalSm,
-                              ),
-                            ],
-                          ),
-                        ),
-                      );
-                    }
-
-                    return ListView.separated(
-                      shrinkWrap: true,
-                      itemCount: playlists.length,
-                      separatorBuilder: (context, index) => Divider(
-                        color: ThemeTokens.of(context).outline,
-                        height: 1,
-                      ),
-                      itemBuilder: (context, index) {
-                        final pl = playlists[index];
-
-                        return Consumer(
-                          builder: (context, ref, child) {
-                            final songsAsync = ref.watch(
-                              songsInPlaylistProvider(pl.id),
-                            );
-
-                            return songsAsync.when(
-                              data: (songs) {
-                                final originallyIn = songs.any(
-                                  (s) => s.id == widget.song.id,
-                                );
-                                // UX FIX: Use local pending state for display.
-                                final checked = _isChecked(pl.id, originallyIn);
-
-                                return ListTile(
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 4,
-                                  ),
-                                  leading: Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: ThemeTokens.of(context).bgElevated,
-                                      borderRadius: BorderRadius.circular(4),
-                                    ),
-                                    child: Icon(
-                                      Icons.music_note,
-                                      color: ThemeTokens.of(
-                                        context,
-                                      ).textSecondary,
-                                    ),
-                                  ),
-                                  title: Text(
-                                    pl.name,
-                                    style: ThemeTokens.of(context).bodyMd
-                                        .copyWith(fontWeight: FontWeight.w600),
-                                  ),
-                                  subtitle: Text(
-                                    '${pl.songCount} songs',
-                                    style: ThemeTokens.of(context).technicalXs,
-                                  ),
-                                  trailing: Icon(
-                                    checked
-                                        ? Icons.check_circle
-                                        : Icons.add_circle_outline,
-                                    color: checked
-                                        ? ThemeTokens.of(context).accent
-                                        : ThemeTokens.of(context).textMuted,
-                                  ),
-                                  // UX FIX: Toggle local state only — no network call.
-                                  onTap: () =>
-                                      _toggleEntry(pl.id, originallyIn),
-                                );
-                              },
-                              loading: () => ListTile(
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 4,
-                                ),
-                                title: Text(
-                                  pl.name,
-                                  style: ThemeTokens.of(context).bodyMd,
-                                ),
-                                trailing: SizedBox(
-                                  width: 20,
-                                  height: 20,
-                                  child: CircularProgressIndicator(
-                                    strokeWidth: 2,
-                                    color: ThemeTokens.of(context).textMuted,
-                                  ),
-                                ),
-                              ),
-                              error: (error, stackTrace) => ListTile(
-                                title: Text(
-                                  pl.name,
-                                  style: ThemeTokens.of(context).bodyMd,
-                                ),
-                                trailing: Icon(
-                                  Icons.error_outline,
-                                  color: Colors.red,
-                                ),
-                              ),
-                            );
-                          },
-                        );
-                      },
-                    );
-                  },
-                  loading: () => Center(
-                    child: Padding(
-                      padding: EdgeInsets.all(32),
-                      child: CircularProgressIndicator(
-                        color: ThemeTokens.of(context).accent,
-                      ),
-                    ),
-                  ),
-                  error: (e, st) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                      vertical: 24,
-                      horizontal: 16,
-                    ),
-                    child: Column(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        Icon(
-                          Icons.cloud_off_rounded,
-                          size: 36,
-                          color: Theme.of(context).colorScheme.error,
-                        ),
-                        const SizedBox(height: 12),
-                        Text(
-                          'Could not load playlists',
-                          style: Theme.of(context).textTheme.titleSmall
-                              ?.copyWith(
-                                color: ThemeTokens.of(context).textPrimary,
-                              ),
-                        ),
-                        const SizedBox(height: 4),
-                        Text(
-                          'Check your connection and try again.',
-                          style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(
-                                color: ThemeTokens.of(context).textSecondary,
-                              ),
-                          textAlign: TextAlign.center,
-                        ),
-                        const SizedBox(height: 16),
-                        FilledButton.tonal(
-                          onPressed: () => ref.invalidate(playlistsProvider),
-                          child: const Text('Retry'),
-                        ),
-                      ],
-                    ),
-                  ),
-                ),
-              ),
-
-              SizedBox(height: 16),
-              // UX FIX: Save button replaces the old Done button.
-              // Commits all pending add/remove operations in one batch.
-              Align(
-                alignment: Alignment.centerRight,
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    TextButton(
-                      onPressed: () => Navigator.pop(context),
-                      child: Text(
-                        'Cancel',
-                        style: ThemeTokens.of(context).bodyMd.copyWith(
-                          color: ThemeTokens.of(context).textMuted,
-                        ),
-                      ),
-                    ),
-                    SizedBox(width: 8),
-                    _isSaving
-                        ? SizedBox(
-                            width: 24,
-                            height: 24,
-                            child: CircularProgressIndicator(
-                              strokeWidth: 2,
-                              color: ThemeTokens.of(context).accent,
-                            ),
-                          )
-                        : TextButton(
-                            onPressed: _save,
-                            child: Text(
-                              _hasChanges() ? 'Save' : 'Done',
-                              style: ThemeTokens.of(context).bodyMd.copyWith(
-                                color: ThemeTokens.of(context).accent,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                          ),
-                  ],
-                ),
-              ),
             ],
           ),
+        ),
+        SheetHeader(
+          title: widget.song.title,
+          subtitle: widget.song.artist,
+          artUrl: widget.song.coverArt.isEmpty ? null : svc.getCoverArtUrl(widget.song.coverArt),
+        ),
+        SheetGroup(children: [
+          _naming
+              ? Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.lg, Space.sm, Space.sm, Space.sm),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: CupertinoTextField(
+                          controller: _name,
+                          autofocus: true,
+                          placeholder: 'Playlist name',
+                          textCapitalization: TextCapitalization.sentences,
+                          style: t.body,
+                          placeholderStyle: t.body.copyWith(color: t.textMuted),
+                          cursorColor: t.accent,
+                          decoration: null,
+                          padding: const EdgeInsets.symmetric(vertical: Space.sm),
+                          onSubmitted: (_) => _create(),
+                        ),
+                      ),
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                        onPressed: _busy ? null : _create,
+                        child: Text('Create', style: t.headline.copyWith(color: t.accent)),
+                      ),
+                    ],
+                  ),
+                )
+              : SheetAction(
+                  label: 'New Playlist…',
+                  icon: CupertinoIcons.add,
+                  keepOpen: true,
+                  onTap: () => setState(() => _naming = true),
+                ),
+        ]),
+        playlists.when(
+          loading: () => const LoadingState(),
+          error: (_, _) => MessageState.error(
+            title: 'Couldn’t load playlists',
+            onRetry: () => ref.invalidate(playlistsProvider),
+          ),
+          data: (list) => list.isEmpty
+              ? const MessageState(
+                  icon: CupertinoIcons.music_note_list,
+                  title: 'No playlists yet',
+                  message: 'Create one above to start collecting songs.',
+                )
+              : SheetGroup(children: [
+                  for (final p in list)
+                    _PlaylistRow(
+                      playlist: p,
+                      songId: widget.song.id,
+                      artUrl: (p.coverArt ?? '').isEmpty ? null : svc.getCoverArtUrl(p.coverArt),
+                      isChecked: (original) => _checked(p.id, original),
+                      onToggle: (original) => _toggle(p.id, original),
+                    ),
+                ]),
+        ),
+        const SizedBox(height: Space.lg),
+      ],
+    );
+  }
+}
+
+class _PlaylistRow extends ConsumerWidget {
+  final Playlist playlist;
+  final String songId;
+  final String? artUrl;
+  final bool Function(bool original) isChecked;
+  final void Function(bool original) onToggle;
+
+  const _PlaylistRow({
+    required this.playlist,
+    required this.songId,
+    required this.artUrl,
+    required this.isChecked,
+    required this.onToggle,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final membership = ref.watch(songsInPlaylistProvider(playlist.id));
+    final original = membership.asData?.value.any((s) => s.id == songId);
+    final checked = original != null && isChecked(original);
+
+    return InkWell(
+      onTap: original == null ? null : () => onToggle(original),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
+        child: Row(
+          children: [
+            CoverArt(url: artUrl, size: 44, radius: Radii.thumb, placeholderIcon: CupertinoIcons.music_note_list),
+            const SizedBox(width: Space.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(playlist.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
+                  Text(songCount(playlist.songCount), style: t.footnote),
+                ],
+              ),
+            ),
+            SizedBox(
+              width: 28,
+              child: membership.isLoading
+                  ? const CupertinoActivityIndicator(radius: 8)
+                  : membership.hasError
+                      ? Icon(CupertinoIcons.exclamationmark_circle, size: 20, color: t.danger)
+                      : AnimatedSwitcher(
+                          duration: Motion.fast,
+                          child: Icon(
+                            checked ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+                            key: ValueKey(checked),
+                            size: 24,
+                            color: checked ? t.accent : t.textMuted,
+                          ),
+                        ),
+            ),
+          ],
         ),
       ),
     );
