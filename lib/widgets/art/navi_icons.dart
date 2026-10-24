@@ -32,6 +32,7 @@ enum NaviGlyph {
   person,
   trending,
   lyrics,
+  mic,
 }
 
 class NaviIcon extends StatelessWidget {
@@ -346,6 +347,21 @@ class NaviGlyphPainter extends CustomPainter {
             : stroke;
         canvas.drawLine(const Offset(8, 9.5), const Offset(16, 9.5), ink);
         canvas.drawLine(const Offset(8, 12.5), const Offset(13, 12.5), ink);
+      case NaviGlyph.mic:
+        final capsule = RRect.fromRectAndRadius(
+          const Rect.fromLTRB(9, 3.5, 15, 14.5),
+          const Radius.circular(3),
+        );
+        canvas.drawRRect(capsule, solid);
+        if (filled) canvas.drawRRect(capsule, stroke);
+        canvas.drawPath(
+          Path()
+            ..moveTo(5.5, 11.5)
+            ..cubicTo(5.5, 15.5, 8.5, 17.5, 12, 17.5)
+            ..cubicTo(15.5, 17.5, 18.5, 15.5, 18.5, 11.5),
+          stroke,
+        );
+        canvas.drawLine(const Offset(12, 17.5), const Offset(12, 20.5), stroke);
     }
   }
 
