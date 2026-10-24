@@ -108,8 +108,8 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
     await _run(base, () => api.startLinkSearch(link));
   }
 
-  /// Shows [artist]'s top songs; [back] returns to the artist results.
-  Future<void> openArtist(FetchCandidate artist) async {
+  /// Shows an artist's top songs or a label's tracks (any [FetchSearchType.opensSongs] result); [back] returns to the results.
+  Future<void> openCollection(FetchCandidate artist) async {
     final api = ref.read(onlineFetchApiProvider);
     await _run(
       OnlineSearchState(query: artist.title, artist: artist, parent: state),

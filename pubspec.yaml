@@ -58,6 +58,8 @@ dependencies:
   share_plus: ^12.0.2
   record: ^7.1.2
   permission_handler: ^13.0.2
+  audio_metadata_reader: ^1.8.1
+  disk_space_plus: ^0.2.6
   # mesh_gradient removed (ARCH-2): declared but never imported anywhere
 
 dev_dependencies:

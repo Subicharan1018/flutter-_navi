@@ -2,13 +2,15 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/local_library/logic/local_library_providers.dart';
+import '../features/local_library/ui/local_songs_page.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/pins_provider.dart';
 import '../providers/settings_provider.dart';
-import '../widgets/app_scaffold.dart' show AppTab, navigateInApp, selectAppTab;
+import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/art/navi_icons.dart';
 import '../widgets/collection_actions.dart';
 import '../widgets/cover_art.dart';
@@ -35,6 +37,8 @@ class LibraryScreen extends ConsumerWidget {
     final pins = ref.watch(pinsProvider);
     final svc = ref.read(subsonicServiceProvider);
 
+    final hasLocal = ref.watch(localFoldersProvider.select((f) => f.isNotEmpty));
+
     final destinations = <(NaviGlyph, String, Widget)>[
       (NaviGlyph.playlist, 'Playlists', const PlaylistsPage()),
       (NaviGlyph.mic, 'Artists', const ArtistsPage()),
@@ -42,6 +46,7 @@ class LibraryScreen extends ConsumerWidget {
       (NaviGlyph.note, 'Songs', const SongsPage()),
       (NaviGlyph.star, 'Favorites', const FavoritesScreen()),
       (NaviGlyph.downloadCircle, 'Downloaded', const SongsPage(downloadedOnly: true)),
+      if (hasLocal) (NaviGlyph.folder, 'On This Device', const LocalSongsPage()),
     ];
 
     return LargeTitlePage(
@@ -61,23 +66,14 @@ class LibraryScreen extends ConsumerWidget {
         SliverPadding(
           padding: EdgeInsets.only(top: pins.isEmpty ? 0 : Space.lg),
           sliver: SliverList.list(children: [
-            for (final (icon, title, page) in destinations)
+            for (final (i, (icon, title, page)) in destinations.indexed)
               CollectionRow.destination(
                 context: context,
                 icon: icon,
                 title: title,
+                showSeparator: i < destinations.length - 1,
                 onTap: () => navigateInApp(context, page),
               ),
-            CollectionRow(
-              title: 'Jam & friends',
-              titleStyle: ThemeTokens.of(context).title3.copyWith(fontWeight: FontWeight.w400),
-              leading: SizedBox(
-                width: 30,
-                child: NaviIcon(NaviGlyph.group, size: 26, color: ThemeTokens.of(context).accent),
-              ),
-              showSeparator: false,
-              onTap: () => selectAppTab(AppTab.jam),
-            ),
           ]),
         ),
         if (pins.isEmpty)

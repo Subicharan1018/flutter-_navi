@@ -23,6 +23,7 @@ import '../features/ai_shuffle/data/models/recommended_song.dart';
 import 'library_provider.dart';
 import '../services/session_sync_service.dart';
 import 'session_sync_provider.dart';
+import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../utils/async_lock.dart';
 import '../utils/device_utils.dart';
 
@@ -1632,7 +1633,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> toggleStar(String songId) async {
-    if (_starTogglingIds.contains(songId)) return;
+    // Songs from Settings > Local music have no server entry to star.
+    if (isLocalSongId(songId) || _starTogglingIds.contains(songId)) return;
     _starTogglingIds.add(songId);
     try {
       final currentlyStarred = state.starredIds.contains(songId);

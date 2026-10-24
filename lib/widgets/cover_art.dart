@@ -1,3 +1,5 @@
+import 'dart:io' show File;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
@@ -44,9 +46,18 @@ class CoverArt extends StatelessWidget {
         ? placeholder
         : CoverArt(url: fallbackUrl, size: size, radius: 0, placeholderIcon: placeholderIcon);
     final override = url == null || url!.isEmpty ? null : testCoverOverride(url!);
+    final isFile = url != null && url!.startsWith('file:');
     final image = url == null || url!.isEmpty
         ? failed
-        : override != null
+        : isFile
+            ? Image.file(
+                File.fromUri(Uri.parse(url!)),
+                fit: BoxFit.cover,
+                cacheWidth: px,
+                cacheHeight: px,
+                errorBuilder: (_, _, _) => failed,
+              )
+            : override != null
             ? Image(
                 image: ResizeImage(override, width: px, height: px),
                 fit: BoxFit.cover,
