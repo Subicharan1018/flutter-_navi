@@ -79,3 +79,4 @@ flutter-_navi/*
 
 # Diff images Flutter writes when a golden test fails — never commit
 test/goldens/failures/
+test/goldens/failures/
