@@ -24,6 +24,17 @@ Music's finish.
 - **Honest**: shows what the server knows (real file format, real lyrics,
   real devices) and never invents claims.
 
+## Brand Commitments
+- **Apple Music, played straight.** The app is the iOS 26 Apple Music
+  experience on Android, at full fidelity with no irony and no smuggled quirks. Its peers
+  and craft bar are Apple Music and Apple Podcasts on iPhone. The only
+  translations are a green accent where Apple uses red, and a pure
+  AMOLED black ground (#000000) with no tint.
+- **Green, never purple or pink.** Sampled artwork colours are hue-guarded
+  away from 250–340°.
+- **Opaque.** Chrome is opaque. The single exception is artwork fading
+  into its page colour.
+
 ## Anti-references
 - Theme pickers and multiple visual modes — there is one, living theme.
 - A grey app with a single fixed brand accent.
@@ -43,7 +54,7 @@ Music's finish.
   extraction, low-resolution shader field, scoped rebuilds.
 
 ## Accessibility & Inclusion
-- Text ≥ 4.5:1 (accent is contrast-corrected per song); 48 dp targets.
+- Text ≥ 4.5:1 (accent is contrast-corrected per song); 44pt minimum touch targets (Apple's HIG floor).
 - Semantic labels and slider actions on every control.
 - Reduced motion honoured everywhere (field drift, marquee, scroll animation).
 - System Back / Esc close panes before the player; predictive back on Android.

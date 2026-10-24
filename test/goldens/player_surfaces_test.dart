@@ -30,6 +30,8 @@ import 'package:navivibe/screens/now_playing_screen.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/widgets/mini_player.dart';
 
+import 'golden_fonts.dart';
+
 // ── Fixtures ─────────────────────────────────────────────────────────────────
 
 Song _song(String id, String title, String artist, {String suffix = 'flac', int dur = 243}) => Song(
@@ -161,27 +163,6 @@ class _FakeLyrics extends LyricsController {
 
 // ── Harness ──────────────────────────────────────────────────────────────────
 
-Future<void> _loadFonts() async {
-  Future<void> family(String name, List<String> files) async {
-    final loader = FontLoader(name);
-    for (final f in files) {
-      loader.addFont(Future.value(ByteData.sublistView(File(f).readAsBytesSync())));
-    }
-    await loader.load();
-  }
-
-  await family('Inter', [
-    for (final w in ['Regular', 'Medium', 'SemiBold', 'Bold', 'ExtraBold']) 'assets/fonts/Inter-$w.ttf',
-  ]);
-  await family('InterDisplay', [
-    for (final w in ['Medium', 'SemiBold', 'Bold', 'ExtraBold']) 'assets/fonts/InterDisplay-$w.ttf',
-  ]);
-  final flutterRoot = Platform.environment['FLUTTER_ROOT'] ??
-      File(Platform.resolvedExecutable).parent.parent.parent.parent.parent.parent.path;
-  final icons = File('$flutterRoot/bin/cache/artifacts/material_fonts/MaterialIcons-Regular.otf');
-  if (icons.existsSync()) await family('MaterialIcons', [icons.path]);
-}
-
 Widget _app({
   required Song current,
   required ArtworkData art,
@@ -227,7 +208,7 @@ Future<void> _settle(WidgetTester tester) async {
 
 void main() {
   setUpAll(() async {
-    await _loadFonts();
+    await loadGoldenFonts();
   });
 
   setUp(() {
@@ -271,6 +252,37 @@ void main() {
       await tester.pump(const Duration(seconds: 3));
     }
   }
+
+  testWidgets('a skip glides the covers across instead of cross-fading', (tester) async {
+    await tester.runAsync(_prepareCovers);
+    // Load the field's shader in real time: left to the widget, its shared
+    // future would be created inside this test's fake clock and never
+    // complete for the tests after it.
+    await tester.runAsync(ArtworkField.precache);
+    final art = (await tester.runAsync(() => _artworkFor(_songs[0])))!;
+    tester.view.physicalSize = const Size(390, 844) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_app(current: _songs[0], art: art, home: const NowPlayingScreen()));
+    await _settle(tester);
+
+    final sideCover = find.byWidgetPredicate((w) => w.runtimeType.toString() == '_SideCover');
+    expect(sideCover, findsNothing, reason: 'neighbours are hidden at rest');
+
+    // Skip to the next song from outside the cover (button, notification).
+    final container = ProviderScope.containerOf(tester.element(find.byType(NowPlayingScreen)));
+    final player = container.read(playerProvider.notifier) as _FakePlayer;
+    player.state = player.state.copyWith(currentIndex: 1);
+    await tester.pump();
+    await tester.pump(const Duration(milliseconds: 16));
+    expect(sideCover, findsOneWidget, reason: 'the old cover slides out beside the new one');
+
+    await tester.pump(const Duration(seconds: 2));
+    expect(sideCover, findsNothing, reason: 'the glide settles with the new cover centred');
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  });
 
   testWidgets('now playing — playing', (t) => shot(t, 'np_playing', songIndex: 0));
   testWidgets('now playing — paused', (t) => shot(t, 'np_paused', songIndex: 2, playing: false));

@@ -1,3 +1,4 @@
+import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -5,11 +6,13 @@ import 'package:just_audio/just_audio.dart';
 
 import '../core/theme.dart';
 import '../models/song.dart';
-import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/desktop_dialogs.dart';
+import '../widgets/ui/action_sheet.dart';
+import '../widgets/ui/ion.dart';
 import 'artwork.dart';
+import 'edge_fade.dart';
 import 'now_playing_style.dart';
 
 /// Queue and history in one scroll: history lives ABOVE the anchor (scroll
@@ -47,7 +50,10 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
     final upNext = current + 1 < queue.length ? queue.sublist(current + 1) : const <Song>[];
     final currentSong = current < queue.length ? queue[current] : null;
 
-    return CustomScrollView(
+    return EdgeFade(
+      top: 0.03,
+      bottom: 0.08,
+      child: CustomScrollView(
       center: _anchor,
       physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
       slivers: [
@@ -175,7 +181,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                       child: SizedBox(
                         width: 48,
                         height: 48,
-                        child: Icon(Icons.drag_handle_rounded, color: st.textMuted, size: 22),
+                        child: IonIcon(Ion.dragHandle, color: st.textMuted, size: 18),
                       ),
                     ),
                   ),
@@ -185,6 +191,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
           ),
         SliverToBoxAdapter(child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom)),
       ],
+      ),
     );
   }
 }
@@ -200,15 +207,19 @@ class _ModePills extends ConsumerWidget {
     final shuffle = ref.watch(playerProvider.select((s) => s.shuffleMode));
     final repeat = ref.watch(playerProvider.select((s) => s.repeatMode));
     final autoplay = ref.watch(playerProvider.select((s) => s.autoplayMode));
+    final smartBusy = ref.watch(smartReshuffleBusyProvider);
     final n = ref.read(playerProvider.notifier);
 
+    // iOS 26's queue controls: four equal icon buttons. Shuffle is the local
+    // random toggle; the last button is Smart Reshuffle — an action that asks
+    // the server for a fresh Up Next, so it never shows as "on".
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
           Expanded(
             child: _Pill(
-              icon: Icons.shuffle_rounded,
+              ion: Ion.shuffle,
               label: 'Shuffle',
               active: shuffle,
               style: st,
@@ -219,10 +230,11 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              icon: repeat == LoopMode.one ? Icons.repeat_one_rounded : Icons.repeat_rounded,
+              ion: Ion.repeat,
+              badge: repeat == LoopMode.one ? '1' : null,
               label: switch (repeat) {
-                LoopMode.one => 'Repeat 1',
-                LoopMode.all => 'Repeat',
+                LoopMode.one => 'Repeat this song',
+                LoopMode.all => 'Repeat queue',
                 LoopMode.off => 'Repeat',
               },
               active: repeat != LoopMode.off,
@@ -233,11 +245,24 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              icon: Icons.all_inclusive_rounded,
+              ion: Ion.infinite,
               label: 'Autoplay',
               active: autoplay,
               style: st,
               onTap: n.toggleAutoplay,
+            ),
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: _Pill(
+              ion: Ion.sparkles,
+              label: 'Smart Reshuffle',
+              active: false,
+              toggle: false,
+              busy: smartBusy,
+              style: st,
+              onTap: () => runSmartReshuffle(context, ref),
+              onLongPress: () => _showShuffleModes(context, ref),
             ),
           ),
         ],
@@ -259,88 +284,100 @@ class _ShuffleModeSheet extends ConsumerWidget {
   final WidgetRef parentRef;
   const _ShuffleModeSheet({required this.parentRef});
 
+  /// The styles offered here; the full list lives in Settings. Whatever is
+  /// selected is always shown, so the checkmark is never missing.
+  static const _quick = [
+    ShuffleAlgorithm.standard,
+    ShuffleAlgorithm.spotify,
+    ShuffleAlgorithm.youtube,
+    ShuffleAlgorithm.smartLocal,
+  ];
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
     final current = ref.watch(settingsProvider.select((s) => s.shuffleAlgorithm));
     final shuffleOn = ref.watch(playerProvider.select((s) => s.shuffleMode));
-    final modes = <(ShuffleAlgorithm, IconData, String, String)>[
-      (ShuffleAlgorithm.standard, Icons.shuffle_rounded, 'Random', 'Every song equally likely.'),
-      (ShuffleAlgorithm.spotify, Icons.auto_awesome_rounded, 'Balanced',
-          'Spreads out songs by the same artist.'),
-      (ShuffleAlgorithm.youtube, Icons.trending_up_rounded, 'Favourites first',
-          'Leans toward starred and most-played songs.'),
-    ];
+    final modes = [..._quick, if (!_quick.contains(current)) current];
+    // The sheet closes before an action runs; act through the page's ref.
+    final player = parentRef.read(playerProvider.notifier);
+
     return SafeArea(
       top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(8, 0, 8, 12),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 4, 16, 12),
-              child: Text('Shuffle style', style: naviText(20, FontWeight.w700, t.textPrimary)),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          SheetGroup(children: [
+            SheetAction(
+              label: shuffleOn ? 'Shuffle Up Next Again' : 'Shuffle Up Next',
+              detail: 'Random order',
+              icon: CupertinoIcons.shuffle,
+              onTap: player.applyShuffleAlgorithm,
             ),
-            for (final (algo, icon, title, sub) in modes)
-              ListTile(
-                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-                leading: Icon(icon, color: algo == current ? t.accent : t.textSecondary),
-                title: Text(title),
-                subtitle: Text(sub),
-                trailing: algo == current ? Icon(Icons.check_rounded, color: t.accent) : null,
+            SheetAction(
+              label: 'Smart Reshuffle',
+              detail: 'Fresh picks for right now',
+              icon: CupertinoIcons.sparkles,
+              onTap: () => runSmartReshuffle(context, parentRef),
+            ),
+          ]),
+          SheetGroup(children: [
+            for (final algo in modes)
+              SheetAction(
+                label: algo.label,
+                detail: algo.summary,
+                trailing: SizedBox(
+                  width: 22,
+                  child: algo == current ? Icon(CupertinoIcons.checkmark_alt, size: 20, color: t.accent) : null,
+                ),
                 onTap: () async {
-                  ref.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
-                  if (shuffleOn) await ref.read(playerProvider.notifier).applyShuffleAlgorithm();
-                  if (context.mounted) Navigator.pop(context);
+                  parentRef.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
+                  if (shuffleOn) await player.applyShuffleAlgorithm();
                 },
               ),
-            if (shuffleOn) ...[
-              const SizedBox(height: 8),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: FilledButton.icon(
-                  icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Reshuffle what plays next'),
-                  onPressed: () async {
-                    Navigator.pop(context);
-                    final all = await ref.read(allSongsProvider.future);
-                    await ref.read(playerProvider.notifier).reshuffleActiveQueue(all);
-                  },
-                ),
-              ),
-            ],
-          ],
-        ),
+          ]),
+        ],
       ),
     );
   }
 }
 
 class _Pill extends StatelessWidget {
-  final IconData icon;
+  final Ion ion;
+
+  /// Small mark on the glyph (the "1" of repeat-one).
+  final String? badge;
   final String label;
   final bool active;
   final NowPlayingStyle style;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
+  /// False for one-shot actions (no on/off state to announce).
+  final bool toggle;
+
+  /// Shows a spinner and ignores taps while the action runs.
+  final bool busy;
+
   const _Pill({
-    required this.icon,
+    required this.ion,
+    this.badge,
     required this.label,
     required this.active,
     required this.style,
     required this.onTap,
     this.onLongPress,
+    this.toggle = true,
+    this.busy = false,
   });
 
   @override
   Widget build(BuildContext context) {
     final fg = active ? style.pillOnActive : style.textPrimary;
     return CupertinoClickable(
-      semanticLabel: '$label ${active ? 'on' : 'off'}',
+      semanticLabel: busy ? '$label, working' : (toggle ? '$label ${active ? 'on' : 'off'}' : label),
       onTap: () {
+        if (busy) return;
         HapticFeedback.selectionClick();
         onTap();
       },
@@ -348,29 +385,53 @@ class _Pill extends StatelessWidget {
       child: AnimatedContainer(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
-        height: 40,
+        height: 44,
         decoration: BoxDecoration(
           color: active ? style.pillActive : style.pillIdle,
-          borderRadius: BorderRadius.circular(20),
+          borderRadius: BorderRadius.circular(14),
         ),
-        child: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(icon, size: 18, color: fg),
-            const SizedBox(width: 6),
-            Flexible(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.fade,
-                softWrap: false,
-                style: naviText(13.5, FontWeight.w600, fg),
-              ),
-            ),
-          ],
+        alignment: Alignment.center,
+        child: AnimatedSwitcher(
+          duration: const Duration(milliseconds: 160),
+          child: busy
+              ? SizedBox(
+                  key: const ValueKey('busy'),
+                  width: 20,
+                  height: 20,
+                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                )
+              : Stack(
+                  key: ValueKey(badge),
+                  clipBehavior: Clip.none,
+                  children: [
+                    IonIcon(ion, size: 20, color: fg),
+                    if (badge != null)
+                      Positioned(
+                        right: -5,
+                        top: -4,
+                        child: Text(badge!, style: naviText(10, FontWeight.w800, fg)),
+                      ),
+                  ],
+                ),
         ),
       ),
     );
+  }
+}
+
+/// Runs a Smart Reshuffle and tells the listener when it couldn't be smart.
+/// Safe to call repeatedly: taps while one is running join it.
+Future<void> runSmartReshuffle(BuildContext context, WidgetRef ref) async {
+  final outcome = await ref.read(playerProvider.notifier).smartReshuffle();
+  if (!context.mounted) return;
+  switch (outcome) {
+    case ReshuffleOutcome.random:
+      showToast(context, 'Smart Shuffle is unavailable — shuffled randomly');
+    case ReshuffleOutcome.nothingToShuffle:
+      showToast(context, 'Nothing else to shuffle');
+    case ReshuffleOutcome.smart:
+    case ReshuffleOutcome.superseded:
+      break;
   }
 }
 
@@ -464,8 +525,8 @@ class _Swipeable extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
-        color: const Color(0xFFE5484D),
-        child: const Icon(Icons.remove_circle_outline_rounded, color: Colors.white),
+        color: AppThemeTokens.systemRed, // destructive: the one hue kept in monochrome
+        child: const IonIcon(Ion.remove, color: Colors.white),
       ),
       child: child,
     );

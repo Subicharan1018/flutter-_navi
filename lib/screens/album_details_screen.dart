@@ -1,770 +1,167 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
-import '../player/artwork.dart';
 
+import '../core/theme.dart';
 import '../models/album.dart';
 import '../models/song.dart';
+import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
-import '../providers/download_provider.dart';
-import '../widgets/options_menu.dart';
-import '../widgets/desktop_dialogs.dart';
-import '../core/theme.dart';
 import '../utils/platform_utils.dart';
+import '../utils/queue_actions.dart';
+import '../widgets/app_scaffold.dart' show navigateInApp;
+import '../widgets/collection_actions.dart';
+import '../widgets/cover_art.dart';
+import '../widgets/song_tile.dart';
+import '../widgets/ui/artwork_page.dart';
+import '../widgets/ui/collection_hero.dart';
+import '../widgets/ui/media.dart';
+import '../widgets/ui/states.dart';
+import '../widgets/ui/swipe_actions.dart';
+import 'artist_screen.dart';
 
-// ---------------------------------------------------------------------------
-// Isolate-safe color extraction
-// ---------------------------------------------------------------------------
-Future<Color?> _extractAlbumPalette(String imageUrl) async {
-  // Shares the app-wide artwork repository: decoded once at 64px, palette
-  // extracted in a background isolate, real cover hues only.
-  final data = await ArtworkRepository.instance.load(imageUrl, imageUrl);
-  return data?.palette.base;
-}
+/// The album's full record and tracks. Keyed by id so the page can open from
+/// a song that only knows the album's id and name.
+final albumPageProvider = FutureProvider.autoDispose
+    .family<({Album album, List<Song> songs}), String>((ref, id) {
+  return ref.watch(subsonicServiceProvider).getAlbumDetails(id);
+});
 
-// ===========================================================================
-// Album Details Screen (Authentic Spotify Desktop & Mobile Experience)
-// ===========================================================================
+/// Other albums by the same artist, for the "More by" shelf.
+final moreByArtistProvider = FutureProvider.autoDispose.family<List<Album>, String>((ref, artistId) {
+  if (artistId.isEmpty) return const <Album>[];
+  return ref.watch(subsonicServiceProvider).getArtistAlbums(artistId);
+});
 
-class AlbumDetailsScreen extends ConsumerStatefulWidget {
+class AlbumDetailsScreen extends ConsumerWidget {
   final Album album;
   const AlbumDetailsScreen({super.key, required this.album});
 
-  @override
-  ConsumerState<AlbumDetailsScreen> createState() => _AlbumDetailsScreenState();
-}
-
-class _AlbumDetailsScreenState extends ConsumerState<AlbumDetailsScreen> {
-  List<Song> _songs = [];
-  bool _isLoading = true;
-  bool _hasError = false;
-  Color? _vibrantColor;
-  String _coverImageUrl = '';
-  final ScrollController _scrollController = ScrollController();
-  int? _hoveredIndex;
-
-  @override
-  void initState() {
-    super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted) _loadAlbumData();
-    });
+  /// "Electronic · 2011 · Lossless" — genre, year and, when every track is
+  /// lossless, the badge Apple Music shows under the title.
+  static String _detail(Album a, List<Song> songs) {
+    const lossless = {'flac', 'alac', 'wav', 'aiff', 'ape', 'wv'};
+    final allLossless = songs.isNotEmpty && songs.every((s) => lossless.contains(s.suffix.toLowerCase()));
+    return [a.detailLine, if (allLossless) 'Lossless'].where((s) => s.isNotEmpty).join(' · ');
   }
 
   @override
-  void dispose() {
-    _scrollController.dispose();
-    super.dispose();
-  }
+  Widget build(BuildContext context, WidgetRef ref) {
+    final page = ref.watch(albumPageProvider(album.id));
+    // The passed-in album paints at once; the fetched record fills in year,
+    // genre and the artist link.
+    final full = page.asData?.value.album ?? album;
+    final songs = page.asData?.value.songs ?? const <Song>[];
+    final svc = ref.read(subsonicServiceProvider);
+    final art = svc.getCoverArtUrl(album.coverArt);
+    final playingThis = ref.watch(playerProvider.select((s) =>
+        s.isPlaying && s.currentSong != null && s.currentSong!.albumId == album.id));
 
-  Future<void> _loadAlbumData() async {
-    final service = ref.read(subsonicServiceProvider);
-    final coverUrl = service.getCoverArtUrl(widget.album.coverArt);
-    _coverImageUrl = coverUrl;
-
-    if (coverUrl.isNotEmpty) {
-      _extractAlbumPalette(coverUrl).then((color) {
-        if (mounted && color != null) {
-          setState(() => _vibrantColor = color);
-        }
-      });
+    Future<void> play({int from = 0, bool shuffle = false}) async {
+      if (songs.isEmpty) return;
+      final n = ref.read(playerProvider.notifier);
+      if (playingThis && !shuffle && from == 0) return n.player.pause();
+      shuffle
+          ? await n.playPlaylist(songs, shuffle: true, playlistName: full.name)
+          : await n.setQueue(songs, from, playlistName: full.name, unshuffledSongs: songs);
     }
 
-    try {
-      final songs = await service.getAlbum(widget.album.id);
-      if (!mounted) return;
-      setState(() {
-        _songs = songs;
-        _isLoading = false;
-        _hasError = false;
-      });
-    } catch (_) {
-      if (!mounted) return;
-      setState(() {
-        _isLoading = false;
-        _hasError = _songs.isEmpty;
-      });
-    }
-  }
+    void openArtist() => navigateInApp(context, ArtistScreen(artistId: full.artistId, name: full.artist));
 
-  String _formatDuration(int totalSeconds) {
-    final d = Duration(seconds: totalSeconds);
-    final h = d.inHours;
-    final m = d.inMinutes % 60;
-    if (h > 0) return '$h hr $m min';
-    return '$m min';
-  }
-
-  String _formatTrackDuration(int seconds) {
-    final m = seconds ~/ 60;
-    final s = (seconds % 60).toString().padLeft(2, '0');
-    return '$m:$s';
-  }
-
-  int get _totalDurationSeconds =>
-      _songs.fold(0, (sum, s) => sum + s.duration);
-
-  void _playAlbum({int initialIndex = 0, bool shuffle = false}) {
-    if (_songs.isEmpty) return;
-    if (shuffle) {
-      ref.read(playerProvider.notifier).setQueue(
-            _songs,
-            0,
-            playlistName: widget.album.name,
-            unshuffledSongs: _songs,
-          );
-      ref.read(playerProvider.notifier).toggleShuffle();
-    } else {
-      ref.read(playerProvider.notifier).setQueue(
-            _songs,
-            initialIndex,
-            playlistName: widget.album.name,
-            unshuffledSongs: _songs,
-          );
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final tokens = ThemeTokens.of(context);
-    final themeColor = _vibrantColor ?? tokens.accent;
-    final isDesktop = PlatformUtils.isDesktop && MediaQuery.of(context).size.width >= 800;
-    final playerState = ref.watch(playerProvider);
-    final isCurrentAlbumPlaying = playerState.isPlaying &&
-        playerState.currentSong != null &&
-        playerState.currentSong!.album == widget.album.name;
-
-    return Scaffold(
-      backgroundColor: const Color(0xFF121212),
-      body: Stack(
-        children: [
-          // Dynamic Ambient Gradient Mesh Backdrop
-          Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            height: 340,
-            child: DecoratedBox(
-              decoration: BoxDecoration(
-                gradient: LinearGradient(
-                  begin: Alignment.topCenter,
-                  end: Alignment.bottomCenter,
-                  colors: [
-                    themeColor.withValues(alpha: 0.65),
-                    themeColor.withValues(alpha: 0.25),
-                    const Color(0xFF121212).withValues(alpha: 0.90),
-                    const Color(0xFF121212),
-                  ],
-                  stops: const [0.0, 0.50, 0.85, 1.0],
-                ),
-              ),
-            ),
-          ),
-
-          CustomScrollView(
-            controller: _scrollController,
-            physics: const BouncingScrollPhysics(),
-            slivers: [
-              // ── Spotify Desktop Hero Header ─────────────────────────────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: isDesktop
-                      ? const EdgeInsets.fromLTRB(32, 24, 32, 16)
-                      : EdgeInsets.fromLTRB(
-                          16,
-                          MediaQuery.of(context).padding.top + 16,
-                          16,
-                          16,
-                        ),
-                  child: isDesktop
-                      ? _buildDesktopHero(tokens, themeColor)
-                      : _buildMobileHero(tokens, themeColor),
-                ),
-              ),
-
-              // ── Spotify Action Bar (Play, Shuffle, Download, Options) ────
-              SliverToBoxAdapter(
-                child: Padding(
-                  padding: isDesktop
-                      ? const EdgeInsets.fromLTRB(32, 4, 32, 16)
-                      : const EdgeInsets.fromLTRB(16, 12, 16, 16),
-                  child: Row(
-                    children: [
-                      if (!isDesktop) ...[
-                        // Favorite / Add
-                        IconButton(
-                          icon: const Icon(
-                            Icons.add_circle_outline_rounded,
-                            color: Colors.white70,
-                            size: 24,
-                          ),
-                          onPressed: () {},
-                          tooltip: 'Add to Library',
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Download Button
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_circle_down_outlined,
-                            color: Colors.white70,
-                            size: 24,
-                          ),
-                          onPressed: _songs.isNotEmpty
-                              ? () => ref
-                                  .read(downloadStateProvider.notifier)
-                                  .downloadPlaylist(_songs)
-                              : null,
-                          tooltip: 'Download Album',
-                        ),
-                        const SizedBox(width: 8),
-
-                        // Options Menu
-                        IconButton(
-                          icon: const Icon(
-                            Icons.more_vert_rounded,
-                            color: Colors.white70,
-                            size: 24,
-                          ),
-                          onPressed: () {},
-                          tooltip: 'More Options',
-                        ),
-                        const Spacer(),
-
-                        // Shuffle Button
-                        IconButton(
-                          icon: const Icon(
-                            Icons.shuffle_rounded,
-                            color: Color(0xFF1DB954),
-                            size: 24,
-                          ),
-                          onPressed: () => _playAlbum(shuffle: true),
-                          tooltip: 'Shuffle Play',
-                        ),
-                        const SizedBox(width: 12),
-                      ],
-
-                      // Large Green Circular Play Button (52x52)
-                      MouseRegion(
-                        cursor: SystemMouseCursors.click,
-                        child: GestureDetector(
-                          onTap: () {
-                            if (isCurrentAlbumPlaying) {
-                              ref.read(playerProvider.notifier).player.pause();
-                            } else {
-                              _playAlbum();
-                            }
-                          },
-                          child: Container(
-                            width: 52,
-                            height: 52,
-                            decoration: BoxDecoration(
-                              shape: BoxShape.circle,
-                              color: const Color(0xFF1DB954),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: const Color(0xFF1DB954).withValues(alpha: 0.35),
-                                  blurRadius: 18,
-                                  offset: const Offset(0, 4),
-                                ),
-                              ],
-                            ),
-                            child: Center(
-                              child: Icon(
-                                isCurrentAlbumPlaying
-                                    ? Icons.pause_rounded
-                                    : Icons.play_arrow_rounded,
-                                color: Colors.black,
-                                size: 32,
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-
-                      if (isDesktop) ...[
-                        const SizedBox(width: 20),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.shuffle_rounded,
-                            color: Colors.white70,
-                            size: 24,
-                          ),
-                          onPressed: () => _playAlbum(shuffle: true),
-                          tooltip: 'Shuffle Play',
-                        ),
-                        const SizedBox(width: 4),
-                        IconButton(
-                          icon: const Icon(
-                            Icons.arrow_circle_down_outlined,
-                            color: Colors.white70,
-                            size: 24,
-                          ),
-                          onPressed: _songs.isNotEmpty
-                              ? () => ref
-                                  .read(downloadStateProvider.notifier)
-                                  .downloadPlaylist(_songs)
-                              : null,
-                          tooltip: 'Download Album',
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-
-              // ── Track Table Header (Desktop) ─────────────────────────────
-              if (isDesktop)
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 6),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            const SizedBox(
-                              width: 36,
-                              child: Text(
-                                '#',
-                                style: TextStyle(
-                                  color: Color(0xFFB3B3B3),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            const SizedBox(width: 12),
-                            const Expanded(
-                              flex: 6,
-                              child: Text(
-                                'Title',
-                                style: TextStyle(
-                                  color: Color(0xFFB3B3B3),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            const Expanded(
-                              flex: 4,
-                              child: Text(
-                                'Album',
-                                style: TextStyle(
-                                  color: Color(0xFFB3B3B3),
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                            ),
-                            SizedBox(
-                              width: 80,
-                              child: Row(
-                                mainAxisAlignment: MainAxisAlignment.end,
-                                children: const [
-                                  Icon(
-                                    Icons.access_time_rounded,
-                                    size: 16,
-                                    color: Color(0xFFB3B3B3),
-                                  ),
-                                  SizedBox(width: 8),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 8),
-                        const Divider(
-                          color: Color(0xFF282828),
-                          height: 1,
-                          thickness: 1,
-                        ),
-                        const SizedBox(height: 4),
-                      ],
-                    ),
-                  ),
-                ),
-
-              // ── Song List / Track Table ──────────────────────────────────
-              if (_isLoading)
-                const SliverFillRemaining(
-                  child: Center(
-                    child: CircularProgressIndicator(color: Color(0xFF1DB954)),
-                  ),
-                )
-              else if (_hasError)
-                const SliverFillRemaining(
-                  child: Center(
-                    child: Text(
-                      'Could not load album tracks',
-                      style: TextStyle(color: Color(0xFFB3B3B3)),
-                    ),
-                  ),
-                )
-              else
-                SliverPadding(
-                  padding: EdgeInsets.symmetric(
-                    horizontal: isDesktop ? 24 : 16,
-                  ),
-                  sliver: SliverList(
-                    delegate: SliverChildBuilderDelegate(
-                      (context, index) {
-                        final song = _songs[index];
-                        final isPlayingSong = playerState.currentSong?.id == song.id;
-                        final isHovered = _hoveredIndex == index;
-
-                        return MouseRegion(
-                          onEnter: (_) => setState(() => _hoveredIndex = index),
-                          onExit: (_) => setState(() => _hoveredIndex = null),
-                          child: InkWell(
-                            borderRadius: BorderRadius.circular(4),
-                            onTap: () => _playAlbum(initialIndex: index),
-                            child: Container(
-                              padding: const EdgeInsets.symmetric(
-                                horizontal: 10,
-                                vertical: 6,
-                              ),
-                              decoration: BoxDecoration(
-                                color: isHovered
-                                    ? const Color(0xFF2A2A2A)
-                                    : Colors.transparent,
-                                borderRadius: BorderRadius.circular(4),
-                              ),
-                              child: Row(
-                                children: [
-                                  // Index / Play Icon
-                                  SizedBox(
-                                    width: 36,
-                                    child: isHovered
-                                        ? Icon(
-                                            isPlayingSong && playerState.isPlaying
-                                                ? Icons.pause_rounded
-                                                : Icons.play_arrow_rounded,
-                                            color: isPlayingSong
-                                                ? const Color(0xFF1DB954)
-                                                : Colors.white,
-                                            size: 20,
-                                          )
-                                        : Text(
-                                            '${index + 1}',
-                                            style: TextStyle(
-                                              color: isPlayingSong
-                                                  ? const Color(0xFF1DB954)
-                                                  : const Color(0xFFB3B3B3),
-                                              fontSize: 14,
-                                              fontWeight: isPlayingSong
-                                                  ? FontWeight.bold
-                                                  : FontWeight.normal,
-                                            ),
-                                          ),
-                                  ),
-                                  const SizedBox(width: 12),
-
-                                  // Track Title & Artist
-                                  Expanded(
-                                    flex: 6,
-                                    child: Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        Text(
-                                          song.title,
-                                          style: TextStyle(
-                                            color: isPlayingSong
-                                                ? const Color(0xFF1DB954)
-                                                : Colors.white,
-                                            fontSize: 14,
-                                            fontWeight: isPlayingSong
-                                                ? FontWeight.w700
-                                                : FontWeight.w500,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                        const SizedBox(height: 2),
-                                        Text(
-                                          song.artist,
-                                          style: const TextStyle(
-                                            color: Color(0xFFB3B3B3),
-                                            fontSize: 12,
-                                          ),
-                                          maxLines: 1,
-                                          overflow: TextOverflow.ellipsis,
-                                        ),
-                                      ],
-                                    ),
-                                  ),
-
-                                  // Album Column (Desktop)
-                                  if (isDesktop)
-                                    Expanded(
-                                      flex: 4,
-                                      child: Text(
-                                        song.album,
-                                        style: const TextStyle(
-                                          color: Color(0xFFB3B3B3),
-                                          fontSize: 13,
-                                        ),
-                                        maxLines: 1,
-                                        overflow: TextOverflow.ellipsis,
-                                      ),
-                                    ),
-
-                                  // Right Options & Duration
-                                  if (isHovered) ...[
-                                    IconButton(
-                                      icon: Icon(
-                                        song.starred
-                                            ? Icons.favorite_rounded
-                                            : Icons.favorite_border_rounded,
-                                        color: song.starred
-                                            ? const Color(0xFF1DB954)
-                                            : Colors.white70,
-                                        size: 18,
-                                      ),
-                                      onPressed: () {
-                                        ref
-                                            .read(playerProvider.notifier)
-                                            .toggleStar(song.id);
-                                      },
-                                    ),
-                                    IconButton(
-                                      icon: const Icon(
-                                        Icons.more_horiz_rounded,
-                                        color: Colors.white70,
-                                        size: 18,
-                                      ),
-                                      onPressed: () {
-                                        showPlatformSheet(
-                                          context: context,
-                                          builder: (_) => OptionsMenu(song: song),
-                                        );
-                                      },
-                                    ),
-                                  ],
-
-                                  // Duration
-                                  SizedBox(
-                                    width: 60,
-                                    child: Text(
-                                      _formatTrackDuration(song.duration),
-                                      textAlign: TextAlign.right,
-                                      style: const TextStyle(
-                                        color: Color(0xFFB3B3B3),
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        );
-                      },
-                      childCount: _songs.length,
-                    ),
-                  ),
-                ),
-
-              // Bottom Spacer
-              const SliverToBoxAdapter(child: SizedBox(height: 80)),
-            ],
-          ),
-        ],
+    return ArtworkPage(
+      paletteCoverId: album.coverArt,
+      art: (size) => CoverArt(url: art, size: size, radius: 0, placeholderIcon: CupertinoIcons.music_albums),
+      title: full.name,
+      subtitle: full.artist,
+      onSubtitleTap: full.artistId.isEmpty ? null : openArtist,
+      detail: _detail(full, songs),
+      buttons: PlayShuffleButtons(
+        playing: playingThis,
+        onPlay: songs.isEmpty ? null : () => play(),
+        onShuffle: songs.isEmpty ? null : () => play(shuffle: true),
+        trailing: CollectionDownloadButton(songs: songs),
       ),
-    );
-  }
-
-  // ── Desktop Hero Banner (Spotify horizontal layout) ──────────────────────
-  Widget _buildDesktopHero(AppThemeTokens tokens, Color themeColor) {
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.end,
-      children: [
-        // Square Cover Art (192x192 with drop shadow)
-        Container(
-          width: 192,
-          height: 192,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(6),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: 0.60),
-                blurRadius: 36,
-                offset: const Offset(0, 12),
-              ),
-            ],
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: _coverImageUrl.isNotEmpty
-                ? CachedNetworkImage(
-                    imageUrl: _coverImageUrl,
-                    fit: BoxFit.cover,
-                    errorWidget: (_, _, _) => _placeholderCover(),
-                  )
-                : _placeholderCover(),
-          ),
-        ),
-        const SizedBox(width: 24),
-
-        // Text & Metadata Stack
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            mainAxisAlignment: MainAxisAlignment.end,
-            children: [
-              const Text(
-                'ALBUM',
-                style: TextStyle(
-                  color: Colors.white,
-                  fontSize: 12,
-                  fontWeight: FontWeight.w700,
-                  letterSpacing: 1.2,
-                ),
-              ),
-              const SizedBox(height: 6),
-              Text(
-                widget.album.name,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 36,
-                  fontWeight: FontWeight.w900,
-                  letterSpacing: -1.0,
-                  height: 1.15,
-                ),
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-              ),
-              const SizedBox(height: 12),
-
-              // Metadata Row (Artist, Year, Songs count, Total duration)
-              Row(
-                children: [
-                  CircleAvatar(
-                    radius: 12,
-                    backgroundColor: Colors.white.withValues(alpha: 0.20),
-                    child: const Icon(
-                      Icons.person_rounded,
-                      size: 14,
-                      color: Colors.white,
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Text(
-                    widget.album.artist,
-                    style: const TextStyle(
-                      color: Colors.white,
-                      fontSize: 13,
-                      fontWeight: FontWeight.bold,
-                    ),
-                  ),
-                  Text(
-                    ' \u2022 ${_songs.isNotEmpty ? "${_songs.first.year} \u2022 " : ""}${_songs.length} songs, ${_formatDuration(_totalDurationSeconds)}',
-                    style: TextStyle(
-                      color: Colors.white.withValues(alpha: 0.70),
-                      fontSize: 13,
-                    ),
-                  ),
-                ],
-              ),
-            ],
+      actions: [
+        BarCircleButton(
+          icon: CupertinoIcons.ellipsis,
+          label: 'More',
+          onTap: () => showCollectionActions(
+            context,
+            title: full.name,
+            subtitle: full.artist,
+            artUrl: art,
+            placeholderIcon: CupertinoIcons.music_albums,
+            loadSongs: () async => songs,
+            pin: Pin.album(full),
           ),
         ),
       ],
-    );
-  }
-
-  // ── Mobile Hero Banner ──────────────────────────────────────────────────
-  Widget _buildMobileHero(AppThemeTokens tokens, Color themeColor) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Center(
-          child: Container(
-            width: 220,
-            height: 220,
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(8),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.6),
-                  blurRadius: 24,
-                  offset: const Offset(0, 10),
-                ),
-              ],
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(8),
-              child: _coverImageUrl.isNotEmpty
-                  ? CachedNetworkImage(
-                      imageUrl: _coverImageUrl,
-                      fit: BoxFit.cover,
-                      errorWidget: (_, _, _) => _placeholderCover(),
-                    )
-                  : _placeholderCover(),
-            ),
-          ),
-        ),
-        const SizedBox(height: 20),
-        Text(
-          widget.album.name,
-          style: const TextStyle(
-            color: Colors.white,
-            fontSize: 22,
-            fontWeight: FontWeight.bold,
-            letterSpacing: -0.4,
-          ),
-          textAlign: TextAlign.left,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-        ),
-        const SizedBox(height: 8),
-        Row(
-          children: [
-            CircleAvatar(
-              radius: 12,
-              backgroundColor: const Color(0xFF282828),
-              child: Icon(
-                Icons.person_rounded,
-                size: 16,
-                color: tokens.textSecondary,
-              ),
-            ),
-            const SizedBox(width: 8),
-            Expanded(
-              child: Text(
-                widget.album.artist,
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 14,
-                  fontWeight: FontWeight.w600,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
+      onRefresh: () async => ref.invalidate(albumPageProvider(album.id)),
+      slivers: [
+        ...page.when(
+          loading: () => const [SliverToBoxAdapter(child: TrackListSkeleton(artwork: false))],
+          error: (_, _) => [
+            SliverToBoxAdapter(
+              child: MessageState.error(
+                title: 'Couldn’t load this album',
+                onRetry: () => ref.invalidate(albumPageProvider(album.id)),
               ),
             ),
           ],
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Album \u2022 ${_songs.isNotEmpty ? "${_songs.first.year} \u2022 " : ""}${_songs.length} songs',
-          style: TextStyle(
-            color: Colors.white.withValues(alpha: 0.65),
-            fontSize: 13,
-            fontWeight: FontWeight.w400,
-          ),
+          data: (_) => [
+            SliverFixedExtentList(
+              itemExtent: SongTile.extent,
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => SwipeActions.queue(
+                  rowKey: ValueKey('album_${songs[i].id}'),
+                  context: context,
+                  onPlayNext: () => queueSongs(context, ref, [songs[i]], next: true),
+                  onPlayLast: () => queueSongs(context, ref, [songs[i]], next: false),
+                  child: SongTile(
+                    song: songs[i],
+                    showArtwork: false,
+                    showArtist: songs[i].artist != full.artist,
+                    trackNumber: songs[i].track > 0 ? songs[i].track : i + 1,
+                    showDuration: PlatformUtils.isDesktop,
+                    onTap: () => play(from: i),
+                  ),
+                ),
+                childCount: songs.length,
+              ),
+            ),
+            SliverToBoxAdapter(child: CollectionSummary(songs: songs)),
+            SliverToBoxAdapter(child: _MoreByArtist(album: full, onSeeAll: openArtist)),
+          ],
         ),
       ],
     );
   }
+}
 
-  Widget _placeholderCover() {
-    return Container(
-      color: const Color(0xFF282828),
-      child: const Center(
-        child: Icon(
-          Icons.album_rounded,
-          size: 64,
-          color: Color(0xFFB3B3B3),
+class _MoreByArtist extends ConsumerWidget {
+  final Album album;
+  final VoidCallback onSeeAll;
+  const _MoreByArtist({required this.album, required this.onSeeAll});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final others = (ref.watch(moreByArtistProvider(album.artistId)).asData?.value ?? const <Album>[])
+        .where((a) => a.id != album.id)
+        .toList();
+    final svc = ref.read(subsonicServiceProvider);
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.sm),
+      child: MediaShelf(
+        title: 'More by ${album.artist}',
+        onSeeAll: onSeeAll,
+        itemCount: others.length,
+        itemBuilder: (context, i) => MediaCard(
+          title: others[i].name,
+          subtitle: others[i].year > 0 ? '${others[i].year}' : null,
+          artUrl: svc.getCoverArtUrl(others[i].coverArt),
+          size: 150,
+          placeholderIcon: CupertinoIcons.music_albums,
+          onTap: () => navigateInApp(context, AlbumDetailsScreen(album: others[i])),
         ),
       ),
     );

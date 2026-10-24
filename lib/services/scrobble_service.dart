@@ -13,10 +13,7 @@ import 'subsonic_service.dart';
 // Handles Subsonic scrobble calls (now-playing + submission).
 //
 // Feedback to the shuffle/ML model (POST /feedback) is handled separately by
-// sendShuffleFeedback() in player_provider.dart — NOT here. The old
-// ListeningLogService.logPlay() call was removed because it duplicated the
-// POST /feedback request with hardcoded inaccurate data (listen_ratio: 1.0,
-// end_reason: 'natural' regardless of actual user behavior).
+// sendShuffleFeedback() in player_provider.dart — NOT here.
 //
 // Both scrobble calls are fire-and-forget (unawaited) so they never block
 // playback.

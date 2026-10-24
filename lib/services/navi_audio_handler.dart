@@ -21,7 +21,11 @@ import 'shuffle_algorithms.dart';
 
 class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   final AudioPlayer player;
-  final SubsonicService subsonicService;
+
+  /// Replaced when the signed-in credentials change (audioHandlerProvider).
+  /// The handler is created in main() before sign-in, so a final field pinned
+  /// it to an empty-password service and stream URLs failed until restart.
+  SubsonicService subsonicService;
 
   final TranscodingService _transcodingService;
   List<Song> _currentQueue = [];
@@ -99,6 +103,18 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         if (globalIndex < _currentQueue.length) {
           _trackRecentlyPlayed(_currentQueue[globalIndex].id);
         }
+        // A gapless advance changes the position without changing
+        // playerState, and the notification interpolates elapsed time from
+        // the last broadcast: without this it kept counting from the previous
+        // song (a 4-minute song then a 3-minute one showed "3:00 of 3:00").
+        // Deferred a microtask so it runs after just_audio has reset position.
+        scheduleMicrotask(() {
+          try {
+            _broadcastState();
+          } on UnimplementedError {
+            // Test doubles of AudioPlayer that only stub queue behaviour.
+          }
+        });
       }
     }));
 
@@ -209,7 +225,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           LoopMode.off: AudioServiceRepeatMode.none,
           LoopMode.one: AudioServiceRepeatMode.one,
           LoopMode.all: AudioServiceRepeatMode.all,
-        }[player.loopMode]!,
+        }[_repeatMode]!,
         shuffleMode: player.shuffleModeEnabled
             ? AudioServiceShuffleMode.all
             : AudioServiceShuffleMode.none,
@@ -261,18 +277,29 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   @override
-  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) async {
-    // REPEAT-ONCE BUG FIX: Ensure AudioServiceRepeatMode.one explicitly maps
-    // to LoopMode.one. The previously broken logic or mismatch caused infinite repeats.
-    // AudioServiceRepeatMode.none => LoopMode.off
-    // AudioServiceRepeatMode.one  => LoopMode.one
-    // AudioServiceRepeatMode.all  => LoopMode.all
-    final next = switch (player.loopMode) {
-      LoopMode.off => LoopMode.one,
-      LoopMode.one => LoopMode.all,
-      LoopMode.all => LoopMode.off,
-    };
-    await player.setLoopMode(next);
+  Future<void> setRepeatMode(AudioServiceRepeatMode repeatMode) =>
+      applyRepeatMode(switch (repeatMode) {
+        AudioServiceRepeatMode.none => LoopMode.off,
+        AudioServiceRepeatMode.one => LoopMode.one,
+        AudioServiceRepeatMode.all || AudioServiceRepeatMode.group =>
+          LoopMode.all,
+      });
+
+  /// The user's repeat choice. This — not `player.loopMode` — is the source
+  /// of truth: on desktop only one track is loaded at a time, so setting
+  /// LoopMode.all on the player would loop that single track forever and the
+  /// queue would never advance or wrap.
+  LoopMode _repeatMode = LoopMode.off;
+  LoopMode get repeatMode => _repeatMode;
+
+  /// Applies [mode] and re-broadcasts state immediately. Loop changes don't
+  /// alter playerState, so without the explicit broadcast the UI (which reads
+  /// repeatMode from playbackState) never saw the change.
+  Future<void> applyRepeatMode(LoopMode mode) async {
+    _repeatMode = mode;
+    await player.setLoopMode(
+      _isDesktopBridge && mode == LoopMode.all ? LoopMode.off : mode,
+    );
     _broadcastState();
   }
 
@@ -483,7 +510,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     Duration? initialPosition,
   }) async {
     if (_currentQueue.isEmpty) return;
-    final savedLoopMode = player.loopMode;
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
 
     if (_isDesktopBridge) {
@@ -535,8 +561,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       initialIndex: initialIndex,
       initialPosition: initialPosition,
     );
-    if (savedLoopMode != LoopMode.off) {
-      await player.setLoopMode(savedLoopMode);
+    if (_repeatMode != LoopMode.off) {
+      await player.setLoopMode(_repeatMode);
     }
   }
 
@@ -640,7 +666,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       debugPrint('🏁 [Desktop] Track completed, advancing...');
 
       // Repeat one — restart current track
-      if (player.loopMode == LoopMode.one) {
+      if (_repeatMode == LoopMode.one) {
         await player.seek(Duration.zero);
         await player.play();
         return;
@@ -648,7 +674,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
       int next = _desktopTargetIndex + 1;
       if (next >= _currentQueue.length) {
-        if (player.loopMode == LoopMode.all) {
+        if (_repeatMode == LoopMode.all) {
           next = 0; // wrap around
         } else {
           return; // end of queue, stay stopped
@@ -698,7 +724,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_currentQueue.isEmpty) return;
     int next = _desktopTargetIndex + 1;
     if (next >= _currentQueue.length) {
-      if (player.loopMode == LoopMode.all) {
+      if (_repeatMode == LoopMode.all) {
         next = 0;
       } else {
         return;
@@ -723,7 +749,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     int prev = _desktopTargetIndex - 1;
     if (prev < 0) {
-      if (player.loopMode == LoopMode.all) {
+      if (_repeatMode == LoopMode.all) {
         prev = _currentQueue.length - 1;
       } else {
         await player.seek(Duration.zero);
@@ -822,28 +848,48 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     debugPrint('🎵 [NaviAudioHandler] _moveBasedReorder at anchor: $anchorIndex');
     final int n = _currentQueue.length;
     final int playlistLen = _playlist!.children.length;
+    // Queues over the source cap load a window starting at _playlistOffset;
+    // reorder within that window rather than treating the size difference
+    // as divergence (which rebuilt the source: an audible gap on every
+    // Smart Shuffle reorder of a long playlist).
+    final int windowEnd = (_playlistOffset + playlistLen).clamp(0, n);
+    final List<Song> window = _playlistOffset < windowEnd
+        ? _currentQueue.sublist(_playlistOffset, windowEnd)
+        : const <Song>[];
+    final liveSet = {
+      for (final src in _playlist!.children)
+        if (src.sequence.isNotEmpty && src.sequence.first.tag is MediaItem) (src.sequence.first.tag as MediaItem).id,
+    };
+    final sameSongs = window.length == playlistLen && window.every((s) => liveSet.contains(s.id));
 
-    // Guard: if the playlist source count diverges from the queue count,
-    // move-based reorder is unsafe — fall back to a full source rebuild
-    // to prevent the "Not in inclusive range 0..N: N+1" RangeError.
-    if (playlistLen != n) {
-      debugPrint(
-        '⚠️ [Reorder] playlist.children ($playlistLen) ≠ queue ($n) — '
-        'falling back to rebuildSource at anchor $anchorIndex',
-      );
+    // Guard: if the loaded sources hold different songs from the queue
+    // window, move-based reorder is unsafe — fall back to a full source
+    // rebuild to prevent the "Not in inclusive range 0..N: N+1" RangeError.
+    if (!sameSongs) {
+      final activeId = preserveActiveSongId ?? _currentQueue[anchorIndex.clamp(0, n - 1)].id;
+      final activeIdx = _currentQueue.indexWhere((song) => song.id == activeId);
+      final liveIndex = player.currentIndex;
+      final liveTag = liveIndex != null && liveIndex < playlistLen
+          ? _playlist!.children[liveIndex].sequence.firstOrNull?.tag
+          : null;
+      if (activeIdx >= 0 && liveTag is MediaItem && liveTag.id == activeId) {
+        // The playing song is loaded: replace everything around it without
+        // touching it, so the audio never stops.
+        debugPrint('ℹ️ [Reorder] sources differ from queue — replacing around the playing song');
+        await updateQueuePreservingCurrent(List<Song>.from(_currentQueue), activeIdx);
+        return;
+      }
+      debugPrint('⚠️ [Reorder] playing song not loaded — rebuilding source at anchor $anchorIndex');
       final savedPosition = player.position;
-      final rebuildIndex = preserveActiveSongId == null
-          ? anchorIndex
-          : _currentQueue.indexWhere((song) => song.id == preserveActiveSongId);
       await _rebuildSource(
-        (rebuildIndex >= 0 ? rebuildIndex : currentIndex).clamp(0, n - 1),
+        (activeIdx >= 0 ? activeIdx : currentIndex).clamp(0, n - 1),
         initialPosition: savedPosition,
       );
       if (player.playing) player.play();
       return;
     }
 
-    final List<String> liveIds = List.generate(n, (i) {
+    final List<String> liveIds = List.generate(playlistLen, (i) {
       final src = _playlist!.children[i];
       if (src.sequence.isNotEmpty && src.sequence.first.tag is MediaItem) {
         return (src.sequence.first.tag as MediaItem).id;
@@ -851,8 +897,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       return '';
     });
 
-    for (int targetIdx = 0; targetIdx < n; targetIdx++) {
-      final wantedId = _currentQueue[targetIdx].id;
+    for (int targetIdx = 0; targetIdx < playlistLen; targetIdx++) {
+      final wantedId = window[targetIdx].id;
       if (liveIds[targetIdx] == wantedId) continue;
       final fromIdx = liveIds.indexOf(wantedId, targetIdx + 1);
       if (fromIdx == -1) continue;
@@ -869,8 +915,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // preserve that item and let just_audio maintain its live index.
     if (preserveActiveSongId == null) {
       final currentLiveIndex = currentIndex;
-      if (currentLiveIndex != anchorIndex) {
-        await player.seek(player.position, index: anchorIndex);
+      final localAnchor = anchorIndex - _playlistOffset;
+      if (currentLiveIndex != anchorIndex && localAnchor >= 0 && localAnchor < playlistLen) {
+        await player.seek(player.position, index: localAnchor);
       }
     }
     if (player.playing) player.play();
@@ -1007,9 +1054,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (_playlistOffset == 0) {
         await _playlist!.removeRange(start, end);
       } else {
-        await _rebuildSource(
-          currentIndex.clamp(0, _currentQueue.length - 1),
-        );
+        // A windowed queue: songs before the loaded window just shift the
+        // offset; only the part inside the window touches the sources. (This
+        // used to rebuild the whole source, restarting the playing song.)
+        final oldOffset = _playlistOffset;
+        final len = _playlist!.children.length;
+        final beforeWindow = (end < oldOffset ? end : oldOffset) - start;
+        final localStart = (start > oldOffset ? start : oldOffset) - oldOffset;
+        final localEnd = ((end < oldOffset + len ? end : oldOffset + len) - oldOffset);
+        if (beforeWindow > 0) _playlistOffset -= beforeWindow;
+        if (localEnd > localStart) await _playlist!.removeRange(localStart, localEnd);
       }
     }
   }

@@ -96,6 +96,10 @@ class SongPairing {
 class RecommendedSong {
   final int rank;
   final String title;
+
+  /// The song's Navidrome id (server v4.3+): matches it to the library
+  /// exactly, where title matching can't tell same-titled songs apart.
+  final String? navidromeId;
   final String filePath;
   final String genreBucket;
   final String composer;
@@ -159,6 +163,7 @@ class RecommendedSong {
     required this.audio,
     required this.scores,
     required this.why,
+    this.navidromeId,
     this.artist,
     this.album,
     this.tempo,
@@ -181,6 +186,9 @@ class RecommendedSong {
       RecommendedSong(
         rank: _parseInt(json['rank']),
         title: json['title']?.toString() ?? json['song_key']?.toString() ?? '',
+        navidromeId: (json['navidrome_id'] ?? json['id'])?.toString(),
+        artist: json['artist']?.toString(),
+        album: json['album']?.toString(),
         filePath: json['file_path']?.toString() ?? '',
         genreBucket: json['genre_bucket']?.toString() ?? '',
         composer: json['composer']?.toString() ?? '',

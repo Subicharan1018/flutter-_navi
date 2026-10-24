@@ -15,7 +15,7 @@ To maintain 120 FPS UI performance, all heavy computation is offloaded to OS-lev
 - **No Flutter Engine**: Workers should avoid `dart:ui` or Flutter-dependent libraries, relying solely on `dart:math` and pure Dart logic.
 
 ### 🧠 State Management (Riverpod 2.0)
-- **Code Generation**: Uses `@riverpod` annotations to generate type-safe providers.
+- **Providers**: hand-written Riverpod providers (no code generation).
 - **Logic Separation**: UI calls methods on Notifiers; Notifiers orchestrate Services; Services interact with the Database or API.
 - **Provider Ref Tracking**: Services receive a `Ref` or specific dependencies via constructors to enable mocking in tests.
 
@@ -88,15 +88,11 @@ NaviVibe uses a **Multi-Engine Tokenized System** to decouple aesthetics from UI
 ### 🗄️ Database (Drift/SQLite)
 - **Tables**:
     - `PlayEvents`: UUID-primary-key, tracks timestamps, duration, skip status, and context.
-    - `SongMetadata`: Denormalized cache of Subsonic metadata for offline analytics queries.
-    - `SongPairs`: Relational table tracking $Song A \to Song B$ transitions for the recommendation engine.
-- **Sync**: Metadata is upserted on every "Song Started" event to ensure the local library stays current with the server.
+    - `SongMetadata`: Denormalized cache of Subsonic metadata for offline analytics queries.- **Sync**: Metadata is upserted on every "Song Started" event to ensure the local library stays current with the server.
 
 ### 🌐 Subsonic API (`SubsonicService`)
 - **Authentication**: Salted MD5 tokens ($password + salt$).
 - **Streaming**: Supports direct URLs and proxied streams. Proxied streams are used when transcoding is active (managed by `TranscodingService`).
-- **WebDAV**: Used for "Replay" data backups. **Note**: Hardcoded fallback credentials ('casaos') have been removed for security; explicit user config is now mandatory.
-
 ---
 
 
