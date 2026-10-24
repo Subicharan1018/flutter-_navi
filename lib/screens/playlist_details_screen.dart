@@ -28,6 +28,7 @@ import '../widgets/ui/mosaic_art.dart';
 import '../widgets/ui/states.dart';
 import '../widgets/ui/swipe_actions.dart';
 import 'playlist_editor.dart';
+import 'playlist_suggestions.dart';
 import 'song_picker_screen.dart';
 
 /// A playlist, Apple Music style. Tap "Edit" to reorder (drag handles) or
@@ -314,6 +315,15 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
           ),
         if (!_loading && _songs.isNotEmpty && _query.isEmpty)
           SliverToBoxAdapter(child: CollectionSummary(songs: _songs)),
+        if (!_loading && !_failed && !_editing && _query.isEmpty && _songs.length >= 2 && !ref.watch(isOfflineProvider))
+          SliverToBoxAdapter(
+            child: PlaylistSuggestions(
+              playlistId: _playlist.id,
+              playlistName: _playlist.name,
+              songs: _songs,
+              onAdded: _load,
+            ),
+          ),
       ],
     );
   }

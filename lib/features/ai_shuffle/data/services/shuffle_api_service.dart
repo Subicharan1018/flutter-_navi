@@ -223,6 +223,23 @@ class ShuffleApiService {
     });
   }
 
+  /// POST /predict/playlist-suggestions
+  /// Library songs that would fit a playlist, each with a one-line reason.
+  Future<List<({String id, String why})>> getPlaylistSuggestions(List<String> songIds, {int limit = 10}) async {
+    return _wrap(() async {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/predict/playlist-suggestions',
+        data: {'song_ids': songIds, 'limit': limit},
+        options: Options(contentType: 'application/json'),
+      );
+      final list = (response.data?['suggestions'] as List<dynamic>? ?? []).whereType<Map>();
+      return [
+        for (final s in list)
+          if (s['navidrome_id'] != null) (id: s['navidrome_id'].toString(), why: s['why']?.toString() ?? ''),
+      ];
+    });
+  }
+
   // ---------------------------------------------------------------------------
   // POST /feedback
   // ---------------------------------------------------------------------------

@@ -139,6 +139,10 @@ class ShuffleRepository {
     return response;
   }
 
+  /// Library songs that would fit a playlist made of [songIds].
+  Future<List<({String id, String why})>> getPlaylistSuggestions(List<String> songIds, {int limit = 10}) =>
+      _api.getPlaylistSuggestions(songIds, limit: limit);
+
   /// Song ids replaced by the last Navidrome upgrade: `(epoch, {old: new})`.
   Future<(String?, Map<String, String>)> getIdMap() => _api.getIdMap();
 

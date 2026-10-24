@@ -31,13 +31,7 @@ class HiveBoxes {
   static Future<void> init() async {
     await Hive.initFlutter();
 
-    // Secure encryption for sensitive data (credentials)
-    final encryptionKey = await _getEncryptionKey();
-
-    auth = await Hive.openBox(
-      _authBox,
-      encryptionCipher: HiveAesCipher(encryptionKey),
-    );
+    auth = await _openAuthBox();
     session = await Hive.openBox(_sessionBox);
     prefs = await Hive.openBox(_prefsBox);
     audio = await Hive.openBox(_audioBox);
@@ -65,15 +59,32 @@ class HiveBoxes {
     }
   }
 
+  /// Credentials box, encrypted with a key kept in the Android Keystore.
+  /// On some phones the Keystore entry becomes unreadable (restored backup,
+  /// OS update, a security-chip reset) and reading it throws; that used to end
+  /// the app before the first screen. Then the unreadable box is dropped and
+  /// recreated: the user signs in again instead of the app closing.
+  static Future<Box> _openAuthBox() async {
+    try {
+      return await Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(await _getEncryptionKey()));
+    } catch (e) {
+      debugPrint('[Hive] ❌ Credentials box unreadable, recreating it: $e');
+      await Hive.deleteBoxFromDisk(_authBox);
+      try {
+        await const FlutterSecureStorage().delete(key: _keyName);
+      } catch (_) {}
+      return Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(await _getEncryptionKey()));
+    }
+  }
+
+  static const _keyName = 'hive_encryption_key';
+
   static Future<List<int>> _getEncryptionKey() async {
     const storage = FlutterSecureStorage();
-    final encodedKey = await storage.read(key: 'hive_encryption_key');
+    final encodedKey = await storage.read(key: _keyName);
     if (encodedKey == null) {
       final key = Hive.generateSecureKey();
-      await storage.write(
-        key: 'hive_encryption_key',
-        value: base64UrlEncode(key),
-      );
+      await storage.write(key: _keyName, value: base64UrlEncode(key));
       return key;
     }
     return base64Url.decode(encodedKey);

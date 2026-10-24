@@ -44,7 +44,12 @@ Future<void> main() async {
   // DownloadStateNotifier.build() finds _prefs non-null on its very first
   // access.  Without this await, _prefs is null on cold start and
   // getDownloadedSongIds() returns [] — making all downloaded badges vanish.
-  await OfflineService().initialize();
+  try {
+    await OfflineService().initialize();
+  } catch (e, st) {
+    // Offline songs just won't show as downloaded; the app must still open.
+    debugPrint('⚠️  OfflineService.initialize failed ($e)\n$st');
+  }
 
   // ── Media kit: required on Linux / Windows for just_audio playback ─────────
   if (!kIsWeb && (Platform.isLinux || Platform.isWindows)) {
