@@ -47,7 +47,7 @@ class BlendSection extends ConsumerWidget {
           onAction: () => ref.invalidate(blendListProvider),
         ),
         data: (items) => Column(children: [
-          for (final b in items) _BlendRow(blend: b),
+          for (final b in items.where((b) => !(b.pending && b.incoming))) BlendRow(blend: b),
           if (items.isEmpty)
             const SocialFootnote('A Blend is a playlist of music you and a friend both like, refreshed every day. You both have to say yes.'),
           CollectionRow(
@@ -75,9 +75,9 @@ class BlendSection extends ConsumerWidget {
   }
 }
 
-class _BlendRow extends ConsumerWidget {
+class BlendRow extends ConsumerWidget {
   final Blend blend;
-  const _BlendRow({required this.blend});
+  const BlendRow({super.key, required this.blend});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

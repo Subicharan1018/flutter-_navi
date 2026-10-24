@@ -101,6 +101,10 @@ class MicroduckInput {
   /// Waiting on an answer: head cocked, the screen shows a loading wave.
   bool thinking = false;
 
+  /// Saying something: the head nods along and the screen shows a voice
+  /// meter.
+  bool talking = false;
+
   final MicroduckRig rig = MicroduckRig();
 
   static const double hopSeconds = 1.0;
@@ -262,6 +266,11 @@ class MicroduckRig {
       p.v[RigPose.headRoll] += 0.32 + 0.06 * math.sin(t * 2.4);
       p.v[RigPose.headPitch] -= 0.18;
       p.v[RigPose.twist] += 0.18 * math.sin(t * 1.3);
+    }
+    if (input.talking && !input.thinking && which != MicroduckPose.sleep) {
+      p.v[RigPose.headPitch] += 0.07 * math.sin(t * 13) - 0.04;
+      p.v[RigPose.headRoll] += 0.07 * math.sin(t * 5.3);
+      p.v[RigPose.headYaw] += 0.12 * math.sin(t * 2.1);
     }
     _final.copy(p);
 
@@ -730,6 +739,14 @@ class MicroduckRig {
         final ph = (t * 1.5 - i * 0.14) % 1;
         sx[dBar0 + i] = 1;
         sy[dBar0 + i] = 0.14 + 0.5 * _bump(ph * 1.6);
+      }
+      return;
+    }
+    if (input.talking) {
+      // A voice meter: five bars flickering at their own speeds.
+      for (var i = 0; i < dBarCount; i++) {
+        sx[dBar0 + i] = 1;
+        sy[dBar0 + i] = 0.16 + 0.55 * math.sin(t * (9 + i * 2.3) + i).abs();
       }
       return;
     }

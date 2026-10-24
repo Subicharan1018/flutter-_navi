@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../models/song.dart';
 import '../providers/settings_provider.dart';
 import '../providers/download_provider.dart';
@@ -45,7 +46,7 @@ class ScrobbleService {
   ///
   /// Fire-and-forget — swallows all errors and does nothing if offline.
   void nowPlaying(String songId) async {
-    if (await _isOffline()) return;
+    if (isLocalSongId(songId) || await _isOffline()) return;
     unawaited(_api.scrobble(songId, submission: false));
   }
 
@@ -56,7 +57,7 @@ class ScrobbleService {
   /// The [song] parameter is retained for API compatibility with existing
   /// call sites but is no longer used for listening-log submission.
   void submit(String songId, {Song? song}) async {
-    if (await _isOffline()) return;
+    if (isLocalSongId(songId) || await _isOffline()) return;
 
     // ── Subsonic scrobble ────────────────────────────────────────────────────
     unawaited(_api.scrobble(songId, submission: true));

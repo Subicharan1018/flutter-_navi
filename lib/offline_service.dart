@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import '../models/playlist.dart';
+import 'features/local_library/logic/download_location.dart';
 import 'services/subsonic_service.dart';
 
 class DownloadState {
@@ -61,12 +62,19 @@ class OfflineService {
   Future<void> initialize() async {
     _prefs ??= await SharedPreferences.getInstance();
     final dir = await getApplicationDocumentsDirectory();
-    _offlineDir = '${dir.path}/offline_music';
+    final defaultDir = resolveOfflineDir(appDocs: dir.path);
+    _offlineDir = resolveOfflineDir(appDocs: dir.path, custom: _locationStore.read());
 
-    final offlineDirectory = Directory(_offlineDir!);
-    if (!await offlineDirectory.exists()) {
-      await offlineDirectory.create(recursive: true);
+    // A chosen folder can disappear (SD card out, drive unplugged): fall back
+    // to app storage rather than failing every download and playback.
+    try {
+      await Directory(_offlineDir!).create(recursive: true);
+    } on FileSystemException catch (e) {
+      debugPrint('Download folder $_offlineDir unavailable ($e); using app storage');
+      _offlineDir = defaultDir;
+      await Directory(_offlineDir!).create(recursive: true);
     }
+    final offlineDirectory = Directory(_offlineDir!);
 
     _downloadedFileNames.clear();
     try {
@@ -81,6 +89,46 @@ class OfflineService {
       debugPrint('Error scanning offline directory: $e');
     }
   }
+
+  /// Where downloads are stored right now (null before [initialize]).
+  String? get downloadsDirectory => _offlineDir;
+
+  DownloadLocationStore _locationStore = const DownloadLocationStore();
+
+  /// Points downloads at [parent] (a folder the user chose; `null` = app
+  /// storage). With [moveExisting] the files already downloaded follow; the
+  /// setting only changes once the new folder is known to be writable.
+  /// Returns an error sentence for the user, or null on success.
+  Future<String?> setDownloadLocation(
+    String? parent, {
+    bool moveExisting = false,
+    void Function(int done, int total)? onProgress,
+  }) async {
+    if (_downloadActive()) return 'Wait for the current downloads to finish, then try again.';
+    if (_offlineDir == null) await initialize();
+    final docs = await getApplicationDocumentsDirectory();
+    final target = resolveOfflineDir(appDocs: docs.path, custom: parent);
+    final error = await checkWritable(target);
+    if (error != null) return error;
+    final from = _offlineDir!;
+    if (moveExisting && from != target) {
+      final result = await moveDirectoryFiles(from, target, onProgress: onProgress);
+      if (result.failed > 0) {
+        await _locationStore.write(parent);
+        await initialize();
+        return '${result.failed} songs couldn’t be moved and stay in the old folder.';
+      }
+    }
+    await _locationStore.write(parent);
+    await initialize();
+    return null;
+  }
+
+  bool _downloadActive() => _isBackgroundDownloadActive || downloadState.value.isDownloading;
+
+  /// Tests only: replace where the chosen folder is remembered.
+  @visibleForTesting
+  void useLocationStore(DownloadLocationStore store) => _locationStore = store;
 
   String _getSongPath(String songId, {String? suffix}) {
     final ext = (suffix != null && suffix.isNotEmpty) ? suffix.toLowerCase() : 'mp3';

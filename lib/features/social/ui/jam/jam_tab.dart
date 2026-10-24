@@ -1,36 +1,53 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme.dart';
-import '../../../widgets/app_scaffold.dart' show navigateInApp;
-import '../../../widgets/art/navi_icons.dart';
-import '../../../widgets/ui/action_sheet.dart';
-import '../../../widgets/ui/large_title_page.dart';
-import '../../../widgets/ui/media.dart';
-import '../../../widgets/ui/states.dart';
-import '../logic/jam_controller.dart';
-import '../logic/social_providers.dart';
-import 'blend_screens.dart';
-import 'collab_screens.dart';
-import 'friend_activity.dart';
-import 'jam_screen.dart';
-import 'social_widgets.dart';
+import '../../../../widgets/art/navi_icons.dart';
+import '../../../../widgets/ui/action_sheet.dart';
+import '../../../../widgets/ui/large_title_page.dart';
+import '../../../../widgets/ui/states.dart';
+import '../../logic/jam_controller.dart';
+import '../../logic/social_providers.dart';
+import '../blend_screens.dart';
+import '../collab_screens.dart';
+import '../friend_activity.dart';
+import '../invitations.dart';
+import '../social_widgets.dart';
+import 'jam_room.dart';
 
-/// Everything shared with other people on the server: Jam, friend activity,
-/// shared playlists and Blends. Friend activity and Blends stay hidden until
-/// the person turns social features on.
-class SocialScreen extends ConsumerWidget {
-  const SocialScreen({super.key});
+/// The Jam tab. A live room when you are in one, otherwise the empty room with
+/// a way in. Below it, the people side of NaviVibe: invitations, what friends
+/// are playing, shared playlists and Blends (hidden until social is on).
+class JamTabScreen extends ConsumerStatefulWidget {
+  const JamTabScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<JamTabScreen> createState() => _JamTabScreenState();
+}
+
+class _JamTabScreenState extends ConsumerState<JamTabScreen> {
+  @override
+  void initState() {
+    super.initState();
+    // Picks up a Jam this account is already in (app restarted, new phone).
+    Future.microtask(() {
+      if (mounted) ref.read(jamControllerProvider.notifier).restore();
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final ui = ref.watch(jamControllerProvider);
+    ref.listen(jamControllerProvider.select((s) => s.notice), (_, notice) {
+      if (notice != null) {
+        showToast(context, notice);
+        ref.read(jamControllerProvider.notifier).clearNotice();
+      }
+    });
     final settings = ref.watch(socialSettingsProvider);
     final enabled = ref.watch(socialEnabledProvider);
-    final jam = ref.watch(jamControllerProvider.select((s) => s.jam));
-    final t = ThemeTokens.of(context);
 
     return LargeTitlePage(
-      title: 'Social',
+      title: 'Jam',
       onRefresh: () async {
         ref.invalidate(socialSettingsProvider);
         ref.invalidate(friendFeedProvider);
@@ -38,17 +55,10 @@ class SocialScreen extends ConsumerWidget {
         ref.invalidate(blendListProvider);
       },
       slivers: [
-        SliverToBoxAdapter(
-          child: CollectionRow(
-            title: jam == null ? 'Jam' : 'Jam · ${jam.code}',
-            subtitle: jam == null
-                ? 'Listen together, in sync'
-                : '${jam.members.length} listening${jam.youAreHost ? ' · you’re the host' : ''}',
-            leading: SizedBox(width: 30, child: NaviIcon(NaviGlyph.group, size: 26, color: t.accent)),
-            showSeparator: false,
-            onTap: () => navigateInApp(context, const JamScreen()),
-          ),
-        ),
+        if (ui.jam == null)
+          SliverToBoxAdapter(child: JamStage(busy: ui.busy))
+        else
+          ...jamRoomSlivers(context, ref, ui),
         if (settings.isLoading && !settings.hasValue)
           const SliverToBoxAdapter(child: LoadingState())
         else if (settings.hasError && !settings.hasValue)
@@ -64,6 +74,7 @@ class SocialScreen extends ConsumerWidget {
         else if (!enabled)
           SliverToBoxAdapter(child: _Intro())
         else ...[
+          const SliverToBoxAdapter(child: InvitationsSection()),
           const SliverToBoxAdapter(child: FriendActivitySection()),
           const SliverToBoxAdapter(child: CollabSection()),
           const SliverToBoxAdapter(child: BlendSection()),

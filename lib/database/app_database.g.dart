@@ -1916,12 +1916,1254 @@ class PlaylistCacheCompanion extends UpdateCompanion<PlaylistCacheEntity> {
   }
 }
 
+class $LocalSongsTable extends LocalSongs
+    with TableInfo<$LocalSongsTable, LocalSongEntity> {
+  @override
+  final GeneratedDatabase attachedDatabase;
+  final String? _alias;
+  $LocalSongsTable(this.attachedDatabase, [this._alias]);
+  static const VerificationMeta _songIdMeta = const VerificationMeta('songId');
+  @override
+  late final GeneratedColumn<String> songId = GeneratedColumn<String>(
+    'song_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _pathMeta = const VerificationMeta('path');
+  @override
+  late final GeneratedColumn<String> path = GeneratedColumn<String>(
+    'path',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _folderIdMeta = const VerificationMeta(
+    'folderId',
+  );
+  @override
+  late final GeneratedColumn<String> folderId = GeneratedColumn<String>(
+    'folder_id',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _fingerprintMeta = const VerificationMeta(
+    'fingerprint',
+  );
+  @override
+  late final GeneratedColumn<String> fingerprint = GeneratedColumn<String>(
+    'fingerprint',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _titleMeta = const VerificationMeta('title');
+  @override
+  late final GeneratedColumn<String> title = GeneratedColumn<String>(
+    'title',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _artistMeta = const VerificationMeta('artist');
+  @override
+  late final GeneratedColumn<String> artist = GeneratedColumn<String>(
+    'artist',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _albumMeta = const VerificationMeta('album');
+  @override
+  late final GeneratedColumn<String> album = GeneratedColumn<String>(
+    'album',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
+  static const VerificationMeta _albumArtistMeta = const VerificationMeta(
+    'albumArtist',
+  );
+  @override
+  late final GeneratedColumn<String> albumArtist = GeneratedColumn<String>(
+    'album_artist',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _genreMeta = const VerificationMeta('genre');
+  @override
+  late final GeneratedColumn<String> genre = GeneratedColumn<String>(
+    'genre',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _trackMeta = const VerificationMeta('track');
+  @override
+  late final GeneratedColumn<int> track = GeneratedColumn<int>(
+    'track',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _discMeta = const VerificationMeta('disc');
+  @override
+  late final GeneratedColumn<int> disc = GeneratedColumn<int>(
+    'disc',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _yearMeta = const VerificationMeta('year');
+  @override
+  late final GeneratedColumn<int> year = GeneratedColumn<int>(
+    'year',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _durationSecMeta = const VerificationMeta(
+    'durationSec',
+  );
+  @override
+  late final GeneratedColumn<int> durationSec = GeneratedColumn<int>(
+    'duration_sec',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bitRateMeta = const VerificationMeta(
+    'bitRate',
+  );
+  @override
+  late final GeneratedColumn<int> bitRate = GeneratedColumn<int>(
+    'bit_rate',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _suffixMeta = const VerificationMeta('suffix');
+  @override
+  late final GeneratedColumn<String> suffix = GeneratedColumn<String>(
+    'suffix',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _trackGainMeta = const VerificationMeta(
+    'trackGain',
+  );
+  @override
+  late final GeneratedColumn<double> trackGain = GeneratedColumn<double>(
+    'track_gain',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _albumGainMeta = const VerificationMeta(
+    'albumGain',
+  );
+  @override
+  late final GeneratedColumn<double> albumGain = GeneratedColumn<double>(
+    'album_gain',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trackPeakMeta = const VerificationMeta(
+    'trackPeak',
+  );
+  @override
+  late final GeneratedColumn<double> trackPeak = GeneratedColumn<double>(
+    'track_peak',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _albumPeakMeta = const VerificationMeta(
+    'albumPeak',
+  );
+  @override
+  late final GeneratedColumn<double> albumPeak = GeneratedColumn<double>(
+    'album_peak',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _coverPathMeta = const VerificationMeta(
+    'coverPath',
+  );
+  @override
+  late final GeneratedColumn<String> coverPath = GeneratedColumn<String>(
+    'cover_path',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _lyricsMeta = const VerificationMeta('lyrics');
+  @override
+  late final GeneratedColumn<String> lyrics = GeneratedColumn<String>(
+    'lyrics',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _serverIdMeta = const VerificationMeta(
+    'serverId',
+  );
+  @override
+  late final GeneratedColumn<String> serverId = GeneratedColumn<String>(
+    'server_id',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _addedAtMeta = const VerificationMeta(
+    'addedAt',
+  );
+  @override
+  late final GeneratedColumn<int> addedAt = GeneratedColumn<int>(
+    'added_at',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: true,
+  );
+  @override
+  List<GeneratedColumn> get $columns => [
+    songId,
+    path,
+    folderId,
+    fingerprint,
+    title,
+    artist,
+    album,
+    albumArtist,
+    genre,
+    track,
+    disc,
+    year,
+    durationSec,
+    bitRate,
+    suffix,
+    trackGain,
+    albumGain,
+    trackPeak,
+    albumPeak,
+    coverPath,
+    lyrics,
+    serverId,
+    addedAt,
+  ];
+  @override
+  String get aliasedName => _alias ?? actualTableName;
+  @override
+  String get actualTableName => $name;
+  static const String $name = 'local_songs';
+  @override
+  VerificationContext validateIntegrity(
+    Insertable<LocalSongEntity> instance, {
+    bool isInserting = false,
+  }) {
+    final context = VerificationContext();
+    final data = instance.toColumns(true);
+    if (data.containsKey('song_id')) {
+      context.handle(
+        _songIdMeta,
+        songId.isAcceptableOrUnknown(data['song_id']!, _songIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_songIdMeta);
+    }
+    if (data.containsKey('path')) {
+      context.handle(
+        _pathMeta,
+        path.isAcceptableOrUnknown(data['path']!, _pathMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_pathMeta);
+    }
+    if (data.containsKey('folder_id')) {
+      context.handle(
+        _folderIdMeta,
+        folderId.isAcceptableOrUnknown(data['folder_id']!, _folderIdMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_folderIdMeta);
+    }
+    if (data.containsKey('fingerprint')) {
+      context.handle(
+        _fingerprintMeta,
+        fingerprint.isAcceptableOrUnknown(
+          data['fingerprint']!,
+          _fingerprintMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_fingerprintMeta);
+    }
+    if (data.containsKey('title')) {
+      context.handle(
+        _titleMeta,
+        title.isAcceptableOrUnknown(data['title']!, _titleMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_titleMeta);
+    }
+    if (data.containsKey('artist')) {
+      context.handle(
+        _artistMeta,
+        artist.isAcceptableOrUnknown(data['artist']!, _artistMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_artistMeta);
+    }
+    if (data.containsKey('album')) {
+      context.handle(
+        _albumMeta,
+        album.isAcceptableOrUnknown(data['album']!, _albumMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_albumMeta);
+    }
+    if (data.containsKey('album_artist')) {
+      context.handle(
+        _albumArtistMeta,
+        albumArtist.isAcceptableOrUnknown(
+          data['album_artist']!,
+          _albumArtistMeta,
+        ),
+      );
+    }
+    if (data.containsKey('genre')) {
+      context.handle(
+        _genreMeta,
+        genre.isAcceptableOrUnknown(data['genre']!, _genreMeta),
+      );
+    }
+    if (data.containsKey('track')) {
+      context.handle(
+        _trackMeta,
+        track.isAcceptableOrUnknown(data['track']!, _trackMeta),
+      );
+    }
+    if (data.containsKey('disc')) {
+      context.handle(
+        _discMeta,
+        disc.isAcceptableOrUnknown(data['disc']!, _discMeta),
+      );
+    }
+    if (data.containsKey('year')) {
+      context.handle(
+        _yearMeta,
+        year.isAcceptableOrUnknown(data['year']!, _yearMeta),
+      );
+    }
+    if (data.containsKey('duration_sec')) {
+      context.handle(
+        _durationSecMeta,
+        durationSec.isAcceptableOrUnknown(
+          data['duration_sec']!,
+          _durationSecMeta,
+        ),
+      );
+    }
+    if (data.containsKey('bit_rate')) {
+      context.handle(
+        _bitRateMeta,
+        bitRate.isAcceptableOrUnknown(data['bit_rate']!, _bitRateMeta),
+      );
+    }
+    if (data.containsKey('suffix')) {
+      context.handle(
+        _suffixMeta,
+        suffix.isAcceptableOrUnknown(data['suffix']!, _suffixMeta),
+      );
+    }
+    if (data.containsKey('track_gain')) {
+      context.handle(
+        _trackGainMeta,
+        trackGain.isAcceptableOrUnknown(data['track_gain']!, _trackGainMeta),
+      );
+    }
+    if (data.containsKey('album_gain')) {
+      context.handle(
+        _albumGainMeta,
+        albumGain.isAcceptableOrUnknown(data['album_gain']!, _albumGainMeta),
+      );
+    }
+    if (data.containsKey('track_peak')) {
+      context.handle(
+        _trackPeakMeta,
+        trackPeak.isAcceptableOrUnknown(data['track_peak']!, _trackPeakMeta),
+      );
+    }
+    if (data.containsKey('album_peak')) {
+      context.handle(
+        _albumPeakMeta,
+        albumPeak.isAcceptableOrUnknown(data['album_peak']!, _albumPeakMeta),
+      );
+    }
+    if (data.containsKey('cover_path')) {
+      context.handle(
+        _coverPathMeta,
+        coverPath.isAcceptableOrUnknown(data['cover_path']!, _coverPathMeta),
+      );
+    }
+    if (data.containsKey('lyrics')) {
+      context.handle(
+        _lyricsMeta,
+        lyrics.isAcceptableOrUnknown(data['lyrics']!, _lyricsMeta),
+      );
+    }
+    if (data.containsKey('server_id')) {
+      context.handle(
+        _serverIdMeta,
+        serverId.isAcceptableOrUnknown(data['server_id']!, _serverIdMeta),
+      );
+    }
+    if (data.containsKey('added_at')) {
+      context.handle(
+        _addedAtMeta,
+        addedAt.isAcceptableOrUnknown(data['added_at']!, _addedAtMeta),
+      );
+    } else if (isInserting) {
+      context.missing(_addedAtMeta);
+    }
+    return context;
+  }
+
+  @override
+  Set<GeneratedColumn> get $primaryKey => {songId};
+  @override
+  List<Set<GeneratedColumn>> get uniqueKeys => [
+    {path},
+  ];
+  @override
+  LocalSongEntity map(Map<String, dynamic> data, {String? tablePrefix}) {
+    final effectivePrefix = tablePrefix != null ? '$tablePrefix.' : '';
+    return LocalSongEntity(
+      songId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}song_id'],
+      )!,
+      path: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}path'],
+      )!,
+      folderId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}folder_id'],
+      )!,
+      fingerprint: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}fingerprint'],
+      )!,
+      title: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}title'],
+      )!,
+      artist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}artist'],
+      )!,
+      album: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album'],
+      )!,
+      albumArtist: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}album_artist'],
+      )!,
+      genre: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}genre'],
+      )!,
+      track: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}track'],
+      )!,
+      disc: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}disc'],
+      )!,
+      year: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}year'],
+      )!,
+      durationSec: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}duration_sec'],
+      )!,
+      bitRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bit_rate'],
+      )!,
+      suffix: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}suffix'],
+      )!,
+      trackGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}track_gain'],
+      ),
+      albumGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}album_gain'],
+      ),
+      trackPeak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}track_peak'],
+      ),
+      albumPeak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}album_peak'],
+      ),
+      coverPath: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}cover_path'],
+      ),
+      lyrics: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}lyrics'],
+      ),
+      serverId: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}server_id'],
+      ),
+      addedAt: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}added_at'],
+      )!,
+    );
+  }
+
+  @override
+  $LocalSongsTable createAlias(String alias) {
+    return $LocalSongsTable(attachedDatabase, alias);
+  }
+}
+
+class LocalSongEntity extends DataClass implements Insertable<LocalSongEntity> {
+  final String songId;
+
+  /// Absolute path (desktop, Android file paths) or a `content://` document
+  /// URI (Android folders picked through the Storage Access Framework).
+  final String path;
+
+  /// The added folder this file was found under.
+  final String folderId;
+
+  /// Size, modified time and sidecar times of the file when it was read.
+  /// A rescan re-reads a file only when this changes.
+  final String fingerprint;
+  final String title;
+  final String artist;
+  final String album;
+  final String albumArtist;
+  final String genre;
+  final int track;
+  final int disc;
+  final int year;
+  final int durationSec;
+  final int bitRate;
+  final String suffix;
+  final double? trackGain;
+  final double? albumGain;
+  final double? trackPeak;
+  final double? albumPeak;
+
+  /// Cover extracted from the tags (or a folder.jpg beside the file), saved
+  /// under the app's support folder. Null when the file has none.
+  final String? coverPath;
+
+  /// Text of the sidecar `.lrc` (or the tag's lyrics); read at scan time so
+  /// playback never touches the folder again.
+  final String? lyrics;
+
+  /// Server song this file is a copy of (title + artist + duration match).
+  final String? serverId;
+  final int addedAt;
+  const LocalSongEntity({
+    required this.songId,
+    required this.path,
+    required this.folderId,
+    required this.fingerprint,
+    required this.title,
+    required this.artist,
+    required this.album,
+    required this.albumArtist,
+    required this.genre,
+    required this.track,
+    required this.disc,
+    required this.year,
+    required this.durationSec,
+    required this.bitRate,
+    required this.suffix,
+    this.trackGain,
+    this.albumGain,
+    this.trackPeak,
+    this.albumPeak,
+    this.coverPath,
+    this.lyrics,
+    this.serverId,
+    required this.addedAt,
+  });
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    map['song_id'] = Variable<String>(songId);
+    map['path'] = Variable<String>(path);
+    map['folder_id'] = Variable<String>(folderId);
+    map['fingerprint'] = Variable<String>(fingerprint);
+    map['title'] = Variable<String>(title);
+    map['artist'] = Variable<String>(artist);
+    map['album'] = Variable<String>(album);
+    map['album_artist'] = Variable<String>(albumArtist);
+    map['genre'] = Variable<String>(genre);
+    map['track'] = Variable<int>(track);
+    map['disc'] = Variable<int>(disc);
+    map['year'] = Variable<int>(year);
+    map['duration_sec'] = Variable<int>(durationSec);
+    map['bit_rate'] = Variable<int>(bitRate);
+    map['suffix'] = Variable<String>(suffix);
+    if (!nullToAbsent || trackGain != null) {
+      map['track_gain'] = Variable<double>(trackGain);
+    }
+    if (!nullToAbsent || albumGain != null) {
+      map['album_gain'] = Variable<double>(albumGain);
+    }
+    if (!nullToAbsent || trackPeak != null) {
+      map['track_peak'] = Variable<double>(trackPeak);
+    }
+    if (!nullToAbsent || albumPeak != null) {
+      map['album_peak'] = Variable<double>(albumPeak);
+    }
+    if (!nullToAbsent || coverPath != null) {
+      map['cover_path'] = Variable<String>(coverPath);
+    }
+    if (!nullToAbsent || lyrics != null) {
+      map['lyrics'] = Variable<String>(lyrics);
+    }
+    if (!nullToAbsent || serverId != null) {
+      map['server_id'] = Variable<String>(serverId);
+    }
+    map['added_at'] = Variable<int>(addedAt);
+    return map;
+  }
+
+  LocalSongsCompanion toCompanion(bool nullToAbsent) {
+    return LocalSongsCompanion(
+      songId: Value(songId),
+      path: Value(path),
+      folderId: Value(folderId),
+      fingerprint: Value(fingerprint),
+      title: Value(title),
+      artist: Value(artist),
+      album: Value(album),
+      albumArtist: Value(albumArtist),
+      genre: Value(genre),
+      track: Value(track),
+      disc: Value(disc),
+      year: Value(year),
+      durationSec: Value(durationSec),
+      bitRate: Value(bitRate),
+      suffix: Value(suffix),
+      trackGain: trackGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackGain),
+      albumGain: albumGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumGain),
+      trackPeak: trackPeak == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackPeak),
+      albumPeak: albumPeak == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumPeak),
+      coverPath: coverPath == null && nullToAbsent
+          ? const Value.absent()
+          : Value(coverPath),
+      lyrics: lyrics == null && nullToAbsent
+          ? const Value.absent()
+          : Value(lyrics),
+      serverId: serverId == null && nullToAbsent
+          ? const Value.absent()
+          : Value(serverId),
+      addedAt: Value(addedAt),
+    );
+  }
+
+  factory LocalSongEntity.fromJson(
+    Map<String, dynamic> json, {
+    ValueSerializer? serializer,
+  }) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return LocalSongEntity(
+      songId: serializer.fromJson<String>(json['songId']),
+      path: serializer.fromJson<String>(json['path']),
+      folderId: serializer.fromJson<String>(json['folderId']),
+      fingerprint: serializer.fromJson<String>(json['fingerprint']),
+      title: serializer.fromJson<String>(json['title']),
+      artist: serializer.fromJson<String>(json['artist']),
+      album: serializer.fromJson<String>(json['album']),
+      albumArtist: serializer.fromJson<String>(json['albumArtist']),
+      genre: serializer.fromJson<String>(json['genre']),
+      track: serializer.fromJson<int>(json['track']),
+      disc: serializer.fromJson<int>(json['disc']),
+      year: serializer.fromJson<int>(json['year']),
+      durationSec: serializer.fromJson<int>(json['durationSec']),
+      bitRate: serializer.fromJson<int>(json['bitRate']),
+      suffix: serializer.fromJson<String>(json['suffix']),
+      trackGain: serializer.fromJson<double?>(json['trackGain']),
+      albumGain: serializer.fromJson<double?>(json['albumGain']),
+      trackPeak: serializer.fromJson<double?>(json['trackPeak']),
+      albumPeak: serializer.fromJson<double?>(json['albumPeak']),
+      coverPath: serializer.fromJson<String?>(json['coverPath']),
+      lyrics: serializer.fromJson<String?>(json['lyrics']),
+      serverId: serializer.fromJson<String?>(json['serverId']),
+      addedAt: serializer.fromJson<int>(json['addedAt']),
+    );
+  }
+  @override
+  Map<String, dynamic> toJson({ValueSerializer? serializer}) {
+    serializer ??= driftRuntimeOptions.defaultSerializer;
+    return <String, dynamic>{
+      'songId': serializer.toJson<String>(songId),
+      'path': serializer.toJson<String>(path),
+      'folderId': serializer.toJson<String>(folderId),
+      'fingerprint': serializer.toJson<String>(fingerprint),
+      'title': serializer.toJson<String>(title),
+      'artist': serializer.toJson<String>(artist),
+      'album': serializer.toJson<String>(album),
+      'albumArtist': serializer.toJson<String>(albumArtist),
+      'genre': serializer.toJson<String>(genre),
+      'track': serializer.toJson<int>(track),
+      'disc': serializer.toJson<int>(disc),
+      'year': serializer.toJson<int>(year),
+      'durationSec': serializer.toJson<int>(durationSec),
+      'bitRate': serializer.toJson<int>(bitRate),
+      'suffix': serializer.toJson<String>(suffix),
+      'trackGain': serializer.toJson<double?>(trackGain),
+      'albumGain': serializer.toJson<double?>(albumGain),
+      'trackPeak': serializer.toJson<double?>(trackPeak),
+      'albumPeak': serializer.toJson<double?>(albumPeak),
+      'coverPath': serializer.toJson<String?>(coverPath),
+      'lyrics': serializer.toJson<String?>(lyrics),
+      'serverId': serializer.toJson<String?>(serverId),
+      'addedAt': serializer.toJson<int>(addedAt),
+    };
+  }
+
+  LocalSongEntity copyWith({
+    String? songId,
+    String? path,
+    String? folderId,
+    String? fingerprint,
+    String? title,
+    String? artist,
+    String? album,
+    String? albumArtist,
+    String? genre,
+    int? track,
+    int? disc,
+    int? year,
+    int? durationSec,
+    int? bitRate,
+    String? suffix,
+    Value<double?> trackGain = const Value.absent(),
+    Value<double?> albumGain = const Value.absent(),
+    Value<double?> trackPeak = const Value.absent(),
+    Value<double?> albumPeak = const Value.absent(),
+    Value<String?> coverPath = const Value.absent(),
+    Value<String?> lyrics = const Value.absent(),
+    Value<String?> serverId = const Value.absent(),
+    int? addedAt,
+  }) => LocalSongEntity(
+    songId: songId ?? this.songId,
+    path: path ?? this.path,
+    folderId: folderId ?? this.folderId,
+    fingerprint: fingerprint ?? this.fingerprint,
+    title: title ?? this.title,
+    artist: artist ?? this.artist,
+    album: album ?? this.album,
+    albumArtist: albumArtist ?? this.albumArtist,
+    genre: genre ?? this.genre,
+    track: track ?? this.track,
+    disc: disc ?? this.disc,
+    year: year ?? this.year,
+    durationSec: durationSec ?? this.durationSec,
+    bitRate: bitRate ?? this.bitRate,
+    suffix: suffix ?? this.suffix,
+    trackGain: trackGain.present ? trackGain.value : this.trackGain,
+    albumGain: albumGain.present ? albumGain.value : this.albumGain,
+    trackPeak: trackPeak.present ? trackPeak.value : this.trackPeak,
+    albumPeak: albumPeak.present ? albumPeak.value : this.albumPeak,
+    coverPath: coverPath.present ? coverPath.value : this.coverPath,
+    lyrics: lyrics.present ? lyrics.value : this.lyrics,
+    serverId: serverId.present ? serverId.value : this.serverId,
+    addedAt: addedAt ?? this.addedAt,
+  );
+  LocalSongEntity copyWithCompanion(LocalSongsCompanion data) {
+    return LocalSongEntity(
+      songId: data.songId.present ? data.songId.value : this.songId,
+      path: data.path.present ? data.path.value : this.path,
+      folderId: data.folderId.present ? data.folderId.value : this.folderId,
+      fingerprint: data.fingerprint.present
+          ? data.fingerprint.value
+          : this.fingerprint,
+      title: data.title.present ? data.title.value : this.title,
+      artist: data.artist.present ? data.artist.value : this.artist,
+      album: data.album.present ? data.album.value : this.album,
+      albumArtist: data.albumArtist.present
+          ? data.albumArtist.value
+          : this.albumArtist,
+      genre: data.genre.present ? data.genre.value : this.genre,
+      track: data.track.present ? data.track.value : this.track,
+      disc: data.disc.present ? data.disc.value : this.disc,
+      year: data.year.present ? data.year.value : this.year,
+      durationSec: data.durationSec.present
+          ? data.durationSec.value
+          : this.durationSec,
+      bitRate: data.bitRate.present ? data.bitRate.value : this.bitRate,
+      suffix: data.suffix.present ? data.suffix.value : this.suffix,
+      trackGain: data.trackGain.present ? data.trackGain.value : this.trackGain,
+      albumGain: data.albumGain.present ? data.albumGain.value : this.albumGain,
+      trackPeak: data.trackPeak.present ? data.trackPeak.value : this.trackPeak,
+      albumPeak: data.albumPeak.present ? data.albumPeak.value : this.albumPeak,
+      coverPath: data.coverPath.present ? data.coverPath.value : this.coverPath,
+      lyrics: data.lyrics.present ? data.lyrics.value : this.lyrics,
+      serverId: data.serverId.present ? data.serverId.value : this.serverId,
+      addedAt: data.addedAt.present ? data.addedAt.value : this.addedAt,
+    );
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalSongEntity(')
+          ..write('songId: $songId, ')
+          ..write('path: $path, ')
+          ..write('folderId: $folderId, ')
+          ..write('fingerprint: $fingerprint, ')
+          ..write('title: $title, ')
+          ..write('artist: $artist, ')
+          ..write('album: $album, ')
+          ..write('albumArtist: $albumArtist, ')
+          ..write('genre: $genre, ')
+          ..write('track: $track, ')
+          ..write('disc: $disc, ')
+          ..write('year: $year, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('bitRate: $bitRate, ')
+          ..write('suffix: $suffix, ')
+          ..write('trackGain: $trackGain, ')
+          ..write('albumGain: $albumGain, ')
+          ..write('trackPeak: $trackPeak, ')
+          ..write('albumPeak: $albumPeak, ')
+          ..write('coverPath: $coverPath, ')
+          ..write('lyrics: $lyrics, ')
+          ..write('serverId: $serverId, ')
+          ..write('addedAt: $addedAt')
+          ..write(')'))
+        .toString();
+  }
+
+  @override
+  int get hashCode => Object.hashAll([
+    songId,
+    path,
+    folderId,
+    fingerprint,
+    title,
+    artist,
+    album,
+    albumArtist,
+    genre,
+    track,
+    disc,
+    year,
+    durationSec,
+    bitRate,
+    suffix,
+    trackGain,
+    albumGain,
+    trackPeak,
+    albumPeak,
+    coverPath,
+    lyrics,
+    serverId,
+    addedAt,
+  ]);
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      (other is LocalSongEntity &&
+          other.songId == this.songId &&
+          other.path == this.path &&
+          other.folderId == this.folderId &&
+          other.fingerprint == this.fingerprint &&
+          other.title == this.title &&
+          other.artist == this.artist &&
+          other.album == this.album &&
+          other.albumArtist == this.albumArtist &&
+          other.genre == this.genre &&
+          other.track == this.track &&
+          other.disc == this.disc &&
+          other.year == this.year &&
+          other.durationSec == this.durationSec &&
+          other.bitRate == this.bitRate &&
+          other.suffix == this.suffix &&
+          other.trackGain == this.trackGain &&
+          other.albumGain == this.albumGain &&
+          other.trackPeak == this.trackPeak &&
+          other.albumPeak == this.albumPeak &&
+          other.coverPath == this.coverPath &&
+          other.lyrics == this.lyrics &&
+          other.serverId == this.serverId &&
+          other.addedAt == this.addedAt);
+}
+
+class LocalSongsCompanion extends UpdateCompanion<LocalSongEntity> {
+  final Value<String> songId;
+  final Value<String> path;
+  final Value<String> folderId;
+  final Value<String> fingerprint;
+  final Value<String> title;
+  final Value<String> artist;
+  final Value<String> album;
+  final Value<String> albumArtist;
+  final Value<String> genre;
+  final Value<int> track;
+  final Value<int> disc;
+  final Value<int> year;
+  final Value<int> durationSec;
+  final Value<int> bitRate;
+  final Value<String> suffix;
+  final Value<double?> trackGain;
+  final Value<double?> albumGain;
+  final Value<double?> trackPeak;
+  final Value<double?> albumPeak;
+  final Value<String?> coverPath;
+  final Value<String?> lyrics;
+  final Value<String?> serverId;
+  final Value<int> addedAt;
+  final Value<int> rowid;
+  const LocalSongsCompanion({
+    this.songId = const Value.absent(),
+    this.path = const Value.absent(),
+    this.folderId = const Value.absent(),
+    this.fingerprint = const Value.absent(),
+    this.title = const Value.absent(),
+    this.artist = const Value.absent(),
+    this.album = const Value.absent(),
+    this.albumArtist = const Value.absent(),
+    this.genre = const Value.absent(),
+    this.track = const Value.absent(),
+    this.disc = const Value.absent(),
+    this.year = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.bitRate = const Value.absent(),
+    this.suffix = const Value.absent(),
+    this.trackGain = const Value.absent(),
+    this.albumGain = const Value.absent(),
+    this.trackPeak = const Value.absent(),
+    this.albumPeak = const Value.absent(),
+    this.coverPath = const Value.absent(),
+    this.lyrics = const Value.absent(),
+    this.serverId = const Value.absent(),
+    this.addedAt = const Value.absent(),
+    this.rowid = const Value.absent(),
+  });
+  LocalSongsCompanion.insert({
+    required String songId,
+    required String path,
+    required String folderId,
+    required String fingerprint,
+    required String title,
+    required String artist,
+    required String album,
+    this.albumArtist = const Value.absent(),
+    this.genre = const Value.absent(),
+    this.track = const Value.absent(),
+    this.disc = const Value.absent(),
+    this.year = const Value.absent(),
+    this.durationSec = const Value.absent(),
+    this.bitRate = const Value.absent(),
+    this.suffix = const Value.absent(),
+    this.trackGain = const Value.absent(),
+    this.albumGain = const Value.absent(),
+    this.trackPeak = const Value.absent(),
+    this.albumPeak = const Value.absent(),
+    this.coverPath = const Value.absent(),
+    this.lyrics = const Value.absent(),
+    this.serverId = const Value.absent(),
+    required int addedAt,
+    this.rowid = const Value.absent(),
+  }) : songId = Value(songId),
+       path = Value(path),
+       folderId = Value(folderId),
+       fingerprint = Value(fingerprint),
+       title = Value(title),
+       artist = Value(artist),
+       album = Value(album),
+       addedAt = Value(addedAt);
+  static Insertable<LocalSongEntity> custom({
+    Expression<String>? songId,
+    Expression<String>? path,
+    Expression<String>? folderId,
+    Expression<String>? fingerprint,
+    Expression<String>? title,
+    Expression<String>? artist,
+    Expression<String>? album,
+    Expression<String>? albumArtist,
+    Expression<String>? genre,
+    Expression<int>? track,
+    Expression<int>? disc,
+    Expression<int>? year,
+    Expression<int>? durationSec,
+    Expression<int>? bitRate,
+    Expression<String>? suffix,
+    Expression<double>? trackGain,
+    Expression<double>? albumGain,
+    Expression<double>? trackPeak,
+    Expression<double>? albumPeak,
+    Expression<String>? coverPath,
+    Expression<String>? lyrics,
+    Expression<String>? serverId,
+    Expression<int>? addedAt,
+    Expression<int>? rowid,
+  }) {
+    return RawValuesInsertable({
+      if (songId != null) 'song_id': songId,
+      if (path != null) 'path': path,
+      if (folderId != null) 'folder_id': folderId,
+      if (fingerprint != null) 'fingerprint': fingerprint,
+      if (title != null) 'title': title,
+      if (artist != null) 'artist': artist,
+      if (album != null) 'album': album,
+      if (albumArtist != null) 'album_artist': albumArtist,
+      if (genre != null) 'genre': genre,
+      if (track != null) 'track': track,
+      if (disc != null) 'disc': disc,
+      if (year != null) 'year': year,
+      if (durationSec != null) 'duration_sec': durationSec,
+      if (bitRate != null) 'bit_rate': bitRate,
+      if (suffix != null) 'suffix': suffix,
+      if (trackGain != null) 'track_gain': trackGain,
+      if (albumGain != null) 'album_gain': albumGain,
+      if (trackPeak != null) 'track_peak': trackPeak,
+      if (albumPeak != null) 'album_peak': albumPeak,
+      if (coverPath != null) 'cover_path': coverPath,
+      if (lyrics != null) 'lyrics': lyrics,
+      if (serverId != null) 'server_id': serverId,
+      if (addedAt != null) 'added_at': addedAt,
+      if (rowid != null) 'rowid': rowid,
+    });
+  }
+
+  LocalSongsCompanion copyWith({
+    Value<String>? songId,
+    Value<String>? path,
+    Value<String>? folderId,
+    Value<String>? fingerprint,
+    Value<String>? title,
+    Value<String>? artist,
+    Value<String>? album,
+    Value<String>? albumArtist,
+    Value<String>? genre,
+    Value<int>? track,
+    Value<int>? disc,
+    Value<int>? year,
+    Value<int>? durationSec,
+    Value<int>? bitRate,
+    Value<String>? suffix,
+    Value<double?>? trackGain,
+    Value<double?>? albumGain,
+    Value<double?>? trackPeak,
+    Value<double?>? albumPeak,
+    Value<String?>? coverPath,
+    Value<String?>? lyrics,
+    Value<String?>? serverId,
+    Value<int>? addedAt,
+    Value<int>? rowid,
+  }) {
+    return LocalSongsCompanion(
+      songId: songId ?? this.songId,
+      path: path ?? this.path,
+      folderId: folderId ?? this.folderId,
+      fingerprint: fingerprint ?? this.fingerprint,
+      title: title ?? this.title,
+      artist: artist ?? this.artist,
+      album: album ?? this.album,
+      albumArtist: albumArtist ?? this.albumArtist,
+      genre: genre ?? this.genre,
+      track: track ?? this.track,
+      disc: disc ?? this.disc,
+      year: year ?? this.year,
+      durationSec: durationSec ?? this.durationSec,
+      bitRate: bitRate ?? this.bitRate,
+      suffix: suffix ?? this.suffix,
+      trackGain: trackGain ?? this.trackGain,
+      albumGain: albumGain ?? this.albumGain,
+      trackPeak: trackPeak ?? this.trackPeak,
+      albumPeak: albumPeak ?? this.albumPeak,
+      coverPath: coverPath ?? this.coverPath,
+      lyrics: lyrics ?? this.lyrics,
+      serverId: serverId ?? this.serverId,
+      addedAt: addedAt ?? this.addedAt,
+      rowid: rowid ?? this.rowid,
+    );
+  }
+
+  @override
+  Map<String, Expression> toColumns(bool nullToAbsent) {
+    final map = <String, Expression>{};
+    if (songId.present) {
+      map['song_id'] = Variable<String>(songId.value);
+    }
+    if (path.present) {
+      map['path'] = Variable<String>(path.value);
+    }
+    if (folderId.present) {
+      map['folder_id'] = Variable<String>(folderId.value);
+    }
+    if (fingerprint.present) {
+      map['fingerprint'] = Variable<String>(fingerprint.value);
+    }
+    if (title.present) {
+      map['title'] = Variable<String>(title.value);
+    }
+    if (artist.present) {
+      map['artist'] = Variable<String>(artist.value);
+    }
+    if (album.present) {
+      map['album'] = Variable<String>(album.value);
+    }
+    if (albumArtist.present) {
+      map['album_artist'] = Variable<String>(albumArtist.value);
+    }
+    if (genre.present) {
+      map['genre'] = Variable<String>(genre.value);
+    }
+    if (track.present) {
+      map['track'] = Variable<int>(track.value);
+    }
+    if (disc.present) {
+      map['disc'] = Variable<int>(disc.value);
+    }
+    if (year.present) {
+      map['year'] = Variable<int>(year.value);
+    }
+    if (durationSec.present) {
+      map['duration_sec'] = Variable<int>(durationSec.value);
+    }
+    if (bitRate.present) {
+      map['bit_rate'] = Variable<int>(bitRate.value);
+    }
+    if (suffix.present) {
+      map['suffix'] = Variable<String>(suffix.value);
+    }
+    if (trackGain.present) {
+      map['track_gain'] = Variable<double>(trackGain.value);
+    }
+    if (albumGain.present) {
+      map['album_gain'] = Variable<double>(albumGain.value);
+    }
+    if (trackPeak.present) {
+      map['track_peak'] = Variable<double>(trackPeak.value);
+    }
+    if (albumPeak.present) {
+      map['album_peak'] = Variable<double>(albumPeak.value);
+    }
+    if (coverPath.present) {
+      map['cover_path'] = Variable<String>(coverPath.value);
+    }
+    if (lyrics.present) {
+      map['lyrics'] = Variable<String>(lyrics.value);
+    }
+    if (serverId.present) {
+      map['server_id'] = Variable<String>(serverId.value);
+    }
+    if (addedAt.present) {
+      map['added_at'] = Variable<int>(addedAt.value);
+    }
+    if (rowid.present) {
+      map['rowid'] = Variable<int>(rowid.value);
+    }
+    return map;
+  }
+
+  @override
+  String toString() {
+    return (StringBuffer('LocalSongsCompanion(')
+          ..write('songId: $songId, ')
+          ..write('path: $path, ')
+          ..write('folderId: $folderId, ')
+          ..write('fingerprint: $fingerprint, ')
+          ..write('title: $title, ')
+          ..write('artist: $artist, ')
+          ..write('album: $album, ')
+          ..write('albumArtist: $albumArtist, ')
+          ..write('genre: $genre, ')
+          ..write('track: $track, ')
+          ..write('disc: $disc, ')
+          ..write('year: $year, ')
+          ..write('durationSec: $durationSec, ')
+          ..write('bitRate: $bitRate, ')
+          ..write('suffix: $suffix, ')
+          ..write('trackGain: $trackGain, ')
+          ..write('albumGain: $albumGain, ')
+          ..write('trackPeak: $trackPeak, ')
+          ..write('albumPeak: $albumPeak, ')
+          ..write('coverPath: $coverPath, ')
+          ..write('lyrics: $lyrics, ')
+          ..write('serverId: $serverId, ')
+          ..write('addedAt: $addedAt, ')
+          ..write('rowid: $rowid')
+          ..write(')'))
+        .toString();
+  }
+}
+
 abstract class _$AppDatabase extends GeneratedDatabase {
   _$AppDatabase(QueryExecutor e) : super(e);
   $AppDatabaseManager get managers => $AppDatabaseManager(this);
   late final $PlayEventsTable playEvents = $PlayEventsTable(this);
   late final $SongMetadataTable songMetadata = $SongMetadataTable(this);
   late final $PlaylistCacheTable playlistCache = $PlaylistCacheTable(this);
+  late final $LocalSongsTable localSongs = $LocalSongsTable(this);
   @override
   Iterable<TableInfo<Table, Object?>> get allTables =>
       allSchemaEntities.whereType<TableInfo<Table, Object?>>();
@@ -1930,6 +3172,7 @@ abstract class _$AppDatabase extends GeneratedDatabase {
     playEvents,
     songMetadata,
     playlistCache,
+    localSongs,
   ];
 }
 
@@ -2865,6 +4108,554 @@ typedef $$PlaylistCacheTableProcessedTableManager =
       PlaylistCacheEntity,
       PrefetchHooks Function()
     >;
+typedef $$LocalSongsTableCreateCompanionBuilder =
+    LocalSongsCompanion Function({
+      required String songId,
+      required String path,
+      required String folderId,
+      required String fingerprint,
+      required String title,
+      required String artist,
+      required String album,
+      Value<String> albumArtist,
+      Value<String> genre,
+      Value<int> track,
+      Value<int> disc,
+      Value<int> year,
+      Value<int> durationSec,
+      Value<int> bitRate,
+      Value<String> suffix,
+      Value<double?> trackGain,
+      Value<double?> albumGain,
+      Value<double?> trackPeak,
+      Value<double?> albumPeak,
+      Value<String?> coverPath,
+      Value<String?> lyrics,
+      Value<String?> serverId,
+      required int addedAt,
+      Value<int> rowid,
+    });
+typedef $$LocalSongsTableUpdateCompanionBuilder =
+    LocalSongsCompanion Function({
+      Value<String> songId,
+      Value<String> path,
+      Value<String> folderId,
+      Value<String> fingerprint,
+      Value<String> title,
+      Value<String> artist,
+      Value<String> album,
+      Value<String> albumArtist,
+      Value<String> genre,
+      Value<int> track,
+      Value<int> disc,
+      Value<int> year,
+      Value<int> durationSec,
+      Value<int> bitRate,
+      Value<String> suffix,
+      Value<double?> trackGain,
+      Value<double?> albumGain,
+      Value<double?> trackPeak,
+      Value<double?> albumPeak,
+      Value<String?> coverPath,
+      Value<String?> lyrics,
+      Value<String?> serverId,
+      Value<int> addedAt,
+      Value<int> rowid,
+    });
+
+class $$LocalSongsTableFilterComposer
+    extends Composer<_$AppDatabase, $LocalSongsTable> {
+  $$LocalSongsTableFilterComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnFilters<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get folderId => $composableBuilder(
+    column: $table.folderId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get artist => $composableBuilder(
+    column: $table.artist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get album => $composableBuilder(
+    column: $table.album,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get albumArtist => $composableBuilder(
+    column: $table.albumArtist,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get genre => $composableBuilder(
+    column: $table.genre,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get track => $composableBuilder(
+    column: $table.track,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get disc => $composableBuilder(
+    column: $table.disc,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bitRate => $composableBuilder(
+    column: $table.bitRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get suffix => $composableBuilder(
+    column: $table.suffix,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get trackGain => $composableBuilder(
+    column: $table.trackGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get albumGain => $composableBuilder(
+    column: $table.albumGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get trackPeak => $composableBuilder(
+    column: $table.trackPeak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get albumPeak => $composableBuilder(
+    column: $table.albumPeak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get coverPath => $composableBuilder(
+    column: $table.coverPath,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get lyrics => $composableBuilder(
+    column: $table.lyrics,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get addedAt => $composableBuilder(
+    column: $table.addedAt,
+    builder: (column) => ColumnFilters(column),
+  );
+}
+
+class $$LocalSongsTableOrderingComposer
+    extends Composer<_$AppDatabase, $LocalSongsTable> {
+  $$LocalSongsTableOrderingComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  ColumnOrderings<String> get songId => $composableBuilder(
+    column: $table.songId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get path => $composableBuilder(
+    column: $table.path,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get folderId => $composableBuilder(
+    column: $table.folderId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get title => $composableBuilder(
+    column: $table.title,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get artist => $composableBuilder(
+    column: $table.artist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get album => $composableBuilder(
+    column: $table.album,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get albumArtist => $composableBuilder(
+    column: $table.albumArtist,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get genre => $composableBuilder(
+    column: $table.genre,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get track => $composableBuilder(
+    column: $table.track,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get disc => $composableBuilder(
+    column: $table.disc,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get year => $composableBuilder(
+    column: $table.year,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bitRate => $composableBuilder(
+    column: $table.bitRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get suffix => $composableBuilder(
+    column: $table.suffix,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get trackGain => $composableBuilder(
+    column: $table.trackGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get albumGain => $composableBuilder(
+    column: $table.albumGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get trackPeak => $composableBuilder(
+    column: $table.trackPeak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get albumPeak => $composableBuilder(
+    column: $table.albumPeak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get coverPath => $composableBuilder(
+    column: $table.coverPath,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get lyrics => $composableBuilder(
+    column: $table.lyrics,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get serverId => $composableBuilder(
+    column: $table.serverId,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get addedAt => $composableBuilder(
+    column: $table.addedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+}
+
+class $$LocalSongsTableAnnotationComposer
+    extends Composer<_$AppDatabase, $LocalSongsTable> {
+  $$LocalSongsTableAnnotationComposer({
+    required super.$db,
+    required super.$table,
+    super.joinBuilder,
+    super.$addJoinBuilderToRootComposer,
+    super.$removeJoinBuilderFromRootComposer,
+  });
+  GeneratedColumn<String> get songId =>
+      $composableBuilder(column: $table.songId, builder: (column) => column);
+
+  GeneratedColumn<String> get path =>
+      $composableBuilder(column: $table.path, builder: (column) => column);
+
+  GeneratedColumn<String> get folderId =>
+      $composableBuilder(column: $table.folderId, builder: (column) => column);
+
+  GeneratedColumn<String> get fingerprint => $composableBuilder(
+    column: $table.fingerprint,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get title =>
+      $composableBuilder(column: $table.title, builder: (column) => column);
+
+  GeneratedColumn<String> get artist =>
+      $composableBuilder(column: $table.artist, builder: (column) => column);
+
+  GeneratedColumn<String> get album =>
+      $composableBuilder(column: $table.album, builder: (column) => column);
+
+  GeneratedColumn<String> get albumArtist => $composableBuilder(
+    column: $table.albumArtist,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get genre =>
+      $composableBuilder(column: $table.genre, builder: (column) => column);
+
+  GeneratedColumn<int> get track =>
+      $composableBuilder(column: $table.track, builder: (column) => column);
+
+  GeneratedColumn<int> get disc =>
+      $composableBuilder(column: $table.disc, builder: (column) => column);
+
+  GeneratedColumn<int> get year =>
+      $composableBuilder(column: $table.year, builder: (column) => column);
+
+  GeneratedColumn<int> get durationSec => $composableBuilder(
+    column: $table.durationSec,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get bitRate =>
+      $composableBuilder(column: $table.bitRate, builder: (column) => column);
+
+  GeneratedColumn<String> get suffix =>
+      $composableBuilder(column: $table.suffix, builder: (column) => column);
+
+  GeneratedColumn<double> get trackGain =>
+      $composableBuilder(column: $table.trackGain, builder: (column) => column);
+
+  GeneratedColumn<double> get albumGain =>
+      $composableBuilder(column: $table.albumGain, builder: (column) => column);
+
+  GeneratedColumn<double> get trackPeak =>
+      $composableBuilder(column: $table.trackPeak, builder: (column) => column);
+
+  GeneratedColumn<double> get albumPeak =>
+      $composableBuilder(column: $table.albumPeak, builder: (column) => column);
+
+  GeneratedColumn<String> get coverPath =>
+      $composableBuilder(column: $table.coverPath, builder: (column) => column);
+
+  GeneratedColumn<String> get lyrics =>
+      $composableBuilder(column: $table.lyrics, builder: (column) => column);
+
+  GeneratedColumn<String> get serverId =>
+      $composableBuilder(column: $table.serverId, builder: (column) => column);
+
+  GeneratedColumn<int> get addedAt =>
+      $composableBuilder(column: $table.addedAt, builder: (column) => column);
+}
+
+class $$LocalSongsTableTableManager
+    extends
+        RootTableManager<
+          _$AppDatabase,
+          $LocalSongsTable,
+          LocalSongEntity,
+          $$LocalSongsTableFilterComposer,
+          $$LocalSongsTableOrderingComposer,
+          $$LocalSongsTableAnnotationComposer,
+          $$LocalSongsTableCreateCompanionBuilder,
+          $$LocalSongsTableUpdateCompanionBuilder,
+          (
+            LocalSongEntity,
+            BaseReferences<_$AppDatabase, $LocalSongsTable, LocalSongEntity>,
+          ),
+          LocalSongEntity,
+          PrefetchHooks Function()
+        > {
+  $$LocalSongsTableTableManager(_$AppDatabase db, $LocalSongsTable table)
+    : super(
+        TableManagerState(
+          db: db,
+          table: table,
+          createFilteringComposer: () =>
+              $$LocalSongsTableFilterComposer($db: db, $table: table),
+          createOrderingComposer: () =>
+              $$LocalSongsTableOrderingComposer($db: db, $table: table),
+          createComputedFieldComposer: () =>
+              $$LocalSongsTableAnnotationComposer($db: db, $table: table),
+          updateCompanionCallback:
+              ({
+                Value<String> songId = const Value.absent(),
+                Value<String> path = const Value.absent(),
+                Value<String> folderId = const Value.absent(),
+                Value<String> fingerprint = const Value.absent(),
+                Value<String> title = const Value.absent(),
+                Value<String> artist = const Value.absent(),
+                Value<String> album = const Value.absent(),
+                Value<String> albumArtist = const Value.absent(),
+                Value<String> genre = const Value.absent(),
+                Value<int> track = const Value.absent(),
+                Value<int> disc = const Value.absent(),
+                Value<int> year = const Value.absent(),
+                Value<int> durationSec = const Value.absent(),
+                Value<int> bitRate = const Value.absent(),
+                Value<String> suffix = const Value.absent(),
+                Value<double?> trackGain = const Value.absent(),
+                Value<double?> albumGain = const Value.absent(),
+                Value<double?> trackPeak = const Value.absent(),
+                Value<double?> albumPeak = const Value.absent(),
+                Value<String?> coverPath = const Value.absent(),
+                Value<String?> lyrics = const Value.absent(),
+                Value<String?> serverId = const Value.absent(),
+                Value<int> addedAt = const Value.absent(),
+                Value<int> rowid = const Value.absent(),
+              }) => LocalSongsCompanion(
+                songId: songId,
+                path: path,
+                folderId: folderId,
+                fingerprint: fingerprint,
+                title: title,
+                artist: artist,
+                album: album,
+                albumArtist: albumArtist,
+                genre: genre,
+                track: track,
+                disc: disc,
+                year: year,
+                durationSec: durationSec,
+                bitRate: bitRate,
+                suffix: suffix,
+                trackGain: trackGain,
+                albumGain: albumGain,
+                trackPeak: trackPeak,
+                albumPeak: albumPeak,
+                coverPath: coverPath,
+                lyrics: lyrics,
+                serverId: serverId,
+                addedAt: addedAt,
+                rowid: rowid,
+              ),
+          createCompanionCallback:
+              ({
+                required String songId,
+                required String path,
+                required String folderId,
+                required String fingerprint,
+                required String title,
+                required String artist,
+                required String album,
+                Value<String> albumArtist = const Value.absent(),
+                Value<String> genre = const Value.absent(),
+                Value<int> track = const Value.absent(),
+                Value<int> disc = const Value.absent(),
+                Value<int> year = const Value.absent(),
+                Value<int> durationSec = const Value.absent(),
+                Value<int> bitRate = const Value.absent(),
+                Value<String> suffix = const Value.absent(),
+                Value<double?> trackGain = const Value.absent(),
+                Value<double?> albumGain = const Value.absent(),
+                Value<double?> trackPeak = const Value.absent(),
+                Value<double?> albumPeak = const Value.absent(),
+                Value<String?> coverPath = const Value.absent(),
+                Value<String?> lyrics = const Value.absent(),
+                Value<String?> serverId = const Value.absent(),
+                required int addedAt,
+                Value<int> rowid = const Value.absent(),
+              }) => LocalSongsCompanion.insert(
+                songId: songId,
+                path: path,
+                folderId: folderId,
+                fingerprint: fingerprint,
+                title: title,
+                artist: artist,
+                album: album,
+                albumArtist: albumArtist,
+                genre: genre,
+                track: track,
+                disc: disc,
+                year: year,
+                durationSec: durationSec,
+                bitRate: bitRate,
+                suffix: suffix,
+                trackGain: trackGain,
+                albumGain: albumGain,
+                trackPeak: trackPeak,
+                albumPeak: albumPeak,
+                coverPath: coverPath,
+                lyrics: lyrics,
+                serverId: serverId,
+                addedAt: addedAt,
+                rowid: rowid,
+              ),
+          withReferenceMapper: (p0) => p0
+              .map((e) => (e.readTable(table), BaseReferences(db, table, e)))
+              .toList(),
+          prefetchHooksCallback: null,
+        ),
+      );
+}
+
+typedef $$LocalSongsTableProcessedTableManager =
+    ProcessedTableManager<
+      _$AppDatabase,
+      $LocalSongsTable,
+      LocalSongEntity,
+      $$LocalSongsTableFilterComposer,
+      $$LocalSongsTableOrderingComposer,
+      $$LocalSongsTableAnnotationComposer,
+      $$LocalSongsTableCreateCompanionBuilder,
+      $$LocalSongsTableUpdateCompanionBuilder,
+      (
+        LocalSongEntity,
+        BaseReferences<_$AppDatabase, $LocalSongsTable, LocalSongEntity>,
+      ),
+      LocalSongEntity,
+      PrefetchHooks Function()
+    >;
 
 class $AppDatabaseManager {
   final _$AppDatabase _db;
@@ -2875,4 +4666,6 @@ class $AppDatabaseManager {
       $$SongMetadataTableTableManager(_db, _db.songMetadata);
   $$PlaylistCacheTableTableManager get playlistCache =>
       $$PlaylistCacheTableTableManager(_db, _db.playlistCache);
+  $$LocalSongsTableTableManager get localSongs =>
+      $$LocalSongsTableTableManager(_db, _db.localSongs);
 }

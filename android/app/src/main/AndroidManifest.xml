@@ -10,6 +10,10 @@
     <uses-feature android:name="android.software.leanback" android:required="false"/>
     <uses-feature android:name="android.hardware.touchscreen" android:required="false"/>
     <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+    <!-- Local music: folders are picked through the document picker (no
+         permission needed). These only cover reading a chosen path directly. -->
+    <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
+    <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
     <application
         android:label="NaviVibe"
         android:name="${applicationName}"

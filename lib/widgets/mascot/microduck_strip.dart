@@ -326,7 +326,7 @@ class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
       resolution: const Duration(milliseconds: 500),
       builder: (context, pos) {
         final progress = total > 0 ? pos.inMilliseconds / total : 0.0;
-        final strip = MicroduckStrip(
+        final robot = MicroduckStrip(
           progress: progress,
           playing: playing,
           bpm: bpm,
@@ -342,6 +342,13 @@ class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
           positionSource: full ? () => widget.player.position : null,
           beatOffset: catalog?.beatOffset ?? 0,
           onTap: full ? () => showMicroduckChat(context) : null,
+        );
+        // One robot on screen at a time: while the chat is open it is the
+        // chat's.
+        final strip = ValueListenableBuilder<bool>(
+          valueListenable: microduckChatOpen,
+          builder: (context, open, child) => open ? SizedBox(height: widget.height) : child!,
+          child: robot,
         );
         final bubble = _bubble;
         if (bubble == null || _bubbleFor != song.id) return strip;

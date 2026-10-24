@@ -11,6 +11,7 @@ import '../../providers/settings_provider.dart' show subsonicServiceProvider;
 import '../../screens/now_playing_screen.dart';
 import '../../screens/settings_screen.dart';
 import '../../utils/platform_utils.dart';
+import '../../features/social/ui/jam/jam_pill.dart';
 import '../art/navi_icons.dart';
 import 'app_tab.dart';
 import 'nav_stack.dart';
@@ -120,6 +121,7 @@ class _TvShellState extends ConsumerState<TvShell> {
                           child: TabNavigators(tab: widget.tab, visited: widget.visited),
                         ),
                       ),
+                      const Center(child: JamLivePill()),
                       FocusTraversalGroup(child: const TvPlayerBar()),
                     ],
                   ),

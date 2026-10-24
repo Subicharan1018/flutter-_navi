@@ -14,6 +14,8 @@ import '../models/album.dart';
 import '../models/artist.dart';
 import '../models/playlist.dart';
 import '../models/search_results.dart';
+import '../features/local_library/logic/local_index.dart';
+import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../features/share/share_api.dart';
 import 'playlist_cache_service.dart';
 
@@ -204,6 +206,11 @@ class SubsonicService {
   /// instead of re-downloading on every widget rebuild or list scroll.
   String getCoverArtUrl(String? coverArtId, {int? size}) {
     if (coverArtId == null || coverArtId.isEmpty) return '';
+    // A song from Settings > Local music: its cover is a file on the device.
+    if (isLocalSongId(coverArtId)) {
+      final file = LocalLibraryIndex.instance.coverFor(coverArtId);
+      return file == null ? '' : Uri.file(file).toString();
+    }
     final params = {'id': coverArtId, 'f': ''};
     if (size != null) params['size'] = size.toString();
     return _buildStableUrl('getCoverArt.view', params);

@@ -7,6 +7,7 @@ import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/hive_boxes.dart';
+import 'features/local_library/logic/local_library_providers.dart' show localLibraryBootstrapProvider;
 import 'core/motion.dart';
 import 'core/theme.dart';
 import 'utils/platform_utils.dart';
@@ -125,6 +126,10 @@ Future<void> main() async {
   // Car / browse-tree playback goes through the same path as the UI.
   _wireCarControls(container, globalAudioHandler);
   AndroidIntegration.init(globalAudioHandler);
+
+  // Songs from Settings > Local music: load the file index, match them to the
+  // server library, and rescan quietly a few seconds after launch.
+  container.read(localLibraryBootstrapProvider);
 
   // Compile the Now Playing artwork-field shader before it's first shown.
   unawaited(ArtworkField.precache());

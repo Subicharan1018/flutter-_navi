@@ -1,6 +1,7 @@
 package com.navivibe.navivibe
 
 import android.Manifest
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import com.ryanheise.audioservice.AudioServiceActivity
@@ -8,8 +9,11 @@ import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
+    private var saf: SafChannel? = null
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
+        saf = SafChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navivibe/android")
             .setMethodCallHandler { call, result ->
                 when (call.method) {
@@ -43,5 +47,12 @@ class MainActivity : AudioServiceActivity() {
                     else -> result.notImplemented()
                 }
             }
+    }
+
+    @Deprecated("Deprecated in Java")
+    override fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?) {
+        if (saf?.onActivityResult(requestCode, resultCode, data) == true) return
+        @Suppress("DEPRECATION")
+        super.onActivityResult(requestCode, resultCode, data)
     }
 }

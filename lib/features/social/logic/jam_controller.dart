@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/song.dart';
@@ -18,7 +19,11 @@ class JamUiState {
   /// A one-off line for the screen to show ("The host ended this Jam").
   final String? notice;
   final bool busy;
-  const JamUiState({this.jam, this.notice, this.busy = false});
+
+  /// How far this phone's playhead is from where the Jam says it should be,
+  /// in ms (null while paused, hosting, or not measured yet).
+  final int? driftMs;
+  const JamUiState({this.jam, this.notice, this.busy = false, this.driftMs});
 
   bool get active => jam != null;
 }
@@ -56,6 +61,12 @@ class JamController extends Notifier<JamUiState> {
   @override
   JamUiState build() {
     ref.onDispose(_stopTimer);
+    // Back from the background (or a locked screen): catch up at once instead
+    // of waiting for the next timer beat.
+    final lifecycle = AppLifecycleListener(onResume: () {
+      if (state.active) unawaited(_tick());
+    });
+    ref.onDispose(lifecycle.dispose);
     // A different account has no claim on this Jam.
     ref.listen(settingsProvider.select((s) => s.username), (prev, next) {
       if (prev != next) _reset();
@@ -124,6 +135,11 @@ class JamController extends Notifier<JamUiState> {
   Future<bool> previous() => _control('prev', positionMs: _localPositionMs());
   Future<bool> jumpTo(int index) => _control('jump', index: index);
   Future<bool> seek(int ms) => _control('seek', positionMs: ms);
+
+  /// Host: drag queue item [itemId] to position [toIndex].
+  Future<bool> moveItem(int itemId, int toIndex) => _withJam(
+        (code) async => _accept(await _api.jamControl(code, 'move', index: toIndex, itemId: itemId)),
+      );
 
   Future<bool> _control(String action, {int? positionMs, int? index}) => _withJam(
         (code) async => _accept(await _api.jamControl(code, action, positionMs: positionMs, index: index)),
@@ -254,6 +270,8 @@ class JamController extends Notifier<JamUiState> {
           await player.addAllToQueue(songs.sublist(diff.at));
         case QueueChange.removeOne:
           await player.removeFromQueue(diff.at);
+        case QueueChange.move:
+          await player.reorderQueue(diff.at, diff.to);
         case QueueChange.replace:
           await player.setQueue(songs, jam.index.clamp(0, songs.length - 1));
           rebuilt = true;
@@ -294,17 +312,32 @@ class JamController extends Notifier<JamUiState> {
   /// A listener whose playhead strayed (buffering, a call) is pulled back.
   Future<void> _correctDrift() async {
     final jam = state.jam;
-    if (jam == null || jam.youAreHost || !jam.playing || _applying) return;
+    if (jam == null || jam.youAreHost || !jam.playing || _applying) {
+      _showDrift(null);
+      return;
+    }
     final now = _nowMs;
-    if (now - _lastCorrectionMs < 4000 || now < _quietUntilMs) return;
     final ps = ref.read(playerProvider);
-    if (!ps.isPlaying || ps.currentIndex != jam.index) return;
+    if (!ps.isPlaying || ps.currentIndex != jam.index) {
+      _showDrift(null);
+      return;
+    }
     final target = projectPositionMs(jam, _clock.serverNow(now));
+    _showDrift((_localPositionMs() - target).abs());
+    if (now - _lastCorrectionMs < 4000 || now < _quietUntilMs) return;
     if (needsDriftCorrection(_localPositionMs(), target)) {
       _lastCorrectionMs = now;
       _quietUntilMs = now + 1500;
       await _player.seekMs(target);
     }
+  }
+
+  /// Publishes the drift to the screens only when it crosses a visible band.
+  void _showDrift(int? ms) {
+    final band = ms == null ? null : (ms <= jamDriftToleranceMs ? 0 : 1);
+    final was = state.driftMs == null ? null : (state.driftMs! <= jamDriftToleranceMs ? 0 : 1);
+    if (band == was && (ms == null) == (state.driftMs == null)) return;
+    state = JamUiState(jam: state.jam, notice: state.notice, busy: state.busy, driftMs: ms);
   }
 
   /// The host's phone reports what its player is doing.

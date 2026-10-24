@@ -7,6 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/providers/settings_provider.dart';
+import 'package:navivibe/models/song.dart';
+import 'package:navivibe/widgets/mascot/chat/chat_intent.dart';
 import 'package:navivibe/widgets/mascot/microduck.dart';
 import 'package:navivibe/widgets/mascot/microduck_mesh.dart';
 import 'package:navivibe/widgets/mascot/microduck_painter.dart';
@@ -174,6 +176,45 @@ void main() {
       expect(text, contains('From “PS-1”'));
       expect(text, contains('3 times'));
       expect(text, contains('98 bpm'));
+    });
+  });
+
+  group('chat routing', () {
+    ChatIntent r(String s) => routeChat(s);
+
+    test('quick chips and free text reach the right place', () {
+      expect(r('What is this song?'), ChatIntent.nowPlaying);
+      expect(r('who is the composer?'), ChatIntent.composer);
+      expect(r('More like this'), ChatIntent.moreLikeThis);
+      expect(r('Surprise me'), ChatIntent.flow);
+      expect(r('my weekly mix'), ChatIntent.weekly);
+      expect(r('something new'), ChatIntent.discover);
+      expect(r('translate this song'), ChatIntent.translate);
+      expect(r('recognise this song'), ChatIntent.recognize);
+      expect(r('never recommend this artist'), ChatIntent.neverArtist);
+      expect(r('never recommend this song'), ChatIntent.neverSong);
+      expect(r('calm Tamil melodies'), ChatIntent.mix);
+    });
+
+    test('"more like this" asks about the current song', () {
+      final song = Song(id: 's', title: 'Thaniye', artist: 'Anirudh', album: '', coverArt: '', duration: 1, track: 1, year: 0);
+      expect(mixQuery('More like this', song), 'songs like Thaniye by Anirudh');
+      expect(mixQuery('More like this', null), 'something I like');
+      expect(mixQuery('rainy night drive', song), 'rainy night drive');
+    });
+
+    test('suggestions follow the song and the hour', () {
+      final song = Song(
+        id: 's', title: 'Thaniye', artist: 'Anirudh Ravichander, X', album: '', coverArt: '',
+        duration: 1, track: 1, year: 0, composer: 'Anirudh',
+      );
+      final day = suggestChips(current: song, now: DateTime(2026, 1, 1, 14));
+      expect(day.map((c) => c.label), containsAll(['More like this', 'What is this song?', 'Who is the composer?', 'Focus music']));
+      expect(day.any((c) => c.label == 'More from Anirudh Ravichander'), isTrue);
+      expect(day.length, lessThanOrEqualTo(6));
+      final night = suggestChips(current: null, now: DateTime(2026, 1, 1, 23));
+      expect(night.first.label, 'Something calm for the night');
+      expect(night.any((c) => c.label == 'More like this'), isFalse, reason: 'nothing playing, nothing to be like');
     });
   });
 

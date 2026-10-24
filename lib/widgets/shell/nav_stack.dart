@@ -122,3 +122,10 @@ bool popActiveTab() {
 /// Pops the active tab back to [crumb] (a breadcrumb tap).
 void popToCrumb(Crumb crumb) =>
     tabNavigators[activeTab.value]?.currentState?.popUntil((r) => r == crumb.route);
+
+/// Asks the shell to switch to [tab] from anywhere (Home's Jam card, the
+/// "Jam live" pill, a Library shortcut).
+void selectAppTab(AppTab tab) => tabRequest.value = tab;
+
+/// Read by the shell; cleared once it has switched.
+final ValueNotifier<AppTab?> tabRequest = ValueNotifier(null);

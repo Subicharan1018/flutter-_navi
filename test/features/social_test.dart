@@ -1,6 +1,8 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/features/social/data/social_models.dart';
 import 'package:navivibe/features/social/logic/jam_sync.dart';
+import 'package:navivibe/features/social/ui/jam/code_entry.dart';
+import 'package:navivibe/features/social/ui/jam/jam_room.dart';
 
 JamState jam({int index = 0, bool playing = true, int pos = 10000, int serverMs = 1000000, int items = 2}) =>
     JamState.fromJson({
@@ -19,6 +21,21 @@ JamState jam({int index = 0, bool playing = true, int pos = 10000, int serverMs 
       'position_ms': pos,
       'server_ms': serverMs,
     });
+
+extension on JamState {
+  JamState copyWithHost(bool host) => JamState(
+        code: code,
+        version: version,
+        host: this.host,
+        youAreHost: host,
+        members: members,
+        queue: queue,
+        index: index,
+        playing: playing,
+        positionMs: positionMs,
+        serverMs: serverMs,
+      );
+}
 
 void main() {
   group('JamClock', () {
@@ -65,7 +82,39 @@ void main() {
     });
     test('removing the playing song, or anything else, rebuilds', () {
       expect(diffQueue([1, 2, 3], [1, 3], 1).change, QueueChange.replace);
-      expect(diffQueue([1, 2], [2, 1], 0).change, QueueChange.replace);
+      expect(diffQueue([1, 2, 3], [3, 2, 1], 0).change, QueueChange.replace);
+    });
+  });
+
+  group('diffQueue moves', () {
+    test('one song dragged elsewhere reorders in place', () {
+      final d = diffQueue([1, 2, 3, 4], [1, 3, 4, 2], 0);
+      expect(d.change, QueueChange.move);
+      expect((d.at, d.to), (1, 3));
+      final back = diffQueue([1, 2, 3, 4], [4, 1, 2, 3], 1);
+      expect(back.change, QueueChange.move);
+      expect((back.at, back.to), (3, 0));
+    });
+    test('a shuffle of several songs rebuilds', () {
+      expect(diffQueue([1, 2, 3, 4], [2, 1, 4, 3], 0).change, QueueChange.replace);
+    });
+  });
+
+  group('join code', () {
+    test('cleans pasted text to the letters a code can hold', () {
+      expect(cleanJamCode(' k7q-x2m '), 'K7QX2M');
+      expect(cleanJamCode('o0i1'), ''); // never in a code
+      expect(cleanJamCode('ABCDEFGHJK'), 'ABCDEF');
+    });
+  });
+
+  group('sync status', () {
+    test('host, waiting, syncing, in sync and catching up are told apart', () {
+      expect(SyncPill.status(jam(playing: true).copyWithHost(true), null).$2, isTrue);
+      expect(SyncPill.status(jam(playing: false), null).$1, 'Waiting for alice');
+      expect(SyncPill.status(jam(), null).$1, 'Syncing…');
+      expect(SyncPill.status(jam(), 400), ('In sync with alice', true));
+      expect(SyncPill.status(jam(), 4000), ('Catching up…', false));
     });
   });
 

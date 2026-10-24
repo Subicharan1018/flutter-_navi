@@ -22,7 +22,7 @@ import '../widgets/ui/voice_search_button.dart';
 //     ← →              seek ∓/± 5 s        Ctrl+← →   previous / next
 //     ↑ ↓              volume ± 5 %        M          mute
 //     S R L            shuffle, repeat, like the current song
-//     Ctrl+F           go to Search        Ctrl+1…5   switch tab
+//     Ctrl+F           go to Search        Ctrl+1…6   switch tab
 //     Ctrl+,           Settings            Esc / Alt+←  back
 //     mouse back / forward buttons         back
 //
@@ -148,13 +148,14 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
       const SingleActivator(LogicalKeyboardKey.comma, control: true): commands.openSettings,
       const SingleActivator(LogicalKeyboardKey.escape): () => commands.goBack(),
       const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): () => commands.goBack(),
-      for (var i = 0; i < 5; i++)
+      for (var i = 0; i < 6; i++)
         SingleActivator(<LogicalKeyboardKey>[
           LogicalKeyboardKey.digit1,
           LogicalKeyboardKey.digit2,
           LogicalKeyboardKey.digit3,
           LogicalKeyboardKey.digit4,
           LogicalKeyboardKey.digit5,
+          LogicalKeyboardKey.digit6,
         ][i], control: true): () => commands.selectTab(i),
     });
   }

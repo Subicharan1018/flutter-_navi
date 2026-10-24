@@ -33,6 +33,7 @@ import '../screens/playlist_editor.dart';
 import 'ui/dock_ground.dart';
 import 'ui/ion.dart';
 import 'ui/one_shot_icon.dart';
+import '../features/social/ui/jam/jam_pill.dart';
 import 'mini_player.dart';
 import 'shell/app_tab.dart';
 import 'shell/breadcrumb_bar.dart';
@@ -55,7 +56,7 @@ import '../providers/id_migration_provider.dart';
 // =============================================================================
 
 export 'shell/app_tab.dart' show AppTab;
-export 'shell/nav_stack.dart' show navigateInApp;
+export 'shell/nav_stack.dart' show navigateInApp, selectAppTab;
 
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key});
@@ -71,9 +72,23 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WindowLifecycleM
   /// alive after that, so Stats and Shuffle don't fetch at launch.
   final Set<AppTab> _visited = {AppTab.home};
 
+  void _onTabRequest() {
+    final tab = tabRequest.value;
+    if (tab == null) return;
+    tabRequest.value = null;
+    if (mounted) _select(tab);
+  }
+
+  @override
+  void dispose() {
+    tabRequest.removeListener(_onTabRequest);
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
+    tabRequest.addListener(_onTabRequest);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // After a server upgrade that renamed song ids, move local history and
       // downloads to the new ids first (a no-op otherwise; gives up after 8 s).
@@ -184,6 +199,7 @@ class _PhoneShell extends ConsumerWidget {
                     children: [
                       if (offline) const _OfflineBanner(),
                       const FetchFinishedBanner(),
+                      const JamLivePill(),
                       const MiniPlayer(),
                       _TabBar(tab: tab, onSelect: onSelect, ground: band),
                     ],
@@ -213,7 +229,7 @@ class _TabBar extends StatelessWidget {
   final Color ground;
   const _TabBar({required this.tab, required this.onSelect, required this.ground});
 
-  static final _main = AppTab.values.where((t) => t != AppTab.search).toList();
+  static final _main = AppTab.mainTabs;
 
   /// [ground] lifted toward white by [amount], fully opaque.
   static Color _lift(Color ground, double amount) => Color.lerp(ground, Colors.white, amount)!;
@@ -448,6 +464,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                             ),
                           ),
                         ),
+                        const Center(child: JamLivePill()),
                         const FetchFinishedBanner(),
                       ],
                     ),
@@ -519,7 +536,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
             const SizedBox(height: Space.lg),
           ],
           const _DownloadsRow(),
-          for (final dest in const [AppTab.home, AppTab.shuffle, AppTab.stats])
+          for (final dest in AppTab.browseTabs)
             _SidebarRow(
               icon: dest.icon,
               label: dest.label,

@@ -45,6 +45,9 @@ class Microduck extends StatefulWidget {
   /// ends the robot celebrates.
   final bool thinking;
 
+  /// Saying something: head nods, the screen shows a voice meter.
+  final bool talking;
+
   /// A quick tap (not a long press), after the hop starts.
   final VoidCallback? onTap;
 
@@ -61,6 +64,7 @@ class Microduck extends StatefulWidget {
     this.positionSource,
     this.beatOffset = 0,
     this.thinking = false,
+    this.talking = false,
     this.onTap,
   });
 
@@ -87,6 +91,7 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
     super.initState();
     _input
       ..thinking = widget.thinking
+      ..talking = widget.talking
       ..beatOffset = widget.beatOffset;
     WidgetsBinding.instance.addObserver(this);
   }
@@ -115,6 +120,7 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
     }
     _input
       ..thinking = widget.thinking
+      ..talking = widget.talking
       ..beatOffset = widget.beatOffset;
     _sync();
   }
@@ -149,7 +155,8 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
       _input.bowAt = _now;
     }
     // Full rate while it is reacting, whatever the pose.
-    final fps = _now < _input.activeUntil || _pressing ? 60 : widget.pose.fps;
+    final busy = widget.thinking || widget.talking;
+    final fps = _now < _input.activeUntil || _pressing || busy ? 60 : widget.pose.fps;
     final frame = elapsed.inMicroseconds * fps ~/ Duration.microsecondsPerSecond;
     if (frame == _frame) return;
     _frame = frame;
