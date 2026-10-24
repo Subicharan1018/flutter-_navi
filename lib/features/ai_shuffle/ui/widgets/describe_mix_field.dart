@@ -60,7 +60,7 @@ class _DescribeMixFieldState extends ConsumerState<DescribeMixField> {
             (_, final String error, _) => Text(error, style: t.footnote.copyWith(color: t.warning)),
             (_, _, final r?) => Row(
                 children: [
-                  NaviIcon(NaviGlyph.sparkle, size: 15, color: t.accent),
+                  NaviIcon(NaviGlyph.signal, size: 15, color: t.accent),
                   const SizedBox(width: Space.xs),
                   Expanded(
                     child: Text(

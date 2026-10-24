@@ -90,7 +90,7 @@ class _SmartShuffleLoginScreenState extends ConsumerState<SmartShuffleLoginScree
               width: 72,
               height: 72,
               decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(18)),
-              child: NaviIcon(NaviGlyph.sparkle, size: 36, color: t.onAccent),
+              child: NaviIcon(NaviGlyph.signal, size: 36, color: t.onAccent),
             ),
           ),
           const SizedBox(height: Space.xl),

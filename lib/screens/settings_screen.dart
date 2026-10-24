@@ -208,7 +208,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Living Artwork',
                 subtitle: 'The Now Playing background moves with the music. Turn off to save battery.',
-                icon: NaviGlyph.sparkle,
+                icon: NaviGlyph.signal,
                 ion: Ion.palette,
                 value: s.fluidBgEnabled,
                 onChanged: notifier.setFluidBgEnabled,
@@ -404,7 +404,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Recommendations',
                 icon: NaviGlyph.smart,
-                ion: Ion.sparkles,
                 value: _recommendations,
                 onChanged: (v) {
                   setState(() => _recommendations = v);

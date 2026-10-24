@@ -54,7 +54,7 @@ enum NaviGlyph {
   flow,
   calendar,
   flame,
-  sparkle,
+  signal,
   note,
   playlist,
   stack,
@@ -489,19 +489,20 @@ class NaviGlyphPainter extends CustomPainter {
         canvas.drawPath(p, solid);
         if (filled) canvas.drawPath(p, stroke);
       case NaviGlyph.smart:
-        // A four-point sparkle with a small companion.
-        final p = Path()
-          ..moveTo(10.5, 3.5)
-          ..quadraticBezierTo(11.2, 9.8, 17.5, 10.5)
-          ..quadraticBezierTo(11.2, 11.2, 10.5, 17.5)
-          ..quadraticBezierTo(9.8, 11.2, 3.5, 10.5)
-          ..quadraticBezierTo(9.8, 9.8, 10.5, 3.5)
-          ..close();
-        canvas.drawPath(p, solid);
-        if (filled) canvas.drawPath(p, stroke);
-        canvas.drawCircle(const Offset(18, 17.5), 1.1, fill);
-        canvas.drawLine(const Offset(18, 4.5), const Offset(18, 7.5), stroke);
-        canvas.drawLine(const Offset(16.5, 6), const Offset(19.5, 6), stroke);
+        // A waveform inside a ring: rule-driven, not a star.
+        canvas.drawCircle(const Offset(12, 12), 9, solid);
+        final wave = filled
+            ? (Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = 1.9
+              ..color = const Color(0x99000000))
+            : stroke;
+        const xs = [8.0, 10.7, 13.3, 16.0];
+        const half = [1.8, 4.2, 2.8, 1.6];
+        for (var i = 0; i < xs.length; i++) {
+          canvas.drawLine(Offset(xs[i], 12 - half[i]), Offset(xs[i], 12 + half[i]), wave);
+        }
       case NaviGlyph.plus:
         canvas.drawLine(const Offset(12, 5), const Offset(12, 19), stroke);
         canvas.drawLine(const Offset(5, 12), const Offset(19, 12), stroke);
@@ -554,16 +555,21 @@ class NaviGlyphPainter extends CustomPainter {
           ..close();
         canvas.drawPath(p, solid);
         if (filled) canvas.drawPath(p, stroke);
-      case NaviGlyph.sparkle:
-        final p = Path()
-          ..moveTo(12, 3.5)
-          ..quadraticBezierTo(12.8, 10.5, 20.5, 12)
-          ..quadraticBezierTo(12.8, 13.5, 12, 20.5)
-          ..quadraticBezierTo(11.2, 13.5, 3.5, 12)
-          ..quadraticBezierTo(11.2, 10.5, 12, 3.5)
-          ..close();
-        canvas.drawPath(p, solid);
-        if (filled) canvas.drawPath(p, stroke);
+      case NaviGlyph.signal:
+        // Three linked dots: the mark for anything the app works out for you.
+        const a = Offset(6, 16.5);
+        const b = Offset(12, 6.5);
+        const c = Offset(18, 15);
+        canvas.drawPath(
+          Path()
+            ..moveTo(a.dx, a.dy)
+            ..lineTo(b.dx, b.dy)
+            ..lineTo(c.dx, c.dy),
+          stroke..strokeWidth = 1.5,
+        );
+        for (final o in const [a, b, c]) {
+          canvas.drawCircle(o, filled ? 2.9 : 2.5, fill);
+        }
       case NaviGlyph.check:
         canvas.drawPath(
           Path()

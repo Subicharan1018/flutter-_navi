@@ -88,7 +88,7 @@ class MonthBody extends ConsumerWidget {
                   _Stat(glyph: NaviGlyph.play, value: '${stats.totalPlays}', label: 'plays'),
                   _Stat(glyph: NaviGlyph.calendar, value: '${stats.activeDays}/${stats.daysInMonth}', label: 'days'),
                   _Stat(glyph: NaviGlyph.flame, value: '${stats.streakDays}', label: 'day streak'),
-                  _Stat(glyph: NaviGlyph.sparkle, value: '${stats.newSongsCount}', label: 'new songs'),
+                  _Stat(glyph: NaviGlyph.note, value: '${stats.newSongsCount}', label: 'new songs'),
                 ],
               ),
               const SizedBox(height: Space.xl),

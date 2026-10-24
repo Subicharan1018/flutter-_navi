@@ -173,7 +173,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           SliverToBoxAdapter(
             child: MessageState(
               illustration: 'ai',
-              icon: NaviGlyph.sparkle,
+              icon: NaviGlyph.signal,
               title: 'No picks yet',
               message: predict.mode.emptyMessage,
             ),
@@ -266,7 +266,7 @@ class _MixCard extends ConsumerWidget {
           urls: [for (final s in mix.take(12)) svc.getCoverArtUrl(s.coverArt)],
           size: _art,
           radius: Radii.hero,
-          placeholderIcon: NaviGlyph.sparkle,
+          placeholderIcon: NaviGlyph.signal,
           seed: coverSeed('Smart Shuffle', mix.map((s) => s.id)),
         ),
         const SizedBox(height: Space.lg),

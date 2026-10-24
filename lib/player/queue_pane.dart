@@ -255,7 +255,7 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              ion: Ion.sparkles,
+              glyph: NaviGlyph.signal,
               label: 'Smart Reshuffle',
               active: false,
               toggle: false,
@@ -317,7 +317,7 @@ class _ShuffleModeSheet extends ConsumerWidget {
             SheetAction(
               label: 'Smart Reshuffle',
               detail: 'Fresh picks for right now',
-              icon: NaviGlyph.sparkle,
+              icon: NaviGlyph.signal,
               onTap: () => runSmartReshuffle(context, parentRef),
             ),
           ]),
@@ -343,7 +343,10 @@ class _ShuffleModeSheet extends ConsumerWidget {
 }
 
 class _Pill extends StatelessWidget {
-  final Ion ion;
+  final Ion? ion;
+
+  /// One of NaviVibe's own glyphs, drawn instead of [ion].
+  final NaviGlyph? glyph;
 
   /// Small mark on the glyph (the "1" of repeat-one).
   final String? badge;
@@ -360,7 +363,8 @@ class _Pill extends StatelessWidget {
   final bool busy;
 
   const _Pill({
-    required this.ion,
+    this.ion,
+    this.glyph,
     this.badge,
     required this.label,
     required this.active,
@@ -404,7 +408,7 @@ class _Pill extends StatelessWidget {
                   key: ValueKey(badge),
                   clipBehavior: Clip.none,
                   children: [
-                    IonIcon(ion, size: 20, color: fg),
+                    if (glyph != null) NaviIcon(glyph!, size: 20, color: fg) else IonIcon(ion!, size: 20, color: fg),
                     if (badge != null)
                       Positioned(
                         right: -5,

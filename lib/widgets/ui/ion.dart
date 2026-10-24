@@ -38,7 +38,6 @@ enum Ion {
   image('image-outline'),
   music('musical-notes-outline'),
   timer('timer-outline'),
-  sparkles('sparkles-outline'),
   share('share-outline'),
   trash('trash-outline'),
   add('add-circle-outline'),
