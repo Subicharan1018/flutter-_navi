@@ -55,6 +55,7 @@ dependencies:
   fl_chart: ^1.2.0
   collection: ^1.19.1
   package_info_plus: ^9.0.1
+  share_plus: ^12.0.2
   # mesh_gradient removed (ARCH-2): declared but never imported anywhere
 
 dev_dependencies:
