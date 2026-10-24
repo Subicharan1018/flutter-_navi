@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter/widgets.dart';
 
+import '../../core/motion.dart';
+
 /// An illustrated icon that rests on its still frame and plays its animation
 /// exactly once when [OneShotIconState.play] is called (e.g. on tap), then
 /// settles back on the still. Assets come in pairs under `assets/icons/`:
@@ -30,7 +32,7 @@ class OneShotIconState extends State<OneShotIcon> {
   /// Plays the animation from its first frame, once. Ignored when the system
   /// asks for reduced motion.
   void play() {
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return;
+    if (!context.motionFullNow) return;
     // A fresh decode always starts at frame 0 (the cached stream would resume
     // wherever it stopped, or not play at all after finishing).
     _provider(_animation).evict();

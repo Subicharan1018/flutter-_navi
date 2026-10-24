@@ -120,6 +120,7 @@ class HiveBoxes {
   static const kRecommendationsEnabled = 'recommendations_enabled';
   static const kAllowHttp = 'allow_http';
   static const kFluidBgEnabled = 'fluid_bg_enabled';
+  static const kMotionLevel = 'motion_level';
   static const kReplayGainMode = 'replay_gain_mode';
   static const kCrossfadeSeconds = 'crossfade_seconds';
   static const kPlaybackSpeed = 'playback_speed';

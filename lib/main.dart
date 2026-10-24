@@ -7,6 +7,7 @@ import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/hive_boxes.dart';
+import 'core/motion.dart';
 import 'core/theme.dart';
 import 'utils/platform_utils.dart';
 import 'widgets/app_scaffold.dart';
@@ -176,6 +177,7 @@ class MyMusicPlayerApp extends ConsumerWidget {
     // One theme, tinted by the album that's playing.
     final palette = ref.watch(albumPaletteProvider);
     final tokens = AppThemeTokens.fromPalette(palette);
+    final motion = ref.watch(settingsProvider.select((s) => s.motionLevel));
 
     // Reactively toggle image cache boundaries
     final cacheSettings = ref.watch(cacheSettingsNotifierProvider);
@@ -199,6 +201,11 @@ class MyMusicPlayerApp extends ConsumerWidget {
         scrollBehavior: const NaviScrollBehavior(),
         themeAnimationDuration: const Duration(milliseconds: 450),
         themeAnimationCurve: Curves.easeOutCubic,
+        builder: (context, child) => MotionScope.resolve(
+          level: motion,
+          systemReduced: MediaQuery.disableAnimationsOf(context),
+          child: child!,
+        ),
         home: home,
         debugShowCheckedModeBanner: false,
       ),

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart' show Colors;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../features/discover/logic/discover_providers.dart' show discoverProvider;
@@ -71,13 +72,13 @@ class HomeScreen extends ConsumerWidget {
       slivers: const [
         SliverToBoxAdapter(child: JamBanner()),
         // What's new leads; the charts it came from right below.
-        SliverToBoxAdapter(child: DiscoverSection()),
-        SliverToBoxAdapter(child: WeeklyMixSection()),
-        SliverToBoxAdapter(child: FlowSection()),
-        SliverToBoxAdapter(child: TrendingSection()),
-        SliverToBoxAdapter(child: _TopPicks()),
-        SliverToBoxAdapter(child: _RecentlyPlayed()),
-        SliverToBoxAdapter(child: _YourPlaylists()),
+        SliverToBoxAdapter(child: Entrance(group: 'home', index: 1, child: DiscoverSection())),
+        SliverToBoxAdapter(child: Entrance(group: 'home', index: 2, child: WeeklyMixSection())),
+        SliverToBoxAdapter(child: Entrance(group: 'home', index: 3, child: FlowSection())),
+        SliverToBoxAdapter(child: Entrance(group: 'home', index: 4, child: TrendingSection())),
+        SliverToBoxAdapter(child: Entrance(group: 'home', index: 5, child: _TopPicks())),
+        SliverToBoxAdapter(child: Entrance(group: 'home', index: 6, child: _RecentlyPlayed())),
+        SliverToBoxAdapter(child: Entrance(group: 'home', index: 7, child: _YourPlaylists())),
         SliverToBoxAdapter(child: _RecentlyAdded()),
         SliverToBoxAdapter(child: _FirstRun()),
       ],

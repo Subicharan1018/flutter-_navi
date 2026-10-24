@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../core/hive_boxes.dart';
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
@@ -67,7 +68,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
     _nudge = Timer(_nudgeDelay, () async {
       if (!mounted || _hintSeen || _dx.value != 0) return;
       _retireHint();
-      if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) return;
+      if (!context.motionFullNow) return;
       await _dx.animateTo(-_nudgeDistance, duration: Motion.standard, curve: Curves.easeOutCubic);
       if (!mounted) return;
       _dx.animateWith(SpringSimulation(

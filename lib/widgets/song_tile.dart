@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
@@ -145,7 +146,14 @@ class _SongTileState extends ConsumerState<SongTile> {
                   padding: const EdgeInsets.only(left: Space.gutter, right: Space.xs),
                   child: Row(
                     children: [
-                      leading,
+                      // The cover dips under the finger; the row tint alone
+                      // would be the only cue on a dark theme.
+                      AnimatedScale(
+                        scale: _pressed ? pressedScale(context, 0.92) : 1,
+                        duration: _pressed ? Motion.press : Motion.fast,
+                        curve: Motion.ease,
+                        child: leading,
+                      ),
                       const SizedBox(width: Space.md),
                       Expanded(
                         child: Column(

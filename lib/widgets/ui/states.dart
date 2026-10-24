@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 
+import '../../core/motion.dart';
 import '../../core/theme.dart';
 import '../art/empty_art.dart';
 import '../art/navi_icons.dart';
@@ -179,6 +180,37 @@ class SkeletonBox extends StatelessWidget {
       );
 }
 
+/// Placeholder covers for a Home shelf while it loads, shimmering as one.
+class SkeletonShelf extends StatelessWidget {
+  final double size;
+  final int count;
+  const SkeletonShelf({super.key, required this.size, this.count = 3});
+
+  /// Room under a cover for its two text lines.
+  static const double chrome = 44;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: size + chrome,
+      child: Shimmer(
+        child: ListView(
+          scrollDirection: Axis.horizontal,
+          physics: const NeverScrollableScrollPhysics(),
+          padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+          children: [
+            for (var i = 0; i < count; i++)
+              Padding(
+                padding: const EdgeInsets.only(right: Space.md),
+                child: SkeletonBox(width: size, height: size, radius: Radii.cover),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Placeholder rows matching a track list while it loads.
 class TrackListSkeleton extends StatelessWidget {
   final int rows;
@@ -187,29 +219,31 @@ class TrackListSkeleton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      children: [
-        for (var i = 0; i < rows; i++)
-          Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.sm),
-            child: Row(
-              children: [
-                if (artwork) ...[
-                  const SkeletonBox(width: 48, height: 48),
-                  const SizedBox(width: Space.md),
-                ],
-                const Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    SkeletonBox(width: 170, height: 13),
-                    SizedBox(height: Space.sm),
-                    SkeletonBox(width: 110, height: 11),
+    return Shimmer(
+      child: Column(
+        children: [
+          for (var i = 0; i < rows; i++)
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.sm),
+              child: Row(
+                children: [
+                  if (artwork) ...[
+                    const SkeletonBox(width: 48, height: 48),
+                    const SizedBox(width: Space.md),
                   ],
-                ),
-              ],
+                  const Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      SkeletonBox(width: 170, height: 13),
+                      SizedBox(height: Space.sm),
+                      SkeletonBox(width: 110, height: 11),
+                    ],
+                  ),
+                ],
+              ),
             ),
-          ),
-      ],
+        ],
+      ),
     );
   }
 }

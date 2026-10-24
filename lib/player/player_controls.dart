@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/song.dart';
 import '../widgets/art/navi_icons.dart';
@@ -445,7 +446,7 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
                           : widget.pressColor.withValues(alpha: widget.pressColor.a * t),
                     ),
                   ),
-                  Transform.scale(scale: 1 - 0.08 * t, child: child),
+                  Transform.scale(scale: 1 - (1 - pressedScale(context, 0.92)) * t, child: child),
                 ],
               );
             },
@@ -462,7 +463,7 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
 // its glyphs with a quick scale-and-fade.
 // ─────────────────────────────────────────────────────────────────────────────
 
-/// Play or pause, cross-fading with a slight scale as it changes.
+/// Play or pause: the triangle morphs into the bars and back.
 class PlayPauseGlyph extends StatelessWidget {
   final bool playing;
   final double size;
@@ -471,21 +472,7 @@ class PlayPauseGlyph extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedSwitcher(
-      duration: const Duration(milliseconds: 200),
-      switchInCurve: Curves.easeOutBack,
-      switchOutCurve: Curves.easeInCubic,
-      transitionBuilder: (child, a) => FadeTransition(
-        opacity: a,
-        child: ScaleTransition(scale: Tween(begin: 0.6, end: 1.0).animate(a), child: child),
-      ),
-      child: IonIcon(
-        playing ? Ion.pause : Ion.play,
-        key: ValueKey(playing),
-        size: size,
-        color: color,
-      ),
-    );
+    return PlayPauseMorph(playing: playing, size: size, color: color);
   }
 }
 

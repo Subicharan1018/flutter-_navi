@@ -1,11 +1,12 @@
 import 'package:flutter/cupertino.dart'
-    show CupertinoPageTransitionsBuilder, CupertinoThemeData, CupertinoTextThemeData;
+    show CupertinoThemeData, CupertinoTextThemeData;
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
 import 'album_palette.dart';
+import 'motion.dart';
 
 export 'album_palette.dart' show AlbumPalette;
 
@@ -77,6 +78,13 @@ abstract final class Motion {
   static const Duration slow = Duration(milliseconds: 400);
   static const Curve ease = Curves.easeOutCubic;
   static const Curve spring = Curves.easeOutBack;
+
+  /// Lists and shelves arriving ([Entrance]): a long, soft landing.
+  static const Curve decelerate = Curves.easeOutQuart;
+
+  /// Delay between neighbouring rows of an entrance; press-down dip length.
+  static const Duration stagger = Duration(milliseconds: 40);
+  static const Duration press = Duration(milliseconds: 90);
 
   /// Apple's spring, specified as a perceptual [duration] (seconds) and a
   /// [bounce] (0 = critically damped, no overshoot; keep under ~0.4 in UI),
@@ -461,11 +469,11 @@ class AppTheme {
       // edge to go back — on Android too.
       pageTransitionsTheme: const PageTransitionsTheme(
         builders: {
-          TargetPlatform.android: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.iOS: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.macOS: CupertinoPageTransitionsBuilder(),
-          TargetPlatform.linux: FadeForwardsPageTransitionsBuilder(),
-          TargetPlatform.windows: FadeForwardsPageTransitionsBuilder(),
+          TargetPlatform.android: NaviPageTransitionsBuilder(),
+          TargetPlatform.iOS: NaviPageTransitionsBuilder(),
+          TargetPlatform.macOS: NaviPageTransitionsBuilder(),
+          TargetPlatform.linux: NaviPageTransitionsBuilder(),
+          TargetPlatform.windows: NaviPageTransitionsBuilder(),
         },
       ),
     );
@@ -546,17 +554,15 @@ class _CupertinoClickableState extends State<CupertinoClickable>
     duration: const Duration(milliseconds: 90),
     reverseDuration: const Duration(milliseconds: 260),
   );
-  late final Animation<double> _scale = Tween<double>(
-    begin: 1.0,
-    end: widget.scaleFactor,
-  ).animate(CurvedAnimation(
+  late final CurvedAnimation _curve = CurvedAnimation(
     parent: _c,
     curve: Curves.easeOut,
     reverseCurve: Curves.easeOutBack,
-  ));
+  );
 
   @override
   void dispose() {
+    _curve.dispose();
     _c.dispose();
     super.dispose();
   }
@@ -565,6 +571,7 @@ class _CupertinoClickableState extends State<CupertinoClickable>
 
   @override
   Widget build(BuildContext context) {
+    final scale = Tween<double>(begin: 1.0, end: pressedScale(context, widget.scaleFactor)).animate(_curve);
     return Semantics(
       button: _enabled,
       label: widget.semanticLabel,
@@ -575,7 +582,7 @@ class _CupertinoClickableState extends State<CupertinoClickable>
         onTapCancel: _enabled ? () => _c.reverse() : null,
         onTap: widget.onTap,
         onLongPress: widget.onLongPress,
-        child: ScaleTransition(scale: _scale, child: widget.child),
+        child: ScaleTransition(scale: scale, child: widget.child),
       ),
     );
   }

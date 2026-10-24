@@ -2,6 +2,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../core/constants.dart';
 import '../core/hive_boxes.dart';
+import '../core/motion.dart' show MotionLevel;
 import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
@@ -104,6 +105,9 @@ class SettingsState {
   /// Useful on low-end devices to save GPU and battery.
   final bool fluidBgEnabled;
 
+  /// Settings ▸ Motion: Full plays decorative animation, Reduced skips it.
+  final MotionLevel motionLevel;
+
   /// Volume normalisation from the file's ReplayGain tags.
   final ReplayGainMode replayGainMode;
 
@@ -122,6 +126,7 @@ class SettingsState {
     this.dataCollectionEnabled = true,
     this.allowHttp = false,
     this.fluidBgEnabled = true,
+    this.motionLevel = MotionLevel.full,
     this.replayGainMode = ReplayGainMode.off,
     this.crossfadeSeconds = 0,
     this.playbackSpeed = 1.0,
@@ -136,6 +141,7 @@ class SettingsState {
     bool? dataCollectionEnabled,
     bool? allowHttp,
     bool? fluidBgEnabled,
+    MotionLevel? motionLevel,
     ReplayGainMode? replayGainMode,
     int? crossfadeSeconds,
     double? playbackSpeed,
@@ -150,6 +156,7 @@ class SettingsState {
           dataCollectionEnabled ?? this.dataCollectionEnabled,
       allowHttp: allowHttp ?? this.allowHttp,
       fluidBgEnabled: fluidBgEnabled ?? this.fluidBgEnabled,
+      motionLevel: motionLevel ?? this.motionLevel,
       replayGainMode: replayGainMode ?? this.replayGainMode,
       crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
@@ -211,6 +218,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           p.get(HiveBoxes.kFluidBgEnabled, defaultValue: true) is bool
           ? p.get(HiveBoxes.kFluidBgEnabled, defaultValue: true) as bool
           : true,
+      motionLevel: MotionLevel.values.firstWhere(
+        (e) => e.name == p.get(HiveBoxes.kMotionLevel)?.toString(),
+        orElse: () => MotionLevel.full,
+      ),
       replayGainMode: ReplayGainMode.values.firstWhere(
         (e) => e.name == p.get(HiveBoxes.kReplayGainMode)?.toString(),
         orElse: () => ReplayGainMode.off,
@@ -271,6 +282,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setFluidBgEnabled(bool enabled) async {
     await HiveBoxes.prefs.put(HiveBoxes.kFluidBgEnabled, enabled);
     state = state.copyWith(fluidBgEnabled: enabled);
+  }
+
+  Future<void> setMotionLevel(MotionLevel level) async {
+    state = state.copyWith(motionLevel: level);
+    await HiveBoxes.prefs.put(HiveBoxes.kMotionLevel, level.name);
   }
 
   Future<void> setReplayGainMode(ReplayGainMode mode) async {
