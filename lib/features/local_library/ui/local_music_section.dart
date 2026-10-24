@@ -5,7 +5,6 @@ import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../widgets/ui/action_sheet.dart';
 import '../../../widgets/ui/grouped_list.dart';
-import '../../../widgets/ui/ion.dart';
 import '../logic/local_library_providers.dart';
 import '../logic/local_models.dart';
 
@@ -81,13 +80,11 @@ class LocalMusicSection extends ConsumerWidget {
             title: f.name,
             subtitle: displayFolderPath(f.uri),
             icon: NaviGlyph.folder,
-            ion: Ion.music,
             onTap: () => _folderActions(context, ref, f),
           ),
         GroupedRow(
           title: 'Add Folder',
           icon: NaviGlyph.plus,
-          ion: Ion.add,
           showChevron: false,
           onTap: () => _add(context, ref),
         ),
@@ -95,7 +92,6 @@ class LocalMusicSection extends ConsumerWidget {
           GroupedRow(
             title: 'Scan Now',
             icon: NaviGlyph.repeat,
-            ion: Ion.sync,
             value: total == 0 ? null : '$total ${total == 1 ? 'song' : 'songs'}',
             trailing: scan.running ? const CupertinoActivityIndicator() : null,
             showChevron: false,

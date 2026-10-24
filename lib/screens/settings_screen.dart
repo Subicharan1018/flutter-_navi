@@ -22,7 +22,6 @@ import '../services/transcoding_service.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/grouped_list.dart';
-import '../widgets/ui/ion.dart';
 import '../widgets/ui/large_title_page.dart';
 
 final _appVersionProvider = FutureProvider<String>((ref) async {
@@ -183,7 +182,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Server',
                 icon: NaviGlyph.cloud,
-                ion: Ion.globe,
                 value: host.isEmpty ? 'Not connected' : host,
               ),
               GroupedTextFieldRow(
@@ -191,7 +189,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 controller: _user,
                 placeholder: 'Required',
                 icon: NaviGlyph.person,
-                ion: Ion.person,
               ),
               GroupedTextFieldRow(
                 title: 'Password',
@@ -199,13 +196,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 placeholder: 'Required',
                 obscure: true,
                 icon: NaviGlyph.lock,
-                ion: Ion.lock,
               ),
               GroupedSwitchRow(
                 title: 'Allow HTTP',
                 subtitle: 'Connects without encryption. Use only on your home network.',
                 icon: NaviGlyph.unlock,
-                ion: Ion.unlock,
                 value: s.allowHttp,
                 onChanged: notifier.setAllowHttp,
               ),
@@ -219,7 +214,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Microduck',
                 icon: NaviGlyph.note,
-                ion: Ion.music,
                 value: s.microduckEnabled,
                 onChanged: notifier.setMicroduckEnabled,
               ),
@@ -234,7 +228,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Microduck talks',
                   subtitle: 'Now and then it remarks on the song in a small speech bubble.',
                   icon: NaviGlyph.note,
-                  ion: Ion.music,
                   value: s.microduckTalks,
                   onChanged: notifier.setMicroduckTalks,
                 ),
@@ -262,14 +255,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Living Artwork',
                 subtitle: 'The Now Playing background moves with the music. Turn off to save battery.',
                 icon: NaviGlyph.signal,
-                ion: Ion.palette,
                 value: s.fluidBgEnabled,
                 onChanged: notifier.setFluidBgEnabled,
               ),
               GroupedRow(
                 title: 'Motion',
                 icon: NaviGlyph.signal,
-                ion: Ion.palette,
                 value: s.motionLevel.label,
                 onTap: () async {
                   final v = await showChoiceSheet<MotionLevel>(
@@ -286,7 +277,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Volume Normalisation',
                 icon: NaviGlyph.speaker,
-                ion: Ion.volumeHigh,
                 value: s.replayGainMode.label,
                 onTap: () async {
                   final v = await showChoiceSheet<ReplayGainMode>(
@@ -303,7 +293,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Crossfade',
                 icon: NaviGlyph.aiShuffle,
-                ion: Ion.infinite,
                 value: crossfadeLabel(s.crossfadeSeconds),
                 onTap: () async {
                   final v = await showChoiceSheet<int>(
@@ -322,7 +311,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Shuffle Style',
                 icon: NaviGlyph.shuffle,
-                ion: Ion.shuffle,
                 value: s.shuffleAlgorithm.label,
                 onTap: () async {
                   final v = await showChoiceSheet<ShuffleAlgorithm>(
@@ -340,7 +328,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 GroupedRow(
                   title: 'Spread Songs By',
                   icon: NaviGlyph.grid,
-                  ion: Ion.options,
                   value: s.shufflePreference.label,
                   onTap: () async {
                     final v = await showChoiceSheet<ShufflePreference>(
@@ -364,7 +351,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Convert While Streaming',
                 icon: NaviGlyph.aiShuffle,
-                ion: Ion.convert,
                 value: _transcoding,
                 onChanged: (v) {
                   setState(() => _transcoding = v);
@@ -372,18 +358,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
               if (_transcoding) ...[
-                _bitrateRow('Wi-Fi Quality', NaviGlyph.wifi, Ion.wifi, _wifiBitrate, (v) {
+                _bitrateRow('Wi-Fi Quality', NaviGlyph.wifi, _wifiBitrate, (v) {
                   setState(() => _wifiBitrate = v);
                   ref.read(transcodingProvider).setWifiBitrate(v);
                 }),
-                _bitrateRow('Cellular Quality', NaviGlyph.radio, Ion.cellular, _mobileBitrate, (v) {
+                _bitrateRow('Cellular Quality', NaviGlyph.radio, _mobileBitrate, (v) {
                   setState(() => _mobileBitrate = v);
                   ref.read(transcodingProvider).setMobileBitrate(v);
                 }),
                 GroupedRow(
                   title: 'Format',
                   icon: NaviGlyph.doc,
-                  ion: Ion.document,
                   value: TranscodeFormat.getLabel(_format),
                   onTap: () async {
                     final v = await showChoiceSheet<String>(
@@ -402,7 +387,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Switch Automatically',
                   subtitle: 'Uses the Wi-Fi or cellular quality to match your connection.',
                   icon: NaviGlyph.swap,
-                  ion: Ion.sync,
                   value: _smartSwitch,
                   onChanged: (v) {
                     setState(() => _smartSwitch = v);
@@ -418,13 +402,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Downloaded Songs',
                 icon: NaviGlyph.downloadCircle,
-                ion: Ion.download,
                 value: downloads == 0 ? 'None' : '$downloads · $size',
               ),
               GroupedSwitchRow(
                 title: 'Cache Artwork',
                 icon: NaviGlyph.photo,
-                ion: Ion.image,
                 value: _imageCache,
                 onChanged: (v) {
                   setState(() => _imageCache = v);
@@ -435,7 +417,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Cache Music',
                 subtitle: 'Keeps recently played songs for instant replay.',
                 icon: NaviGlyph.note,
-                ion: Ion.music,
                 value: _musicCache,
                 onChanged: (v) {
                   setState(() => _musicCache = v);
@@ -446,7 +427,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Cache Tempo',
                 subtitle: 'Measures song tempo ahead of time so Smart Shuffle starts faster.',
                 icon: NaviGlyph.metronome,
-                ion: Ion.timer,
                 value: _bpmCache,
                 onChanged: (v) {
                   setState(() => _bpmCache = v);
@@ -514,7 +494,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Export as CSV',
                 subtitle: 'Saves your play history and song data to Downloads.',
                 icon: NaviGlyph.download,
-                ion: Ion.share,
                 trailing: _spinner('export'),
                 onTap: _busy == null
                     ? () => _run('export', () async {
@@ -527,7 +506,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Remove Skipped Plays',
                 subtitle: 'Deletes plays that lasted under a second.',
                 icon: NaviGlyph.trash,
-                ion: Ion.trash,
                 onTap: () => _run('purge', () async {
                   final n = await ref.read(listenerCollectorProvider).purgeNoiseEvents();
                   return n == 0 ? 'Nothing to remove' : 'Removed $n skipped plays';
@@ -551,11 +529,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _bitrateRow(String title, NaviGlyph icon, Ion ion, int current, ValueChanged<int> onPick) =>
+  Widget _bitrateRow(String title, NaviGlyph icon, int current, ValueChanged<int> onPick) =>
       GroupedRow(
         title: title,
         icon: icon,
-        ion: ion,
         value: TranscodeBitrate.getLabel(current),
         onTap: () async {
           final v = await showChoiceSheet<int>(

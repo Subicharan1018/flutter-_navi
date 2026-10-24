@@ -34,9 +34,12 @@ class PlaybackState {
   final String? trackTitle;
   final String? artist;
   final String? album;
+  final String? coverArtId;
+  final double durationS;
   final int positionMs;
   final bool isPlaying;
   final List<String> queue;
+  final int queueIndex;
   final DateTime? updatedAt;
 
   /// True when connection is offline / disconnected and passive devices
@@ -50,9 +53,12 @@ class PlaybackState {
     this.trackTitle,
     this.artist,
     this.album,
+    this.coverArtId,
+    this.durationS = 0,
     this.positionMs = 0,
     this.isPlaying = false,
     this.queue = const [],
+    this.queueIndex = 0,
     this.updatedAt,
     this.syncUnknown = false,
   });
@@ -65,9 +71,12 @@ class PlaybackState {
         trackTitle = null,
         artist = null,
         album = null,
+        coverArtId = null,
+        durationS = 0,
         positionMs = 0,
         isPlaying = false,
         queue = const [],
+        queueIndex = 0,
         updatedAt = null,
         syncUnknown = false;
 
@@ -75,7 +84,11 @@ class PlaybackState {
     DateTime? parseDate(dynamic val) {
       if (val == null) return null;
       if (val is String) return DateTime.tryParse(val);
-      if (val is int) return DateTime.fromMillisecondsSinceEpoch(val);
+      if (val is num) {
+        // The server stamps unix seconds (a float); older callers sent milliseconds.
+        final ms = val < 100000000000 ? (val * 1000).round() : val.round();
+        return DateTime.fromMillisecondsSinceEpoch(ms);
+      }
       return null;
     }
 
@@ -96,6 +109,9 @@ class PlaybackState {
           json['track_title'] as String? ?? json['trackTitle'] as String?,
       artist: json['artist'] as String?,
       album: json['album'] as String?,
+      coverArtId: json['cover_art_id'] as String? ?? json['coverArtId'] as String?,
+      durationS: (json['duration_s'] as num?)?.toDouble() ?? 0,
+      queueIndex: (json['queue_index'] as num?)?.toInt() ?? 0,
       positionMs: (json['position_ms'] as num?)?.toInt() ??
           (json['positionMs'] as num?)?.toInt() ??
           0,
@@ -116,6 +132,9 @@ class PlaybackState {
         'track_title': trackTitle,
         'artist': artist,
         'album': album,
+        'cover_art_id': coverArtId,
+        'duration_s': durationS,
+        'queue_index': queueIndex,
         'position_ms': positionMs,
         'is_playing': isPlaying,
         'queue': queue,
@@ -130,9 +149,12 @@ class PlaybackState {
     String? trackTitle,
     String? artist,
     String? album,
+    String? coverArtId,
+    double? durationS,
     int? positionMs,
     bool? isPlaying,
     List<String>? queue,
+    int? queueIndex,
     DateTime? updatedAt,
     bool? syncUnknown,
   }) {
@@ -143,9 +165,12 @@ class PlaybackState {
       trackTitle: trackTitle ?? this.trackTitle,
       artist: artist ?? this.artist,
       album: album ?? this.album,
+      coverArtId: coverArtId ?? this.coverArtId,
+      durationS: durationS ?? this.durationS,
       positionMs: positionMs ?? this.positionMs,
       isPlaying: isPlaying ?? this.isPlaying,
       queue: queue ?? this.queue,
+      queueIndex: queueIndex ?? this.queueIndex,
       updatedAt: updatedAt ?? this.updatedAt,
       syncUnknown: syncUnknown ?? this.syncUnknown,
     );
@@ -162,6 +187,9 @@ class PlaybackState {
           trackTitle == other.trackTitle &&
           artist == other.artist &&
           album == other.album &&
+          coverArtId == other.coverArtId &&
+          durationS == other.durationS &&
+          queueIndex == other.queueIndex &&
           positionMs == other.positionMs &&
           isPlaying == other.isPlaying &&
           const ListEquality<String>().equals(queue, other.queue) &&
@@ -176,6 +204,9 @@ class PlaybackState {
         trackTitle,
         artist,
         album,
+        coverArtId,
+        durationS,
+        queueIndex,
         positionMs,
         isPlaying,
         Object.hashAll(queue),
@@ -192,6 +223,102 @@ class PlaybackState {
 // Type Definitions for Dependency Injection
 // ---------------------------------------------------------------------------
 
+// ---------------------------------------------------------------------------
+// Devices, remote commands, connection status
+// ---------------------------------------------------------------------------
+
+enum SyncDeviceType {
+  phone,
+  tablet,
+  desktop,
+  web,
+  tv,
+  speaker,
+  unknown;
+
+  static SyncDeviceType parse(Object? raw) =>
+      SyncDeviceType.values.firstWhere((t) => t.name == raw, orElse: () => SyncDeviceType.unknown);
+}
+
+/// One of this account's devices that is connected right now.
+@immutable
+class SyncDevice {
+  final String id;
+  final String name;
+  final SyncDeviceType type;
+  final bool active;
+
+  const SyncDevice({required this.id, required this.name, this.type = SyncDeviceType.unknown, this.active = false});
+
+  factory SyncDevice.fromJson(Map<String, dynamic> j) => SyncDevice(
+        id: j['id']?.toString() ?? '',
+        name: j['name']?.toString() ?? 'Unknown device',
+        type: SyncDeviceType.parse(j['type']),
+        active: j['active'] == true,
+      );
+
+  @override
+  bool operator ==(Object other) =>
+      other is SyncDevice && other.id == id && other.name == name && other.type == type && other.active == active;
+
+  @override
+  int get hashCode => Object.hash(id, name, type, active);
+}
+
+/// What a controller asked the active device to do.
+@immutable
+class RemoteCommand {
+  final String action;
+  final int? positionMs;
+  final double? volume;
+  final String? trackId;
+  final int? index;
+  final List<String> queue;
+  final String fromDevice;
+  final String fromName;
+
+  const RemoteCommand({
+    required this.action,
+    this.positionMs,
+    this.volume,
+    this.trackId,
+    this.index,
+    this.queue = const [],
+    this.fromDevice = '',
+    this.fromName = '',
+  });
+
+  factory RemoteCommand.fromJson(Map<String, dynamic> j) => RemoteCommand(
+        action: j['action']?.toString() ?? '',
+        positionMs: (j['position_ms'] as num?)?.toInt(),
+        volume: (j['volume'] as num?)?.toDouble(),
+        trackId: j['track_id']?.toString(),
+        index: (j['index'] as num?)?.toInt(),
+        queue: [for (final q in (j['queue'] as List? ?? const [])) q.toString()],
+        fromDevice: j['from_device']?.toString() ?? '',
+        fromName: j['from_name']?.toString() ?? '',
+      );
+}
+
+/// The server's answer to a command or transfer this device sent.
+@immutable
+class CommandResult {
+  final bool ok;
+  final String action;
+  final String? reason;
+  const CommandResult({required this.ok, required this.action, this.reason});
+
+  /// A line for the person: what went wrong and what to do.
+  String get message => switch (reason) {
+        'no_active_device' => 'Nothing is playing on your devices. Start music on one first.',
+        'device_offline' => 'That device went offline.',
+        'device_too_old' => 'That device needs the latest NaviVibe to be controlled.',
+        _ => 'That didn’t work. Try again.',
+      };
+}
+
+enum SyncConnection { connecting, online, offline }
+
 typedef WebSocketChannelFactory = WebSocketChannel Function(Uri uri);
 typedef JwtSupplier = FutureOr<String?> Function({bool forceRefresh});
 
@@ -207,6 +334,28 @@ class SessionSyncService {
   final _stateController = StreamController<PlaybackState>.broadcast();
   Stream<PlaybackState> get stateStream => _stateController.stream;
 
+  final _devicesController = StreamController<List<SyncDevice>>.broadcast();
+  Stream<List<SyncDevice>> get devicesStream => _devicesController.stream;
+  List<SyncDevice> _devices = const [];
+  List<SyncDevice> get currentDevices => _devices;
+
+  final _commandController = StreamController<RemoteCommand>.broadcast();
+  Stream<RemoteCommand> get commandStream => _commandController.stream;
+
+  final _resultController = StreamController<CommandResult>.broadcast();
+  Stream<CommandResult> get resultStream => _resultController.stream;
+
+  final _connectionController = StreamController<SyncConnection>.broadcast();
+  Stream<SyncConnection> get connectionStream => _connectionController.stream;
+  SyncConnection _connection = SyncConnection.connecting;
+  SyncConnection get connection => _connection;
+
+  void _setConnection(SyncConnection c) {
+    if (_connection == c) return;
+    _connection = c;
+    if (!_connectionController.isClosed) _connectionController.add(c);
+  }
+
   final _reconnectAttemptController = StreamController<int>.broadcast();
   Stream<int> get reconnectAttemptStream => _reconnectAttemptController.stream;
 
@@ -217,6 +366,8 @@ class SessionSyncService {
   final String _httpBaseUrl;
   final Future<String> Function() _deviceIdProvider;
   final Random _random;
+  final String? _deviceName;
+  final SyncDeviceType _deviceType;
 
   WebSocketChannel? _channel;
   String? _deviceId;
@@ -237,7 +388,11 @@ class SessionSyncService {
     String? httpBaseUrl,
     Future<String> Function()? deviceIdProvider,
     Random? random,
-  })  : _jwt = jwt,
+    String? deviceName,
+    SyncDeviceType deviceType = SyncDeviceType.unknown,
+  })  : _deviceName = deviceName,
+        _deviceType = deviceType,
+        _jwt = jwt,
         _jwtSupplier = jwtSupplier,
         _httpClient = httpClient ?? http.Client(),
         _channelFactory = channelFactory ?? WebSocketChannel.connect,
@@ -258,13 +413,16 @@ class SessionSyncService {
   /// Current persistent device ID.
   String? get deviceId => _deviceId;
 
+  /// How this device introduces itself in the "Playing on" list.
+  String? get deviceName => _deviceName;
+
   // ---------------------------------------------------------------------------
   // 1. Connect Flow
   // ---------------------------------------------------------------------------
 
   /// Initiates connection to the session synchronization server.
   Future<void> connect() async {
-    if (_isConnecting) return;
+    if (_isConnecting || _channel != null) return;
     _isConnecting = true;
     _manuallyDisconnected = false;
 
@@ -278,13 +436,21 @@ class SessionSyncService {
         return;
       }
 
-      final uri = Uri.parse('$_wsBaseUrl?token=$_jwt&device_id=$_deviceId');
+      _setConnection(SyncConnection.connecting);
+      final uri = Uri.parse(_wsBaseUrl).replace(queryParameters: {
+        'token': _jwt!,
+        'device_id': _deviceId!,
+        if (_deviceName != null && _deviceName.isNotEmpty) 'device_name': _deviceName,
+        if (_deviceType != SyncDeviceType.unknown) 'device_type': _deviceType.name,
+        'proto': '2',
+      });
 
       _channel = _channelFactory(uri);
       await _channel!.ready;
 
       _reconnectAttempt = 0;
       _reconnectAttemptController.add(0);
+      _setConnection(SyncConnection.online);
       _startPingTimer();
 
       _channel!.stream.listen(
@@ -324,10 +490,34 @@ class SessionSyncService {
           ? (jsonDecode(raw) as Map<String, dynamic>)
           : (raw as Map<String, dynamic>);
 
-      if (json['type'] == 'pong') return; // Heartbeat ack, no state change
+      switch (json['type']) {
+        case 'pong':
+          return; // Heartbeat ack, no state change
+        case 'devices':
+          _devices = [
+            for (final d in (json['payload'] as List? ?? const []))
+              if (d is Map) SyncDevice.fromJson(Map<String, dynamic>.from(d)),
+          ];
+          if (!_devicesController.isClosed) _devicesController.add(_devices);
+          return;
+        case 'command':
+          if (!_commandController.isClosed) _commandController.add(RemoteCommand.fromJson(json));
+          return;
+        case 'command_result':
+          if (!_resultController.isClosed) {
+            _resultController.add(CommandResult(
+              ok: json['ok'] == true,
+              action: json['action']?.toString() ?? '',
+              reason: json['reason']?.toString(),
+            ));
+          }
+          return;
+      }
 
-      final state = PlaybackState.fromJson(json);
-      _emitState(state);
+      // `state` carries its fields flat and again under "payload"; read the
+      // payload when there is one.
+      final body = json['payload'] is Map ? Map<String, dynamic>.from(json['payload'] as Map) : json;
+      _emitState(PlaybackState.fromJson(body));
     } catch (e) {
       debugPrint('[SessionSync] ❌ Error parsing message: $e (raw: $raw)');
     }
@@ -358,6 +548,9 @@ class SessionSyncService {
   void _onDisconnected([int? closeCode]) {
     _pingTimer?.cancel();
     _channel = null;
+    _devices = const [];
+    if (!_devicesController.isClosed) _devicesController.add(_devices);
+    _setConnection(SyncConnection.offline);
 
     if (_manuallyDisconnected) return;
 
@@ -474,6 +667,12 @@ class SessionSyncService {
     int? positionMs,
     bool? isPlaying,
     List<String>? queue,
+    String? trackTitle,
+    String? artist,
+    String? album,
+    String? coverArtId,
+    double? durationS,
+    int? queueIndex,
   }) {
     _send({
       'type': 'state_update',
@@ -481,16 +680,53 @@ class SessionSyncService {
       'position_ms': ?positionMs,
       'is_playing': ?isPlaying,
       'queue': ?queue,
+      'track_title': ?trackTitle,
+      'artist': ?artist,
+      'album': ?album,
+      'cover_art_id': ?coverArtId,
+      'duration_s': ?durationS,
+      'queue_index': ?queueIndex,
     });
   }
 
   /// Sends a playback handoff / transfer request to switch active device.
-  void transferPlayback(String deviceId) {
+  /// The server hands the playhead over with it.
+  void transferPlayback(String deviceId, {String? deviceName}) {
     _send({
       'type': 'transfer_playback',
       'device_id': deviceId,
+      'device_name': ?deviceName,
     });
   }
+
+  /// Stops being the active device (the server keeps the position).
+  void releasePlayback() => _send({'type': 'release_playback'});
+
+  /// Remote control: asks the active device (or [target]) to do [action].
+  /// Answered on [resultStream].
+  void sendCommand(
+    String action, {
+    int? positionMs,
+    double? volume,
+    String? trackId,
+    int? index,
+    List<String>? queue,
+    String? target,
+  }) {
+    _send({
+      'type': 'command',
+      'action': action,
+      'position_ms': ?positionMs,
+      'volume': ?volume,
+      'track_id': ?trackId,
+      'index': ?index,
+      'queue': ?queue,
+      'target': ?target,
+    });
+  }
+
+  /// Asks for the device list (it is also pushed whenever it changes).
+  void requestDevices() => _send({'type': 'get_devices'});
 
   void _send(Map<String, dynamic> msg) {
     if (_channel == null) return;
@@ -514,6 +750,7 @@ class SessionSyncService {
       _channel?.sink.close();
     } catch (_) {}
     _channel = null;
+    _setConnection(SyncConnection.offline);
   }
 
   /// Disposes stream controllers and cleanly tears down connections.
@@ -521,6 +758,10 @@ class SessionSyncService {
     disconnect();
     _stateController.close();
     _reconnectAttemptController.close();
+    _devicesController.close();
+    _commandController.close();
+    _resultController.close();
+    _connectionController.close();
   }
 
   // ---------------------------------------------------------------------------

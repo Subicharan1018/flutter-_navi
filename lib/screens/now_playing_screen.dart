@@ -30,8 +30,8 @@ import '../utils/platform_utils.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/mascot/microduck_strip.dart';
 import '../widgets/options_menu.dart';
-import '../widgets/ui/action_sheet.dart';
-import '../widgets/ui/ion.dart';
+import '../player/devices_sheet.dart';
+import '../player/remote_view.dart';
 
 // =============================================================================
 // Opening the player
@@ -200,8 +200,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
   @override
   Widget build(BuildContext context) {
     final song = ref.watch(playerProvider.select((s) => s.currentSong));
-    if (song == null) {
+    final remote = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive));
+    if (song == null && !remote) {
       return const Scaffold(backgroundColor: Colors.black, body: SizedBox.expand());
+    }
+    if (remote) {
+      return Scaffold(
+        backgroundColor: const Color(0xFF111111),
+        body: SafeArea(child: Center(child: ConstrainedBox(constraints: const BoxConstraints(maxWidth: 520), child: const RemoteControlView()))),
+      );
     }
     final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
     final art = ref.watch(nowPlayingArtworkProvider);
@@ -241,11 +248,11 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
                       dim: wide ? 0.55 : (_pane == _Pane.none ? 0 : 1),
                     ),
                     if (wide)
-                      _WideLayout(song: song, playing: playing)
+                      _WideLayout(song: song!, playing: playing)
                     else
                       SafeArea(
                         child: _PhoneLayout(
-                          song: song,
+                          song: song!,
                           playing: playing,
                           pane: _pane,
                           shownPane: _shownPane,
@@ -338,7 +345,6 @@ class _PhoneLayout extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
             child: Column(
               children: [
-                const _RemoteDeviceBanner(),
                 const FlowPill(),
                 PlayerMicroduckStrip(player: notifier.player, song: song, height: 88),
                 Scrubber(player: notifier.player, song: song),
@@ -903,7 +909,8 @@ class _TitleRow extends ConsumerWidget {
           active: starred,
           color: Colors.white,
           child: GlassCircleButton(
-            ion: starred ? Ion.star : Ion.starOutline,
+            icon: NaviGlyph.star,
+            filled: starred,
             semanticLabel: starred ? 'Remove from favourites' : 'Add to favourites',
             onTap: () {
               HapticFeedback.mediumImpact();
@@ -912,7 +919,7 @@ class _TitleRow extends ConsumerWidget {
           ),
         ),
         GlassCircleButton(
-          ion: Ion.ellipsis,
+          icon: NaviGlyph.more,
           semanticLabel: 'More options',
           onTap: () => _showMore(context, song),
         ),
@@ -996,22 +1003,22 @@ class _BottomRow extends ConsumerWidget {
           semanticLabel: 'Lyrics',
           selected: pane == _Pane.lyrics,
           onTap: () => onTogglePane(_Pane.lyrics),
-          child: IonIcon(Ion.lyrics, size: 24, color: c(pane == _Pane.lyrics)),
+          child: NaviIcon(NaviGlyph.lyrics, size: 24, color: c(pane == _Pane.lyrics)),
         ),
         GlyphButton(
           size: 48,
           semanticLabel: 'Devices',
           selected: remote,
-          onTap: () => _showDevices(context),
+          onTap: () => showDevicesSheet(context),
           child: Stack(
             clipBehavior: Clip.none,
             children: [
-              IonIcon(Ion.devices, size: 24, color: c(remote)),
+              NaviIcon(NaviGlyph.headphones, size: 24, color: c(remote)),
               if (sleeping)
                 const Positioned(
                   right: -5,
                   top: -3,
-                  child: IonIcon(Ion.moon, size: 11, color: Colors.white),
+                  child: NaviIcon(NaviGlyph.moon, size: 11, color: Colors.white),
                 ),
             ],
           ),
@@ -1021,104 +1028,9 @@ class _BottomRow extends ConsumerWidget {
           semanticLabel: 'Queue',
           selected: pane == _Pane.queue,
           onTap: () => onTogglePane(_Pane.queue),
-          child: IonIcon(Ion.queue, size: 24, color: c(pane == _Pane.queue)),
+          child: NaviIcon(NaviGlyph.queue, size: 24, color: c(pane == _Pane.queue)),
         ),
       ],
-    );
-  }
-}
-
-void _showDevices(BuildContext context) {
-  showPlatformSheet(context: context, title: 'Playing on', builder: (_) => const _DevicesSheet());
-}
-
-class _DevicesSheet extends ConsumerWidget {
-  const _DevicesSheet();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
-    final mode = ref.watch(playerProvider.select((s) => s.syncMode));
-    final remoteName = ref.watch(playerProvider.select((s) => s.remoteActiveDeviceName));
-    final here = mode != SyncMode.passive;
-    final playingGlyph = NaviIcon(NaviGlyph.aiShuffle, size: 20, color: t.accent);
-    final player = ref.read(playerProvider.notifier);
-    return SafeArea(
-      top: false,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          SheetGroup(children: [
-            SheetAction(
-              label: PlatformUtils.isDesktop ? 'This Computer' : 'This Phone',
-              detail: here ? 'Playing here' : 'Tap to move playback here',
-              trailing: here ? playingGlyph : null,
-              onTap: here ? null : player.claimActiveDevice,
-            ),
-            if (!here)
-              SheetAction(
-                label: remoteName ?? 'Another device',
-                detail: 'Playing now',
-                trailing: playingGlyph,
-              ),
-          ]),
-          if (here)
-            Padding(
-              padding: const EdgeInsets.fromLTRB(Space.xxl, 0, Space.xxl, Space.lg),
-              child: Text(
-                'Other NaviVibe devices signed in to your account show up here while they play.',
-                style: t.footnote,
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Shown above the scrubber while another device holds playback.
-class _RemoteDeviceBanner extends ConsumerWidget {
-  const _RemoteDeviceBanner();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final passive = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive));
-    final name = ref.watch(playerProvider.select((s) => s.remoteActiveDeviceName));
-    return AnimatedSize(
-      duration: const Duration(milliseconds: 260),
-      curve: Curves.easeOutCubic,
-      child: !passive
-          ? const SizedBox(width: double.infinity)
-          : Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Container(
-                padding: const EdgeInsets.fromLTRB(14, 4, 4, 4),
-                decoration: BoxDecoration(
-                  color: Colors.white.withValues(alpha: 0.14),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Row(
-                  children: [
-                    const NaviIcon(NaviGlyph.speaker, size: 18, color: Colors.white),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        'Playing on ${name ?? 'another device'}',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: naviText(13.5, FontWeight.w600, Colors.white),
-                      ),
-                    ),
-                    TextButton(
-                      onPressed: () => ref.read(playerProvider.notifier).claimActiveDevice(),
-                      style: TextButton.styleFrom(foregroundColor: Colors.white),
-                      child: Text('Play here', style: naviText(13.5, FontWeight.w700, Colors.white)),
-                    ),
-                  ],
-                ),
-              ),
-            ),
     );
   }
 }

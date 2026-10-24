@@ -11,7 +11,6 @@ import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../widgets/ui/action_sheet.dart';
 import '../../../widgets/ui/grouped_list.dart';
-import '../../../widgets/ui/ion.dart';
 import '../logic/download_location.dart';
 
 /// Where offline downloads are stored, how much room is left there, and
@@ -153,7 +152,6 @@ class _DownloadLocationSectionState extends ConsumerState<DownloadLocationSectio
           title: 'Save Downloads To',
           subtitle: _moving,
           icon: NaviGlyph.folder,
-          ion: Ion.download,
           value: _where,
           trailing: busy ? const CupertinoActivityIndicator() : null,
           onTap: busy ? null : _showChoices,
@@ -161,7 +159,6 @@ class _DownloadLocationSectionState extends ConsumerState<DownloadLocationSectio
         GroupedRow(
           title: 'Free Space',
           icon: NaviGlyph.signal,
-          ion: Ion.timer,
           value: free ?? '—',
           showChevron: false,
         ),

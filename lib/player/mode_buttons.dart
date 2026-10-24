@@ -4,7 +4,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../core/theme.dart';
 import '../providers/player_provider.dart';
-import '../widgets/ui/ion.dart';
+import '../widgets/art/navi_icons.dart';
 import 'player_controls.dart';
 
 // =============================================================================
@@ -15,7 +15,7 @@ import 'player_controls.dart';
 // =============================================================================
 
 class _ModeGlyph extends StatelessWidget {
-  final Ion ion;
+  final NaviGlyph glyph;
 
   /// Small mark on the glyph (the "1" of repeat-one).
   final String? badge;
@@ -26,7 +26,7 @@ class _ModeGlyph extends StatelessWidget {
   final double scale;
 
   const _ModeGlyph({
-    required this.ion,
+    required this.glyph,
     this.badge,
     required this.active,
     required this.semanticLabel,
@@ -51,7 +51,7 @@ class _ModeGlyph extends StatelessWidget {
             Stack(
               clipBehavior: Clip.none,
               children: [
-                IonIcon(ion, size: 24 * scale, color: c),
+                NaviIcon(glyph, size: 24 * scale, color: c),
                 if (badge != null)
                   Positioned(
                     right: -5,
@@ -86,7 +86,7 @@ class ShuffleModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final on = ref.watch(playerProvider.select((s) => s.shuffleMode));
     return _ModeGlyph(
-      ion: Ion.shuffle,
+      glyph: NaviGlyph.shuffle,
       active: on,
       semanticLabel: on ? 'Shuffle on' : 'Shuffle off',
       onTap: () => ref.read(playerProvider.notifier).toggleShuffle(),
@@ -106,7 +106,7 @@ class RepeatModeButton extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final mode = ref.watch(playerProvider.select((s) => s.repeatMode));
     return _ModeGlyph(
-      ion: Ion.repeat,
+      glyph: NaviGlyph.repeat,
       badge: mode == LoopMode.one ? '1' : null,
       active: mode != LoopMode.off,
       semanticLabel: switch (mode) {

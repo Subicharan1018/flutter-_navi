@@ -53,6 +53,58 @@ void paintNaviGlyphExtra(
       final rr = RRect.fromRectAndRadius(const Rect.fromLTRB(4, 11, 20, 20), const Radius.circular(3));
       canvas.drawRRect(rr, solid);
       if (filled) canvas.drawRRect(rr, stroke);
+    case NaviGlyph.rewind:
+    case NaviGlyph.fastForward:
+      double x(double v) => glyph == NaviGlyph.fastForward ? v : 24 - v;
+      for (final shift in const [0.0, 9.0]) {
+        final tri = Path()
+          ..moveTo(x(3.5 + shift), 6)
+          ..lineTo(x(12 + shift), 12)
+          ..lineTo(x(3.5 + shift), 18)
+          ..close();
+        canvas.drawPath(tri, fill);
+        canvas.drawPath(tri, stroke..strokeWidth = 2);
+      }
+    case NaviGlyph.speakerLow:
+      final body = Path()
+        ..moveTo(4, 9.5)
+        ..lineTo(8, 9.5)
+        ..lineTo(12.5, 5.5)
+        ..lineTo(12.5, 18.5)
+        ..lineTo(8, 14.5)
+        ..lineTo(4, 14.5)
+        ..close();
+      canvas.drawPath(body, solid);
+      if (filled) canvas.drawPath(body, stroke);
+      _arc(canvas, const Offset(12.5, 12), 4.5, 0, 0.9, stroke);
+    case NaviGlyph.infinite:
+      canvas.drawPath(
+        Path()
+          ..moveTo(12, 12)
+          ..cubicTo(10, 8, 4, 8, 4, 12)
+          ..cubicTo(4, 16, 10, 16, 12, 12)
+          ..cubicTo(14, 8, 20, 8, 20, 12)
+          ..cubicTo(20, 16, 14, 16, 12, 12),
+        stroke,
+      );
+    case NaviGlyph.phone:
+      final body = RRect.fromRectAndRadius(const Rect.fromLTRB(7, 3.5, 17, 20.5), const Radius.circular(2.6));
+      canvas.drawRRect(body, solid);
+      if (filled) canvas.drawRRect(body, stroke);
+      canvas.drawLine(const Offset(10.8, 17.4), const Offset(13.2, 17.4), ink);
+    case NaviGlyph.desktop:
+      final screen = RRect.fromRectAndRadius(const Rect.fromLTRB(3.5, 5, 20.5, 16), const Radius.circular(2));
+      canvas.drawRRect(screen, solid);
+      if (filled) canvas.drawRRect(screen, stroke);
+      canvas.drawLine(const Offset(12, 16), const Offset(12, 19.5), stroke);
+      canvas.drawLine(const Offset(8, 19.5), const Offset(16, 19.5), stroke);
+    case NaviGlyph.headphones:
+      _arc(canvas, const Offset(12, 13), 7.5, -pi / 2, pi / 2 + 0.05, stroke);
+      for (final x in const [4.5, 16.5]) {
+        final cup = RRect.fromRectAndRadius(Rect.fromLTWH(x, 12.5, 3, 6.5), const Radius.circular(1.5));
+        canvas.drawRRect(cup, solid);
+        if (filled) canvas.drawRRect(cup, stroke);
+      }
     case NaviGlyph.speaker:
       final body = Path()
         ..moveTo(4, 9.5)

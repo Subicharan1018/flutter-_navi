@@ -4,13 +4,42 @@
 // Exposes the singleton SessionSyncService and its reactive streams to the app.
 // Note: Intentionally non-autoDispose so socket connectivity persists across
 // screen navigation (e.g. NowPlaying, Library, Settings).
+//
+// Connecting: the service connects as soon as there are credentials, drops
+// the socket on sign-out, and reconnects at once when the app comes back to the
+// foreground (a phone that slept lost its socket without being told).
 // =============================================================================
 
 import 'dart:convert';
+
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/hive_boxes.dart';
 import '../services/session_sync_service.dart';
+import '../utils/platform_utils.dart';
 import 'settings_provider.dart';
+
+/// A readable name for this device in the "Playing on" list, unless the person
+/// set their own (`sync_device_name` in prefs).
+String defaultSyncDeviceName() {
+  try {
+    final custom = HiveBoxes.prefs.get('sync_device_name')?.toString().trim() ?? '';
+    if (custom.isNotEmpty) return custom;
+  } catch (_) {}
+  if (PlatformUtils.isAndroid) return 'Android phone';
+  if (PlatformUtils.isMobile) return 'iPhone';
+  if (PlatformUtils.isWindows) return 'Windows PC';
+  if (PlatformUtils.isMacOS) return 'Mac';
+  if (PlatformUtils.isLinux) return 'Linux PC';
+  return 'This device';
+}
+
+SyncDeviceType defaultSyncDeviceType() {
+  if (PlatformUtils.isMobile) return SyncDeviceType.phone;
+  if (PlatformUtils.isDesktop) return SyncDeviceType.desktop;
+  return SyncDeviceType.unknown;
+}
 
 /// Central singleton provider for SessionSyncService.
 ///
@@ -18,6 +47,8 @@ import 'settings_provider.dart';
 /// when the ProviderContainer is destroyed.
 final sessionSyncServiceProvider = Provider<SessionSyncService>((ref) {
   final service = SessionSyncService(
+    deviceName: defaultSyncDeviceName(),
+    deviceType: defaultSyncDeviceType(),
     jwtSupplier: ({bool forceRefresh = false}) {
       final settings = ref.read(settingsProvider);
       if (settings.username.isNotEmpty && settings.password.isNotEmpty) {
@@ -29,6 +60,46 @@ final sessionSyncServiceProvider = Provider<SessionSyncService>((ref) {
     },
   );
 
+  bool hasCredentials() {
+    final s = ref.read(settingsProvider);
+    return s.username.isNotEmpty && s.password.isNotEmpty;
+  }
+
+  if (hasCredentials()) service.connect().ignore();
+
+  // Signing in, out, or switching account.
+  ref.listen(settingsProvider.select((s) => (s.username, s.password)), (prev, next) {
+    if (prev == next) return;
+    service.disconnect();
+    if (next.$1.isNotEmpty && next.$2.isNotEmpty) service.connect().ignore();
+  });
+
+  final lifecycle = AppLifecycleListener(onResume: () {
+    if (hasCredentials() && service.connection != SyncConnection.online) service.connect().ignore();
+  });
+
+  ref.onDispose(lifecycle.dispose);
   ref.onDispose(service.dispose);
   return service;
+});
+
+/// The signed-in account's playback state as the server holds it.
+final syncPlaybackProvider = StreamProvider<PlaybackState>((ref) async* {
+  final service = ref.watch(sessionSyncServiceProvider);
+  yield service.currentState;
+  yield* service.stateStream;
+});
+
+/// This account's connected devices, active one flagged.
+final syncDevicesProvider = StreamProvider<List<SyncDevice>>((ref) async* {
+  final service = ref.watch(sessionSyncServiceProvider);
+  yield service.currentDevices;
+  yield* service.devicesStream;
+});
+
+/// Whether the live link is up, coming up or down.
+final syncConnectionProvider = StreamProvider<SyncConnection>((ref) async* {
+  final service = ref.watch(sessionSyncServiceProvider);
+  yield service.connection;
+  yield* service.connectionStream;
 });
