@@ -46,6 +46,11 @@ enum NaviGlyph {
   pin,
   star,
   close,
+  block,
+  flow,
+  calendar,
+  flame,
+  sparkle,
 }
 
 class NaviIcon extends StatelessWidget {
@@ -418,6 +423,55 @@ class NaviGlyphPainter extends CustomPainter {
             ..lineTo(9.5, 18.5),
           stroke,
         );
+      case NaviGlyph.block:
+        canvas.drawCircle(const Offset(12, 12), 8, stroke);
+        canvas.drawLine(const Offset(6.4, 6.4), const Offset(17.6, 17.6), stroke);
+      case NaviGlyph.flow:
+        for (final dy in const [0.0, 5.0]) {
+          canvas.drawPath(
+            Path()
+              ..moveTo(3.5, 9.5 + dy)
+              ..cubicTo(6, 5.5 + dy, 9, 5.5 + dy, 12, 9.5 + dy)
+              ..cubicTo(15, 13.5 + dy, 18, 13.5 + dy, 20.5, 9.5 + dy),
+            stroke,
+          );
+        }
+      case NaviGlyph.calendar:
+        final page = RRect.fromRectAndRadius(const Rect.fromLTRB(4, 6, 20, 20), const Radius.circular(3));
+        canvas.drawRRect(page, solid);
+        if (filled) canvas.drawRRect(page, stroke);
+        final rule = filled
+            ? (Paint()
+              ..style = PaintingStyle.stroke
+              ..strokeCap = StrokeCap.round
+              ..strokeWidth = 1.75
+              ..color = const Color(0x99000000))
+            : stroke;
+        canvas.drawLine(const Offset(4, 10.5), const Offset(20, 10.5), rule);
+        canvas.drawLine(const Offset(8, 3.5), const Offset(8, 7.5), stroke);
+        canvas.drawLine(const Offset(16, 3.5), const Offset(16, 7.5), stroke);
+      case NaviGlyph.flame:
+        final p = Path()
+          ..moveTo(12, 3.5)
+          ..cubicTo(12, 8, 17, 9.5, 17, 14.5)
+          ..cubicTo(17, 17.8, 14.8, 20, 12, 20)
+          ..cubicTo(9.2, 20, 7, 17.8, 7, 14.5)
+          ..cubicTo(7, 12.5, 8, 11, 9.5, 9.8)
+          ..cubicTo(9.7, 11.5, 10.5, 12.3, 11.3, 12.5)
+          ..cubicTo(11.2, 9, 11, 6, 12, 3.5)
+          ..close();
+        canvas.drawPath(p, solid);
+        if (filled) canvas.drawPath(p, stroke);
+      case NaviGlyph.sparkle:
+        final p = Path()
+          ..moveTo(12, 3.5)
+          ..quadraticBezierTo(12.8, 10.5, 20.5, 12)
+          ..quadraticBezierTo(12.8, 13.5, 12, 20.5)
+          ..quadraticBezierTo(11.2, 13.5, 3.5, 12)
+          ..quadraticBezierTo(11.2, 10.5, 12, 3.5)
+          ..close();
+        canvas.drawPath(p, solid);
+        if (filled) canvas.drawPath(p, stroke);
       case NaviGlyph.check:
         canvas.drawPath(
           Path()

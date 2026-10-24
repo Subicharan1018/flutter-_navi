@@ -8,6 +8,8 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:marquee/marquee.dart';
 
+import '../features/flow/ui/flow_pill.dart';
+
 import '../core/theme.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
@@ -334,6 +336,7 @@ class _PhoneLayout extends ConsumerWidget {
             child: Column(
               children: [
                 const _RemoteDeviceBanner(),
+                const FlowPill(),
                 Scrubber(player: notifier.player, song: song),
                 const SizedBox(height: 6),
                 // Apple Music's three: shuffle and repeat live in the queue.
