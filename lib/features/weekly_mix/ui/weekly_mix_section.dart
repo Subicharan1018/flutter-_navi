@@ -2,6 +2,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/motion.dart';
 import '../../../core/theme.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../utils/format.dart' show songCount;
@@ -27,21 +28,7 @@ class WeeklyMixSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(title: 'Your Weekly Mix', onTap: open),
-          SizedBox(
-            height: _cover + 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-              children: [
-                for (var i = 0; i < 3; i++)
-                  const Padding(
-                    padding: EdgeInsets.only(right: Space.md),
-                    child: SkeletonBox(width: _cover, height: _cover, radius: Radii.cover),
-                  ),
-              ],
-            ),
-          ),
+          const SkeletonShelf(size: _cover),
         ],
       ),
       error: (e, _) => Column(
@@ -73,7 +60,10 @@ class WeeklyMixSection extends ConsumerWidget {
                         if (weekLabel(mix.weekOf).isNotEmpty) weekLabel(mix.weekOf),
                         songCount(mix.items.length),
                       ].join(' · '),
-                      art: SizedBox.square(dimension: _cover, child: weeklyMixCover(mix)),
+                      art: SizedBox.square(
+                        dimension: _cover,
+                        child: Drift(radius: Radii.cover, child: weeklyMixCover(mix, borderRadius: 0)),
+                      ),
                       size: _cover,
                       onTap: open,
                     );

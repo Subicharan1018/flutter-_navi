@@ -6,6 +6,7 @@ import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../core/album_palette.dart';
+import '../core/motion.dart';
 import 'artwork.dart';
 
 /// The living background of Now Playing: the cover's own pixels flowing
@@ -115,7 +116,7 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
       _dim.animateTo(widget.dim, curve: Curves.easeOutCubic);
     }
     if (widget.lit != old.lit) {
-      final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+      final reduce = !context.motionFull;
       if (reduce) {
         _energy.value = widget.lit ? 1 : 0;
       } else {
@@ -128,7 +129,7 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
   }
 
   void _syncTicker() {
-    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final reduce = !context.motionFull;
     final run = widget.playing && !reduce;
     if (run && !_ticker.isActive) {
       _lastElapsed = Duration.zero;

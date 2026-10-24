@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../features/share/share_sheet.dart';
 import '../features/smart_playlists/ui/smart_widgets.dart' show FolderMoveAction;
 
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/download_state.dart';
 import '../models/playlist.dart';
@@ -304,17 +305,22 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             delegate: SliverChildBuilderDelegate(
               (context, i) {
                 final song = visible[i];
-                return SwipeActions.queue(
-                  rowKey: ValueKey('pl_${song.id}_$i'),
-                  context: context,
-                  onPlayNext: () => queueSongs(context, ref, [song], next: true),
-                  onPlayLast: () => queueSongs(context, ref, [song], next: false),
-                  child: SongTile(
-                    song: song,
-                    showDuration: PlatformUtils.isDesktop,
-                    onTap: () => _play(from: song),
-                    playlistId: _playlist.id,
-                    onRemoveFromPlaylist: () => _remove(song),
+                return Entrance(
+                  group: 'playlist:${_playlist.id}',
+                  index: i,
+                  rise: 8,
+                  child: SwipeActions.queue(
+                    rowKey: ValueKey('pl_${song.id}_$i'),
+                    context: context,
+                    onPlayNext: () => queueSongs(context, ref, [song], next: true),
+                    onPlayLast: () => queueSongs(context, ref, [song], next: false),
+                    child: SongTile(
+                      song: song,
+                      showDuration: PlatformUtils.isDesktop,
+                      onTap: () => _play(from: song),
+                      playlistId: _playlist.id,
+                      onRemoveFromPlaylist: () => _remove(song),
+                    ),
                   ),
                 );
               },

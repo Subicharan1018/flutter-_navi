@@ -9,7 +9,9 @@ import 'package:marquee/marquee.dart';
 
 import '../features/flow/ui/flow_pill.dart';
 
+import '../core/motion.dart';
 import '../core/theme.dart';
+import '../widgets/ui/heart_burst.dart';
 import '../widgets/art/navi_icons.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
@@ -202,7 +204,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
     }
     final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
     final art = ref.watch(nowPlayingArtworkProvider);
-    final living = ref.watch(settingsProvider.select((s) => s.fluidBgEnabled));
+    final living = ref.watch(settingsProvider.select((s) => s.fluidBgEnabled)) && context.motionFull;
     final size = MediaQuery.sizeOf(context);
     final wide = size.width >= 900 && size.width > size.height;
 
@@ -895,13 +897,17 @@ class _TitleRow extends ConsumerWidget {
           ),
         ),
         const SizedBox(width: 8),
-        GlassCircleButton(
-          ion: starred ? Ion.star : Ion.starOutline,
-          semanticLabel: starred ? 'Remove from favourites' : 'Add to favourites',
-          onTap: () {
-            HapticFeedback.mediumImpact();
-            ref.read(playerProvider.notifier).toggleStar(song.id);
-          },
+        HeartBurst(
+          active: starred,
+          color: Colors.white,
+          child: GlassCircleButton(
+            ion: starred ? Ion.star : Ion.starOutline,
+            semanticLabel: starred ? 'Remove from favourites' : 'Add to favourites',
+            onTap: () {
+              HapticFeedback.mediumImpact();
+              ref.read(playerProvider.notifier).toggleStar(song.id);
+            },
+          ),
         ),
         GlassCircleButton(
           ion: Ion.ellipsis,

@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -237,14 +238,17 @@ class _PlaylistRow extends ConsumerWidget {
                   ? const CupertinoActivityIndicator(radius: 8)
                   : membership.hasError
                       ? NaviIcon(NaviGlyph.alert, size: 20, color: t.danger)
-                      : AnimatedSwitcher(
-                          duration: Motion.fast,
-                          child: NaviIcon(
-                            checked ? NaviGlyph.checkCircle : NaviGlyph.ring,
-                            filled: checked,
-                            key: ValueKey(checked),
-                            size: 24,
-                            color: checked ? t.accent : t.textMuted,
+                      : Pulse(
+                          trigger: checked,
+                          child: AnimatedSwitcher(
+                            duration: Motion.fast,
+                            child: NaviIcon(
+                              checked ? NaviGlyph.checkCircle : NaviGlyph.ring,
+                              filled: checked,
+                              key: ValueKey(checked),
+                              size: 24,
+                              color: checked ? t.accent : t.textMuted,
+                            ),
                           ),
                         ),
             ),

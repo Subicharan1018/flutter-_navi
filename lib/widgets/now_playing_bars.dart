@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import '../core/motion.dart';
+
 /// Three-bar equalizer marking the loaded track in a list. Moves only while
 /// audio is playing (and never under reduced motion), so a paused queue
 /// costs no frames.
@@ -38,7 +40,7 @@ class _NowPlayingBarsState extends State<NowPlayingBars>
 
   @override
   Widget build(BuildContext context) {
-    final animate = widget.isPlaying && !MediaQuery.of(context).disableAnimations;
+    final animate = widget.isPlaying && context.motionFull;
     if (animate && !_c.isAnimating) {
       _c.repeat();
     } else if (!animate && _c.isAnimating) {

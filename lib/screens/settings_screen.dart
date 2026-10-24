@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
+import '../core/motion.dart' show MotionLevel;
 import '../core/theme.dart';
 import '../features/social/ui/social_settings_section.dart';
 import '../features/month/ui/month_screen.dart';
@@ -212,6 +213,23 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ion: Ion.palette,
                 value: s.fluidBgEnabled,
                 onChanged: notifier.setFluidBgEnabled,
+              ),
+              GroupedRow(
+                title: 'Motion',
+                icon: NaviGlyph.signal,
+                ion: Ion.palette,
+                value: s.motionLevel.label,
+                onTap: () async {
+                  final v = await showChoiceSheet<MotionLevel>(
+                    context,
+                    title: 'Motion',
+                    options: MotionLevel.values,
+                    selected: s.motionLevel,
+                    label: (m) => m.label,
+                    detail: (m) => m.summary,
+                  );
+                  if (v != null) notifier.setMotionLevel(v);
+                },
               ),
               GroupedRow(
                 title: 'Volume Normalisation',

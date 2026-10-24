@@ -4,6 +4,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../features/online_fetch/data/fetch_models.dart' show looksLikeLink;
 import '../features/online_fetch/logic/online_fetch_providers.dart';
@@ -439,12 +440,17 @@ class _ResultsState extends ConsumerState<_Results> {
         SliverFixedExtentList(
           itemExtent: SongTile.extent,
           delegate: SliverChildBuilderDelegate(
-            (context, i) => SongTile(
-              song: songs[i],
-              onTap: () {
-                onUsed();
-                ref.read(playerProvider.notifier).setQueue(songs, i, playlistName: 'Search');
-              },
+            (context, i) => Entrance(
+              group: 'search',
+              index: i,
+              rise: 8,
+              child: SongTile(
+                song: songs[i],
+                onTap: () {
+                  onUsed();
+                  ref.read(playerProvider.notifier).setQueue(songs, i, playlistName: 'Search');
+                },
+              ),
             ),
             childCount: songs.length,
           ),

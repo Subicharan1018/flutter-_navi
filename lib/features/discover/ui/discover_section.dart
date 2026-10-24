@@ -29,21 +29,7 @@ class DiscoverSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           const _Header(items: null),
-          SizedBox(
-            height: size + 44,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              physics: const NeverScrollableScrollPhysics(),
-              padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-              children: [
-                for (var i = 0; i < 3; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: Space.md),
-                    child: SkeletonBox(width: size, height: size, radius: Radii.cover),
-                  ),
-              ],
-            ),
-          ),
+          SkeletonShelf(size: size),
         ],
       ),
       error: (e, _) => Column(

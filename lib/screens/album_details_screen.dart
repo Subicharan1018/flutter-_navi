@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../features/share/share_sheet.dart';
 import '../models/album.dart';
@@ -115,18 +116,23 @@ class AlbumDetailsScreen extends ConsumerWidget {
             SliverFixedExtentList(
               itemExtent: SongTile.extent,
               delegate: SliverChildBuilderDelegate(
-                (context, i) => SwipeActions.queue(
-                  rowKey: ValueKey('album_${songs[i].id}'),
-                  context: context,
-                  onPlayNext: () => queueSongs(context, ref, [songs[i]], next: true),
-                  onPlayLast: () => queueSongs(context, ref, [songs[i]], next: false),
-                  child: SongTile(
-                    song: songs[i],
-                    showArtwork: false,
-                    showArtist: songs[i].artist != full.artist,
-                    trackNumber: songs[i].track > 0 ? songs[i].track : i + 1,
-                    showDuration: PlatformUtils.isDesktop,
-                    onTap: () => play(from: i),
+                (context, i) => Entrance(
+                  group: 'album:${album.id}',
+                  index: i,
+                  rise: 8,
+                  child: SwipeActions.queue(
+                    rowKey: ValueKey('album_${songs[i].id}'),
+                    context: context,
+                    onPlayNext: () => queueSongs(context, ref, [songs[i]], next: true),
+                    onPlayLast: () => queueSongs(context, ref, [songs[i]], next: false),
+                    child: SongTile(
+                      song: songs[i],
+                      showArtwork: false,
+                      showArtist: songs[i].artist != full.artist,
+                      trackNumber: songs[i].track > 0 ? songs[i].track : i + 1,
+                      showDuration: PlatformUtils.isDesktop,
+                      onTap: () => play(from: i),
+                    ),
                   ),
                 ),
                 childCount: songs.length,
