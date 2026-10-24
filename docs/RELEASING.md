@@ -17,8 +17,12 @@ git push origin main
 ```
 
 * `ci.yml` runs `flutter analyze lib` and `flutter test` on every push and pull request.
-* Pushes to `main` make a normal release; pushes to `feature/**` make a **pre-release**
-  (the app only follows the newest non-pre-release).
+* Only pushes to `main` (or a manual run from the Actions tab by someone with write
+  access) publish. `ci.yml` uses `pull_request` and no secrets, so fork PRs can never
+  read the signing key; `release.yml` has no pull-request trigger, read-only default
+  permissions, and `contents: write` only on its final publish job. Actions are pinned
+  to exact versions (except `subosito/flutter-action@v2`; pin a commit SHA if you want
+  stricter supply-chain safety).
 * The build number only goes up (`github.run_number + BUILD_NUMBER_OFFSET`, offset
   defaults to 100 so it stays above the `+2` already installed). To jump ahead,
   set the repository variable `BUILD_NUMBER_OFFSET`.
@@ -75,15 +79,12 @@ files and `releases.win.json`. The release also carries a plain zip.
 
 ## What you must do (once)
 
-You decided the repo has too much personal data to publish openly, so decide
-first, then follow one of the two paths.
+The repository is **public** (`github.com/Subicharan1018/flutter-_navi`), so
+**anyone can download every release** and read the history. The update address
+and token in the app are optional; with a public repo no token is needed.
 
-1. **Create the GitHub repository** (do this yourself; nothing here does it).
-   * **Private (recommended):** Actions and Releases work; downloads need a token
-     (below). Private repos include a monthly free Actions allowance; the Windows job
-     uses the 2× minutes multiplier.
-   * **Public:** anyone can download builds with no token, but the whole history is
-     public. Scrub it first (see "If the repo is public" below).
+1. **Repository:** already created. Make sure no secrets or personal data are in git
+   history (see "Public repository: what leaks").
 2. **Signing key** (see next section) → add four secrets.
 3. **Add the secrets:** repo → Settings → Secrets and variables → Actions → New repository secret.
 4. Push `main`. Watch Actions → Release. The first release has no patches (nothing
@@ -150,7 +151,7 @@ The token lets a person read the whole repository, so only put it on devices you
 own. If someone else should get updates, host `latest.json` + files somewhere
 else (a static host or your server) and give them that address with no token.
 
-## If the repo is public: what leaks
+## Public repository: what leaks
 
 * Everything in git history, not only the current files. Check for the Navidrome
   **server URL**, usernames/passwords, API keys and personal notes
@@ -161,6 +162,8 @@ else (a static host or your server) and give them that address with no token.
   protected (strong passwords, rate limits, preferably behind a VPN/tunnel).
 * Release assets and `latest.json` are public; so is every build. Workflow files
   contain no secrets (they read GitHub secrets), but the Actions logs are public.
+* Fork pull requests cannot see the signing secrets. Still, never add a
+  `pull_request_target` or `workflow_run` trigger that checks out fork code.
 * The updater in the app has **no built-in address**; the repo name appears only in
   `latest.json` (`assetBase`) after CI writes it.
 

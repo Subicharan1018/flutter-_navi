@@ -1,10 +1,11 @@
 name: Release
 
-# Every push to main publishes a GitHub Release. Pushes to feature/** publish a
-# pre-release (the in-app updater only follows the newest non-pre-release).
+# Every push to main (or a manual run by someone with write access) publishes a
+# GitHub Release. There is no pull_request trigger, so forks never reach the
+# signing secrets.
 on:
   push:
-    branches: [main, 'feature/**']
+    branches: [main]
   workflow_dispatch:
 
 concurrency:
@@ -12,7 +13,7 @@ concurrency:
   cancel-in-progress: false
 
 permissions:
-  contents: write # create the release and tag
+  contents: read
 
 env:
   # Build numbers must only ever go up, and must stay above the versionCode of
@@ -29,7 +30,7 @@ jobs:
       tag: ${{ steps.v.outputs.tag }}
       win: ${{ steps.v.outputs.win }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - id: v
         run: |
           set -euo pipefail
@@ -50,8 +51,8 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-java@v4
+      - uses: actions/checkout@v4.2.2
+      - uses: actions/setup-java@v4.7.1
         with:
           distribution: temurin
           java-version: '17'
@@ -59,7 +60,7 @@ jobs:
         with:
           channel: stable
           cache: true
-      - uses: actions/cache@v4
+      - uses: actions/cache@v4.2.3
         with:
           path: |
             ~/.gradle/caches
@@ -102,7 +103,7 @@ jobs:
       - name: Verify native libs are stored uncompressed
         run: python3 tool/release/verify_apk.py dist/NaviVibe-arm64-v8a.apk dist/NaviVibe-armeabi-v7a.apk dist/NaviVibe-x86_64.apk
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: android
           path: dist/*.apk
@@ -113,7 +114,7 @@ jobs:
     runs-on: windows-latest
     timeout-minutes: 60
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -147,7 +148,7 @@ jobs:
           Get-ChildItem Releases | Where-Object { $_.Name -match "$($env:WINVER -replace '\.','\.')" -or $_.Name -like 'releases.*.json' -or $_.Name -like 'RELEASES*' -or $_.Name -like '*Setup.exe' } | Copy-Item -Destination winout
           Get-ChildItem winout
 
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v4.6.2
         with:
           name: windows
           path: winout/*
@@ -156,18 +157,20 @@ jobs:
   publish:
     needs: [version, android, windows]
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # only this job may create the release and tag
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v4.2.2
         with:
           fetch-depth: 0
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v5.6.0
         with:
           python-version: '3.12'
       - run: pip install bsdiff4
 
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4.3.0
         with: { name: android, path: dist }
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v4.3.0
         with: { name: windows, path: windist }
 
       - name: Fetch earlier builds for patches
@@ -221,7 +224,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.version.outputs.tag }}
-          IS_MAIN: ${{ github.ref == 'refs/heads/main' }}
+          IS_MAIN: ${{ github.ref == 'refs/heads/main' }} # manual runs from other branches become pre-releases
         run: |
           set -euo pipefail
           flags=""
