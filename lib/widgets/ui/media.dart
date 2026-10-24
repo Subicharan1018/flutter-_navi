@@ -209,6 +209,12 @@ class CollectionRow extends StatelessWidget {
   final Color? titleColor;
   final TextStyle? titleStyle;
 
+  /// A small marker after the title (e.g. a "Smart" badge).
+  final Widget? badge;
+
+  /// Replaces the chevron at the row's end.
+  final Widget? trailing;
+
   const CollectionRow({
     super.key,
     required this.title,
@@ -220,6 +226,8 @@ class CollectionRow extends StatelessWidget {
     this.showSeparator = true,
     this.titleColor,
     this.titleStyle,
+    this.badge,
+    this.trailing,
   });
 
   /// Library destination row: accent glyph instead of artwork.
@@ -281,11 +289,18 @@ class CollectionRow extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: (titleStyle ?? t.body).copyWith(color: titleColor ?? t.textPrimary),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: (titleStyle ?? t.body).copyWith(color: titleColor ?? t.textPrimary),
+                                  ),
+                                ),
+                                if (badge != null) ...[const SizedBox(width: Space.sm), badge!],
+                              ],
                             ),
                             if (subtitle != null && subtitle!.isNotEmpty) ...[
                               const SizedBox(height: 1),
@@ -294,7 +309,10 @@ class CollectionRow extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (showChevron) Icon(CupertinoIcons.chevron_forward, size: 16, color: t.textMuted),
+                      if (trailing != null)
+                        trailing!
+                      else if (showChevron)
+                        Icon(CupertinoIcons.chevron_forward, size: 16, color: t.textMuted),
                     ],
                   ),
                 ),

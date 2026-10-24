@@ -23,10 +23,12 @@ Future<void> showCollectionActions(
   VoidCallback? onDelete,
   Pin? pin,
   ShareTarget? share,
+  List<Widget> extraActions = const [],
 }) =>
     showPlatformSheet(
       context: context,
       builder: (_) => _CollectionActions(
+        extraActions: extraActions,
         share: share,
         title: title,
         subtitle: subtitle,
@@ -54,7 +56,11 @@ class _CollectionActions extends ConsumerWidget {
   /// When given, offers Share… (a public link made by the server).
   final ShareTarget? share;
 
+  /// Rows a caller adds in their own group (e.g. Move to Folder…).
+  final List<Widget> extraActions;
+
   const _CollectionActions({
+    this.extraActions = const [],
     this.share,
     required this.title,
     this.subtitle,
@@ -112,6 +118,7 @@ class _CollectionActions extends ConsumerWidget {
             onTap: () => withSongs((s) => queueSongs(page, ref, s, next: false, label: title)),
           ),
         ]),
+        if (extraActions.isNotEmpty) SheetGroup(children: extraActions),
         if (pin != null || share != null)
           SheetGroup(children: [
             if (share != null)
