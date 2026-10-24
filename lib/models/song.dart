@@ -3,6 +3,13 @@ class Song {
   final String title;
   final String artist;
   final String album;
+
+  /// Subsonic album id — empty when the source didn't provide one (e.g. songs
+  /// rebuilt from the local metadata cache).
+  final String albumId;
+
+  /// Subsonic artist id — empty when unknown, like [albumId].
+  final String artistId;
   final String genre;
   final String composer;
   final String coverArt;
@@ -27,6 +34,8 @@ class Song {
     required this.title,
     required this.artist,
     required this.album,
+    this.albumId = '',
+    this.artistId = '',
     this.genre = '',
     this.composer = '',
     required this.coverArt,
@@ -52,6 +61,8 @@ class Song {
       title: json['title']?.toString() ?? 'Unknown Title',
       artist: json['artist']?.toString() ?? 'Unknown Artist',
       album: json['album']?.toString() ?? 'Unknown Album',
+      albumId: json['albumId']?.toString() ?? '',
+      artistId: json['artistId']?.toString() ?? '',
       genre: json['genre']?.toString() ?? '',
       composer:
           json['displayComposer']?.toString() ??
@@ -95,6 +106,8 @@ class Song {
       'title': title,
       'artist': artist,
       'album': album,
+      'albumId': albumId,
+      'artistId': artistId,
       'genre': genre,
       'composer': composer,
       'coverArt': coverArt,
@@ -128,6 +141,8 @@ class Song {
       title: title,
       artist: artist,
       album: album,
+      albumId: albumId,
+      artistId: artistId,
       genre: genre ?? this.genre,
       composer: composer ?? this.composer,
       coverArt: coverArt,
@@ -161,6 +176,8 @@ class Song {
           title == other.title &&
           artist == other.artist &&
           album == other.album &&
+          albumId == other.albumId &&
+          artistId == other.artistId &&
           genre == other.genre &&
           composer == other.composer &&
           coverArt == other.coverArt &&
@@ -181,6 +198,8 @@ class Song {
     title,
     artist,
     album,
+    albumId,
+    artistId,
     genre,
     composer,
     coverArt,

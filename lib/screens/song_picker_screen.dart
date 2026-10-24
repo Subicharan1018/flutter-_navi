@@ -1,319 +1,194 @@
+import 'dart:async';
+
+import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:cached_network_image/cached_network_image.dart';
+
+import '../core/theme.dart';
+import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
-import '../core/theme.dart';
+import '../widgets/cover_art.dart';
+import '../widgets/ui/action_sheet.dart';
+import '../widgets/ui/controls.dart';
+import '../widgets/ui/states.dart';
 
+/// Apple Music's "Add Music" picker: search the library, tap rows to collect
+/// songs (+ turns to ✓), Done adds them all in the order picked.
 class SongPickerScreen extends ConsumerStatefulWidget {
   final String playlistId;
   final String playlistName;
 
-  const SongPickerScreen({
-    super.key,
-    required this.playlistId,
-    required this.playlistName,
-  });
+  const SongPickerScreen({super.key, required this.playlistId, required this.playlistName});
 
   @override
   ConsumerState<SongPickerScreen> createState() => _SongPickerScreenState();
 }
 
 class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
-  String _searchQuery = '';
-  final TextEditingController _searchController = TextEditingController();
-  final Set<String> _selectedSongIds = {};
-  bool _isSaving = false;
+  static const _debounce = Duration(milliseconds: 250);
 
-  void _toggleSong(String songId) {
-    setState(() {
-      if (_selectedSongIds.contains(songId)) {
-        _selectedSongIds.remove(songId);
-      } else {
-        _selectedSongIds.add(songId);
-      }
-    });
-  }
+  final _search = TextEditingController();
+  final _scroll = ScrollController();
+  Timer? _timer;
+  String _query = '';
 
-  Future<void> _save() async {
-    if (_selectedSongIds.isEmpty) return;
-    setState(() => _isSaving = true);
-    final service = ref.read(subsonicServiceProvider);
-    int added = 0;
-    try {
-      for (final songId in _selectedSongIds) {
-        await service.updatePlaylist(widget.playlistId, songIdToAdd: songId);
-        added++;
-      }
-      ref.invalidate(songsInPlaylistProvider(widget.playlistId));
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(
-              'Added $added song${added == 1 ? '' : 's'} to ${widget.playlistName}',
-            ),
-          ),
-        );
-        Navigator.pop(context, true);
-      }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Error adding songs: $e')));
-        setState(() => _isSaving = false);
-      }
-    }
-  }
+  /// Picked songs, in the order they were tapped.
+  final List<String> _picked = [];
+  bool _saving = false;
 
-  final ScrollController _scrollController = ScrollController();
+  PaginatedSongsParam get _param => PaginatedSongsParam(filter: LibraryFilter.allSongs, searchQuery: _query);
 
   @override
   void initState() {
     super.initState();
-    _scrollController.addListener(_onScroll);
+    _scroll.addListener(() {
+      if (_scroll.position.extentAfter < 600) ref.read(paginatedSongsProvider(_param).notifier).loadNextPage();
+    });
   }
 
   @override
   void dispose() {
-    _scrollController.dispose();
-    _searchController.dispose();
+    _timer?.cancel();
+    _search.dispose();
+    _scroll.dispose();
     super.dispose();
   }
 
-  void _onScroll() {
-    if (_scrollController.position.pixels >= _scrollController.position.maxScrollExtent - 400) {
-      final param = PaginatedSongsParam(
-        filter: LibraryFilter.allSongs,
-        searchQuery: _searchQuery,
-      );
-      ref.read(paginatedSongsProvider(param).notifier).loadNextPage();
+  void _toggle(Song s) {
+    HapticFeedback.selectionClick();
+    setState(() => _picked.contains(s.id) ? _picked.remove(s.id) : _picked.add(s.id));
+  }
+
+  Future<void> _done() async {
+    if (_picked.isEmpty) {
+      Navigator.of(context).pop(false);
+      return;
+    }
+    setState(() => _saving = true);
+    final svc = ref.read(subsonicServiceProvider);
+    // The page under this sheet shows the confirmation once it closes.
+    final page = Navigator.of(context).context;
+    var added = 0;
+    try {
+      for (final id in _picked) {
+        await svc.updatePlaylist(widget.playlistId, songIdToAdd: id);
+        added++;
+      }
+      ref.invalidate(songsInPlaylistProvider(widget.playlistId));
+      ref.invalidate(playlistsProvider);
+      if (!mounted) return;
+      Navigator.of(context).pop(true);
+      if (page.mounted) {
+        showToast(page, added == 1 ? 'Added 1 song to ${widget.playlistName}' : 'Added $added songs to ${widget.playlistName}');
+      }
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _saving = false);
+      showToast(context, added == 0 ? 'Couldn’t add songs. Try again.' : 'Added $added of ${_picked.length}. Try the rest again.');
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final param = PaginatedSongsParam(
-      filter: LibraryFilter.allSongs,
-      searchQuery: _searchQuery,
-    );
-    final paginatedState = ref.watch(paginatedSongsProvider(param));
-    final service = ref.watch(subsonicServiceProvider);
+    final t = ThemeTokens.of(context);
+    final page = ref.watch(paginatedSongsProvider(_param));
+    final svc = ref.read(subsonicServiceProvider);
+    final songs = page.songs;
 
     return Scaffold(
-      backgroundColor: ThemeTokens.of(context).bgBase,
+      backgroundColor: t.bgBase,
       appBar: AppBar(
-        backgroundColor: ThemeTokens.of(context).bgBase,
-        surfaceTintColor: Colors.transparent,
-        elevation: 0,
-        title: Text(
-          'Add to ${widget.playlistName}',
-          style: TextStyle(
-            color: ThemeTokens.of(context).textPrimary,
-            fontWeight: FontWeight.bold,
-            fontSize: 18,
-          ),
+        backgroundColor: t.bgBase,
+        automaticallyImplyLeading: false,
+        leadingWidth: 96,
+        leading: CupertinoButton(
+          padding: const EdgeInsets.only(left: Space.lg),
+          onPressed: () => Navigator.of(context).pop(false),
+          child: Align(alignment: Alignment.centerLeft, child: Text('Cancel', style: t.body.copyWith(color: t.accent))),
         ),
-        leading: SizedBox(
-          width: 48,
-          height: 48,
-          child: IconButton(
-            icon: Icon(
-              Icons.close_rounded,
-              color: ThemeTokens.of(context).textPrimary,
-              size: 24,
-            ),
-            onPressed: () => Navigator.pop(context),
-          ),
-        ),
-      ),
-      // UX FIX: Floating Save button appears when songs are selected.
-      floatingActionButton: _selectedSongIds.isNotEmpty
-          ? FloatingActionButton.extended(
-              backgroundColor: ThemeTokens.of(context).accent,
-              onPressed: _isSaving ? null : _save,
-              icon: _isSaving
-                  ? SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(
-                        strokeWidth: 2,
-                        color: ThemeTokens.of(context).bgBase,
-                      ),
-                    )
-                  : Icon(
-                      Icons.save_rounded,
-                      color: ThemeTokens.of(context).bgBase,
-                    ),
-              label: Text(
-                _isSaving ? 'Saving...' : 'Save (${_selectedSongIds.length})',
-                style: TextStyle(
-                  color: ThemeTokens.of(context).bgBase,
-                  fontWeight: FontWeight.bold,
+        title: Text('Add Songs', style: t.headline),
+        actions: [
+          _saving
+              ? const Padding(padding: EdgeInsets.symmetric(horizontal: Space.xl), child: CupertinoActivityIndicator())
+              : CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+                  onPressed: _done,
+                  child: Text(
+                    _picked.isEmpty ? 'Done' : 'Add ${_picked.length}',
+                    style: t.headline.copyWith(color: t.accent),
+                  ),
                 ),
-              ),
-            )
-          : null,
+        ],
+      ),
       body: Column(
         children: [
           Padding(
-            padding: const EdgeInsets.all(16.0),
-            child: Container(
-              height: 48,
-              decoration: BoxDecoration(
-                color: ThemeTokens.of(context).bgSurface,
-                borderRadius: BorderRadius.circular(12),
-                border: Border.all(color: ThemeTokens.of(context).outline),
-              ),
-              child: TextField(
-                controller: _searchController,
-                onChanged: (v) => setState(() => _searchQuery = v),
-                style: TextStyle(
-                  color: ThemeTokens.of(context).textPrimary,
-                  fontSize: 15,
-                ),
-                cursorColor: ThemeTokens.of(context).accent,
-                decoration: InputDecoration(
-                  hintText: 'Search for songs...',
-                  hintStyle: TextStyle(
-                    color: ThemeTokens.of(
-                      context,
-                    ).textMuted.withValues(alpha: 0.5),
-                    fontSize: 15,
-                  ),
-                  prefixIcon: Icon(
-                    Icons.search_rounded,
-                    color: ThemeTokens.of(context).textMuted,
-                    size: 22,
-                  ),
-                  border: InputBorder.none,
-                  contentPadding: const EdgeInsets.symmetric(vertical: 12),
-                ),
-              ),
+            padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.sm),
+            child: NaviSearchField(
+              controller: _search,
+              placeholder: 'Search your library',
+              onChanged: (v) {
+                _timer?.cancel();
+                _timer = Timer(_debounce, () => setState(() => _query = v.trim()));
+              },
             ),
           ),
           Expanded(
-            child: (() {
-              if (paginatedState.songs.isEmpty) {
-                if (paginatedState.isLoadingMore) {
-                  return Center(
-                    child: CircularProgressIndicator(
-                      color: ThemeTokens.of(context).accent,
-                    ),
-                  );
-                }
-                return Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(
-                        Icons.search_off_rounded,
-                        color: ThemeTokens.of(context).textMuted,
-                        size: 48,
-                      ),
-                      SizedBox(height: 16),
-                      Text(
-                        'No songs found',
-                        style: TextStyle(
-                          color: ThemeTokens.of(context).textMuted,
-                          fontSize: 15,
+            child: songs.isEmpty
+                ? (page.isLoadingMore
+                    ? const LoadingState()
+                    : MessageState(
+                        icon: CupertinoIcons.search,
+                        title: _query.isEmpty ? 'No songs yet' : 'No songs match “$_query”',
+                        message: _query.isEmpty
+                            ? 'Songs appear here once your library syncs.'
+                            : 'Try a song or artist name.',
+                      ))
+                : ListView.builder(
+                    controller: _scroll,
+                    itemExtent: 60,
+                    padding: EdgeInsets.only(bottom: MediaQuery.paddingOf(context).bottom + Space.xl),
+                    itemCount: songs.length,
+                    itemBuilder: (context, i) {
+                      final s = songs[i];
+                      final picked = _picked.contains(s.id);
+                      return InkWell(
+                        onTap: () => _toggle(s),
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+                          child: Row(
+                            children: [
+                              CoverArt(url: svc.getCoverArtUrl(s.coverArt), size: 46, radius: Radii.thumb),
+                              const SizedBox(width: Space.md),
+                              Expanded(
+                                child: Column(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Text(s.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
+                                    Text(s.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                                  ],
+                                ),
+                              ),
+                              AnimatedSwitcher(
+                                duration: Motion.fast,
+                                transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
+                                child: Icon(
+                                  picked ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.add_circled,
+                                  key: ValueKey(picked),
+                                  size: 26,
+                                  color: picked ? t.accent : t.textSecondary,
+                                  semanticLabel: picked ? 'Selected' : 'Add',
+                                ),
+                              ),
+                            ],
+                          ),
                         ),
-                      ),
-                    ],
+                      );
+                    },
                   ),
-                );
-              }
-
-              return ListView.builder(
-                controller: _scrollController,
-                padding: const EdgeInsets.only(bottom: 80), // space for FAB
-                itemCount: paginatedState.songs.length + (paginatedState.isLoadingMore ? 1 : 0),
-                itemBuilder: (context, index) {
-                  if (index == paginatedState.songs.length) {
-                    return Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      child: Center(
-                        child: CircularProgressIndicator(
-                          color: ThemeTokens.of(context).accent,
-                          strokeWidth: 2,
-                        ),
-                      ),
-                    );
-                  }
-                  final song = paginatedState.songs[index];
-                  final isSelected = _selectedSongIds.contains(song.id);
-                  return ListTile(
-                    contentPadding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 4,
-                    ),
-                    leading: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(8),
-                        border: Border.all(
-                          color: ThemeTokens.of(context).outline,
-                        ),
-                      ),
-                      child: ClipRRect(
-                        borderRadius: BorderRadius.circular(7),
-                        child: CachedNetworkImage(
-                          imageUrl: service.getCoverArtUrl(song.coverArt),
-                          width: 44,
-                          height: 44,
-                          memCacheWidth: 88,
-                          memCacheHeight: 88,
-                          fit: BoxFit.cover,
-                          placeholder: (context, url) => Container(
-                            color: ThemeTokens.of(context).bgSurface,
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: ThemeTokens.of(context).bgSurface,
-                            child: Icon(
-                              Icons.music_note_rounded,
-                              color: ThemeTokens.of(context).textMuted,
-                              size: 24,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                    title: Text(
-                      song.title,
-                      style: TextStyle(
-                        color: ThemeTokens.of(context).textPrimary,
-                        fontWeight: FontWeight.w600,
-                        fontSize: 15,
-                      ),
-                    ),
-                    subtitle: Text(
-                      song.artist,
-                      style: TextStyle(
-                        color: ThemeTokens.of(context).textMuted,
-                        fontSize: 13,
-                      ),
-                    ),
-                    trailing: SizedBox(
-                      width: 48,
-                      height: 48,
-                      child: IconButton(
-                        padding: EdgeInsets.zero,
-                        icon: Icon(
-                          isSelected
-                              ? Icons.check_circle_rounded
-                              : Icons.add_circle_outline_rounded,
-                          color: isSelected
-                              ? ThemeTokens.of(context).accent
-                              : ThemeTokens.of(context).textMuted,
-                          size: 24,
-                        ),
-                        // UX FIX: Toggle local selection — no network call.
-                        onPressed: () => _toggleSong(song.id),
-                      ),
-                    ),
-                  );
-                },
-              );
-            })(),
           ),
         ],
       ),

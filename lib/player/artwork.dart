@@ -5,7 +5,9 @@ import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:image/image.dart' as img;
 
 import '../core/album_palette.dart';
 import '../models/song.dart';
@@ -31,6 +33,9 @@ String coverCacheKey(Song song) =>
 /// instead of the network cache (golden tests point it at local files).
 @visibleForTesting
 ImageProvider Function(String url, String cacheKey)? debugCoverImageOverride;
+
+/// [debugCoverImageOverride] for widgets outside this library (list covers).
+ImageProvider? testCoverOverride(String url) => debugCoverImageOverride?.call(url, url);
 
 /// The one way player surfaces load a cover: disk-cached network image,
 /// decoded at [cacheWidth] px wide so a 3000px cover never sits in RAM at
@@ -117,32 +122,79 @@ class ArtworkRepository {
   Future<ArtworkData?> load(String key, String url) {
     final hit = peek(key);
     if (hit != null) return SynchronousFuture(hit);
-    return _inFlight[key] ??= _load(key, url).whenComplete(() => _inFlight.remove(key));
+    // Block body on purpose: `=> _inFlight.remove(key)` would return the
+    // in-flight future itself, and whenComplete waits on a returned future —
+    // so every load waited on itself and never completed (an empty player
+    // background and no album colours, with no error and no timeout).
+    return _inFlight[key] ??= _load(key, url).whenComplete(() {
+      _inFlight.remove(key);
+    });
   }
 
   Future<ArtworkData?> _load(String key, String url) async {
     try {
-      final provider = ResizeImage(
-        debugCoverImageOverride?.call(url, key) ?? CachedNetworkImageProvider(url, cacheKey: key),
-        width: _texSize,
-        height: _texSize,
-        policy: ResizeImagePolicy.exact,
-      );
-      final image = await _resolve(provider);
-      final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
-      if (bytes == null) return null;
-      final ints = await compute(extractAlbumPalette, bytes.buffer.asUint8List());
-      final data = ArtworkData(key: key, image: image, palette: albumPaletteFromInts(ints));
+      final data = debugCoverImageOverride != null ? await _loadViaGpu(key, url) : await _loadViaServer(key, url);
       _cache[key] = data;
+      // Evicted entries are dropped, not disposed: an evicted image may still
+      // be on screen (the playing song's field and cover after browsing 40
+      // other covers), and disposing it blanked Now Playing until the next
+      // song. 64×64 images are tiny; they are freed once nothing holds them.
       while (_cache.length > _capacity) {
-        final evicted = _cache.remove(_cache.keys.first);
-        evicted?.image.dispose();
+        _cache.remove(_cache.keys.first);
       }
       return data;
     } catch (e) {
       debugPrint('[Artwork] $key failed: $e');
       return null;
     }
+  }
+
+  static const Duration _stepTimeout = Duration(seconds: 15);
+
+  /// The device path: the server resizes the cover to [_texSize] px (a few
+  /// KB instead of the full cover), it is cached on disk, decoded to RGBA on
+  /// a background isolate, and uploaded to the GPU as the shader texture.
+  /// No GPU pixel readback anywhere: `Image.toByteData` hangs forever on
+  /// some Impeller (Vulkan) devices, which left the field empty.
+  Future<ArtworkData> _loadViaServer(String key, String url) async {
+    final thumbUrl = _thumbUrl(url);
+    final file = await DefaultCacheManager()
+        .getSingleFile(thumbUrl, key: '${key}_$_texSize')
+        .timeout(_stepTimeout);
+    final encoded = await file.readAsBytes();
+    // One background job decodes and reads the palette, so the pixels never
+    // make a second trip between isolates after they're handed to the GPU.
+    final (rgba, ints) = await compute(_decodeThumb, encoded).timeout(_stepTimeout);
+    final image = await _imageFromPixels(rgba).timeout(_stepTimeout);
+    return ArtworkData(key: key, image: image, palette: albumPaletteFromInts(ints));
+  }
+
+  /// Asks Subsonic's getCoverArt for a server-side resize.
+  static String _thumbUrl(String url) {
+    final uri = Uri.parse(url);
+    if (!uri.path.contains('getCoverArt')) return url;
+    return uri.replace(queryParameters: {...uri.queryParameters, 'size': '$_texSize'}).toString();
+  }
+
+  static Future<ui.Image> _imageFromPixels(Uint8List rgba) {
+    final completer = Completer<ui.Image>();
+    ui.decodeImageFromPixels(rgba, _texSize, _texSize, ui.PixelFormat.rgba8888, completer.complete);
+    return completer.future;
+  }
+
+  /// Test path (golden fixtures supply covers through an ImageProvider; the
+  /// software renderer used in tests reads pixels back without trouble).
+  Future<ArtworkData> _loadViaGpu(String key, String url) async {
+    final provider = ResizeImage(
+      debugCoverImageOverride!.call(url, key),
+      width: _texSize,
+      height: _texSize,
+      policy: ResizeImagePolicy.exact,
+    );
+    final image = await _resolve(provider);
+    final bytes = await image.toByteData(format: ui.ImageByteFormat.rawRgba).timeout(_stepTimeout);
+    final ints = await compute(extractAlbumPalette, bytes!.buffer.asUint8List());
+    return ArtworkData(key: key, image: image, palette: albumPaletteFromInts(ints));
   }
 
   Future<ui.Image> _resolve(ImageProvider provider) {
@@ -164,6 +216,17 @@ class ArtworkRepository {
     stream.addListener(listener);
     return completer.future.timeout(const Duration(seconds: 20));
   }
+}
+
+/// Background-isolate decode of the (already small) cover into exactly
+/// 64×64 RGBA, the size the shader samples, plus its palette, in one job.
+(Uint8List, List<int>) _decodeThumb(Uint8List encoded) {
+  const size = ArtworkRepository._texSize;
+  final decoded = img.decodeImage(encoded);
+  if (decoded == null) throw const FormatException('cover is not a decodable image');
+  final square = img.copyResize(decoded, width: size, height: size, interpolation: img.Interpolation.average);
+  final rgba = Uint8List.fromList(square.convert(numChannels: 4).getBytes(order: img.ChannelOrder.rgba));
+  return (rgba, extractAlbumPalette(rgba));
 }
 
 /// The artwork of the song that is playing now. Holds on to the previous
@@ -196,8 +259,27 @@ class NowPlayingArtworkNotifier extends Notifier<ArtworkData?> {
       return;
     }
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
+    _load(key, url, retriesLeft: _retries);
+  }
+
+  static const int _retries = 2;
+  static const Duration _retryDelay = Duration(seconds: 2);
+
+  /// A failed load (network busy while a new mix starts) is retried, and if
+  /// it still fails the key is forgotten so the next sync tries again —
+  /// previously the song stayed on the old artwork until a skip.
+  void _load(String key, String url, {required int retriesLeft}) {
     ArtworkRepository.instance.load(key, url).then((data) {
-      if (data != null && _requestedKey == key) state = data;
+      if (_requestedKey != key) return;
+      if (data != null) {
+        state = data;
+      } else if (retriesLeft > 0) {
+        Future.delayed(_retryDelay, () {
+          if (_requestedKey == key) _load(key, url, retriesLeft: retriesLeft - 1);
+        });
+      } else {
+        _requestedKey = null;
+      }
     });
   }
 }

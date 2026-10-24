@@ -19,7 +19,6 @@ import 'package:navivibe/services/scrobble_service.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
-import 'package:navivibe/services/listening_log_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
 
 class MockSubsonicService extends Mock implements SubsonicService {}
@@ -27,8 +26,6 @@ class MockSubsonicService extends Mock implements SubsonicService {}
 class MockConnectivity extends Mock implements Connectivity {}
 
 class MockScrobbleService extends Mock implements ScrobbleService {}
-
-class MockListeningLogService extends Mock implements ListeningLogService {}
 
 class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
 

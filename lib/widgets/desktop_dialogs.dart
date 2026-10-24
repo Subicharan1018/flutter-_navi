@@ -1,120 +1,78 @@
 import 'dart:math' show min;
+
 import 'package:flutter/material.dart';
+
+import '../core/theme.dart';
 import '../utils/platform_utils.dart';
 
-// =============================================================================
-// desktop_dialogs.dart — Platform-adaptive dialog / bottom sheet helper
-//
-// On mobile  → showModalBottomSheet  (native slide-up sheet)
-// On desktop → showDialog            (centered, size-constrained modal)
-//
-// Usage:
-//   showPlatformSheet(
-//     context: context,
-//     title: 'Options',              // optional — desktop only, shown as dialog title
-//     builder: (_) => MyWidget(),
-//   );
-// =============================================================================
-
-/// Shows a [ModalBottomSheet] on mobile and a centred [Dialog] on desktop.
-///
-/// [title] is only shown on desktop (as a small header row above the content).
-/// [maxWidth] / [maxHeight] cap the desktop dialog size (in logical pixels).
+/// Shows [builder] as an iOS-style sheet: a card sliding up from the bottom on
+/// phones, a centred card on desktop (bottom sheets feel wrong with a mouse).
+/// [title], when given, is shown as a centred sheet title above the content;
+/// otherwise the content supplies its own header.
 Future<T?> showPlatformSheet<T>({
   required BuildContext context,
   required WidgetBuilder builder,
   String? title,
-  double maxWidth = 520,
+  double maxWidth = 440,
   double maxHeight = 680,
 }) {
-  if (PlatformUtils.isDesktop) {
-    // ── Desktop: centred dialog ──────────────────────────────────────────────
-    final screenSize = MediaQuery.of(context).size;
-    final effectiveMaxHeight = min(maxHeight, screenSize.height * 0.85);
-    final effectiveMaxWidth = min(maxWidth, screenSize.width * 0.90);
+  final t = ThemeTokens.of(context);
 
-    return showDialog<T>(
-      context: context,
-      barrierDismissible: true,
-      builder: (ctx) {
-        return Dialog(
-          backgroundColor: Colors.transparent,
-          insetPadding: const EdgeInsets.all(24),
-          child: ConstrainedBox(
-            constraints: BoxConstraints(
-              maxWidth: effectiveMaxWidth,
-              maxHeight: effectiveMaxHeight,
-            ),
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(20),
-              child: Material(
-                color: Theme.of(ctx).colorScheme.surface,
-                child: Column(
-                  mainAxisSize: MainAxisSize.min,
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    if (title != null)
-                      _DesktopDialogTitleBar(title: title, context: ctx),
-                    Flexible(child: SingleChildScrollView(child: builder(ctx))),
-                  ],
-                ),
+  Widget body(BuildContext ctx) => title == null
+      ? builder(ctx)
+      : Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.md),
+              child: Text(
+                title,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: t.headline,
               ),
             ),
-          ),
+            builder(ctx),
+          ],
         );
-      },
-    );
-  }
 
-  // ── Mobile: native bottom sheet ─────────────────────────────────────────────
-  return showModalBottomSheet<T>(
-    context: context,
-    isScrollControlled: true,
-    backgroundColor: Colors.transparent,
-    shape: const RoundedRectangleBorder(
-      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
-    ),
-    builder: builder,
-  );
-}
-
-// ── Private desktop title bar ─────────────────────────────────────────────────
-
-class _DesktopDialogTitleBar extends StatelessWidget {
-  const _DesktopDialogTitleBar({required this.title, required this.context});
-
-  final String title;
-  final BuildContext context;
-
-  @override
-  Widget build(BuildContext _) {
-    return Container(
-      padding: const EdgeInsets.fromLTRB(20, 16, 8, 12),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.15),
+  if (PlatformUtils.isDesktop) {
+    final size = MediaQuery.sizeOf(context);
+    return showDialog<T>(
+      context: context,
+      barrierColor: Colors.black54,
+      builder: (ctx) => Dialog(
+        backgroundColor: t.bgSurface,
+        insetPadding: const EdgeInsets.all(Space.xxl),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.sheet)),
+        clipBehavior: Clip.antiAlias,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(
+            maxWidth: min(maxWidth, size.width * 0.9),
+            maxHeight: min(maxHeight, size.height * 0.85),
+          ),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.only(top: Space.lg),
+            child: body(ctx),
           ),
         ),
       ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-          IconButton(
-            icon: const Icon(Icons.close_rounded, size: 20),
-            padding: EdgeInsets.zero,
-            visualDensity: VisualDensity.compact,
-            onPressed: () => Navigator.of(context).pop(),
-          ),
-        ],
-      ),
     );
   }
+  return showModalBottomSheet<T>(
+    context: context,
+    // Above the tab bar and mini player, which live in the root route.
+    useRootNavigator: true,
+    isScrollControlled: true,
+    useSafeArea: true,
+    showDragHandle: true,
+    backgroundColor: t.bgSurface,
+    barrierColor: Colors.black54,
+    builder: (ctx) => ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: MediaQuery.sizeOf(ctx).height * 0.85),
+      child: SingleChildScrollView(child: SafeArea(top: false, child: body(ctx))),
+    ),
+  );
 }

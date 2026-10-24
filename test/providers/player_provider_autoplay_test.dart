@@ -10,7 +10,6 @@ import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:shared_preferences/shared_preferences.dart';
-import 'package:http/http.dart' show Client;
 
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/models/song.dart';
@@ -47,12 +46,8 @@ class MockListeningEventCollector extends Mock
 class MockSubsonicService extends Mock implements SubsonicService {
   MockSubsonicService(PlaylistCacheService cache);
   @override
-  final client = MockClient();
-  @override
   Future<void> scrobble(String songId, {required bool submission}) async {}
 }
-
-class MockClient extends Mock implements Client {}
 
 class ControlledAudioPlayer extends Fake implements AudioPlayer {
   final StreamController<int?> _currentIndexController =

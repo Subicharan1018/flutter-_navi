@@ -1,77 +1,46 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/crash_log.dart';
-import '../core/theme.dart';
+import 'ui/grouped_list.dart';
 
-/// "Last error" row for Settings > About. Renders nothing when no error has
-/// been recorded; tap shows the text with copy and clear actions.
-class LastErrorRow extends StatefulWidget {
-  const LastErrorRow({super.key});
+/// The last recorded uncaught error, or null. Invalidate after clearing.
+final lastErrorProvider = FutureProvider.autoDispose<String?>(
+  (ref) => CrashLog.read(),
+);
 
-  @override
-  State<LastErrorRow> createState() => _LastErrorRowState();
-}
-
-class _LastErrorRowState extends State<LastErrorRow> {
-  late Future<String?> _error = CrashLog.read();
-
-  void _show(String text) {
-    showDialog<void>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Last error'),
-        content: SingleChildScrollView(child: SelectableText(text)),
-        actions: [
-          TextButton(
-            onPressed: () => Clipboard.setData(ClipboardData(text: text)),
-            child: const Text('Copy'),
-          ),
-          TextButton(
-            onPressed: () async {
-              await CrashLog.clear();
-              if (!ctx.mounted) return;
-              Navigator.pop(ctx);
-              setState(() => _error = CrashLog.read());
-            },
-            child: const Text('Clear'),
-          ),
-        ],
-      ),
-    );
-  }
+/// "Last error" row for Settings > About; shows the text with copy and clear.
+class LastErrorRow extends StatelessWidget {
+  final String text;
+  final VoidCallback onCleared;
+  const LastErrorRow({super.key, required this.text, required this.onCleared});
 
   @override
   Widget build(BuildContext context) {
-    return FutureBuilder<String?>(
-      future: _error,
-      builder: (context, snap) {
-        final text = snap.data;
-        if (text == null) return const SizedBox.shrink();
-        final tokens = ThemeTokens.of(context);
-        return Column(
-          children: [
-            InkWell(
-              onTap: () => _show(text),
-              child: Padding(
-                padding:
-                    const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
-                child: Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    Text('Last error',
-                        style: TextStyle(
-                            color: tokens.textPrimary, fontSize: 15)),
-                    Text(text.split('\n').first.split('T').first,
-                        style:
-                            TextStyle(color: tokens.textMuted, fontSize: 15)),
-                  ],
-                ),
-              ),
+    return GroupedRow(
+      title: 'Last error',
+      value: text.split('\n').first.split('T').first,
+      onTap: () => showDialog<void>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Last error'),
+          content: SingleChildScrollView(child: SelectableText(text)),
+          actions: [
+            TextButton(
+              onPressed: () => Clipboard.setData(ClipboardData(text: text)),
+              child: const Text('Copy'),
             ),
-            Divider(height: 1, indent: 16, color: tokens.outline),
+            TextButton(
+              onPressed: () async {
+                await CrashLog.clear();
+                if (ctx.mounted) Navigator.pop(ctx);
+                onCleared();
+              },
+              child: const Text('Clear'),
+            ),
           ],
-        );
-      },
+        ),
+      ),
     );
   }
 }

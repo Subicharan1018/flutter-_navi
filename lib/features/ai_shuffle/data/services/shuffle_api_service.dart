@@ -18,6 +18,7 @@ import 'dart:math' as math;
 //   GET  /listening-log/composers
 //   GET  /listening-log/song
 //   GET  /listening-log/contribution-graph
+//   GET  /catalog/songs
 // =============================================================================
 
 import 'dart:convert';
@@ -25,6 +26,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
 
 import '../models/health_response.dart';
+import '../models/intent_response.dart';
 import '../models/next_response.dart';
 import '../models/feedback_request.dart';
 import '../models/model_status_response.dart';
@@ -39,63 +41,46 @@ import '../repositories/shuffle_exception.dart';
 /// The canonical base URL for the Smart Shuffle hosted service.
 const _kShuffleBaseUrl = 'https://shuffle.subimusic.me';
 
+/// The Dio client every caller of shuffle.subimusic.me shares: Basic auth read
+/// from [credentialsSupplier] on each request (so credentials loaded after
+/// construction are honoured; empty ones send no header and get a 401), and
+/// retries only where the server provably did no work. Also used by the
+/// "Search online" client (features/online_fetch), which talks to the same
+/// server's /fetch routes.
+Dio createShuffleDio((String, String) Function() credentialsSupplier, {String logTag = 'ShuffleApi'}) {
+  final dio = Dio(
+    BaseOptions(
+      baseUrl: _kShuffleBaseUrl,
+      connectTimeout: const Duration(seconds: 10),
+      receiveTimeout: const Duration(seconds: 20),
+      headers: {'Accept': 'application/json'},
+    ),
+  );
+  dio.interceptors.add(_BasicAuthInterceptor(credentialsSupplier));
+  dio.interceptors.add(_RetryInterceptor(dio));
+  if (kDebugMode) {
+    dio.interceptors.add(
+      LogInterceptor(
+        requestBody: false,
+        responseBody: false,
+        logPrint: (obj) => debugPrint('[$logTag] $obj'),
+      ),
+    );
+  }
+  return dio;
+}
+
 class ShuffleApiService {
   final Dio _dio;
 
-  /// Supplier called on every request to get the current credentials.
-  /// Returns `(username, password)`. When either is empty the interceptor
-  /// skips adding the Authorization header so the server can return 401
-  /// rather than the app crashing or silently sending bad auth.
-  final (String, String) Function() _credentialsSupplier;
-
   ShuffleApiService({required String username, required String password})
-    : _credentialsSupplier = (() => (username, password)),
-      _dio = Dio(
-        BaseOptions(
-          baseUrl: _kShuffleBaseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 20),
-          headers: {'Accept': 'application/json'},
-        ),
-      ) {
-    _dio.interceptors.add(_BasicAuthInterceptor(_credentialsSupplier));
-    _dio.interceptors.add(_RetryInterceptor(_dio));
-    if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestBody: false,
-          responseBody: false,
-          logPrint: (obj) => debugPrint('[ShuffleApi] $obj'),
-        ),
-      );
-    }
-  }
+    : _dio = createShuffleDio(() => (username, password));
 
   // Named constructor that accepts a live credentials supplier — used by
   // shuffleApiServiceProvider so auth is always taken from the latest
   // SettingsState rather than from a snapshot captured at construction time.
   ShuffleApiService.withSupplier((String, String) Function() credentialsSupplier)
-    : _credentialsSupplier = credentialsSupplier,
-      _dio = Dio(
-        BaseOptions(
-          baseUrl: _kShuffleBaseUrl,
-          connectTimeout: const Duration(seconds: 10),
-          receiveTimeout: const Duration(seconds: 20),
-          headers: {'Accept': 'application/json'},
-        ),
-      ) {
-    _dio.interceptors.add(_BasicAuthInterceptor(_credentialsSupplier));
-    _dio.interceptors.add(_RetryInterceptor(_dio));
-    if (kDebugMode) {
-      _dio.interceptors.add(
-        LogInterceptor(
-          requestBody: false,
-          responseBody: false,
-          logPrint: (obj) => debugPrint('[ShuffleApi] $obj'),
-        ),
-      );
-    }
-  }
+    : _dio = createShuffleDio(credentialsSupplier);
 
   // ---------------------------------------------------------------------------
   // GET /health
@@ -235,6 +220,23 @@ class ShuffleApiService {
         response.data!,
         PredictMode.discovery,
       );
+    });
+  }
+
+  /// POST /predict/playlist-suggestions
+  /// Library songs that would fit a playlist, each with a one-line reason.
+  Future<List<({String id, String why})>> getPlaylistSuggestions(List<String> songIds, {int limit = 10}) async {
+    return _wrap(() async {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/predict/playlist-suggestions',
+        data: {'song_ids': songIds, 'limit': limit},
+        options: Options(contentType: 'application/json'),
+      );
+      final list = (response.data?['suggestions'] as List<dynamic>? ?? []).whereType<Map>();
+      return [
+        for (final s in list)
+          if (s['navidrome_id'] != null) (id: s['navidrome_id'].toString(), why: s['why']?.toString() ?? ''),
+      ];
     });
   }
 
@@ -406,6 +408,61 @@ class ShuffleApiService {
         '/replay/$year/$month',
       );
       return MonthlyReplayResponse.fromJson(response.data!);
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /catalog/songs
+  // ---------------------------------------------------------------------------
+
+  /// The catalog document as raw JSON text plus its ETag. Pass the ETag of
+  /// the copy already held: when nothing changed the server answers 304 and
+  /// this returns null (the cached copy is current).
+  Future<({String body, String? etag})?> getCatalog({String? etag}) async {
+    return _wrap(() async {
+      final response = await _dio.get<String>(
+        '/catalog/songs',
+        options: Options(
+          responseType: ResponseType.plain,
+          headers: {'If-None-Match': ?etag},
+          validateStatus: (s) => s != null && (s == 304 || (s >= 200 && s < 300)),
+        ),
+      );
+      if (response.statusCode == 304) return null;
+      return (body: response.data ?? '', etag: response.headers.value('etag'));
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // GET /id-map — song ids replaced by the last Navidrome upgrade
+  // ---------------------------------------------------------------------------
+
+  /// `(epoch, {oldId: newId})`. `epoch` is null before any upgrade. The app
+  /// remaps its local data once per epoch (see id_migration_provider).
+  Future<(String?, Map<String, String>)> getIdMap() async {
+    return _wrap(() async {
+      final response = await _dio.get<Map<String, dynamic>>('/id-map');
+      final d = response.data ?? const {};
+      final map = (d['map'] as Map?) ?? const {};
+      return (d['epoch'] as String?, {for (final e in map.entries) e.key.toString(): e.value.toString()});
+    });
+  }
+
+  // ---------------------------------------------------------------------------
+  // POST /intent — "describe a mix"
+  // ---------------------------------------------------------------------------
+
+  /// Turns [text] ("calm Tamil melodies for night") into the library titles
+  /// that fit it. The server may ask an AI model first (up to ~20 s), so this
+  /// call waits longer than the default receive timeout.
+  Future<IntentResponse> interpretIntent(String text) async {
+    return _wrap(() async {
+      final response = await _dio.post<Map<String, dynamic>>(
+        '/intent',
+        data: {'text': text},
+        options: Options(receiveTimeout: const Duration(seconds: 40)),
+      );
+      return IntentResponse.fromJson(response.data!);
     });
   }
 

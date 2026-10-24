@@ -53,7 +53,6 @@ void main() {
           song: songA,
           queuePosition: 0,
           sourceContext: 'test',
-          transitionType: 'manual',
         );
 
         // Advance clock by only 400ms — within the 500ms dedup window.
@@ -64,7 +63,6 @@ void main() {
           song: songA,
           queuePosition: 0,
           sourceContext: 'test',
-          transitionType: 'manual',
         );
 
         // Close the open event by starting B (with enough play time for persist).
@@ -73,7 +71,6 @@ void main() {
           song: songB,
           queuePosition: 1,
           sourceContext: 'test',
-          transitionType: 'skip',
           prevSong: songA,
           positionAtSwitch: const Duration(seconds: 3),
         );
@@ -97,7 +94,6 @@ void main() {
         song: songA,
         queuePosition: 0,
         sourceContext: 'test',
-        transitionType: 'manual',
       );
 
       // Switch to B after 3s to close A's first event.
@@ -106,7 +102,6 @@ void main() {
         song: songB,
         queuePosition: 1,
         sourceContext: 'test',
-        transitionType: 'skip',
         prevSong: songA,
         positionAtSwitch: const Duration(seconds: 3),
       );
@@ -120,7 +115,6 @@ void main() {
         song: songA,
         queuePosition: 0,
         sourceContext: 'test',
-        transitionType: 'manual',
         prevSong: songB,
         positionAtSwitch: const Duration(milliseconds: 600),
       );
@@ -131,7 +125,6 @@ void main() {
         song: songC,
         queuePosition: 2,
         sourceContext: 'test',
-        transitionType: 'skip',
         prevSong: songA,
         positionAtSwitch: const Duration(seconds: 3),
       );
@@ -157,7 +150,6 @@ void main() {
         song: songA,
         queuePosition: 0,
         sourceContext: 'test',
-        transitionType: 'manual',
       );
 
       // Switch after only 1.9s — below 2s threshold.
@@ -165,7 +157,6 @@ void main() {
         song: songB,
         queuePosition: 1,
         sourceContext: 'test',
-        transitionType: 'skip',
         prevSong: songA,
         positionAtSwitch: const Duration(milliseconds: 1900),
       );
@@ -189,7 +180,6 @@ void main() {
         song: songA,
         queuePosition: 0,
         sourceContext: 'test',
-        transitionType: 'manual',
       );
 
       // Switch after 3s — above threshold.
@@ -197,7 +187,6 @@ void main() {
         song: songB,
         queuePosition: 1,
         sourceContext: 'test',
-        transitionType: 'skip',
         prevSong: songA,
         positionAtSwitch: const Duration(seconds: 3),
       );
@@ -208,72 +197,6 @@ void main() {
       final songAEvents = events.where((e) => e.songId == 'A').toList();
       expect(songAEvents.length, equals(1));
       expect(songAEvents.first.playDurSec, greaterThanOrEqualTo(2));
-    });
-  });
-
-  // ──────────────────────────────────────────────────────────────────────────
-  // Co-play SongPair thresholds
-  // ──────────────────────────────────────────────────────────────────────────
-
-  group('Co-play SongPair thresholds', () {
-    test('transition < 5.0s → no SongPair row created', () async {
-      final songA = makeSong(id: 'A');
-      final songB = makeSong(id: 'B');
-
-      collector.onSongStarted(
-        song: songA,
-        queuePosition: 0,
-        sourceContext: 'test',
-        transitionType: 'sequential',
-      );
-
-      // Play A for only 4.9s — below _kMinPairDurationSec (5.0s).
-      collector.onSongStarted(
-        song: songB,
-        queuePosition: 1,
-        sourceContext: 'test',
-        transitionType: 'sequential',
-        prevSong: songA,
-        positionAtSwitch: const Duration(milliseconds: 4900),
-      );
-
-      await pumpMicrotasks();
-
-      final pairs = await db.select(db.songPairs).get();
-      expect(
-        pairs.isEmpty,
-        isTrue,
-        reason: 'Pairs must not be recorded for plays under 5s',
-      );
-    });
-
-    test('transition ≥ 5.0s → SongPair row created', () async {
-      final songA = makeSong(id: 'A', duration: 10);
-      final songB = makeSong(id: 'B');
-
-      collector.onSongStarted(
-        song: songA,
-        queuePosition: 0,
-        sourceContext: 'test',
-        transitionType: 'sequential',
-      );
-
-      // Play A for 6s — above threshold.
-      collector.onSongStarted(
-        song: songB,
-        queuePosition: 1,
-        sourceContext: 'test',
-        transitionType: 'sequential',
-        prevSong: songA,
-        positionAtSwitch: const Duration(seconds: 6),
-      );
-
-      await pumpMicrotasks();
-
-      final pairs = await db.select(db.songPairs).get();
-      expect(pairs.length, equals(1));
-      expect(pairs.first.prevSongId, equals('A'));
-      expect(pairs.first.currentSongId, equals('B'));
     });
   });
 
@@ -293,7 +216,6 @@ void main() {
         song: songA,
         queuePosition: 0,
         sourceContext: 'test',
-        transitionType: 'manual',
       );
 
       // Close A with song B.
@@ -302,7 +224,6 @@ void main() {
         song: songB,
         queuePosition: 1,
         sourceContext: 'test',
-        transitionType: 'sequential',
         prevSong: songA,
         positionAtSwitch: const Duration(seconds: 3),
       );
@@ -317,7 +238,6 @@ void main() {
         song: songC,
         queuePosition: 2,
         sourceContext: 'test',
-        transitionType: 'manual',
       );
 
       // Close C with song D.
@@ -326,7 +246,6 @@ void main() {
         song: songD,
         queuePosition: 3,
         sourceContext: 'test',
-        transitionType: 'sequential',
         prevSong: songC,
         positionAtSwitch: const Duration(seconds: 3),
       );
@@ -356,7 +275,6 @@ void main() {
         song: songA,
         queuePosition: 0,
         sourceContext: 'test',
-        transitionType: 'manual',
       );
 
       fakeNow = fakeNow.add(const Duration(seconds: 3));
@@ -364,7 +282,6 @@ void main() {
         song: songB,
         queuePosition: 1,
         sourceContext: 'test',
-        transitionType: 'sequential',
         prevSong: songA,
         positionAtSwitch: const Duration(seconds: 3),
       );
@@ -378,7 +295,6 @@ void main() {
         song: songC,
         queuePosition: 2,
         sourceContext: 'test',
-        transitionType: 'manual',
       );
 
       fakeNow = fakeNow.add(const Duration(seconds: 3));
@@ -386,7 +302,6 @@ void main() {
         song: songD,
         queuePosition: 3,
         sourceContext: 'test',
-        transitionType: 'sequential',
         prevSong: songC,
         positionAtSwitch: const Duration(seconds: 3),
       );
@@ -417,7 +332,6 @@ void main() {
         song: song,
         queuePosition: 0,
         sourceContext: 'test',
-        transitionType: 'manual',
       );
 
       await pumpMicrotasks();

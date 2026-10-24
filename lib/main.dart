@@ -51,7 +51,8 @@ Future<void> main() async {
   try {
     await OfflineService().initialize();
   } catch (e, st) {
-    // Storage unavailable: downloads are off for this run, the app still opens.
+    // Offline songs just won't show as downloaded; the app must still open.
+    debugPrint('⚠️  OfflineService.initialize failed ($e)\n$st');
     CrashLog.record(e, st);
   }
 
@@ -156,6 +157,7 @@ class MyMusicPlayerApp extends ConsumerWidget {
       child: MaterialApp(
         title: 'NaviVibe',
         theme: AppTheme.build(tokens),
+        scrollBehavior: const NaviScrollBehavior(),
         themeAnimationDuration: const Duration(milliseconds: 450),
         themeAnimationCurve: Curves.easeOutCubic,
         home: home,
