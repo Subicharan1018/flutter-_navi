@@ -13,16 +13,21 @@ import 'package:navivibe/widgets/mascot/microduck_mesh.dart';
 import 'package:navivibe/widgets/mascot/microduck_painter.dart';
 import 'package:navivibe/widgets/mascot/microduck_pose.dart';
 import 'package:navivibe/widgets/mascot/microduck_rig.dart';
+import 'package:navivibe/widgets/mascot/microduck_texture.dart';
 
 class _Cell {
   final MicroduckPose pose;
   final double t;
   final MicroduckSkin skin;
   final void Function(MicroduckInput)? setup;
-  const _Cell(this.pose, this.t, {this.skin = MicroduckSkin.white, this.setup});
+
+  /// Extra drawing over the cell (beat ticks and the like).
+  final void Function(Canvas, double size)? overlay;
+  const _Cell(this.pose, this.t, {this.skin = MicroduckSkin.white, this.setup, this.overlay});
 }
 
 Future<void> _sheet(WidgetTester tester, String name, List<_Cell> cells, {int columns = 4, double cell = 240, int bpm = 120}) async {
+  await tester.runAsync(MicroduckTexture.ensure);
   final rows = (cells.length / columns).ceil();
   final w = (columns * cell).toInt(), h = (rows * cell).toInt();
   final recorder = ui.PictureRecorder();
@@ -49,6 +54,7 @@ Future<void> _sheet(WidgetTester tester, String name, List<_Cell> cells, {int co
       skin: c.skin,
       bpm: bpm,
     ).paint(canvas, Size(cell, cell));
+    c.overlay?.call(canvas, cell);
     canvas.restore();
   }
   final image = await tester.runAsync(() => recorder.endRecording().toImage(w, h));
@@ -75,6 +81,51 @@ void main() {
       32.9, 34.5, // sit-down groove
     ];
     await _sheet(tester, 'dance', [for (final b in beats) _Cell(MicroduckPose.dance, b * beat)], columns: 6, cell: 200);
+  });
+
+  testWidgets('two bars at 120 bpm with beat ticks', (tester) async {
+    // Bars 3 and 4 of a song (a bounce-jump, then pop-and-lock): 16 frames,
+    // one every half beat, the dance read from the playback position as the
+    // app does. A ruler under each frame marks the eight beats; the frame is
+    // outlined orange when it falls exactly on a beat, and the dot on the
+    // ruler is where it sits.
+    const bpm = 120, startBeat = 12.0;
+    final beatLen = danceBeatSeconds(bpm);
+    final cells = <_Cell>[];
+    for (var i = 0; i < 16; i++) {
+      final beats = startBeat + i / 2;
+      final pos = beats * beatLen;
+      cells.add(_Cell(
+        MicroduckPose.dance,
+        pos,
+        setup: (input) => input.audioPos = pos,
+        overlay: (canvas, size) {
+          final onBeat = i.isEven;
+          if (onBeat) {
+            canvas.drawRect(
+              Rect.fromLTWH(2, 2, size - 4, size - 4),
+              Paint()
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 3
+                ..color = const Color(0xFFE8721C),
+            );
+          }
+          final ruler = Paint()
+            ..color = const Color(0x99FFFFFF)
+            ..strokeWidth = 2;
+          final y = size - 14, left = 14.0, step = (size - 28) / 8;
+          for (var k = 0; k <= 8; k++) {
+            canvas.drawLine(Offset(left + k * step, y - (k % 4 == 0 ? 8 : 4)), Offset(left + k * step, y + 4), ruler);
+          }
+          canvas.drawCircle(
+            Offset(left + (i / 2) * step, y - 12),
+            4,
+            Paint()..color = const Color(0xFFE8721C),
+          );
+        },
+      ));
+    }
+    await _sheet(tester, 'dance_2bars_120bpm', cells, columns: 4, cell: 260);
   });
 
   testWidgets('pose sheet', (tester) async {

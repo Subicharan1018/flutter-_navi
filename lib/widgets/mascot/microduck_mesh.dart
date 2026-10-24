@@ -88,6 +88,9 @@ class MicroduckMesh {
   final Uint8List triLod;
   final Float32List triBias;
 
+  /// Texture coordinates in texels, two per vertex.
+  final Float32List uv;
+
   /// Centre (x, y) of each dynamic piece, for scaling about itself.
   final Float32List dynCx = Float32List(kDynCount), dynCy = Float32List(kDynCount);
 
@@ -109,6 +112,7 @@ class MicroduckMesh {
     this.tris,
     this.triLod,
     this.triBias,
+    this.uv,
   );
 
   static final MicroduckMesh instance = _build();
@@ -532,6 +536,24 @@ class _Builder {
               ? 3.0
               : 0;
     }
+    // Texture coordinates: triplanar, from the face's dominant axis, 36 per
+    // robot unit (the renderer scales them to the size on screen).
+    final uv = Float32List(_px.length * 2);
+    for (var i = 0; i < _px.length; i++) {
+      final ax = _nx[i].abs(), ay = _ny[i].abs(), az = _nz[i].abs();
+      const k = 36.0; // texels per robot unit
+      final shift = _slot[i] * 23.0 + _matrix[i] * 11.0; // different parts, different grain
+      if (ay >= ax && ay >= az) {
+        uv[i * 2] = _px[i] * k + shift;
+        uv[i * 2 + 1] = _pz[i] * k;
+      } else if (az >= ax) {
+        uv[i * 2] = _px[i] * k + shift;
+        uv[i * 2 + 1] = _py[i] * k;
+      } else {
+        uv[i * 2] = _pz[i] * k + shift;
+        uv[i * 2 + 1] = _py[i] * k;
+      }
+    }
     final mesh = MicroduckMesh._(
       Float32List.fromList(_px),
       Float32List.fromList(_py),
@@ -547,6 +569,7 @@ class _Builder {
       tris,
       triLod,
       triBias,
+      uv,
     );
     mesh.dynCx.setAll(0, _dcx);
     mesh.dynCy.setAll(0, _dcy);

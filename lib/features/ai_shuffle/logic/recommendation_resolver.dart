@@ -1,4 +1,5 @@
 import '../../../models/song.dart';
+import '../../../widgets/mascot/microduck_pose.dart' show cacheBpm;
 import '../data/models/recommended_song.dart';
 
 /// Matches Smart Shuffle recommendations (title + composer from the server)
@@ -25,7 +26,18 @@ class RecommendationResolver {
   }
 
   /// Library songs for [recs], in order, skipping ones not in the library.
-  List<Song> resolveAll(Iterable<RecommendedSong> recs) => [
-        for (final r in recs) ?resolve(r),
-      ];
+  ///
+  /// Each recommendation carries the song's measured tempo; it is kept in the
+  /// BPM cache so Microduck can dance to the song's beat.
+  List<Song> resolveAll(Iterable<RecommendedSong> recs) {
+    final out = <Song>[];
+    for (final r in recs) {
+      final s = resolve(r);
+      if (s == null) continue;
+      final tempo = r.tempo;
+      if (tempo != null) cacheBpm(s.id, tempo);
+      out.add(s);
+    }
+    return out;
+  }
 }

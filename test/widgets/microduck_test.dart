@@ -13,6 +13,7 @@ import 'package:navivibe/widgets/mascot/microduck_painter.dart';
 import 'package:navivibe/widgets/mascot/microduck_rig.dart';
 import 'package:navivibe/widgets/mascot/microduck_pose.dart';
 import 'package:navivibe/widgets/mascot/microduck_strip.dart';
+import 'package:navivibe/widgets/mascot/microduck_talk.dart';
 
 void main() {
   group('pose selection', () {
@@ -56,12 +57,15 @@ void main() {
       expect(resolveMicroduckPose(playing: true, now: night, reducedMotion: true), MicroduckPose.sleep);
     });
 
-    test('tempo folds into a hoppable range', () {
+    test('tempo must be believable; fast songs dance half time, slow ones double', () {
       expect(danceBpm(null), isNull);
       expect(danceBpm(0), isNull);
       expect(danceBpm(120), 120);
-      expect(danceBpm(180), 90);
-      expect(danceBpm(50), 100);
+      expect(danceBeatSeconds(120), closeTo(0.5, 1e-9));
+      expect(danceBeatSeconds(170), closeTo(2 * 60 / 170, 1e-9));
+      expect(danceBeatSeconds(60), closeTo(0.5, 1e-9));
+      expect(danceBeatSeconds(150), closeTo(0.4, 1e-9));
+      expect(danceBeatSeconds(75), closeTo(0.8, 1e-9));
     });
 
     test('names are trimmed, capped and never empty', () {
@@ -76,6 +80,100 @@ void main() {
       expect(showDuckInEmptyState('No songs', d), showDuckInEmptyState('No songs', DateTime(2026, 3, 3, 22)));
       final shown = List.generate(60, (i) => showDuckInEmptyState('t$i', d)).where((b) => b).length;
       expect(shown, inInclusiveRange(8, 35));
+    });
+  });
+
+  group('dance is locked to the beat', () {
+    // Bar 3 of a song is the first phrase's closing move, the bounce-jump:
+    // feet on the ground and knees fully bent exactly on each beat, airborne
+    // between them. So where the pose is "down" tells where the beat is.
+    const jumpBars = [3, 15, 27]; // phrase % 3 == 0 -> bounce-jump
+    const offset = 0.37; // first beat falls 0.37 s into the song
+
+    for (final bpm in [60, 75, 80, 100, 120, 140, 150, 170, 200]) {
+      test('$bpm bpm: down-step on every beat, up between, also after a seek', () {
+        final beat = danceBeatSeconds(bpm);
+        for (final bar in jumpBars) {
+          // A fresh rig each time stands in for a seek: position is all it needs.
+          final rig = MicroduckRig();
+          final input = MicroduckInput()..beatOffset = offset;
+          for (final k in [1, 2, 3]) {
+            final onBeat = offset + (bar * 4 + k) * beat;
+            input.audioPos = onBeat;
+            rig.solve(MicroduckPose.dance, onBeat, beat, input);
+            expect(rig.pose.v[RigPose.y], closeTo(0, 1e-6), reason: 'bpm $bpm bar $bar beat $k feet down');
+            expect(rig.pose.v[RigPose.kneeL], closeTo(1.07, 1e-6), reason: 'knees fully bent on the beat');
+
+            final between = onBeat + beat / 2;
+            input.audioPos = between;
+            rig.solve(MicroduckPose.dance, between, beat, input);
+            expect(rig.pose.v[RigPose.y], greaterThan(1.0), reason: 'bpm $bpm airborne mid-beat');
+          }
+        }
+      });
+    }
+
+    test('moves change on bar lines and the big ones close each phrase', () {
+      for (var bar = 0; bar < 48; bar++) {
+        final big = const {2, 3, 4}.contains(MicroduckRig.moveForBar(bar));
+        expect(big, (bar & 3) == 3, reason: 'bar $bar');
+      }
+      expect({for (var b = 0; b < 48; b++) MicroduckRig.moveForBar(b)}.length, 9, reason: 'all nine moves appear');
+    });
+
+    test('a pause does not move the beat: same position, same pose', () {
+      final a = MicroduckRig(), b = MicroduckRig();
+      final input = MicroduckInput()..audioPos = 41.3;
+      a.solve(MicroduckPose.dance, 1.0, 0.5, input);
+      b.solve(MicroduckPose.dance, 99.0, 0.5, input);
+      for (var i = 0; i < RigPose.count; i++) {
+        expect(a.pose.v[i], closeTo(b.pose.v[i], 1e-9));
+      }
+    });
+
+    test('danceBeats counts stepping beats from the first beat', () {
+      expect(danceBeats(0.37, 120, offsetSeconds: 0.37), closeTo(0, 1e-9));
+      expect(danceBeats(0.37 + 0.5 * 7, 120, offsetSeconds: 0.37), closeTo(7, 1e-9));
+      expect(danceBeats(1.0, 170, offsetSeconds: 0), closeTo(1.0 / (2 * 60 / 170), 1e-9));
+    });
+  });
+
+  group('talking', () {
+    test('ordinals', () {
+      expect([for (final n in [1, 2, 3, 4, 11, 12, 13, 21, 42, 101, 111]) ordinal(n)],
+          ['1st', '2nd', '3rd', '4th', '11th', '12th', '13th', '21st', '42nd', '101st', '111th']);
+    });
+
+    test('a well-played song gets the play-count line', () {
+      const facts = MicroduckFacts(songId: 's', title: 'T', playCount: 41, composer: 'A. R. Rahman');
+      expect(microduckComment(facts, DateTime(2026, 3, 3, 12)), 'Your 42nd play of this one!');
+    });
+
+    test('says nothing without facts, and at most something short', () {
+      expect(microduckComment(const MicroduckFacts(songId: 's', title: 'T'), DateTime(2026, 3, 3, 12)), isNull);
+      final line = microduckComment(
+        const MicroduckFacts(songId: 's', title: 'T', composer: 'X', film: 'Y', year: 2020, bpm: 120),
+        DateTime(2026, 3, 3, 12),
+      )!;
+      expect(line.length, lessThan(40));
+    });
+
+    test('speaks up on roughly a third of songs, the same way all day', () {
+      final now = DateTime(2026, 3, 3, 9);
+      final chatty = List.generate(90, (i) => microduckFeelsChatty('song$i', now)).where((b) => b).length;
+      expect(chatty, inInclusiveRange(15, 45));
+      expect(microduckFeelsChatty('song1', now), microduckFeelsChatty('song1', DateTime(2026, 3, 3, 23)));
+    });
+
+    test('describes the current song from local facts', () {
+      final text = describeSong(
+        title: 'Aga Naga',
+        artist: 'A. R. Rahman',
+        facts: const MicroduckFacts(songId: 's', title: 'Aga Naga', film: 'PS-1', year: 2022, playCount: 3, bpm: 98),
+      );
+      expect(text, contains('From “PS-1”'));
+      expect(text, contains('3 times'));
+      expect(text, contains('98 bpm'));
     });
   });
 

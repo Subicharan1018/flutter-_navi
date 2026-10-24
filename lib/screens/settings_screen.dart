@@ -228,6 +228,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   placeholder: defaultMicroduckName,
                 ),
               if (s.microduckEnabled)
+                GroupedSwitchRow(
+                  title: 'Microduck talks',
+                  subtitle: 'Now and then it remarks on the song in a small speech bubble.',
+                  icon: NaviGlyph.note,
+                  ion: Ion.music,
+                  value: s.microduckTalks,
+                  onChanged: notifier.setMicroduckTalks,
+                ),
+              if (s.microduckEnabled)
                 GroupedRow(
                   title: 'Colour',
                   value: s.microduckSkin.label,

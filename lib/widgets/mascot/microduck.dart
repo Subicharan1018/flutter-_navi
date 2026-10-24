@@ -36,6 +36,18 @@ class Microduck extends StatefulWidget {
   final Object? startleToken;
   final bool love;
 
+  /// While dancing: the song's playback position (read every frame, so the
+  /// beat holds across seeks and pauses) and where its first beat falls.
+  final Duration Function()? positionSource;
+  final double beatOffset;
+
+  /// Waiting on an answer: head cocked, loading wave on the screen. When it
+  /// ends the robot celebrates.
+  final bool thinking;
+
+  /// A quick tap (not a long press), after the hop starts.
+  final VoidCallback? onTap;
+
   const Microduck({
     super.key,
     required this.pose,
@@ -46,6 +58,10 @@ class Microduck extends StatefulWidget {
     this.interactive = false,
     this.startleToken,
     this.love = false,
+    this.positionSource,
+    this.beatOffset = 0,
+    this.thinking = false,
+    this.onTap,
   });
 
   @override
@@ -69,6 +85,9 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
   @override
   void initState() {
     super.initState();
+    _input
+      ..thinking = widget.thinking
+      ..beatOffset = widget.beatOffset;
     WidgetsBinding.instance.addObserver(this);
   }
 
@@ -86,7 +105,17 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
     if (!_reduced) {
       if (widget.startleToken != old.startleToken && old.startleToken != null) _input.startleAt = _now;
       if (widget.love && !old.love) _input.loveAt = _now;
+      if (old.thinking && !widget.thinking) {
+        // The answer is in: a happy hop and a heart.
+        _input
+          ..tapAt = _now
+          ..tapCount = 0
+          ..loveAt = _now;
+      }
     }
+    _input
+      ..thinking = widget.thinking
+      ..beatOffset = widget.beatOffset;
     _sync();
   }
 
@@ -109,6 +138,12 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
 
   void _onTick(Duration elapsed) {
     _now = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    final source = widget.positionSource;
+    if (source != null && widget.pose == MicroduckPose.dance) {
+      _input.audioPos = source().inMicroseconds / Duration.microsecondsPerSecond;
+    } else {
+      _input.audioPos = null;
+    }
     if (_pressing && !_bowed && _now - _downAt > _longPress) {
       _bowed = true;
       _input.bowAt = _now;
@@ -142,6 +177,7 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
       _input
         ..tapAt = _now
         ..tapCount += 1;
+      widget.onTap?.call();
     }
     _pressing = false;
     _input.lookUntil = _now + 0.4;

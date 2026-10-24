@@ -15,6 +15,11 @@ class CatalogSong {
   final int? year;
   final String? titleNative;
 
+  /// Tempo and where the first beat falls, when the server has analysed the
+  /// song (`bpm`, `beat_offset` in seconds). Microduck dances to these.
+  final double? bpm;
+  final double? beatOffset;
+
   const CatalogSong({
     required this.id,
     this.language,
@@ -26,6 +31,8 @@ class CatalogSong {
     this.lyricist,
     this.year,
     this.titleNative,
+    this.bpm,
+    this.beatOffset,
   });
 
   bool get isMultilingual => languages.length > 1;
@@ -41,6 +48,8 @@ class CatalogSong {
         lyricist: j['lyricist'] as String?,
         year: (j['year'] as num?)?.toInt(),
         titleNative: j['title_native'] as String?,
+        bpm: (j['bpm'] as num?)?.toDouble(),
+        beatOffset: (j['beat_offset'] as num?)?.toDouble(),
       );
 }
 

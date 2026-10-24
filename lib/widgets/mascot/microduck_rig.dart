@@ -92,6 +92,15 @@ class MicroduckInput {
   double startleAt = -100;
   double loveAt = -100;
 
+  /// Playback position of the song in seconds, when dancing to it, and where
+  /// its first beat falls. The dance reads its beat from these, not from the
+  /// clock, so it holds across seeks, pauses and resumes.
+  double? audioPos;
+  double beatOffset = 0;
+
+  /// Waiting on an answer: head cocked, the screen shows a loading wave.
+  bool thinking = false;
+
   final MicroduckRig rig = MicroduckRig();
 
   static const double hopSeconds = 1.0;
@@ -159,6 +168,7 @@ class MicroduckRig {
   // Head spring (secondary motion): angle and velocity for yaw/pitch/roll.
   final Float64List _hAng = Float64List(3), _hVel = Float64List(3);
   double _sqVel = 0, _prevY = 0;
+  double _eyeX = 0, _eyeV = 0, _dt = 0;
 
   void solve(
     MicroduckPose which,
@@ -173,7 +183,12 @@ class MicroduckRig {
     final fresh = _lastT < 0 || dt <= 0 || dt > 0.25;
     if (fresh) dt = 0;
     _lastT = t;
+    _dt = dt;
     final amp = energy.clamp(0.6, 1.3);
+    // Beat position: locked to the song's playback position when the widget
+    // supplies it (so it holds across seeks and pauses), else to the clock.
+    final audio = input.audioPos;
+    final beats = audio != null ? (audio - input.beatOffset) / beatSeconds : t / beatSeconds;
 
     p.clear();
     var move = -1;
@@ -192,7 +207,7 @@ class MicroduckRig {
       case MicroduckPose.sleep:
         _sleep(p, t);
       case MicroduckPose.dance:
-        move = _dance(p, t / beatSeconds, amp);
+        move = _dance(p, beats, amp);
     }
 
     // Ease from whatever it was doing a moment ago.
@@ -242,6 +257,12 @@ class MicroduckRig {
       p.v[RigPose.y] += 0.14 * math.sin(_tau * love * 2).abs() * _bump(love * 1.1);
       happy = math.max(happy, _bump(love));
     }
+    if (input.thinking && which != MicroduckPose.sleep) {
+      // Head cocked and gently swaying while it works something out.
+      p.v[RigPose.headRoll] += 0.32 + 0.06 * math.sin(t * 2.4);
+      p.v[RigPose.headPitch] -= 0.18;
+      p.v[RigPose.twist] += 0.18 * math.sin(t * 1.3);
+    }
     _final.copy(p);
 
     // Looking at a finger.
@@ -277,7 +298,7 @@ class MicroduckRig {
 
     _compose(p);
     _squash(p.v[RigPose.y], dt, fresh);
-    _face(which, p, t, beatSeconds, happy, startle, love, move, amp, input);
+    _face(which, p, t, beats, happy, startle, love, move, amp, input);
   }
 
   // ------------------------------------------------------------ base poses
@@ -369,6 +390,18 @@ class MicroduckRig {
   void _hop(RigPose p, double u) {
     p.clear();
     final v = p.v;
+    // Anticipation: sink first, then spring.
+    const wind = 0.16;
+    if (u < wind) {
+      final k = _smooth(u / wind);
+      v[RigPose.hipL] = v[RigPose.hipR] = 0.4 * k;
+      v[RigPose.kneeL] = v[RigPose.kneeR] = 0.15 + 0.85 * k;
+      v[RigPose.headPitch] = 0.25 * k;
+      v[RigPose.yaw] = 0.2;
+      v[RigPose.led] = 1;
+      return;
+    }
+    u = (u - wind) / (1 - wind);
     final w = math.sin(_tau * u).abs();
     v[RigPose.y] = 0.95 * w * (1 - 0.35 * u);
     v[RigPose.yaw] = 0.2;
@@ -427,19 +460,31 @@ class MicroduckRig {
 
   // -------------------------------------------------------------- dancing
 
-  /// Nine moves of four beats, looping: shuffle, moonwalk, hip twist, pop and
-  /// lock, bounce-jump, spin, side wave, head-bang, sit-down groove. Each new
-  /// move eases in from the one before. Returns the move index for the face.
+  static const List<int> _smalls = [0, 6, 1, 5, 7, 8];
+  static const List<int> _bigs = [3, 2, 4];
+
+  /// Which move plays in [bar] (4 beats each). Phrases are four bars: three
+  /// small moves (shuffle, moonwalk, hip twist, pop and lock, side wave,
+  /// sit-down groove) and then a big one (bounce-jump, spin, head-bang) that
+  /// lands on the phrase boundary.
+  static int moveForBar(int bar) {
+    final phrase = bar >> 2; // arithmetic shift: floors for negative bars too
+    final inPhrase = bar & 3;
+    return inPhrase == 3 ? _bigs[phrase % 3] : _smalls[(phrase * 3 + inPhrase) % _smalls.length];
+  }
+
+  /// Dances: the move changes on bar lines (4 beats) and each new move eases
+  /// in over its first beat and a half. Returns the move index for the face.
   int _dance(RigPose p, double beats, double amp) {
-    const order = [0, 6, 1, 5, 3, 2, 7, 4, 8];
-    final block = beats ~/ 4;
-    final bb = beats - 4 * block;
-    final move = order[block % order.length];
-    _move(move, p, beats, bb, amp);
+    final bar = (beats / 4).floor();
+    final bb = beats - 4 * bar;
+    final move = moveForBar(bar);
+    // The big move closing a phrase is pushed harder.
+    _move(move, p, beats, bb, amp * ((bar & 3) == 3 ? 1.2 : 1.0));
     final w = _smooth(bb / 0.6);
     if (w < 1) {
-      final prev = order[(block + order.length - 1) % order.length];
-      _move(prev, _a, beats, bb + 4, amp);
+      final prev = moveForBar(bar - 1);
+      _move(prev, _a, beats, bb + 4, amp * (((bar - 1) & 3) == 3 ? 1.2 : 1.0));
       // Whole turns are the same pose: take the short way round.
       _a.v[RigPose.yaw] = (_a.v[RigPose.yaw] + math.pi) % _tau - math.pi;
       p.lerpFrom(_a, p, w);
@@ -483,7 +528,8 @@ class MicroduckRig {
         v[RigPose.headRoll] = 0.2 * tw;
       case 2: // spin turn
         final s = _smooth(bb / 2.6);
-        v[RigPose.yaw] = 0.28 + _tau * s;
+        // Wind up the other way first, then whip round.
+        v[RigPose.yaw] = 0.28 + _tau * s - 0.55 * _bump(bb / 0.55);
         final tuck = math.sin(math.pi * math.min(1, bb / 2.6));
         v[RigPose.kneeL] = v[RigPose.kneeR] = 0.3 + 0.35 * tuck;
         v[RigPose.hipL] = v[RigPose.hipR] = 0.15 + 0.2 * tuck;
@@ -494,7 +540,7 @@ class MicroduckRig {
       case 3: // bounce-jump
         final air = math.sin(math.pi * fb);
         final crouch = (1 - air) * (1 - air);
-        v[RigPose.y] = 1.3 * air;
+        v[RigPose.y] = 1.05 * air;
         v[RigPose.kneeL] = v[RigPose.kneeR] = 0.12 + 0.95 * crouch;
         v[RigPose.hipL] = v[RigPose.hipR] = 0.5 * crouch;
         v[RigPose.rollL] = v[RigPose.rollR] = 0.12 + 0.3 * air;
@@ -659,7 +705,7 @@ class MicroduckRig {
     MicroduckPose which,
     RigPose p,
     double t,
-    double beatSeconds,
+    double beats,
     double happy,
     double startle,
     double love,
@@ -678,8 +724,17 @@ class MicroduckRig {
       sx[dHeart] = sy[dHeart] = pulse * _smooth(love * 6) * _smooth((1 - love) * 5);
       return;
     }
+    if (input.thinking) {
+      // A loading wave rolling across the screen.
+      for (var i = 0; i < dBarCount; i++) {
+        final ph = (t * 1.5 - i * 0.14) % 1;
+        sx[dBar0 + i] = 1;
+        sy[dBar0 + i] = 0.14 + 0.5 * _bump(ph * 1.6);
+      }
+      return;
+    }
     if (which == MicroduckPose.dance) {
-      final b = t / beatSeconds;
+      final b = beats;
       for (var i = 0; i < dBarCount; i++) {
         final h = 0.18 + 0.82 * math.sin(_tau * (b * 0.5 + i * 0.19 + move * 0.07)).abs();
         sx[dBar0 + i] = 1;
@@ -703,7 +758,20 @@ class MicroduckRig {
       tall = open * (1 + 0.4 * startle);
     }
     final look = input.lookWeight(t);
-    final shift = (p.v[RigPose.headYaw] * 0.05 + input.lookX * 0.03 * look).clamp(-0.05, 0.05);
+    // The pupils trail the head through their own little spring.
+    final target = (p.v[RigPose.headYaw] * 0.05 + input.lookX * 0.03 * look).clamp(-0.05, 0.05);
+    if (_dt <= 0) {
+      _eyeX = target;
+      _eyeV = 0;
+    } else {
+      final steps = (_dt / 0.01).ceil().clamp(1, 12);
+      final h = _dt / steps;
+      for (var s = 0; s < steps; s++) {
+        _eyeV += (260 * (target - _eyeX) - 20 * _eyeV) * h;
+        _eyeX += _eyeV * h;
+      }
+    }
+    final shift = _eyeX;
     final lookUp = (-p.v[RigPose.headPitch] * 0.03).clamp(-0.03, 0.03);
     for (final d in const [dEyeL, dEyeR]) {
       sx[d] = wide;

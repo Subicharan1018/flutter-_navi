@@ -57,22 +57,35 @@ MicroduckSkin cleanMicroduckSkin(String? name) =>
 /// Midnight to 05:00 local time, when the duck sleeps.
 bool isMicroduckNight(DateTime now) => now.hour < 5;
 
-/// Slowest and fastest tempos the duck will hop to; anything outside is
-/// folded (half/double time) so a 170 bpm track doesn't blur.
-const int _minBpm = 70;
-const int _maxBpm = 150;
-
-/// A hop-friendly tempo from a measured [bpm], or null when unknown.
+/// A believable tempo from a measured [bpm], or null when unknown.
 int? danceBpm(num? bpm) {
   if (bpm == null || bpm < 40 || bpm > 260) return null;
-  var b = bpm.round();
-  while (b > _maxBpm) {
-    b = (b / 2).round();
-  }
-  while (b < _minBpm) {
-    b *= 2;
-  }
-  return b;
+  return bpm.round();
+}
+
+/// Seconds between the beats the robot steps on. Above 150 bpm it dances in
+/// half time (a step every other beat, so 170 bpm does not blur); below 75 it
+/// dances in double time (a step on every half beat, so 60 bpm does not drag).
+double danceBeatSeconds(int bpm) {
+  final beat = 60 / bpm;
+  if (bpm > 150) return beat * 2;
+  if (bpm < 75) return beat / 2;
+  return beat;
+}
+
+/// Where in the song's beat grid [positionSeconds] falls: the number of
+/// stepping beats since the first beat, which sits at [offsetSeconds].
+double danceBeats(double positionSeconds, int bpm, {double offsetSeconds = 0}) =>
+    (positionSeconds - offsetSeconds) / danceBeatSeconds(bpm);
+
+/// Remembers a measured tempo for [songId] in the BPM cache, for the robot
+/// to dance to (and anything else that wants it). Never throws.
+void cacheBpm(String songId, num bpm) {
+  final b = danceBpm(bpm);
+  if (b == null) return;
+  try {
+    if (HiveBoxes.audio.get('bpm_$songId') != b) HiveBoxes.audio.put('bpm_$songId', b);
+  } catch (_) {}
 }
 
 /// The tempo the BPM cache holds for [songId] (see "Cache Tempo" in

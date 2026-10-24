@@ -128,6 +128,9 @@ class SettingsState {
   /// Which robot colours it wears.
   final MicroduckSkin microduckSkin;
 
+  /// Whether Microduck makes the odd remark about the song in a speech bubble.
+  final bool microduckTalks;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
@@ -144,6 +147,7 @@ class SettingsState {
     this.microduckEnabled = true,
     this.microduckName = defaultMicroduckName,
     this.microduckSkin = MicroduckSkin.white,
+    this.microduckTalks = true,
   });
 
   SettingsState copyWith({
@@ -162,6 +166,7 @@ class SettingsState {
     bool? microduckEnabled,
     String? microduckName,
     MicroduckSkin? microduckSkin,
+    bool? microduckTalks,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -180,6 +185,7 @@ class SettingsState {
       microduckEnabled: microduckEnabled ?? this.microduckEnabled,
       microduckName: microduckName ?? this.microduckName,
       microduckSkin: microduckSkin ?? this.microduckSkin,
+      microduckTalks: microduckTalks ?? this.microduckTalks,
     );
   }
 }
@@ -259,6 +265,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       microduckEnabled: p.get(HiveBoxes.kMicroduckEnabled) != false,
       microduckName: cleanMicroduckName(p.get(HiveBoxes.kMicroduckName)?.toString()),
       microduckSkin: cleanMicroduckSkin(p.get(HiveBoxes.kMicroduckSkin)?.toString()),
+      microduckTalks: p.get(HiveBoxes.kMicroduckTalks) != false,
     );
   }
 
@@ -322,6 +329,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final clean = cleanMicroduckName(name);
     state = state.copyWith(microduckName: clean);
     await HiveBoxes.prefs.put(HiveBoxes.kMicroduckName, clean);
+  }
+
+  Future<void> setMicroduckTalks(bool talks) async {
+    state = state.copyWith(microduckTalks: talks);
+    await HiveBoxes.prefs.put(HiveBoxes.kMicroduckTalks, talks);
   }
 
   Future<void> setMicroduckSkin(MicroduckSkin skin) async {

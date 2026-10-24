@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'microduck_mesh.dart';
 import 'microduck_pose.dart';
 import 'microduck_rig.dart';
+import 'microduck_texture.dart';
 
 /// Draws the Microduck robot: a posed triangle mesh, lit per vertex by a key
 /// light and a rim light with a glossy highlight on shiny parts and baked
@@ -33,14 +34,14 @@ class MicroduckPainter extends CustomPainter {
   /// Walks to the right; false walks to the left.
   final bool facingRight;
 
-  const MicroduckPainter({
+  MicroduckPainter({
     required this.pose,
     required this.time,
     required this.input,
     this.skin = MicroduckSkin.white,
     this.bpm = defaultDanceBpm,
     this.facingRight = true,
-  }) : super(repaint: time);
+  }) : super(repaint: Listenable.merge([time, MicroduckTexture.ready]));
 
   /// Below this many logical pixels the bolts, screws and vents are skipped.
   static const double detailMinSize = 48;
@@ -55,7 +56,7 @@ class MicroduckPainter extends CustomPainter {
       s,
       pose,
       time.value,
-      60 / bpm,
+      danceBeatSeconds(bpm),
       danceEnergy(bpm),
       skin,
       input,
@@ -113,6 +114,36 @@ class _Renderer {
 
   int _lastSkinKey = -1;
 
+  ui.ImageShader? _shader;
+  double _shaderUnit = -1;
+
+  /// Points the paint at the grain texture, scaled so a texel is about a
+  /// pixel at this robot size. False while it is not ready yet.
+  bool _useTexture(double unit) {
+    final img = MicroduckTexture.image;
+    if (img == null) {
+      MicroduckTexture.ensure();
+      _paint.shader = null;
+      return false;
+    }
+    if (_shader == null || (unit - _shaderUnit).abs() > unit * 0.03) {
+      _shader?.dispose();
+      // Texture coordinates are 36 per robot unit; image = coordinate * k.
+      final k = unit * MicroduckTexture.texelsPerPixel / MicroduckTexture.meshTexelsPerUnit;
+      final m = 1 / k;
+      _shader = ui.ImageShader(
+        img,
+        TileMode.repeated,
+        TileMode.repeated,
+        Float64List.fromList([m, 0, 0, 0, 0, m, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+        filterQuality: FilterQuality.low,
+      );
+      _shaderUnit = unit;
+    }
+    _paint.shader = _shader;
+    return true;
+  }
+
   void _setSkin(MicroduckSkin skin) {
     if (_lastSkinKey == skin.index) return;
     _lastSkinKey = skin.index;
@@ -139,7 +170,7 @@ class _Renderer {
     _setSkin(skin);
     final rig = input.rig..solve(pose, t, beatSeconds, input, facingRight: facingRight, energy: energy);
     final detail = s >= MicroduckPainter.detailMinSize;
-    final unit = s / 5.7;
+    final unit = s / 6.0;
     final ox = origin.dx + s / 2;
     final oy = origin.dy + s * 0.955;
     final led = rig.pose.v[RigPose.led];
@@ -168,7 +199,8 @@ class _Renderer {
     final pos = _pos, col = _col, depth = _depth;
     final fsx = rig.faceSx, fsy = rig.faceSy, fox = rig.faceOx, foy = rig.faceOy;
     final dcx = mesh.dynCx, dcy = mesh.dynCy;
-    final stretch = 1 + sq, narrow = 1 - 0.45 * sq;
+    // Volume-preserving: taller means thinner by the square root.
+    final stretch = 1 + sq, narrow = 1 / math.sqrt(stretch);
     for (var i = 0; i < _v; i++) {
       final m = mats[matrixId[i]].m;
       var x = px[i], y = py[i];
@@ -204,7 +236,8 @@ class _Renderer {
         final key = math.max(0.0, wnx * _lx + wny * _ly + wnz * _lz);
         final fill = math.max(0.0, wnx * 0.6 - wnz * 0.2 + wny * 0.1) * 0.12;
         final rim = math.max(0.0, wnx * _rx + wny * _ry + wnz * _rz);
-        final k = ((0.34 + 0.12 * wny) + 0.82 * key + fill) * ao;
+        // x1.07: the grain texture averages 0.93 and takes it back down.
+        final k = ((0.34 + 0.12 * wny) + 0.82 * key + fill) * ao * 1.07;
         var add = rim * rim * 40;
         if (slotShiny(sl)) {
           final h = math.max(0.0, wnx * _hx + wny * _hy + wnz * _hz);
@@ -252,13 +285,17 @@ class _Renderer {
       idx[n++] = tris[k * 3 + 2];
     }
     if (n > 0) {
+      final textured = _useTexture(unit);
       final vertices = ui.Vertices.raw(
         ui.VertexMode.triangles,
         pos,
+        textureCoordinates: textured ? mesh.uv : null,
         colors: col,
         indices: Uint16List.sublistView(idx, 0, n),
       );
-      canvas.drawVertices(vertices, BlendMode.src, _paint);
+      // Vertex colours times the surface grain, or the colours alone while
+      // the texture is still being made.
+      canvas.drawVertices(vertices, textured ? BlendMode.modulate : BlendMode.src, _paint);
       vertices.dispose();
     }
 

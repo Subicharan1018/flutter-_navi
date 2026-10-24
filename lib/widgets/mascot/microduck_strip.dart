@@ -6,10 +6,13 @@ import 'package:just_audio/just_audio.dart';
 
 import '../../models/song.dart';
 import '../../player/player_controls.dart';
+import '../../providers/catalog_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/settings_provider.dart';
 import 'microduck.dart';
+import 'microduck_chat.dart';
 import 'microduck_pose.dart';
+import 'microduck_talk.dart';
 
 /// The Microduck robot standing at [progress] (0..1) along a line. Shows
 /// nothing when the mascot is switched off in Settings.
@@ -49,6 +52,12 @@ class MicroduckStrip extends ConsumerStatefulWidget {
   final bool sitWhenPaused;
   final Object? startleToken;
   final bool love;
+
+  /// See [Microduck.positionSource], [Microduck.beatOffset] and
+  /// [Microduck.onTap].
+  final Duration Function()? positionSource;
+  final double beatOffset;
+  final VoidCallback? onTap;
   final Color? trackColor;
 
   const MicroduckStrip({
@@ -65,6 +74,9 @@ class MicroduckStrip extends ConsumerStatefulWidget {
     this.sitWhenPaused = false,
     this.startleToken,
     this.love = false,
+    this.positionSource,
+    this.beatOffset = 0,
+    this.onTap,
     this.trackColor,
   });
 
@@ -183,6 +195,9 @@ class _MicroduckStripState extends ConsumerState<MicroduckStrip> {
                   interactive: widget.interactive,
                   startleToken: widget.startleToken,
                   love: widget.love,
+                  positionSource: widget.positionSource,
+                  beatOffset: widget.beatOffset,
+                  onTap: widget.onTap,
                 ),
               ),
             ],
@@ -197,13 +212,18 @@ class _MicroduckStripState extends ConsumerState<MicroduckStrip> {
 /// it plays, sits when paused, runs to a sought position, jumps when the song
 /// is skipped and shows a heart when the song is liked. Used by the mini
 /// player and Now Playing.
-class PlayerMicroduckStrip extends ConsumerWidget {
+///
+/// With [full] it also dances exactly on the song's beat (tempo from the
+/// catalog, else the tempo cache; position from the player), opens the chat
+/// when tapped, and now and then says something about the song in a small
+/// bubble (if "Microduck talks" is on).
+class PlayerMicroduckStrip extends ConsumerStatefulWidget {
   final AudioPlayer player;
   final Song song;
   final double height;
 
-  /// Now Playing: dance to the song's cached tempo, nap at night, react to
-  /// taps. The mini player passes false and just walks.
+  /// Now Playing: dance to the song's tempo, nap at night, react to taps,
+  /// talk. The mini player passes false and just walks.
   final bool full;
 
   const PlayerMicroduckStrip({
@@ -215,29 +235,161 @@ class PlayerMicroduckStrip extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<PlayerMicroduckStrip> createState() => _PlayerMicroduckStripState();
+}
+
+class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
+  /// One remark at a time, and not too often across songs.
+  static DateTime _lastSpoke = DateTime.fromMillisecondsSinceEpoch(0);
+  static const _cooldown = Duration(minutes: 2);
+
+  String? _bubble;
+  String _bubbleFor = '';
+  Timer? _speakTimer, _hideTimer;
+
+  @override
+  void initState() {
+    super.initState();
+    _scheduleRemark();
+  }
+
+  @override
+  void didUpdateWidget(PlayerMicroduckStrip old) {
+    super.didUpdateWidget(old);
+    if (old.song.id != widget.song.id) {
+      _hide();
+      _scheduleRemark();
+    }
+  }
+
+  @override
+  void dispose() {
+    _speakTimer?.cancel();
+    _hideTimer?.cancel();
+    super.dispose();
+  }
+
+  MicroduckFacts _facts() {
+    final song = widget.song;
+    final catalog = ref.read(catalogSongProvider(song.id));
+    return MicroduckFacts(
+      songId: song.id,
+      title: song.title,
+      composer: song.composer,
+      film: catalog?.film,
+      year: song.year,
+      playCount: song.playCount,
+      starred: song.starred,
+      bpm: danceBpm(catalog?.bpm) ?? cachedBpm(song.id),
+    );
+  }
+
+  void _scheduleRemark() {
+    _speakTimer?.cancel();
+    final now = DateTime.now();
+    if (!widget.full || !microduckFeelsChatty(widget.song.id, now)) return;
+    _speakTimer = Timer(const Duration(seconds: 9), () {
+      if (!mounted || !ref.read(settingsProvider).microduckTalks) return;
+      final playing = ref.read(playerProvider).isPlaying;
+      final at = DateTime.now();
+      if (!playing || at.difference(_lastSpoke) < _cooldown) return;
+      final line = microduckComment(_facts(), at);
+      if (line == null) return;
+      _lastSpoke = at;
+      setState(() {
+        _bubble = line;
+        _bubbleFor = widget.song.id;
+      });
+      _hideTimer?.cancel();
+      _hideTimer = Timer(const Duration(seconds: 6), _hide);
+    });
+  }
+
+  void _hide() {
+    _hideTimer?.cancel();
+    if (mounted && _bubble != null) setState(() => _bubble = null);
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final enabled = ref.watch(settingsProvider.select((s) => s.microduckEnabled));
     if (!enabled) return const SizedBox.shrink();
     final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
+    final song = widget.song;
+    final full = widget.full;
     final total = song.duration * 1000;
-    final bpm = full ? cachedBpm(song.id) : null;
+    final catalog = full ? ref.watch(catalogSongProvider(song.id)) : null;
+    final bpm = full ? (danceBpm(catalog?.bpm) ?? cachedBpm(song.id)) : null;
     return PlaybackPosition(
-      player: player,
+      player: widget.player,
       songId: song.id,
       resolution: const Duration(milliseconds: 500),
-      builder: (context, pos) => MicroduckStrip(
-        progress: total > 0 ? pos.inMilliseconds / total : 0,
-        playing: playing,
-        bpm: bpm,
-        danceOnBeat: full,
-        sleepsAtNight: full,
-        interactive: full,
-        sitWhenPaused: !full,
-        enter: true,
-        startleToken: song.id,
-        love: song.starred,
-        showTrack: false,
-        height: height,
+      builder: (context, pos) {
+        final progress = total > 0 ? pos.inMilliseconds / total : 0.0;
+        final strip = MicroduckStrip(
+          progress: progress,
+          playing: playing,
+          bpm: bpm,
+          danceOnBeat: full,
+          sleepsAtNight: full,
+          interactive: full,
+          sitWhenPaused: !full,
+          enter: true,
+          startleToken: song.id,
+          love: song.starred,
+          showTrack: false,
+          height: widget.height,
+          positionSource: full ? () => widget.player.position : null,
+          beatOffset: catalog?.beatOffset ?? 0,
+          onTap: full ? () => showMicroduckChat(context) : null,
+        );
+        final bubble = _bubble;
+        if (bubble == null || _bubbleFor != song.id) return strip;
+        // The bubble sits on the free side of the robot, above its head
+        // level, so it never reaches the controls below.
+        return Stack(
+          clipBehavior: Clip.none,
+          children: [
+            strip,
+            Positioned(
+              top: 0,
+              left: progress > 0.5 ? 0 : null,
+              right: progress > 0.5 ? null : 0,
+              child: _SpeechBubble(text: bubble, onDismiss: _hide),
+            ),
+          ],
+        );
+      },
+    );
+  }
+}
+
+/// A small dismissible speech bubble.
+class _SpeechBubble extends StatelessWidget {
+  final String text;
+  final VoidCallback onDismiss;
+  const _SpeechBubble({required this.text, required this.onDismiss});
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: onDismiss,
+      child: Semantics(
+        label: text,
+        child: Container(
+          constraints: BoxConstraints(maxWidth: MediaQuery.sizeOf(context).width * 0.5),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+          ),
+          child: Text(
+            text,
+            maxLines: 3,
+            overflow: TextOverflow.ellipsis,
+            style: const TextStyle(color: Colors.black, fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.25),
+          ),
+        ),
       ),
     );
   }
