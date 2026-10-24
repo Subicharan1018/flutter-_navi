@@ -15,6 +15,7 @@ import '../player/now_playing_style.dart';
 import '../player/player_controls.dart';
 import '../player/queue_pane.dart';
 import '../player/sleep_timer.dart';
+import '../player/playback_tuning_tiles.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/platform_utils.dart';
@@ -669,6 +670,8 @@ void _showMore(BuildContext context, Song song) {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
+          const PlaybackSpeedTile(),
+          const EqualizerTile(),
           const SleepTimerTile(),
           OptionsMenu(song: song),
         ],

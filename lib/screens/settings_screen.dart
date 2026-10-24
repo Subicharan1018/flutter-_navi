@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:file_picker/file_picker.dart';
 import '../providers/settings_provider.dart';
 import '../providers/player_provider.dart';
+import '../services/playback_tuning.dart';
 import '../services/subsonic_service.dart';
 
 import '../services/transcoding_service.dart';
@@ -278,6 +279,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   onChanged: (v) {
                     ref.read(settingsProvider.notifier).setFluidBgEnabled(v);
                   },
+                ),
+              ],
+            ),
+            SizedBox(height: 32),
+
+            _SettingsGroup(
+              title: 'Playback',
+              children: [
+                _ReplayGainRow(
+                  mode: settings.replayGainMode,
+                  onChanged: (m) => ref
+                      .read(settingsProvider.notifier)
+                      .setReplayGainMode(m),
+                ),
+                _SettingsDivider(),
+                _CrossfadeRow(
+                  seconds: settings.crossfadeSeconds,
+                  onChanged: (s) => ref
+                      .read(settingsProvider.notifier)
+                      .setCrossfadeSeconds(s),
                 ),
               ],
             ),
@@ -1016,6 +1037,101 @@ class _SettingsInputRow extends StatelessWidget {
                 onPressed: onToggleObscure,
               ),
             ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReplayGainRow extends StatelessWidget {
+  final ReplayGainMode mode;
+  final ValueChanged<ReplayGainMode> onChanged;
+  const _ReplayGainRow({required this.mode, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text('Volume normalisation',
+              style: TextStyle(color: tokens.textPrimary, fontSize: 15)),
+          const SizedBox(height: 2),
+          Text(
+            'Evens out loudness using ReplayGain tags. Quiet tracks are never boosted past full volume.',
+            style: TextStyle(color: tokens.textMuted, fontSize: 12),
+          ),
+          const SizedBox(height: 10),
+          SizedBox(
+            width: double.infinity,
+            child: CupertinoSlidingSegmentedControl<ReplayGainMode>(
+              groupValue: mode,
+              thumbColor: tokens.accent,
+              children: {
+                for (final entry in const {
+                  ReplayGainMode.off: 'Off',
+                  ReplayGainMode.track: 'Track',
+                  ReplayGainMode.album: 'Album',
+                }.entries)
+                  entry.key: Text(
+                    entry.value,
+                    style: TextStyle(
+                      color: entry.key == mode
+                          ? tokens.onAccent
+                          : tokens.textPrimary,
+                      fontSize: 13,
+                    ),
+                  ),
+              },
+              onValueChanged: (m) {
+                if (m != null) onChanged(m);
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _CrossfadeRow extends StatelessWidget {
+  final int seconds;
+  final ValueChanged<int> onChanged;
+  const _CrossfadeRow({required this.seconds, required this.onChanged});
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 12, 16, 4),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text('Crossfade',
+                    style: TextStyle(color: tokens.textPrimary, fontSize: 15)),
+              ),
+              Text(seconds == 0 ? 'Off' : '$seconds s',
+                  style: TextStyle(color: tokens.textSecondary, fontSize: 15)),
+            ],
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Fades out the end of a song and eases the next one in. Albums that play in order stay gapless.',
+            style: TextStyle(color: tokens.textMuted, fontSize: 12),
+          ),
+          Slider(
+            value: seconds.toDouble(),
+            min: 0,
+            max: kMaxCrossfadeSeconds.toDouble(),
+            divisions: kMaxCrossfadeSeconds,
+            activeColor: tokens.accent,
+            onChanged: (v) => onChanged(v.round()),
+          ),
         ],
       ),
     );

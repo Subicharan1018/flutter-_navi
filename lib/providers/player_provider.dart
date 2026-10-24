@@ -2404,5 +2404,16 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
   final handler = ref.watch(audioHandlerProvider);
   final service = ref.watch(subsonicServiceProvider);
   final collector = ref.watch(listenerCollectorProvider);
+  ref.listen(
+    settingsProvider.select(
+      (s) => (s.replayGainMode, s.crossfadeSeconds, s.playbackSpeed),
+    ),
+    (_, t) => handler.configureTuning(
+      replayGainMode: t.$1,
+      crossfadeSeconds: t.$2,
+      speed: t.$3,
+    ),
+    fireImmediately: true,
+  );
   return PlayerNotifier(ref, handler, service, collector);
 });

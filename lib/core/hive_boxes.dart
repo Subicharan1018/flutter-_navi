@@ -97,6 +97,11 @@ class HiveBoxes {
   static const kRecommendationsEnabled = 'recommendations_enabled';
   static const kAllowHttp = 'allow_http';
   static const kFluidBgEnabled = 'fluid_bg_enabled';
+  static const kReplayGainMode = 'replay_gain_mode';
+  static const kCrossfadeSeconds = 'crossfade_seconds';
+  static const kPlaybackSpeed = 'playback_speed';
+  static const kEqualizerEnabled = 'equalizer_enabled';
+  static const kEqualizerGains = 'equalizer_gains';
 
   // ---------------------------------------------------------------------------
   // Audio keys

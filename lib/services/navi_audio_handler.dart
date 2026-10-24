@@ -14,6 +14,8 @@ import 'cache_settings_service.dart';
 import '../providers/settings_provider.dart';
 import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
+import 'playback_tuning.dart';
+import '../core/hive_boxes.dart';
 
 // ---------------------------------------------------------------------------
 // AudioHandler
@@ -65,13 +67,46 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Timer to detect stuck playback in loading or buffering state.
   Timer? _stuckTimer;
 
+  /// Android system equalizer, or null on other platforms (and when a test
+  /// injects its own [AudioPlayer]).
+  final AndroidEqualizer? equalizer;
+
+  // ── ReplayGain / crossfade / speed ──────────────────────────────────────────
+  ReplayGainMode _replayGainMode = ReplayGainMode.off;
+  int _fadeSeconds = 0;
+  double _replayVolume = 1.0;
+  double _fadeFactor = 1.0;
+  bool _fadeInActive = false;
+  double _speed = 1.0;
+  double _appliedSpeed = 1.0;
+  double _appliedVolume = 1.0;
+  Song? _tunedSong;
+  StreamSubscription<Duration>? _fadeSub;
+
   NaviAudioHandler(
-    this.subsonicService, {
+    SubsonicService subsonicService, {
     AudioPlayer? player,
     TranscodingService? transcodingService,
-  }) : player =
+  }) : this._(
+         subsonicService,
+         player,
+         transcodingService,
+         player == null && !kIsWeb && Platform.isAndroid
+             ? AndroidEqualizer()
+             : null,
+       );
+
+  NaviAudioHandler._(
+    this.subsonicService,
+    AudioPlayer? player,
+    TranscodingService? transcodingService,
+    this.equalizer,
+  ) : player =
            player ??
            AudioPlayer(
+             audioPipeline: equalizer == null
+                 ? null
+                 : AudioPipeline(androidAudioEffects: [equalizer]),
              // Lossless over a shared home uplink: read far ahead (up to 2 min,
              // ~15–20 MB of FLAC) so short congestion never reaches the ears.
              // Time wins over ExoPlayer's default byte cap, which would
@@ -91,6 +126,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
            ),
        _transcodingService = transcodingService ?? TranscodingService() {
     _listenToPlayerEvents();
+    _subscriptions.add(mediaItem.listen(_onMediaItemChanged));
 
     _subscriptions.add(this.player.currentIndexStream.listen((index) {
       // On desktop we manage index ourselves — ignore just_audio's index stream
@@ -394,7 +430,151 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _offlinePathsCache = null;
     _offlinePathsQueueLength = 0;
     await _rebuildSource(startIndex);
-    player.setVolume(1.0);
+    _applyVolume();
+  }
+
+  // ---------------------------------------------------------------------------
+  // ReplayGain, crossfade, speed
+  // ---------------------------------------------------------------------------
+
+  /// Applies the user's playback-tuning settings. Safe to call repeatedly.
+  void configureTuning({
+    required ReplayGainMode replayGainMode,
+    required int crossfadeSeconds,
+    required double speed,
+  }) {
+    _replayGainMode = replayGainMode;
+    _fadeSeconds = clampCrossfadeSeconds(crossfadeSeconds);
+    _refreshReplayVolume();
+    if (_fadeSeconds > 0) {
+      _fadeSub ??= player
+          .createPositionStream(
+            minPeriod: const Duration(milliseconds: 60),
+            maxPeriod: const Duration(milliseconds: 120),
+          )
+          .listen(_onFadeTick);
+    } else {
+      unawaited(_fadeSub?.cancel());
+      _fadeSub = null;
+      _fadeFactor = 1.0;
+      _fadeInActive = false;
+    }
+    _applyVolume();
+    _speed = clampPlaybackSpeed(speed);
+    _pushSpeed();
+  }
+
+  void _pushSpeed({bool force = false}) {
+    if (!force && _speed == _appliedSpeed) return;
+    _appliedSpeed = _speed;
+    try {
+      unawaited(
+        Future<void>.value(player.setSpeed(_speed)).catchError((Object e) {
+          debugPrint('⚠️ [NaviAudioHandler] setSpeed failed: $e');
+        }),
+      );
+    } catch (e) {
+      debugPrint('⚠️ [NaviAudioHandler] setSpeed failed: $e');
+    }
+  }
+
+  bool _equalizerRestored = false;
+
+  /// Re-applies the saved equalizer on/off state and band gains. The native
+  /// effect only exists once audio has loaded, so this runs on the first track.
+  Future<void> _restoreEqualizer() async {
+    final eq = equalizer;
+    if (eq == null || _equalizerRestored) return;
+    _equalizerRestored = true;
+    try {
+      final prefs = HiveBoxes.prefs;
+      await eq.setEnabled(prefs.get(HiveBoxes.kEqualizerEnabled) == true);
+      final saved = prefs.get(HiveBoxes.kEqualizerGains);
+      if (saved is List) {
+        final bands = (await eq.parameters).bands;
+        for (var i = 0; i < bands.length && i < saved.length; i++) {
+          final g = saved[i];
+          if (g is num) await bands[i].setGain(g.toDouble());
+        }
+      }
+    } catch (e) {
+      debugPrint('⚠️ [NaviAudioHandler] Equalizer restore failed: $e');
+    }
+  }
+
+  void _onMediaItemChanged(MediaItem? item) {
+    if (item == null) return;
+    unawaited(_restoreEqualizer());
+    final index = _currentGlobalIndex();
+    Song? song;
+    if (index != null && index < _currentQueue.length) {
+      final candidate = _currentQueue[index];
+      if (candidate.id == item.id) song = candidate;
+    }
+    song ??= _currentQueue.where((s) => s.id == item.id).firstOrNull;
+    if (identical(song, _tunedSong)) return;
+    // Arriving mid fade-out means this is a natural transition: ease in.
+    _fadeInActive = _fadeSeconds > 0 && _fadeFactor < 0.999;
+    _tunedSong = song;
+    _refreshReplayVolume();
+    _applyVolume();
+    // Some backends reset the rate when a new source loads.
+    if (_speed != 1.0) _pushSpeed(force: true);
+  }
+
+  void _refreshReplayVolume() {
+    final song = _tunedSong;
+    _replayVolume = song == null
+        ? 1.0
+        : replayGainVolume(song, _replayGainMode);
+  }
+
+  int? _currentGlobalIndex() {
+    if (_isDesktopBridge) return _desktopIndex;
+    final i = player.currentIndex;
+    return i == null ? null : _playlistOffset + i;
+  }
+
+  Song? _nextSong() {
+    final index = _currentGlobalIndex();
+    if (index == null || _currentQueue.isEmpty) return null;
+    if (player.loopMode == LoopMode.one) return null;
+    final next = index + 1;
+    if (next < _currentQueue.length) return _currentQueue[next];
+    return player.loopMode == LoopMode.all ? _currentQueue.first : null;
+  }
+
+  void _onFadeTick(Duration position) {
+    final song = _tunedSong;
+    if (song == null || _fadeSeconds <= 0) return;
+    final durationMs =
+        player.duration?.inMilliseconds ?? song.duration * 1000;
+    final fadeOut = shouldCrossfade(
+      fadeSeconds: _fadeSeconds,
+      current: song,
+      next: _nextSong(),
+    );
+    final factor = crossfadeGain(
+      positionMs: position.inMilliseconds,
+      durationMs: durationMs,
+      fadeSeconds: _fadeSeconds,
+      fadeOut: fadeOut,
+      fadeIn: _fadeInActive,
+    );
+    if ((factor - _fadeFactor).abs() < 0.005) return;
+    _fadeFactor = factor;
+    _applyVolume();
+  }
+
+  void _applyVolume() {
+    final v = (_replayVolume * _fadeFactor).clamp(0.0, 1.0).toDouble();
+    if ((_appliedVolume - v).abs() < 0.001) return;
+    _appliedVolume = v;
+    try {
+      unawaited(Future<void>.value(player.setVolume(v)).catchError((_) {}));
+    } catch (e) {
+      debugPrint('⚠️ [NaviAudioHandler] setVolume failed: $e');
+    }
   }
 
   /// Updates the queue dynamically while keeping the currently playing track playing
@@ -1396,6 +1576,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> dispose() async {
     _stuckTimer?.cancel();
     _stuckTimer = null;
+    await _fadeSub?.cancel();
+    _fadeSub = null;
     for (final s in _subscriptions) {
       await s.cancel();
     }

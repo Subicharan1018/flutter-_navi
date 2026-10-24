@@ -19,6 +19,13 @@ class Song {
   final String contentType; // e.g. 'audio/flac', 'audio/mpeg'
   final String suffix; // e.g. 'flac', 'mp3', 'opus'
 
+  // ReplayGain (Subsonic `replayGain` object): gains in dB, peaks as linear
+  // sample values (1.0 = full scale). Null when the file carries no tag.
+  final double? trackGain;
+  final double? albumGain;
+  final double? trackPeak;
+  final double? albumPeak;
+
   // Local weight for smart shuffle algorithms — immutable, updated via copyWith.
   final double dynamicWeight;
 
@@ -40,12 +47,22 @@ class Song {
     this.bitRate = 0,
     this.contentType = '',
     this.suffix = '',
+    this.trackGain,
+    this.albumGain,
+    this.trackPeak,
+    this.albumPeak,
     this.dynamicWeight = 1.0,
   });
+
+  static double? _asDouble(Object? v) =>
+      v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
 
   factory Song.fromJson(Map<String, dynamic> json) {
     final rawId = json['id']?.toString() ?? '';
     final rawCover = json['coverArt']?.toString() ?? '';
+    final rg = json['replayGain'] is Map
+        ? Map<String, dynamic>.from(json['replayGain'] as Map)
+        : const <String, dynamic>{};
 
     return Song(
       id: rawId,
@@ -84,6 +101,10 @@ class Song {
           : int.tryParse(json['bitRate']?.toString() ?? '') ?? 0,
       contentType: json['contentType']?.toString() ?? '',
       suffix: json['suffix']?.toString() ?? '',
+      trackGain: _asDouble(rg['trackGain']),
+      albumGain: _asDouble(rg['albumGain']),
+      trackPeak: _asDouble(rg['trackPeak']),
+      albumPeak: _asDouble(rg['albumPeak']),
     );
   }
 
@@ -108,6 +129,16 @@ class Song {
       'bitRate': bitRate,
       'contentType': contentType,
       'suffix': suffix,
+      if (trackGain != null ||
+          albumGain != null ||
+          trackPeak != null ||
+          albumPeak != null)
+        'replayGain': {
+          if (trackGain != null) 'trackGain': trackGain,
+          if (albumGain != null) 'albumGain': albumGain,
+          if (trackPeak != null) 'trackPeak': trackPeak,
+          if (albumPeak != null) 'albumPeak': albumPeak,
+        },
     };
   }
 
@@ -141,6 +172,10 @@ class Song {
       bitRate: bitRate ?? this.bitRate,
       contentType: contentType ?? this.contentType,
       suffix: suffix ?? this.suffix,
+      trackGain: trackGain,
+      albumGain: albumGain,
+      trackPeak: trackPeak,
+      albumPeak: albumPeak,
       dynamicWeight: dynamicWeight ?? this.dynamicWeight,
     );
   }
@@ -173,7 +208,9 @@ class Song {
           created == other.created &&
           bitRate == other.bitRate &&
           contentType == other.contentType &&
-          suffix == other.suffix;
+          suffix == other.suffix &&
+          trackGain == other.trackGain &&
+          albumGain == other.albumGain;
 
   @override
   int get hashCode => Object.hash(
@@ -194,5 +231,7 @@ class Song {
     bitRate,
     contentType,
     suffix,
+    trackGain,
+    albumGain,
   );
 }
