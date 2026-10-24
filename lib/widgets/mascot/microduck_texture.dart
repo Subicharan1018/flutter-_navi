@@ -5,23 +5,19 @@ import 'dart:ui' as ui;
 import 'package:flutter/foundation.dart';
 
 /// The robot's surface texture: a small tiling greyscale image of moulded
-/// plastic grain, faint brushed streaks, hairline scratches and a few specks,
-/// multiplied over the lit vertex colours. Generated once in code (no asset),
-/// the first time a robot paints; until it is ready robots draw plain.
+/// plastic that is multiplied over the lit vertex colours. It holds fine
+/// injection-moulding grain, faint 3D-print layer lines (level, running along
+/// the model's height), brushed streaks, hairline scratches and specks of
+/// wear. Generated once in code (no asset), the first time a robot paints;
+/// until it is ready robots draw plain.
 ///
 /// Its average brightness is about 0.93, so the renderer lights a touch
-/// brighter to compensate; on the glowing screen it reads as a pixel grain.
+/// brighter to compensate. Mip-mapped sampling averages it away when the
+/// robot is small, so only large robots show the layer lines.
 class MicroduckTexture {
   MicroduckTexture._();
 
-  static const int size = 128;
-
-  /// Texture coordinates the mesh assigns per robot unit.
-  static const double meshTexelsPerUnit = 36;
-
-  /// Texels per screen pixel to aim for: fine enough to read as grain, coarse
-  /// enough not to shimmer.
-  static const double texelsPerPixel = 1.2;
+  static const int size = 256;
 
   static ui.Image? image;
   static final ValueNotifier<bool> ready = ValueNotifier(false);
@@ -43,7 +39,7 @@ class MicroduckTexture {
     final rnd = math.Random(7);
     final v = Float64List(size * size);
 
-    // Wrap-around value noise at two scales, so the tile has no seams.
+    // Wrap-around value noise, so the tile has no seams.
     double lattice(int cells, Float64List grid, double x, double y) {
       final fx = x / size * cells, fy = y / size * cells;
       final x0 = fx.floor(), y0 = fy.floor();
@@ -56,24 +52,30 @@ class MicroduckTexture {
     }
 
     Float64List grid(int cells) => Float64List.fromList([for (var i = 0; i < cells * cells; i++) rnd.nextDouble() - 0.5]);
-    final coarse = grid(6), fine = grid(32);
+    final coarse = grid(8), fine = grid(64), speckle = grid(128);
     final streak = Float64List.fromList([for (var i = 0; i < size; i++) rnd.nextDouble() - 0.5]);
+    final layer = Float64List.fromList([for (var i = 0; i < size; i++) rnd.nextDouble()]);
 
     for (var y = 0; y < size; y++) {
+      // Print layers: a groove every 4 texels, each a little different.
+      final phase = (y % 4) / 4.0;
+      final groove = (phase < 0.5 ? math.sin(phase * 2 * math.pi) : 0.0) * (0.022 + 0.018 * layer[y]);
       for (var x = 0; x < size; x++) {
-        var p = 0.93;
-        p += 0.035 * lattice(6, coarse, x.toDouble(), y.toDouble());
-        p += 0.06 * lattice(32, fine, x.toDouble(), y.toDouble());
-        p += 0.025 * streak[y]; // brushed, along x
+        var p = 0.935;
+        p += 0.035 * lattice(8, coarse, x.toDouble(), y.toDouble());
+        p += 0.05 * lattice(64, fine, x.toDouble(), y.toDouble());
+        p += 0.03 * lattice(128, speckle, x.toDouble(), y.toDouble());
+        p += 0.02 * streak[y]; // brushed, along x
+        p -= groove;
         v[y * size + x] = p;
       }
     }
     // Hairline scratches, wrapped around the tile.
-    for (var n = 0; n < 16; n++) {
+    for (var n = 0; n < 44; n++) {
       var x = rnd.nextDouble() * size, y = rnd.nextDouble() * size;
       final a = rnd.nextDouble() * math.pi;
-      final len = 8 + rnd.nextInt(22);
-      final depth = 0.04 + rnd.nextDouble() * 0.05;
+      final len = 10 + rnd.nextInt(34);
+      final depth = 0.035 + rnd.nextDouble() * 0.05;
       for (var i = 0; i < len; i++) {
         final ix = x.floor() % size, iy = y.floor() % size;
         v[iy * size + ix] -= depth;
@@ -81,9 +83,17 @@ class MicroduckTexture {
         y += math.sin(a);
       }
     }
-    // Specks of wear.
-    for (var n = 0; n < 60; n++) {
-      v[rnd.nextInt(size * size)] += rnd.nextBool() ? 0.07 : -0.1;
+    // Scuffs: small clusters of lighter, chipped specks.
+    for (var n = 0; n < 26; n++) {
+      final cx = rnd.nextInt(size), cy = rnd.nextInt(size);
+      for (var i = 0; i < 9; i++) {
+        final ix = (cx + rnd.nextInt(7) - 3) % size, iy = (cy + rnd.nextInt(7) - 3) % size;
+        v[iy * size + ix] += 0.05;
+      }
+    }
+    // Specks of dirt.
+    for (var n = 0; n < 160; n++) {
+      v[rnd.nextInt(size * size)] -= 0.08;
     }
 
     final out = Uint8List(size * size * 4);

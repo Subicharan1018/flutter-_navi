@@ -23,7 +23,8 @@ class _Cell {
 
   /// Extra drawing over the cell (beat ticks and the like).
   final void Function(Canvas, double size)? overlay;
-  const _Cell(this.pose, this.t, {this.skin = MicroduckSkin.white, this.setup, this.overlay});
+  final bool facingRight;
+  const _Cell(this.pose, this.t, {this.skin = MicroduckSkin.white, this.setup, this.overlay, this.facingRight = true});
 }
 
 Future<void> _sheet(WidgetTester tester, String name, List<_Cell> cells, {int columns = 4, double cell = 240, int bpm = 120}) async {
@@ -53,6 +54,7 @@ Future<void> _sheet(WidgetTester tester, String name, List<_Cell> cells, {int co
       input: input,
       skin: c.skin,
       bpm: bpm,
+      facingRight: c.facingRight,
     ).paint(canvas, Size(cell, cell));
     c.overlay?.call(canvas, cell);
     canvas.restore();
@@ -168,12 +170,23 @@ void main() {
   });
 
   testWidgets('detail close-ups', (tester) async {
+    // 512 px: the front, the back (mid-spin, to see the printed label), the
+    // side with the NV decal, and the grey one dancing. The largest tier of
+    // geometry is in use here.
+    final spinPos = 29.2 * 0.5; // bar 7 is the spin; 29.2 beats at 120 bpm
     await _sheet(tester, 'detail', [
       const _Cell(MicroduckPose.idle, 0.4),
+      _Cell(MicroduckPose.dance, spinPos, setup: (i) => i.audioPos = spinPos),
+      const _Cell(MicroduckPose.walk, 0.1, facingRight: false),
+      _Cell(MicroduckPose.dance, 6.5, skin: MicroduckSkin.grey, setup: (i) => i.audioPos = 6.5),
+    ], columns: 2, cell: 512);
+  });
+
+  testWidgets('detail close-up of the head and screen', (tester) async {
+    await _sheet(tester, 'detail_loved', [
       _Cell(MicroduckPose.idle, 10.8, setup: (i) => i.loveAt = 10),
-      const _Cell(MicroduckPose.dance, 0.9, skin: MicroduckSkin.grey),
-      const _Cell(MicroduckPose.walk, 0.1, skin: MicroduckSkin.grey),
-    ], columns: 2, cell: 600);
+      const _Cell(MicroduckPose.idle, 2.0),
+    ], columns: 2, cell: 512);
   });
 
   test('every pose is finite across a minute', () {
@@ -199,7 +212,7 @@ void main() {
       bpm: 120,
     );
     final time = painter.time as ValueNotifier<double>;
-    for (final size in [36.0, 88.0, 140.0]) {
+    for (final size in [36.0, 88.0, 140.0, 512.0]) {
       final sw = Stopwatch()..start();
       const frames = 300;
       for (var f = 0; f < frames; f++) {
@@ -210,7 +223,8 @@ void main() {
       }
       final ms = sw.elapsedMicroseconds / 1000 / frames;
       // ignore: avoid_print
-      print('microduck frame at ${size.toInt()}px: ${ms.toStringAsFixed(2)} ms (JIT, host CPU)');
+      print('microduck frame at ${size.toInt()}px (detail level ${meshLevel(size)}): '
+          '${ms.toStringAsFixed(2)} ms (JIT, host CPU)');
       expect(ms, lessThan(8), reason: 'a frame must fit comfortably in 16 ms on a phone');
     }
   });

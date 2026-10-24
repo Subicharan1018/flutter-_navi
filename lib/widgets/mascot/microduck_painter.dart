@@ -11,13 +11,17 @@ import 'microduck_rig.dart';
 import 'microduck_texture.dart';
 
 /// Draws the Microduck robot: a posed triangle mesh, lit per vertex by a key
-/// light and a rim light with a glossy highlight on shiny parts and baked
-/// ambient occlusion, depth-sorted back to front and sent to
-/// `Canvas.drawVertices` in a single call, with a soft contact shadow.
+/// light and a rim light with materials (a glossy helmet with a sharp
+/// highlight and a soft environment band, satin panels, brushed metal, dark
+/// rubber), baked ambient occlusion and edge wear, multiplied by a surface
+/// texture, depth-sorted back to front and sent to `Canvas.drawVertices` in a
+/// single call, with a contact shadow and a bloom around the LED.
+///
+/// Detail follows the size on screen ([meshLevel]): tiny robots skip bolts and
+/// screws, large ones swap in higher-polygon parts.
 ///
 /// Everything it touches each frame (buffers, the depth order) is allocated
 /// once and shared by every robot on screen, since painting is synchronous.
-/// Robots smaller than [detailMinSize] skip the fine-detail triangles.
 class MicroduckPainter extends CustomPainter {
   final MicroduckPose pose;
 
@@ -42,9 +46,6 @@ class MicroduckPainter extends CustomPainter {
     this.bpm = defaultDanceBpm,
     this.facingRight = true,
   }) : super(repaint: Listenable.merge([time, MicroduckTexture.ready]));
-
-  /// Below this many logical pixels the bolts, screws and vents are skipped.
-  static const double detailMinSize = 48;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -92,10 +93,15 @@ class _Renderer {
   final Float64List _baseR = Float64List(kSlotCount);
   final Float64List _baseG = Float64List(kSlotCount);
   final Float64List _baseB = Float64List(kSlotCount);
+  final Float64List _spec = Float64List(kSlotCount);
+  final Float64List _power = Float64List(kSlotCount);
+  final Float64List _env = Float64List(kSlotCount);
 
   final Paint _paint = Paint();
   final Paint _shadow = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
   final Paint _core = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
+  final Paint _glow = Paint()..blendMode = BlendMode.plus;
+  double _glowUnit = -1;
   final Paint _zPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round
@@ -109,37 +115,31 @@ class _Renderer {
   static final double _rx = 0.7 / _rlen, _ry = 0.25 / _rlen, _rz = -0.65 / _rlen;
   static const double _elev = 0.22; // camera looks down a little
   static final double _ce = math.cos(_elev), _se = math.sin(_elev);
+  // The direction to the camera is (0, sin e, cos e).
   static final double _hlen = math.sqrt(_lx * _lx + (_ly + _se) * (_ly + _se) + (_lz + _ce) * (_lz + _ce));
   static final double _hx = _lx / _hlen, _hy = (_ly + _se) / _hlen, _hz = (_lz + _ce) / _hlen;
 
   int _lastSkinKey = -1;
 
   ui.ImageShader? _shader;
-  double _shaderUnit = -1;
 
-  /// Points the paint at the grain texture, scaled so a texel is about a
-  /// pixel at this robot size. False while it is not ready yet.
-  bool _useTexture(double unit) {
+  /// Points the paint at the surface texture (with mip-mapping, so it
+  /// averages out smoothly when the robot is small). False while the texture
+  /// is still being made.
+  bool _useTexture() {
     final img = MicroduckTexture.image;
     if (img == null) {
       MicroduckTexture.ensure();
       _paint.shader = null;
       return false;
     }
-    if (_shader == null || (unit - _shaderUnit).abs() > unit * 0.03) {
-      _shader?.dispose();
-      // Texture coordinates are 36 per robot unit; image = coordinate * k.
-      final k = unit * MicroduckTexture.texelsPerPixel / MicroduckTexture.meshTexelsPerUnit;
-      final m = 1 / k;
-      _shader = ui.ImageShader(
-        img,
-        TileMode.repeated,
-        TileMode.repeated,
-        Float64List.fromList([m, 0, 0, 0, 0, m, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
-        filterQuality: FilterQuality.low,
-      );
-      _shaderUnit = unit;
-    }
+    _shader ??= ui.ImageShader(
+      img,
+      TileMode.repeated,
+      TileMode.repeated,
+      Float64List.fromList([1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1]),
+      filterQuality: FilterQuality.medium,
+    );
     _paint.shader = _shader;
     return true;
   }
@@ -152,6 +152,9 @@ class _Renderer {
       _baseR[p] = ((c[p] >> 16) & 0xFF).toDouble();
       _baseG[p] = ((c[p] >> 8) & 0xFF).toDouble();
       _baseB[p] = (c[p] & 0xFF).toDouble();
+      _spec[p] = kMaterials[p].spec;
+      _power[p] = kMaterials[p].power;
+      _env[p] = kMaterials[p].env;
     }
   }
 
@@ -169,7 +172,7 @@ class _Renderer {
   ) {
     _setSkin(skin);
     final rig = input.rig..solve(pose, t, beatSeconds, input, facingRight: facingRight, energy: energy);
-    final detail = s >= MicroduckPainter.detailMinSize;
+    final level = meshLevel(s);
     final unit = s / 6.0;
     final ox = origin.dx + s / 2;
     final oy = origin.dy + s * 0.955;
@@ -194,7 +197,8 @@ class _Renderer {
 
     final px = mesh.px, py = mesh.py, pz = mesh.pz;
     final nx = mesh.nx, ny = mesh.ny, nz = mesh.nz;
-    final matrixId = mesh.matrix, slotId = mesh.slot, dynId = mesh.dyn, aoA = mesh.ao;
+    final matrixId = mesh.matrix, slotId = mesh.slot, dynId = mesh.dyn, aoA = mesh.ao, wearA = mesh.wear;
+    final lodMin = mesh.lodMin, lodMax = mesh.lodMax;
     final mats = rig.matrices;
     final pos = _pos, col = _col, depth = _depth;
     final fsx = rig.faceSx, fsy = rig.faceSy, fox = rig.faceOx, foy = rig.faceOy;
@@ -202,6 +206,7 @@ class _Renderer {
     // Volume-preserving: taller means thinner by the square root.
     final stretch = 1 + sq, narrow = 1 / math.sqrt(stretch);
     for (var i = 0; i < _v; i++) {
+      if (lodMin[i] > level || lodMax[i] < level) continue;
       final m = mats[matrixId[i]].m;
       var x = px[i], y = py[i];
       final z = pz[i];
@@ -236,14 +241,28 @@ class _Renderer {
         final key = math.max(0.0, wnx * _lx + wny * _ly + wnz * _lz);
         final fill = math.max(0.0, wnx * 0.6 - wnz * 0.2 + wny * 0.1) * 0.12;
         final rim = math.max(0.0, wnx * _rx + wny * _ry + wnz * _rz);
-        // x1.07: the grain texture averages 0.93 and takes it back down.
+        // x1.07: the surface texture averages 0.93 and takes it back down.
         final k = ((0.34 + 0.12 * wny) + 0.82 * key + fill) * ao * 1.07;
         var add = rim * rim * 40;
-        if (slotShiny(sl)) {
+        final spec = _spec[sl];
+        if (spec > 0.05) {
+          // Sharp hotspot (the power is the material's tightness) ...
           final h = math.max(0.0, wnx * _hx + wny * _hy + wnz * _hz);
-          final h2 = h * h, h4 = h2 * h2, h8 = h4 * h4;
-          add += h8 * h8 * h4 * 150; // ~h^20
+          if (h > 0.05) add += math.pow(h, _power[sl]) * spec * 190 * ao;
+          // ... and a soft horizontal band of environment in the reflection.
+          final env = _env[sl];
+          if (env > 0.03) {
+            final nv = wny * _se + wnz * _ce;
+            final ry = 2 * nv * wny - _se;
+            final band = (ry - 0.32) / 0.16;
+            add += math.exp(-band * band) * env * 120 * ao;
+          }
+        } else if (spec > 0) {
+          final h = math.max(0.0, wnx * _hx + wny * _hy + wnz * _hz);
+          add += h * h * 6;
         }
+        // Worn edges: the paint is rubbed through, a lighter tone shows.
+        add += wearA[i] * 26;
         r = _baseR[sl] * k + add;
         g = _baseG[sl] * k + add;
         b = _baseB[sl] * k + add;
@@ -254,14 +273,19 @@ class _Renderer {
           math.min(255, b.round());
     }
 
-    // Cull back faces (and fine detail for small robots), order far to near.
-    final tris = mesh.tris, triLod = mesh.triLod, bias = mesh.triBias;
+    // Cull back faces and what this level skips; order far to near.
+    final tris = mesh.tris, triMin = mesh.triMin, triMax = mesh.triMax, bias = mesh.triBias;
     final tdepth = _triDepth, front = _front, order = _order;
     for (var k = 0; k < _t; k++) {
+      if (triMin[k] > level || triMax[k] < level) {
+        front[k] = 0;
+        tdepth[k] = 0;
+        continue;
+      }
       final a = tris[k * 3], b = tris[k * 3 + 1], c = tris[k * 3 + 2];
       final cross = (pos[b * 2] - pos[a * 2]) * (pos[c * 2 + 1] - pos[a * 2 + 1]) -
           (pos[c * 2] - pos[a * 2]) * (pos[b * 2 + 1] - pos[a * 2 + 1]);
-      front[k] = cross < 0 && (detail || triLod[k] == 0) ? 1 : 0;
+      front[k] = cross < 0 ? 1 : 0;
       tdepth[k] = depth[a] + depth[b] + depth[c] + bias[k];
     }
     // Insertion sort: the order from the last frame is nearly right.
@@ -285,7 +309,7 @@ class _Renderer {
       idx[n++] = tris[k * 3 + 2];
     }
     if (n > 0) {
-      final textured = _useTexture(unit);
+      final textured = _useTexture();
       final vertices = ui.Vertices.raw(
         ui.VertexMode.triangles,
         pos,
@@ -293,11 +317,13 @@ class _Renderer {
         colors: col,
         indices: Uint16List.sublistView(idx, 0, n),
       );
-      // Vertex colours times the surface grain, or the colours alone while
+      // Vertex colours times the surface texture, or the colours alone while
       // the texture is still being made.
       canvas.drawVertices(vertices, textured ? BlendMode.modulate : BlendMode.src, _paint);
       vertices.dispose();
     }
+
+    _ledBloom(canvas, rig, skin, led, ox, oy, unit);
 
     if (pose == MicroduckPose.sleep) {
       // Head position on screen, for the z's.
@@ -306,6 +332,33 @@ class _Renderer {
       final f = 1 / (1 - 0.045 * (hy * _se + hz * _ce)) * unit;
       _zzz(canvas, ox + hm[3] * f + 0.9 * unit, oy - (hy * _ce - hz * _se) * f - 0.2 * unit, unit, t);
     }
+  }
+
+  /// A soft halo around the LED, added on top, when it faces the camera.
+  void _ledBloom(Canvas canvas, MicroduckRig rig, MicroduckSkin skin, double led, double ox, double oy, double unit) {
+    if (led < 0.15) return;
+    final m = rig.head.m;
+    const lx = MicroduckMesh.ledX, ly = MicroduckMesh.ledY, lz = MicroduckMesh.ledZ;
+    final wx = m[0] * lx + m[1] * ly + m[2] * lz + m[3];
+    final wy = m[4] * lx + m[5] * ly + m[6] * lz + m[7];
+    final wz = m[8] * lx + m[9] * ly + m[10] * lz + m[11];
+    // Facing: the LED's outward direction is from the head centre to it.
+    final hx = m[3], hy = m[7], hz = m[11];
+    final dx = wx - hx, dy = wy - hy, dz = wz - hz;
+    final len = math.sqrt(dx * dx + dy * dy + dz * dz);
+    final facing = (dy * _se + dz * _ce) / len;
+    if (facing < 0.05) return;
+    final yc = wy * _ce - wz * _se;
+    final f = 1 / (1 - 0.045 * (wy * _se + wz * _ce)) * unit;
+    final c = Offset(ox + wx * f, oy - yc * f);
+    if ((unit - _glowUnit).abs() > unit * 0.1) {
+      _glow.maskFilter = MaskFilter.blur(BlurStyle.normal, math.max(1.0, unit * 0.2));
+      _glowUnit = unit;
+    }
+    final rgb = skin.colors[sLed];
+    final a = (105 * led * math.min(1.0, facing * 1.6)).round();
+    _glow.color = Color.fromARGB(a, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
+    canvas.drawCircle(c, unit * 0.3, _glow);
   }
 
   /// Three z's rising from the helmet and fading.
