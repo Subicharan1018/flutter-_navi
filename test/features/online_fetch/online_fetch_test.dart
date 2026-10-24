@@ -348,7 +348,7 @@ void main() {
       await ctrl.start('anirudh', type: FetchSearchType.artist);
       final artist = c.read(onlineSearchProvider).search!.candidates.single;
       expect(artist.type, FetchSearchType.artist);
-      await ctrl.openArtist(artist);
+      await ctrl.openCollection(artist);
       final top = c.read(onlineSearchProvider);
       expect(top.artist!.id, artist.id);
       expect(top.listsSongs, isTrue);
@@ -356,6 +356,60 @@ void main() {
       ctrl.back();
       expect(c.read(onlineSearchProvider).type, FetchSearchType.artist);
       expect(c.read(onlineSearchProvider).artist, isNull);
+    });
+  });
+
+  group('labels', () {
+    setUp(() => FetchJobsController.pollEvery = Duration.zero);
+
+    test('the kind is sent, and a label opens to its tracks and back', () async {
+      final sent = <Object?>[];
+      final api = _api((o) {
+        if (o.method == 'POST') {
+          sent.add(o.data);
+          return _json(202, {'search_id': o.data is Map && (o.data as Map).containsKey('candidate_id') ? 11 : 10});
+        }
+        return _json(200, o.path.endsWith('/11') ? _results() : {..._results(), 'candidates': [_label]});
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      final sub = c.listen(onlineSearchProvider, (_, _) {});
+      addTearDown(sub.close);
+      final ctrl = c.read(onlineSearchProvider.notifier);
+
+      await ctrl.start('think music', type: FetchSearchType.label);
+      final label = c.read(onlineSearchProvider).search!.candidates.single;
+      expect(label.type, FetchSearchType.label);
+      expect(label.type.opensSongs, isTrue);
+      expect(label.trackCount, 120);
+      await ctrl.openCollection(label);
+      expect(sent, [
+        {'query': 'think music', 'kind': 'label'},
+        {'candidate_id': 701},
+      ]);
+      expect(c.read(onlineSearchProvider).listsSongs, isTrue);
+      ctrl.back();
+      expect(c.read(onlineSearchProvider).type, FetchSearchType.label);
+    });
+
+    test('Download all sends the label as one batch', () async {
+      final sent = <Object?>[];
+      final api = _api((o) {
+        if (o.method == 'POST') {
+          sent.add(o.data);
+          return _json(202, {'batch_id': 4});
+        }
+        return _json(200, {..._batch('done'), 'id': 4, 'kind': 'label', 'title': 'Think Music', 'candidate_ids': [701]});
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      await c.read(fetchJobsProvider.notifier).downloadAll([FetchCandidate.fromJson(_label)]);
+      expect(sent, [
+        {'candidate_ids': [701]},
+      ]);
+      final b = c.read(fetchJobsProvider).batchFor(701)!;
+      expect(b.kind, FetchSearchType.label);
+      expect(b.headline, 'Label songs downloaded');
     });
   });
 
@@ -696,6 +750,16 @@ void main() {
       expect(find.text('1 song added, 1 already owned, 1 isn’t available in lossless'), findsOneWidget);
     });
 
+    testWidgets('a label shows its track count, a generated cover and a chevron', (tester) async {
+      await pump(tester, FetchCandidate.fromJson(_label));
+      expect(find.text('Label · 120 songs'), findsOneWidget);
+      expect(find.byKey(const ValueKey('label-generated-cover')), findsOneWidget);
+      expect(_glyph(NaviGlyph.chevron), findsOneWidget);
+      // The bot's own logo wins over the generated cover.
+      await pump(tester, FetchCandidate.fromJson({..._label, 'cover_url': 'https://cdn.example/t.jpg'}));
+      expect(find.byKey(const ValueKey('label-generated-cover')), findsNothing);
+    });
+
     testWidgets('select mode shows a check circle instead of the action', (tester) async {
       final song = FetchSearch.fromJson(_results()).candidates.first;
       await pump(tester, song, selected: true);
@@ -811,6 +875,11 @@ const _album = <String, dynamic>{
 const _artist = <String, dynamic>{
   'id': 600, 'title': 'Anirudh Ravichander', 'artist': '', 'album': '', 'score': 0.0, 'kind': 'original',
   'reasons': [], 'library': 'not_found', 'llm': null, 'type': 'artist', 'track_count': null,
+};
+
+const _label = <String, dynamic>{
+  'id': 701, 'title': 'Think Music', 'artist': '', 'album': '', 'score': 0.0, 'kind': 'original',
+  'reasons': [], 'library': 'not_found', 'llm': null, 'cover_url': null, 'type': 'label', 'track_count': 120,
 };
 
 /// `GET /fetch/batches/{id}` for the album above, at [status].
