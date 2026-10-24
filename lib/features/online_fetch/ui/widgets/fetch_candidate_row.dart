@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme.dart';
+import '../../../../widgets/art/generated_cover.dart';
 import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/cover_art.dart';
 import '../../data/fetch_models.dart';
@@ -53,7 +54,7 @@ class FetchCandidateRow extends ConsumerWidget {
       _ when !interactive => false,
       _ when selecting => !c.inLibrary && (job == null || job.phase == FetchJobPhase.failed),
       FetchSearchType.song => c.inLibrary || job == null || job.phase == FetchJobPhase.failed,
-      FetchSearchType.artist => true,
+      FetchSearchType.artist || FetchSearchType.label => true,
       _ => batch == null || batch.status == FetchBatchStatus.failed,
     };
     final art = 44.0;
@@ -81,18 +82,29 @@ class FetchCandidateRow extends ConsumerWidget {
                     ),
                     const SizedBox(width: Space.md),
                   ],
-                  CoverArt(
-                    url: c.coverUrl,
-                    size: art,
-                    radius: Radii.thumb,
-                    circular: c.type == FetchSearchType.artist,
-                    placeholderIcon: switch (c.type) {
-                      FetchSearchType.artist => NaviGlyph.person,
-                      FetchSearchType.playlist => NaviGlyph.playlist,
-                      FetchSearchType.album => NaviGlyph.library,
-                      FetchSearchType.song => NaviGlyph.note,
-                    },
-                  ),
+                  // A label the bot has no logo for gets a generated cover, so
+                  // the list isn't a column of identical placeholders.
+                  if (c.type == FetchSearchType.label && (c.coverUrl == null || c.coverUrl!.isEmpty))
+                    SizedBox(
+                      key: const ValueKey('label-generated-cover'),
+                      width: art,
+                      height: art,
+                      child: GeneratedCover(name: c.title, borderRadius: Radii.thumb),
+                    )
+                  else
+                    CoverArt(
+                      url: c.coverUrl,
+                      size: art,
+                      radius: Radii.thumb,
+                      circular: c.type == FetchSearchType.artist,
+                      placeholderIcon: switch (c.type) {
+                        FetchSearchType.artist => NaviGlyph.person,
+                        FetchSearchType.playlist => NaviGlyph.playlist,
+                        FetchSearchType.album => NaviGlyph.library,
+                        FetchSearchType.label => NaviGlyph.library,
+                        FetchSearchType.song => NaviGlyph.note,
+                      },
+                    ),
                   const SizedBox(width: Space.md),
                   Expanded(
                     child: Column(
@@ -124,7 +136,7 @@ class FetchCandidateRow extends ConsumerWidget {
                               ? NaviIcon(NaviGlyph.checkCircle, size: 22, color: t.textMuted)
                               : const SizedBox.shrink(),
                           FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary),
-                          FetchSearchType.artist => NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
+                          FetchSearchType.artist || FetchSearchType.label => NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
                           _ => FetchBatchIndicator(batch: batch),
                         },
                       ),
@@ -150,6 +162,7 @@ class FetchCandidateRow extends ConsumerWidget {
     return switch (c.type) {
       FetchSearchType.song => [c.artist, c.album].where((s) => s.isNotEmpty).join(' · '),
       FetchSearchType.artist => 'Artist',
+      FetchSearchType.label => ['Label', if (c.trackCount != null) songs(c.trackCount!)].join(' · '),
       FetchSearchType.album => ['Album', c.artist, if (c.trackCount != null) songs(c.trackCount!)]
           .where((s) => s.isNotEmpty)
           .join(' · '),

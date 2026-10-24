@@ -131,7 +131,7 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
           Padding(
             padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.sm),
             child: NaviSegmented<FetchSearchType>(
-              segments: {for (final ty in FetchSearchType.values) ty: ty.label},
+              segments: {for (final ty in FetchSearchType.values) ty: ty.title},
               value: _type,
               onChanged: _setType,
             ),
@@ -175,7 +175,7 @@ class _ArtistHeader extends ConsumerWidget {
                 children: [
                   NaviIcon(NaviGlyph.chevronLeft, size: 20, color: t.accent),
                   const SizedBox(width: 2),
-                  Text('Artists', style: t.body.copyWith(color: t.accent)),
+                  Text(artist.type.title, style: t.body.copyWith(color: t.accent)),
                 ],
               ),
             ),
@@ -197,7 +197,9 @@ class _ArtistHeader extends ConsumerWidget {
                     : () async {
                         final ok = await confirmFetchDownload(
                           context,
-                          title: 'Download ${artist.title}’s top songs?',
+                          title: artist.type == FetchSearchType.label
+                              ? 'Download ${artist.title}?'
+                              : 'Download ${artist.title}’s top songs?',
                           count: songs.length,
                         );
                         if (ok) ref.read(fetchJobsProvider.notifier).downloadAll([artist]);
@@ -266,7 +268,13 @@ class _Body extends ConsumerWidget {
       return MessageState.error(title: 'Search didn’t work', message: s.error!, onRetry: () => onSearch(s.query));
     }
     if (s.isLoading || search == null) {
-      return LoadingState(label: s.artist != null ? 'Getting ${s.artist!.title}’s songs…' : 'Searching online…');
+      return LoadingState(
+        label: switch (s.artist) {
+          null => 'Searching online…',
+          final a when a.type == FetchSearchType.label => 'Getting ${a.title}’s tracks…',
+          final a => 'Getting ${a.title}’s songs…',
+        },
+      );
     }
     switch (search.status) {
       case FetchSearchStatus.inLibrary:
@@ -371,9 +379,11 @@ class _ResultsState extends ConsumerState<_Results> {
     ];
     final dym = search.didYouMean;
     final heading = switch (s.type) {
+      _ when s.artist?.type == FetchSearchType.label => 'Tracks',
       _ when s.artist != null => 'Top songs',
       _ when weak => 'No close match — nearest results',
       FetchSearchType.song => 'Is this the song?',
+      FetchSearchType.label => 'Labels',
       FetchSearchType.album => 'Albums',
       FetchSearchType.artist => 'Artists',
       FetchSearchType.playlist => 'Playlists',
@@ -463,8 +473,8 @@ class _ResultsState extends ConsumerState<_Results> {
                 _toggle(c);
               } else if (c.isSong) {
                 ref.read(fetchJobsProvider.notifier).download(c.id, coverUrl: c.coverUrl);
-              } else if (c.type == FetchSearchType.artist) {
-                ref.read(onlineSearchProvider.notifier).openArtist(c);
+              } else if (c.type.opensSongs) {
+                ref.read(onlineSearchProvider.notifier).openCollection(c);
               } else {
                 _downloadCollection(c);
               }

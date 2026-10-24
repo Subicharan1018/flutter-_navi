@@ -31,16 +31,21 @@ enum FetchKind {
 }
 
 /// What to search online for. [song] is the default; the others list whole
-/// albums, artists or playlists.
+/// albums, artists, playlists or record labels.
 enum FetchSearchType {
   song('Songs', 'Song, film or artist'),
   album('Albums', 'Album or film'),
   artist('Artists', 'Artist'),
-  playlist('Playlists', 'Playlist');
+  playlist('Playlists', 'Playlist'),
+  label('Labels', 'Record label');
 
-  const FetchSearchType(this.label, this.placeholder);
-  final String label;
+  const FetchSearchType(this.title, this.placeholder);
+  final String title;
   final String placeholder;
+
+  /// Tapping a result lists its songs to pick from (an artist's top songs, a
+  /// label's tracks) instead of downloading it.
+  bool get opensSongs => this == artist || this == FetchSearchType.label;
 
   static FetchSearchType parse(Object? v) =>
       FetchSearchType.values.firstWhere((t) => t.name == v, orElse: () => FetchSearchType.song);
@@ -380,6 +385,7 @@ class FetchBatch {
   String get headline => switch (kind) {
         FetchSearchType.album => 'Album downloaded',
         FetchSearchType.playlist => 'Playlist ready',
+        FetchSearchType.label => 'Label songs downloaded',
         _ => added == 1 && owned == 0 && failed == 0 && lossy == 0 ? 'Song downloaded' : 'Songs downloaded',
       };
 
