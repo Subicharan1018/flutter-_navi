@@ -25,6 +25,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/desktop_dialogs.dart';
+import '../widgets/mascot/microduck_strip.dart';
 import '../widgets/options_menu.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/ion.dart';
@@ -337,6 +338,7 @@ class _PhoneLayout extends ConsumerWidget {
               children: [
                 const _RemoteDeviceBanner(),
                 const FlowPill(),
+                PlayerMicroduckStrip(player: notifier.player, song: song),
                 Scrubber(player: notifier.player, song: song),
                 const SizedBox(height: 6),
                 // Apple Music's three: shuffle and repeat live in the queue.
@@ -1174,7 +1176,8 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                               ),
                               const SizedBox(height: 28),
                               _TitleRow(song: widget.song),
-                              const SizedBox(height: 14),
+                              const SizedBox(height: 6),
+                              PlayerMicroduckStrip(player: notifier.player, song: widget.song, height: 20),
                               Scrubber(player: notifier.player, song: widget.song),
                               const SizedBox(height: 4),
                               TransportControls(

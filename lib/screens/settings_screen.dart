@@ -12,6 +12,7 @@ import '../widgets/last_error_row.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/mascot/microduck_pose.dart' show defaultMicroduckName;
 import '../services/playback_tuning.dart';
 import '../services/transcoding_service.dart';
 import '../widgets/art/navi_icons.dart';
@@ -38,6 +39,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final SettingsState _initial = ref.read(settingsProvider);
   late final _user = TextEditingController(text: _initial.username);
   late final _pass = TextEditingController(text: _initial.password);
+  late final _duckName = TextEditingController(text: _initial.microduckName);
 
   // Preferences held by services rather than SettingsState.
   bool _imageCache = true;
@@ -56,6 +58,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void initState() {
     super.initState();
+    _duckName.addListener(
+      () => ref.read(settingsProvider.notifier).setMicroduckName(_duckName.text),
+    );
     _loadServicePrefs();
   }
 
@@ -80,7 +85,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
-    for (final c in [_user, _pass]) {
+    for (final c in [_user, _pass, _duckName]) {
       c.dispose();
     }
     super.dispose();
@@ -200,6 +205,26 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 value: s.allowHttp,
                 onChanged: notifier.setAllowHttp,
               ),
+            ],
+          ),
+          GroupedSection(
+            header: 'Mascot',
+            footer: 'A line-drawn duck walks along the mini player and Now Playing, '
+                'hops to the beat, and naps after midnight.',
+            children: [
+              GroupedSwitchRow(
+                title: 'Microduck',
+                icon: NaviGlyph.note,
+                ion: Ion.music,
+                value: s.microduckEnabled,
+                onChanged: notifier.setMicroduckEnabled,
+              ),
+              if (s.microduckEnabled)
+                GroupedTextFieldRow(
+                  title: 'Name',
+                  controller: _duckName,
+                  placeholder: defaultMicroduckName,
+                ),
             ],
           ),
           GroupedSection(

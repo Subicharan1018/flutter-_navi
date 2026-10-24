@@ -3,6 +3,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
+import '../mascot/microduck_empty.dart';
 
 // =============================================================================
 // Original empty-state illustrations, drawn in code with the theme's own
@@ -76,7 +77,7 @@ class ArtEmptyState extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            ExcludeSemantics(child: EmptyArt(art)),
+            ExcludeSemantics(child: EmptyIllustration(art, seed: title)),
             const SizedBox(height: 20),
             Text(
               title,

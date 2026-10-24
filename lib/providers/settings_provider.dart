@@ -11,6 +11,7 @@ import '../services/playback_tuning.dart';
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
 import '../database/app_database.dart';
+import '../widgets/mascot/microduck_pose.dart' show cleanMicroduckName, defaultMicroduckName;
 import 'library_provider.dart' show resetLibrarySyncClock;
 
 // ---------------------------------------------------------------------------
@@ -113,6 +114,12 @@ class SettingsState {
   /// Playback rate, 0.5–2.0.
   final double playbackSpeed;
 
+  /// The Microduck mascot (mini player, Now Playing, empty states, Replay).
+  final bool microduckEnabled;
+
+  /// What the listener calls the mascot; never empty.
+  final String microduckName;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
@@ -125,6 +132,8 @@ class SettingsState {
     this.replayGainMode = ReplayGainMode.off,
     this.crossfadeSeconds = 0,
     this.playbackSpeed = 1.0,
+    this.microduckEnabled = true,
+    this.microduckName = defaultMicroduckName,
   });
 
   SettingsState copyWith({
@@ -139,6 +148,8 @@ class SettingsState {
     ReplayGainMode? replayGainMode,
     int? crossfadeSeconds,
     double? playbackSpeed,
+    bool? microduckEnabled,
+    String? microduckName,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -153,6 +164,8 @@ class SettingsState {
       replayGainMode: replayGainMode ?? this.replayGainMode,
       crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      microduckEnabled: microduckEnabled ?? this.microduckEnabled,
+      microduckName: microduckName ?? this.microduckName,
     );
   }
 }
@@ -225,6 +238,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             ? (p.get(HiveBoxes.kPlaybackSpeed) as num).toDouble()
             : 1.0,
       ),
+      microduckEnabled: p.get(HiveBoxes.kMicroduckEnabled) != false,
+      microduckName: cleanMicroduckName(p.get(HiveBoxes.kMicroduckName)?.toString()),
     );
   }
 
@@ -271,6 +286,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setFluidBgEnabled(bool enabled) async {
     await HiveBoxes.prefs.put(HiveBoxes.kFluidBgEnabled, enabled);
     state = state.copyWith(fluidBgEnabled: enabled);
+  }
+
+  Future<void> setMicroduckEnabled(bool enabled) async {
+    state = state.copyWith(microduckEnabled: enabled);
+    await HiveBoxes.prefs.put(HiveBoxes.kMicroduckEnabled, enabled);
+  }
+
+  /// A blank name falls back to the default rather than being stored empty.
+  Future<void> setMicroduckName(String name) async {
+    final clean = cleanMicroduckName(name);
+    state = state.copyWith(microduckName: clean);
+    await HiveBoxes.prefs.put(HiveBoxes.kMicroduckName, clean);
   }
 
   Future<void> setReplayGainMode(ReplayGainMode mode) async {

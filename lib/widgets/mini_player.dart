@@ -15,6 +15,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../utils/platform_utils.dart';
+import 'mascot/microduck_strip.dart';
 import 'ui/ion.dart';
 
 /// The floating mini player: a solid capsule in the album's colour (so the
@@ -123,6 +124,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
     final notifier = ref.read(playerProvider.notifier);
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
     final ground = palette.ground;
+    final duck = ref.watch(settingsProvider.select((s) => s.microduckEnabled));
 
     _scheduleNudge();
 
@@ -161,8 +163,23 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
                         child: child,
                       ),
                     ),
-                    child: _Content(song: song, url: url, ground: ground),
+                    child: _Content(song: song, url: url, ground: ground, lifted: duck),
                   ),
+                  // Walks the progress hairline below; the text above is
+                  // lifted a few pixels to give it room.
+                  if (duck)
+                    Positioned(
+                      left: _Content.textInset,
+                      right: _Content.controlsInset,
+                      bottom: 6,
+                      child: PlayerMicroduckStrip(
+                        player: notifier.player,
+                        song: song,
+                        height: 14,
+                        color: Color.lerp(ground, Colors.white, 0.9),
+                        full: false,
+                      ),
+                    ),
                   Positioned(
                     right: Space.sm,
                     top: 0,
@@ -208,7 +225,10 @@ class _Content extends StatelessWidget {
   final Song song;
   final String url;
   final Color ground;
-  const _Content({required this.song, required this.url, required this.ground});
+
+  /// Makes room under the text for the mascot.
+  final bool lifted;
+  const _Content({required this.song, required this.url, required this.ground, this.lifted = false});
 
   @override
   Widget build(BuildContext context) {
@@ -218,7 +238,7 @@ class _Content extends StatelessWidget {
       child: CoverImage(url: url, cacheKey: coverCacheKey(song), width: _cover, height: _cover, cacheWidth: 126),
     );
     return Padding(
-      padding: const EdgeInsets.fromLTRB(_coverInset, 0, controlsInset, 2),
+      padding: EdgeInsets.fromLTRB(_coverInset, 0, controlsInset, lifted ? 15 : 2),
       child: Row(
         children: [
           // Shared-element flight into the Now Playing cover (phones only;
