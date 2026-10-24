@@ -12,6 +12,7 @@ import '../widgets/last_error_row.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/mascot/microduck_mesh.dart' show MicroduckSkin;
 import '../widgets/mascot/microduck_pose.dart' show defaultMicroduckName;
 import '../services/playback_tuning.dart';
 import '../services/transcoding_service.dart';
@@ -209,8 +210,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           GroupedSection(
             header: 'Mascot',
-            footer: 'A line-drawn duck walks along the mini player and Now Playing, '
-                'hops to the beat, and naps after midnight.',
+            footer: 'A little robot walks along the mini player, dances to the music on '
+                'Now Playing, and naps after midnight. Tap it to make it hop.',
             children: [
               GroupedSwitchRow(
                 title: 'Microduck',
@@ -224,6 +225,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   title: 'Name',
                   controller: _duckName,
                   placeholder: defaultMicroduckName,
+                ),
+              if (s.microduckEnabled)
+                GroupedRow(
+                  title: 'Colour',
+                  value: s.microduckSkin.label,
+                  onTap: () async {
+                    final v = await showChoiceSheet<MicroduckSkin>(
+                      context,
+                      title: 'Colour',
+                      options: MicroduckSkin.values,
+                      selected: s.microduckSkin,
+                      label: (m) => m.label,
+                    );
+                    if (v != null) notifier.setMicroduckSkin(v);
+                  },
                 ),
             ],
           ),

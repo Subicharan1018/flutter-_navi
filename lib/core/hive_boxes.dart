@@ -122,6 +122,7 @@ class HiveBoxes {
   static const kFluidBgEnabled = 'fluid_bg_enabled';
   static const kMicroduckEnabled = 'microduck_enabled';
   static const kMicroduckName = 'microduck_name';
+  static const kMicroduckSkin = 'microduck_skin';
   static const kReplayGainMode = 'replay_gain_mode';
   static const kCrossfadeSeconds = 'crossfade_seconds';
   static const kPlaybackSpeed = 'playback_speed';

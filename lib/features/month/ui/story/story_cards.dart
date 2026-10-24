@@ -419,8 +419,8 @@ class StreakCard extends StatelessWidget {
               animation: p,
               builder: (context, _) => MicroduckStrip(
                 progress: _Window(p, 0.1, 0.8).value,
-                height: 48,
-                color: _ink,
+                height: 56,
+                trackColor: _ink,
               ),
             ),
           ),

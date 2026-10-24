@@ -8,7 +8,9 @@ import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/widgets/mascot/microduck.dart';
+import 'package:navivibe/widgets/mascot/microduck_mesh.dart';
 import 'package:navivibe/widgets/mascot/microduck_painter.dart';
+import 'package:navivibe/widgets/mascot/microduck_rig.dart';
 import 'package:navivibe/widgets/mascot/microduck_pose.dart';
 import 'package:navivibe/widgets/mascot/microduck_strip.dart';
 
@@ -17,8 +19,8 @@ void main() {
     final noon = DateTime(2026, 1, 1, 12);
     final night = DateTime(2026, 1, 1, 2, 30);
 
-    test('plays: runs; paused: stands', () {
-      expect(resolveMicroduckPose(playing: true, now: noon), MicroduckPose.run);
+    test('plays: walks; paused: stands', () {
+      expect(resolveMicroduckPose(playing: true, now: noon), MicroduckPose.walk);
       expect(resolveMicroduckPose(playing: false, now: noon), MicroduckPose.idle);
     });
 
@@ -27,18 +29,17 @@ void main() {
       expect(isMicroduckNight(DateTime(2026, 1, 1, 4, 59)), isTrue);
       expect(isMicroduckNight(DateTime(2026, 1, 1, 5)), isFalse);
       expect(resolveMicroduckPose(playing: true, now: night), MicroduckPose.sleep);
-      expect(resolveMicroduckPose(playing: true, now: night, sleepsAtNight: false), MicroduckPose.run);
+      expect(resolveMicroduckPose(playing: true, now: night, sleepsAtNight: false), MicroduckPose.walk);
     });
 
-    test('dances only when allowed and the tempo is known', () {
-      expect(resolveMicroduckPose(playing: true, now: noon, allowDance: true, bpm: 120), MicroduckPose.dance);
-      expect(resolveMicroduckPose(playing: true, now: noon, allowDance: true), MicroduckPose.run);
-      expect(resolveMicroduckPose(playing: true, now: noon, bpm: 120), MicroduckPose.run);
-      expect(resolveMicroduckPose(playing: false, now: noon, allowDance: true, bpm: 120), MicroduckPose.idle);
+    test('dances only when allowed, and only while playing', () {
+      expect(resolveMicroduckPose(playing: true, now: noon, allowDance: true), MicroduckPose.dance);
+      expect(resolveMicroduckPose(playing: true, now: noon), MicroduckPose.walk);
+      expect(resolveMicroduckPose(playing: false, now: noon, allowDance: true), MicroduckPose.idle);
     });
 
     test('reduced motion gets a still pose', () {
-      expect(resolveMicroduckPose(playing: true, now: noon, reducedMotion: true, allowDance: true, bpm: 120),
+      expect(resolveMicroduckPose(playing: true, now: noon, reducedMotion: true, allowDance: true),
           MicroduckPose.idle);
       expect(resolveMicroduckPose(playing: true, now: night, reducedMotion: true), MicroduckPose.sleep);
     });
@@ -73,8 +74,9 @@ void main() {
           final painter = MicroduckPainter(
             pose: pose,
             time: ValueNotifier(t),
-            color: Colors.white,
-            beat: 0.5,
+            input: MicroduckInput()..tapAt = t - 0.3,
+            skin: t > 1 ? MicroduckSkin.grey : MicroduckSkin.white,
+            bpm: 120,
           );
           for (final size in [const Size(12, 12), const Size(28, 28), const Size(96, 72), Size.zero]) {
             final recorder = PictureRecorder();
@@ -94,7 +96,7 @@ void main() {
             data: MediaQueryData(disableAnimations: reduced),
             child: Directionality(
               textDirection: TextDirection.ltr,
-              child: Microduck(pose: pose, color: Colors.white),
+              child: Microduck(pose: pose, interactive: true),
             ),
           ));
           await tester.pump(const Duration(milliseconds: 300));
@@ -132,7 +134,9 @@ void main() {
       final n = SettingsNotifier();
       await n.setMicroduckEnabled(false);
       await n.setMicroduckName('  Quackers ');
+      await n.setMicroduckSkin(MicroduckSkin.grey);
       final again = SettingsNotifier().state;
+      expect(again.microduckSkin, MicroduckSkin.grey);
       expect(again.microduckEnabled, isFalse);
       expect(again.microduckName, 'Quackers');
       await n.setMicroduckName('');

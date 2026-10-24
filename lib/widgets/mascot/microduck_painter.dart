@@ -1,236 +1,266 @@
 import 'dart:math' as math;
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+import 'microduck_mesh.dart';
 import 'microduck_pose.dart';
+import 'microduck_rig.dart';
 
-/// Draws Microduck in the app icons' line style: a 24 x 24 grid, rounded
-/// caps and joins, one colour. Everything is a function of [pose] and the
-/// seconds on [time], so the painter itself holds no animation state.
+/// Draws the Microduck robot: a posed triangle mesh, Lambert-shaded per
+/// vertex from one fixed light, depth-sorted back to front and sent to
+/// `Canvas.drawVertices` in a single call, with a soft shadow on the ground.
 ///
-/// The Paint objects and the Path are reused between frames, so painting
-/// allocates nothing but a few Offsets/Rects.
+/// Everything it touches each frame (matrices, vertex/colour/index buffers,
+/// the depth order) is allocated once and shared by every robot on screen,
+/// since painting is synchronous.
 class MicroduckPainter extends CustomPainter {
   final MicroduckPose pose;
+
+  /// The animation clock, in seconds.
   final ValueListenable<double> time;
-  final Color color;
+  final MicroduckSkin skin;
 
-  /// Seconds per beat while dancing.
-  final double beat;
+  /// Beats per minute while dancing.
+  final int bpm;
+  final MicroduckInput input;
 
-  /// 1 = full hop, lower for a gentle bob when the tempo is unknown.
-  final double energy;
-
+  /// Walks to the right; false walks to the left.
   final bool facingRight;
 
-  MicroduckPainter({
+  const MicroduckPainter({
     required this.pose,
     required this.time,
-    required this.color,
-    this.beat = 0.5,
-    this.energy = 1,
+    required this.input,
+    this.skin = MicroduckSkin.white,
+    this.bpm = defaultDanceBpm,
     this.facingRight = true,
   }) : super(repaint: time);
 
-  static const double _grid = 24;
-  static const double _stroke = 1.75;
-
-  final Paint _line = Paint()
-    ..style = PaintingStyle.stroke
-    ..strokeCap = StrokeCap.round
-    ..strokeJoin = StrokeJoin.round;
-  final Paint _dot = Paint()..style = PaintingStyle.fill;
-  final Path _path = Path();
-
   @override
   void paint(Canvas canvas, Size size) {
-    final t = time.value;
-    final s = math.min(size.width, size.height) / _grid;
+    final s = math.min(size.width, size.height);
     if (s <= 0) return;
-
-    _line
-      ..color = color
-      ..strokeWidth = _stroke;
-    _dot.color = color;
-
-    canvas.save();
-    canvas.translate((size.width - _grid * s) / 2, (size.height - _grid * s) / 2);
-    canvas.scale(s);
-    if (!facingRight) {
-      canvas.translate(_grid, 0);
-      canvas.scale(-1, 1);
-    }
-
-    // Per-pose body motion.
-    double dy = 0;
-    double tilt = 0;
-    double hx = 16.5, hy = 6.5; // head centre
-    var blink = false;
-    var wing = 0.0; // wing lift, -1..1
-    var stride = 0.0; // leg phase, radians
-    var legs = true;
-
-    switch (pose) {
-      case MicroduckPose.idle:
-        dy = math.sin(t * 1.6) * 0.15;
-        blink = (t % 3.6) < 0.14;
-      case MicroduckPose.run:
-        stride = t * 13;
-        dy = -(math.sin(stride).abs()) * 0.9;
-        tilt = 0.06;
-        wing = math.sin(stride);
-        hx += 0.4;
-      case MicroduckPose.sleep:
-        dy = 2.6 + math.sin(t * 1.2) * 0.22;
-        hx = 14.6;
-        hy = 8.6;
-        blink = true;
-        legs = false;
-      case MicroduckPose.dance:
-        final beats = t / beat;
-        final phase = beats % 1;
-        final strong = (beats.floor() % 4) == 0;
-        final hop = math.sin(math.pi * phase).abs();
-        dy = -hop * (strong ? 2.1 : 1.3) * energy;
-        tilt = math.sin(math.pi * beats) * 0.12 * energy;
-        wing = -1 + 2 * hop;
-        blink = phase > 0.8 && !strong;
-    }
-
-    canvas.save();
-    canvas.translate(12, 12);
-    canvas.rotate(tilt);
-    canvas.translate(-12, -12 + dy);
-
-    // Body and head as one outline.
-    final cx = hx, cy = hy;
-    final headRect = Rect.fromCircle(center: Offset(cx, cy), radius: 3.4);
-    final chestX = cx + 1.7, chestY = cy + 2.94;
-    _path
-      ..reset()
-      ..moveTo(3, 10.5)
-      ..cubicTo(5, 14.5, 8, 17.5, 12.5, 17.5)
-      ..cubicTo(16.5, 17.5, 18.8, 15, 18.6, 12.2)
-      ..cubicTo(18.55, 11.2, chestX + 0.6, chestY + 1.4, chestX, chestY)
-      ..arcTo(headRect, math.pi / 3, -1.5 * math.pi, false)
-      ..cubicTo(cx - 4.5, cy + 3.2, 10, 9.8, 3, 10.5);
-    canvas.drawPath(_path, _line);
-
-    // Beak.
-    final bx = cx + 3.3;
-    final by = cy + 0.4 + (pose == MicroduckPose.sleep ? 0.5 : 0);
-    _path
-      ..reset()
-      ..moveTo(bx, by - 1)
-      ..lineTo(bx + 2.5, by + 0.1)
-      ..lineTo(bx - 0.1, by + 1.1);
-    canvas.drawPath(_path, _line);
-
-    // Eye: a dot, or a closed lid while blinking and asleep.
-    final ex = cx + 1.1, ey = cy - 0.7;
-    if (blink) {
-      _path
-        ..reset()
-        ..moveTo(ex - 0.8, ey)
-        ..quadraticBezierTo(ex, ey + 0.9, ex + 0.8, ey);
-      canvas.drawPath(_path, _line..strokeWidth = 1.4);
-      _line.strokeWidth = _stroke;
-    } else {
-      canvas.drawCircle(Offset(ex, ey), 0.7, _dot);
-    }
-
-    // Wing.
-    final lift = wing * 1.4;
-    _path
-      ..reset()
-      ..moveTo(8.2, 12.6)
-      ..quadraticBezierTo(11, 15.4 - lift, 14.2, 12.6 - lift * 0.6);
-    canvas.drawPath(_path, _line);
-
-    // Legs: stand, or scissor while running.
-    if (legs) {
-      _leg(canvas, 10.4, pose == MicroduckPose.run ? math.sin(stride) : 0, pose == MicroduckPose.run ? math.cos(stride) : 0);
-      _leg(canvas, 14.2, pose == MicroduckPose.run ? -math.sin(stride) : 0, pose == MicroduckPose.run ? -math.cos(stride) : 0);
-    }
-    canvas.restore();
-
-    // Accents sit in the grid, not on the bobbing body.
-    if (pose == MicroduckPose.sleep) _zzz(canvas, t);
-    if (pose == MicroduckPose.dance) _notes(canvas, t / beat);
-
-    canvas.restore();
-  }
-
-  /// One leg from the belly (y 17.5 minus the body bounce) to the ground at y
-  /// 21; [swing] moves the foot fore/aft, [lift] raises it off the ground.
-  void _leg(Canvas canvas, double hipX, double swing, double lift) {
-    final footX = hipX + swing * 2.4;
-    final footY = 21.2 - math.max(0, lift) * 1.6;
-    _path
-      ..reset()
-      ..moveTo(hipX, 17.4)
-      ..lineTo(footX, footY)
-      ..lineTo(footX + 1.6, footY);
-    canvas.drawPath(_path, _line);
-  }
-
-  /// Three z's rising and fading in a loop.
-  void _zzz(Canvas canvas, double t) {
-    for (var i = 0; i < 3; i++) {
-      final p = ((t / 3.2) + i / 3) % 1;
-      final size = 1.6 + p * 1.6;
-      final x = 17.5 + p * 3 + i * 0.2;
-      final y = 6 - p * 4.5;
-      final a = (p < 0.15 ? p / 0.15 : (1 - p) / 0.85).clamp(0.0, 1.0);
-      _line
-        ..color = color.withValues(alpha: a)
-        ..strokeWidth = 1.3;
-      _path
-        ..reset()
-        ..moveTo(x, y)
-        ..lineTo(x + size, y)
-        ..lineTo(x, y + size)
-        ..lineTo(x + size, y + size);
-      canvas.drawPath(_path, _line);
-    }
-    _line
-      ..color = color
-      ..strokeWidth = _stroke;
-  }
-
-  /// Eighth-note marks that float up from either side on each beat.
-  void _notes(Canvas canvas, double beats) {
-    for (var i = 0; i < 2; i++) {
-      final p = ((beats / 2) + i * 0.5) % 1;
-      final left = i == 0;
-      final x = left ? 3.2 - p * 1.2 : 20.4 + p * 1.2;
-      final y = 9 - p * 7;
-      final a = (p < 0.2 ? p / 0.2 : (1 - p) / 0.8).clamp(0.0, 1.0);
-      _line
-        ..color = color.withValues(alpha: a)
-        ..strokeWidth = 1.3;
-      _dot.color = color.withValues(alpha: a);
-      canvas.drawCircle(Offset(x, y), 0.9, _dot);
-      _path
-        ..reset()
-        ..moveTo(x + 0.9, y)
-        ..lineTo(x + 0.9, y - 3.2)
-        ..lineTo(x + 2.4, y - 2.4);
-      canvas.drawPath(_path, _line);
-    }
-    _line
-      ..color = color
-      ..strokeWidth = _stroke;
-    _dot.color = color;
+    _Renderer.shared.draw(
+      canvas,
+      Offset((size.width - s) / 2, (size.height - s) / 2),
+      s,
+      pose,
+      time.value,
+      60 / bpm,
+      skin,
+      input,
+      facingRight,
+    );
   }
 
   @override
   bool shouldRepaint(MicroduckPainter old) =>
       old.pose != pose ||
-      old.color != color ||
-      old.beat != beat ||
-      old.energy != energy ||
+      old.skin != skin ||
+      old.bpm != bpm ||
       old.facingRight != facingRight ||
-      old.time != time;
+      old.time != time ||
+      old.input != input;
+}
+
+class _Renderer {
+  static final _Renderer shared = _Renderer();
+
+  final MicroduckMesh mesh = MicroduckMesh.instance;
+  final MicroduckRig rig = MicroduckRig();
+
+  late final int _v = mesh.vertexCount;
+  late final int _t = mesh.triCount;
+  late final Float32List _pos = Float32List(_v * 2);
+  late final Int32List _col = Int32List(_v);
+  late final Float32List _depth = Float32List(_v);
+  late final Float32List _triDepth = Float32List(_t);
+  late final Uint8List _front = Uint8List(_t);
+  late final Uint16List _order = Uint16List.fromList([for (var i = 0; i < _t; i++) i]);
+  late final Uint16List _idx = Uint16List(_t * 3);
+
+  final Float64List _baseR = Float64List(kPartCount);
+  final Float64List _baseG = Float64List(kPartCount);
+  final Float64List _baseB = Float64List(kPartCount);
+
+  final Paint _paint = Paint();
+  final Paint _shadow = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+  final Paint _zPaint = Paint()
+    ..style = PaintingStyle.stroke
+    ..strokeCap = StrokeCap.round
+    ..strokeJoin = StrokeJoin.round;
+  final Path _zPath = Path();
+
+  // Fixed light, up-left-front, normalised.
+  static final double _lx = -0.5 / _llen, _ly = 0.72 / _llen, _lz = 0.7 / _llen;
+  static final double _llen = math.sqrt(0.25 + 0.5184 + 0.49);
+
+  static const double _elev = 0.22; // camera looks down a little
+  static final double _ce = math.cos(_elev), _se = math.sin(_elev);
+
+  int _lastSkinKey = -1;
+  double _ledR = 0, _ledG = 0, _ledB = 0;
+
+  void _setSkin(MicroduckSkin skin) {
+    if (_lastSkinKey == skin.index) return;
+    _lastSkinKey = skin.index;
+    final c = skin.colors;
+    for (var p = 0; p < kPartCount; p++) {
+      final rgb = c[kPartColor[p]];
+      _baseR[p] = ((rgb >> 16) & 0xFF).toDouble();
+      _baseG[p] = ((rgb >> 8) & 0xFF).toDouble();
+      _baseB[p] = (rgb & 0xFF).toDouble();
+    }
+    _ledR = ((skin.led >> 16) & 0xFF).toDouble();
+    _ledG = ((skin.led >> 8) & 0xFF).toDouble();
+    _ledB = (skin.led & 0xFF).toDouble();
+  }
+
+  void draw(
+    Canvas canvas,
+    Offset origin,
+    double s,
+    MicroduckPose pose,
+    double t,
+    double beatSeconds,
+    MicroduckSkin skin,
+    MicroduckInput input,
+    bool facingRight,
+  ) {
+    _setSkin(skin);
+    rig.solve(pose, t, beatSeconds, input, facingRight: facingRight);
+    final unit = s / 5.7;
+    final ox = origin.dx + s / 2;
+    final oy = origin.dy + s * 0.955;
+    final led = rig.pose.v[RigPose.led];
+
+    // Ground shadow: smaller and fainter the higher the robot is.
+    final air = math.max(0.0, rig.lift - 0.0);
+    final fade = 1 / (1 + air * 0.9);
+    _shadow.color = Color.fromARGB((120 * fade).round(), 0, 0, 0);
+    canvas.drawOval(
+      Rect.fromCenter(
+        center: Offset(ox + rig.pose.v[RigPose.x] * unit, oy + 0.05 * unit),
+        width: 2.3 * unit * (0.6 + 0.4 * fade),
+        height: 0.62 * unit * (0.6 + 0.4 * fade),
+      ),
+      _shadow,
+    );
+
+    final px = mesh.px, py = mesh.py, pz = mesh.pz;
+    final nx = mesh.nx, ny = mesh.ny, nz = mesh.nz;
+    final part = mesh.part;
+    final mats = rig.partMatrices;
+    final pos = _pos, col = _col, depth = _depth;
+    for (var i = 0; i < _v; i++) {
+      final p = part[i];
+      final m = mats[p].m;
+      final x = px[i], y = py[i], z = pz[i];
+      final wx = m[0] * x + m[1] * y + m[2] * z + m[3];
+      final wy = m[4] * x + m[5] * y + m[6] * z + m[7];
+      final wz = m[8] * x + m[9] * y + m[10] * z + m[11];
+      final yc = wy * _ce - wz * _se;
+      final d = wy * _se + wz * _ce;
+      final f = 1 / (1 - 0.045 * d) * unit;
+      pos[i * 2] = ox + wx * f;
+      pos[i * 2 + 1] = oy - yc * f;
+      depth[i] = d;
+
+      double r, g, b;
+      if (p == kLed) {
+        final k = 0.25 + 0.75 * led;
+        r = _ledR * k;
+        g = _ledG * k;
+        b = _ledB * k;
+      } else {
+        final ax = nx[i], ay = ny[i], az = nz[i];
+        final wnx = m[0] * ax + m[1] * ay + m[2] * az;
+        final wny = m[4] * ax + m[5] * ay + m[6] * az;
+        final wnz = m[8] * ax + m[9] * ay + m[10] * az;
+        final key = math.max(0.0, wnx * _lx + wny * _ly + wnz * _lz);
+        final fill = math.max(0.0, wnx * 0.6 - wnz * 0.2 + wny * 0.1) * 0.14;
+        final k = 0.34 + 0.12 * wny + 0.82 * key + fill;
+        r = _baseR[p] * k;
+        g = _baseG[p] * k;
+        b = _baseB[p] * k;
+      }
+      col[i] = 0xFF000000 |
+          (math.min(255, r.round()) << 16) |
+          (math.min(255, g.round()) << 8) |
+          math.min(255, b.round());
+    }
+
+    // Cull back faces and order the rest far to near.
+    final tris = mesh.tris;
+    final tdepth = _triDepth, front = _front, order = _order;
+    for (var k = 0; k < _t; k++) {
+      final a = tris[k * 3], b = tris[k * 3 + 1], c = tris[k * 3 + 2];
+      final cross = (pos[b * 2] - pos[a * 2]) * (pos[c * 2 + 1] - pos[a * 2 + 1]) -
+          (pos[c * 2] - pos[a * 2]) * (pos[b * 2 + 1] - pos[a * 2 + 1]);
+      front[k] = cross < 0 ? 1 : 0;
+      tdepth[k] = depth[a] + depth[b] + depth[c];
+    }
+    // Insertion sort: the order from the last frame is nearly right.
+    for (var i = 1; i < _t; i++) {
+      final cur = order[i];
+      final key = tdepth[cur];
+      var j = i - 1;
+      while (j >= 0 && tdepth[order[j]] > key) {
+        order[j + 1] = order[j];
+        j--;
+      }
+      order[j + 1] = cur;
+    }
+    var n = 0;
+    final idx = _idx;
+    for (var i = 0; i < _t; i++) {
+      final k = order[i];
+      if (front[k] == 0) continue;
+      idx[n++] = tris[k * 3];
+      idx[n++] = tris[k * 3 + 1];
+      idx[n++] = tris[k * 3 + 2];
+    }
+    if (n > 0) {
+      final vertices = ui.Vertices.raw(
+        ui.VertexMode.triangles,
+        pos,
+        colors: col,
+        indices: Uint16List.sublistView(idx, 0, n),
+      );
+      canvas.drawVertices(vertices, BlendMode.src, _paint);
+      vertices.dispose();
+    }
+
+    if (pose == MicroduckPose.sleep) {
+      // Head position on screen, for the z's.
+      final hm = rig.head.m;
+      final hy = hm[7], hz = hm[11];
+      final f = 1 / (1 - 0.045 * (hy * _se + hz * _ce)) * unit;
+      _zzz(canvas, ox + hm[3] * f + 0.9 * unit, oy - (hy * _ce - hz * _se) * f - 0.2 * unit, unit, t);
+    }
+  }
+
+  /// Three z's rising from the helmet and fading.
+  void _zzz(Canvas canvas, double x0, double y0, double unit, double t) {
+    for (var i = 0; i < 3; i++) {
+      final p = ((t / 3.4) + i / 3) % 1;
+      final size = unit * (0.28 + p * 0.3);
+      final x = x0 + p * unit * 0.8;
+      final y = y0 - p * unit * 1.4;
+      final a = (p < 0.15 ? p / 0.15 : (1 - p) / 0.85).clamp(0.0, 1.0);
+      _zPaint
+        ..color = Color.fromRGBO(255, 255, 255, a * 0.9)
+        ..strokeWidth = math.max(1, unit * 0.1);
+      _zPath
+        ..reset()
+        ..moveTo(x, y)
+        ..lineTo(x + size, y)
+        ..lineTo(x, y + size)
+        ..lineTo(x + size, y + size);
+      canvas.drawPath(_zPath, _zPaint);
+    }
+  }
 }
