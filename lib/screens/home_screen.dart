@@ -7,7 +7,11 @@ import '../core/theme.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../features/discover/logic/discover_providers.dart' show discoverProvider;
 import '../features/discover/ui/discover_section.dart';
+import '../features/flow/logic/flow_controller.dart' show flowMoodsProvider;
+import '../features/flow/ui/flow_section.dart';
 import '../features/trending/logic/trending_providers.dart' show trendingChartsProvider;
+import '../features/weekly_mix/logic/weekly_mix_providers.dart' show weeklyMixProvider;
+import '../features/weekly_mix/ui/weekly_mix_section.dart';
 import '../features/trending/ui/trending_section.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
@@ -59,10 +63,14 @@ class HomeScreen extends ConsumerWidget {
         ref.invalidate(favoritesProvider);
         ref.invalidate(trendingChartsProvider);
         ref.invalidate(discoverProvider);
+        ref.invalidate(weeklyMixProvider);
+        ref.invalidate(flowMoodsProvider);
       },
       slivers: const [
         // What's new leads; the charts it came from right below.
         SliverToBoxAdapter(child: DiscoverSection()),
+        SliverToBoxAdapter(child: WeeklyMixSection()),
+        SliverToBoxAdapter(child: FlowSection()),
         SliverToBoxAdapter(child: TrendingSection()),
         SliverToBoxAdapter(child: _TopPicks()),
         SliverToBoxAdapter(child: _RecentlyPlayed()),

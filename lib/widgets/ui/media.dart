@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import '../art/navi_icons.dart';
 import '../cover_art.dart';
 
 /// Apple Music section title: Title 2, and when it leads somewhere, a chevron
@@ -415,6 +416,9 @@ class CircleIconButton extends StatelessWidget {
 /// secondary actions ("Try Again", "Add Songs").
 class TintedButton extends StatelessWidget {
   final IconData? icon;
+
+  /// One of NaviVibe's own glyphs, shown instead of [icon].
+  final NaviGlyph? glyph;
   final String label;
   final VoidCallback? onTap;
   final bool destructive;
@@ -426,6 +430,7 @@ class TintedButton extends StatelessWidget {
   const TintedButton({
     super.key,
     this.icon,
+    this.glyph,
     required this.label,
     this.onTap,
     this.destructive = false,
@@ -457,7 +462,10 @@ class TintedButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[
+            if (glyph != null) ...[
+              NaviIcon(glyph!, size: 18, color: fg),
+              const SizedBox(width: Space.sm),
+            ] else if (icon != null) ...[
               Icon(icon, size: 17, color: fg),
               const SizedBox(width: Space.sm),
             ],
