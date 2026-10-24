@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/share/share_sheet.dart';
 import '../models/song.dart';
 import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
@@ -21,10 +22,12 @@ Future<void> showCollectionActions(
   VoidCallback? onEdit,
   VoidCallback? onDelete,
   Pin? pin,
+  ShareTarget? share,
 }) =>
     showPlatformSheet(
       context: context,
       builder: (_) => _CollectionActions(
+        share: share,
         title: title,
         subtitle: subtitle,
         artUrl: artUrl,
@@ -48,7 +51,11 @@ class _CollectionActions extends ConsumerWidget {
   /// When given, offers Pin / Unpin for the top of Library.
   final Pin? pin;
 
+  /// When given, offers Share… (a public link made by the server).
+  final ShareTarget? share;
+
   const _CollectionActions({
+    this.share,
     required this.title,
     this.subtitle,
     this.artUrl,
@@ -105,8 +112,16 @@ class _CollectionActions extends ConsumerWidget {
             onTap: () => withSongs((s) => queueSongs(page, ref, s, next: false, label: title)),
           ),
         ]),
-        if (pin != null)
-          SheetGroup(children: [_PinAction(pin: pin!, page: page)]),
+        if (pin != null || share != null)
+          SheetGroup(children: [
+            if (share != null)
+              SheetAction(
+                label: 'Share…',
+                icon: CupertinoIcons.share,
+                onTap: () => showShareSheet(page, share!),
+              ),
+            if (pin != null) _PinAction(pin: pin!, page: page),
+          ]),
         if (onEdit != null || onDelete != null)
           SheetGroup(children: [
             if (onEdit != null) SheetAction(label: 'Edit Playlist', icon: CupertinoIcons.pencil, onTap: onEdit),

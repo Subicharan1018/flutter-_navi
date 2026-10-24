@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/share/share_sheet.dart';
+
 import '../core/theme.dart';
 import '../models/download_state.dart';
 import '../models/playlist.dart';
@@ -230,6 +232,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                   onEdit: _edit,
                   onDelete: _delete,
                   pin: Pin.playlist(_playlist),
+                  share: ShareTarget.playlist(_playlist),
                 ),
               ),
             ],

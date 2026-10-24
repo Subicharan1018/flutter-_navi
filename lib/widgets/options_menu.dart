@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/share/share_sheet.dart';
 import '../models/album.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
@@ -104,6 +105,11 @@ class OptionsMenu extends ConsumerWidget {
             },
           ),
           _DownloadAction(song: song, toastContext: page),
+          SheetAction(
+            label: 'Share…',
+            icon: CupertinoIcons.share,
+            onTap: () => showShareSheet(page, ShareTarget.song(song)),
+          ),
           if (song.albumId.isNotEmpty)
             SheetAction(
               label: 'Go to Album',

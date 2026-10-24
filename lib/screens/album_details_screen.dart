@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/share/share_sheet.dart';
 import '../models/album.dart';
 import '../models/song.dart';
 import '../providers/pins_provider.dart';
@@ -93,6 +94,7 @@ class AlbumDetailsScreen extends ConsumerWidget {
             placeholderIcon: CupertinoIcons.music_albums,
             loadSongs: () async => songs,
             pin: Pin.album(full),
+            share: ShareTarget.album(full),
           ),
         ),
       ],

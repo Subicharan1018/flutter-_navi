@@ -14,6 +14,7 @@ import '../models/album.dart';
 import '../models/artist.dart';
 import '../models/playlist.dart';
 import '../models/search_results.dart';
+import '../features/share/share_api.dart';
 import 'playlist_cache_service.dart';
 
 class SubsonicService {
@@ -750,6 +751,13 @@ class SubsonicService {
     assert(rating >= 0 && rating <= 5, 'Subsonic rating must be 0–5');
     await _get('setRating.view', {'id': songId, 'rating': rating.toString()});
   }
+
+  /// Makes a public share link for a song, album or playlist [id]. Needs
+  /// ND_ENABLESHARING=true on the server; throws a [ShareException] with a
+  /// message fit to show when it can't.
+  Future<String> createShare(String id, {String? description, ShareExpiry expiry = ShareExpiry.defaultChoice}) =>
+      ShareApi(client: _client, serverUrl: serverUrl, buildUrl: _buildUrl)
+          .createShare(id, description: description, expiry: expiry);
 
   Future<void> scrobble(String songId, {required bool submission}) async {
     try {
