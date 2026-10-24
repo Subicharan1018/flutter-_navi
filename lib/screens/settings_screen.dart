@@ -8,6 +8,8 @@ import '../core/theme.dart';
 import '../features/local_library/ui/download_location_section.dart';
 import '../features/local_library/ui/local_music_section.dart';
 import '../features/social/ui/social_settings_section.dart';
+import '../features/updates/logic/update_providers.dart' show updateCheckProvider, updatesSupported;
+import '../features/updates/ui/updates_screen.dart';
 import '../features/month/ui/month_screen.dart';
 import '../features/taste/ui/taste_screen.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
@@ -539,6 +541,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             header: 'About',
             children: [
               GroupedRow(title: 'Version', value: version),
+              if (updatesSupported)
+                GroupedRow(
+                  title: 'Updates',
+                  ion: Ion.download,
+                  value: ref.watch(updateCheckProvider).asData?.value?.available == true ? 'Available' : null,
+                  onTap: () => navigateInApp(context, const UpdatesScreen()),
+                ),
               if (lastError != null)
                 LastErrorRow(
                   text: lastError,

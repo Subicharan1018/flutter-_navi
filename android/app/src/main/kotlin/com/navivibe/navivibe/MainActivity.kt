@@ -14,6 +14,7 @@ class MainActivity : AudioServiceActivity() {
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         saf = SafChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        UpdateChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navivibe/android")
             .setMethodCallHandler { call, result ->
                 when (call.method) {

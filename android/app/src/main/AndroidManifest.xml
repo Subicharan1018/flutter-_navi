@@ -10,7 +10,10 @@
          permission needed). These only cover reading a chosen path directly. -->
     <uses-permission android:name="android.permission.READ_MEDIA_AUDIO"/>
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32"/>
+    <!-- In-app updates: hand the patched/downloaded APK to the package installer. -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES"/>
     <application
+        android:extractNativeLibs="false"
         android:label="NaviVibe"
         android:name="${applicationName}"
         android:icon="@mipmap/launcher_icon"
@@ -75,6 +78,16 @@
             android:authorities="com.navivibe.navivibe.art"
             android:exported="true"
             android:grantUriPermissions="true" />
+        <!-- Share the downloaded update APK with the package installer. -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="com.navivibe.navivibe.updates"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/update_file_paths" />
+        </provider>
         <service android:name="com.ryanheise.audioservice.AudioService" android:foregroundServiceType="mediaPlayback" android:exported="true">
             <intent-filter>
                 <action android:name="android.media.browse.MediaBrowserService"/>
