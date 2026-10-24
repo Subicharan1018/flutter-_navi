@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import '../art/navi_icons.dart';
 import '../cover_art.dart';
 
 /// Apple Music section title: Title 2, and when it leads somewhere, a chevron
@@ -209,6 +210,12 @@ class CollectionRow extends StatelessWidget {
   final Color? titleColor;
   final TextStyle? titleStyle;
 
+  /// A small marker after the title (e.g. a "Smart" badge).
+  final Widget? badge;
+
+  /// Replaces the chevron at the row's end.
+  final Widget? trailing;
+
   const CollectionRow({
     super.key,
     required this.title,
@@ -220,6 +227,8 @@ class CollectionRow extends StatelessWidget {
     this.showSeparator = true,
     this.titleColor,
     this.titleStyle,
+    this.badge,
+    this.trailing,
   });
 
   /// Library destination row: accent glyph instead of artwork.
@@ -281,11 +290,18 @@ class CollectionRow extends StatelessWidget {
                           mainAxisAlignment: MainAxisAlignment.center,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
-                            Text(
-                              title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: (titleStyle ?? t.body).copyWith(color: titleColor ?? t.textPrimary),
+                            Row(
+                              children: [
+                                Flexible(
+                                  child: Text(
+                                    title,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: (titleStyle ?? t.body).copyWith(color: titleColor ?? t.textPrimary),
+                                  ),
+                                ),
+                                if (badge != null) ...[const SizedBox(width: Space.sm), badge!],
+                              ],
                             ),
                             if (subtitle != null && subtitle!.isNotEmpty) ...[
                               const SizedBox(height: 1),
@@ -294,7 +310,10 @@ class CollectionRow extends StatelessWidget {
                           ],
                         ),
                       ),
-                      if (showChevron) Icon(CupertinoIcons.chevron_forward, size: 16, color: t.textMuted),
+                      if (trailing != null)
+                        trailing!
+                      else if (showChevron)
+                        Icon(CupertinoIcons.chevron_forward, size: 16, color: t.textMuted),
                     ],
                   ),
                 ),
@@ -415,6 +434,9 @@ class CircleIconButton extends StatelessWidget {
 /// secondary actions ("Try Again", "Add Songs").
 class TintedButton extends StatelessWidget {
   final IconData? icon;
+
+  /// One of NaviVibe's own glyphs, shown instead of [icon].
+  final NaviGlyph? glyph;
   final String label;
   final VoidCallback? onTap;
   final bool destructive;
@@ -426,6 +448,7 @@ class TintedButton extends StatelessWidget {
   const TintedButton({
     super.key,
     this.icon,
+    this.glyph,
     required this.label,
     this.onTap,
     this.destructive = false,
@@ -457,7 +480,10 @@ class TintedButton extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (icon != null) ...[
+            if (glyph != null) ...[
+              NaviIcon(glyph!, size: 18, color: fg),
+              const SizedBox(width: Space.sm),
+            ] else if (icon != null) ...[
               Icon(icon, size: 17, color: fg),
               const SizedBox(width: Space.sm),
             ],

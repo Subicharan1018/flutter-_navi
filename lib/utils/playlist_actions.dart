@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/smart_playlists/logic/smart_playlist_providers.dart';
 import '../models/playlist.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
@@ -19,6 +20,8 @@ Future<bool> deletePlaylistWithConfirm(BuildContext context, WidgetRef ref, Play
   try {
     await ref.read(subsonicServiceProvider).deletePlaylist(playlist.id);
     ref.invalidate(playlistsProvider);
+    // Bookkeeping: take it out of its folder, if it was in one.
+    ref.read(playlistFoldersProvider.notifier).move(playlist.id, null);
     if (context.mounted) showToast(context, 'Deleted “${playlist.name}”');
     return true;
   } catch (_) {

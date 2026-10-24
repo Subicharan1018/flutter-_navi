@@ -6,6 +6,7 @@ import '../core/theme.dart';
 import '../features/share/share_sheet.dart';
 import '../features/social/logic/jam_controller.dart';
 import '../features/social/ui/collab_screens.dart' show showAddToCollab;
+import '../features/taste/ui/never_recommend.dart';
 import '../models/album.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
@@ -167,6 +168,13 @@ class OptionsMenu extends ConsumerWidget {
               player.handleSuggestAction(song, false);
               showToast(page, 'Smart Shuffle will play this less often');
             },
+          ),
+        ]),
+        SheetGroup(children: [
+          SheetAction(
+            label: 'Never Recommend…',
+            trailing: NaviIcon(NaviGlyph.block, size: 21, color: ThemeTokens.of(context).textPrimary),
+            onTap: () => showNeverRecommend(page, ProviderScope.containerOf(page), song),
           ),
         ]),
         if (playlistId != null && onRemoveFromPlaylist != null)

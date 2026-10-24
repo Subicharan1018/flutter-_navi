@@ -5,6 +5,9 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../core/theme.dart';
 import '../features/social/ui/social_settings_section.dart';
+import '../features/month/ui/month_screen.dart';
+import '../features/taste/ui/taste_screen.dart';
+import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/last_error_row.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
@@ -406,6 +409,21 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   setState(() => _recommendations = v);
                   ref.read(recommendationProvider).setEnabled(v);
                 },
+              ),
+            ],
+          ),
+          GroupedSection(
+            footer: 'Songs, artists and composers you never want recommended.',
+            children: [
+              GroupedRow(
+                title: 'Taste',
+                subtitle: 'Never recommend',
+                onTap: () => navigateInApp(context, const TasteScreen()),
+              ),
+              GroupedRow(
+                title: 'Your Month',
+                subtitle: 'Top songs, artists and minutes',
+                onTap: () => navigateInApp(context, const MonthScreen()),
               ),
             ],
           ),

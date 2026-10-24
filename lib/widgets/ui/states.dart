@@ -10,7 +10,8 @@ export '../art/empty_art.dart' show EmptyArtKind;
 /// one saying what to do, one action (plus, rarely, a lesser second one).
 /// Centred, like iOS.
 class MessageState extends StatelessWidget {
-  final IconData icon;
+  /// Only needed when there is no [art] or [illustration] to show.
+  final IconData? icon;
   final String title;
   final String message;
   final String? actionLabel;
@@ -32,7 +33,7 @@ class MessageState extends StatelessWidget {
 
   const MessageState({
     super.key,
-    required this.icon,
+    this.icon,
     required this.title,
     required this.message,
     this.actionLabel,
@@ -83,7 +84,7 @@ class MessageState extends StatelessWidget {
                 )
               else if (art != null)
                 ExcludeSemantics(child: EmptyArt(art!, width: 128))
-              else
+              else if (icon != null)
                 Icon(icon, size: 48, color: t.textMuted),
               const SizedBox(height: Space.lg),
               Text(title, textAlign: TextAlign.center, style: t.title3),

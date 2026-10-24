@@ -18,6 +18,7 @@ import 'providers/settings_provider.dart';
 import 'offline_service.dart';
 import 'services/navi_audio_handler.dart';
 import 'services/android_integration.dart';
+import 'services/auto/browse_tree.dart' show CarStyle;
 import 'core/crash_log.dart';
 import 'providers/player_provider.dart';
 
@@ -100,6 +101,8 @@ Future<void> main() async {
         // audio_service requires: if ongoing=true then stopForegroundOnPause=true.
         androidNotificationOngoing: true,
         androidStopForegroundOnPause: true,
+        // Lets the car lay out folders as grids / lists (see CarStyle).
+        androidBrowsableRootExtras: CarStyle.rootExtras,
       ),
     );
   } catch (e, st) {
@@ -112,10 +115,7 @@ Future<void> main() async {
   }
 
   // Car / browse-tree playback goes through the same path as the UI.
-  globalAudioHandler.onPlaySongs = (songs, {bool shuffle = false, String? name}) =>
-      container
-          .read(playerProvider.notifier)
-          .playPlaylist(songs, shuffle: shuffle, playlistName: name);
+  _wireCarControls(container, globalAudioHandler);
   AndroidIntegration.init(globalAudioHandler);
 
   // Compile the Now Playing artwork-field shader before it's first shown.
@@ -126,6 +126,45 @@ Future<void> main() async {
       container: container,
       child: const MyMusicPlayerApp(),
     ),
+  );
+}
+
+/// Car and notification controls act through [PlayerNotifier], the same path
+/// as the UI, and the handler's icons follow the player's state.
+void _wireCarControls(ProviderContainer container, NaviAudioHandler handler) {
+  PlayerNotifier player() => container.read(playerProvider.notifier);
+
+  handler.onPlayRequest = (r) => r.shuffle
+      ? player().playPlaylist(r.songs, shuffle: true, playlistName: r.name)
+      : player().setQueue(r.songs, r.startIndex, playlistName: r.name);
+
+  handler.onCarAction = (action) async {
+    final p = player();
+    switch (action) {
+      case 'like':
+        final id = container.read(playerProvider).currentSong?.id;
+        if (id != null) await p.toggleStar(id);
+      case 'shuffle':
+        await p.toggleShuffle();
+      case 'repeat':
+        await p.cycleRepeat();
+    }
+  };
+
+  handler.carState = () {
+    final s = container.read(playerProvider);
+    final song = s.currentSong;
+    return (
+      liked: song != null && (song.starred || s.starredIds.contains(song.id)),
+      shuffle: s.shuffleMode,
+      repeat: s.repeatMode,
+    );
+  };
+
+  // Keep the car's heart / shuffle / repeat icons in step with the app.
+  container.listen(
+    playerProvider.select((s) => (s.shuffleMode, s.repeatMode, s.starredIds.length, s.currentSong?.id)),
+    (_, _) => handler.refreshControls(),
   );
 }
 

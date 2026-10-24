@@ -17,6 +17,7 @@ import 'shuffle_algorithms.dart';
 import 'playback_tuning.dart';
 import '../core/hive_boxes.dart';
 import 'auto/browse_tree.dart';
+import 'auto/car_browser.dart';
 
 // ---------------------------------------------------------------------------
 // AudioHandler
@@ -222,14 +223,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         if (sequenceState.currentSource == null) return;
         final source = sequenceState.currentSource!;
         if (source.tag is MediaItem) {
-          mediaItem.add(source.tag as MediaItem);
+          _publishMediaItem(source.tag as MediaItem);
         }
+        _publishCarQueue();
       }));
     }
   }
 
   void _broadcastState() {
     final playing = player.playing;
+    final state = carState?.call() ??
+        (liked: false, shuffle: player.shuffleModeEnabled, repeat: _repeatMode);
     final processingState = const {
       ProcessingState.idle: AudioProcessingState.idle,
       ProcessingState.loading: AudioProcessingState.loading,
@@ -241,12 +245,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     playbackState.add(
       playbackState.value.copyWith(
         controls: [
-          _shuffleAction,
+          _likeControl(state.liked),
           MediaControl.skipToPrevious,
           if (playing) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
-          _repeatAction,
+          _shuffleControl(state.shuffle),
+          _repeatControl(state.repeat),
         ],
+        queueIndex: _isAndroid && _currentQueue.isNotEmpty
+            ? (currentIndex - _carQueueOffset).clamp(0, _currentQueue.length - 1)
+            : null,
         systemActions: const {
           MediaAction.seek,
           MediaAction.seekForward,
@@ -263,23 +271,39 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           LoopMode.one: AudioServiceRepeatMode.one,
           LoopMode.all: AudioServiceRepeatMode.all,
         }[_repeatMode]!,
-        shuffleMode: player.shuffleModeEnabled
+        shuffleMode: state.shuffle
             ? AudioServiceShuffleMode.all
             : AudioServiceShuffleMode.none,
       ),
     );
   }
 
-  static const _shuffleAction = MediaControl(
-    androidIcon: 'drawable/ic_shuffle',
-    label: 'Shuffle',
-    action: MediaAction.setShuffleMode,
+  // Custom actions reach the car as well as the notification. The icons are
+  // the app's own glyphs (res/drawable/navi_*); "on" states carry a dot.
+  static MediaControl _likeControl(bool liked) => MediaControl.custom(
+    androidIcon: liked ? 'drawable/navi_heart_filled' : 'drawable/navi_heart',
+    label: liked ? 'Unlike' : 'Like',
+    name: 'like',
   );
 
-  static const _repeatAction = MediaControl(
-    androidIcon: 'drawable/ic_repeat',
-    label: 'Repeat',
-    action: MediaAction.setRepeatMode,
+  static MediaControl _shuffleControl(bool on) => MediaControl.custom(
+    androidIcon: on ? 'drawable/navi_shuffle_on' : 'drawable/navi_shuffle',
+    label: on ? 'Shuffle on' : 'Shuffle',
+    name: 'shuffle',
+  );
+
+  static MediaControl _repeatControl(LoopMode mode) => MediaControl.custom(
+    androidIcon: switch (mode) {
+      LoopMode.off => 'drawable/navi_repeat',
+      LoopMode.all => 'drawable/navi_repeat_on',
+      LoopMode.one => 'drawable/navi_repeat_one',
+    },
+    label: switch (mode) {
+      LoopMode.off => 'Repeat',
+      LoopMode.all => 'Repeat all',
+      LoopMode.one => 'Repeat one',
+    },
+    name: 'repeat',
   );
 
   @override
@@ -292,75 +316,153 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// Starts a queue through the player layer (wired in main()), so car playback
   /// goes through the same path as the UI. Null until wired.
-  Future<void> Function(List<Song> songs, {bool shuffle, String? name})?
-      onPlaySongs;
+  Future<void> Function(CarPlayRequest request)? onPlayRequest;
 
-  Uri? _browseArt(String coverArt) =>
-      BrowseTree.uriOrNull(subsonicService.getCoverArtUrl(coverArt, size: 300));
+  /// Runs a custom action from the car or notification (`like`, `shuffle`,
+  /// `repeat`) through the player layer. Null until wired.
+  Future<void> Function(String action)? onCarAction;
+
+  /// Current like / shuffle / repeat state, for the custom-action icons.
+  ({bool liked, bool shuffle, LoopMode repeat}) Function()? carState;
+
+  late final CarBrowser _car = CarBrowser(
+    SubsonicCarLibrary(() => subsonicService),
+    currentSong: _currentSongOrNull,
+    lastSongId: _lastSongIdOrNull,
+  );
+
+  Song? _currentSongOrNull() {
+    final i = currentIndex;
+    return i >= 0 && i < _currentQueue.length ? _currentQueue[i] : null;
+  }
+
+  String? _lastSongIdOrNull() {
+    try {
+      return HiveBoxes.session.get(HiveBoxes.kCurrentTrackId) as String?;
+    } catch (_) {
+      return null; // boxes not open (tests, very early start)
+    }
+  }
 
   @override
   Future<List<MediaItem>> getChildren(
     String parentMediaId, [
     Map<String, dynamic>? options,
-  ]) async {
-    try {
-      switch (parentMediaId) {
-        case BrowseIds.root:
-          return BrowseTree.rootChildren();
-        case BrowseIds.recent:
-          return BrowseTree.albumItems(
-            await subsonicService.getRecentlyPlayedAlbums(),
-            _browseArt,
-          );
-        case BrowseIds.playlists:
-          return BrowseTree.playlistItems(
-            await subsonicService.getPlaylists(),
-            _browseArt,
-          );
-        case BrowseIds.albums:
-          return BrowseTree.albumItems(
-            await subsonicService.getAlbumList(type: 'alphabeticalByName', size: 100),
-            _browseArt,
-          );
-      }
-    } catch (e) {
-      // Signed out or offline: an empty folder beats a crashed browse service.
-      debugPrint('⚠️ [NaviAudioHandler] getChildren($parentMediaId) failed: $e');
-    }
-    return const [];
-  }
+  ]) async => _forCar(await _car.children(parentMediaId));
 
   @override
   Future<MediaItem?> getMediaItem(String mediaId) async {
-    for (final item in BrowseTree.rootChildren()) {
-      if (item.id == mediaId) return item;
-    }
-    return null;
+    final item = await _car.item(mediaId);
+    return item == null ? null : _forCar([item]).single;
   }
+
+  @override
+  Future<List<MediaItem>> search(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) async => _forCar(await _car.search(query));
 
   @override
   Future<void> playFromMediaId(
     String mediaId, [
     Map<String, dynamic>? extras,
-  ]) async {
-    final play = onPlaySongs;
-    if (play == null) return;
+  ]) => _playRequest(_car.resolve(mediaId), 'playFromMediaId($mediaId)');
+
+  /// Voice: "Hey Google, play Radiohead on NaviVibe".
+  @override
+  Future<void> playFromSearch(
+    String query, [
+    Map<String, dynamic>? extras,
+  ]) => _playRequest(
+    _car.resolveVoice(
+      query,
+      focus: VoiceSearch.focusOf(extras?['android.intent.extra.focus'] as String?),
+      artistHint: extras?['android.intent.extra.artist'] as String?,
+      albumHint: extras?['android.intent.extra.album'] as String?,
+    ),
+    'playFromSearch($query)',
+  );
+
+  Future<void> _playRequest(Future<CarPlayRequest?> pending, String what) async {
     try {
-      final albumId = BrowseIds.albumIdOf(mediaId);
-      final playlistId = BrowseIds.playlistIdOf(mediaId);
-      if (mediaId == BrowseIds.shuffle) {
-        await play(await subsonicService.getRandomSongs(size: 50),
-            shuffle: true, name: 'Smart Shuffle');
-      } else if (albumId != null) {
-        await play(await subsonicService.getAlbum(albumId), shuffle: false);
-      } else if (playlistId != null) {
-        await play(await subsonicService.getPlaylistSongs(playlistId),
-            shuffle: false);
-      }
+      final request = await pending;
+      final play = onPlayRequest;
+      if (request == null || play == null) return;
+      await play(request);
     } catch (e) {
-      debugPrint('⚠️ [NaviAudioHandler] playFromMediaId($mediaId) failed: $e');
+      // A bad request from the car must never take the service down.
+      debugPrint('⚠️ [NaviAudioHandler] $what failed: $e');
     }
   }
+
+  @override
+  Future<dynamic> customAction(String name, [Map<String, dynamic>? extras]) async {
+    try {
+      await onCarAction?.call(name);
+    } catch (e) {
+      debugPrint('⚠️ [NaviAudioHandler] customAction($name) failed: $e');
+    }
+  }
+
+  /// Re-broadcasts state so the like / shuffle / repeat icons catch up after
+  /// the player layer changed them.
+  void refreshControls() => _broadcastState();
+
+  /// Car-safe copies of [items]: artwork goes through the app's content
+  /// provider on Android (the car can't fetch server URLs or private files).
+  List<MediaItem> _forCar(List<MediaItem> items) => [
+    for (final i in items) _carItem(i),
+  ];
+
+  MediaItem _carItem(MediaItem i) {
+    final art = i.artUri;
+    if (art == null || !_isAndroid) return i;
+    return i.copyWith(
+      artUri: CarArt.proxy(art),
+      extras: {...?i.extras, 'artSrc': art.toString()},
+    );
+  }
+
+  static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+
+  // Auto's queue view: the whole queue up to this many items, windowed around
+  // the current one beyond that (a MediaSession queue is a binder payload).
+  static const int _carQueueMax = 100;
+  int _carQueueOffset = 0;
+  String? _carQueueKey;
+
+  void _publishCarQueue() {
+    if (!_isAndroid || _currentQueue.isEmpty) return;
+    final cur = currentIndex.clamp(0, _currentQueue.length - 1);
+    final start = _currentQueue.length <= _carQueueMax
+        ? 0
+        : (cur - 20).clamp(0, _currentQueue.length - _carQueueMax);
+    final end = (start + _carQueueMax).clamp(0, _currentQueue.length);
+    final key = '$start|$end|${_currentQueue[start].id}|${_currentQueue[end - 1].id}|${_currentQueue.length}';
+    if (key == _carQueueKey) return;
+    _carQueueKey = key;
+    _carQueueOffset = start;
+    queue.add([
+      for (var i = start; i < end; i++)
+        _carItem(BrowseTree.songItem(
+          BrowseIds.ctxSingle,
+          _currentQueue[i],
+          (_) => _queueArt(_currentQueue[i]),
+        )),
+    ]);
+  }
+
+  Uri? _queueArt(Song song) {
+    final local = OfflineService().getLocalCoverArtPath(song.id);
+    return local != null
+        ? Uri.file(local)
+        : BrowseTree.uriOrNull(
+            subsonicService.getCoverArtUrl(song.coverArt, size: 300),
+          );
+  }
+
+  /// The playing item with car-readable artwork.
+  void _publishMediaItem(MediaItem item) => mediaItem.add(_carItem(item));
 
   @override
   Future<void> skipToNext() {
@@ -442,7 +544,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
     final artUri = localCoverPath != null
         ? Uri.file(localCoverPath)
-        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt));
+        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt, size: 600));
 
     final tag = MediaItem(
       id: song.id,
@@ -476,7 +578,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
     final artUri = localCoverPath != null
         ? Uri.file(localCoverPath)
-        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt));
+        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt, size: 600));
 
     final tag = MediaItem(
       id: song.id,
@@ -893,7 +995,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
     final artUri = localCoverPath != null
         ? Uri.file(localCoverPath)
-        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt));
+        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt, size: 600));
     mediaItem.add(
       MediaItem(
         id: song.id,
@@ -1050,6 +1152,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// controls) land on the correct track on Desktop single-source mode.
   @override
   Future<void> skipToQueueItem(int index) async {
+    index += _carQueueOffset; // the car's queue may be a window of ours
     final wasPlaying = player.playing;
     if (index < 0 || index >= _currentQueue.length) return;
     if (_isDesktopBridge) {

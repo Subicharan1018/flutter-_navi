@@ -14,24 +14,36 @@ class AndroidIntegration {
   static const _channel = MethodChannel('com.navivibe/android');
   static const _kAskedNotifications = 'notification_permission_asked';
 
-  /// Pure: what the widget shows for the given state.
+  /// Pure: what the widgets show for the given state. [active] is false when
+  /// nothing is loaded (cold start / stopped), so the widget's play button
+  /// opens the app instead of poking a service with nothing to play.
   @visibleForTesting
-  static Map<String, Object> widgetPayload(MediaItem? item, bool playing) => {
+  static Map<String, Object> widgetPayload(
+    MediaItem? item,
+    bool playing, {
+    bool active = true,
+  }) => {
     'title': item?.title ?? 'NaviVibe',
     'artist': item?.artist ?? 'Nothing playing',
     'playing': playing,
+    'active': item != null && active,
+    // The original artwork URL / file; the car-facing artUri is a content:// proxy.
+    'art': (item?.extras?['artSrc'] as String?) ?? item?.artUri?.toString() ?? '',
   };
 
   static void init(AudioHandler handler) {
     if (!PlatformUtils.isAndroid) return;
     MediaItem? item;
     var playing = false;
+    var active = false;
     var askedThisRun = false;
     String? lastKey;
 
+    // Pushed only when something the widget shows actually changed, so an
+    // idle playing app costs the widgets nothing (position ticks are ignored).
     void push() {
-      final payload = widgetPayload(item, playing);
-      final key = '${payload['title']}|${payload['artist']}|$playing';
+      final payload = widgetPayload(item, playing, active: active);
+      final key = payload.values.join('|');
       if (key == lastKey) return;
       lastKey = key;
       _invoke('updateWidget', payload);
@@ -43,6 +55,7 @@ class AndroidIntegration {
     });
     handler.playbackState.listen((s) {
       playing = s.playing;
+      active = s.processingState != AudioProcessingState.idle;
       push();
       if (playing && !askedThisRun) {
         askedThisRun = true;

@@ -14,6 +14,21 @@ void main() {
       const MediaItem(id: '1', title: 'T', artist: 'A'),
       true,
     );
-    expect(p, {'title': 'T', 'artist': 'A', 'playing': true});
+    expect(p, {'title': 'T', 'artist': 'A', 'playing': true, 'active': true, 'art': ''});
+  });
+
+  test('widget payload prefers the original artwork over the car proxy', () {
+    final p = AndroidIntegration.widgetPayload(
+      MediaItem(
+        id: '1',
+        title: 'T',
+        artUri: Uri.parse('content://auth/net?u=x'),
+        extras: const {'artSrc': 'https://h/getCoverArt?id=1'},
+      ),
+      false,
+      active: false,
+    );
+    expect(p['art'], 'https://h/getCoverArt?id=1');
+    expect(p['active'], false);
   });
 }

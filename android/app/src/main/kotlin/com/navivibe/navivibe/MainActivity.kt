@@ -14,11 +14,13 @@ class MainActivity : AudioServiceActivity() {
             .setMethodCallHandler { call, result ->
                 when (call.method) {
                     "updateWidget" -> {
-                        NowPlayingWidget.save(
+                        NaviWidget.save(
                             this,
                             call.argument<String>("title") ?: "NaviVibe",
                             call.argument<String>("artist") ?: "",
                             call.argument<Boolean>("playing") ?: false,
+                            call.argument<Boolean>("active") ?: false,
+                            call.argument<String>("art") ?: "",
                         )
                         result.success(null)
                     }
