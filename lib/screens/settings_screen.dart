@@ -12,6 +12,7 @@ import '../services/transcoding_service.dart';
 import '../services/replay_upload_service.dart';
 import '../core/theme.dart';
 import 'listening_stats_screen.dart';
+import '../widgets/last_error_row.dart';
 
 class SettingsScreen extends ConsumerStatefulWidget {
   const SettingsScreen({super.key});
@@ -824,6 +825,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 _SettingsNavRow(title: 'Version', value: '1.0.0'),
                 _SettingsDivider(),
+                LastErrorRow(),
                 _SettingsNavRow(title: 'Terms of Service'),
               ],
             ),

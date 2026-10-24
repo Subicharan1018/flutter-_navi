@@ -14,6 +14,7 @@ import 'cache_settings_service.dart';
 import '../providers/settings_provider.dart';
 import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
+import 'auto/browse_tree.dart';
 
 // ---------------------------------------------------------------------------
 // AudioHandler
@@ -234,6 +235,80 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   @override
   Future<void> pause() => player.pause();
+
+  // ── Android Auto / media-browser tree ──────────────────────────────────────
+
+  /// Starts a queue through the player layer (wired in main()), so car playback
+  /// goes through the same path as the UI. Null until wired.
+  Future<void> Function(List<Song> songs, {bool shuffle, String? name})?
+      onPlaySongs;
+
+  Uri? _browseArt(String coverArt) =>
+      BrowseTree.uriOrNull(subsonicService.getCoverArtUrl(coverArt, size: 300));
+
+  @override
+  Future<List<MediaItem>> getChildren(
+    String parentMediaId, [
+    Map<String, dynamic>? options,
+  ]) async {
+    try {
+      switch (parentMediaId) {
+        case BrowseIds.root:
+          return BrowseTree.rootChildren();
+        case BrowseIds.recent:
+          return BrowseTree.albumItems(
+            await subsonicService.getRecentlyPlayedAlbums(),
+            _browseArt,
+          );
+        case BrowseIds.playlists:
+          return BrowseTree.playlistItems(
+            await subsonicService.getPlaylists(),
+            _browseArt,
+          );
+        case BrowseIds.albums:
+          return BrowseTree.albumItems(
+            await subsonicService.getAlbumList(type: 'alphabeticalByName', size: 100),
+            _browseArt,
+          );
+      }
+    } catch (e) {
+      // Signed out or offline: an empty folder beats a crashed browse service.
+      debugPrint('⚠️ [NaviAudioHandler] getChildren($parentMediaId) failed: $e');
+    }
+    return const [];
+  }
+
+  @override
+  Future<MediaItem?> getMediaItem(String mediaId) async {
+    for (final item in BrowseTree.rootChildren()) {
+      if (item.id == mediaId) return item;
+    }
+    return null;
+  }
+
+  @override
+  Future<void> playFromMediaId(
+    String mediaId, [
+    Map<String, dynamic>? extras,
+  ]) async {
+    final play = onPlaySongs;
+    if (play == null) return;
+    try {
+      final albumId = BrowseIds.albumIdOf(mediaId);
+      final playlistId = BrowseIds.playlistIdOf(mediaId);
+      if (mediaId == BrowseIds.shuffle) {
+        await play(await subsonicService.getRandomSongs(size: 50),
+            shuffle: true, name: 'Smart Shuffle');
+      } else if (albumId != null) {
+        await play(await subsonicService.getAlbum(albumId), shuffle: false);
+      } else if (playlistId != null) {
+        await play(await subsonicService.getPlaylistSongs(playlistId),
+            shuffle: false);
+      }
+    } catch (e) {
+      debugPrint('⚠️ [NaviAudioHandler] playFromMediaId($mediaId) failed: $e');
+    }
+  }
 
   @override
   Future<void> skipToNext() {

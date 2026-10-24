@@ -34,31 +34,62 @@ class HiveBoxes {
     // Secure encryption for sensitive data (credentials)
     final encryptionKey = await _getEncryptionKey();
 
-    auth = await Hive.openBox(
+    auth = await _openSafe(
       _authBox,
-      encryptionCipher: HiveAesCipher(encryptionKey),
+      cipher: HiveAesCipher(encryptionKey),
     );
-    session = await Hive.openBox(_sessionBox);
-    prefs = await Hive.openBox(_prefsBox);
-    audio = await Hive.openBox(_audioBox);
-    shuffleCache = await Hive.openBox('shuffle_cache_v2');
+    session = await _openSafe(_sessionBox);
+    prefs = await _openSafe(_prefsBox);
+    audio = await _openSafe(_audioBox);
+    shuffleCache = await _openSafe('shuffle_cache_v2');
 
     // One-time migration from SharedPreferences → Hive
     await _migrateFromSharedPreferences();
   }
 
+  /// Opens a box; if the file is corrupt or the key no longer matches (lost
+  /// Keystore key after a restore/OS update), wipes that one box and retries
+  /// rather than crashing at startup. Worst case the user signs in again.
+  static Future<Box> _openSafe(String name, {HiveCipher? cipher}) async {
+    try {
+      return await Hive.openBox(name, encryptionCipher: cipher);
+    } catch (e) {
+      debugPrint('[Hive] ⚠️ Box $name unreadable ($e) — resetting it');
+      await Hive.deleteBoxFromDisk(name);
+      return Hive.openBox(name, encryptionCipher: cipher);
+    }
+  }
+
   static Future<List<int>> _getEncryptionKey() async {
     const storage = FlutterSecureStorage();
-    final encodedKey = await storage.read(key: 'hive_encryption_key');
-    if (encodedKey == null) {
+    try {
+      final encodedKey = await storage.read(key: 'hive_encryption_key');
+      if (encodedKey == null) {
+        final key = Hive.generateSecureKey();
+        await storage.write(
+          key: 'hive_encryption_key',
+          value: base64UrlEncode(key),
+        );
+        return key;
+      }
+      return base64Url.decode(encodedKey);
+    } catch (e) {
+      // Android Keystore can throw on some devices (corrupt/unavailable key).
+      // Reset the stored key; the auth box is then recreated by _openSafe.
+      debugPrint('[Hive] ⚠️ Secure storage failed ($e) — regenerating key');
       final key = Hive.generateSecureKey();
-      await storage.write(
-        key: 'hive_encryption_key',
-        value: base64UrlEncode(key),
-      );
+      try {
+        await storage.deleteAll();
+        await storage.write(
+          key: 'hive_encryption_key',
+          value: base64UrlEncode(key),
+        );
+      } catch (_) {
+        // Keystore unusable: the key lives for this run only, so the user
+        // may need to sign in again next launch — but the app starts.
+      }
       return key;
     }
-    return base64Url.decode(encodedKey);
   }
 
   // ---------------------------------------------------------------------------
