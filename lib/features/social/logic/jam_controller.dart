@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart';
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../models/song.dart';
@@ -56,6 +57,12 @@ class JamController extends Notifier<JamUiState> {
   @override
   JamUiState build() {
     ref.onDispose(_stopTimer);
+    // Back from the background (or a locked screen): catch up at once instead
+    // of waiting for the next timer beat.
+    final lifecycle = AppLifecycleListener(onResume: () {
+      if (state.active) unawaited(_tick());
+    });
+    ref.onDispose(lifecycle.dispose);
     // A different account has no claim on this Jam.
     ref.listen(settingsProvider.select((s) => s.username), (prev, next) {
       if (prev != next) _reset();

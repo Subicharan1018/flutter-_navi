@@ -13,6 +13,7 @@ import '../../../widgets/ui/large_title_page.dart';
 import '../../../widgets/ui/media.dart';
 import '../data/social_models.dart';
 import '../logic/jam_controller.dart';
+import '../../../widgets/art/empty_art.dart' show EmptyArtKind;
 import 'social_widgets.dart';
 
 /// Jam: one shared queue, one set of controls (the host's), everyone listening
@@ -55,6 +56,7 @@ class _JamScreenState extends ConsumerState<JamScreen> {
                 const SliverToBoxAdapter(
                   child: SocialNote(
                     glyph: NaviGlyph.queue,
+                    art: EmptyArtKind.record,
                     title: 'The queue is empty',
                     message: 'Anyone in the Jam can add songs. Add the first one.',
                   ),
@@ -81,6 +83,7 @@ class _StartOrJoin extends ConsumerWidget {
     return Column(children: [
       const SocialNote(
         glyph: NaviGlyph.group,
+        art: EmptyArtKind.record,
         title: 'Listen together',
         message: 'Start a Jam and share its code. Everyone adds songs to one queue and hears the same thing at the same time. Only you control playback.',
       ),

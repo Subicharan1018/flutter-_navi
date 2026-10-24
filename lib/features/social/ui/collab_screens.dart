@@ -58,7 +58,7 @@ class CollabSection extends ConsumerWidget {
           onAction: () => ref.invalidate(collabListProvider),
         ),
         data: (items) => Column(children: [
-          for (final p in items) _CollabRow(playlist: p),
+          for (final p in items.where((p) => !p.invited)) CollabRow(playlist: p),
           if (items.isEmpty)
             const SocialFootnote('Make a playlist with friends. Everyone you invite can add songs, and you see who added what.'),
           CollectionRow(
@@ -74,9 +74,9 @@ class CollabSection extends ConsumerWidget {
   }
 }
 
-class _CollabRow extends ConsumerWidget {
+class CollabRow extends ConsumerWidget {
   final CollabPlaylist playlist;
-  const _CollabRow({required this.playlist});
+  const CollabRow({super.key, required this.playlist});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -286,6 +286,7 @@ class _CollabBody extends ConsumerWidget {
           const SliverToBoxAdapter(
             child: SocialNote(
               glyph: NaviGlyph.queue,
+              art: EmptyArtKind.record,
               title: 'No songs yet',
               message: 'Add the first song. Everyone in this playlist can add more.',
             ),

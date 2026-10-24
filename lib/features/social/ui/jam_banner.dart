@@ -5,7 +5,8 @@ import '../../../core/theme.dart';
 import '../../../widgets/app_scaffold.dart' show navigateInApp;
 import '../../../widgets/art/navi_icons.dart';
 import '../logic/jam_controller.dart';
-import 'jam_screen.dart';
+import '../logic/social_providers.dart';
+import 'social_screen.dart';
 
 /// A line on Home while this phone is in a Jam, to get back to it. It also
 /// picks up a Jam the account is already in after an app restart.
@@ -31,13 +32,17 @@ class _JamBannerState extends ConsumerState<JamBanner> {
       final j = s.jam;
       return j == null ? null : (j.code, j.members.length, j.current?.title);
     }));
-    if (summary == null) return const SizedBox.shrink();
-    final (code, listeners, title) = summary;
+    final invites = ref.watch(invitationCountProvider);
+    if (summary == null && invites == 0) return const SizedBox.shrink();
     final t = ThemeTokens.of(context);
+    final headline = summary == null ? 'Sessions' : 'In a Jam · ${summary.$1}';
+    final detail = summary == null
+        ? (invites == 1 ? '1 invitation waiting' : '$invites invitations waiting')
+        : (summary.$3 == null ? '${summary.$2} listening' : '${summary.$2} listening · ${summary.$3}');
     return CupertinoClickable(
-      onTap: () => navigateInApp(context, const JamScreen()),
+      onTap: () => navigateInApp(context, const SocialScreen()),
       scaleFactor: 0.99,
-      semanticLabel: 'In a Jam, code $code, $listeners listening. Open.',
+      semanticLabel: '$headline, $detail. Open.',
       child: Padding(
         padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.sm),
         child: Row(children: [
@@ -45,9 +50,9 @@ class _JamBannerState extends ConsumerState<JamBanner> {
           const SizedBox(width: Space.md),
           Expanded(
             child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-              Text('In a Jam · $code', style: t.headline),
+              Text(headline, style: t.headline),
               Text(
-                title == null ? '$listeners listening' : '$listeners listening · $title',
+                detail,
                 style: t.footnote,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,

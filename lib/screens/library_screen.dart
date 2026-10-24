@@ -70,7 +70,7 @@ class LibraryScreen extends ConsumerWidget {
                 onTap: () => navigateInApp(context, page),
               ),
             CollectionRow(
-              title: 'Social',
+              title: 'Sessions',
               titleStyle: ThemeTokens.of(context).title3.copyWith(fontWeight: FontWeight.w400),
               leading: SizedBox(
                 width: 30,
