@@ -25,6 +25,7 @@ import '../player/sleep_timer.dart';
 import '../player/playback_tuning_tiles.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../core/layout/window_size.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/mascot/microduck_strip.dart';
@@ -39,8 +40,7 @@ import '../widgets/ui/ion.dart';
 /// Opens Now Playing: an interactive sheet on phones, a full-window fade on
 /// desktop.
 void openNowPlaying(BuildContext context) {
-  final wide = PlatformUtils.isDesktop &&
-      MediaQuery.sizeOf(context).width >= PlatformUtils.kDesktopBreakpoint;
+  final wide = ShellKind.ofContext(context) != ShellKind.phone;
   Navigator.of(context, rootNavigator: true).push(
     wide
         ? PageRouteBuilder<void>(
@@ -1167,7 +1167,7 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                     flex: 5,
                     child: Center(
                       child: ConstrainedBox(
-                        constraints: const BoxConstraints(maxWidth: 440),
+                        constraints: BoxConstraints(maxWidth: PlatformUtils.isTv ? 520 : 440),
                         child: LayoutBuilder(builder: (context, c) {
                           // Cover takes what the controls below leave (they need ~330dp,
                           // plus the robot's 72).
@@ -1192,7 +1192,7 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                                 onPlayPause: notifier.togglePlay,
                                 onPrevious: notifier.playPrev,
                                 onNext: notifier.playNext,
-                                scale: 0.86,
+                                scale: PlatformUtils.isTv ? 1.0 : 0.86,
                                 leading: const ShuffleModeButton(scale: 0.9),
                                 trailing: const RepeatModeButton(scale: 0.9),
                               ),
@@ -1220,11 +1220,11 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                             style: NowPlayingStyle.onArtwork,
                             showCurrent: true,
                           ),
-                        _Pane.lyrics => const LyricsPane(
-                            key: ValueKey('wl'),
+                        _Pane.lyrics => LyricsPane(
+                            key: const ValueKey('wl'),
                             style: NowPlayingStyle.onArtwork,
-                            fontSize: 38,
-                            padding: EdgeInsets.fromLTRB(8, 120, 8, 0),
+                            fontSize: PlatformUtils.isTv ? 46 : 38,
+                            padding: const EdgeInsets.fromLTRB(8, 120, 8, 0),
                           ),
                         _Pane.none => const SizedBox.shrink(),
                       },

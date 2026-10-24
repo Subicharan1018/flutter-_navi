@@ -4,9 +4,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../core/focus/navi_focus.dart';
 import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/song.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/ion.dart';
 
@@ -375,6 +377,7 @@ class GlyphButton extends StatefulWidget {
   final Color pressColor;
   final bool selected;
   final Color? selectedColor;
+  final bool autofocus;
 
   const GlyphButton({
     super.key,
@@ -386,6 +389,7 @@ class GlyphButton extends StatefulWidget {
     this.pressColor = const Color(0x24FFFFFF),
     this.selected = false,
     this.selectedColor,
+    this.autofocus = false,
   });
 
   @override
@@ -413,7 +417,12 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
       enabled: enabled,
       selected: widget.selected,
       label: widget.semanticLabel,
-      child: GestureDetector(
+      child: NaviFocusRing(
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        autofocus: widget.autofocus,
+        radius: widget.size / 2,
+        child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapDown: enabled ? (_) => _c.forward() : null,
         onTapUp: enabled ? (_) => _c.reverse() : null,
@@ -452,6 +461,7 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
             },
             child: widget.child,
           ),
+        ),
         ),
       ),
     );
@@ -522,6 +532,7 @@ class TransportControls extends StatelessWidget {
         GlyphButton(
           size: playBox,
           semanticLabel: playing ? 'Pause' : 'Play',
+          autofocus: PlatformUtils.isTv,
           onTap: onPlayPause,
           child: PlayPauseGlyph(playing: playing, size: 56 * s, color: color),
         ),

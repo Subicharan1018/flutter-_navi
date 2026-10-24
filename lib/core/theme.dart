@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'album_palette.dart';
+import 'focus/navi_focus.dart';
 import 'motion.dart';
 
 export 'album_palette.dart' show AlbumPalette;
@@ -575,14 +576,23 @@ class _CupertinoClickableState extends State<CupertinoClickable>
     return Semantics(
       button: _enabled,
       label: widget.semanticLabel,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: _enabled ? (_) => _c.forward() : null,
-        onTapUp: _enabled ? (_) => _c.reverse() : null,
-        onTapCancel: _enabled ? () => _c.reverse() : null,
+      // Every tappable in the app is a D-pad / keyboard target through here.
+      child: NaviFocusRing(
         onTap: widget.onTap,
         onLongPress: widget.onLongPress,
-        child: ScaleTransition(scale: scale, child: widget.child),
+        child: MouseRegion(
+          cursor: _enabled ? SystemMouseCursors.click : MouseCursor.defer,
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: _enabled ? (_) => _c.forward() : null,
+            onTapUp: _enabled ? (_) => _c.reverse() : null,
+            onTapCancel: _enabled ? () => _c.reverse() : null,
+            onTap: widget.onTap,
+            onLongPress: widget.onLongPress,
+            onSecondaryTapUp: widget.onLongPress == null ? null : (_) => widget.onLongPress!(),
+            child: ScaleTransition(scale: scale, child: widget.child),
+          ),
+        ),
       ),
     );
   }

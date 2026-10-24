@@ -29,6 +29,9 @@ class WindowManagerService with WindowListener {
   static final WindowManagerService instance = WindowManagerService._();
 
   // ── Hive box key names ─────────────────────────────────────────────────────
+  /// Narrowest/shortest the window may get: the compact (phone-style) layout.
+  static const Size minimumSize = Size(480, 640);
+
   static const String _boxName = 'window_state';
   static const String _keyWidth = 'w';
   static const String _keyHeight = 'h';
@@ -98,8 +101,8 @@ class WindowManagerService with WindowListener {
       if (w != null && h != null) {
         // Clamp to minimum size so a corrupted value never hides the window.
         final clampedSize = Size(
-          w.clamp(PlatformUtils.kDesktopBreakpoint, 8000),
-          h.clamp(PlatformUtils.kWideScreenBreakpoint, 6000),
+          w.clamp(minimumSize.width, 8000),
+          h.clamp(minimumSize.height, 6000),
         );
         await windowManager.setSize(clampedSize);
       }
