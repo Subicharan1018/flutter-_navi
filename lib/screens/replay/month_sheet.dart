@@ -2,7 +2,10 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../features/listen/data/listen_models.dart' show MonthKey;
+import '../../features/month/ui/story/month_story.dart';
 import '../../providers/navivibe_replay_provider.dart';
+import '../../widgets/art/navi_icons.dart';
 import '../../utils/format.dart';
 import '../../widgets/ui/media.dart';
 import '../../widgets/ui/states.dart';
@@ -50,7 +53,27 @@ class _Content extends StatelessWidget {
       children: [
         Padding(
           padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.lg),
-          child: Text('${month.monthName} ${month.year}', style: t.title1),
+          child: Row(
+            children: [
+              Expanded(child: Text('${month.monthName} ${month.year}', style: t.title1)),
+              CupertinoClickable(
+                onTap: () => showMonthStory(context, month: MonthKey(month.year, month.month)),
+                semanticLabel: 'Play ${month.monthName} story',
+                child: Container(
+                  height: 34,
+                  padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                  decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(17)),
+                  child: Row(
+                    children: [
+                      NaviIcon(NaviGlyph.play, size: 12, color: t.onAccent, filled: true),
+                      const SizedBox(width: 6),
+                      Text('Story', style: t.subheadline.copyWith(color: t.onAccent, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ],
+          ),
         ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Space.gutter),

@@ -1,12 +1,9 @@
 import 'dart:io';
-import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme.dart';
@@ -18,6 +15,7 @@ import '../../widgets/art/navi_icons.dart';
 import '../../widgets/desktop_dialogs.dart';
 import '../../widgets/ui/action_sheet.dart';
 import 'share_api.dart';
+import 'card_capture.dart';
 import 'share_card.dart';
 
 /// What is being shared: a song, album or playlist.
@@ -171,20 +169,8 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
     }
   }
 
-  Future<File?> _renderCard() async {
-    try {
-      final boundary = _cardKey.currentContext?.findRenderObject() as RenderRepaintBoundary?;
-      if (boundary == null) return null;
-      final image = await boundary.toImage(pixelRatio: 1080 / ShareCard.width);
-      final data = await image.toByteData(format: ui.ImageByteFormat.png);
-      if (data == null) return null;
-      final dir = await getTemporaryDirectory();
-      final file = File('${dir.path}${Platform.pathSeparator}navivibe_share_${widget.target.id}.png');
-      return await file.writeAsBytes(Uint8List.view(data.buffer));
-    } catch (_) {
-      return null;
-    }
-  }
+  Future<File?> _renderCard() =>
+      renderCardPng(_cardKey, logicalWidth: ShareCard.width, name: 'navivibe_share_${widget.target.id}');
 
   @override
   Widget build(BuildContext context) {

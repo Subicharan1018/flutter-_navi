@@ -7,6 +7,7 @@ import '../../features/ai_shuffle/data/models/listening_stats_response.dart';
 import '../../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../../widgets/ui/controls.dart';
 import '../../widgets/ui/large_title_page.dart';
+import '../../widgets/motion/reveal.dart';
 import '../../widgets/ui/states.dart';
 import 'widgets/fortnight_chart.dart';
 import 'widgets/genre_mix.dart';
@@ -98,21 +99,29 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ),
           ],
           data: (s) {
+            // Each section eases in once, the first time it scrolls into view.
             final sections = <Widget>[
-              FortnightChart(days: days),
-              ListeningClock(byHour: s.hourlyHeatmap),
-              TrendChart(days: days, window: _period.trendDays, totalPlays: s.totalPlays),
-              TopArtistsCard(artists: s.topArtists),
-              TopSongsCard(tracks: s.topTracks),
-              GenreMixCard(genres: s.genreBreakdown),
-              YearGrid(days: days),
-              if (model != null) ModelStatusCard(status: model),
+              for (final (i, w) in <Widget>[
+                FortnightChart(days: days),
+                ListeningClock(byHour: s.hourlyHeatmap),
+                TrendChart(days: days, window: _period.trendDays, totalPlays: s.totalPlays),
+                TopArtistsCard(artists: s.topArtists),
+                TopSongsCard(tracks: s.topTracks),
+                GenreMixCard(genres: s.genreBreakdown),
+                YearGrid(days: days),
+                if (model != null) ModelStatusCard(status: model),
+              ].indexed)
+                Reveal(key: ValueKey('${_period.name}-$i'), index: i < 2 ? i : 0, child: RepaintBoundary(child: w)),
             ];
             return [
               SliverPadding(
                 padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, 0),
                 sliver: SliverToBoxAdapter(
-                  child: SummaryHero(stats: s, periodPhrase: _period.phrase),
+                  child: SummaryHero(
+                    stats: s,
+                    periodPhrase: _period.phrase,
+                    dailyPlays: [for (final d in days.skip(days.length - _period.trendDays.clamp(7, 30).clamp(0, days.length))) d.count.toDouble()],
+                  ),
                 ),
               ),
               SliverPadding(

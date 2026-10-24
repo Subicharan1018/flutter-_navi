@@ -14,6 +14,7 @@ import '../../listen/data/listen_models.dart';
 import '../../listen/logic/listen_providers.dart';
 import '../../listen/ui/pick_row.dart';
 import '../logic/month_providers.dart';
+import 'story/month_story.dart';
 
 const _short = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 
@@ -82,6 +83,24 @@ class MonthBody extends ConsumerWidget {
               Text('${stats.monthName} ${stats.year}', style: t.footnote),
               Text(minutesLabel(stats.totalMinutes), style: t.largeTitle.copyWith(fontSize: 56, height: 1.1)),
               Text(change == null ? 'listened' : 'listened · $change', style: t.subheadline),
+              const SizedBox(height: Space.lg),
+              CupertinoClickable(
+                onTap: () => showMonthStory(context, month: MonthKey(stats.year, stats.month)),
+                semanticLabel: 'Play your month story',
+                child: Container(
+                  height: 40,
+                  padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+                  decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(20)),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      NaviIcon(NaviGlyph.play, size: 14, color: t.onAccent, filled: true),
+                      const SizedBox(width: Space.sm),
+                      Text('Play Story', style: t.callout.copyWith(color: t.onAccent, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
               const SizedBox(height: Space.xl),
               Row(
                 children: [

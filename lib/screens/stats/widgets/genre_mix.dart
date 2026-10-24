@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
+import 'ranked_bar_list.dart';
 import 'stat_card.dart';
 
 /// Share of plays per genre as one bar split by genre (the shape of your
@@ -51,30 +52,9 @@ class GenreMixCard extends StatelessWidget {
             ),
           ),
           const SizedBox(height: Space.lg),
-          for (final (i, p) in parts.indexed)
-            Padding(
-              padding: const EdgeInsets.only(bottom: Space.sm + 2),
-              child: Row(
-                children: [
-                  Container(
-                    width: 10,
-                    height: 10,
-                    decoration: BoxDecoration(color: shade(i), borderRadius: BorderRadius.circular(3)),
-                  ),
-                  const SizedBox(width: Space.sm + 2),
-                  Expanded(
-                    child: Text(p.$1, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.callout),
-                  ),
-                  Text(
-                    '${p.$2.round()}%',
-                    style: t.callout.copyWith(
-                      color: t.textSecondary,
-                      fontFeatures: const [FontFeature.tabularFigures()],
-                    ),
-                  ),
-                ],
-              ),
-            ),
+          RankedBarList(
+            items: [for (final p in parts) RankedBarItem(label: p.$1, value: p.$2, detail: '${p.$2.round()}%')],
+          ),
         ],
       ),
     );
