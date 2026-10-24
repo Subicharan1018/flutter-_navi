@@ -17,6 +17,7 @@ import '../../widgets/ui/artwork_page.dart';
 import '../../widgets/ui/media.dart';
 import '../../widgets/ui/mosaic_art.dart';
 import '../../widgets/ui/states.dart';
+import '../../widgets/motion/number_roll.dart';
 import '../stats/widgets/genre_mix.dart';
 import '../stats/widgets/hours_chart.dart';
 import '../stats/widgets/stat_card.dart';
@@ -186,10 +187,10 @@ class _Figures extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final cells = [
-      (compactCount(replay.totalPlays), 'plays'),
-      (listeningTime(replay.totalMinutes.round()), 'listened'),
-      ('${replay.listeningDays}', 'days with music'),
-      (hourLabel(replay.peakHourIst), 'your peak hour'),
+      (NumberRoll(value: replay.totalPlays, format: compactCount, style: figureStyle(t, 28)), 'plays'),
+      (NumberRoll(value: replay.totalMinutes.round(), format: listeningTime, style: figureStyle(t, 28)), 'listened'),
+      (NumberRoll(value: replay.listeningDays, style: figureStyle(t, 28)), 'days with music'),
+      (Text(hourLabel(replay.peakHourIst), style: figureStyle(t, 28)), 'your peak hour'),
     ];
     return LayoutBuilder(builder: (context, c) {
       final columns = c.maxWidth >= 600 ? 4 : 2;
@@ -209,7 +210,7 @@ class _Figures extends StatelessWidget {
                   FittedBox(
                     fit: BoxFit.scaleDown,
                     alignment: Alignment.centerLeft,
-                    child: Text(value, style: figureStyle(t, 28)),
+                    child: value,
                   ),
                   const SizedBox(height: Space.xxs),
                   Text(label, style: t.footnote),
