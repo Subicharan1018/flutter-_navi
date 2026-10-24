@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../services/playback_tuning.dart';
 import '../services/transcoding_service.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/grouped_list.dart';
@@ -204,6 +205,42 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ion: Ion.palette,
                 value: s.fluidBgEnabled,
                 onChanged: notifier.setFluidBgEnabled,
+              ),
+              GroupedRow(
+                title: 'Volume Normalisation',
+                icon: CupertinoIcons.speaker_2,
+                ion: Ion.volumeHigh,
+                value: s.replayGainMode.label,
+                onTap: () async {
+                  final v = await showChoiceSheet<ReplayGainMode>(
+                    context,
+                    title: 'Volume Normalisation',
+                    options: ReplayGainMode.values,
+                    selected: s.replayGainMode,
+                    label: (m) => m.label,
+                    detail: (m) => m.summary,
+                  );
+                  if (v != null) notifier.setReplayGainMode(v);
+                },
+              ),
+              GroupedRow(
+                title: 'Crossfade',
+                icon: CupertinoIcons.waveform,
+                ion: Ion.infinite,
+                value: crossfadeLabel(s.crossfadeSeconds),
+                onTap: () async {
+                  final v = await showChoiceSheet<int>(
+                    context,
+                    title: 'Crossfade',
+                    options: [for (var i = 0; i <= kMaxCrossfadeSeconds; i++) i],
+                    selected: s.crossfadeSeconds,
+                    label: crossfadeLabel,
+                    detail: (n) => n == 0
+                        ? 'Songs play gapless.'
+                        : 'Albums that play in order stay gapless.',
+                  );
+                  if (v != null) notifier.setCrossfadeSeconds(v);
+                },
               ),
               GroupedRow(
                 title: 'Shuffle Style',

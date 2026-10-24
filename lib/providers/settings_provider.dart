@@ -6,6 +6,7 @@ import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
 import '../services/cache_settings_service.dart';
+import '../services/playback_tuning.dart';
 
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
@@ -103,6 +104,15 @@ class SettingsState {
   /// Useful on low-end devices to save GPU and battery.
   final bool fluidBgEnabled;
 
+  /// Volume normalisation from the file's ReplayGain tags.
+  final ReplayGainMode replayGainMode;
+
+  /// Fade length between tracks in seconds; 0 keeps playback gapless.
+  final int crossfadeSeconds;
+
+  /// Playback rate, 0.5–2.0.
+  final double playbackSpeed;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
@@ -112,6 +122,9 @@ class SettingsState {
     this.dataCollectionEnabled = true,
     this.allowHttp = false,
     this.fluidBgEnabled = true,
+    this.replayGainMode = ReplayGainMode.off,
+    this.crossfadeSeconds = 0,
+    this.playbackSpeed = 1.0,
   });
 
   SettingsState copyWith({
@@ -123,6 +136,9 @@ class SettingsState {
     bool? dataCollectionEnabled,
     bool? allowHttp,
     bool? fluidBgEnabled,
+    ReplayGainMode? replayGainMode,
+    int? crossfadeSeconds,
+    double? playbackSpeed,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -134,6 +150,9 @@ class SettingsState {
           dataCollectionEnabled ?? this.dataCollectionEnabled,
       allowHttp: allowHttp ?? this.allowHttp,
       fluidBgEnabled: fluidBgEnabled ?? this.fluidBgEnabled,
+      replayGainMode: replayGainMode ?? this.replayGainMode,
+      crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
+      playbackSpeed: playbackSpeed ?? this.playbackSpeed,
     );
   }
 }
@@ -192,6 +211,20 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           p.get(HiveBoxes.kFluidBgEnabled, defaultValue: true) is bool
           ? p.get(HiveBoxes.kFluidBgEnabled, defaultValue: true) as bool
           : true,
+      replayGainMode: ReplayGainMode.values.firstWhere(
+        (e) => e.name == p.get(HiveBoxes.kReplayGainMode)?.toString(),
+        orElse: () => ReplayGainMode.off,
+      ),
+      crossfadeSeconds: clampCrossfadeSeconds(
+        p.get(HiveBoxes.kCrossfadeSeconds) is num
+            ? (p.get(HiveBoxes.kCrossfadeSeconds) as num).round()
+            : 0,
+      ),
+      playbackSpeed: clampPlaybackSpeed(
+        p.get(HiveBoxes.kPlaybackSpeed) is num
+            ? (p.get(HiveBoxes.kPlaybackSpeed) as num).toDouble()
+            : 1.0,
+      ),
     );
   }
 
@@ -238,6 +271,23 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setFluidBgEnabled(bool enabled) async {
     await HiveBoxes.prefs.put(HiveBoxes.kFluidBgEnabled, enabled);
     state = state.copyWith(fluidBgEnabled: enabled);
+  }
+
+  Future<void> setReplayGainMode(ReplayGainMode mode) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kReplayGainMode, mode.name);
+    state = state.copyWith(replayGainMode: mode);
+  }
+
+  Future<void> setCrossfadeSeconds(int seconds) async {
+    final clamped = clampCrossfadeSeconds(seconds);
+    await HiveBoxes.prefs.put(HiveBoxes.kCrossfadeSeconds, clamped);
+    state = state.copyWith(crossfadeSeconds: clamped);
+  }
+
+  Future<void> setPlaybackSpeed(double speed) async {
+    final clamped = clampPlaybackSpeed(speed);
+    await HiveBoxes.prefs.put(HiveBoxes.kPlaybackSpeed, clamped);
+    state = state.copyWith(playbackSpeed: clamped);
   }
 }
 
