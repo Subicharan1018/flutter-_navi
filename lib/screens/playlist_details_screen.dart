@@ -201,6 +201,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
               urls: [for (final s in _songs.take(24)) svc.getCoverArtUrl(s.coverArt)],
               size: size,
               radius: 0,
+              seed: coverSeed(_playlist.name, _songs.map((s) => s.id)),
             ),
       title: _playlist.name,
       detail: _loading ? null : songCount(_songs.length),

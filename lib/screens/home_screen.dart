@@ -120,6 +120,7 @@ class _TopPicks extends ConsumerWidget {
             size: cardWidth,
             radius: 0,
             placeholderIcon: CupertinoIcons.shuffle,
+            seed: coverSeed('Start Listening'),
           ),
           paletteCoverId: added.isEmpty ? null : added.first.coverArt,
           width: cardWidth,
@@ -129,7 +130,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Smart Shuffle',
         subtitle: 'A mix tuned to the time of day and what you play most.',
-        art: MosaicArt(urls: mixArt, size: cardWidth, radius: 0, placeholderIcon: CupertinoIcons.sparkles),
+        art: MosaicArt(urls: mixArt, size: cardWidth, radius: 0, placeholderIcon: CupertinoIcons.sparkles, seed: coverSeed('Smart Shuffle')),
         paletteCoverId: albums.isNotEmpty ? albums.first.coverArt : (recent.isNotEmpty ? recent.first.coverArt : null),
         width: cardWidth,
         onTap: () => navigateInApp(context, const AiShuffleScreen()),
@@ -137,7 +138,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Favorites',
         subtitle: starred.isEmpty ? 'Star songs to collect them here.' : songCount(starred.length),
-        art: MosaicArt(urls: favArt, size: cardWidth, radius: 0, placeholderIcon: CupertinoIcons.star_fill),
+        art: MosaicArt(urls: favArt, size: cardWidth, radius: 0, placeholderIcon: CupertinoIcons.star_fill, seed: coverSeed('Favorites')),
         paletteCoverId: starred.isEmpty ? null : starred.first.coverArt,
         width: cardWidth,
         onTap: () => navigateInApp(context, const FavoritesScreen()),
@@ -507,6 +508,7 @@ class _FirstRun extends ConsumerWidget {
       padding: EdgeInsets.only(top: Space.huge),
       child: MessageState(
         icon: CupertinoIcons.music_house,
+        art: EmptyArtKind.record,
         title: 'Your music will show up here',
         message: 'Play an album or make a playlist and Home fills in with what you listen to.',
       ),

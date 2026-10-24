@@ -15,6 +15,7 @@ import '../screens/artist_screen.dart';
 import 'add_to_playlist_dialog.dart';
 import 'app_scaffold.dart' show navigateInApp;
 import 'desktop_dialogs.dart';
+import 'art/navi_icons.dart';
 import 'ui/action_sheet.dart';
 
 /// Opens the song context menu. Pass [playlistId] + [onRemoveFromPlaylist]
@@ -87,7 +88,11 @@ class OptionsMenu extends ConsumerWidget {
         SheetGroup(children: [
           SheetAction(
             label: 'Add to Playlist…',
-            icon: CupertinoIcons.text_badge_plus,
+            trailing: NaviIcon(
+              NaviGlyph.addToPlaylist,
+              size: 21,
+              color: ThemeTokens.of(context).textPrimary,
+            ),
             onTap: () => showAddToPlaylist(page, song),
           ),
           SheetAction(

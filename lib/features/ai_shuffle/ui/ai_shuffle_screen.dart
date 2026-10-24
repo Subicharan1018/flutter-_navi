@@ -266,6 +266,7 @@ class _MixCard extends ConsumerWidget {
           size: _art,
           radius: Radii.hero,
           placeholderIcon: CupertinoIcons.sparkles,
+          seed: coverSeed('Smart Shuffle', mix.map((s) => s.id)),
         ),
         const SizedBox(height: Space.lg),
         Text(

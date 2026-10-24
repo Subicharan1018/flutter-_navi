@@ -1,7 +1,10 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../core/theme.dart';
+import '../art/generated_cover.dart';
 import '../cover_art.dart';
+
+export '../art/generated_cover.dart' show coverSeed;
 
 /// Artwork for app-made collections (mixes, Favorites): a 2×2 mosaic of the
 /// covers inside it, the way Apple Music draws playlists without their own
@@ -12,12 +15,18 @@ class MosaicArt extends StatelessWidget {
   final double radius;
   final IconData placeholderIcon;
 
+  /// When set and the collection has no covers at all, NaviVibe's generated
+  /// cover (seeded by this string, see `coverSeed`) is drawn instead of the
+  /// placeholder glyph.
+  final String? seed;
+
   const MosaicArt({
     super.key,
     required this.urls,
     required this.size,
     this.radius = Radii.cover,
     this.placeholderIcon = CupertinoIcons.music_note_list,
+    this.seed,
   });
 
   @override
@@ -27,6 +36,12 @@ class MosaicArt extends StatelessWidget {
         if (u != null && u.isNotEmpty) u,
     }.toList();
 
+    if (distinct.isEmpty && seed != null) {
+      return SizedBox.square(
+        dimension: size,
+        child: GeneratedCover.seeded(seed: seed!, borderRadius: radius),
+      );
+    }
     if (distinct.length < 4) {
       return CoverArt(
         url: distinct.firstOrNull,

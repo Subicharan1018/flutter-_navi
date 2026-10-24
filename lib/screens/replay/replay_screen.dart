@@ -86,6 +86,7 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
         size: size,
         radius: 0,
         placeholderIcon: CupertinoIcons.calendar,
+        seed: coverSeed('Replay $year'),
       ),
       title: 'Replay $year',
       subtitle: r == null || r.totalPlays == 0 ? null : '${_comma(r.totalMinutes.round())} minutes',

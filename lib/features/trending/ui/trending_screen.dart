@@ -56,6 +56,7 @@ class TrendingScreen extends ConsumerWidget {
               ),
               data: (_) => const MessageState(
                 icon: CupertinoIcons.chart_bar_alt_fill,
+                art: EmptyArtKind.signal,
                 title: 'No charts yet',
                 message: 'The server collects today’s charts after 4 AM. Pull down to check again.',
               ),

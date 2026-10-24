@@ -58,6 +58,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         size: size,
         radius: 0,
         placeholderIcon: CupertinoIcons.star_fill,
+        seed: coverSeed('Favorites'),
       ),
       title: 'Favorites',
       detail: favorites.hasValue
@@ -95,6 +96,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 SliverToBoxAdapter(
                   child: MessageState(
                     icon: CupertinoIcons.star,
+                    art: EmptyArtKind.heart,
                     title: 'No favorite songs yet',
                     message: 'Tap the star on any song and it’s collected here.',
                   ),
@@ -120,6 +122,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 SliverToBoxAdapter(
                   child: MessageState(
                     icon: CupertinoIcons.music_albums,
+                    art: EmptyArtKind.heart,
                     title: 'No favorite albums yet',
                     message: 'Albums you star on your server appear here.',
                   ),

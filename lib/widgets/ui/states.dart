@@ -1,7 +1,10 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../core/theme.dart';
+import '../art/empty_art.dart';
 import 'media.dart';
+
+export '../art/empty_art.dart' show EmptyArtKind;
 
 /// Empty or error content: a quiet glyph, one line saying what's going on,
 /// one saying what to do, one action (plus, rarely, a lesser second one).
@@ -21,6 +24,10 @@ class MessageState extends StatelessWidget {
   /// place of [icon].
   final String? illustration;
 
+  /// A drawn, code-made illustration (see `EmptyArt`); wins over [icon] but
+  /// not over [illustration].
+  final EmptyArtKind? art;
+
   static const double _illustrationSize = 96;
 
   const MessageState({
@@ -33,6 +40,7 @@ class MessageState extends StatelessWidget {
     this.secondaryLabel,
     this.onSecondary,
     this.illustration,
+    this.art,
   });
 
   /// Something failed to load.
@@ -72,6 +80,8 @@ class MessageState extends StatelessWidget {
                   cacheWidth: (_illustrationSize * MediaQuery.devicePixelRatioOf(context)).round(),
                   excludeFromSemantics: true,
                 )
+              else if (art != null)
+                ExcludeSemantics(child: EmptyArt(art!, width: 128))
               else
                 Icon(icon, size: 48, color: t.textMuted),
               const SizedBox(height: Space.lg),
