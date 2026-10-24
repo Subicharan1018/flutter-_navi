@@ -9,6 +9,9 @@ import '../features/online_fetch/data/fetch_models.dart' show looksLikeLink;
 import '../features/online_fetch/logic/online_fetch_providers.dart';
 import '../features/online_fetch/ui/search_online_row.dart';
 import '../features/online_fetch/ui/send_playlist_sheet.dart';
+import '../features/recognize/ui/recognize_sheet.dart';
+import '../lyrics/controllers/lyrics_search_provider.dart';
+import '../lyrics/models/lyric_translation.dart';
 import '../models/catalog.dart';
 import '../models/search_results.dart';
 import '../player/artwork.dart' show coverPaletteProvider;
@@ -18,6 +21,7 @@ import '../providers/player_provider.dart';
 import '../providers/search_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
+import '../widgets/art/navi_icons.dart';
 import '../widgets/collection_actions.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
@@ -75,19 +79,50 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return LargeTitlePage(
       title: 'Search',
-      header: NaviSearchField(
-        controller: _controller,
-        placeholder: 'Artists, Albums, Songs',
-        onChanged: _onChanged,
-        onSubmitted: (q) {
-          _searchFor(q.trim());
-          _remember();
-        },
+      header: Row(
+        children: [
+          Expanded(
+            child: NaviSearchField(
+              controller: _controller,
+              placeholder: 'Artists, Albums, Songs, Lyrics',
+              onChanged: _onChanged,
+              onSubmitted: (q) {
+                _searchFor(q.trim());
+                _remember();
+              },
+            ),
+          ),
+          _IdentifyButton(onTap: () => showRecognizeSheet(context)),
+        ],
       ),
       onRefresh: query.isEmpty ? () => ref.read(catalogProvider.notifier).refresh() : null,
       slivers: query.isEmpty
           ? [_RecentSearches(onTap: _searchFor), const _BrowseCategories()]
           : [_Results(query: query, onUsed: _remember)],
+    );
+  }
+}
+
+/// Next to the search field: listen to what's playing and name the song.
+class _IdentifyButton extends StatelessWidget {
+  final VoidCallback onTap;
+  const _IdentifyButton({required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Semantics(
+      button: true,
+      label: 'Identify a song',
+      child: CupertinoClickable(
+        onTap: onTap,
+        scaleFactor: 0.92,
+        child: SizedBox(
+          width: 44,
+          height: 44,
+          child: Center(child: NaviIcon(NaviGlyph.mic, size: 24, color: t.accent)),
+        ),
+      ),
     );
   }
 }
@@ -317,6 +352,13 @@ class _ResultsState extends ConsumerState<_Results> {
     if (data == null) {
       return const SliverToBoxAdapter(child: TrackListSkeleton());
     }
+    final lyricMatches = ref.watch(lyricsSearchProvider(query)).asData?.value ?? const <LyricMatch>[];
+    if (data.isEmpty && lyricMatches.isNotEmpty) {
+      return SliverMainAxisGroup(slivers: [
+        _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),
+        SliverToBoxAdapter(child: SearchOnlineRow(query: query)),
+      ]);
+    }
     if (data.isEmpty) {
       final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
       if (online && looksLikeLink(query)) {
@@ -408,7 +450,106 @@ class _ResultsState extends ConsumerState<_Results> {
           ),
         ),
       ],
+      if (lyricMatches.isNotEmpty) _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),
       SliverToBoxAdapter(child: SearchOnlineRow(query: query)),
     ]);
+  }
+}
+
+/// "Matches in Lyrics": songs whose words contain the search, each with the
+/// line that matched. Tap plays the song.
+class _LyricMatches extends ConsumerWidget {
+  final List<LyricMatch> matches;
+  final String query;
+  final VoidCallback onUsed;
+  const _LyricMatches({required this.matches, required this.query, required this.onUsed});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final svc = ref.read(subsonicServiceProvider);
+    return SliverMainAxisGroup(slivers: [
+      const SliverToBoxAdapter(child: SectionHeader(title: 'Matches in Lyrics')),
+      SliverList.builder(
+        itemCount: matches.length,
+        itemBuilder: (context, i) {
+          final m = matches[i];
+          return LyricMatchRow(
+            match: m,
+            query: query,
+            artUrl: svc.getCoverArtUrl(m.songId),
+            onTap: () async {
+              onUsed();
+              final song = await svc.getSong(m.songId);
+              ref.read(playerProvider.notifier).setQueue([song], 0, playlistName: 'Search');
+            },
+          );
+        },
+      ),
+    ]);
+  }
+}
+
+/// One lyric match: cover, title and artist, and the matching line with the
+/// searched words in bold.
+class LyricMatchRow extends StatelessWidget {
+  final LyricMatch match;
+  final String query;
+  final String? artUrl;
+  final VoidCallback onTap;
+
+  const LyricMatchRow({super.key, required this.match, required this.query, this.artUrl, required this.onTap});
+
+  /// [line] as spans with each word of [query] in bold. Case-insensitive.
+  @visibleForTesting
+  static List<TextSpan> highlight(String line, String query, TextStyle plain, TextStyle bold) {
+    final words = query.split(RegExp(r'\s+')).where((w) => w.length > 1).map(RegExp.escape).toList();
+    if (words.isEmpty) return [TextSpan(text: line, style: plain)];
+    final re = RegExp('(${words.join('|')})', caseSensitive: false, unicode: true);
+    final spans = <TextSpan>[];
+    var at = 0;
+    for (final m in re.allMatches(line)) {
+      if (m.start > at) spans.add(TextSpan(text: line.substring(at, m.start), style: plain));
+      spans.add(TextSpan(text: m.group(0), style: bold));
+      at = m.end;
+    }
+    if (at < line.length) spans.add(TextSpan(text: line.substring(at), style: plain));
+    return spans;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final plain = t.subheadline.copyWith(color: t.textSecondary);
+    final bold = plain.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700);
+    return CupertinoClickable(
+      onTap: onTap,
+      scaleFactor: 0.98,
+      semanticLabel: '${match.title}, ${match.artist}. Lyric: ${match.line}',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.sm),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            CoverArt(url: artUrl, size: 52, radius: Radii.thumb),
+            const SizedBox(width: Space.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(match.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
+                  Text(match.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
+                  const SizedBox(height: Space.xs),
+                  Text.rich(
+                    TextSpan(children: [TextSpan(text: '“', style: plain), ...highlight(match.line, query, plain, bold), TextSpan(text: '”', style: plain)]),
+                    maxLines: 2,
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
