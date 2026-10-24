@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
 import '../art/navi_icons.dart';
-import 'ion.dart';
 
 /// iOS "inset grouped" list section: optional header and footer, rows on a
 /// rounded #1C1C1E surface with separators inset past the leading icon.
@@ -90,14 +89,12 @@ class GroupedSection extends StatelessWidget {
 
 const double _iconSize = 30;
 
-/// The iOS Settings square behind a row's glyph: the [ion] glyph when given
-/// (the app's Ionicons set), otherwise [icon]. Monochrome — every row gets
+/// The iOS Settings square behind a row's glyph. Monochrome — every row gets
 /// the same neutral tile ([AppThemeTokens.iconTile]) with a white glyph.
 class _IconSquare extends StatelessWidget {
   static const double _glyph = 18;
   final NaviGlyph icon;
-  final Ion? ion;
-  const _IconSquare({required this.icon, this.ion});
+  const _IconSquare({required this.icon});
 
   @override
   Widget build(BuildContext context) {
@@ -110,9 +107,7 @@ class _IconSquare extends StatelessWidget {
         borderRadius: BorderRadius.circular(7),
       ),
       alignment: Alignment.center,
-      child: ion != null
-          ? IonIcon(ion!, size: _glyph, color: t.textPrimary)
-          : NaviIcon(icon, size: _glyph, color: t.textPrimary),
+      child: NaviIcon(icon, size: _glyph, color: t.textPrimary),
     );
   }
 }
@@ -125,8 +120,6 @@ class GroupedRow extends StatelessWidget {
   final String? subtitle;
   final NaviGlyph? icon;
 
-  /// Ionicons glyph shown in the square instead of [icon].
-  final Ion? ion;
   final String? value;
   final Widget? trailing;
   final VoidCallback? onTap;
@@ -138,7 +131,6 @@ class GroupedRow extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.icon,
-    this.ion,
     this.value,
     this.trailing,
     this.onTap,
@@ -162,7 +154,7 @@ class GroupedRow extends StatelessWidget {
           child: Row(
             children: [
               if (icon != null) ...[
-                _IconSquare(icon: icon!, ion: ion),
+                _IconSquare(icon: icon!),
                 const SizedBox(width: Space.md + 2),
               ],
               Expanded(
@@ -217,7 +209,6 @@ class GroupedSwitchRow extends StatelessWidget {
   final String title;
   final String? subtitle;
   final NaviGlyph? icon;
-  final Ion? ion;
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -226,7 +217,6 @@ class GroupedSwitchRow extends StatelessWidget {
     required this.title,
     this.subtitle,
     this.icon,
-    this.ion,
     required this.value,
     required this.onChanged,
   });
@@ -238,7 +228,6 @@ class GroupedSwitchRow extends StatelessWidget {
       title: title,
       subtitle: subtitle,
       icon: icon,
-      ion: ion,
       trailing: CupertinoSwitch(
         value: value,
         activeTrackColor: t.accent,
@@ -264,7 +253,6 @@ class GroupedTextFieldRow extends StatefulWidget {
   final bool obscure;
   final TextInputType? keyboardType;
   final NaviGlyph? icon;
-  final Ion? ion;
 
   const GroupedTextFieldRow({
     super.key,
@@ -274,7 +262,6 @@ class GroupedTextFieldRow extends StatefulWidget {
     this.obscure = false,
     this.keyboardType,
     this.icon,
-    this.ion,
   });
 
   @override
@@ -294,7 +281,7 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
         child: Row(
           children: [
             if (widget.icon != null) ...[
-              _IconSquare(icon: widget.icon!, ion: widget.ion),
+              _IconSquare(icon: widget.icon!),
               const SizedBox(width: Space.md + 2),
             ],
             SizedBox(width: 104, child: Text(widget.title, style: t.body)),

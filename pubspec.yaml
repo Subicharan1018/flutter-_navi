@@ -86,7 +86,6 @@ flutter:
   assets:
     - assets/icons/
     # Ionicons v7 glyphs (MIT), white PNGs tinted at draw time; see Ion.
-    - assets/ionicons/
   # Inter 4.1 (SIL OFL, assets/fonts/Inter-OFL-LICENSE.txt). Bundled so the
   # first launch and offline launches render the real face, never a fallback.
   # "Inter" is the text cut; "InterDisplay" is the optical cut for ≥20pt type.

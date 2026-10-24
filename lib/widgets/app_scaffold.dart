@@ -35,7 +35,6 @@ import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import '../screens/playlist_editor.dart';
 import 'ui/dock_ground.dart';
-import 'ui/ion.dart';
 import 'ui/one_shot_icon.dart';
 import '../features/social/ui/jam/jam_pill.dart';
 import '../features/social/ui/jam/jam_tab.dart';
@@ -363,8 +362,8 @@ class _TabBar extends StatelessWidget {
                     height: _height,
                     decoration: _surface(circle: true),
                     alignment: Alignment.center,
-                    child: IonIcon(
-                      Ion.search,
+                    child: NaviIcon(
+                      NaviGlyph.search,
                       size: 26,
                       color: tab == AppTab.search ? t.accent : t.textPrimary,
                     ),
