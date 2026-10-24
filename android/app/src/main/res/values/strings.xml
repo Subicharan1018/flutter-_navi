@@ -1,4 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="widget_description">Now playing with play, pause and skip</string>
+    <string name="widget_description">Now playing with previous, play and next</string>
+    <string name="widget_small_description">Artwork with a play button</string>
+    <string name="widget_compact_description">Slim now-playing bar</string>
 </resources>
