@@ -115,22 +115,31 @@ class SocialButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: label,
-      child: CupertinoButton(
+      child: Center(
+        widthFactor: 1,
+        heightFactor: 1,
+        child: CupertinoButton(
         padding: EdgeInsets.zero,
         minimumSize: const Size(44, 44),
         onPressed: busy ? null : onPressed,
         child: Container(
           constraints: const BoxConstraints(minHeight: 44, minWidth: 120),
           padding: const EdgeInsets.symmetric(horizontal: Space.xl),
-          alignment: Alignment.center,
           decoration: BoxDecoration(
             color: onPressed == null ? t.fill : bg,
             borderRadius: BorderRadius.circular(Radii.control),
           ),
-          child: busy
-              ? const CupertinoActivityIndicator()
-              : Text(label, style: t.headline.copyWith(color: onPressed == null ? t.textMuted : fg)),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              busy
+                  ? const CupertinoActivityIndicator()
+                  : Text(label, style: t.headline.copyWith(color: onPressed == null ? t.textMuted : fg)),
+            ],
+          ),
         ),
+      ),
       ),
     );
   }

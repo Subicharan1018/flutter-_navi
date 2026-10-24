@@ -8,7 +8,7 @@ import '../core/theme.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../features/discover/logic/discover_providers.dart' show discoverProvider;
 import '../features/discover/ui/discover_section.dart';
-import '../features/social/ui/jam_banner.dart';
+import '../features/social/ui/jam/jam_hero.dart';
 import '../features/flow/logic/flow_controller.dart' show flowMoodsProvider;
 import '../features/flow/ui/flow_section.dart';
 import '../features/trending/logic/trending_providers.dart' show trendingChartsProvider;
@@ -70,7 +70,7 @@ class HomeScreen extends ConsumerWidget {
         ref.invalidate(flowMoodsProvider);
       },
       slivers: const [
-        SliverToBoxAdapter(child: JamBanner()),
+        SliverToBoxAdapter(child: JamHero()),
         // What's new leads; the charts it came from right below.
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 1, child: DiscoverSection())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 2, child: WeeklyMixSection())),

@@ -37,6 +37,8 @@ import '../screens/playlist_editor.dart';
 import 'ui/dock_ground.dart';
 import 'ui/ion.dart';
 import 'ui/one_shot_icon.dart';
+import '../features/social/ui/jam/jam_pill.dart';
+import '../features/social/ui/jam/jam_tab.dart';
 import 'mini_player.dart';
 import '../providers/id_migration_provider.dart';
 
@@ -58,6 +60,7 @@ import '../providers/id_migration_provider.dart';
 enum AppTab {
   home('Home', NaviGlyph.home, 'tab_home', Duration(milliseconds: 1980)),
   shuffle('Shuffle', NaviGlyph.aiShuffle, 'tab_shuffle', Duration(milliseconds: 2970)),
+  jam('Jam', NaviGlyph.jam, null, Duration.zero),
   stats('Stats', NaviGlyph.dashboard, 'tab_stats', Duration(milliseconds: 1980)),
   library('Library', NaviGlyph.library, 'tab_library', Duration(milliseconds: 1980)),
   search('Search', NaviGlyph.search, null, Duration.zero);
@@ -76,11 +79,18 @@ enum AppTab {
   Widget get screen => switch (this) {
         AppTab.home => const HomeScreen(),
         AppTab.shuffle => const AiShuffleScreen(),
+        AppTab.jam => const JamTabScreen(),
         AppTab.stats => const StatsScreen(),
         AppTab.library => const LibraryScreen(),
         AppTab.search => const SearchScreen(),
       };
 }
+
+/// Asks the shell to switch to [tab] from anywhere (Home's Jam card, the
+/// "Jam live" pill, a Library shortcut).
+void selectAppTab(AppTab tab) => _tabRequest.value = tab;
+
+final ValueNotifier<AppTab?> _tabRequest = ValueNotifier(null);
 
 /// Content navigator for the desktop centre pane.
 final GlobalKey<NavigatorState> desktopNavigatorKey = GlobalKey<NavigatorState>();
@@ -119,9 +129,23 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WindowLifecycleM
   /// alive after that, so Stats and Shuffle don't fetch at launch.
   final Set<AppTab> _visited = {AppTab.home};
 
+  void _onTabRequest() {
+    final tab = _tabRequest.value;
+    if (tab == null) return;
+    _tabRequest.value = null;
+    if (mounted) _select(tab);
+  }
+
+  @override
+  void dispose() {
+    _tabRequest.removeListener(_onTabRequest);
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
+    _tabRequest.addListener(_onTabRequest);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // After a server upgrade that renamed song ids, move local history and
       // downloads to the new ids first (a no-op otherwise; gives up after 8 s).
@@ -226,6 +250,7 @@ class _PhoneShell extends ConsumerWidget {
                     children: [
                       if (offline) const _OfflineBanner(),
                       const FetchFinishedBanner(),
+                      const JamLivePill(),
                       const MiniPlayer(),
                       _TabBar(tab: tab, onSelect: onSelect, ground: band),
                     ],
@@ -553,7 +578,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           ),
           const SizedBox(height: Space.lg),
           const _DownloadsRow(),
-          for (final dest in const [AppTab.home, AppTab.shuffle, AppTab.stats])
+          for (final dest in const [AppTab.home, AppTab.shuffle, AppTab.jam, AppTab.stats])
             _SidebarRow(
               icon: dest.icon,
               label: dest.label,

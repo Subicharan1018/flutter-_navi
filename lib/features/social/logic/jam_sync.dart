@@ -37,15 +37,19 @@ int projectPositionMs(JamState s, int serverNowMs) {
   return s.positionMs + (elapsed > 0 ? elapsed : 0);
 }
 
-enum QueueChange { none, append, removeOne, replace }
+enum QueueChange { none, append, removeOne, move, replace }
 
 class QueueDiff {
   final QueueChange change;
 
   /// For [QueueChange.append]: how many of the existing items to keep.
   /// For [QueueChange.removeOne]: the index (in the applied queue) removed.
+  /// For [QueueChange.move]: the index the item moved from.
   final int at;
-  const QueueDiff(this.change, [this.at = 0]);
+
+  /// For [QueueChange.move]: the index it moved to.
+  final int to;
+  const QueueDiff(this.change, [this.at = 0, this.to = 0]);
 }
 
 /// How to turn the queue the player holds (by Jam item id) into [next] with
@@ -62,6 +66,17 @@ QueueDiff diffQueue(List<int> applied, List<int> next, int currentIndex) {
         // Removing the playing song needs a fresh start on its successor.
         return i == currentIndex ? const QueueDiff(QueueChange.replace) : QueueDiff(QueueChange.removeOne, i);
       }
+    }
+  }
+  if (next.length == applied.length) {
+    // One song dragged elsewhere: the player can reorder in place without
+    // interrupting what is playing.
+    for (var i = 0; i < applied.length; i++) {
+      final j = next.indexOf(applied[i]);
+      if (j < 0 || j == i) continue;
+      final moved = [...applied]..removeAt(i);
+      moved.insert(j, applied[i]);
+      if (_same(moved, next)) return QueueDiff(QueueChange.move, i, j);
     }
   }
   return const QueueDiff(QueueChange.replace);
