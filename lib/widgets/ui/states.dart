@@ -4,6 +4,7 @@ import '../../core/motion.dart';
 import '../../core/theme.dart';
 import '../art/empty_art.dart';
 import '../art/navi_icons.dart';
+import '../mascot/microduck_empty.dart';
 import 'media.dart';
 
 export '../art/empty_art.dart' show EmptyArtKind;
@@ -85,7 +86,7 @@ class MessageState extends StatelessWidget {
                   excludeFromSemantics: true,
                 )
               else if (art != null)
-                ExcludeSemantics(child: EmptyArt(art!, width: 128))
+                ExcludeSemantics(child: EmptyIllustration(art!, seed: title, width: 128))
               else if (icon != null)
                 NaviIcon(icon!, size: 48, color: t.textMuted),
               const SizedBox(height: Space.lg),

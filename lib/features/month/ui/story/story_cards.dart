@@ -9,6 +9,7 @@ import '../../../../providers/settings_provider.dart';
 import '../../../../screens/stats/widgets/heat_grid.dart';
 import '../../../../widgets/art/generated_cover.dart';
 import '../../../../widgets/art/navi_icons.dart';
+import '../../../../widgets/mascot/microduck_strip.dart';
 import '../../../../widgets/motion/number_roll.dart';
 import '../../../../widgets/motion/play_once.dart';
 import '../../../listen/data/listen_models.dart';
@@ -409,11 +410,20 @@ class StreakCard extends StatelessWidget {
         mainAxisAlignment: MainAxisAlignment.center,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // MICRODUCK: the line-art duck mascot goes here, walking along the
-          // streak. Place `MicroduckStrip(progress: _Window(p, 0.1, 0.8))`
-          // (lib/widgets/mascot/) in this slot; its progress matches the
-          // squares below so the duck reaches the last square as it fills.
-          const SizedBox(height: 56, key: ValueKey('microduck-slot')),
+          // Microduck walks the streak: same window as the squares below, so
+          // it reaches the last square as they fill. Empty when switched off.
+          SizedBox(
+            height: 56,
+            key: const ValueKey('microduck-slot'),
+            child: AnimatedBuilder(
+              animation: p,
+              builder: (context, _) => MicroduckStrip(
+                progress: _Window(p, 0.1, 0.8).value,
+                height: 48,
+                color: _ink,
+              ),
+            ),
+          ),
           const SizedBox(height: Space.lg),
           if (days > 0)
             HeatGrid(
