@@ -9,6 +9,7 @@ import '../../../core/theme.dart';
 import '../../../models/song.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/desktop_dialogs.dart';
 import '../../../widgets/ui/controls.dart';
 import '../../../widgets/ui/media.dart';
@@ -105,7 +106,7 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
                 child: Row(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(CupertinoIcons.link, size: 16, color: t.accent),
+                    NaviIcon(NaviGlyph.link, size: 16, color: t.accent),
                     const SizedBox(width: Space.xs),
                     Text('Send a Playlist', style: t.subheadline.copyWith(color: t.accent)),
                   ],
@@ -172,7 +173,7 @@ class _ArtistHeader extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  Icon(CupertinoIcons.chevron_left, size: 20, color: t.accent),
+                  NaviIcon(NaviGlyph.chevronLeft, size: 20, color: t.accent),
                   const SizedBox(width: 2),
                   Text('Artists', style: t.body.copyWith(color: t.accent)),
                 ],
@@ -188,7 +189,7 @@ class _ArtistHeader extends ConsumerWidget {
             Padding(
               padding: const EdgeInsets.only(left: Space.sm),
               child: TintedButton(
-                icon: busy ? null : CupertinoIcons.arrow_down,
+                glyph: busy ? null : NaviGlyph.download,
                 label: busy ? fetchBatchStatus(batch) : 'Download All ${songs.length} Songs',
                 filled: !busy,
                 onTap: busy
@@ -271,7 +272,7 @@ class _Body extends ConsumerWidget {
       case FetchSearchStatus.inLibrary:
         final m = search.libraryMatches.first;
         return MessageState(
-          icon: CupertinoIcons.checkmark_circle,
+          icon: NaviGlyph.checkCircle,
           title: 'Already in your library',
           message: '${m.title} — ${m.artist}',
           actionLabel: 'Play',
@@ -285,7 +286,7 @@ class _Body extends ConsumerWidget {
         );
       case FetchSearchStatus.noResults when search.candidates.isEmpty:
         return MessageState(
-          icon: CupertinoIcons.search,
+          icon: NaviGlyph.search,
           title: 'No match for “${search.query}”',
           message: s.type == FetchSearchType.song
               ? 'Check the spelling, or add the film or artist name.'
@@ -443,7 +444,7 @@ class _ResultsState extends ConsumerState<_Results> {
                 const SizedBox(width: Space.md),
                 Expanded(
                   child: TintedButton(
-                    icon: CupertinoIcons.arrow_down,
+                    glyph: NaviGlyph.download,
                     label: picked.isEmpty ? 'Download' : 'Download ${picked.length == 1 ? '1 Song' : '${picked.length} Songs'}',
                     filled: true,
                     onTap: picked.isEmpty ? null : _downloadPicked,
@@ -521,7 +522,7 @@ class _DoneActionsState extends ConsumerState<_DoneActions> with FetchSongAction
         children: [
           Expanded(
             child: TintedButton(
-              icon: CupertinoIcons.play_fill,
+              glyph: NaviGlyph.play,
               label: 'Play',
               filled: true,
               onTap: () async {
@@ -533,7 +534,7 @@ class _DoneActionsState extends ConsumerState<_DoneActions> with FetchSongAction
           const SizedBox(width: Space.md),
           Expanded(
             child: TintedButton(
-              icon: CupertinoIcons.text_badge_plus,
+              glyph: NaviGlyph.addToPlaylist,
               label: 'Add to Playlist',
               onTap: () => addSongsToPlaylist(songIds),
             ),

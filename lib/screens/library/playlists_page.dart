@@ -41,11 +41,12 @@ class PlaylistsPage extends ConsumerWidget {
     final smart = ref.watch(smartPlaylistsProvider);
     final folders = ref.watch(playlistFoldersProvider);
 
-    Widget glyphTile(IconData icon) => Container(
+    Widget glyphTile(NaviGlyph icon) => Container(
           width: 56,
           height: 56,
           decoration: BoxDecoration(color: t.bgSurface, borderRadius: BorderRadius.circular(Radii.cover)),
-          child: Icon(icon, color: t.accent, size: 26),
+          alignment: Alignment.center,
+          child: NaviIcon(icon, color: t.accent, size: 26),
         );
 
     Widget row(PlaylistEntry e) => switch (e) {
@@ -63,7 +64,7 @@ class PlaylistsPage extends ConsumerWidget {
           CollectionRow(
             title: 'New Playlist…',
             titleColor: t.accent,
-            leading: glyphTile(CupertinoIcons.add),
+            leading: glyphTile(NaviGlyph.plus),
             showChevron: false,
             onTap: () => showPlaylistEditor(context),
           ),
@@ -90,7 +91,7 @@ class PlaylistsPage extends ConsumerWidget {
           CollectionRow(
             title: 'Favorites',
             subtitle: 'Songs you starred',
-            leading: glyphTile(CupertinoIcons.star_fill),
+            leading: glyphTile(NaviGlyph.star),
             onTap: () => navigateInApp(context, const FavoritesScreen()),
           ),
         ]),
@@ -162,7 +163,7 @@ class PlaylistsPage extends ConsumerWidget {
       child: CollectionRow(
         title: p.name,
         subtitle: songCount(p.songCount),
-        leading: CoverArt(url: art, size: 56, radius: Radii.cover, placeholderIcon: CupertinoIcons.music_note_list),
+        leading: CoverArt(url: art, size: 56, radius: Radii.cover, placeholderIcon: NaviGlyph.playlist),
         onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p)),
         onLongPress: () => _actions(context, ref, p, art),
       ),

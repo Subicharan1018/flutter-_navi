@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../../../core/theme.dart';
 import '../../../../utils/format.dart';
+import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/ui/media.dart' show TintedButton;
 import '../../data/trending_models.dart';
 import 'chart_row.dart' show ChartRow;
@@ -177,7 +178,7 @@ class ChartDetailsPanel extends StatelessWidget {
             ),
           const SizedBox(height: Space.sm),
           if (entry.playable)
-            TintedButton(icon: CupertinoIcons.play_fill, label: 'Play', height: 36, onTap: onPlay)
+            TintedButton(glyph: NaviGlyph.play, label: 'Play', height: 36, onTap: onPlay)
           else
             Text(entry.unavailableLine ?? '', style: t.footnote.copyWith(color: t.textMuted)),
         ],

@@ -167,7 +167,7 @@ class _RecentSearches extends ConsumerWidget {
           onDismissed: (_) => ref.read(searchHistoryProvider.notifier).removeQuery(q),
           child: CollectionRow(
             title: q,
-            leading: Icon(CupertinoIcons.search, size: 18, color: t.textMuted),
+            leading: NaviIcon(NaviGlyph.search, size: 18, color: t.textMuted),
             showChevron: false,
             showSeparator: i < history.length - 1,
             onTap: () => onTap(q),
@@ -366,7 +366,7 @@ class _ResultsState extends ConsumerState<_Results> {
         return SliverFillRemaining(
           hasScrollBody: false,
           child: MessageState(
-            icon: CupertinoIcons.link,
+            icon: NaviGlyph.link,
             title: 'Playlist link',
             message: 'Add its songs in lossless quality and make it a playlist in your library.',
             actionLabel: 'Send Playlist',
@@ -394,7 +394,7 @@ class _ResultsState extends ConsumerState<_Results> {
                 artUrl: svc.getCoverArtUrl(a.coverArtId),
                 size: 110,
                 circular: true,
-                placeholderIcon: CupertinoIcons.person_fill,
+                placeholderIcon: NaviGlyph.person,
                 onTap: () {
                   onUsed();
                   navigateInApp(context, ArtistScreen(artistId: a.id, name: a.name));
@@ -416,7 +416,7 @@ class _ResultsState extends ConsumerState<_Results> {
                 subtitle: a.artist,
                 artUrl: art,
                 size: 150,
-                placeholderIcon: CupertinoIcons.music_albums,
+                placeholderIcon: NaviGlyph.library,
                 onTap: () {
                   onUsed();
                   navigateInApp(context, AlbumDetailsScreen(album: a));
@@ -426,7 +426,7 @@ class _ResultsState extends ConsumerState<_Results> {
                   title: a.name,
                   subtitle: a.artist,
                   artUrl: art,
-                  placeholderIcon: CupertinoIcons.music_albums,
+                  placeholderIcon: NaviGlyph.library,
                   loadSongs: () => svc.getAlbum(a.id),
                   pin: Pin.album(a),
                 ),

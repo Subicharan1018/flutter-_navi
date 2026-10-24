@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/desktop_dialogs.dart';
 import '../../../widgets/ui/media.dart';
 import '../../../widgets/ui/states.dart';
@@ -130,7 +131,7 @@ class _SendPlaylistSheetState extends ConsumerState<SendPlaylistSheet> {
             decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(Radii.control)),
             prefix: Padding(
               padding: const EdgeInsets.only(left: Space.md),
-              child: Icon(CupertinoIcons.link, size: 18, color: t.textSecondary),
+              child: NaviIcon(NaviGlyph.link, size: 18, color: t.textSecondary),
             ),
             suffix: CupertinoButton(
               padding: const EdgeInsets.symmetric(horizontal: Space.md),
@@ -168,7 +169,7 @@ class _LinkBody extends ConsumerWidget {
       // A bad link: say why (retrying won't help). A good link that failed: retry.
       return playlistLinkProblem(s.query) == null
           ? MessageState.error(title: 'Can’t use this link', message: s.error!, onRetry: onRetry)
-          : MessageState(icon: CupertinoIcons.link, title: 'Can’t use this link', message: s.error!);
+          : MessageState(icon: NaviGlyph.link, title: 'Can’t use this link', message: s.error!);
     }
     if (s.isLoading || listed == null) return const LoadingState(label: 'Reading the playlist…');
     if (listed.status == FetchSearchStatus.failed) {
@@ -180,7 +181,7 @@ class _LinkBody extends ConsumerWidget {
     }
     if (listed.candidates.isEmpty) {
       return const MessageState(
-        icon: CupertinoIcons.music_note_list,
+        icon: NaviGlyph.playlist,
         title: 'This playlist is empty',
         message: 'Add songs to it first, or try another link.',
       );
@@ -211,7 +212,7 @@ class _LinkBody extends ConsumerWidget {
         Padding(
           padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.sm),
           child: TintedButton(
-            icon: started ? null : CupertinoIcons.arrow_down,
+            glyph: started ? null : NaviGlyph.download,
             label: started
                 ? fetchBatchStatus(batch)
                 : (fresh == 0 ? 'Make Playlist' : 'Download ${fresh == 1 ? '1 New Song' : '$fresh New Songs'}'),

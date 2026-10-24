@@ -9,6 +9,7 @@ import '../providers/player_provider.dart';
 import '../utils/queue_actions.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/ui/large_title_page.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/states.dart';
 import '../widgets/ui/swipe_actions.dart';
@@ -50,7 +51,7 @@ class CategoryScreen extends ConsumerWidget {
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: MessageState(
-                    icon: CupertinoIcons.music_note_list,
+                    icon: NaviGlyph.playlist,
                     title: 'Nothing here yet',
                     message: 'Songs appear here once your library has synced.',
                   ),

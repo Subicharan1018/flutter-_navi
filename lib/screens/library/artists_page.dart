@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../models/artist.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/app_scaffold.dart' show navigateInApp;
+import '../../widgets/art/navi_icons.dart';
 import '../../widgets/cover_art.dart';
 import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/ui/media.dart';
@@ -44,7 +45,7 @@ class ArtistsPage extends ConsumerWidget {
                 SliverFillRemaining(
                   hasScrollBody: false,
                   child: MessageState(
-                    icon: CupertinoIcons.music_mic,
+                    icon: NaviGlyph.mic,
                     title: 'No artists yet',
                     message: 'Artists on your server appear here.',
                   ),
@@ -63,7 +64,7 @@ class ArtistsPage extends ConsumerWidget {
                           url: svc.getCoverArtUrl(a.coverArtId),
                           size: 46,
                           circular: true,
-                          placeholderIcon: CupertinoIcons.person_fill,
+                          placeholderIcon: NaviGlyph.person,
                         ),
                         showSeparator: i < list.length - 1,
                         onTap: () => navigateInApp(context, ArtistScreen(artistId: a.id, name: a.name)),

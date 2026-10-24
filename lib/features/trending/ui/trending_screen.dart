@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/controls.dart';
 import '../../../widgets/ui/large_title_page.dart';
 import '../../../widgets/ui/media.dart';
@@ -55,7 +56,7 @@ class TrendingScreen extends ConsumerWidget {
                 onRetry: () => ref.invalidate(trendingChartsProvider),
               ),
               data: (_) => const MessageState(
-                icon: CupertinoIcons.chart_bar_alt_fill,
+                icon: NaviGlyph.trending,
                 art: EmptyArtKind.signal,
                 title: 'No charts yet',
                 message: 'The server collects today’s charts after 4 AM. Pull down to check again.',

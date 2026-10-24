@@ -9,6 +9,7 @@ import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
+import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import 'desktop_dialogs.dart';
 import 'ui/action_sheet.dart';
@@ -157,7 +158,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
                 )
               : SheetAction(
                   label: 'New Playlist…',
-                  icon: CupertinoIcons.add,
+                  icon: NaviGlyph.plus,
                   keepOpen: true,
                   onTap: () => setState(() => _naming = true),
                 ),
@@ -170,7 +171,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
           ),
           data: (list) => list.isEmpty
               ? const MessageState(
-                  icon: CupertinoIcons.music_note_list,
+                  icon: NaviGlyph.playlist,
                   title: 'No playlists yet',
                   message: 'Create one above to start collecting songs.',
                 )
@@ -219,7 +220,7 @@ class _PlaylistRow extends ConsumerWidget {
         padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
         child: Row(
           children: [
-            CoverArt(url: artUrl, size: 44, radius: Radii.thumb, placeholderIcon: CupertinoIcons.music_note_list),
+            CoverArt(url: artUrl, size: 44, radius: Radii.thumb, placeholderIcon: NaviGlyph.playlist),
             const SizedBox(width: Space.md),
             Expanded(
               child: Column(
@@ -235,11 +236,12 @@ class _PlaylistRow extends ConsumerWidget {
               child: membership.isLoading
                   ? const CupertinoActivityIndicator(radius: 8)
                   : membership.hasError
-                      ? Icon(CupertinoIcons.exclamationmark_circle, size: 20, color: t.danger)
+                      ? NaviIcon(NaviGlyph.alert, size: 20, color: t.danger)
                       : AnimatedSwitcher(
                           duration: Motion.fast,
-                          child: Icon(
-                            checked ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+                          child: NaviIcon(
+                            checked ? NaviGlyph.checkCircle : NaviGlyph.ring,
+                            filled: checked,
                             key: ValueKey(checked),
                             size: 24,
                             color: checked ? t.accent : t.textMuted,

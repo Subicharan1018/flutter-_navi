@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme.dart';
+import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/ui/controls.dart';
 import '../../logic/mix_intent_provider.dart';
 
@@ -59,7 +60,7 @@ class _DescribeMixFieldState extends ConsumerState<DescribeMixField> {
             (_, final String error, _) => Text(error, style: t.footnote.copyWith(color: t.warning)),
             (_, _, final r?) => Row(
                 children: [
-                  Icon(CupertinoIcons.sparkles, size: 15, color: t.accent),
+                  NaviIcon(NaviGlyph.sparkle, size: 15, color: t.accent),
                   const SizedBox(width: Space.xs),
                   Expanded(
                     child: Text(

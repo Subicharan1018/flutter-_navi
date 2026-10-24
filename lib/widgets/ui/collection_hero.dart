@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -7,6 +6,7 @@ import '../../models/download_state.dart';
 import '../../models/song.dart';
 import '../../providers/download_provider.dart';
 import '../../utils/format.dart';
+import '../art/navi_icons.dart';
 import 'media.dart';
 
 /// "12 songs, 48 minutes" under the last track, as Apple Music closes lists.
@@ -66,7 +66,7 @@ class CollectionDownloadButton extends ConsumerWidget {
     final p = CollectionDownloadProgress.of(songs, ref.watch(downloadStateProvider));
     if (p.running) {
       return CircleIconButton(
-        icon: CupertinoIcons.arrow_down,
+        icon: NaviGlyph.download,
         label: 'Downloading ${p.done} of ${p.total}',
         child: SizedBox(
           width: 22,
@@ -81,10 +81,10 @@ class CollectionDownloadButton extends ConsumerWidget {
       );
     }
     if (p.allDone) {
-      return const CircleIconButton(icon: CupertinoIcons.checkmark_alt, label: 'Downloaded');
+      return const CircleIconButton(icon: NaviGlyph.check, label: 'Downloaded');
     }
     return CircleIconButton(
-      icon: CupertinoIcons.arrow_down,
+      icon: NaviGlyph.download,
       label: 'Download',
       onTap: p.total == 0 ? null : () => ref.read(downloadStateProvider.notifier).downloadPlaylist(songs),
     );

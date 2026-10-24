@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../../player/artwork.dart' show coverPaletteProvider;
+import '../art/navi_icons.dart';
 import 'dock_ground.dart';
 
 /// Apple Music's iOS 26.4 collection page: the artwork runs edge to edge at
@@ -249,7 +250,7 @@ class _PhoneHeader extends StatelessWidget {
                               ),
                             ),
                             if (page.onSubtitleTap != null)
-                              Icon(CupertinoIcons.chevron_forward, size: 15, color: t.textSecondary),
+                              NaviIcon(NaviGlyph.chevron, size: 15, color: t.textSecondary),
                           ],
                         ),
                       ),
@@ -393,7 +394,7 @@ class _TopBar extends StatelessWidget {
             children: [
               if (canPop)
                 BarCircleButton(
-                  icon: CupertinoIcons.chevron_back,
+                  icon: NaviGlyph.chevronLeft,
                   label: 'Back',
                   onTap: () => Navigator.of(context).maybePop(),
                 ),
@@ -424,7 +425,7 @@ class _TopBar extends StatelessWidget {
 class BarCircleButton extends StatelessWidget {
   static const double size = 36;
 
-  final IconData icon;
+  final NaviGlyph icon;
   final String label;
   final VoidCallback? onTap;
   final Widget? child;
@@ -456,7 +457,7 @@ class BarCircleButton extends StatelessWidget {
               boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 2))],
             ),
             alignment: Alignment.center,
-            child: child ?? Icon(icon, size: 18, color: onTap == null ? t.textMuted : t.textPrimary),
+            child: child ?? NaviIcon(icon, size: 18, color: onTap == null ? t.textMuted : t.textPrimary),
           ),
         ),
       ),

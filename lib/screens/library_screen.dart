@@ -36,13 +36,13 @@ class LibraryScreen extends ConsumerWidget {
     final pins = ref.watch(pinsProvider);
     final svc = ref.read(subsonicServiceProvider);
 
-    final destinations = <(IconData, String, Widget)>[
-      (CupertinoIcons.music_note_list, 'Playlists', const PlaylistsPage()),
-      (CupertinoIcons.music_mic, 'Artists', const ArtistsPage()),
-      (CupertinoIcons.square_stack, 'Albums', const AlbumsPage()),
-      (CupertinoIcons.music_note, 'Songs', const SongsPage()),
-      (CupertinoIcons.star, 'Favorites', const FavoritesScreen()),
-      (CupertinoIcons.arrow_down_circle, 'Downloaded', const SongsPage(downloadedOnly: true)),
+    final destinations = <(NaviGlyph, String, Widget)>[
+      (NaviGlyph.playlist, 'Playlists', const PlaylistsPage()),
+      (NaviGlyph.mic, 'Artists', const ArtistsPage()),
+      (NaviGlyph.stack, 'Albums', const AlbumsPage()),
+      (NaviGlyph.note, 'Songs', const SongsPage()),
+      (NaviGlyph.star, 'Favorites', const FavoritesScreen()),
+      (NaviGlyph.downloadCircle, 'Downloaded', const SongsPage(downloadedOnly: true)),
     ];
 
     return LargeTitlePage(
@@ -51,7 +51,7 @@ class LibraryScreen extends ConsumerWidget {
         padding: EdgeInsets.zero,
         minimumSize: const Size(44, 44),
         onPressed: () => showPlaylistEditor(context),
-        child: const Icon(CupertinoIcons.add, semanticLabel: 'New Playlist'),
+        child: const NaviIcon(NaviGlyph.plus, semanticLabel: 'New Playlist'),
       ),
       onRefresh: () async {
         ref.invalidate(recentlyAddedAlbumsProvider);
@@ -89,7 +89,7 @@ class LibraryScreen extends ConsumerWidget {
                 padding: const EdgeInsets.fromLTRB(Space.gutter, Space.lg, Space.gutter, 0),
                 child: Row(
                   children: [
-                    Icon(CupertinoIcons.pin, size: 15, color: t.textMuted),
+                    NaviIcon(NaviGlyph.pin, size: 15, color: t.textMuted),
                     const SizedBox(width: Space.sm),
                     Expanded(
                       child: Text(
@@ -116,14 +116,14 @@ class LibraryScreen extends ConsumerWidget {
                 subtitle: a.artist,
                 artUrl: art,
                 size: size,
-                placeholderIcon: CupertinoIcons.music_albums,
+                placeholderIcon: NaviGlyph.library,
                 onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
                 onLongPress: () => showCollectionActions(
                   context,
                   title: a.name,
                   subtitle: a.artist,
                   artUrl: art,
-                  placeholderIcon: CupertinoIcons.music_albums,
+                  placeholderIcon: NaviGlyph.library,
                   loadSongs: () => svc.getAlbum(a.id),
                   pin: Pin.album(a),
                 ),
@@ -208,9 +208,9 @@ class _PinsGrid extends ConsumerWidget {
                   radius: Radii.cover,
                   circular: artist,
                   placeholderIcon: switch (p.kind) {
-                    PinKind.album => CupertinoIcons.music_albums,
-                    PinKind.playlist => CupertinoIcons.music_note_list,
-                    PinKind.artist => CupertinoIcons.person_fill,
+                    PinKind.album => NaviGlyph.library,
+                    PinKind.playlist => NaviGlyph.playlist,
+                    PinKind.artist => NaviGlyph.person,
                   },
                 ),
                 size: tile,

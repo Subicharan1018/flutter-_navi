@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme.dart';
+import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/cover_art.dart';
 import '../../data/fetch_models.dart';
 import '../../logic/online_fetch_providers.dart';
@@ -72,8 +73,9 @@ class FetchCandidateRow extends ConsumerWidget {
               Row(
                 children: [
                   if (selecting) ...[
-                    Icon(
-                      selected! ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.circle,
+                    NaviIcon(
+                      selected! ? NaviGlyph.checkCircle : NaviGlyph.ring,
+                      filled: selected!,
                       size: 24,
                       color: !tappable ? t.textMuted : (selected! ? t.accent : t.textSecondary),
                     ),
@@ -85,10 +87,10 @@ class FetchCandidateRow extends ConsumerWidget {
                     radius: Radii.thumb,
                     circular: c.type == FetchSearchType.artist,
                     placeholderIcon: switch (c.type) {
-                      FetchSearchType.artist => CupertinoIcons.person_fill,
-                      FetchSearchType.playlist => CupertinoIcons.music_note_list,
-                      FetchSearchType.album => CupertinoIcons.music_albums,
-                      FetchSearchType.song => CupertinoIcons.music_note,
+                      FetchSearchType.artist => NaviGlyph.person,
+                      FetchSearchType.playlist => NaviGlyph.playlist,
+                      FetchSearchType.album => NaviGlyph.library,
+                      FetchSearchType.song => NaviGlyph.note,
                     },
                   ),
                   const SizedBox(width: Space.md),
@@ -119,10 +121,10 @@ class FetchCandidateRow extends ConsumerWidget {
                       child: Center(
                         child: switch (c.type) {
                           _ when !interactive && job == null => c.inLibrary
-                              ? Icon(CupertinoIcons.checkmark_circle, size: 22, color: t.textMuted)
+                              ? NaviIcon(NaviGlyph.checkCircle, size: 22, color: t.textMuted)
                               : const SizedBox.shrink(),
                           FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary),
-                          FetchSearchType.artist => Icon(CupertinoIcons.chevron_right, size: 16, color: t.textMuted),
+                          FetchSearchType.artist => NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
                           _ => FetchBatchIndicator(batch: batch),
                         },
                       ),
@@ -212,8 +214,8 @@ class FetchJobIndicator extends StatelessWidget {
     final t = ThemeTokens.of(context);
     final j = job;
     if (j == null) {
-      return Icon(
-        inLibrary ? CupertinoIcons.play_circle : CupertinoIcons.arrow_down_circle,
+      return NaviIcon(
+        inLibrary ? NaviGlyph.playCircle : NaviGlyph.downloadCircle,
         size: 24,
         color: t.accent,
       );
@@ -222,9 +224,9 @@ class FetchJobIndicator extends StatelessWidget {
       FetchJobPhase.preparing || FetchJobPhase.adding => const CupertinoActivityIndicator(),
       FetchJobPhase.downloading => _Ring(value: j.progress == 0 ? null : j.progress),
       FetchJobPhase.ready || FetchJobPhase.duplicate =>
-        Icon(CupertinoIcons.checkmark_circle_fill, size: 24, color: t.positive),
+        NaviIcon(NaviGlyph.checkCircle, size: 24, color: t.positive, filled: true),
       FetchJobPhase.rejected || FetchJobPhase.failed =>
-        Icon(CupertinoIcons.exclamationmark_circle, size: 24, color: t.danger),
+        NaviIcon(NaviGlyph.alert, size: 24, color: t.danger),
     };
   }
 }
@@ -240,11 +242,11 @@ class FetchBatchIndicator extends StatelessWidget {
     final t = ThemeTokens.of(context);
     final b = batch;
     return switch (b?.status) {
-      null => Icon(CupertinoIcons.arrow_down_circle, size: 24, color: t.accent),
+      null => NaviIcon(NaviGlyph.downloadCircle, size: 24, color: t.accent),
       FetchBatchStatus.starting => const CupertinoActivityIndicator(),
       FetchBatchStatus.running => _Ring(value: b!.progress == 0 ? null : b.progress),
-      FetchBatchStatus.done => Icon(CupertinoIcons.checkmark_circle_fill, size: 24, color: t.positive),
-      FetchBatchStatus.failed => Icon(CupertinoIcons.exclamationmark_circle, size: 24, color: t.danger),
+      FetchBatchStatus.done => NaviIcon(NaviGlyph.checkCircle, size: 24, color: t.positive, filled: true),
+      FetchBatchStatus.failed => NaviIcon(NaviGlyph.alert, size: 24, color: t.danger),
     };
   }
 }

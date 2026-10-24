@@ -11,6 +11,7 @@ import '../../../providers/library_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../widgets/add_to_playlist_dialog.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/cover_art.dart';
 import '../../../widgets/desktop_dialogs.dart';
 import '../../../widgets/ui/action_sheet.dart';
@@ -178,7 +179,7 @@ class _FetchFinishedBannerState extends ConsumerState<FetchFinishedBanner> with 
                                   url: f.coverUrl,
                                   size: 36,
                                   radius: Radii.thumb,
-                                  placeholderIcon: CupertinoIcons.arrow_down_circle,
+                                  placeholderIcon: NaviGlyph.downloadCircle,
                                 ),
                                 const SizedBox(width: Space.md),
                                 Expanded(
@@ -202,7 +203,7 @@ class _FetchFinishedBannerState extends ConsumerState<FetchFinishedBanner> with 
                       ),
                       if (f.songIds.isNotEmpty) ...[
                         _IconAction(
-                          icon: CupertinoIcons.play_fill,
+                          icon: NaviGlyph.play,
                           label: 'Play',
                           onTap: () {
                             _dismiss();
@@ -210,7 +211,7 @@ class _FetchFinishedBannerState extends ConsumerState<FetchFinishedBanner> with 
                           },
                         ),
                         _IconAction(
-                          icon: CupertinoIcons.text_badge_plus,
+                          icon: NaviGlyph.addToPlaylist,
                           label: 'Add to Playlist',
                           onTap: () {
                             _dismiss();
@@ -228,7 +229,7 @@ class _FetchFinishedBannerState extends ConsumerState<FetchFinishedBanner> with 
 }
 
 class _IconAction extends StatelessWidget {
-  final IconData icon;
+  final NaviGlyph icon;
   final String label;
   final VoidCallback onTap;
   const _IconAction({required this.icon, required this.label, required this.onTap});
@@ -240,7 +241,7 @@ class _IconAction extends StatelessWidget {
       padding: EdgeInsets.zero,
       minimumSize: const Size(44, 44),
       onPressed: onTap,
-      child: Icon(icon, size: 22, color: t.accent, semanticLabel: label),
+      child: NaviIcon(icon, size: 22, color: t.accent, semanticLabel: label),
     );
   }
 }
@@ -366,7 +367,7 @@ class _FetchDownloadRowState extends ConsumerState<FetchDownloadRow> with FetchS
               url: cover,
               size: 44,
               radius: Radii.thumb,
-              placeholderIcon: b == null ? CupertinoIcons.music_note : CupertinoIcons.music_albums,
+              placeholderIcon: b == null ? NaviGlyph.note : NaviGlyph.library,
             ),
             const SizedBox(width: Space.md),
             Expanded(
@@ -388,21 +389,21 @@ class _FetchDownloadRowState extends ConsumerState<FetchDownloadRow> with FetchS
             const SizedBox(width: Space.sm),
             if (songIds.isNotEmpty) ...[
               _IconAction(
-                icon: CupertinoIcons.play_circle,
+                icon: NaviGlyph.playCircle,
                 label: 'Play',
                 onTap: () async {
                   await playSongs(songIds, name: b?.title);
                   if (context.mounted && Navigator.of(context).canPop()) Navigator.of(context).pop();
                 },
               ),
-              _IconAction(icon: CupertinoIcons.text_badge_plus, label: 'Add to Playlist', onTap: () => addSongsToPlaylist(songIds)),
+              _IconAction(icon: NaviGlyph.addToPlaylist, label: 'Add to Playlist', onTap: () => addSongsToPlaylist(songIds)),
             ] else
               SizedBox(
                 width: 44,
                 height: 44,
                 child: Center(
                   child: finished && !failed
-                      ? Icon(CupertinoIcons.checkmark_circle_fill, size: 24, color: t.positive)
+                      ? NaviIcon(NaviGlyph.checkCircle, size: 24, color: t.positive, filled: true)
                       : (b != null ? FetchBatchIndicator(batch: b) : FetchJobIndicator(job: j)),
                 ),
               ),
@@ -512,7 +513,7 @@ class _AddSongsSheetState extends ConsumerState<_AddSongsSheet> {
               padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.md),
               child: Row(
                 children: [
-                  Icon(CupertinoIcons.music_note_list, size: 20, color: t.textSecondary),
+                  NaviIcon(NaviGlyph.playlist, size: 20, color: t.textSecondary),
                   const SizedBox(width: Space.md),
                   Expanded(child: Text(p.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body)),
                 ],

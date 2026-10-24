@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme.dart';
 import '../../../../providers/settings_provider.dart';
+import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/cover_art.dart';
 import '../../data/trending_models.dart';
 import 'chart_details.dart';
@@ -112,7 +113,7 @@ class ChartRow extends ConsumerWidget {
                         child: AnimatedRotation(
                           turns: expanded ? 0.25 : 0,
                           duration: Motion.fast,
-                          child: Icon(CupertinoIcons.chevron_forward, size: 14, color: t.textMuted),
+                          child: NaviIcon(NaviGlyph.chevron, size: 14, color: t.textMuted),
                         ),
                       ),
                   ],
@@ -173,8 +174,8 @@ class MovementMark extends StatelessWidget {
     final small = t.caption2.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
     return ExcludeSemantics(
       child: switch (entry.movement) {
-        ChartMovement.up => Icon(CupertinoIcons.arrowtriangle_up_fill, size: 8, color: t.textPrimary),
-        ChartMovement.down => Icon(CupertinoIcons.arrowtriangle_down_fill, size: 8, color: t.textMuted),
+        ChartMovement.up => NaviIcon(NaviGlyph.caretUp, size: 8, color: t.textPrimary),
+        ChartMovement.down => NaviIcon(NaviGlyph.caretDown, size: 8, color: t.textMuted),
         ChartMovement.isNew => Text('NEW', style: small.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700)),
         ChartMovement.reentry => Text('RE', style: small.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700)),
         ChartMovement.same => Text('–', style: small.copyWith(color: t.textMuted)),

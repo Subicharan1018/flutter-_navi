@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 
 import '../core/theme.dart';
 import '../player/artwork.dart' show testCoverOverride;
+import 'art/navi_icons.dart';
 
 /// Square cover art, decoded at its display size, with a quiet themed
 /// placeholder (never a coloured gradient) while loading or when the server
@@ -12,7 +13,7 @@ class CoverArt extends StatelessWidget {
   final String? url;
   final double size;
   final double radius;
-  final IconData placeholderIcon;
+  final NaviGlyph placeholderIcon;
   final bool circular;
 
   /// Shown instead of the placeholder when [url] fails (e.g. an artist with
@@ -24,7 +25,7 @@ class CoverArt extends StatelessWidget {
     required this.url,
     required this.size,
     this.radius = 4,
-    this.placeholderIcon = Icons.music_note_rounded,
+    this.placeholderIcon = NaviGlyph.note,
     this.circular = false,
     this.fallbackUrl,
   });
@@ -36,7 +37,7 @@ class CoverArt extends StatelessWidget {
     final placeholder = ColoredBox(
       color: t.bgElevated,
       child: Center(
-        child: Icon(placeholderIcon, size: size * 0.38, color: t.textMuted),
+        child: NaviIcon(placeholderIcon, size: size * 0.38, color: t.textMuted),
       ),
     );
     final failed = fallbackUrl == null

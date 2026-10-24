@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:dio/dio.dart';
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -11,6 +10,7 @@ import 'package:navivibe/features/online_fetch/data/fetch_models.dart';
 import 'package:navivibe/features/online_fetch/data/online_fetch_api.dart';
 import 'package:navivibe/features/online_fetch/logic/fetch_playlists.dart';
 import 'package:navivibe/models/playlist.dart';
+import 'package:navivibe/widgets/art/navi_icons.dart';
 import 'package:navivibe/features/online_fetch/logic/online_fetch_providers.dart';
 import 'package:navivibe/features/online_fetch/ui/fetch_activity.dart';
 import 'package:navivibe/features/online_fetch/ui/search_online_row.dart';
@@ -70,6 +70,8 @@ ResponseBody _json(int status, Object body) => ResponseBody.fromString(
 
 OnlineFetchApi _api(ResponseBody Function(RequestOptions o) handler) =>
     OnlineFetchApi(Dio(BaseOptions(baseUrl: 'https://x.test'))..httpClientAdapter = _FakeAdapter(handler));
+
+Finder _glyph(NaviGlyph g) => find.byWidgetPredicate((w) => w is NaviIcon && w.glyph == g);
 
 void main() {
   group('models', () {
@@ -566,7 +568,7 @@ void main() {
       expect(find.text('3 songs · 1 new · 2 in your library'), findsOneWidget);
       expect(find.text('Download 1 New Song'), findsOneWidget);
       expect(find.text('In your library'), findsNWidgets(2));
-      expect(find.byIcon(CupertinoIcons.arrow_down_circle), findsNothing);   // rows don't download one by one
+      expect(_glyph(NaviGlyph.downloadCircle), findsNothing);   // rows don't download one by one
     });
   });
 
@@ -697,8 +699,8 @@ void main() {
     testWidgets('select mode shows a check circle instead of the action', (tester) async {
       final song = FetchSearch.fromJson(_results()).candidates.first;
       await pump(tester, song, selected: true);
-      expect(find.byIcon(CupertinoIcons.checkmark_circle_fill), findsOneWidget);
-      expect(find.byIcon(CupertinoIcons.arrow_down_circle), findsNothing);
+      expect(_glyph(NaviGlyph.checkCircle), findsOneWidget);
+      expect(_glyph(NaviGlyph.downloadCircle), findsNothing);
     });
 
     final cover = FetchCandidate.fromJson((_results()['candidates'] as List).last as Map<String, dynamic>);

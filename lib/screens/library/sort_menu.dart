@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../widgets/art/navi_icons.dart';
 import '../../models/library_sort.dart';
 import '../../providers/library_provider.dart';
 import '../../widgets/desktop_dialogs.dart';
@@ -57,7 +58,7 @@ class _SortSheet extends ConsumerWidget {
               detail: pref.field == f
                   ? (pref.direction == LibrarySortDirection.asc ? 'Ascending' : 'Descending')
                   : null,
-              trailing: pref.field == f ? Icon(CupertinoIcons.checkmark, size: 18, color: t.accent) : null,
+              trailing: pref.field == f ? NaviIcon(NaviGlyph.check, size: 18, color: t.accent) : null,
               onTap: () => ref.read(librarySortProvider.notifier).setSort(section, f),
             ),
         ]),

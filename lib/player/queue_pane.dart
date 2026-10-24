@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -8,6 +7,7 @@ import '../core/theme.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/ion.dart';
@@ -311,13 +311,13 @@ class _ShuffleModeSheet extends ConsumerWidget {
             SheetAction(
               label: shuffleOn ? 'Shuffle Up Next Again' : 'Shuffle Up Next',
               detail: 'Random order',
-              icon: CupertinoIcons.shuffle,
+              icon: NaviGlyph.shuffle,
               onTap: player.applyShuffleAlgorithm,
             ),
             SheetAction(
               label: 'Smart Reshuffle',
               detail: 'Fresh picks for right now',
-              icon: CupertinoIcons.sparkles,
+              icon: NaviGlyph.sparkle,
               onTap: () => runSmartReshuffle(context, parentRef),
             ),
           ]),
@@ -328,7 +328,7 @@ class _ShuffleModeSheet extends ConsumerWidget {
                 detail: algo.summary,
                 trailing: SizedBox(
                   width: 22,
-                  child: algo == current ? Icon(CupertinoIcons.checkmark_alt, size: 20, color: t.accent) : null,
+                  child: algo == current ? NaviIcon(NaviGlyph.check, size: 20, color: t.accent) : null,
                 ),
                 onTap: () async {
                   parentRef.read(settingsProvider.notifier).setShuffleAlgorithm(algo);

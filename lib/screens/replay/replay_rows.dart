@@ -7,6 +7,7 @@ import '../../providers/navivibe_replay_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/format.dart';
 import '../../widgets/app_scaffold.dart' show navigateInApp;
+import '../../widgets/art/navi_icons.dart';
 import '../../widgets/cover_art.dart';
 import '../../widgets/ui/action_sheet.dart';
 import '../../widgets/ui/media.dart';
@@ -84,7 +85,7 @@ class ReplayArtistCard extends ConsumerWidget {
       artUrl: art,
       size: size,
       circular: true,
-      placeholderIcon: CupertinoIcons.person_fill,
+      placeholderIcon: NaviGlyph.person,
       onTap: () => openArtistByName(context, ref, artist.artist),
     );
   }

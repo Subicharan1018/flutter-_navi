@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import '../art/navi_icons.dart';
 import '../cover_art.dart';
 import '../desktop_dialogs.dart';
 
@@ -14,7 +15,7 @@ class SheetHeader extends StatelessWidget {
   /// A third, quieter line for facts about the item (language, genre, year).
   final String? detail;
   final String? artUrl;
-  final IconData placeholderIcon;
+  final NaviGlyph placeholderIcon;
   final bool circularArt;
 
   const SheetHeader({
@@ -23,7 +24,7 @@ class SheetHeader extends StatelessWidget {
     this.subtitle,
     this.detail,
     this.artUrl,
-    this.placeholderIcon = Icons.music_note_rounded,
+    this.placeholderIcon = NaviGlyph.note,
     this.circularArt = false,
   });
 
@@ -94,7 +95,7 @@ class SheetGroup extends StatelessWidget {
 class SheetAction extends StatelessWidget {
   final String label;
   final String? detail;
-  final IconData? icon;
+  final NaviGlyph? icon;
   final Widget? trailing;
   final VoidCallback? onTap;
   final bool destructive;
@@ -144,7 +145,7 @@ class SheetAction extends StatelessWidget {
               if (trailing != null)
                 trailing!
               else if (icon != null)
-                Icon(icon, size: 21, color: destructive ? t.danger : t.textPrimary),
+                NaviIcon(icon!, size: 21, color: destructive ? t.danger : t.textPrimary),
             ],
           ),
         ),
@@ -196,7 +197,7 @@ Future<T?> showChoiceSheet<T>(
                     const SizedBox(width: Space.md),
                     SizedBox(
                       width: 22,
-                      child: o == selected ? Icon(Icons.check_rounded, size: 22, color: t.accent) : null,
+                      child: o == selected ? NaviIcon(NaviGlyph.check, size: 22, color: t.accent) : null,
                     ),
                   ],
                 ),

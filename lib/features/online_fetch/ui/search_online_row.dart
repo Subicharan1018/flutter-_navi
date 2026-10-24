@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/media.dart';
 import '../../../widgets/ui/states.dart';
 import '../data/fetch_models.dart';
@@ -20,7 +21,7 @@ class NoLibraryResults extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
     return MessageState(
-      icon: CupertinoIcons.search,
+      icon: NaviGlyph.search,
       art: EmptyArtKind.noResults,
       title: 'No results for “$query”',
       message: online
@@ -55,14 +56,14 @@ class SearchOnlineRow extends ConsumerWidget {
             CollectionRow(
               title: 'Search online for “$query”',
               subtitle: 'Can’t find it? Add it to your library',
-              leading: Icon(CupertinoIcons.globe, size: 22, color: t.accent),
+              leading: NaviIcon(NaviGlyph.globe, size: 22, color: t.accent),
               titleColor: t.accent,
               onTap: () => showOnlineSearch(context, query),
             ),
           CollectionRow(
             title: isLink ? 'Send this playlist link' : 'Send a playlist link',
             subtitle: 'Deezer or Spotify: add its songs as a playlist',
-            leading: Icon(CupertinoIcons.link, size: 22, color: t.accent),
+            leading: NaviIcon(NaviGlyph.link, size: 22, color: t.accent),
             titleColor: t.accent,
             showSeparator: false,
             onTap: () => showSendPlaylist(context, link: isLink ? query : null),

@@ -14,6 +14,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/playback_tuning.dart';
 import '../services/transcoding_service.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/grouped_list.dart';
 import '../widgets/ui/ion.dart';
@@ -172,7 +173,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               GroupedRow(
                 title: 'Server',
-                icon: CupertinoIcons.cloud,
+                icon: NaviGlyph.cloud,
                 ion: Ion.globe,
                 value: host.isEmpty ? 'Not connected' : host,
               ),
@@ -180,7 +181,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 title: 'Username',
                 controller: _user,
                 placeholder: 'Required',
-                icon: CupertinoIcons.person_fill,
+                icon: NaviGlyph.person,
                 ion: Ion.person,
               ),
               GroupedTextFieldRow(
@@ -188,13 +189,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 controller: _pass,
                 placeholder: 'Required',
                 obscure: true,
-                icon: CupertinoIcons.lock_fill,
+                icon: NaviGlyph.lock,
                 ion: Ion.lock,
               ),
               GroupedSwitchRow(
                 title: 'Allow HTTP',
                 subtitle: 'Connects without encryption. Use only on your home network.',
-                icon: CupertinoIcons.lock_open,
+                icon: NaviGlyph.unlock,
                 ion: Ion.unlock,
                 value: s.allowHttp,
                 onChanged: notifier.setAllowHttp,
@@ -207,14 +208,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Living Artwork',
                 subtitle: 'The Now Playing background moves with the music. Turn off to save battery.',
-                icon: CupertinoIcons.sparkles,
+                icon: NaviGlyph.sparkle,
                 ion: Ion.palette,
                 value: s.fluidBgEnabled,
                 onChanged: notifier.setFluidBgEnabled,
               ),
               GroupedRow(
                 title: 'Volume Normalisation',
-                icon: CupertinoIcons.speaker_2,
+                icon: NaviGlyph.speaker,
                 ion: Ion.volumeHigh,
                 value: s.replayGainMode.label,
                 onTap: () async {
@@ -231,7 +232,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               GroupedRow(
                 title: 'Crossfade',
-                icon: CupertinoIcons.waveform,
+                icon: NaviGlyph.aiShuffle,
                 ion: Ion.infinite,
                 value: crossfadeLabel(s.crossfadeSeconds),
                 onTap: () async {
@@ -250,7 +251,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               GroupedRow(
                 title: 'Shuffle Style',
-                icon: CupertinoIcons.shuffle,
+                icon: NaviGlyph.shuffle,
                 ion: Ion.shuffle,
                 value: s.shuffleAlgorithm.label,
                 onTap: () async {
@@ -268,7 +269,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               if (s.shuffleAlgorithm.usesGrouping)
                 GroupedRow(
                   title: 'Spread Songs By',
-                  icon: CupertinoIcons.square_grid_2x2,
+                  icon: NaviGlyph.grid,
                   ion: Ion.options,
                   value: s.shufflePreference.label,
                   onTap: () async {
@@ -292,7 +293,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               GroupedSwitchRow(
                 title: 'Convert While Streaming',
-                icon: CupertinoIcons.waveform,
+                icon: NaviGlyph.aiShuffle,
                 ion: Ion.convert,
                 value: _transcoding,
                 onChanged: (v) {
@@ -301,17 +302,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 },
               ),
               if (_transcoding) ...[
-                _bitrateRow('Wi-Fi Quality', CupertinoIcons.wifi, Ion.wifi, _wifiBitrate, (v) {
+                _bitrateRow('Wi-Fi Quality', NaviGlyph.wifi, Ion.wifi, _wifiBitrate, (v) {
                   setState(() => _wifiBitrate = v);
                   ref.read(transcodingProvider).setWifiBitrate(v);
                 }),
-                _bitrateRow('Cellular Quality', CupertinoIcons.antenna_radiowaves_left_right, Ion.cellular, _mobileBitrate, (v) {
+                _bitrateRow('Cellular Quality', NaviGlyph.radio, Ion.cellular, _mobileBitrate, (v) {
                   setState(() => _mobileBitrate = v);
                   ref.read(transcodingProvider).setMobileBitrate(v);
                 }),
                 GroupedRow(
                   title: 'Format',
-                  icon: CupertinoIcons.doc_text,
+                  icon: NaviGlyph.doc,
                   ion: Ion.document,
                   value: TranscodeFormat.getLabel(_format),
                   onTap: () async {
@@ -330,7 +331,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 GroupedSwitchRow(
                   title: 'Switch Automatically',
                   subtitle: 'Uses the Wi-Fi or cellular quality to match your connection.',
-                  icon: CupertinoIcons.arrow_2_squarepath,
+                  icon: NaviGlyph.swap,
                   ion: Ion.sync,
                   value: _smartSwitch,
                   onChanged: (v) {
@@ -346,13 +347,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               GroupedRow(
                 title: 'Downloaded Songs',
-                icon: CupertinoIcons.arrow_down_circle,
+                icon: NaviGlyph.downloadCircle,
                 ion: Ion.download,
                 value: downloads == 0 ? 'None' : '$downloads · $size',
               ),
               GroupedSwitchRow(
                 title: 'Cache Artwork',
-                icon: CupertinoIcons.photo,
+                icon: NaviGlyph.photo,
                 ion: Ion.image,
                 value: _imageCache,
                 onChanged: (v) {
@@ -363,7 +364,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Cache Music',
                 subtitle: 'Keeps recently played songs for instant replay.',
-                icon: CupertinoIcons.music_note_2,
+                icon: NaviGlyph.note,
                 ion: Ion.music,
                 value: _musicCache,
                 onChanged: (v) {
@@ -374,7 +375,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedSwitchRow(
                 title: 'Cache Tempo',
                 subtitle: 'Measures song tempo ahead of time so Smart Shuffle starts faster.',
-                icon: CupertinoIcons.metronome,
+                icon: NaviGlyph.metronome,
                 ion: Ion.timer,
                 value: _bpmCache,
                 onChanged: (v) {
@@ -402,7 +403,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             children: [
               GroupedSwitchRow(
                 title: 'Recommendations',
-                icon: CupertinoIcons.wand_stars,
+                icon: NaviGlyph.smart,
                 ion: Ion.sparkles,
                 value: _recommendations,
                 onChanged: (v) {
@@ -441,7 +442,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Export as CSV',
                 subtitle: 'Saves your play history and song data to Downloads.',
-                icon: CupertinoIcons.square_arrow_down,
+                icon: NaviGlyph.download,
                 ion: Ion.share,
                 trailing: _spinner('export'),
                 onTap: _busy == null
@@ -454,7 +455,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               GroupedRow(
                 title: 'Remove Skipped Plays',
                 subtitle: 'Deletes plays that lasted under a second.',
-                icon: CupertinoIcons.trash,
+                icon: NaviGlyph.trash,
                 ion: Ion.trash,
                 onTap: () => _run('purge', () async {
                   final n = await ref.read(listenerCollectorProvider).purgeNoiseEvents();
@@ -479,7 +480,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
   }
 
-  Widget _bitrateRow(String title, IconData icon, Ion ion, int current, ValueChanged<int> onPick) =>
+  Widget _bitrateRow(String title, NaviGlyph icon, Ion ion, int current, ValueChanged<int> onPick) =>
       GroupedRow(
         title: title,
         icon: icon,

@@ -16,6 +16,7 @@ import '../widgets/song_tile.dart';
 import '../widgets/ui/artwork_page.dart';
 import '../widgets/ui/collection_hero.dart';
 import '../widgets/ui/controls.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/mosaic_art.dart';
 import '../widgets/ui/states.dart';
@@ -57,7 +58,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
         urls: [for (final s in songs.take(24)) svc.getCoverArtUrl(s.coverArt)],
         size: size,
         radius: 0,
-        placeholderIcon: CupertinoIcons.star_fill,
+        placeholderIcon: NaviGlyph.star,
         seed: coverSeed('Favorites'),
       ),
       title: 'Favorites',
@@ -95,7 +96,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             _View.songs when songs.isEmpty => const [
                 SliverToBoxAdapter(
                   child: MessageState(
-                    icon: CupertinoIcons.star,
+                    icon: NaviGlyph.star,
                     art: EmptyArtKind.heart,
                     title: 'No favorite songs yet',
                     message: 'Tap the star on any song and it’s collected here.',
@@ -121,7 +122,7 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
             _View.albums when albums.isEmpty => const [
                 SliverToBoxAdapter(
                   child: MessageState(
-                    icon: CupertinoIcons.music_albums,
+                    icon: NaviGlyph.library,
                     art: EmptyArtKind.heart,
                     title: 'No favorite albums yet',
                     message: 'Albums you star on your server appear here.',
@@ -139,14 +140,14 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                       subtitle: a.artist,
                       artUrl: art,
                       size: size,
-                      placeholderIcon: CupertinoIcons.music_albums,
+                      placeholderIcon: NaviGlyph.library,
                       onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
                       onLongPress: () => showCollectionActions(
                         context,
                         title: a.name,
                         subtitle: a.artist,
                         artUrl: art,
-                        placeholderIcon: CupertinoIcons.music_albums,
+                        placeholderIcon: NaviGlyph.library,
                         loadSongs: () => svc.getAlbum(a.id),
                         pin: Pin.album(a),
                       ),

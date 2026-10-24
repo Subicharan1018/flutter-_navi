@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
 import '../../../providers/library_provider.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/cover_art.dart';
 import 'stat_card.dart';
 
@@ -44,7 +45,7 @@ class TopArtistsCard extends ConsumerWidget {
                           url: ref.watch(artistCoverUrlProvider(name)).asData?.value,
                           size: size,
                           circular: true,
-                          placeholderIcon: CupertinoIcons.person_fill,
+                          placeholderIcon: NaviGlyph.person,
                         ),
                         const SizedBox(height: Space.sm),
                         Text(
@@ -139,7 +140,7 @@ class _RankedRow extends StatelessWidget {
               style: figureStyle(t, 17).copyWith(color: rank == 1 ? t.accent : t.textSecondary),
             ),
           ),
-          CoverArt(url: art, size: 48, radius: Radii.thumb, placeholderIcon: CupertinoIcons.music_note),
+          CoverArt(url: art, size: 48, radius: Radii.thumb, placeholderIcon: NaviGlyph.note),
           const SizedBox(width: Space.md),
           Expanded(
             child: DecoratedBox(

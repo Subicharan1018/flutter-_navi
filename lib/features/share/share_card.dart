@@ -1,14 +1,15 @@
 import 'package:flutter/cupertino.dart';
 
 import '../../core/theme.dart';
+import '../../widgets/art/navi_icons.dart';
 
 enum ShareKind {
-  song('Song', CupertinoIcons.music_note),
-  album('Album', CupertinoIcons.music_albums),
-  playlist('Playlist', CupertinoIcons.music_note_list);
+  song('Song', NaviGlyph.note),
+  album('Album', NaviGlyph.library),
+  playlist('Playlist', NaviGlyph.playlist);
 
   final String label;
-  final IconData icon;
+  final NaviGlyph icon;
   const ShareKind(this.label, this.icon);
 }
 
@@ -49,7 +50,7 @@ class ShareCard extends StatelessWidget {
               width: art,
               height: art,
               child: cover == null
-                  ? ColoredBox(color: _tile, child: Icon(kind.icon, size: 72, color: _secondary))
+                  ? ColoredBox(color: _tile, child: NaviIcon(kind.icon, size: 72, color: _secondary))
                   : Image(image: cover!, fit: BoxFit.cover),
             ),
           ),
@@ -62,7 +63,7 @@ class ShareCard extends StatelessWidget {
           const SizedBox(height: Space.md),
           Row(
             children: [
-              Icon(kind.icon, size: 13, color: _secondary),
+              NaviIcon(kind.icon, size: 13, color: _secondary),
               const SizedBox(width: 6),
               Text('${kind.label} on NaviVibe', style: t.caption1.copyWith(color: _secondary)),
             ],

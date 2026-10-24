@@ -28,6 +28,7 @@ import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
 import '../widgets/ui/action_sheet.dart' show showToast;
 import '../widgets/ui/large_title_page.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/mosaic_art.dart';
 import '../widgets/ui/states.dart';
@@ -54,7 +55,7 @@ class HomeScreen extends ConsumerWidget {
               padding: EdgeInsets.zero,
               minimumSize: const Size(44, 44),
               onPressed: () => navigateInApp(context, const SettingsScreen()),
-              child: const Icon(CupertinoIcons.person_crop_circle, size: 28, semanticLabel: 'Settings'),
+              child: const NaviIcon(NaviGlyph.personCircle, size: 28, semanticLabel: 'Settings'),
             ),
       onRefresh: () async {
         ref.invalidate(playlistsProvider);
@@ -129,7 +130,7 @@ class _TopPicks extends ConsumerWidget {
             urls: [for (final a in added.take(8)) _art(ref, a.coverArt)],
             size: cardWidth,
             radius: 0,
-            placeholderIcon: CupertinoIcons.shuffle,
+            placeholderIcon: NaviGlyph.shuffle,
             seed: coverSeed('Start Listening'),
           ),
           paletteCoverId: added.isEmpty ? null : added.first.coverArt,
@@ -140,7 +141,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Smart Shuffle',
         subtitle: 'A mix tuned to the time of day and what you play most.',
-        art: MosaicArt(urls: mixArt, size: cardWidth, radius: 0, placeholderIcon: CupertinoIcons.sparkles, seed: coverSeed('Smart Shuffle')),
+        art: MosaicArt(urls: mixArt, size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.sparkle, seed: coverSeed('Smart Shuffle')),
         paletteCoverId: albums.isNotEmpty ? albums.first.coverArt : (recent.isNotEmpty ? recent.first.coverArt : null),
         width: cardWidth,
         onTap: () => navigateInApp(context, const AiShuffleScreen()),
@@ -148,7 +149,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Favorites',
         subtitle: starred.isEmpty ? 'Star songs to collect them here.' : songCount(starred.length),
-        art: MosaicArt(urls: favArt, size: cardWidth, radius: 0, placeholderIcon: CupertinoIcons.star_fill, seed: coverSeed('Favorites')),
+        art: MosaicArt(urls: favArt, size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.star, seed: coverSeed('Favorites')),
         paletteCoverId: starred.isEmpty ? null : starred.first.coverArt,
         width: cardWidth,
         onTap: () => navigateInApp(context, const FavoritesScreen()),
@@ -345,7 +346,7 @@ class _PlayDisc extends StatelessWidget {
               child: Padding(
                 // Optical centre: the triangle's mass sits left of its box.
                 padding: EdgeInsets.only(left: 2),
-                child: Icon(CupertinoIcons.play_fill, size: 16, color: Colors.black),
+                child: NaviIcon(NaviGlyph.play, size: 16, color: Colors.black),
               ),
             ),
           ),
@@ -443,14 +444,14 @@ class _YourPlaylists extends ConsumerWidget {
           subtitle: songCount(p.songCount),
           artUrl: _art(ref, p.coverArt),
           size: _shelfCover,
-          placeholderIcon: CupertinoIcons.music_note_list,
+          placeholderIcon: NaviGlyph.playlist,
           onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p)),
           onLongPress: () => showCollectionActions(
             context,
             title: p.name,
             subtitle: songCount(p.songCount),
             artUrl: _art(ref, p.coverArt),
-            placeholderIcon: CupertinoIcons.music_note_list,
+            placeholderIcon: NaviGlyph.playlist,
             loadSongs: () => ref.read(subsonicServiceProvider).getPlaylistSongs(p.id),
             pin: Pin.playlist(p),
           ),
@@ -488,14 +489,14 @@ class _AlbumCard extends ConsumerWidget {
       subtitle: album.artist,
       artUrl: art,
       size: _shelfCover,
-      placeholderIcon: CupertinoIcons.music_albums,
+      placeholderIcon: NaviGlyph.library,
       onTap: () => navigateInApp(context, AlbumDetailsScreen(album: album)),
       onLongPress: () => showCollectionActions(
         context,
         title: album.name,
         subtitle: album.artist,
         artUrl: art,
-        placeholderIcon: CupertinoIcons.music_albums,
+        placeholderIcon: NaviGlyph.library,
         loadSongs: () => ref.read(subsonicServiceProvider).getAlbum(album.id),
         pin: Pin.album(album),
       ),
@@ -517,7 +518,7 @@ class _FirstRun extends ConsumerWidget {
     return const Padding(
       padding: EdgeInsets.only(top: Space.huge),
       child: MessageState(
-        icon: CupertinoIcons.music_house,
+        icon: NaviGlyph.home,
         art: EmptyArtKind.record,
         title: 'Your music will show up here',
         message: 'Play an album or make a playlist and Home fills in with what you listen to.',

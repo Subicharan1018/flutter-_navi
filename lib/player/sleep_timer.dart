@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
+import '../widgets/art/navi_icons.dart';
 
 /// Sleep timer state. Lives at app scope so closing Now Playing (or the
 /// whole player route) never silently cancels a timer the listener set.
@@ -103,10 +104,10 @@ class _SleepTimerTileState extends ConsumerState<SleepTimerTile> {
             ? 'Stops in ${rem.inMinutes}:${(rem.inSeconds % 60).toString().padLeft(2, '0')}'
             : 'Off';
     return ListTile(
-      leading: Icon(Icons.bedtime_rounded, color: st.active ? t.accent : t.textSecondary),
+      leading: NaviIcon(NaviGlyph.moon, color: st.active ? t.accent : t.textSecondary),
       title: const Text('Sleep timer'),
       subtitle: Text(subtitle),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      trailing: NaviIcon(NaviGlyph.chevron, color: t.textMuted),
       onTap: () => showModalBottomSheet<void>(
         context: context,
         builder: (_) => const _SleepTimerSheet(),
@@ -144,7 +145,7 @@ class _SleepTimerSheet extends ConsumerWidget {
             ),
           ListTile(
             title: const Text('End of this song'),
-            trailing: st.endOfSong ? Icon(Icons.check_rounded, color: t.accent) : null,
+            trailing: st.endOfSong ? NaviIcon(NaviGlyph.check, color: t.accent) : null,
             onTap: () {
               n.setEndOfSong();
               done();

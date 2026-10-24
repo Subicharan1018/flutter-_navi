@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/action_sheet.dart';
 import '../../../widgets/ui/grouped_list.dart';
 import '../data/repositories/shuffle_exception.dart';
@@ -89,7 +90,7 @@ class _SmartShuffleLoginScreenState extends ConsumerState<SmartShuffleLoginScree
               width: 72,
               height: 72,
               decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(18)),
-              child: Icon(CupertinoIcons.sparkles, size: 36, color: t.onAccent),
+              child: NaviIcon(NaviGlyph.sparkle, size: 36, color: t.onAccent),
             ),
           ),
           const SizedBox(height: Space.xl),

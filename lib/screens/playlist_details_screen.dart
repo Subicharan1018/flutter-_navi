@@ -20,6 +20,7 @@ import '../utils/platform_utils.dart';
 import '../utils/playlist_actions.dart';
 import '../utils/queue_actions.dart';
 import '../widgets/collection_actions.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/ui/action_sheet.dart';
@@ -199,7 +200,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
       // A playlist without its own cover shows a mosaic of its songs, as
       // Apple Music does.
       art: (size) => ownCover
-          ? CoverArt(url: _coverUrl, size: size, radius: 0, placeholderIcon: CupertinoIcons.music_note_list)
+          ? CoverArt(url: _coverUrl, size: size, radius: 0, placeholderIcon: NaviGlyph.playlist)
           : MosaicArt(
               urls: [for (final s in _songs.take(24)) svc.getCoverArtUrl(s.coverArt)],
               size: size,
@@ -220,9 +221,9 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
       actions: _editing
           ? [_BarTextAction(label: 'Done', bold: true, onTap: () => setState(() => _editing = false))]
           : [
-              BarCircleButton(icon: CupertinoIcons.add, label: 'Add Songs', onTap: _addSongs),
+              BarCircleButton(icon: NaviGlyph.plus, label: 'Add Songs', onTap: _addSongs),
               BarCircleButton(
-                icon: CupertinoIcons.ellipsis,
+                icon: NaviGlyph.more,
                 label: 'More',
                 onTap: () => showCollectionActions(
                   context,
@@ -264,7 +265,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
         else if (_songs.isEmpty)
           SliverToBoxAdapter(
             child: MessageState(
-              icon: CupertinoIcons.music_note_list,
+              icon: NaviGlyph.playlist,
               title: 'This playlist is empty',
               message: 'Add songs from your library to start listening.',
               actionLabel: 'Add Songs',
@@ -274,7 +275,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
         else if (visible.isEmpty)
           SliverToBoxAdapter(
             child: MessageState(
-              icon: CupertinoIcons.search,
+              icon: NaviGlyph.search,
               art: EmptyArtKind.noResults,
               title: 'No matches',
               message: 'Nothing in this playlist matches “${_search.text.trim()}”.',
@@ -376,7 +377,7 @@ class _EditRow extends ConsumerWidget {
             CupertinoButton(
               padding: const EdgeInsets.only(left: Space.md, right: Space.sm),
               onPressed: onRemove,
-              child: Icon(CupertinoIcons.minus_circle_fill, color: t.danger, semanticLabel: 'Remove ${song.title}'),
+              child: NaviIcon(NaviGlyph.minusCircle, filled: true, color: t.danger, semanticLabel: 'Remove ${song.title}'),
             ),
             CoverArt(
               url: svc.getCoverArtUrl(song.coverArt.isNotEmpty ? song.coverArt : song.id),
@@ -398,7 +399,7 @@ class _EditRow extends ConsumerWidget {
               index: index,
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.md),
-                child: Icon(CupertinoIcons.line_horizontal_3, color: t.textMuted, semanticLabel: 'Reorder'),
+                child: NaviIcon(NaviGlyph.grip, color: t.textMuted, semanticLabel: 'Reorder'),
               ),
             ),
           ],

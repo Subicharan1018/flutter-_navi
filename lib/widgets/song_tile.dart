@@ -1,4 +1,3 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -11,6 +10,7 @@ import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
+import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import 'now_playing_bars.dart';
 import 'options_menu.dart';
@@ -174,7 +174,7 @@ class _SongTileState extends ConsumerState<SongTile> {
                       IconButton(
                         tooltip: 'More',
                         onPressed: _openMenu,
-                        icon: Icon(CupertinoIcons.ellipsis, size: 20, color: t.textSecondary),
+                        icon: NaviIcon(NaviGlyph.more, size: 20, color: t.textSecondary),
                       ),
                     ],
                   ),
@@ -221,11 +221,11 @@ class _DownloadBadge extends ConsumerWidget {
         ),
       SongDownloadStatus.downloaded => Padding(
           padding: const EdgeInsets.only(left: Space.sm),
-          child: Icon(CupertinoIcons.arrow_down_circle_fill, size: 15, color: t.textSecondary),
+          child: NaviIcon(NaviGlyph.downloadCircle, size: 15, color: t.textSecondary, filled: true),
         ),
       SongDownloadStatus.failed => Padding(
           padding: const EdgeInsets.only(left: Space.sm),
-          child: Icon(CupertinoIcons.exclamationmark_circle, size: 15, color: t.danger),
+          child: NaviIcon(NaviGlyph.alert, size: 15, color: t.danger),
         ),
     };
   }

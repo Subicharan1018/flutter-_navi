@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/widgets/art/navi_icons.dart';
 import 'package:navivibe/widgets/ui/grouped_list.dart';
 
 void main() {
@@ -22,7 +23,7 @@ void main() {
                 GroupedSwitchRow(
                   title: 'Switch Automatically',
                   subtitle: 'Uses the Wi-Fi or cellular quality to match your connection.',
-                  icon: CupertinoIcons.arrow_2_squarepath,
+                  icon: NaviGlyph.swap,
                   value: false,
                   onChanged: (_) {},
                 ),

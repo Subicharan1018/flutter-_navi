@@ -12,6 +12,7 @@ import '../utils/platform_utils.dart';
 import '../utils/queue_actions.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/ui/artwork_page.dart';
@@ -71,7 +72,7 @@ class AlbumDetailsScreen extends ConsumerWidget {
 
     return ArtworkPage(
       paletteCoverId: album.coverArt,
-      art: (size) => CoverArt(url: art, size: size, radius: 0, placeholderIcon: CupertinoIcons.music_albums),
+      art: (size) => CoverArt(url: art, size: size, radius: 0, placeholderIcon: NaviGlyph.library),
       title: full.name,
       subtitle: full.artist,
       onSubtitleTap: full.artistId.isEmpty ? null : openArtist,
@@ -84,14 +85,14 @@ class AlbumDetailsScreen extends ConsumerWidget {
       ),
       actions: [
         BarCircleButton(
-          icon: CupertinoIcons.ellipsis,
+          icon: NaviGlyph.more,
           label: 'More',
           onTap: () => showCollectionActions(
             context,
             title: full.name,
             subtitle: full.artist,
             artUrl: art,
-            placeholderIcon: CupertinoIcons.music_albums,
+            placeholderIcon: NaviGlyph.library,
             loadSongs: () async => songs,
             pin: Pin.album(full),
             share: ShareTarget.album(full),
@@ -162,7 +163,7 @@ class _MoreByArtist extends ConsumerWidget {
           subtitle: others[i].year > 0 ? '${others[i].year}' : null,
           artUrl: svc.getCoverArtUrl(others[i].coverArt),
           size: 150,
-          placeholderIcon: CupertinoIcons.music_albums,
+          placeholderIcon: NaviGlyph.library,
           onTap: () => navigateInApp(context, AlbumDetailsScreen(album: others[i])),
         ),
       ),

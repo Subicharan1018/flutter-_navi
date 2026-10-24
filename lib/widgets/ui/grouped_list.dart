@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import '../art/navi_icons.dart';
 import 'ion.dart';
 
 /// iOS "inset grouped" list section: optional header and footer, rows on a
@@ -77,9 +78,9 @@ class GroupedSection extends StatelessWidget {
   }
 
   static double _separatorInset(Widget row) => switch (row) {
-    GroupedRow(icon: final IconData _) ||
-    GroupedSwitchRow(icon: final IconData _) ||
-    GroupedTextFieldRow(icon: final IconData _) => _iconInset,
+    GroupedRow(icon: final NaviGlyph _) ||
+    GroupedSwitchRow(icon: final NaviGlyph _) ||
+    GroupedTextFieldRow(icon: final NaviGlyph _) => _iconInset,
     _ => Space.lg,
   };
 
@@ -94,7 +95,7 @@ const double _iconSize = 30;
 /// the same neutral tile ([AppThemeTokens.iconTile]) with a white glyph.
 class _IconSquare extends StatelessWidget {
   static const double _glyph = 18;
-  final IconData icon;
+  final NaviGlyph icon;
   final Ion? ion;
   const _IconSquare({required this.icon, this.ion});
 
@@ -111,7 +112,7 @@ class _IconSquare extends StatelessWidget {
       alignment: Alignment.center,
       child: ion != null
           ? IonIcon(ion!, size: _glyph, color: t.textPrimary)
-          : Icon(icon, size: _glyph, color: t.textPrimary),
+          : NaviIcon(icon, size: _glyph, color: t.textPrimary),
     );
   }
 }
@@ -122,7 +123,7 @@ class _IconSquare extends StatelessWidget {
 class GroupedRow extends StatelessWidget {
   final String title;
   final String? subtitle;
-  final IconData? icon;
+  final NaviGlyph? icon;
 
   /// Ionicons glyph shown in the square instead of [icon].
   final Ion? ion;
@@ -197,8 +198,8 @@ class GroupedRow extends StatelessWidget {
                 trailing!,
               ] else if (onTap != null && showChevron && !destructive) ...[
                 const SizedBox(width: Space.sm),
-                Icon(
-                  CupertinoIcons.chevron_forward,
+                NaviIcon(
+                  NaviGlyph.chevron,
                   size: 17,
                   color: t.textMuted,
                 ),
@@ -215,7 +216,7 @@ class GroupedRow extends StatelessWidget {
 class GroupedSwitchRow extends StatelessWidget {
   final String title;
   final String? subtitle;
-  final IconData? icon;
+  final NaviGlyph? icon;
   final Ion? ion;
   final bool value;
   final ValueChanged<bool> onChanged;
@@ -262,7 +263,7 @@ class GroupedTextFieldRow extends StatefulWidget {
   final String? placeholder;
   final bool obscure;
   final TextInputType? keyboardType;
-  final IconData? icon;
+  final NaviGlyph? icon;
   final Ion? ion;
 
   const GroupedTextFieldRow({
@@ -315,10 +316,10 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
             if (widget.obscure)
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: Space.sm),
-                minimumSize: const Size(40, 40),
+                minimumSize: const Size(44, 44),
                 onPressed: () => setState(() => _hidden = !_hidden),
-                child: Icon(
-                  _hidden ? CupertinoIcons.eye : CupertinoIcons.eye_slash,
+                child: NaviIcon(
+                  _hidden ? NaviGlyph.eye : NaviGlyph.eyeOff,
                   size: 20,
                   color: t.textSecondary,
                   semanticLabel: _hidden ? 'Show password' : 'Hide password',

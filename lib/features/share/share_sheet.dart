@@ -14,6 +14,7 @@ import '../../models/album.dart';
 import '../../models/playlist.dart';
 import '../../models/song.dart';
 import '../../providers/settings_provider.dart';
+import '../../widgets/art/navi_icons.dart';
 import '../../widgets/desktop_dialogs.dart';
 import '../../widgets/ui/action_sheet.dart';
 import 'share_api.dart';
@@ -247,19 +248,19 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
             children: [
               SheetAction(
                 label: 'Share Link',
-                icon: CupertinoIcons.share,
+                icon: NaviGlyph.share,
                 keepOpen: true,
                 onTap: _busy ? null : _shareLink,
               ),
               SheetAction(
                 label: 'Send as Card',
-                icon: CupertinoIcons.photo,
+                icon: NaviGlyph.photo,
                 keepOpen: true,
                 onTap: _busy || !_coverDone ? null : _shareCard,
               ),
               SheetAction(
                 label: 'Copy Link',
-                icon: CupertinoIcons.doc_on_doc,
+                icon: NaviGlyph.copy,
                 keepOpen: true,
                 onTap: _busy ? null : _copy,
               ),

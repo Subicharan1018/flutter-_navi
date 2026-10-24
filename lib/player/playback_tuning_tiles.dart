@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/playback_tuning.dart';
+import '../widgets/art/navi_icons.dart';
 
 String formatSpeed(double speed) {
   final s = speed.toStringAsFixed(2);
@@ -22,13 +23,13 @@ class PlaybackSpeedTile extends ConsumerWidget {
     final t = ThemeTokens.of(context);
     final speed = ref.watch(settingsProvider.select((s) => s.playbackSpeed));
     return ListTile(
-      leading: Icon(
-        Icons.speed_rounded,
+      leading: NaviIcon(
+        NaviGlyph.gauge,
         color: speed == 1.0 ? t.textSecondary : t.accent,
       ),
       title: const Text('Playback speed'),
       subtitle: Text(speed == 1.0 ? 'Normal' : formatSpeed(speed)),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      trailing: NaviIcon(NaviGlyph.chevron, color: t.textMuted),
       onTap: () => showModalBottomSheet<void>(
         context: context,
         builder: (_) => const _SpeedSheet(),
@@ -101,9 +102,9 @@ class EqualizerTile extends ConsumerWidget {
     if (eq == null) return const SizedBox.shrink();
     final t = ThemeTokens.of(context);
     return ListTile(
-      leading: Icon(Icons.equalizer_rounded, color: t.textSecondary),
+      leading: NaviIcon(NaviGlyph.sliders, color: t.textSecondary),
       title: const Text('Equalizer'),
-      trailing: const Icon(Icons.chevron_right_rounded),
+      trailing: NaviIcon(NaviGlyph.chevron, color: t.textMuted),
       onTap: () => showModalBottomSheet<void>(
         context: context,
         isScrollControlled: true,

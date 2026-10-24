@@ -11,6 +11,7 @@ import '../models/playlist.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
+import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/ui/action_sheet.dart';
 import 'playlist_details_screen.dart';
@@ -153,7 +154,7 @@ class _PlaylistEditorState extends ConsumerState<PlaylistEditor> {
                                 width: 56,
                                 height: 56,
                                 decoration: BoxDecoration(color: t.fill, shape: BoxShape.circle),
-                                child: Icon(CupertinoIcons.camera_fill, color: t.accent, size: 24),
+                                child: NaviIcon(NaviGlyph.camera, color: t.accent, size: 24),
                               ),
                             ],
                           ),

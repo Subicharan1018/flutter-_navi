@@ -31,6 +31,7 @@ import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
 import '../services/window_manager_service.dart';
 import '../utils/platform_utils.dart';
+import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import '../screens/playlist_editor.dart';
 import 'ui/dock_ground.dart';
@@ -55,16 +56,17 @@ import '../providers/id_migration_provider.dart';
 /// The app's top-level destinations, in Apple Music's order (Search last).
 /// Everything that switches tabs refers to these by name, never by position.
 enum AppTab {
-  home('Home', CupertinoIcons.house, CupertinoIcons.house_fill, 'tab_home', Duration(milliseconds: 1980)),
-  shuffle('Shuffle', CupertinoIcons.sparkles, CupertinoIcons.sparkles, 'tab_shuffle', Duration(milliseconds: 2970)),
-  stats('Stats', CupertinoIcons.chart_bar, CupertinoIcons.chart_bar_fill, 'tab_stats', Duration(milliseconds: 1980)),
-  library('Library', CupertinoIcons.music_albums, CupertinoIcons.music_albums_fill, 'tab_library', Duration(milliseconds: 1980)),
-  search('Search', CupertinoIcons.search, CupertinoIcons.search, null, Duration.zero);
+  home('Home', NaviGlyph.home, 'tab_home', Duration(milliseconds: 1980)),
+  shuffle('Shuffle', NaviGlyph.aiShuffle, 'tab_shuffle', Duration(milliseconds: 2970)),
+  stats('Stats', NaviGlyph.dashboard, 'tab_stats', Duration(milliseconds: 1980)),
+  library('Library', NaviGlyph.library, 'tab_library', Duration(milliseconds: 1980)),
+  search('Search', NaviGlyph.search, null, Duration.zero);
 
-  const AppTab(this.label, this.icon, this.activeIcon, this.illustration, this.illustrationDuration);
+  const AppTab(this.label, this.icon, this.illustration, this.illustrationDuration);
   final String label;
-  final IconData icon;
-  final IconData activeIcon;
+
+  /// Drawn filled when the tab is selected.
+  final NaviGlyph icon;
 
   /// Animated illustration for the phone tab bar (see [OneShotIcon]); null
   /// keeps the glyph. Desktop's sidebar keeps the glyphs.
@@ -395,7 +397,7 @@ class _TabButtonState extends State<_TabButton> {
                 duration: tab.illustrationDuration,
               )
             else
-              Icon(selected ? tab.activeIcon : tab.icon, size: 22, color: color),
+              NaviIcon(tab.icon, filled: selected, size: 22, color: color),
             const SizedBox(height: 3),
             Text(
               tab.label,
@@ -420,7 +422,7 @@ class _OfflineBanner extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(CupertinoIcons.wifi_slash, size: 13, color: t.warning),
+          NaviIcon(NaviGlyph.wifiOff, size: 13, color: t.warning),
           const SizedBox(width: Space.xs + 2),
           Text('Offline. Playing your downloads.', style: t.caption1.copyWith(color: t.textPrimary)),
         ],
@@ -553,35 +555,35 @@ class _SidebarState extends ConsumerState<_Sidebar> {
           const _DownloadsRow(),
           for (final dest in const [AppTab.home, AppTab.shuffle, AppTab.stats])
             _SidebarRow(
-              icon: widget.tab == dest ? dest.activeIcon : dest.icon,
+              icon: dest.icon,
               label: dest.label,
               selected: widget.tab == dest,
               onTap: () => widget.onSelect(dest),
             ),
           const _SidebarHeader('Library'),
           _SidebarRow(
-            icon: CupertinoIcons.music_albums,
+            icon: NaviGlyph.library,
             label: 'Library',
             selected: widget.tab == AppTab.library,
             onTap: () => widget.onSelect(AppTab.library),
           ),
           _SidebarRow(
-            icon: CupertinoIcons.music_note_list,
+            icon: NaviGlyph.playlist,
             label: 'Playlists',
             onTap: () => navigateInApp(context, const PlaylistsPage()),
           ),
           _SidebarRow(
-            icon: CupertinoIcons.square_stack,
+            icon: NaviGlyph.stack,
             label: 'Albums',
             onTap: () => navigateInApp(context, const AlbumsPage()),
           ),
           _SidebarRow(
-            icon: CupertinoIcons.music_note,
+            icon: NaviGlyph.note,
             label: 'Songs',
             onTap: () => navigateInApp(context, const SongsPage()),
           ),
           _SidebarRow(
-            icon: CupertinoIcons.arrow_down_circle,
+            icon: NaviGlyph.downloadCircle,
             label: 'Downloaded',
             onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true)),
           ),
@@ -590,7 +592,7 @@ class _SidebarState extends ConsumerState<_Sidebar> {
             action: IconButton(
               tooltip: 'New Playlist',
               visualDensity: VisualDensity.compact,
-              icon: Icon(CupertinoIcons.add, size: 18, color: t.textSecondary),
+              icon: NaviIcon(NaviGlyph.plus, size: 18, color: t.textSecondary),
               onPressed: () => showPlaylistEditor(context),
             ),
           ),
@@ -600,14 +602,14 @@ class _SidebarState extends ConsumerState<_Sidebar> {
                 url: (p.coverArt ?? '').isEmpty ? null : service.getCoverArtUrl(p.coverArt),
                 size: 22,
                 radius: Radii.thumb,
-                placeholderIcon: CupertinoIcons.music_note_list,
+                placeholderIcon: NaviGlyph.playlist,
               ),
               label: p.name,
               onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p)),
             ),
           const SizedBox(height: Space.lg),
           _SidebarRow(
-            icon: CupertinoIcons.gear,
+            icon: NaviGlyph.gear,
             label: 'Settings',
             onTap: () => navigateInApp(context, const SettingsScreen()),
           ),
@@ -650,7 +652,7 @@ class _DownloadsRow extends ConsumerWidget {
       art: SizedBox(
         width: 18,
         height: 18,
-        child: FetchActivityRing(child: Icon(CupertinoIcons.arrow_down, size: 12, color: t.accent)),
+        child: FetchActivityRing(child: NaviIcon(NaviGlyph.download, size: 12, color: t.accent)),
       ),
       label: 'Downloads',
       onTap: () => showFetchDownloads(context),
@@ -659,7 +661,7 @@ class _DownloadsRow extends ConsumerWidget {
 }
 
 class _SidebarRow extends StatefulWidget {
-  final IconData? icon;
+  final NaviGlyph? icon;
   final Widget? art;
   final String label;
   final bool selected;
@@ -692,7 +694,7 @@ class _SidebarRowState extends State<_SidebarRow> {
           ),
           child: Row(
             children: [
-              widget.art ?? Icon(widget.icon, size: 18, color: t.accent),
+              widget.art ?? NaviIcon(widget.icon!, size: 18, color: t.accent),
               const SizedBox(width: Space.sm + 2),
               Expanded(
                 child: Text(
@@ -748,7 +750,7 @@ class _SidePanel extends ConsumerWidget {
                   ),
                   IconButton(
                     tooltip: 'Close',
-                    icon: Icon(CupertinoIcons.xmark, size: 16, color: t.textSecondary),
+                    icon: NaviIcon(NaviGlyph.close, size: 16, color: t.textSecondary),
                     onPressed: onClose,
                   ),
                 ],
@@ -888,7 +890,8 @@ class _PlayerBar extends ConsumerWidget {
                   ),
                 ),
                 _BarButton(
-                  icon: starred ? CupertinoIcons.star_fill : CupertinoIcons.star,
+                  icon: NaviGlyph.star,
+                  filled: starred,
                   tooltip: starred ? 'Remove from Favorites' : 'Favorite',
                   active: starred,
                   onTap: () => n.toggleStar(song.id),
@@ -906,22 +909,22 @@ class _PlayerBar extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _BarButton(icon: CupertinoIcons.shuffle, tooltip: 'Shuffle', active: shuffle, onTap: n.toggleShuffle),
+                        _BarButton(icon: NaviGlyph.shuffle, tooltip: 'Shuffle', active: shuffle, onTap: n.toggleShuffle),
                         const SizedBox(width: Space.sm),
-                        _BarButton(icon: CupertinoIcons.backward_fill, tooltip: 'Previous', size: 22, onTap: n.playPrev),
+                        _BarButton(icon: NaviGlyph.previous, tooltip: 'Previous', size: 22, onTap: n.playPrev),
                         const SizedBox(width: Space.sm),
                         _BarButton(
-                          icon: playing ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                          icon: playing ? NaviGlyph.pause : NaviGlyph.play,
                           tooltip: playing ? 'Pause (Space)' : 'Play (Space)',
                           size: 28,
                           prominent: true,
                           onTap: n.togglePlay,
                         ),
                         const SizedBox(width: Space.sm),
-                        _BarButton(icon: CupertinoIcons.forward_fill, tooltip: 'Next', size: 22, onTap: n.playNext),
+                        _BarButton(icon: NaviGlyph.next, tooltip: 'Next', size: 22, onTap: n.playNext),
                         const SizedBox(width: Space.sm),
                         _BarButton(
-                          icon: repeat == LoopMode.one ? CupertinoIcons.repeat_1 : CupertinoIcons.repeat,
+                          icon: repeat == LoopMode.one ? NaviGlyph.repeatOne : NaviGlyph.repeat,
                           tooltip: switch (repeat) {
                             LoopMode.off => 'Repeat',
                             LoopMode.all => 'Repeat queue',
@@ -943,15 +946,15 @@ class _PlayerBar extends ConsumerWidget {
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _BarButton(icon: CupertinoIcons.quote_bubble, tooltip: 'Lyrics', active: panel == _Panel.lyrics, onTap: () => onTogglePanel(_Panel.lyrics)),
-                _BarButton(icon: CupertinoIcons.list_bullet, tooltip: 'Queue', active: panel == _Panel.queue, onTap: () => onTogglePanel(_Panel.queue)),
-                _BarButton(icon: CupertinoIcons.info, tooltip: 'About this song', active: panel == _Panel.about, onTap: () => onTogglePanel(_Panel.about)),
+                _BarButton(icon: NaviGlyph.lyrics, tooltip: 'Lyrics', active: panel == _Panel.lyrics, onTap: () => onTogglePanel(_Panel.lyrics)),
+                _BarButton(icon: NaviGlyph.queue, tooltip: 'Queue', active: panel == _Panel.queue, onTap: () => onTogglePanel(_Panel.queue)),
+                _BarButton(icon: NaviGlyph.info, tooltip: 'About this song', active: panel == _Panel.about, onTap: () => onTogglePanel(_Panel.about)),
                 const SizedBox(width: Space.sm),
                 SizedBox(
                   width: 110,
                   child: VolumeBar(player: n.player, color: t.textPrimary, trackColor: t.fill, iconColor: t.textSecondary),
                 ),
-                _BarButton(icon: CupertinoIcons.arrow_up_left_arrow_down_right, tooltip: 'Full-screen player', size: 16, onTap: () => openNowPlaying(context)),
+                _BarButton(icon: NaviGlyph.expand, tooltip: 'Full-screen player', size: 16, onTap: () => openNowPlaying(context)),
               ],
             ),
           ),
@@ -962,10 +965,11 @@ class _PlayerBar extends ConsumerWidget {
 }
 
 class _BarButton extends StatelessWidget {
-  final IconData icon;
+  final NaviGlyph icon;
   final String tooltip;
   final VoidCallback onTap;
   final bool active;
+  final bool filled;
   final bool prominent;
   final double size;
 
@@ -974,6 +978,7 @@ class _BarButton extends StatelessWidget {
     required this.tooltip,
     required this.onTap,
     this.active = false,
+    this.filled = false,
     this.prominent = false,
     this.size = 18,
   });
@@ -992,7 +997,7 @@ class _BarButton extends StatelessWidget {
         child: SizedBox(
           width: prominent ? 44 : 36,
           height: 40,
-          child: Icon(icon, size: size, color: color),
+          child: NaviIcon(icon, size: size, color: color, filled: filled),
         ),
       ),
     );

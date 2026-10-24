@@ -10,6 +10,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
 import '../widgets/ui/artwork_page.dart';
@@ -74,7 +75,7 @@ class ArtistScreen extends ConsumerWidget {
         fallbackUrl: fallbackCover,
         size: size,
         radius: 0,
-        placeholderIcon: CupertinoIcons.person_fill,
+        placeholderIcon: NaviGlyph.person,
       ),
       title: name,
       detail: albums.isEmpty ? null : (albums.length == 1 ? '1 album' : '${albums.length} albums'),
@@ -82,7 +83,7 @@ class ArtistScreen extends ConsumerWidget {
         onPlay: albums.isEmpty ? null : () => _play(ref, albums, shuffle: false),
         onShuffle: albums.isEmpty ? null : () => _play(ref, albums, shuffle: true),
         trailing: CircleIconButton(
-          icon: CupertinoIcons.ellipsis,
+          icon: NaviGlyph.more,
           label: 'More',
           onTap: albums.isEmpty
               ? null
@@ -91,7 +92,7 @@ class ArtistScreen extends ConsumerWidget {
                     title: name,
                     subtitle: albums.length == 1 ? '1 album' : '${albums.length} albums',
                     artUrl: svc.getCoverArtUrl(hasPortrait ? portraitId : latest?.coverArt),
-                    placeholderIcon: CupertinoIcons.person_fill,
+                    placeholderIcon: NaviGlyph.person,
                     loadSongs: allSongs,
                     pin: Pin.artist(artistId, name),
                   ),
@@ -137,14 +138,14 @@ class ArtistScreen extends ConsumerWidget {
                     subtitle: a.year > 0 ? '${a.year}' : null,
                     artUrl: art,
                     size: 150,
-                    placeholderIcon: CupertinoIcons.music_albums,
+                    placeholderIcon: NaviGlyph.library,
                     onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
                     onLongPress: () => showCollectionActions(
                       context,
                       title: a.name,
                       subtitle: name,
                       artUrl: art,
-                      placeholderIcon: CupertinoIcons.music_albums,
+                      placeholderIcon: NaviGlyph.library,
                       loadSongs: () => svc.getAlbum(a.id),
                       pin: Pin.album(a),
                     ),
@@ -178,7 +179,7 @@ class _LatestRelease extends ConsumerWidget {
               url: ref.read(subsonicServiceProvider).getCoverArtUrl(album.coverArt),
               size: 96,
               radius: Radii.cover,
-              placeholderIcon: CupertinoIcons.music_albums,
+              placeholderIcon: NaviGlyph.library,
             ),
             const SizedBox(width: Space.lg),
             Expanded(
@@ -193,7 +194,7 @@ class _LatestRelease extends ConsumerWidget {
                 ],
               ),
             ),
-            Icon(CupertinoIcons.chevron_forward, size: 16, color: t.textMuted),
+            NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
           ],
         ),
       ),

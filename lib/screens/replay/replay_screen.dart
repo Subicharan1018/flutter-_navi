@@ -9,6 +9,7 @@ import '../../providers/navivibe_replay_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/format.dart';
+import '../../widgets/art/navi_icons.dart';
 import '../../widgets/cover_art.dart';
 import '../../widgets/desktop_dialogs.dart';
 import '../../widgets/ui/action_sheet.dart';
@@ -85,7 +86,7 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
         urls: [for (final id in coverIds) id == null ? null : svc.getCoverArtUrl(id)],
         size: size,
         radius: 0,
-        placeholderIcon: CupertinoIcons.calendar,
+        placeholderIcon: NaviGlyph.calendar,
         seed: coverSeed('Replay $year'),
       ),
       title: 'Replay $year',
@@ -99,7 +100,7 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
               onPlay: tracks.isEmpty ? null : () => _play(r),
               onShuffle: tracks.isEmpty ? null : () => _play(r, shuffle: true),
               trailing: r.availableYears.length > 1
-                  ? CircleIconButton(icon: CupertinoIcons.calendar, label: 'Choose year', onTap: () => _pickYear(r))
+                  ? CircleIconButton(icon: NaviGlyph.calendar, label: 'Choose year', onTap: () => _pickYear(r))
                   : null,
             ),
       onRefresh: () async => ref.invalidate(navivibeYearlyReplayProvider(_year)),
@@ -118,7 +119,7 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
             ? [
                 SliverToBoxAdapter(
                   child: MessageState(
-                    icon: CupertinoIcons.calendar,
+                    icon: NaviGlyph.calendar,
                     title: 'Your Replay starts with your first song',
                     message: 'Listen this year and your top songs, artists and months collect here.',
                   ),

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/action_sheet.dart' show showToast;
 import '../../../widgets/ui/media.dart';
 import '../../../widgets/ui/states.dart';
@@ -115,7 +116,7 @@ class _Header extends ConsumerWidget {
               children: [
                 Expanded(
                   child: TintedButton(
-                    icon: CupertinoIcons.play_fill,
+                    glyph: NaviGlyph.play,
                     label: 'Play',
                     filled: true,
                     height: 50,
@@ -125,7 +126,7 @@ class _Header extends ConsumerWidget {
                 const SizedBox(width: Space.md),
                 Expanded(
                   child: TintedButton(
-                    icon: CupertinoIcons.shuffle,
+                    glyph: NaviGlyph.shuffle,
                     label: 'Shuffle',
                     height: 50,
                     onTap: () => _play(context, ref, list, shuffle: true),

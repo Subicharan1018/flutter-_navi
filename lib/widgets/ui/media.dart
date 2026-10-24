@@ -28,7 +28,7 @@ class SectionHeader extends StatelessWidget {
         Flexible(child: Text(title, style: t.title2, maxLines: 1, overflow: TextOverflow.ellipsis)),
         if (onTap != null) ...[
           const SizedBox(width: Space.xs),
-          Icon(CupertinoIcons.chevron_forward, size: 20, color: t.textMuted),
+          NaviIcon(NaviGlyph.chevron, size: 20, color: t.textMuted),
         ],
       ],
     );
@@ -54,7 +54,7 @@ class MediaCard extends StatelessWidget {
   final Widget? art;
   final double size;
   final bool circular;
-  final IconData placeholderIcon;
+  final NaviGlyph placeholderIcon;
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
@@ -66,7 +66,7 @@ class MediaCard extends StatelessWidget {
     this.art,
     required this.size,
     this.circular = false,
-    this.placeholderIcon = CupertinoIcons.music_note,
+    this.placeholderIcon = NaviGlyph.note,
     required this.onTap,
     this.onLongPress,
   });
@@ -235,7 +235,7 @@ class CollectionRow extends StatelessWidget {
   factory CollectionRow.destination({
     Key? key,
     required BuildContext context,
-    required IconData icon,
+    required NaviGlyph icon,
     required String title,
     required VoidCallback onTap,
     bool showSeparator = true,
@@ -245,7 +245,7 @@ class CollectionRow extends StatelessWidget {
       key: key,
       title: title,
       titleStyle: t.title3.copyWith(fontWeight: FontWeight.w400),
-      leading: SizedBox(width: 30, child: Icon(icon, size: 24, color: t.accent)),
+      leading: SizedBox(width: 30, child: NaviIcon(icon, size: 24, color: t.accent)),
       showSeparator: showSeparator,
       onTap: onTap,
     );
@@ -313,7 +313,7 @@ class CollectionRow extends StatelessWidget {
                       if (trailing != null)
                         trailing!
                       else if (showChevron)
-                        Icon(CupertinoIcons.chevron_forward, size: 16, color: t.textMuted),
+                        NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
                     ],
                   ),
                 ),
@@ -350,7 +350,7 @@ class PlayShuffleButtons extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        CircleIconButton(icon: CupertinoIcons.shuffle, label: 'Shuffle', onTap: onShuffle),
+        CircleIconButton(icon: NaviGlyph.shuffle, label: 'Shuffle', onTap: onShuffle),
         const SizedBox(width: Space.xl),
         CupertinoClickable(
           onTap: enabled
@@ -374,8 +374,8 @@ class PlayShuffleButtons extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  playing ? CupertinoIcons.pause_fill : CupertinoIcons.play_fill,
+                NaviIcon(
+                  playing ? NaviGlyph.pause : NaviGlyph.play,
                   size: 18,
                   color: enabled ? t.onAccent : t.textMuted,
                 ),
@@ -399,7 +399,7 @@ class PlayShuffleButtons extends StatelessWidget {
 class CircleIconButton extends StatelessWidget {
   static const double size = 44;
 
-  final IconData icon;
+  final NaviGlyph icon;
   final String label;
   final VoidCallback? onTap;
   final Widget? child;
@@ -424,7 +424,7 @@ class CircleIconButton extends StatelessWidget {
           height: size,
           decoration: BoxDecoration(color: t.fill, shape: BoxShape.circle),
           alignment: Alignment.center,
-          child: child ?? Icon(icon, size: 19, color: onTap == null ? t.textMuted : (color ?? t.textPrimary)),
+          child: child ?? NaviIcon(icon, size: 19, color: onTap == null ? t.textMuted : (color ?? t.textPrimary)),
         ),
     );
   }
@@ -433,9 +433,6 @@ class CircleIconButton extends StatelessWidget {
 /// iOS tinted capsule: soft fill, accent glyph and label. Used for single
 /// secondary actions ("Try Again", "Add Songs").
 class TintedButton extends StatelessWidget {
-  final IconData? icon;
-
-  /// One of NaviVibe's own glyphs, shown instead of [icon].
   final NaviGlyph? glyph;
   final String label;
   final VoidCallback? onTap;
@@ -447,7 +444,6 @@ class TintedButton extends StatelessWidget {
 
   const TintedButton({
     super.key,
-    this.icon,
     this.glyph,
     required this.label,
     this.onTap,
@@ -482,9 +478,6 @@ class TintedButton extends StatelessWidget {
           children: [
             if (glyph != null) ...[
               NaviIcon(glyph!, size: 18, color: fg),
-              const SizedBox(width: Space.sm),
-            ] else if (icon != null) ...[
-              Icon(icon, size: 17, color: fg),
               const SizedBox(width: Space.sm),
             ],
             // Shrinks with an ellipsis when it shares a row (paired capsules).

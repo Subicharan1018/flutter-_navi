@@ -9,6 +9,7 @@ import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/media.dart';
@@ -139,7 +140,7 @@ class _PlaylistSuggestionsState extends ConsumerState<PlaylistSuggestions> {
                     padding: const EdgeInsets.symmetric(horizontal: Space.lg),
                     minimumSize: const Size(52, 52),
                     onPressed: _adding.contains(pick.song.id) ? null : () => _add(pick),
-                    child: Icon(CupertinoIcons.add_circled, color: t.accent, semanticLabel: 'Add ${pick.song.title}'),
+                    child: NaviIcon(NaviGlyph.plusCircle, color: t.accent, semanticLabel: 'Add ${pick.song.title}'),
                   ),
                 ],
               ),

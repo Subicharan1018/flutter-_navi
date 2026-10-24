@@ -6,6 +6,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../core/theme.dart';
 import '../models/song.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/ion.dart';
 
 // =============================================================================
@@ -627,7 +628,7 @@ class _VolumeBarState extends State<VolumeBar> {
 /// Secondary action on the artwork (favourite, more): a plain glyph with a
 /// full-size hit area — no translucent disc behind it.
 class GlassCircleButton extends StatelessWidget {
-  final IconData? icon;
+  final NaviGlyph? icon;
 
   /// Ionicons glyph, drawn instead of [icon].
   final Ion? ion;
@@ -662,7 +663,7 @@ class GlassCircleButton extends StatelessWidget {
         transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
         child: ion != null
             ? IonIcon(ion!, key: ValueKey(ion), size: size, color: color)
-            : Icon(icon, key: ValueKey(icon), size: size, color: color),
+            : NaviIcon(icon!, key: ValueKey(icon), size: size, color: color),
       ),
     );
   }

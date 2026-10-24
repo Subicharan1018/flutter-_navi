@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../core/theme.dart';
 import '../art/generated_cover.dart';
+import '../art/navi_icons.dart';
 import '../cover_art.dart';
 
 export '../art/generated_cover.dart' show coverSeed;
@@ -13,7 +14,7 @@ class MosaicArt extends StatelessWidget {
   final List<String?> urls;
   final double size;
   final double radius;
-  final IconData placeholderIcon;
+  final NaviGlyph placeholderIcon;
 
   /// When set and the collection has no covers at all, NaviVibe's generated
   /// cover (seeded by this string, see `coverSeed`) is drawn instead of the
@@ -25,7 +26,7 @@ class MosaicArt extends StatelessWidget {
     required this.urls,
     required this.size,
     this.radius = Radii.cover,
-    this.placeholderIcon = CupertinoIcons.music_note_list,
+    this.placeholderIcon = NaviGlyph.playlist,
     this.seed,
   });
 

@@ -9,6 +9,7 @@ import '../../providers/settings_provider.dart';
 import '../../widgets/app_scaffold.dart' show navigateInApp;
 import '../../widgets/collection_actions.dart';
 import '../../widgets/ui/large_title_page.dart';
+import '../../widgets/art/navi_icons.dart';
 import '../../widgets/ui/media.dart';
 import '../../widgets/ui/states.dart';
 import '../album_details_screen.dart';
@@ -44,7 +45,7 @@ class AlbumsPage extends ConsumerWidget {
                   SliverFillRemaining(
                     hasScrollBody: false,
                     child: MessageState(
-                      icon: CupertinoIcons.square_stack,
+                      icon: NaviGlyph.stack,
                       title: 'No albums yet',
                       message: 'Albums on your server appear here.',
                     ),
@@ -76,14 +77,14 @@ class _AlbumCard extends ConsumerWidget {
       subtitle: album.artist,
       artUrl: artUrl,
       size: size,
-      placeholderIcon: CupertinoIcons.music_albums,
+      placeholderIcon: NaviGlyph.library,
       onTap: () => navigateInApp(context, AlbumDetailsScreen(album: album)),
       onLongPress: () => showCollectionActions(
         context,
         title: album.name,
         subtitle: album.artist,
         artUrl: artUrl,
-        placeholderIcon: CupertinoIcons.music_albums,
+        placeholderIcon: NaviGlyph.library,
         loadSongs: () => ref.read(subsonicServiceProvider).getAlbum(album.id),
         pin: Pin.album(album),
       ),

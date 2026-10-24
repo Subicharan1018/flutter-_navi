@@ -9,6 +9,7 @@ import '../../providers/player_provider.dart';
 import '../../utils/queue_actions.dart';
 import '../../widgets/song_tile.dart';
 import '../../widgets/ui/large_title_page.dart';
+import '../../widgets/art/navi_icons.dart';
 import '../../widgets/ui/media.dart';
 import '../../widgets/ui/states.dart';
 import '../../widgets/ui/swipe_actions.dart';
@@ -93,7 +94,7 @@ class _SongsPageState extends ConsumerState<SongsPage> {
                       )
                     : MessageState(
                         illustration: widget.downloadedOnly ? null : 'books',
-                        icon: widget.downloadedOnly ? CupertinoIcons.arrow_down_circle : CupertinoIcons.music_note,
+                        icon: widget.downloadedOnly ? NaviGlyph.downloadCircle : NaviGlyph.note,
                         art: widget.downloadedOnly ? EmptyArtKind.downloads : null,
                         title: widget.downloadedOnly ? 'No downloads yet' : 'No songs yet',
                         message: widget.downloadedOnly

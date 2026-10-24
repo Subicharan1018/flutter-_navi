@@ -9,6 +9,7 @@ import '../core/theme.dart';
 import '../models/song.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/controls.dart';
@@ -170,7 +171,7 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                 ? (page.isLoadingMore
                     ? const LoadingState()
                     : MessageState(
-                        icon: CupertinoIcons.search,
+                        icon: NaviGlyph.search,
                         title: _query.isEmpty ? 'No songs yet' : 'No songs match “$_query”',
                         message: _query.isEmpty
                             ? 'Songs appear here once your library syncs.'
@@ -205,8 +206,9 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
                               AnimatedSwitcher(
                                 duration: Motion.fast,
                                 transitionBuilder: (c, a) => ScaleTransition(scale: a, child: c),
-                                child: Icon(
-                                  picked ? CupertinoIcons.checkmark_circle_fill : CupertinoIcons.add_circled,
+                                child: NaviIcon(
+                                  picked ? NaviGlyph.checkCircle : NaviGlyph.plusCircle,
+                                  filled: picked,
                                   key: ValueKey(picked),
                                   size: 26,
                                   color: picked ? t.accent : t.textSecondary,

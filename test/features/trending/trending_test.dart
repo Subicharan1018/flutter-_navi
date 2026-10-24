@@ -1,6 +1,5 @@
 import 'dart:async';
 
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,6 +14,7 @@ import 'package:navivibe/features/trending/ui/widgets/chart_details.dart';
 import 'package:navivibe/features/trending/ui/widgets/chart_row.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/subsonic_service.dart';
+import 'package:navivibe/widgets/art/navi_icons.dart';
 import 'package:navivibe/widgets/ui/states.dart';
 
 import '../../helpers/test_utils.dart';
@@ -269,7 +269,7 @@ void main() {
       expect(find.text('English'), findsNothing);              // no songs yet
       expect(find.byType(ChartRow), findsNWidgets(5));          // a column of four, then rank 5 peeking in
       expect(find.text('NEW'), findsOneWidget);
-      expect(find.byIcon(CupertinoIcons.arrowtriangle_up_fill), findsOneWidget);
+      expect(find.byWidgetPredicate((w) => w is NaviIcon && w.glyph == NaviGlyph.caretUp), findsOneWidget);
       expect(find.text('Artist 3 · Only available in lossy quality'), findsOneWidget);
       expect(find.text('Artist 4 · Downloading soon'), findsOneWidget);
 

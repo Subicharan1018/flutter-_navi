@@ -1,8 +1,8 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import '../art/navi_icons.dart';
 
 /// iOS-style swipe actions on a row: swipe right for the [leading] action,
 /// left for the [trailing] one. The row never leaves the list — the action
@@ -32,13 +32,13 @@ class SwipeActions extends StatelessWidget {
       rowKey: rowKey,
       leading: SwipeAction(
         label: 'Play Next',
-        icon: CupertinoIcons.text_insert,
+        icon: NaviGlyph.playNext,
         color: AppThemeTokens.brandAccent,
         onTrigger: onPlayNext,
       ),
       trailing: SwipeAction(
         label: 'Play Last',
-        icon: CupertinoIcons.text_append,
+        icon: NaviGlyph.playLast,
         color: AppThemeTokens.brandAccentDim,
         onTrigger: onPlayLast,
       ),
@@ -69,7 +69,7 @@ class SwipeActions extends StatelessWidget {
 
 class SwipeAction {
   final String label;
-  final IconData icon;
+  final NaviGlyph icon;
   final Color color;
   final VoidCallback onTrigger;
   const SwipeAction({required this.label, required this.icon, required this.color, required this.onTrigger});
@@ -91,7 +91,7 @@ class _Background extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(action.icon, color: fg, size: 22),
+          NaviIcon(action.icon, color: fg, size: 22),
           const SizedBox(height: Space.xs),
           Text(action.label, style: t.caption1.copyWith(color: fg, fontWeight: FontWeight.w600)),
         ],

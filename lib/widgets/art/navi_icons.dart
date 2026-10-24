@@ -2,6 +2,8 @@ import 'dart:math' show pi, cos, sin;
 
 import 'package:flutter/material.dart';
 
+import 'navi_icons_extra.dart';
+
 // =============================================================================
 // NaviVibe's own glyphs. Drawn on a 24-unit grid with round caps and a 1.75
 // stroke so they sit together as one family. Tabs use the outline form when
@@ -53,6 +55,55 @@ enum NaviGlyph {
   calendar,
   flame,
   sparkle,
+  note,
+  playlist,
+  stack,
+  speaker,
+  link,
+  alert,
+  info,
+  checkCircle,
+  ring,
+  downloadCircle,
+  chevronLeft,
+  chevronDown,
+  caretUp,
+  caretDown,
+  playCircle,
+  playNext,
+  playLast,
+  repeatOne,
+  pinOff,
+  starOff,
+  photo,
+  camera,
+  copy,
+  doc,
+  gear,
+  lock,
+  unlock,
+  eye,
+  eyeOff,
+  globe,
+  cloud,
+  sun,
+  thermometer,
+  drop,
+  radio,
+  wifi,
+  wifiOff,
+  thumbUp,
+  thumbDown,
+  minusCircle,
+  plusCircle,
+  grip,
+  expand,
+  swap,
+  metronome,
+  grid,
+  personCircle,
+  gauge,
+  moon,
 }
 
 class NaviIcon extends StatelessWidget {
@@ -61,23 +112,29 @@ class NaviIcon extends StatelessWidget {
   final Color? color;
   final bool filled;
 
+  /// Announced by screen readers; leave null for decorative glyphs.
+  final String? semanticLabel;
+
   const NaviIcon(
     this.glyph, {
     super.key,
     this.size = 24,
     this.color,
     this.filled = false,
+    this.semanticLabel,
   });
 
   @override
   Widget build(BuildContext context) {
     final tint = color ?? IconTheme.of(context).color ?? Colors.white;
-    return RepaintBoundary(
+    final icon = RepaintBoundary(
       child: CustomPaint(
         size: Size.square(size),
         painter: NaviGlyphPainter(glyph, tint, filled),
       ),
     );
+    if (semanticLabel == null) return icon;
+    return Semantics(label: semanticLabel, image: true, child: ExcludeSemantics(child: icon));
   }
 }
 
@@ -267,7 +324,16 @@ class NaviGlyphPainter extends CustomPainter {
         for (final x in const [5.0, 12.0, 19.0]) {
           canvas.drawCircle(Offset(x, 12), filled ? 2.2 : 1.7, fill);
         }
-      case NaviGlyph.repeat:
+      case NaviGlyph.repeat || NaviGlyph.repeatOne:
+        if (glyph == NaviGlyph.repeatOne) {
+          canvas.drawPath(
+            Path()
+              ..moveTo(10.6, 10.4)
+              ..lineTo(12.2, 9.4)
+              ..lineTo(12.2, 14.6),
+            Paint.from(stroke)..strokeWidth = 1.5,
+          );
+        }
         canvas.drawPath(
           Path()
             ..moveTo(5, 11)
@@ -534,7 +600,10 @@ class NaviGlyphPainter extends CustomPainter {
           ..close();
         canvas.drawPath(p, stroke);
         canvas.drawLine(const Offset(13.6, 7.2), const Offset(16.8, 10.4), stroke);
-      case NaviGlyph.pin:
+      case NaviGlyph.pin || NaviGlyph.pinOff:
+        if (glyph == NaviGlyph.pinOff) {
+          canvas.drawLine(const Offset(4.5, 4.5), const Offset(19.5, 19.5), stroke);
+        }
         final p = Path()
           ..moveTo(9, 4.5)
           ..lineTo(15, 4.5)
@@ -546,7 +615,7 @@ class NaviGlyphPainter extends CustomPainter {
         canvas.drawPath(p, solid);
         if (filled) canvas.drawPath(p, stroke);
         canvas.drawLine(const Offset(12, 13), const Offset(12, 19.5), stroke);
-      case NaviGlyph.star:
+      case NaviGlyph.star || NaviGlyph.starOff:
         final p = Path();
         for (var i = 0; i < 10; i++) {
           final r = i.isEven ? 8.0 : 3.6;
@@ -557,9 +626,14 @@ class NaviGlyphPainter extends CustomPainter {
         p.close();
         canvas.drawPath(p, solid);
         if (filled) canvas.drawPath(p, stroke);
+        if (glyph == NaviGlyph.starOff) {
+          canvas.drawLine(const Offset(4.5, 4.5), const Offset(19.5, 19.5), stroke);
+        }
       case NaviGlyph.close:
         canvas.drawLine(const Offset(6, 6), const Offset(18, 18), stroke);
         canvas.drawLine(const Offset(18, 6), const Offset(6, 18), stroke);
+      default:
+        paintNaviGlyphExtra(canvas, glyph, stroke, fill, solid, filled);
     }
   }
 

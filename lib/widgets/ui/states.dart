@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../core/theme.dart';
 import '../art/empty_art.dart';
+import '../art/navi_icons.dart';
 import 'media.dart';
 
 export '../art/empty_art.dart' show EmptyArtKind;
@@ -11,7 +12,7 @@ export '../art/empty_art.dart' show EmptyArtKind;
 /// Centred, like iOS.
 class MessageState extends StatelessWidget {
   /// Only needed when there is no [art] or [illustration] to show.
-  final IconData? icon;
+  final NaviGlyph? icon;
   final String title;
   final String message;
   final String? actionLabel;
@@ -54,7 +55,7 @@ class MessageState extends StatelessWidget {
   }) =>
       MessageState(
         key: key,
-        icon: CupertinoIcons.wifi_exclamationmark,
+        icon: NaviGlyph.wifiOff,
         art: illustration == null ? EmptyArtKind.offline : null,
         title: title,
         message: message,
@@ -85,7 +86,7 @@ class MessageState extends StatelessWidget {
               else if (art != null)
                 ExcludeSemantics(child: EmptyArt(art!, width: 128))
               else if (icon != null)
-                Icon(icon, size: 48, color: t.textMuted),
+                NaviIcon(icon!, size: 48, color: t.textMuted),
               const SizedBox(height: Space.lg),
               Text(title, textAlign: TextAlign.center, style: t.title3),
               const SizedBox(height: Space.sm),

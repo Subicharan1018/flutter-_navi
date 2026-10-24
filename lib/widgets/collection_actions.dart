@@ -6,6 +6,7 @@ import '../models/song.dart';
 import '../providers/pins_provider.dart';
 import '../providers/player_provider.dart';
 import '../utils/queue_actions.dart';
+import 'art/navi_icons.dart';
 import 'desktop_dialogs.dart';
 import 'ui/action_sheet.dart';
 
@@ -17,7 +18,7 @@ Future<void> showCollectionActions(
   required String title,
   String? subtitle,
   String? artUrl,
-  IconData placeholderIcon = CupertinoIcons.music_note_list,
+  NaviGlyph placeholderIcon = NaviGlyph.playlist,
   required Future<List<Song>> Function() loadSongs,
   VoidCallback? onEdit,
   VoidCallback? onDelete,
@@ -45,7 +46,7 @@ class _CollectionActions extends ConsumerWidget {
   final String title;
   final String? subtitle;
   final String? artUrl;
-  final IconData placeholderIcon;
+  final NaviGlyph placeholderIcon;
   final Future<List<Song>> Function() loadSongs;
   final VoidCallback? onEdit;
   final VoidCallback? onDelete;
@@ -97,24 +98,24 @@ class _CollectionActions extends ConsumerWidget {
         SheetGroup(children: [
           SheetAction(
             label: 'Play',
-            icon: CupertinoIcons.play,
+            icon: NaviGlyph.play,
             onTap: () => withSongs((s) => player.setQueue(s, 0, playlistName: title, unshuffledSongs: s)),
           ),
           SheetAction(
             label: 'Shuffle',
-            icon: CupertinoIcons.shuffle,
+            icon: NaviGlyph.shuffle,
             onTap: () => withSongs((s) => player.playPlaylist(s, shuffle: true, playlistName: title)),
           ),
         ]),
         SheetGroup(children: [
           SheetAction(
             label: 'Play Next',
-            icon: CupertinoIcons.text_insert,
+            icon: NaviGlyph.playNext,
             onTap: () => withSongs((s) => queueSongs(page, ref, s, next: true, label: title)),
           ),
           SheetAction(
             label: 'Play Last',
-            icon: CupertinoIcons.text_append,
+            icon: NaviGlyph.playLast,
             onTap: () => withSongs((s) => queueSongs(page, ref, s, next: false, label: title)),
           ),
         ]),
@@ -124,16 +125,16 @@ class _CollectionActions extends ConsumerWidget {
             if (share != null)
               SheetAction(
                 label: 'Share…',
-                icon: CupertinoIcons.share,
+                icon: NaviGlyph.share,
                 onTap: () => showShareSheet(page, share!),
               ),
             if (pin != null) _PinAction(pin: pin!, page: page),
           ]),
         if (onEdit != null || onDelete != null)
           SheetGroup(children: [
-            if (onEdit != null) SheetAction(label: 'Edit Playlist', icon: CupertinoIcons.pencil, onTap: onEdit),
+            if (onEdit != null) SheetAction(label: 'Edit Playlist', icon: NaviGlyph.edit, onTap: onEdit),
             if (onDelete != null)
-              SheetAction(label: 'Delete Playlist', icon: CupertinoIcons.trash, destructive: true, onTap: onDelete),
+              SheetAction(label: 'Delete Playlist', icon: NaviGlyph.trash, destructive: true, onTap: onDelete),
           ]),
         const SizedBox(height: 8),
       ],
@@ -156,7 +157,7 @@ class _PinAction extends ConsumerWidget {
     };
     return SheetAction(
       label: pinned ? 'Unpin $noun' : 'Pin $noun',
-      icon: pinned ? CupertinoIcons.pin_slash : CupertinoIcons.pin,
+      icon: pinned ? NaviGlyph.pinOff : NaviGlyph.pin,
       onTap: () {
         final ok = ref.read(pinsProvider.notifier).toggle(pin);
         if (!page.mounted) return;

@@ -75,7 +75,7 @@ class OptionsMenu extends ConsumerWidget {
         SheetGroup(children: [
           SheetAction(
             label: 'Play Next',
-            icon: CupertinoIcons.text_insert,
+            icon: NaviGlyph.playNext,
             onTap: () {
               player.insertNext(song);
               showToast(page, 'Playing next');
@@ -83,7 +83,7 @@ class OptionsMenu extends ConsumerWidget {
           ),
           SheetAction(
             label: 'Play Last',
-            icon: CupertinoIcons.text_append,
+            icon: NaviGlyph.playLast,
             onTap: () {
               player.addToQueue(song);
               showToast(page, 'Added to the end of the queue');
@@ -116,7 +116,7 @@ class OptionsMenu extends ConsumerWidget {
             ),
           SheetAction(
             label: starred ? 'Remove from Favorites' : 'Favorite',
-            icon: starred ? CupertinoIcons.star_slash : CupertinoIcons.star,
+            icon: starred ? NaviGlyph.starOff : NaviGlyph.star,
             onTap: () {
               player.toggleStar(song.id);
               showToast(page, starred ? 'Removed from Favorites' : 'Added to Favorites');
@@ -125,13 +125,13 @@ class OptionsMenu extends ConsumerWidget {
           _DownloadAction(song: song, toastContext: page),
           SheetAction(
             label: 'Share…',
-            icon: CupertinoIcons.share,
+            icon: NaviGlyph.share,
             onTap: () => showShareSheet(page, ShareTarget.song(song)),
           ),
           if (song.albumId.isNotEmpty)
             SheetAction(
               label: 'Go to Album',
-              icon: CupertinoIcons.music_albums,
+              icon: NaviGlyph.library,
               onTap: () => navigateInApp(
                 page,
                 AlbumDetailsScreen(
@@ -148,14 +148,14 @@ class OptionsMenu extends ConsumerWidget {
           if (song.artistId.isNotEmpty)
             SheetAction(
               label: 'Go to Artist',
-              icon: CupertinoIcons.music_mic,
+              icon: NaviGlyph.mic,
               onTap: () => navigateInApp(page, ArtistScreen(artistId: song.artistId, name: song.artist)),
             ),
         ]),
         SheetGroup(children: [
           SheetAction(
             label: 'Suggest More Like This',
-            icon: CupertinoIcons.hand_thumbsup,
+            icon: NaviGlyph.thumbUp,
             onTap: () {
               player.handleSuggestAction(song, true);
               showToast(page, 'Smart Shuffle will play this more often');
@@ -163,7 +163,7 @@ class OptionsMenu extends ConsumerWidget {
           ),
           SheetAction(
             label: 'Suggest Less Like This',
-            icon: CupertinoIcons.hand_thumbsdown,
+            icon: NaviGlyph.thumbDown,
             onTap: () {
               player.handleSuggestAction(song, false);
               showToast(page, 'Smart Shuffle will play this less often');
@@ -181,7 +181,7 @@ class OptionsMenu extends ConsumerWidget {
           SheetGroup(children: [
             SheetAction(
               label: 'Remove from Playlist',
-              icon: CupertinoIcons.minus_circle,
+              icon: NaviGlyph.minusCircle,
               destructive: true,
               onTap: onRemoveFromPlaylist,
             ),
@@ -209,7 +209,7 @@ class _DownloadAction extends ConsumerWidget {
     return switch (status) {
       SongDownloadStatus.notDownloaded => SheetAction(
           label: 'Download',
-          icon: CupertinoIcons.arrow_down_circle,
+          icon: NaviGlyph.downloadCircle,
           keepOpen: true,
           onTap: () => notifier.downloadSong(song),
         ),
@@ -233,7 +233,7 @@ class _DownloadAction extends ConsumerWidget {
         ),
       SongDownloadStatus.downloaded => SheetAction(
           label: 'Remove Download',
-          icon: CupertinoIcons.trash,
+          icon: NaviGlyph.trash,
           destructive: true,
           onTap: () {
             notifier.deleteSong(song.id);
@@ -243,7 +243,7 @@ class _DownloadAction extends ConsumerWidget {
       SongDownloadStatus.failed => SheetAction(
           label: 'Download Failed',
           detail: 'Tap to try again',
-          icon: CupertinoIcons.exclamationmark_circle,
+          icon: NaviGlyph.alert,
           keepOpen: true,
           onTap: () => notifier.downloadSong(song),
         ),

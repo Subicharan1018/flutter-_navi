@@ -78,13 +78,13 @@ class SmartPlaylistScreen extends ConsumerWidget {
       ),
       actions: [
         BarCircleButton(
-          icon: CupertinoIcons.slider_horizontal_3,
+          icon: NaviGlyph.sliders,
           label: 'Edit Rules',
           onTap: () => showSmartPlaylistEditor(context, playlist: playlist),
           child: NaviIcon(NaviGlyph.sliders, size: 18, color: t.textPrimary),
         ),
         BarCircleButton(
-          icon: CupertinoIcons.ellipsis,
+          icon: NaviGlyph.more,
           label: 'More',
           onTap: () => showSmartPlaylistActions(context, playlist, onDeleted: () => Navigator.of(context).maybePop()),
           child: NaviIcon(NaviGlyph.more, size: 18, color: t.textPrimary),
@@ -104,7 +104,7 @@ class SmartPlaylistScreen extends ConsumerWidget {
         else if (songs.isEmpty)
           SliverToBoxAdapter(
             child: MessageState(
-              icon: CupertinoIcons.slider_horizontal_3,
+              icon: NaviGlyph.sliders,
               title: 'No songs match yet',
               message: 'Loosen a rule, or wait until more songs fit.',
               actionLabel: 'Edit Rules',

@@ -12,6 +12,7 @@ import '../core/app_exception.dart';
 import '../core/constants.dart';
 import '../core/hive_boxes.dart';
 import '../core/theme.dart';
+import '../widgets/art/navi_icons.dart';
 import '../providers/settings_provider.dart';
 import '../services/subsonic_service.dart';
 import '../widgets/app_scaffold.dart';
@@ -122,7 +123,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           color: t.accent,
                           borderRadius: BorderRadius.circular(20),
                         ),
-                        child: Icon(CupertinoIcons.waveform, size: 44, color: t.onAccent),
+                        child: NaviIcon(NaviGlyph.aiShuffle, size: 44, color: t.onAccent),
                       ),
                       const SizedBox(height: Space.xxl),
                       Text('Welcome to ${Constants.appName}', textAlign: TextAlign.center, style: t.title1),
@@ -159,7 +160,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                           child: Row(
                             crossAxisAlignment: CrossAxisAlignment.start,
                             children: [
-                              Icon(CupertinoIcons.exclamationmark_circle_fill, size: 16, color: t.danger),
+                              NaviIcon(NaviGlyph.alert, size: 16, color: t.danger, filled: true),
                               const SizedBox(width: Space.sm),
                               Expanded(child: Text(_error!, style: t.footnote.copyWith(color: t.danger))),
                             ],

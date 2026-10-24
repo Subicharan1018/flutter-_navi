@@ -15,6 +15,7 @@ import '../../../providers/library_provider.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../screens/now_playing_screen.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/song_tile.dart';
 import '../../../widgets/ui/action_sheet.dart';
 import '../../../widgets/ui/controls.dart';
@@ -172,7 +173,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           SliverToBoxAdapter(
             child: MessageState(
               illustration: 'ai',
-              icon: CupertinoIcons.sparkles,
+              icon: NaviGlyph.sparkle,
               title: 'No picks yet',
               message: predict.mode.emptyMessage,
             ),
@@ -265,7 +266,7 @@ class _MixCard extends ConsumerWidget {
           urls: [for (final s in mix.take(12)) svc.getCoverArtUrl(s.coverArt)],
           size: _art,
           radius: Radii.hero,
-          placeholderIcon: CupertinoIcons.sparkles,
+          placeholderIcon: NaviGlyph.sparkle,
           seed: coverSeed('Smart Shuffle', mix.map((s) => s.id)),
         ),
         const SizedBox(height: Space.lg),
@@ -293,7 +294,7 @@ class _MixCard extends ConsumerWidget {
               child: TintedButton(
                 filled: true,
                 height: _buttonHeight,
-                icon: CupertinoIcons.play_fill,
+                glyph: NaviGlyph.play,
                 label: 'Play',
                 onTap: busy ? null : onPlay,
               ),
@@ -302,7 +303,7 @@ class _MixCard extends ConsumerWidget {
             Expanded(
               child: TintedButton(
                 height: _buttonHeight,
-                icon: CupertinoIcons.shuffle,
+                glyph: NaviGlyph.shuffle,
                 label: 'Reshuffle',
                 onTap: onReshuffle,
               ),
@@ -328,7 +329,7 @@ class _StarterRow extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(Space.gutter, Space.lg, Space.gutter, 0),
       child: Row(
         children: [
-          Icon(CupertinoIcons.sunrise, size: 18, color: t.accent),
+          NaviIcon(NaviGlyph.sun, size: 18, color: t.accent),
           const SizedBox(width: Space.sm),
           Expanded(
             child: Text.rich(

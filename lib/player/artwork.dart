@@ -13,6 +13,7 @@ import '../core/album_palette.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../widgets/art/navi_icons.dart';
 
 /// A cover reduced to what the player surfaces need: a 64px texture for the
 /// artwork field shader and the derived [AlbumPalette].
@@ -90,8 +91,8 @@ class CoverImage extends StatelessWidget {
         height: height,
         color: placeholderColor,
         alignment: Alignment.center,
-        child: Icon(
-          Icons.music_note_rounded,
+        child: NaviIcon(
+          NaviGlyph.note,
           color: const Color(0x99FFFFFF),
           size: ((width ?? 48) * 0.36).clamp(14.0, 96.0),
         ),

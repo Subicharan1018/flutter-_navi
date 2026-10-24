@@ -1,7 +1,6 @@
 import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/cupertino.dart' show CupertinoIcons;
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
@@ -11,6 +10,7 @@ import 'package:marquee/marquee.dart';
 import '../features/flow/ui/flow_pill.dart';
 
 import '../core/theme.dart';
+import '../widgets/art/navi_icons.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
 import '../player/artwork_field.dart';
@@ -1033,7 +1033,7 @@ class _DevicesSheet extends ConsumerWidget {
     final mode = ref.watch(playerProvider.select((s) => s.syncMode));
     final remoteName = ref.watch(playerProvider.select((s) => s.remoteActiveDeviceName));
     final here = mode != SyncMode.passive;
-    final playingGlyph = Icon(CupertinoIcons.waveform, size: 20, color: t.accent);
+    final playingGlyph = NaviIcon(NaviGlyph.aiShuffle, size: 20, color: t.accent);
     final player = ref.read(playerProvider.notifier);
     return SafeArea(
       top: false,
@@ -1092,7 +1092,7 @@ class _RemoteDeviceBanner extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
-                    const Icon(CupertinoIcons.hifispeaker, size: 18, color: Colors.white),
+                    const NaviIcon(NaviGlyph.speaker, size: 18, color: Colors.white),
                     const SizedBox(width: 10),
                     Expanded(
                       child: Text(
@@ -1142,7 +1142,7 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
             child: Row(
               children: [
                 GlassCircleButton(
-                  icon: CupertinoIcons.chevron_down,
+                  icon: NaviGlyph.chevronDown,
                   semanticLabel: 'Close player (Esc)',
                   onTap: () => Navigator.maybePop(context),
                 ),

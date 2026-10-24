@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme.dart';
 import '../../../../screens/stats/widgets/model_status.dart';
+import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/desktop_dialogs.dart';
 import '../../../../widgets/ui/grouped_list.dart';
 import '../../../../widgets/ui/states.dart';
@@ -35,7 +36,7 @@ class SmartShuffleStatusButton extends ConsumerWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          const Icon(CupertinoIcons.waveform_circle, size: 26, semanticLabel: 'Smart Shuffle status'),
+          const NaviIcon(NaviGlyph.aiShuffle, size: 26, semanticLabel: 'Smart Shuffle status'),
           Positioned(
             right: -1,
             top: -1,
@@ -73,23 +74,23 @@ class _StatusSheet extends ConsumerWidget {
           children: [
             GroupedRow(
               title: 'Status',
-              icon: CupertinoIcons.dot_radiowaves_left_right,
+              icon: NaviGlyph.radio,
               value: health.isLoading ? 'Checking…' : (h?.isHealthy == true ? 'Online' : 'Offline'),
             ),
             if (w != null) ...[
               GroupedRow(
                 title: 'Weather',
-                icon: CupertinoIcons.cloud_sun,
+                icon: NaviGlyph.cloud,
                 value: '${w.moodIcon} ${w.mood}',
               ),
               GroupedRow(
                 title: 'Temperature',
-                icon: CupertinoIcons.thermometer,
+                icon: NaviGlyph.thermometer,
                 value: '${w.temperatureC.toStringAsFixed(1)}°C',
               ),
               GroupedRow(
                 title: 'Humidity',
-                icon: CupertinoIcons.drop,
+                icon: NaviGlyph.drop,
                 value: '${w.humidityPct}%',
               ),
             ],
