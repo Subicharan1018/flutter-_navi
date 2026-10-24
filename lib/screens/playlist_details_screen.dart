@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/share/share_sheet.dart';
+import '../features/smart_playlists/ui/smart_widgets.dart' show FolderMoveAction;
 
 import '../core/theme.dart';
 import '../models/download_state.dart';
@@ -233,6 +234,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                   onDelete: _delete,
                   pin: Pin.playlist(_playlist),
                   share: ShareTarget.playlist(_playlist),
+                  extraActions: [FolderMoveAction(playlistId: _playlist.id, page: context)],
                 ),
               ),
             ],

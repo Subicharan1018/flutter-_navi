@@ -1,3 +1,5 @@
+import 'dart:math' show pi, cos, sin;
+
 import 'package:flutter/material.dart';
 
 // =============================================================================
@@ -33,6 +35,17 @@ enum NaviGlyph {
   trending,
   lyrics,
   mic,
+  folder,
+  smart,
+  plus,
+  minus,
+  chevron,
+  check,
+  trash,
+  edit,
+  pin,
+  star,
+  close,
 }
 
 class NaviIcon extends StatelessWidget {
@@ -362,6 +375,111 @@ class NaviGlyphPainter extends CustomPainter {
           stroke,
         );
         canvas.drawLine(const Offset(12, 17.5), const Offset(12, 20.5), stroke);
+      case NaviGlyph.folder:
+        final p = Path()
+          ..moveTo(3.5, 17.5)
+          ..lineTo(3.5, 6.5)
+          ..quadraticBezierTo(3.5, 5.5, 4.5, 5.5)
+          ..lineTo(9.5, 5.5)
+          ..lineTo(11.5, 8)
+          ..lineTo(19.5, 8)
+          ..quadraticBezierTo(20.5, 8, 20.5, 9)
+          ..lineTo(20.5, 17.5)
+          ..quadraticBezierTo(20.5, 18.5, 19.5, 18.5)
+          ..lineTo(4.5, 18.5)
+          ..quadraticBezierTo(3.5, 18.5, 3.5, 17.5)
+          ..close();
+        canvas.drawPath(p, solid);
+        if (filled) canvas.drawPath(p, stroke);
+      case NaviGlyph.smart:
+        // A four-point sparkle with a small companion.
+        final p = Path()
+          ..moveTo(10.5, 3.5)
+          ..quadraticBezierTo(11.2, 9.8, 17.5, 10.5)
+          ..quadraticBezierTo(11.2, 11.2, 10.5, 17.5)
+          ..quadraticBezierTo(9.8, 11.2, 3.5, 10.5)
+          ..quadraticBezierTo(9.8, 9.8, 10.5, 3.5)
+          ..close();
+        canvas.drawPath(p, solid);
+        if (filled) canvas.drawPath(p, stroke);
+        canvas.drawCircle(const Offset(18, 17.5), 1.1, fill);
+        canvas.drawLine(const Offset(18, 4.5), const Offset(18, 7.5), stroke);
+        canvas.drawLine(const Offset(16.5, 6), const Offset(19.5, 6), stroke);
+      case NaviGlyph.plus:
+        canvas.drawLine(const Offset(12, 5), const Offset(12, 19), stroke);
+        canvas.drawLine(const Offset(5, 12), const Offset(19, 12), stroke);
+      case NaviGlyph.minus:
+        canvas.drawLine(const Offset(5, 12), const Offset(19, 12), stroke);
+      case NaviGlyph.chevron:
+        canvas.drawPath(
+          Path()
+            ..moveTo(9.5, 5.5)
+            ..lineTo(16, 12)
+            ..lineTo(9.5, 18.5),
+          stroke,
+        );
+      case NaviGlyph.check:
+        canvas.drawPath(
+          Path()
+            ..moveTo(5, 12.5)
+            ..lineTo(10, 17.5)
+            ..lineTo(19, 7),
+          stroke,
+        );
+      case NaviGlyph.trash:
+        canvas.drawLine(const Offset(4.5, 7), const Offset(19.5, 7), stroke);
+        canvas.drawPath(
+          Path()
+            ..moveTo(9, 7)
+            ..lineTo(9, 4.5)
+            ..lineTo(15, 4.5)
+            ..lineTo(15, 7),
+          stroke,
+        );
+        final body = Path()
+          ..moveTo(6.5, 7)
+          ..lineTo(7.5, 19.5)
+          ..lineTo(16.5, 19.5)
+          ..lineTo(17.5, 7);
+        canvas.drawPath(body, stroke);
+        canvas.drawLine(const Offset(10.2, 10.5), const Offset(10.2, 16), stroke);
+        canvas.drawLine(const Offset(13.8, 10.5), const Offset(13.8, 16), stroke);
+      case NaviGlyph.edit:
+        final p = Path()
+          ..moveTo(5, 19)
+          ..lineTo(5.8, 15)
+          ..lineTo(15.5, 5.3)
+          ..lineTo(18.7, 8.5)
+          ..lineTo(9, 18.2)
+          ..close();
+        canvas.drawPath(p, stroke);
+        canvas.drawLine(const Offset(13.6, 7.2), const Offset(16.8, 10.4), stroke);
+      case NaviGlyph.pin:
+        final p = Path()
+          ..moveTo(9, 4.5)
+          ..lineTo(15, 4.5)
+          ..lineTo(14.2, 9.5)
+          ..lineTo(17, 13)
+          ..lineTo(7, 13)
+          ..lineTo(9.8, 9.5)
+          ..close();
+        canvas.drawPath(p, solid);
+        if (filled) canvas.drawPath(p, stroke);
+        canvas.drawLine(const Offset(12, 13), const Offset(12, 19.5), stroke);
+      case NaviGlyph.star:
+        final p = Path();
+        for (var i = 0; i < 10; i++) {
+          final r = i.isEven ? 8.0 : 3.6;
+          final a = -pi / 2 + i * pi / 5;
+          final o = Offset(12 + r * cos(a), 12.6 + r * sin(a));
+          i == 0 ? p.moveTo(o.dx, o.dy) : p.lineTo(o.dx, o.dy);
+        }
+        p.close();
+        canvas.drawPath(p, solid);
+        if (filled) canvas.drawPath(p, stroke);
+      case NaviGlyph.close:
+        canvas.drawLine(const Offset(6, 6), const Offset(18, 18), stroke);
+        canvas.drawLine(const Offset(18, 6), const Offset(6, 18), stroke);
     }
   }
 
