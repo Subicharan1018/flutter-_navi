@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:collection';
+import 'dart:io' show File;
 import 'dart:ui' as ui;
 
 import 'package:cached_network_image/cached_network_image.dart';
@@ -43,7 +44,9 @@ ImageProvider? testCoverOverride(String url) => debugCoverImageOverride?.call(ur
 /// full size.
 ImageProvider coverImage(String url, String cacheKey, {int? cacheWidth}) {
   final base = debugCoverImageOverride?.call(url, cacheKey) ??
-      CachedNetworkImageProvider(url, cacheKey: cacheKey);
+      (url.startsWith('file:')
+          ? FileImage(File.fromUri(Uri.parse(url)))
+          : CachedNetworkImageProvider(url, cacheKey: cacheKey) as ImageProvider);
   return cacheWidth == null ? base : ResizeImage(base, width: cacheWidth, policy: ResizeImagePolicy.fit);
 }
 
@@ -158,11 +161,16 @@ class ArtworkRepository {
   /// No GPU pixel readback anywhere: `Image.toByteData` hangs forever on
   /// some Impeller (Vulkan) devices, which left the field empty.
   Future<ArtworkData> _loadViaServer(String key, String url) async {
-    final thumbUrl = _thumbUrl(url);
-    final file = await DefaultCacheManager()
-        .getSingleFile(thumbUrl, key: '${key}_$_texSize')
-        .timeout(_stepTimeout);
-    final encoded = await file.readAsBytes();
+    // A cover saved from a song on this device is already a file.
+    final Uint8List encoded;
+    if (url.startsWith('file:')) {
+      encoded = await File.fromUri(Uri.parse(url)).readAsBytes();
+    } else {
+      final file = await DefaultCacheManager()
+          .getSingleFile(_thumbUrl(url), key: '${key}_$_texSize')
+          .timeout(_stepTimeout);
+      encoded = await file.readAsBytes();
+    }
     // One background job decodes and reads the palette, so the pixels never
     // make a second trip between isolates after they're handed to the GPU.
     final (rgba, ints) = await compute(_decodeThumb, encoded).timeout(_stepTimeout);

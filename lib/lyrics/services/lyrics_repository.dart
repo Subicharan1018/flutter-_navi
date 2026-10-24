@@ -2,6 +2,8 @@ import 'dart:convert';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import '../../features/local_library/logic/local_library_providers.dart';
+import '../../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../../models/song.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/subsonic_service.dart';
@@ -23,13 +25,24 @@ class LyricsRepository {
   final SubsonicService _subsonic;
   final LrcLibService _lrcLib;
 
-  LyricsRepository({required SubsonicService subsonic, LrcLibService? lrcLib})
-    : _subsonic = subsonic,
-      _lrcLib = lrcLib ?? LrcLibService();
+  /// Lyrics kept beside a file on this device (sidecar `.lrc` or tags).
+  final Future<String?> Function(String songId)? _deviceLyrics;
+
+  LyricsRepository({
+    required SubsonicService subsonic,
+    LrcLibService? lrcLib,
+    Future<String?> Function(String songId)? deviceLyrics,
+  }) : _subsonic = subsonic,
+       _lrcLib = lrcLib ?? LrcLibService(),
+       _deviceLyrics = deviceLyrics;
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
   Future<LyricsResult> getLyrics(Song song) async {
+    // Step 0 — a .lrc next to the local file beats every online source.
+    final device = await _fromDevice(song.id);
+    if (device != null) return device;
+
     // Step 1 — local cache
     final cached = await _fromCache(song.id);
     if (cached != null) {
@@ -37,9 +50,10 @@ class LyricsRepository {
       return cached;
     }
 
-    // Step 2 — OpenSubsonic getLyricsBySongId (reads FLAC tags + sidecar .lrc)
+    // Step 2 — OpenSubsonic getLyricsBySongId (reads FLAC tags + sidecar .lrc).
+    // Device songs are unknown to the server.
     try {
-      final entry = await _subsonic.getLyricsBySongId(song.id);
+      final entry = isLocalSongId(song.id) ? null : await _subsonic.getLyricsBySongId(song.id);
       if (entry != null) {
         final isSynced = entry['synced'] == true;
         final lines = entry['line'];
@@ -115,6 +129,24 @@ class LyricsRepository {
     return buf.toString().trim();
   }
 
+  Future<LyricsResult?> _fromDevice(String songId) async {
+    try {
+      final text = await _deviceLyrics?.call(songId);
+      if (text == null || text.trim().isEmpty) return null;
+      final synced = LrcParser.isLrcFormat(text);
+      final lyrics = synced ? LrcParser.parseLrc(text) : LrcParser.parsePlain(text);
+      if (lyrics.isEmpty) return null;
+      return LyricsResult(
+        type: synced ? LyricsType.synced : LyricsType.plain,
+        lyrics: lyrics,
+        rawText: text,
+      );
+    } catch (e) {
+      debugPrint('[LyricsRepository] Device lyrics error: $e');
+      return null;
+    }
+  }
+
   // ── Cache helpers ──────────────────────────────────────────────────────────
 
   Future<void> _cache(String songId, LyricsResult result) async {
@@ -162,5 +194,6 @@ class LyricsRepository {
 
 final lyricsRepositoryProvider = Provider<LyricsRepository>((ref) {
   final subsonic = ref.watch(subsonicServiceProvider);
-  return LyricsRepository(subsonic: subsonic);
+  final local = ref.watch(localLibraryServiceProvider);
+  return LyricsRepository(subsonic: subsonic, deviceLyrics: local.lyricsFor);
 });
