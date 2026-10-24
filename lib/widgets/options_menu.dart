@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
 import '../features/share/share_sheet.dart';
+import '../features/social/logic/jam_controller.dart';
+import '../features/social/ui/collab_screens.dart' show showAddToCollab;
 import '../models/album.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
@@ -58,6 +60,7 @@ class OptionsMenu extends ConsumerWidget {
     // context (captured here), not the sheet's.
     final page = Navigator.of(context).context;
     final starred = ref.watch(playerProvider.select((s) => s.starredIds.contains(song.id)));
+    final inJam = ref.watch(jamControllerProvider.select((s) => s.active));
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -96,6 +99,20 @@ class OptionsMenu extends ConsumerWidget {
             ),
             onTap: () => showAddToPlaylist(page, song),
           ),
+          SheetAction(
+            label: 'Add to Shared Playlist…',
+            trailing: NaviIcon(NaviGlyph.group, size: 21, color: ThemeTokens.of(context).textPrimary),
+            onTap: () => showAddToCollab(page, ProviderScope.containerOf(page), [song]),
+          ),
+          if (inJam)
+            SheetAction(
+              label: 'Add to Jam',
+              trailing: NaviIcon(NaviGlyph.queue, size: 21, color: ThemeTokens.of(context).textPrimary),
+              onTap: () async {
+                final ok = await ref.read(jamControllerProvider.notifier).addSongs([song]);
+                if (page.mounted) showToast(page, ok ? 'Added to the Jam' : 'Couldn’t add to the Jam');
+              },
+            ),
           SheetAction(
             label: starred ? 'Remove from Favorites' : 'Favorite',
             icon: starred ? CupertinoIcons.star_slash : CupertinoIcons.star,

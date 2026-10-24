@@ -20,7 +20,17 @@ class SongPickerScreen extends ConsumerStatefulWidget {
   final String playlistId;
   final String playlistName;
 
-  const SongPickerScreen({super.key, required this.playlistId, required this.playlistName});
+  /// When set, Done hands the picked songs to this instead of adding them to
+  /// a server playlist (Jam queue, shared playlists). Returns whether it
+  /// worked; on false the picker stays open.
+  final Future<bool> Function(List<Song> songs)? onPicked;
+
+  const SongPickerScreen({super.key, required this.playlistId, required this.playlistName, this.onPicked});
+
+  /// Picks songs for somewhere other than a Navidrome playlist.
+  const SongPickerScreen.custom({super.key, required String destination, required Future<bool> Function(List<Song>) this.onPicked})
+      : playlistId = '',
+        playlistName = destination;
 
   @override
   ConsumerState<SongPickerScreen> createState() => _SongPickerScreenState();
@@ -56,9 +66,18 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
     super.dispose();
   }
 
+  final Map<String, Song> _pickedSongs = {};
+
   void _toggle(Song s) {
     HapticFeedback.selectionClick();
-    setState(() => _picked.contains(s.id) ? _picked.remove(s.id) : _picked.add(s.id));
+    setState(() {
+      if (_picked.remove(s.id)) {
+        _pickedSongs.remove(s.id);
+      } else {
+        _picked.add(s.id);
+        _pickedSongs[s.id] = s;
+      }
+    });
   }
 
   Future<void> _done() async {
@@ -67,6 +86,17 @@ class _SongPickerScreenState extends ConsumerState<SongPickerScreen> {
       return;
     }
     setState(() => _saving = true);
+    final onPicked = widget.onPicked;
+    if (onPicked != null) {
+      final ok = await onPicked([for (final id in _picked) _pickedSongs[id]!]);
+      if (!mounted) return;
+      if (ok) {
+        Navigator.of(context).pop(true);
+      } else {
+        setState(() => _saving = false);
+      }
+      return;
+    }
     final svc = ref.read(subsonicServiceProvider);
     // The page under this sheet shows the confirmation once it closes.
     final page = Navigator.of(context).context;

@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../core/theme.dart';
+import '../features/social/ui/social_settings_section.dart';
 import '../widgets/last_error_row.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
@@ -389,6 +390,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onTap: _busy == null ? () => _deleteAllDownloads(downloads, size) : null,
               ),
             ]),
+          const SocialSettingsSection(),
           GroupedSection(
             header: 'Smart Shuffle',
             footer: learned == 0

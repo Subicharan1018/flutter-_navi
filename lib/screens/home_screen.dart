@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../features/discover/logic/discover_providers.dart' show discoverProvider;
 import '../features/discover/ui/discover_section.dart';
+import '../features/social/ui/jam_banner.dart';
 import '../features/trending/logic/trending_providers.dart' show trendingChartsProvider;
 import '../features/trending/ui/trending_section.dart';
 import '../models/album.dart';
@@ -61,6 +62,7 @@ class HomeScreen extends ConsumerWidget {
         ref.invalidate(discoverProvider);
       },
       slivers: const [
+        SliverToBoxAdapter(child: JamBanner()),
         // What's new leads; the charts it came from right below.
         SliverToBoxAdapter(child: DiscoverSection()),
         SliverToBoxAdapter(child: TrendingSection()),

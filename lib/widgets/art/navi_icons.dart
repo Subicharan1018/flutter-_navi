@@ -32,6 +32,8 @@ enum NaviGlyph {
   person,
   trending,
   lyrics,
+  group,
+  blend,
 }
 
 class NaviIcon extends StatelessWidget {
@@ -346,6 +348,30 @@ class NaviGlyphPainter extends CustomPainter {
             : stroke;
         canvas.drawLine(const Offset(8, 9.5), const Offset(16, 9.5), ink);
         canvas.drawLine(const Offset(8, 12.5), const Offset(13, 12.5), ink);
+      case NaviGlyph.group:
+        canvas.drawCircle(const Offset(9, 8.5), 3.2, solid);
+        final front = Path()
+          ..moveTo(3, 19.5)
+          ..cubicTo(3, 15.5, 5.5, 14, 9, 14)
+          ..cubicTo(12.5, 14, 15, 15.5, 15, 19.5);
+        canvas.drawPath(front, filled ? (Paint()..color = color) : stroke);
+        if (filled) canvas.drawPath(front, stroke);
+        canvas.drawCircle(const Offset(16.5, 9.5), 2.6, stroke);
+        canvas.drawPath(
+          Path()
+            ..moveTo(17, 14.2)
+            ..cubicTo(19.5, 14.4, 21, 15.8, 21, 18.5),
+          stroke,
+        );
+      case NaviGlyph.blend:
+        canvas.drawCircle(const Offset(9, 12), 6, stroke);
+        canvas.drawCircle(const Offset(15, 12), 6, stroke);
+        if (filled) {
+          canvas.save();
+          canvas.clipPath(Path()..addOval(Rect.fromCircle(center: const Offset(9, 12), radius: 6)));
+          canvas.drawCircle(const Offset(15, 12), 6, fill);
+          canvas.restore();
+        }
     }
   }
 

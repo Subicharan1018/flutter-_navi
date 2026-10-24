@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/social/ui/social_screen.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -9,6 +10,7 @@ import '../providers/library_provider.dart';
 import '../providers/pins_provider.dart';
 import '../providers/settings_provider.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
+import '../widgets/art/navi_icons.dart';
 import '../widgets/collection_actions.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/ui/large_title_page.dart';
@@ -60,14 +62,23 @@ class LibraryScreen extends ConsumerWidget {
         SliverPadding(
           padding: EdgeInsets.only(top: pins.isEmpty ? 0 : Space.lg),
           sliver: SliverList.list(children: [
-            for (final (i, (icon, title, page)) in destinations.indexed)
+            for (final (icon, title, page) in destinations)
               CollectionRow.destination(
                 context: context,
                 icon: icon,
                 title: title,
-                showSeparator: i < destinations.length - 1,
                 onTap: () => navigateInApp(context, page),
               ),
+            CollectionRow(
+              title: 'Social',
+              titleStyle: ThemeTokens.of(context).title3.copyWith(fontWeight: FontWeight.w400),
+              leading: SizedBox(
+                width: 30,
+                child: NaviIcon(NaviGlyph.group, size: 26, color: ThemeTokens.of(context).accent),
+              ),
+              showSeparator: false,
+              onTap: () => navigateInApp(context, const SocialScreen()),
+            ),
           ]),
         ),
         if (pins.isEmpty)
