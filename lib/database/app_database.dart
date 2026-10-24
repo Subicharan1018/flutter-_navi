@@ -3,11 +3,12 @@ import 'package:drift_flutter/drift_flutter.dart';
 import 'package:flutter/foundation.dart' show visibleForTesting;
 
 import 'tables/analytics_tables.dart';
+import 'tables/local_songs_table.dart';
 import 'tables/playlist_cache_table.dart';
 
 part 'app_database.g.dart';
 
-@DriftDatabase(tables: [PlayEvents, SongMetadata, PlaylistCache])
+@DriftDatabase(tables: [PlayEvents, SongMetadata, PlaylistCache, LocalSongs])
 class AppDatabase extends _$AppDatabase {
   AppDatabase() : super(driftDatabase(name: 'navivibe_drift'));
 
@@ -17,7 +18,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 6;
 
   /// Tables from schema 3 that were written but never read (co-play pairs,
   /// suggest feedback, song weights) or never used at all (recommendation
@@ -65,6 +66,9 @@ class AppDatabase extends _$AppDatabase {
             await m.deleteTable(table);
           }
         }
+        if (from < 6) {
+          await m.createTable(localSongs);
+        }
       },
       // Idempotent: covers fresh installs and existing DBs without a bump.
       beforeOpen: (_) => _ensureIndexes(),
@@ -79,6 +83,8 @@ class AppDatabase extends _$AppDatabase {
       'CREATE INDEX IF NOT EXISTS idx_song_meta_artist ON song_metadata (artist_name)',
       'CREATE INDEX IF NOT EXISTS idx_play_events_ts ON play_events (ts_start)',
       'CREATE INDEX IF NOT EXISTS idx_play_events_song ON play_events (song_id)',
+      'CREATE INDEX IF NOT EXISTS idx_local_songs_folder ON local_songs (folder_id)',
+      'CREATE INDEX IF NOT EXISTS idx_local_songs_server ON local_songs (server_id)',
     ];
     for (final sql in statements) {
       await customStatement(sql);

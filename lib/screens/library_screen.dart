@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/local_library/logic/local_library_providers.dart';
+import '../features/local_library/ui/local_songs_page.dart';
 import '../features/social/ui/social_screen.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
@@ -36,6 +38,8 @@ class LibraryScreen extends ConsumerWidget {
     final pins = ref.watch(pinsProvider);
     final svc = ref.read(subsonicServiceProvider);
 
+    final hasLocal = ref.watch(localFoldersProvider.select((f) => f.isNotEmpty));
+
     final destinations = <(NaviGlyph, String, Widget)>[
       (NaviGlyph.playlist, 'Playlists', const PlaylistsPage()),
       (NaviGlyph.mic, 'Artists', const ArtistsPage()),
@@ -43,6 +47,7 @@ class LibraryScreen extends ConsumerWidget {
       (NaviGlyph.note, 'Songs', const SongsPage()),
       (NaviGlyph.star, 'Favorites', const FavoritesScreen()),
       (NaviGlyph.downloadCircle, 'Downloaded', const SongsPage(downloadedOnly: true)),
+      if (hasLocal) (NaviGlyph.folder, 'On This Device', const LocalSongsPage()),
     ];
 
     return LargeTitlePage(

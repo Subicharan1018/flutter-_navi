@@ -117,6 +117,8 @@ class HiveBoxes {
   static const kMusicCacheEnabled = 'cache_music_enabled';
   static const kBpmCacheEnabled = 'cache_bpm_enabled';
   static const kSearchHistory = 'search_history';
+  static const kLocalFolders = 'local_music_folders';
+  static const kDownloadDir = 'download_dir';
   static const kRecommendationsEnabled = 'recommendations_enabled';
   static const kAllowHttp = 'allow_http';
   static const kFluidBgEnabled = 'fluid_bg_enabled';

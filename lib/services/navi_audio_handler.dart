@@ -12,6 +12,7 @@ import 'subsonic_service.dart';
 import 'transcoding_service.dart';
 import 'cache_settings_service.dart';
 import '../providers/settings_provider.dart';
+import '../features/local_library/logic/local_index.dart';
 import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
 import 'playback_tuning.dart';
@@ -532,9 +533,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   AudioSource _toSource(Song song) {
     final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
-    final localPath = musicCacheEnabled ? OfflineService().getLocalPath(song.id) : null;
+    // A copy on this device (Settings > Local music) always wins: no data
+    // used, and it plays offline. Then the offline download, then the stream.
+    final deviceFile = LocalLibraryIndex.instance.pathFor(song.id);
+    final localPath = deviceFile ?? (musicCacheEnabled ? OfflineService().getLocalPath(song.id) : null);
     final streamUri = localPath != null
-        ? Uri.file(localPath)
+        ? LocalLibraryIndex.uriFor(localPath)
         : Uri.parse(subsonicService.getStreamUrl(
             song.id,
             maxBitRate: _transcodingService.getCurrentBitrate(),
@@ -566,9 +570,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   AudioSource _toSourceWithPaths(Song song, Map<String, String?> offlinePaths) {
     final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
-    final localPath = musicCacheEnabled ? offlinePaths[song.id] : null;
+    final deviceFile = LocalLibraryIndex.instance.pathFor(song.id);
+    final localPath = deviceFile ?? (musicCacheEnabled ? offlinePaths[song.id] : null);
     final streamUri = localPath != null
-        ? Uri.file(localPath)
+        ? LocalLibraryIndex.uriFor(localPath)
         : Uri.parse(subsonicService.getStreamUrl(
             song.id,
             maxBitRate: _transcodingService.getCurrentBitrate(),

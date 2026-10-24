@@ -6,6 +6,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/motion.dart';
 import '../core/theme.dart';
+import '../features/local_library/logic/local_library_providers.dart' show localSearchProvider;
+import '../features/local_library/ui/local_search_section.dart';
 import '../features/online_fetch/data/fetch_models.dart' show looksLikeLink;
 import '../features/online_fetch/logic/online_fetch_providers.dart';
 import '../features/online_fetch/ui/search_online_row.dart';
@@ -15,6 +17,7 @@ import '../lyrics/controllers/lyrics_search_provider.dart';
 import '../lyrics/models/lyric_translation.dart';
 import '../models/catalog.dart';
 import '../models/search_results.dart';
+import '../models/song.dart';
 import '../player/artwork.dart' show coverPaletteProvider;
 import '../providers/catalog_provider.dart';
 import '../providers/pins_provider.dart';
@@ -341,6 +344,11 @@ class _ResultsState extends ConsumerState<_Results> {
     if (results.asData?.value case final value?) _last = value;
     final data = results.isLoading ? _last : (results.asData?.value ?? SearchResults.empty);
 
+    final onDevice = ref.watch(localSearchProvider(query)).asData?.value ?? const <Song>[];
+    if (results.hasError && onDevice.isNotEmpty) {
+      // Offline or the server is down: what is on the device still searches.
+      return LocalSearchSection(songs: onDevice, onUsed: onUsed);
+    }
     if (results.hasError) {
       return SliverFillRemaining(
         hasScrollBody: false,
@@ -354,9 +362,10 @@ class _ResultsState extends ConsumerState<_Results> {
       return const SliverToBoxAdapter(child: TrackListSkeleton());
     }
     final lyricMatches = ref.watch(lyricsSearchProvider(query)).asData?.value ?? const <LyricMatch>[];
-    if (data.isEmpty && lyricMatches.isNotEmpty) {
+    if (data.isEmpty && (lyricMatches.isNotEmpty || onDevice.isNotEmpty)) {
       return SliverMainAxisGroup(slivers: [
-        _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),
+        LocalSearchSection(songs: onDevice, onUsed: onUsed),
+        if (lyricMatches.isNotEmpty) _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),
         SliverToBoxAdapter(child: SearchOnlineRow(query: query)),
       ]);
     }
@@ -456,6 +465,7 @@ class _ResultsState extends ConsumerState<_Results> {
           ),
         ),
       ],
+      LocalSearchSection(songs: onDevice, onUsed: onUsed),
       if (lyricMatches.isNotEmpty) _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),
       SliverToBoxAdapter(child: SearchOnlineRow(query: query)),
     ]);

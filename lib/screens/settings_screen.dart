@@ -5,6 +5,8 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../core/motion.dart' show MotionLevel;
 import '../core/theme.dart';
+import '../features/local_library/ui/download_location_section.dart';
+import '../features/local_library/ui/local_music_section.dart';
 import '../features/social/ui/social_settings_section.dart';
 import '../features/month/ui/month_screen.dart';
 import '../features/taste/ui/taste_screen.dart';
@@ -453,6 +455,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
+          const DownloadLocationSection(),
+          const LocalMusicSection(),
           if (downloads > 0)
             GroupedSection(children: [
               GroupedRow(
