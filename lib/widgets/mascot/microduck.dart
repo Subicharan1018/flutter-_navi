@@ -12,12 +12,16 @@ import 'microduck_rig.dart';
 /// The ticker only runs while the app is in the foreground, the route is
 /// visible ([TickerMode] mutes it off-screen) and reduced motion is off. It
 /// writes to a [ValueNotifier] only when the pose's own frame rate says a new
-/// frame is worth painting (a standing robot repaints 24 times a second, a
+/// frame is worth painting (a standing robot repaints 30 times a second, a
 /// dancing one every frame), and only the painter listens, so nothing
 /// rebuilds.
 ///
-/// With [interactive] the robot hops when tapped and turns its head toward a
-/// finger resting on it.
+/// With [interactive]: a tap makes it hop (or wave, alternately), a finger
+/// resting on it makes it look, and a long press makes it bow.
+///
+/// Reactions from the outside: change [startleToken] (for instance to the
+/// current song's id) and it jumps; set [love] true and a heart appears on its
+/// screen.
 class Microduck extends StatefulWidget {
   final MicroduckPose pose;
   final double size;
@@ -29,6 +33,8 @@ class Microduck extends StatefulWidget {
   /// Which way it walks.
   final bool facingRight;
   final bool interactive;
+  final Object? startleToken;
+  final bool love;
 
   const Microduck({
     super.key,
@@ -38,6 +44,8 @@ class Microduck extends StatefulWidget {
     this.bpm,
     this.facingRight = true,
     this.interactive = false,
+    this.startleToken,
+    this.love = false,
   });
 
   @override
@@ -45,6 +53,8 @@ class Microduck extends StatefulWidget {
 }
 
 class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
+  static const double _longPress = 0.45;
+
   final ValueNotifier<double> _time = ValueNotifier(0);
   final MicroduckInput _input = MicroduckInput();
   late final Ticker _ticker = createTicker(_onTick);
@@ -52,6 +62,9 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
   int _frame = -1;
   bool _foreground = true;
   bool _reduced = false;
+
+  double _downAt = 0;
+  bool _pressing = false, _bowed = false;
 
   @override
   void initState() {
@@ -70,6 +83,10 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
   void didUpdateWidget(Microduck old) {
     super.didUpdateWidget(old);
     if (old.pose != widget.pose) _frame = -1;
+    if (!_reduced) {
+      if (widget.startleToken != old.startleToken && old.startleToken != null) _input.startleAt = _now;
+      if (widget.love && !old.love) _input.loveAt = _now;
+    }
     _sync();
   }
 
@@ -92,8 +109,12 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
 
   void _onTick(Duration elapsed) {
     _now = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
-    // Full rate while it is reacting to a finger, whatever the pose.
-    final fps = _now < _input.activeUntil ? 60 : widget.pose.fps;
+    if (_pressing && !_bowed && _now - _downAt > _longPress) {
+      _bowed = true;
+      _input.bowAt = _now;
+    }
+    // Full rate while it is reacting, whatever the pose.
+    final fps = _now < _input.activeUntil || _pressing ? 60 : widget.pose.fps;
     final frame = elapsed.inMicroseconds * fps ~/ Duration.microsecondsPerSecond;
     if (frame == _frame) return;
     _frame = frame;
@@ -110,11 +131,21 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
 
   void _down(PointerDownEvent e) {
     if (_reduced) return;
-    _input.tapAt = _now;
+    _pressing = true;
+    _bowed = false;
+    _downAt = _now;
     _look(e.localPosition);
   }
 
-  void _up(PointerEvent e) => _input.lookUntil = _now + 0.4;
+  void _up(PointerEvent e) {
+    if (_pressing && !_bowed && _now - _downAt <= _longPress && e is PointerUpEvent) {
+      _input
+        ..tapAt = _now
+        ..tapCount += 1;
+    }
+    _pressing = false;
+    _input.lookUntil = _now + 0.4;
+  }
 
   @override
   void dispose() {

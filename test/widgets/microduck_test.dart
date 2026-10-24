@@ -38,6 +38,18 @@ void main() {
       expect(resolveMicroduckPose(playing: false, now: noon, allowDance: true), MicroduckPose.idle);
     });
 
+    test('paused sits on the mini player, stands elsewhere', () {
+      expect(resolveMicroduckPose(playing: false, now: noon, sitWhenPaused: true), MicroduckPose.sit);
+      expect(resolveMicroduckPose(playing: false, now: noon), MicroduckPose.idle);
+      expect(resolveMicroduckPose(playing: true, now: noon, sitWhenPaused: true), MicroduckPose.walk);
+    });
+
+    test('faster songs move bigger', () {
+      expect(danceEnergy(70), lessThan(danceEnergy(100)));
+      expect(danceEnergy(100), lessThan(danceEnergy(150)));
+      expect(danceEnergy(300), lessThanOrEqualTo(1.25));
+    });
+
     test('reduced motion gets a still pose', () {
       expect(resolveMicroduckPose(playing: true, now: noon, reducedMotion: true, allowDance: true),
           MicroduckPose.idle);

@@ -13,15 +13,19 @@ enum MicroduckPose {
   /// Running along.
   run,
 
+  /// Sitting down, looking about (paused on the mini player's edge).
+  sit,
+
   /// Slumped, LED dim, with drifting z's.
   sleep,
 
-  /// A routine of five moves locked to the beat.
+  /// A routine of nine moves locked to the beat.
   dance;
 
   /// Frames per second worth painting; quiet poses repaint far less often.
   int get fps => switch (this) {
-        idle => 24,
+        idle => 30,
+        sit => 24,
         sleep => 20,
         walk => 60,
         run => 60,
@@ -31,6 +35,10 @@ enum MicroduckPose {
 
 /// Tempo the robot dances to when the song's is unknown.
 const int defaultDanceBpm = 100;
+
+/// How big the dance moves are: faster songs move more (no loudness or
+/// energy tag exists on [Song], so tempo stands in for it).
+double danceEnergy(int bpm) => (0.7 + (bpm - 70) / 80 * 0.55).clamp(0.7, 1.25);
 
 const String defaultMicroduckName = 'Microduck';
 const int maxMicroduckNameLength = 24;
@@ -92,9 +100,11 @@ MicroduckPose resolveMicroduckPose({
   bool reducedMotion = false,
   bool sleepsAtNight = true,
   bool allowDance = false,
+  bool sitWhenPaused = false,
 }) {
   if (sleepsAtNight && isMicroduckNight(now)) return MicroduckPose.sleep;
-  if (reducedMotion || !playing) return MicroduckPose.idle;
+  if (reducedMotion) return MicroduckPose.idle;
+  if (!playing) return sitWhenPaused ? MicroduckPose.sit : MicroduckPose.idle;
   return allowDance ? MicroduckPose.dance : MicroduckPose.walk;
 }
 

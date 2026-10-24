@@ -9,13 +9,14 @@ import 'microduck_mesh.dart';
 import 'microduck_pose.dart';
 import 'microduck_rig.dart';
 
-/// Draws the Microduck robot: a posed triangle mesh, Lambert-shaded per
-/// vertex from one fixed light, depth-sorted back to front and sent to
-/// `Canvas.drawVertices` in a single call, with a soft shadow on the ground.
+/// Draws the Microduck robot: a posed triangle mesh, lit per vertex by a key
+/// light and a rim light with a glossy highlight on shiny parts and baked
+/// ambient occlusion, depth-sorted back to front and sent to
+/// `Canvas.drawVertices` in a single call, with a soft contact shadow.
 ///
-/// Everything it touches each frame (matrices, vertex/colour/index buffers,
-/// the depth order) is allocated once and shared by every robot on screen,
-/// since painting is synchronous.
+/// Everything it touches each frame (buffers, the depth order) is allocated
+/// once and shared by every robot on screen, since painting is synchronous.
+/// Robots smaller than [detailMinSize] skip the fine-detail triangles.
 class MicroduckPainter extends CustomPainter {
   final MicroduckPose pose;
 
@@ -25,6 +26,8 @@ class MicroduckPainter extends CustomPainter {
 
   /// Beats per minute while dancing.
   final int bpm;
+
+  /// The robot's own state (rig, reactions).
   final MicroduckInput input;
 
   /// Walks to the right; false walks to the left.
@@ -39,6 +42,9 @@ class MicroduckPainter extends CustomPainter {
     this.facingRight = true,
   }) : super(repaint: time);
 
+  /// Below this many logical pixels the bolts, screws and vents are skipped.
+  static const double detailMinSize = 48;
+
   @override
   void paint(Canvas canvas, Size size) {
     final s = math.min(size.width, size.height);
@@ -50,6 +56,7 @@ class MicroduckPainter extends CustomPainter {
       pose,
       time.value,
       60 / bpm,
+      danceEnergy(bpm),
       skin,
       input,
       facingRight,
@@ -70,7 +77,6 @@ class _Renderer {
   static final _Renderer shared = _Renderer();
 
   final MicroduckMesh mesh = MicroduckMesh.instance;
-  final MicroduckRig rig = MicroduckRig();
 
   late final int _v = mesh.vertexCount;
   late final int _t = mesh.triCount;
@@ -82,41 +88,40 @@ class _Renderer {
   late final Uint16List _order = Uint16List.fromList([for (var i = 0; i < _t; i++) i]);
   late final Uint16List _idx = Uint16List(_t * 3);
 
-  final Float64List _baseR = Float64List(kPartCount);
-  final Float64List _baseG = Float64List(kPartCount);
-  final Float64List _baseB = Float64List(kPartCount);
+  final Float64List _baseR = Float64List(kSlotCount);
+  final Float64List _baseG = Float64List(kSlotCount);
+  final Float64List _baseB = Float64List(kSlotCount);
 
   final Paint _paint = Paint();
   final Paint _shadow = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 2.5);
+  final Paint _core = Paint()..maskFilter = const MaskFilter.blur(BlurStyle.normal, 1.2);
   final Paint _zPaint = Paint()
     ..style = PaintingStyle.stroke
     ..strokeCap = StrokeCap.round
     ..strokeJoin = StrokeJoin.round;
   final Path _zPath = Path();
 
-  // Fixed light, up-left-front, normalised.
-  static final double _lx = -0.5 / _llen, _ly = 0.72 / _llen, _lz = 0.7 / _llen;
-  static final double _llen = math.sqrt(0.25 + 0.5184 + 0.49);
-
+  // Key light up-left-front, rim light behind-right, view half-vector.
+  static final double _klen = math.sqrt(0.25 + 0.5184 + 0.49);
+  static final double _lx = -0.5 / _klen, _ly = 0.72 / _klen, _lz = 0.7 / _klen;
+  static final double _rlen = math.sqrt(0.49 + 0.0625 + 0.4225);
+  static final double _rx = 0.7 / _rlen, _ry = 0.25 / _rlen, _rz = -0.65 / _rlen;
   static const double _elev = 0.22; // camera looks down a little
   static final double _ce = math.cos(_elev), _se = math.sin(_elev);
+  static final double _hlen = math.sqrt(_lx * _lx + (_ly + _se) * (_ly + _se) + (_lz + _ce) * (_lz + _ce));
+  static final double _hx = _lx / _hlen, _hy = (_ly + _se) / _hlen, _hz = (_lz + _ce) / _hlen;
 
   int _lastSkinKey = -1;
-  double _ledR = 0, _ledG = 0, _ledB = 0;
 
   void _setSkin(MicroduckSkin skin) {
     if (_lastSkinKey == skin.index) return;
     _lastSkinKey = skin.index;
     final c = skin.colors;
-    for (var p = 0; p < kPartCount; p++) {
-      final rgb = c[kPartColor[p]];
-      _baseR[p] = ((rgb >> 16) & 0xFF).toDouble();
-      _baseG[p] = ((rgb >> 8) & 0xFF).toDouble();
-      _baseB[p] = (rgb & 0xFF).toDouble();
+    for (var p = 0; p < kSlotCount; p++) {
+      _baseR[p] = ((c[p] >> 16) & 0xFF).toDouble();
+      _baseG[p] = ((c[p] >> 8) & 0xFF).toDouble();
+      _baseB[p] = (c[p] & 0xFF).toDouble();
     }
-    _ledR = ((skin.led >> 16) & 0xFF).toDouble();
-    _ledG = ((skin.led >> 8) & 0xFF).toDouble();
-    _ledB = (skin.led & 0xFF).toDouble();
   }
 
   void draw(
@@ -126,66 +131,89 @@ class _Renderer {
     MicroduckPose pose,
     double t,
     double beatSeconds,
+    double energy,
     MicroduckSkin skin,
     MicroduckInput input,
     bool facingRight,
   ) {
     _setSkin(skin);
-    rig.solve(pose, t, beatSeconds, input, facingRight: facingRight);
+    final rig = input.rig..solve(pose, t, beatSeconds, input, facingRight: facingRight, energy: energy);
+    final detail = s >= MicroduckPainter.detailMinSize;
     final unit = s / 5.7;
     final ox = origin.dx + s / 2;
     final oy = origin.dy + s * 0.955;
     final led = rig.pose.v[RigPose.led];
+    final sq = rig.squash;
 
-    // Ground shadow: smaller and fainter the higher the robot is.
-    final air = math.max(0.0, rig.lift - 0.0);
-    final fade = 1 / (1 + air * 0.9);
-    _shadow.color = Color.fromARGB((120 * fade).round(), 0, 0, 0);
+    // Contact shadow: wide and soft, with a tighter dark core that squashes
+    // and fades the higher the robot is.
+    final fade = 1 / (1 + math.max(0.0, rig.lift) * 0.9);
+    final cx = ox + rig.pose.v[RigPose.x] * unit;
+    final spread = (0.6 + 0.4 * fade) * (1 - 0.5 * sq);
+    _shadow.color = Color.fromARGB((105 * fade).round(), 0, 0, 0);
     canvas.drawOval(
-      Rect.fromCenter(
-        center: Offset(ox + rig.pose.v[RigPose.x] * unit, oy + 0.05 * unit),
-        width: 2.3 * unit * (0.6 + 0.4 * fade),
-        height: 0.62 * unit * (0.6 + 0.4 * fade),
-      ),
+      Rect.fromCenter(center: Offset(cx, oy + 0.05 * unit), width: 2.4 * unit * spread, height: 0.66 * unit * spread),
       _shadow,
+    );
+    _core.color = Color.fromARGB((120 * fade * fade).round(), 0, 0, 0);
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset(cx, oy + 0.04 * unit), width: 1.3 * unit * spread, height: 0.3 * unit * spread),
+      _core,
     );
 
     final px = mesh.px, py = mesh.py, pz = mesh.pz;
     final nx = mesh.nx, ny = mesh.ny, nz = mesh.nz;
-    final part = mesh.part;
-    final mats = rig.partMatrices;
+    final matrixId = mesh.matrix, slotId = mesh.slot, dynId = mesh.dyn, aoA = mesh.ao;
+    final mats = rig.matrices;
     final pos = _pos, col = _col, depth = _depth;
+    final fsx = rig.faceSx, fsy = rig.faceSy, fox = rig.faceOx, foy = rig.faceOy;
+    final dcx = mesh.dynCx, dcy = mesh.dynCy;
+    final stretch = 1 + sq, narrow = 1 - 0.45 * sq;
     for (var i = 0; i < _v; i++) {
-      final p = part[i];
-      final m = mats[p].m;
-      final x = px[i], y = py[i], z = pz[i];
-      final wx = m[0] * x + m[1] * y + m[2] * z + m[3];
-      final wy = m[4] * x + m[5] * y + m[6] * z + m[7];
-      final wz = m[8] * x + m[9] * y + m[10] * z + m[11];
+      final m = mats[matrixId[i]].m;
+      var x = px[i], y = py[i];
+      final z = pz[i];
+      final d0 = dynId[i];
+      if (d0 > 0) {
+        x = dcx[d0] + (x - dcx[d0]) * fsx[d0] + fox[d0];
+        y = dcy[d0] + (y - dcy[d0]) * fsy[d0] + foy[d0];
+      }
+      final wx = (m[0] * x + m[1] * y + m[2] * z + m[3]) * narrow;
+      final wy = (m[4] * x + m[5] * y + m[6] * z + m[7]) * stretch;
+      final wz = (m[8] * x + m[9] * y + m[10] * z + m[11]) * narrow;
       final yc = wy * _ce - wz * _se;
-      final d = wy * _se + wz * _ce;
-      final f = 1 / (1 - 0.045 * d) * unit;
+      final dp = wy * _se + wz * _ce;
+      final f = 1 / (1 - 0.045 * dp) * unit;
       pos[i * 2] = ox + wx * f;
       pos[i * 2 + 1] = oy - yc * f;
-      depth[i] = d;
+      depth[i] = dp;
 
+      final sl = slotId[i];
       double r, g, b;
-      if (p == kLed) {
-        final k = 0.25 + 0.75 * led;
-        r = _ledR * k;
-        g = _ledG * k;
-        b = _ledB * k;
+      if (slotEmissive(sl)) {
+        final k = sl == sLed ? 0.25 + 0.75 * led : 1.0;
+        r = _baseR[sl] * k;
+        g = _baseG[sl] * k;
+        b = _baseB[sl] * k;
       } else {
         final ax = nx[i], ay = ny[i], az = nz[i];
         final wnx = m[0] * ax + m[1] * ay + m[2] * az;
         final wny = m[4] * ax + m[5] * ay + m[6] * az;
         final wnz = m[8] * ax + m[9] * ay + m[10] * az;
+        final ao = aoA[i];
         final key = math.max(0.0, wnx * _lx + wny * _ly + wnz * _lz);
-        final fill = math.max(0.0, wnx * 0.6 - wnz * 0.2 + wny * 0.1) * 0.14;
-        final k = 0.34 + 0.12 * wny + 0.82 * key + fill;
-        r = _baseR[p] * k;
-        g = _baseG[p] * k;
-        b = _baseB[p] * k;
+        final fill = math.max(0.0, wnx * 0.6 - wnz * 0.2 + wny * 0.1) * 0.12;
+        final rim = math.max(0.0, wnx * _rx + wny * _ry + wnz * _rz);
+        final k = ((0.34 + 0.12 * wny) + 0.82 * key + fill) * ao;
+        var add = rim * rim * 40;
+        if (slotShiny(sl)) {
+          final h = math.max(0.0, wnx * _hx + wny * _hy + wnz * _hz);
+          final h2 = h * h, h4 = h2 * h2, h8 = h4 * h4;
+          add += h8 * h8 * h4 * 150; // ~h^20
+        }
+        r = _baseR[sl] * k + add;
+        g = _baseG[sl] * k + add;
+        b = _baseB[sl] * k + add;
       }
       col[i] = 0xFF000000 |
           (math.min(255, r.round()) << 16) |
@@ -193,15 +221,15 @@ class _Renderer {
           math.min(255, b.round());
     }
 
-    // Cull back faces and order the rest far to near.
-    final tris = mesh.tris;
+    // Cull back faces (and fine detail for small robots), order far to near.
+    final tris = mesh.tris, triLod = mesh.triLod, bias = mesh.triBias;
     final tdepth = _triDepth, front = _front, order = _order;
     for (var k = 0; k < _t; k++) {
       final a = tris[k * 3], b = tris[k * 3 + 1], c = tris[k * 3 + 2];
       final cross = (pos[b * 2] - pos[a * 2]) * (pos[c * 2 + 1] - pos[a * 2 + 1]) -
           (pos[c * 2] - pos[a * 2]) * (pos[b * 2 + 1] - pos[a * 2 + 1]);
-      front[k] = cross < 0 ? 1 : 0;
-      tdepth[k] = depth[a] + depth[b] + depth[c];
+      front[k] = cross < 0 && (detail || triLod[k] == 0) ? 1 : 0;
+      tdepth[k] = depth[a] + depth[b] + depth[c] + bias[k];
     }
     // Insertion sort: the order from the last frame is nearly right.
     for (var i = 1; i < _t; i++) {
