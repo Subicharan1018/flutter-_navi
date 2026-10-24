@@ -85,6 +85,18 @@ final socialSongsProvider = FutureProvider.autoDispose.family<Map<String, Song>,
   return loadChartSongs(ref, joinedIds.split(','));
 });
 
+/// Shared-playlist invitations and Blend requests waiting for an answer.
+/// Zero until social features are on (nothing is asked of the server before).
+final invitationCountProvider = Provider<int>((ref) {
+  if (!ref.watch(socialEnabledProvider)) return 0;
+  final collabs = ref.watch(collabListProvider).asData?.value ?? const <CollabPlaylist>[];
+  final blends = ref.watch(blendListProvider).asData?.value ?? const <Blend>[];
+  return countInvitations(collabs, blends);
+});
+
+int countInvitations(List<CollabPlaylist> collabs, List<Blend> blends) =>
+    collabs.where((p) => p.invited).length + blends.where((b) => b.pending && b.incoming).length;
+
 final blendListProvider = FutureProvider.autoDispose<List<Blend>>(
   (ref) async {
     if (!_signedIn(ref) || !ref.watch(socialEnabledProvider)) return const [];

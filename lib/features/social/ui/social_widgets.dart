@@ -5,7 +5,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
 import '../../../widgets/art/generated_cover.dart';
+import '../../../widgets/art/empty_art.dart' show EmptyArtKind;
 import '../../../widgets/art/navi_icons.dart';
+import '../../../widgets/mascot/microduck_empty.dart';
 import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../widgets/ui/action_sheet.dart';
 import '../logic/social_providers.dart';
@@ -44,6 +46,9 @@ class PersonAvatar extends StatelessWidget {
 /// Centred empty or error content with a drawn glyph and one action.
 class SocialNote extends StatelessWidget {
   final NaviGlyph glyph;
+
+  /// An empty state shows a drawing (sometimes Microduck) instead of [glyph].
+  final EmptyArtKind? art;
   final String title;
   final String message;
   final String? actionLabel;
@@ -52,6 +57,7 @@ class SocialNote extends StatelessWidget {
   const SocialNote({
     super.key,
     required this.glyph,
+    this.art,
     required this.title,
     required this.message,
     this.actionLabel,
@@ -66,7 +72,10 @@ class SocialNote extends StatelessWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          NaviIcon(glyph, size: 40, color: t.textMuted),
+          if (art != null)
+            EmptyIllustration(art!, seed: title, width: 120)
+          else
+            NaviIcon(glyph, size: 40, color: t.textMuted),
           const SizedBox(height: Space.md),
           Text(title, textAlign: TextAlign.center, style: t.title3),
           const SizedBox(height: Space.xs),

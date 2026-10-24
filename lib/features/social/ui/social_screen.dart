@@ -13,6 +13,7 @@ import '../logic/social_providers.dart';
 import 'blend_screens.dart';
 import 'collab_screens.dart';
 import 'friend_activity.dart';
+import 'invitations.dart';
 import 'jam_screen.dart';
 import 'social_widgets.dart';
 
@@ -30,7 +31,7 @@ class SocialScreen extends ConsumerWidget {
     final t = ThemeTokens.of(context);
 
     return LargeTitlePage(
-      title: 'Social',
+      title: 'Sessions',
       onRefresh: () async {
         ref.invalidate(socialSettingsProvider);
         ref.invalidate(friendFeedProvider);
@@ -64,6 +65,7 @@ class SocialScreen extends ConsumerWidget {
         else if (!enabled)
           SliverToBoxAdapter(child: _Intro())
         else ...[
+          const SliverToBoxAdapter(child: InvitationsSection()),
           const SliverToBoxAdapter(child: FriendActivitySection()),
           const SliverToBoxAdapter(child: CollabSection()),
           const SliverToBoxAdapter(child: BlendSection()),
@@ -102,6 +104,7 @@ class _IntroState extends ConsumerState<_Intro> {
     return Column(children: [
       const SocialNote(
         glyph: NaviGlyph.group,
+        art: EmptyArtKind.heart,
         title: 'Share music with friends',
         message:
             'See what friends on this server are playing, make playlists together and get a Blend of your tastes. '
