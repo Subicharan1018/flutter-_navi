@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../core/hive_boxes.dart';
 import '../art/empty_art.dart';
 import 'microduck.dart';
+import 'microduck_mesh.dart';
 import 'microduck_pose.dart';
 
 /// The empty-state picture: usually the drawing for [kind], but on some days
@@ -26,6 +27,14 @@ class EmptyIllustration extends StatelessWidget {
     }
   }
 
+  static MicroduckSkin _skin() {
+    try {
+      return cleanMicroduckSkin(HiveBoxes.prefs.get(HiveBoxes.kMicroduckSkin)?.toString());
+    } catch (_) {
+      return MicroduckSkin.white;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final now = DateTime.now();
@@ -34,7 +43,7 @@ class EmptyIllustration extends StatelessWidget {
     }
     return SizedBox(
       width: width,
-      height: width * 0.75,
+      height: width * 0.9,
       child: Center(
         child: Microduck(
           pose: resolveMicroduckPose(
@@ -42,7 +51,9 @@ class EmptyIllustration extends StatelessWidget {
             now: now,
             reducedMotion: MediaQuery.maybeDisableAnimationsOf(context) ?? false,
           ),
-          size: width * 0.62,
+          size: width * 0.9,
+          skin: _skin(),
+          interactive: true,
         ),
       ),
     );

@@ -12,7 +12,8 @@ import '../services/playback_tuning.dart';
 import '../services/transcoding_service.dart';
 import '../services/recommendation_service.dart';
 import '../database/app_database.dart';
-import '../widgets/mascot/microduck_pose.dart' show cleanMicroduckName, defaultMicroduckName;
+import '../widgets/mascot/microduck_mesh.dart' show MicroduckSkin;
+import '../widgets/mascot/microduck_pose.dart' show cleanMicroduckName, cleanMicroduckSkin, defaultMicroduckName;
 import 'library_provider.dart' show resetLibrarySyncClock;
 
 // ---------------------------------------------------------------------------
@@ -124,6 +125,9 @@ class SettingsState {
   /// What the listener calls the mascot; never empty.
   final String microduckName;
 
+  /// Which robot colours it wears.
+  final MicroduckSkin microduckSkin;
+
   const SettingsState({
     required this.serverUrl,
     required this.username,
@@ -139,6 +143,7 @@ class SettingsState {
     this.playbackSpeed = 1.0,
     this.microduckEnabled = true,
     this.microduckName = defaultMicroduckName,
+    this.microduckSkin = MicroduckSkin.white,
   });
 
   SettingsState copyWith({
@@ -156,6 +161,7 @@ class SettingsState {
     double? playbackSpeed,
     bool? microduckEnabled,
     String? microduckName,
+    MicroduckSkin? microduckSkin,
   }) {
     return SettingsState(
       serverUrl: serverUrl ?? this.serverUrl,
@@ -173,6 +179,7 @@ class SettingsState {
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
       microduckEnabled: microduckEnabled ?? this.microduckEnabled,
       microduckName: microduckName ?? this.microduckName,
+      microduckSkin: microduckSkin ?? this.microduckSkin,
     );
   }
 }
@@ -251,6 +258,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       ),
       microduckEnabled: p.get(HiveBoxes.kMicroduckEnabled) != false,
       microduckName: cleanMicroduckName(p.get(HiveBoxes.kMicroduckName)?.toString()),
+      microduckSkin: cleanMicroduckSkin(p.get(HiveBoxes.kMicroduckSkin)?.toString()),
     );
   }
 
@@ -314,6 +322,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
     final clean = cleanMicroduckName(name);
     state = state.copyWith(microduckName: clean);
     await HiveBoxes.prefs.put(HiveBoxes.kMicroduckName, clean);
+  }
+
+  Future<void> setMicroduckSkin(MicroduckSkin skin) async {
+    state = state.copyWith(microduckSkin: skin);
+    await HiveBoxes.prefs.put(HiveBoxes.kMicroduckSkin, skin.name);
   }
 
   Future<void> setReplayGainMode(ReplayGainMode mode) async {

@@ -135,7 +135,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
         container: true,
         label: 'Now playing: ${song.title} by ${song.artist}. Opens the player.',
         child: LayoutBuilder(builder: (context, c) {
-          return GestureDetector(
+          final bar = GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: _open,
             onVerticalDragEnd: (d) {
@@ -164,23 +164,8 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
                         child: child,
                       ),
                     ),
-                    child: _Content(song: song, url: url, ground: ground, lifted: duck),
+                    child: _Content(song: song, url: url, ground: ground),
                   ),
-                  // Walks the progress hairline below; the text above is
-                  // lifted a few pixels to give it room.
-                  if (duck)
-                    Positioned(
-                      left: _Content.textInset,
-                      right: _Content.controlsInset,
-                      bottom: 6,
-                      child: PlayerMicroduckStrip(
-                        player: notifier.player,
-                        song: song,
-                        height: 14,
-                        color: Color.lerp(ground, Colors.white, 0.9),
-                        full: false,
-                      ),
-                    ),
                   Positioned(
                     right: Space.sm,
                     top: 0,
@@ -209,10 +194,35 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
               ),
             ),
           );
+          // The robot stands on the capsule's top edge and walks it as the
+          // song plays, drawn over whatever is above the bar.
+          return Stack(
+            clipBehavior: Clip.none,
+            fit: StackFit.passthrough,
+            children: [
+              bar,
+              if (duck)
+                Positioned(
+                  left: MiniPlayer.height / 2,
+                  right: MiniPlayer.height / 2,
+                  bottom: MiniPlayer.height - 2,
+                  child: IgnorePointer(
+                    child: PlayerMicroduckStrip(
+                      player: notifier.player,
+                      song: song,
+                      height: _duckHeight,
+                      full: false,
+                    ),
+                  ),
+                ),
+            ],
+          );
         }),
       ),
     );
   }
+
+  static const double _duckHeight = 36;
 }
 
 class _Content extends StatelessWidget {
@@ -226,10 +236,7 @@ class _Content extends StatelessWidget {
   final Song song;
   final String url;
   final Color ground;
-
-  /// Makes room under the text for the mascot.
-  final bool lifted;
-  const _Content({required this.song, required this.url, required this.ground, this.lifted = false});
+  const _Content({required this.song, required this.url, required this.ground});
 
   @override
   Widget build(BuildContext context) {
@@ -239,7 +246,7 @@ class _Content extends StatelessWidget {
       child: CoverImage(url: url, cacheKey: coverCacheKey(song), width: _cover, height: _cover, cacheWidth: 126),
     );
     return Padding(
-      padding: EdgeInsets.fromLTRB(_coverInset, 0, controlsInset, lifted ? 15 : 2),
+      padding: const EdgeInsets.fromLTRB(_coverInset, 0, controlsInset, 2),
       child: Row(
         children: [
           // Shared-element flight into the Now Playing cover (phones only;

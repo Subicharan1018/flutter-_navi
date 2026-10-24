@@ -340,7 +340,7 @@ class _PhoneLayout extends ConsumerWidget {
               children: [
                 const _RemoteDeviceBanner(),
                 const FlowPill(),
-                PlayerMicroduckStrip(player: notifier.player, song: song),
+                PlayerMicroduckStrip(player: notifier.player, song: song, height: 88),
                 Scrubber(player: notifier.player, song: song),
                 const SizedBox(height: 6),
                 // Apple Music's three: shuffle and repeat live in the queue.
@@ -1169,8 +1169,9 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                       child: ConstrainedBox(
                         constraints: const BoxConstraints(maxWidth: 440),
                         child: LayoutBuilder(builder: (context, c) {
-                          // Cover takes what the controls below leave (they need ~330dp).
-                          final art = math.max(160.0, math.min(c.maxWidth, c.maxHeight - 330));
+                          // Cover takes what the controls below leave (they need ~330dp,
+                          // plus the robot's 72).
+                          final art = math.max(160.0, math.min(c.maxWidth, c.maxHeight - 418));
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -1183,7 +1184,7 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                               const SizedBox(height: 28),
                               _TitleRow(song: widget.song),
                               const SizedBox(height: 6),
-                              PlayerMicroduckStrip(player: notifier.player, song: widget.song, height: 20),
+                              PlayerMicroduckStrip(player: notifier.player, song: widget.song, height: 88),
                               Scrubber(player: notifier.player, song: widget.song),
                               const SizedBox(height: 4),
                               TransportControls(

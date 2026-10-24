@@ -1,36 +1,43 @@
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
-import '../../core/theme.dart';
+import 'microduck_mesh.dart';
 import 'microduck_painter.dart';
 import 'microduck_pose.dart';
+import 'microduck_rig.dart';
 
-/// Microduck at a fixed [size], animated by a single [Ticker].
+/// The Microduck robot at a fixed square [size], animated by a single
+/// [Ticker].
 ///
-/// The ticker only runs while the pose moves, the route is visible
-/// ([TickerMode] mutes it off-screen), the app is in the foreground, and
-/// reduced motion is off. It writes to a [ValueNotifier] only when the
-/// pose's own frame rate says a new frame is worth painting (a standing duck
-/// repaints 12 times a second, a dancing one every frame), and only the
-/// painter listens, so nothing rebuilds.
+/// The ticker only runs while the app is in the foreground, the route is
+/// visible ([TickerMode] mutes it off-screen) and reduced motion is off. It
+/// writes to a [ValueNotifier] only when the pose's own frame rate says a new
+/// frame is worth painting (a standing robot repaints 24 times a second, a
+/// dancing one every frame), and only the painter listens, so nothing
+/// rebuilds.
+///
+/// With [interactive] the robot hops when tapped and turns its head toward a
+/// finger resting on it.
 class Microduck extends StatefulWidget {
   final MicroduckPose pose;
   final double size;
+  final MicroduckSkin skin;
 
-  /// Line colour; defaults to the theme's primary text colour.
-  final Color? color;
-
-  /// Tempo to hop to while dancing; null bobs gently at a steady pace.
+  /// Tempo to dance to; null uses [defaultDanceBpm].
   final int? bpm;
+
+  /// Which way it walks.
   final bool facingRight;
+  final bool interactive;
 
   const Microduck({
     super.key,
     required this.pose,
-    this.size = 24,
-    this.color,
+    this.size = 72,
+    this.skin = MicroduckSkin.white,
     this.bpm,
     this.facingRight = true,
+    this.interactive = false,
   });
 
   @override
@@ -39,7 +46,9 @@ class Microduck extends StatefulWidget {
 
 class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   final ValueNotifier<double> _time = ValueNotifier(0);
+  final MicroduckInput _input = MicroduckInput();
   late final Ticker _ticker = createTicker(_onTick);
+  double _now = 0;
   int _frame = -1;
   bool _foreground = true;
   bool _reduced = false;
@@ -82,12 +91,30 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
   }
 
   void _onTick(Duration elapsed) {
-    final fps = widget.pose.fps;
+    _now = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    // Full rate while it is reacting to a finger, whatever the pose.
+    final fps = _now < _input.activeUntil ? 60 : widget.pose.fps;
     final frame = elapsed.inMicroseconds * fps ~/ Duration.microsecondsPerSecond;
     if (frame == _frame) return;
     _frame = frame;
-    _time.value = elapsed.inMicroseconds / Duration.microsecondsPerSecond;
+    _time.value = _now;
   }
+
+  void _look(Offset p) {
+    final s = widget.size;
+    _input
+      ..lookX = ((p.dx / s) * 2 - 1).clamp(-1.0, 1.0)
+      ..lookY = (1 - (p.dy / s) * 2).clamp(-1.0, 1.0)
+      ..lookUntil = double.infinity;
+  }
+
+  void _down(PointerDownEvent e) {
+    if (_reduced) return;
+    _input.tapAt = _now;
+    _look(e.localPosition);
+  }
+
+  void _up(PointerEvent e) => _input.lookUntil = _now + 0.4;
 
   @override
   void dispose() {
@@ -99,19 +126,27 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
 
   @override
   Widget build(BuildContext context) {
-    final bpm = widget.bpm;
-    return RepaintBoundary(
+    final paint = RepaintBoundary(
       child: CustomPaint(
         size: Size.square(widget.size),
         painter: MicroduckPainter(
           pose: widget.pose,
           time: _time,
-          color: widget.color ?? ThemeTokens.of(context).textPrimary,
-          beat: bpm == null ? 0.6 : 60 / bpm,
-          energy: bpm == null ? 0.5 : 1,
+          input: _input,
+          skin: widget.skin,
+          bpm: widget.bpm ?? defaultDanceBpm,
           facingRight: widget.facingRight,
         ),
       ),
+    );
+    if (!widget.interactive) return paint;
+    return Listener(
+      behavior: HitTestBehavior.opaque,
+      onPointerDown: _down,
+      onPointerMove: (e) => _look(e.localPosition),
+      onPointerUp: _up,
+      onPointerCancel: _up,
+      child: paint,
     );
   }
 }
