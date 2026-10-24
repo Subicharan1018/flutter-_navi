@@ -12,6 +12,7 @@ import '../widgets/song_tile.dart';
 import '../core/theme.dart';
 import 'album_details_screen.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/art/empty_art.dart';
 
 // =============================================================================
 // FavoritesScreen — Spotify dark theme
@@ -103,8 +104,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       return const SliverFillRemaining(
         hasScrollBody: false,
         child: _EmptyState(
-          icon: Icons.favorite_border_rounded,
-          message: 'No favorite songs yet',
+          title: 'No favorite songs yet',
+          message: 'Tap the heart on any song to keep it here.',
         ),
       );
     }
@@ -130,8 +131,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
       return const SliverFillRemaining(
         hasScrollBody: false,
         child: _EmptyState(
-          icon: Icons.album_outlined,
-          message: 'No favorite albums yet',
+          title: 'No favorite albums yet',
+          message: 'Heart an album to find it here.',
         ),
       );
     }
@@ -400,27 +401,11 @@ class _AlbumCard extends ConsumerWidget {
 // =============================================================================
 
 class _EmptyState extends StatelessWidget {
-  final IconData icon;
+  final String title;
   final String message;
-  const _EmptyState({required this.icon, required this.message});
+  const _EmptyState({required this.title, required this.message});
 
   @override
-  Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(icon, color: ThemeTokens.of(context).textMuted, size: 48),
-          SizedBox(height: 16),
-          Text(
-            message,
-            style: TextStyle(
-              color: ThemeTokens.of(context).textMuted,
-              fontSize: 15,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
+  Widget build(BuildContext context) =>
+      ArtEmptyState(art: EmptyArtKind.heart, title: title, message: message);
 }

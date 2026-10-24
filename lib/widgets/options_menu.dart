@@ -1,3 +1,4 @@
+import 'art/navi_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
@@ -291,8 +292,8 @@ class OptionsMenu extends ConsumerWidget {
                 horizontal: 24,
                 vertical: 4,
               ),
-              leading: Icon(
-                Icons.playlist_add_rounded,
+              leading: NaviIcon(
+                NaviGlyph.addToPlaylist,
                 color: ThemeTokens.of(context).textPrimary,
                 size: 24,
               ),

@@ -36,6 +36,7 @@ import 'favorites_screen.dart';
 import 'navivibe_replay_screen.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/art/generated_cover.dart';
 
 class HomeScreen extends ConsumerStatefulWidget {
   const HomeScreen({super.key});
@@ -479,37 +480,12 @@ class _QuickPlayTileState extends ConsumerState<_QuickPlayTile> {
                         fit: BoxFit.cover,
                         memCacheWidth: 112,
                         memCacheHeight: 112,
-                        placeholder: (context, url) => Container(
-                          color: tokens.bgSurface,
-                          child: Icon(
-                            widget.item.isPlaylist
-                                ? Icons.queue_music_rounded
-                                : Icons.album_rounded,
-                            color: tokens.textMuted,
-                            size: 24,
-                          ),
-                        ),
-                        errorWidget: (context, url, error) => Container(
-                          color: tokens.bgSurface,
-                          child: Icon(
-                            widget.item.isPlaylist
-                                ? Icons.queue_music_rounded
-                                : Icons.album_rounded,
-                            color: tokens.textMuted,
-                            size: 24,
-                          ),
-                        ),
+                        placeholder: (context, url) =>
+                            GeneratedCover(name: widget.item.title),
+                        errorWidget: (context, url, error) =>
+                            GeneratedCover(name: widget.item.title),
                       )
-                    : Container(
-                        color: tokens.bgSurface,
-                        child: Icon(
-                          widget.item.isPlaylist
-                              ? Icons.queue_music_rounded
-                              : Icons.album_rounded,
-                          color: tokens.textMuted,
-                          size: 24,
-                        ),
-                      ),
+                    : GeneratedCover(name: widget.item.title),
               ),
 
               const SizedBox(width: 10),
@@ -745,19 +721,12 @@ class _JumpBackInHero extends ConsumerWidget {
                             fit: BoxFit.cover,
                             memCacheWidth: 216,
                             memCacheHeight: 216,
-                            placeholder: (context, url) => Container(
-                              color: tokens.bgSurface,
-                              child: const Icon(Icons.music_note_rounded),
-                            ),
-                            errorWidget: (context, url, error) => Container(
-                              color: tokens.bgSurface,
-                              child: const Icon(Icons.music_note_rounded),
-                            ),
+                            placeholder: (context, url) =>
+                                GeneratedCover(name: title),
+                            errorWidget: (context, url, error) =>
+                                GeneratedCover(name: title),
                           )
-                        : Container(
-                            color: tokens.bgSurface,
-                            child: const Icon(Icons.music_note_rounded),
-                          ),
+                        : GeneratedCover(name: title),
                   ),
                 ),
 
@@ -1003,19 +972,12 @@ class _RecentlyPlayedShelf extends ConsumerWidget {
                                     fit: BoxFit.cover,
                                     memCacheWidth: 280,
                                     memCacheHeight: 280,
-                                    placeholder: (context, url) => Container(
-                                      color: tokens.bgSurface,
-                                      child: const Icon(Icons.music_note_rounded),
-                                    ),
-                                    errorWidget: (context, url, error) => Container(
-                                      color: tokens.bgSurface,
-                                      child: const Icon(Icons.music_note_rounded),
-                                    ),
+                                    placeholder: (context, url) =>
+                                        GeneratedCover(name: song.title, songIds: [song.id]),
+                                    errorWidget: (context, url, error) =>
+                                        GeneratedCover(name: song.title, songIds: [song.id]),
                                   )
-                                : Container(
-                                    color: tokens.bgSurface,
-                                    child: const Icon(Icons.music_note_rounded),
-                                  ),
+                                : GeneratedCover(name: song.title, songIds: [song.id]),
                           ),
                         ),
                         const SizedBox(height: 8),
@@ -1101,39 +1063,27 @@ class _MadeForYouShelf extends ConsumerWidget {
       _MixItem(
         title: 'Smart Shuffle',
         subtitle: 'AI queue matching time & taste',
-        backgroundColor: tokens.bgElevated,
-        icon: Icons.auto_awesome_rounded,
-        iconColor: const Color(0xFF1DB954),
         onTap: () => navigateInApp(context, const AiShuffleScreen()),
       ),
       _MixItem(
         title: 'Made For You',
         subtitle: 'Personalized playlists & mix',
-        backgroundColor: tokens.bgElevated,
-        icon: Icons.library_music_rounded,
-        iconColor: const Color(0xFFE5E5E5),
         onTap: () => navigateInApp(context, const MadeForYouScreen()),
       ),
       _MixItem(
         title: 'Favorites Radio',
         subtitle: 'Endless mix of loved tracks',
-        backgroundColor: tokens.bgElevated,
-        icon: Icons.favorite_rounded,
-        iconColor: const Color(0xFFD4AF37),
         onTap: () => navigateInApp(context, const FavoritesScreen()),
       ),
       _MixItem(
         title: 'New Releases',
         subtitle: 'Fresh additions to library',
-        backgroundColor: tokens.bgElevated,
-        icon: Icons.new_releases_rounded,
-        iconColor: const Color(0xFF9CA3AF),
         onTap: () => navigateInApp(context, const NewReleasesScreen()),
       ),
     ];
 
     return SizedBox(
-      height: 150,
+      height: 200,
       child: ListView.separated(
         padding: const EdgeInsets.symmetric(horizontal: 16),
         scrollDirection: Axis.horizontal,
@@ -1143,18 +1093,16 @@ class _MadeForYouShelf extends ConsumerWidget {
           final item = items[index];
           return GestureDetector(
             onTap: item.onTap,
-            child: Container(
+            child: SizedBox(
               width: 140,
-              decoration: BoxDecoration(
-                color: item.backgroundColor,
-                borderRadius: BorderRadius.circular(10),
-              ),
-              padding: const EdgeInsets.all(16),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Icon(item.icon, color: item.iconColor, size: 26),
-                  const Spacer(),
+                  SizedBox.square(
+                    dimension: 140,
+                    child: GeneratedCover(name: item.title, borderRadius: 8),
+                  ),
+                  const SizedBox(height: 8),
                   Text(
                     item.title,
                     maxLines: 1,
@@ -1168,7 +1116,7 @@ class _MadeForYouShelf extends ConsumerWidget {
                   const SizedBox(height: 3),
                   Text(
                     item.subtitle,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       color: tokens.textSecondary,
@@ -1190,17 +1138,11 @@ class _MadeForYouShelf extends ConsumerWidget {
 class _MixItem {
   final String title;
   final String subtitle;
-  final Color backgroundColor;
-  final IconData icon;
-  final Color iconColor;
   final VoidCallback onTap;
 
   const _MixItem({
     required this.title,
     required this.subtitle,
-    required this.backgroundColor,
-    required this.icon,
-    required this.iconColor,
     required this.onTap,
   });
 }

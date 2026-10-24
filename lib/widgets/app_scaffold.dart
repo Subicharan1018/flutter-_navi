@@ -31,6 +31,7 @@ import '../player/player_controls.dart';
 import '../player/queue_pane.dart';
 import '../screens/now_playing_screen.dart';
 import 'mini_player.dart';
+import 'art/navi_icons.dart';
 import 'create_playlist_dialog.dart';
 
 // =============================================================================
@@ -100,31 +101,11 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
   }
 
   static const List<_NavItem> _items = [
-    _NavItem(
-      icon: Icons.home_outlined,
-      activeIcon: Icons.home_rounded,
-      label: 'Home',
-    ),
-    _NavItem(
-      icon: Icons.search_outlined,
-      activeIcon: Icons.search_rounded,
-      label: 'Search',
-    ),
-    _NavItem(
-      icon: Icons.auto_awesome_outlined,
-      activeIcon: Icons.auto_awesome,
-      label: 'AI Shuffle',
-    ),
-    _NavItem(
-      icon: Icons.dashboard_outlined,
-      activeIcon: Icons.dashboard_rounded,
-      label: 'Dashboard',
-    ),
-    _NavItem(
-      icon: Icons.library_music_outlined,
-      activeIcon: Icons.library_music_rounded,
-      label: 'Library',
-    ),
+    _NavItem(glyph: NaviGlyph.home, label: 'Home'),
+    _NavItem(glyph: NaviGlyph.search, label: 'Search'),
+    _NavItem(glyph: NaviGlyph.aiShuffle, label: 'AI Shuffle'),
+    _NavItem(glyph: NaviGlyph.dashboard, label: 'Dashboard'),
+    _NavItem(glyph: NaviGlyph.library, label: 'Library'),
   ];
 
   final List<Widget> _screens = const [
@@ -590,8 +571,7 @@ class _DesktopLeftSidebarState extends ConsumerState<_DesktopLeftSidebar> {
 
                 // Primary Navigation Menu: Home, AI Shuffle, Dashboard
                 _SidebarNavItem(
-                  icon: Icons.home_outlined,
-                  activeIcon: Icons.home_rounded,
+                  glyph: NaviGlyph.home,
                   label: 'Home',
                   active: widget.currentIndex == 0,
                   tokens: tokens,
@@ -603,8 +583,7 @@ class _DesktopLeftSidebarState extends ConsumerState<_DesktopLeftSidebar> {
                   },
                 ),
                 _SidebarNavItem(
-                  icon: Icons.auto_awesome_outlined,
-                  activeIcon: Icons.auto_awesome,
+                  glyph: NaviGlyph.aiShuffle,
                   label: 'AI Shuffle',
                   active: widget.currentIndex == 2,
                   tokens: tokens,
@@ -616,8 +595,7 @@ class _DesktopLeftSidebarState extends ConsumerState<_DesktopLeftSidebar> {
                   },
                 ),
                 _SidebarNavItem(
-                  icon: Icons.dashboard_outlined,
-                  activeIcon: Icons.dashboard_rounded,
+                  glyph: NaviGlyph.dashboard,
                   label: 'Dashboard',
                   active: widget.currentIndex == 3,
                   tokens: tokens,
@@ -1438,16 +1416,14 @@ class _BarScrubberState extends ConsumerState<_BarScrubber> {
 }
 
 class _SidebarNavItem extends StatefulWidget {
-  final IconData icon;
-  final IconData activeIcon;
+  final NaviGlyph glyph;
   final String label;
   final bool active;
   final AppThemeTokens tokens;
   final VoidCallback onTap;
 
   const _SidebarNavItem({
-    required this.icon,
-    required this.activeIcon,
+    required this.glyph,
     required this.label,
     required this.active,
     required this.tokens,
@@ -1485,8 +1461,9 @@ class _SidebarNavItemState extends State<_SidebarNavItem> {
           ),
           child: Row(
             children: [
-              Icon(
-                active ? widget.activeIcon : widget.icon,
+              NaviIcon(
+                widget.glyph,
+                filled: active,
                 color: active
                     ? tokens.accent
                     : _hovered
@@ -1641,8 +1618,8 @@ class _TabButton extends StatelessWidget {
           children: [
             AnimatedSwitcher(
               duration: const Duration(milliseconds: 180),
-              child: Icon(selected ? item.activeIcon : item.icon,
-                  key: ValueKey(selected), color: color, size: 25),
+              child: NaviIcon(item.glyph,
+                  key: ValueKey(selected), color: color, size: 25, filled: selected),
             ),
             const SizedBox(height: 3),
             Text(
@@ -1682,13 +1659,11 @@ class _OfflineBanner extends StatelessWidget {
 }
 
 class _NavItem {
-  final IconData icon;
-  final IconData activeIcon;
+  final NaviGlyph glyph;
   final String label;
 
   const _NavItem({
-    required this.icon,
-    required this.activeIcon,
+    required this.glyph,
     required this.label,
   });
 }

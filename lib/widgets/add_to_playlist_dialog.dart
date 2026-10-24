@@ -1,3 +1,4 @@
+import 'art/navi_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
@@ -227,8 +228,8 @@ class _AddToPlaylistDialogState extends ConsumerState<AddToPlaylistDialog> {
                         child: Center(
                           child: Column(
                             children: [
-                              Icon(
-                                Icons.playlist_add,
+                              NaviIcon(
+                                NaviGlyph.addToPlaylist,
                                 size: 48,
                                 color: ThemeTokens.of(context).textMuted,
                               ),

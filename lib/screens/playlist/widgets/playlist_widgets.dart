@@ -8,6 +8,8 @@ import '../../../models/song.dart';
 import '../../../models/download_state.dart';
 import '../../../providers/download_provider.dart';
 import '../../../core/theme.dart';
+import '../../../widgets/art/generated_cover.dart';
+import '../../../widgets/art/navi_icons.dart';
 
 // ===========================================================================
 // Sub-widgets extracted from playlist_details_screen.dart (God Node Reduction)
@@ -192,6 +194,10 @@ class ExpandedHeader extends ConsumerWidget {
     final double topPadding =
         MediaQuery.of(context).padding.top + kToolbarHeight;
     final tokens = ThemeTokens.of(context);
+    final fallbackCover = GeneratedCover(
+      name: playlist.name,
+      songIds: songs.map((s) => s.id),
+    );
 
     // ── Download button state (derived from per-song statuses)
     final dlMap = ref.watch(downloadStateProvider);
@@ -295,31 +301,10 @@ class ExpandedHeader extends ConsumerWidget {
                           fit: BoxFit.cover,
                           memCacheWidth: 360,
                           memCacheHeight: 360,
-                          placeholder: (context, url) => Container(
-                            color: tokens.bgSurface,
-                            child: Icon(
-                              Icons.music_note_rounded,
-                              size: 64,
-                              color: tokens.textMuted,
-                            ),
-                          ),
-                          errorWidget: (context, url, error) => Container(
-                            color: tokens.bgSurface,
-                            child: Icon(
-                              Icons.music_note_rounded,
-                              size: 64,
-                              color: tokens.textMuted,
-                            ),
-                          ),
+                          placeholder: (context, url) => fallbackCover,
+                          errorWidget: (context, url, error) => fallbackCover,
                         )
-                      : Container(
-                          color: tokens.bgSurface,
-                          child: Icon(
-                            Icons.music_note_rounded,
-                            size: 64,
-                            color: tokens.textMuted,
-                          ),
-                        ),
+                      : fallbackCover,
                 ),
               ),
               const SizedBox(height: 14),
@@ -362,10 +347,10 @@ class ExpandedHeader extends ConsumerWidget {
                     size: 46,
                     onTap: onShuffleAll,
                     filled: false,
-                    child: Icon(
-                      Icons.shuffle_rounded,
+                    child: NaviIcon(
+                      NaviGlyph.shuffle,
                       color: tokens.textPrimary,
-                      size: 20,
+                      size: 22,
                     ),
                   ),
                   const SizedBox(width: 16),
@@ -373,10 +358,10 @@ class ExpandedHeader extends ConsumerWidget {
                     size: 56,
                     onTap: onPlayAll,
                     filled: true,
-                    child: Icon(
-                      Icons.play_arrow_rounded,
-                      color: ThemeTokens.of(context).textPrimary,
-                      size: 32,
+                    child: NaviIcon(
+                      NaviGlyph.play,
+                      color: tokens.textPrimary,
+                      size: 30,
                     ),
                   ),
                   const SizedBox(width: 16),

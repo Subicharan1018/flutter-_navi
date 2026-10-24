@@ -7,6 +7,7 @@ import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../core/theme.dart';
 import '../../../widgets/navi_ui.dart';
+import '../../../widgets/art/empty_art.dart';
 
 // =============================================================================
 // Header — clean, no waveform decoration
@@ -860,41 +861,9 @@ class EmptyReplay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Container(
-            width: 80,
-            height: 80,
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: ThemeTokens.of(
-                context,
-              ).accent.withValues(alpha: 0.12),
-            ),
-            child: Icon(
-              Icons.bar_chart_rounded,
-              color: ThemeTokens.of(context).accent,
-              size: 40,
-            ),
-          ),
-          SizedBox(height: 20),
-          Text(
-            label,
-            textAlign: TextAlign.center,
-            style: ThemeTokens.of(context).textStyle(
-              15,
-              FontWeight.w500,
-              ThemeTokens.of(context).textSecondary,
-            ).copyWith(height: 1.5),
-          ),
-        ],
-      ).animate().fadeIn(duration: 500.ms).scale(
-            begin: const Offset(0.9, 0.9),
-            end: const Offset(1, 1),
-          ),
-    );
+    return ArtEmptyState(art: EmptyArtKind.signal, title: label)
+        .animate()
+        .fadeIn(duration: 500.ms);
   }
 }
 

@@ -20,6 +20,8 @@ import 'edit_playlist_screen.dart';
 import 'search_screen.dart';
 import '../services/subsonic_service.dart';
 import '../widgets/app_scaffold.dart';
+import '../widgets/art/empty_art.dart';
+import '../widgets/art/generated_cover.dart';
 
 class LibraryScreen extends ConsumerStatefulWidget {
   const LibraryScreen({super.key});
@@ -452,17 +454,13 @@ class _LibraryScreenState extends ConsumerState<LibraryScreen> {
                             fit: BoxFit.cover,
                             memCacheWidth: 104,
                             memCacheHeight: 104,
-                            errorWidget: (context, url, error) => Icon(
-                              Icons.queue_music_rounded,
-                              color: ThemeTokens.of(context).accent,
-                              size: 24,
-                            ),
+                            errorWidget: (context, url, error) =>
+                                GeneratedCover(name: item.name),
                           ),
                         )
-                      : Icon(
-                          Icons.queue_music_rounded,
-                          color: ThemeTokens.of(context).accent,
-                          size: 24,
+                      : ClipRRect(
+                          borderRadius: BorderRadius.circular(6),
+                          child: GeneratedCover(name: item.name),
                         ),
                 ),
                 title: Text(
@@ -896,25 +894,10 @@ class _EmptyLibrary extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Center(
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [
-          Icon(
-            Icons.library_music_rounded,
-            color: ThemeTokens.of(context).textMuted,
-            size: 64,
-          ),
-          SizedBox(height: 16),
-          Text(
-            'Your library is empty',
-            style: TextStyle(
-              color: ThemeTokens.of(context).textMuted,
-              fontSize: 16,
-            ),
-          ),
-        ],
-      ),
+    return const ArtEmptyState(
+      art: EmptyArtKind.record,
+      title: 'Your library is empty',
+      message: 'Add music to your server, then pull down to sync.',
     );
   }
 }
