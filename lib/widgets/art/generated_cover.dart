@@ -4,19 +4,35 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
+import 'cover_motifs.dart';
+
 // =============================================================================
 // NaviVibe's own cover art for anything without a real cover: playlists, mixes,
 // Discover and Trending shelves.
 //
 // A cover is a pure function of its seed string, so the same playlist always
-// looks the same on every device and every launch. Four motifs, all drawn from
-// sound: a mirrored waveform, a halftone grid, vinyl grooves and signal scan
-// lines — on a grey ground with white (or, for a quarter of seeds, near-black)
+// looks the same on every device and every launch. Twelve motifs, all drawn from
+// sound and signal: waveform, halftone, vinyl grooves, scan lines (here) and
+// spiral, grid-warp, stripes, dots-on-circle, contour, orbit, radial bars and
+// tessellation (cover_motifs.dart) — on a grey ground with white (or, for a quarter of seeds, near-black)
 // ink and a fine grain. No hues: the album-driven accent stays the app's only
 // colour.
 // =============================================================================
 
-enum CoverMotif { waveform, halftone, grooves, scan }
+enum CoverMotif {
+  waveform,
+  halftone,
+  grooves,
+  scan,
+  spiral,
+  gridWarp,
+  stripes,
+  dotsOnCircle,
+  contour,
+  orbit,
+  radialBars,
+  tessellation,
+}
 
 /// Builds the seed for a cover from what identifies the collection. Song ids
 /// make two playlists with the same name still differ; only the first few are
@@ -214,6 +230,22 @@ class GeneratedCoverPainter extends CustomPainter {
         _grooves(canvas, w, h, small, ink);
       case CoverMotif.scan:
         _scan(canvas, w, h, small, ink);
+      case CoverMotif.spiral:
+        paintSpiral(canvas, size, spec, small, ink);
+      case CoverMotif.gridWarp:
+        paintGridWarp(canvas, size, spec, small, ink);
+      case CoverMotif.stripes:
+        paintStripes(canvas, size, spec, small, ink);
+      case CoverMotif.dotsOnCircle:
+        paintDotsOnCircle(canvas, size, spec, small, ink);
+      case CoverMotif.contour:
+        paintContour(canvas, size, spec, small, ink);
+      case CoverMotif.orbit:
+        paintOrbit(canvas, size, spec, small, ink);
+      case CoverMotif.radialBars:
+        paintRadialBars(canvas, size, spec, small, ink);
+      case CoverMotif.tessellation:
+        paintTessellation(canvas, size, spec, small, ink);
     }
     if (!small) _grain(canvas, w, h, ink);
   }

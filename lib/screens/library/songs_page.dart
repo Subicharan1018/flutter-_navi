@@ -94,7 +94,7 @@ class _SongsPageState extends ConsumerState<SongsPage> {
                     : MessageState(
                         illustration: widget.downloadedOnly ? null : 'books',
                         icon: widget.downloadedOnly ? CupertinoIcons.arrow_down_circle : CupertinoIcons.music_note,
-                        art: widget.downloadedOnly ? EmptyArtKind.cable : null,
+                        art: widget.downloadedOnly ? EmptyArtKind.downloads : null,
                         title: widget.downloadedOnly ? 'No downloads yet' : 'No songs yet',
                         message: widget.downloadedOnly
                             ? 'Download songs from their menu to listen without a connection.'

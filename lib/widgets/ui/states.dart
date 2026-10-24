@@ -54,6 +54,7 @@ class MessageState extends StatelessWidget {
       MessageState(
         key: key,
         icon: CupertinoIcons.wifi_exclamationmark,
+        art: illustration == null ? EmptyArtKind.offline : null,
         title: title,
         message: message,
         actionLabel: 'Try again',

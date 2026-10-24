@@ -1,6 +1,7 @@
 import 'dart:ui';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navivibe/widgets/art/empty_art.dart';
 import 'package:navivibe/widgets/art/generated_cover.dart';
 import 'package:navivibe/widgets/art/navi_icons.dart';
 
@@ -53,7 +54,7 @@ void main() {
 
     test('all motifs occur across seeds', () {
       final motifs = {
-        for (var i = 0; i < 80; i++)
+        for (var i = 0; i < 300; i++)
           GeneratedCoverSpec.fromSeed('m$i').motif,
       };
       expect(motifs, containsAll(CoverMotif.values));
@@ -101,5 +102,39 @@ void main() {
       ),
       isTrue,
     );
+  });
+
+  test('every motif paints at list and hero size, deterministically', () async {
+    final byMotif = <CoverMotif, String>{};
+    for (var i = 0; i < 400 && byMotif.length < CoverMotif.values.length; i++) {
+      byMotif.putIfAbsent(GeneratedCoverSpec.fromSeed('probe$i').motif, () => 'probe$i');
+    }
+    expect(byMotif.length, CoverMotif.values.length);
+    for (final seed in byMotif.values) {
+      for (final size in const [Size(48, 48), Size(300, 300)]) {
+        List<int> once() {
+          final rec = PictureRecorder();
+          GeneratedCoverPainter(GeneratedCoverSpec.fromSeed(seed)).paint(Canvas(rec), size);
+          return [rec.endRecording().approximateBytesUsed];
+        }
+        expect(once(), once());
+      }
+    }
+  });
+
+  test('every glyph and empty illustration paints in both forms', () {
+    for (final g in NaviGlyph.values) {
+      for (final filled in [false, true]) {
+        NaviGlyphPainter(g, const Color(0xFFFFFFFF), filled)
+            .paint(Canvas(PictureRecorder()), const Size(24, 24));
+      }
+    }
+    for (final k in EmptyArtKind.values) {
+      EmptyArtPainter(k, const Color(0x99FFFFFF), const Color(0xFFFFFFFF))
+          .paint(Canvas(PictureRecorder()), const Size(160, 120));
+    }
+    expect(NaviGlyph.values.length, greaterThanOrEqualTo(18));
+    expect(CoverMotif.values.length, greaterThanOrEqualTo(12));
+    expect(EmptyArtKind.values.length, greaterThanOrEqualTo(7));
   });
 }

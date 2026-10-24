@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
@@ -20,6 +22,15 @@ enum EmptyArtKind {
 
   /// A broken-off cable — nothing configured or connected.
   cable,
+
+  /// A magnifier over a flat line — a search that found nothing.
+  noResults,
+
+  /// An arrow with no tray under it yet — nothing downloaded.
+  downloads,
+
+  /// Wifi arcs with a gap — no connection.
+  offline,
 }
 
 class EmptyArt extends StatelessWidget {
@@ -177,6 +188,56 @@ class EmptyArtPainter extends CustomPainter {
         // Dashes where the signal used to pass.
         canvas.drawLine(const Offset(74, 56), const Offset(80, 56), faint);
         canvas.drawLine(const Offset(80, 64), const Offset(86, 64), faint);
+      case EmptyArtKind.noResults:
+        // A signal that went flat, and the lens that found nothing in it.
+        canvas.drawPath(
+          Path()
+            ..moveTo(12, 96)
+            ..lineTo(40, 96)
+            ..lineTo(46, 84)
+            ..lineTo(52, 100)
+            ..lineTo(58, 96)
+            ..lineTo(148, 96),
+          faint,
+        );
+        canvas.drawCircle(const Offset(72, 48), 28, strong);
+        canvas.drawLine(const Offset(92, 68), const Offset(116, 92), strong);
+        canvas.drawLine(const Offset(62, 48), const Offset(82, 48), faint);
+      case EmptyArtKind.downloads:
+        canvas.drawPath(
+          Path()
+            ..moveTo(36, 78)
+            ..lineTo(36, 98)
+            ..lineTo(124, 98)
+            ..lineTo(124, 78),
+          strong,
+        );
+        canvas.drawLine(const Offset(80, 16), const Offset(80, 36), strong);
+        // The arrow stops short: a dashed run where the file would travel.
+        for (var y = 46.0; y < 80; y += 12) {
+          canvas.drawLine(Offset(80, y), Offset(80, y + 5), faint);
+        }
+        canvas.drawPath(
+          Path()
+            ..moveTo(66, 68)
+            ..lineTo(80, 82)
+            ..lineTo(94, 68),
+          faint,
+        );
+      case EmptyArtKind.offline:
+        const c = Offset(80, 92);
+        for (var i = 1; i <= 3; i++) {
+          final r = 20.0 * i;
+          canvas.drawArc(
+            Rect.fromCircle(center: c, radius: r),
+            -math.pi * 0.82,
+            math.pi * 0.64,
+            false,
+            i == 1 ? strong : faint,
+          );
+        }
+        canvas.drawCircle(c, 4, Paint()..color = bright);
+        canvas.drawLine(const Offset(28, 24), const Offset(132, 100), strong);
     }
   }
 

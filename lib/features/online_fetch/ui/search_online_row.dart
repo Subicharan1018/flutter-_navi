@@ -21,6 +21,7 @@ class NoLibraryResults extends ConsumerWidget {
     final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
     return MessageState(
       icon: CupertinoIcons.search,
+      art: EmptyArtKind.noResults,
       title: 'No results for “$query”',
       message: online
           ? 'It isn’t in your library. Search online to add it.'

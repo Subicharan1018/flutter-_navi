@@ -270,6 +270,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
           SliverToBoxAdapter(
             child: MessageState(
               icon: CupertinoIcons.search,
+              art: EmptyArtKind.noResults,
               title: 'No matches',
               message: 'Nothing in this playlist matches “${_search.text.trim()}”.',
               actionLabel: 'Clear Search',
