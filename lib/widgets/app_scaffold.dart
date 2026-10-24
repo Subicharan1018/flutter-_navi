@@ -4,9 +4,10 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../core/focus/navi_focus.dart';
 import '../core/keyboard_shortcuts.dart';
+import '../core/layout/window_size.dart';
 import '../core/theme.dart';
-import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../features/online_fetch/logic/online_fetch_providers.dart';
 import '../features/online_fetch/ui/fetch_activity.dart';
 import '../models/song.dart';
@@ -19,25 +20,25 @@ import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/search_provider.dart';
 import '../providers/settings_provider.dart';
-import '../screens/stats/stats_screen.dart';
-import '../screens/home_screen.dart';
-import '../screens/library_screen.dart';
 import '../screens/library/albums_page.dart';
 import '../screens/library/playlists_page.dart';
 import '../screens/library/songs_page.dart';
 import '../screens/now_playing_screen.dart';
 import '../screens/playlist_details_screen.dart';
-import '../screens/search_screen.dart';
 import '../screens/settings_screen.dart';
 import '../services/window_manager_service.dart';
-import '../utils/platform_utils.dart';
 import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import '../screens/playlist_editor.dart';
 import 'ui/dock_ground.dart';
-import 'ui/ion.dart';
 import 'ui/one_shot_icon.dart';
+import '../features/social/ui/jam/jam_pill.dart';
 import 'mini_player.dart';
+import 'shell/app_tab.dart';
+import 'shell/breadcrumb_bar.dart';
+import 'shell/nav_stack.dart';
+import 'shell/tab_navigators.dart';
+import 'shell/tv_shell.dart';
 import '../providers/id_migration_provider.dart';
 
 // =============================================================================
@@ -53,57 +54,8 @@ import '../providers/id_migration_provider.dart';
 // player bar along the bottom.
 // =============================================================================
 
-/// The app's top-level destinations, in Apple Music's order (Search last).
-/// Everything that switches tabs refers to these by name, never by position.
-enum AppTab {
-  home('Home', NaviGlyph.home, 'tab_home', Duration(milliseconds: 1980)),
-  shuffle('Shuffle', NaviGlyph.aiShuffle, 'tab_shuffle', Duration(milliseconds: 2970)),
-  stats('Stats', NaviGlyph.dashboard, 'tab_stats', Duration(milliseconds: 1980)),
-  library('Library', NaviGlyph.library, 'tab_library', Duration(milliseconds: 1980)),
-  search('Search', NaviGlyph.search, null, Duration.zero);
-
-  const AppTab(this.label, this.icon, this.illustration, this.illustrationDuration);
-  final String label;
-
-  /// Drawn filled when the tab is selected.
-  final NaviGlyph icon;
-
-  /// Animated illustration for the phone tab bar (see [OneShotIcon]); null
-  /// keeps the glyph. Desktop's sidebar keeps the glyphs.
-  final String? illustration;
-  final Duration illustrationDuration;
-
-  Widget get screen => switch (this) {
-        AppTab.home => const HomeScreen(),
-        AppTab.shuffle => const AiShuffleScreen(),
-        AppTab.stats => const StatsScreen(),
-        AppTab.library => const LibraryScreen(),
-        AppTab.search => const SearchScreen(),
-      };
-}
-
-/// Content navigator for the desktop centre pane.
-final GlobalKey<NavigatorState> desktopNavigatorKey = GlobalKey<NavigatorState>();
-
-/// One navigator per phone tab (see [_PhoneShell]).
-final Map<AppTab, GlobalKey<NavigatorState>> _tabNavigators = {
-  for (final tab in AppTab.values) tab: GlobalKey<NavigatorState>(debugLabel: 'tab-${tab.name}'),
-};
-
-/// The phone tab currently showing; used to route pushes into its stack.
-AppTab _activeTab = AppTab.home;
-
-/// Opens [screen] inside the app chrome: the desktop content pane, or the
-/// active phone tab's stack (so the tab bar and mini player stay visible).
-/// Works from sheets and dialogs too, since it doesn't depend on [context]'s
-/// own navigator.
-void navigateInApp(BuildContext context, Widget screen) {
-  final route = MaterialPageRoute<void>(builder: (_) => screen);
-  final target = PlatformUtils.isDesktop
-      ? desktopNavigatorKey.currentState
-      : _tabNavigators[_activeTab]?.currentState;
-  (target ?? Navigator.of(context)).push(route);
-}
+export 'shell/app_tab.dart' show AppTab;
+export 'shell/nav_stack.dart' show navigateInApp, selectAppTab;
 
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key});
@@ -119,9 +71,23 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WindowLifecycleM
   /// alive after that, so Stats and Shuffle don't fetch at launch.
   final Set<AppTab> _visited = {AppTab.home};
 
+  void _onTabRequest() {
+    final tab = tabRequest.value;
+    if (tab == null) return;
+    tabRequest.value = null;
+    if (mounted) _select(tab);
+  }
+
+  @override
+  void dispose() {
+    tabRequest.removeListener(_onTabRequest);
+    super.dispose();
+  }
+
   @override
   void initState() {
     super.initState();
+    tabRequest.addListener(_onTabRequest);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // After a server upgrade that renamed song ids, move local history and
       // downloads to the new ids first (a no-op otherwise; gives up after 8 s).
@@ -136,31 +102,48 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WindowLifecycleM
   void _select(AppTab tab) {
     if (tab == _tab) {
       // Re-selecting the current tab returns to its root (iOS behaviour).
-      final nav = PlatformUtils.isDesktop ? desktopNavigatorKey.currentState : _tabNavigators[tab]?.currentState;
-      nav?.popUntil((r) => r.isFirst);
+      tabNavigators[tab]?.currentState?.popUntil((r) => r.isFirst);
       return;
     }
     HapticFeedback.selectionClick();
-    if (PlatformUtils.isDesktop) desktopNavigatorKey.currentState?.popUntil((r) => r.isFirst);
+    // Each tab keeps its own stack, so leaving one never loses where you were.
     setState(() {
       _tab = tab;
       _visited.add(tab);
     });
-    _activeTab = tab;
-    _desktopTab.value = tab;
+    activeTab.value = tab;
   }
+
+  /// Esc / Alt+← / the mouse's back button: close what's on top (the player,
+  /// a dialog), else go up one level in the current tab.
+  bool _back() {
+    final root = Navigator.of(context, rootNavigator: true);
+    if (root.canPop()) {
+      root.pop();
+      return true;
+    }
+    return popActiveTab();
+  }
+
+  late final ShellCommands _commands = ShellCommands(
+    focusSearch: () => _select(AppTab.search),
+    openSettings: () => navigateInApp(context, const SettingsScreen()),
+    selectTab: (i) => _select(AppTab.values[i]),
+    goBack: _back,
+  );
 
   @override
   Widget build(BuildContext context) {
     final offline = ref.watch(isOfflineProvider);
     return NaviKeyboardShortcuts(
+      commands: _commands,
       child: LayoutBuilder(
         builder: (context, c) {
-          final desktop = PlatformUtils.isDesktop &&
-              (PlatformUtils.prefersSidebarNavigation || c.maxWidth >= PlatformUtils.kDesktopBreakpoint);
-          return desktop
-              ? _DesktopShell(tab: _tab, onSelect: _select, offline: offline)
-              : _PhoneShell(tab: _tab, visited: _visited, onSelect: _select, offline: offline);
+          return switch (ShellKind.of(Size(c.maxWidth, c.maxHeight))) {
+            ShellKind.tv => TvShell(tab: _tab, visited: _visited, onSelect: _select),
+            ShellKind.sidebar => _DesktopShell(tab: _tab, visited: _visited, onSelect: _select, offline: offline),
+            ShellKind.phone => _PhoneShell(tab: _tab, visited: _visited, onSelect: _select, offline: offline),
+          };
         },
       ),
     );
@@ -180,30 +163,19 @@ class _PhoneShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
-    final active = _tabNavigators[tab]!;
     return Scaffold(
       backgroundColor: t.bgBase,
       body: Stack(
         children: [
           // System back pops inside the active tab before leaving the app.
-          NavigatorPopHandler(
-            onPopWithResult: (_) => active.currentState?.maybePop(),
-            child: IndexedStack(
-              index: tab.index,
-              children: [
-                for (final destination in AppTab.values)
-                  visited.contains(destination)
-                      // Hidden tabs stop animating, and can't claim the dock colour.
-                      ? TickerMode(
-                          enabled: destination == tab,
-                          child: Navigator(
-                            key: _tabNavigators[destination],
-                            onGenerateRoute: (_) => MaterialPageRoute<void>(builder: (_) => destination.screen),
-                          ),
-                        )
-                      : const SizedBox.shrink(),
-              ],
+          AnimatedBuilder(
+            animation: tabTrails[tab]!.routes,
+            builder: (context, child) => NavigatorPopHandler(
+              enabled: tabTrails[tab]!.canPop,
+              onPopWithResult: (_) => popActiveTab(),
+              child: child!,
             ),
+            child: TabNavigators(tab: tab, visited: visited),
           ),
           // The dock: one solid band in the visible page's own colour, with
           // the mini player and tab bar floating on it. Nothing scrolls into
@@ -226,6 +198,7 @@ class _PhoneShell extends ConsumerWidget {
                     children: [
                       if (offline) const _OfflineBanner(),
                       const FetchFinishedBanner(),
+                      const JamLivePill(),
                       const MiniPlayer(),
                       _TabBar(tab: tab, onSelect: onSelect, ground: band),
                     ],
@@ -255,7 +228,7 @@ class _TabBar extends StatelessWidget {
   final Color ground;
   const _TabBar({required this.tab, required this.onSelect, required this.ground});
 
-  static final _main = AppTab.values.where((t) => t != AppTab.search).toList();
+  static final _main = AppTab.mainTabs;
 
   /// [ground] lifted toward white by [amount], fully opaque.
   static Color _lift(Color ground, double amount) => Color.lerp(ground, Colors.white, amount)!;
@@ -338,8 +311,8 @@ class _TabBar extends StatelessWidget {
                     height: _height,
                     decoration: _surface(circle: true),
                     alignment: Alignment.center,
-                    child: IonIcon(
-                      Ion.search,
+                    child: NaviIcon(
+                      NaviGlyph.search,
                       size: 26,
                       color: tab == AppTab.search ? t.accent : t.textPrimary,
                     ),
@@ -438,9 +411,10 @@ enum _Panel { about, lyrics, queue }
 
 class _DesktopShell extends ConsumerStatefulWidget {
   final AppTab tab;
+  final Set<AppTab> visited;
   final ValueChanged<AppTab> onSelect;
   final bool offline;
-  const _DesktopShell({required this.tab, required this.onSelect, required this.offline});
+  const _DesktopShell({required this.tab, required this.visited, required this.onSelect, required this.offline});
 
   @override
   ConsumerState<_DesktopShell> createState() => _DesktopShellState();
@@ -454,7 +428,10 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    final size = WindowSize.ofContext(context);
     final hasSong = ref.watch(playerProvider.select((s) => s.currentSong != null));
+    // medium: icon-only sidebar, no side panel; expanded: both.
+    final panel = size.hasSidePanel && hasSong ? _panel : null;
     return Scaffold(
       backgroundColor: t.bgBase,
       body: Column(
@@ -462,58 +439,59 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
           Expanded(
             child: Row(
               children: [
-                _Sidebar(tab: widget.tab, onSelect: widget.onSelect),
+                FocusTraversalGroup(
+                  child: _Sidebar(tab: widget.tab, onSelect: widget.onSelect, collapsed: size == WindowSize.medium),
+                ),
                 Container(width: 0.5, color: t.separatorOpaque),
                 Expanded(
-                  child: Column(
-                    children: [
-                      if (widget.offline) const _OfflineBanner(),
-                      Expanded(
-                        child: ClipRect(
-                          child: Navigator(
-                            key: desktopNavigatorKey,
-                            onGenerateRoute: (_) => MaterialPageRoute<void>(
-                              builder: (_) => const _DesktopTabHost(),
+                  child: FocusTraversalGroup(
+                    child: Column(
+                      children: [
+                        if (widget.offline) const _OfflineBanner(),
+                        const BreadcrumbBar(),
+                        Expanded(
+                          child: ClipRect(
+                            // Android back on a tablet goes up a level first.
+                            child: AnimatedBuilder(
+                              animation: tabTrails[widget.tab]!.routes,
+                              builder: (context, child) => NavigatorPopHandler(
+                                enabled: tabTrails[widget.tab]!.canPop,
+                                onPopWithResult: (_) => popActiveTab(),
+                                child: child!,
+                              ),
+                              child: TabNavigators(tab: widget.tab, visited: widget.visited),
                             ),
                           ),
                         ),
-                      ),
-                      const FetchFinishedBanner(),
-                    ],
+                        const Center(child: JamLivePill()),
+                        const FetchFinishedBanner(),
+                      ],
+                    ),
                   ),
                 ),
-                if (hasSong && _panel != null) ...[
+                if (panel != null) ...[
                   Container(width: 0.5, color: t.separatorOpaque),
-                  _SidePanel(panel: _panel!, onChange: (p) => setState(() => _panel = p), onClose: () => setState(() => _panel = null)),
+                  FocusTraversalGroup(
+                    child: _SidePanel(panel: panel, onChange: (p) => setState(() => _panel = p), onClose: () => setState(() => _panel = null)),
+                  ),
                 ],
               ],
             ),
           ),
-          if (hasSong) _PlayerBar(panel: _panel, onTogglePanel: _togglePanel),
+          if (hasSong) _PlayerBar(panel: panel, onTogglePanel: _togglePanel, compact: !size.hasSidePanel),
         ],
       ),
     );
   }
 }
 
-/// The desktop navigator's first route is created once, so the selected tab
-/// reaches it through this listenable rather than through constructor args.
-final ValueNotifier<AppTab> _desktopTab = ValueNotifier(AppTab.home);
-
-class _DesktopTabHost extends StatelessWidget {
-  const _DesktopTabHost();
-
-  @override
-  Widget build(BuildContext context) => ValueListenableBuilder<AppTab>(
-        valueListenable: _desktopTab,
-        builder: (_, tab, _) => KeyedSubtree(key: ValueKey(tab), child: tab.screen),
-      );
-}
-
 class _Sidebar extends ConsumerStatefulWidget {
   final AppTab tab;
   final ValueChanged<AppTab> onSelect;
-  const _Sidebar({required this.tab, required this.onSelect});
+
+  /// Medium windows: icons only, 72 wide.
+  final bool collapsed;
+  const _Sidebar({required this.tab, required this.onSelect, this.collapsed = false});
 
   @override
   ConsumerState<_Sidebar> createState() => _SidebarState();
@@ -531,71 +509,91 @@ class _SidebarState extends ConsumerState<_Sidebar> {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final playlists = ref.watch(playlistsProvider).asData?.value ?? const [];
+    final collapsed = widget.collapsed;
+    final playlists = collapsed ? const [] : ref.watch(playlistsProvider).asData?.value ?? const [];
     final service = ref.read(subsonicServiceProvider);
 
-    return Container(
-      width: 248,
+    return AnimatedContainer(
+      duration: Motion.standard,
+      width: collapsed ? 72 : 248,
       color: t.bgSurface,
       child: ListView(
-        padding: const EdgeInsets.fromLTRB(Space.md, Space.lg, Space.md, Space.lg),
+        padding: EdgeInsets.fromLTRB(collapsed ? Space.sm : Space.md, Space.lg, collapsed ? Space.sm : Space.md, Space.lg),
         children: [
-          CupertinoSearchTextField(
-            controller: _search,
-            placeholder: 'Search',
-            style: t.subheadline.copyWith(color: t.textPrimary),
-            backgroundColor: t.fill,
-            itemColor: t.textSecondary,
-            onChanged: (q) {
-              ref.read(searchQueryProvider.notifier).state = q;
-              if (widget.tab != AppTab.search) widget.onSelect(AppTab.search);
-            },
-          ),
-          const SizedBox(height: Space.lg),
+          if (!collapsed) ...[
+            CupertinoSearchTextField(
+              controller: _search,
+              placeholder: 'Search',
+              style: t.subheadline.copyWith(color: t.textPrimary),
+              backgroundColor: t.fill,
+              itemColor: t.textSecondary,
+              onChanged: (q) {
+                ref.read(searchQueryProvider.notifier).state = q;
+                if (widget.tab != AppTab.search) widget.onSelect(AppTab.search);
+              },
+            ),
+            const SizedBox(height: Space.lg),
+          ],
           const _DownloadsRow(),
-          for (final dest in const [AppTab.home, AppTab.shuffle, AppTab.stats])
+          for (final dest in AppTab.browseTabs)
             _SidebarRow(
               icon: dest.icon,
               label: dest.label,
+              iconOnly: collapsed,
               selected: widget.tab == dest,
               onTap: () => widget.onSelect(dest),
             ),
-          const _SidebarHeader('Library'),
+          if (collapsed)
+            _SidebarRow(
+              icon: AppTab.search.icon,
+              label: 'Search (Ctrl+F)',
+              iconOnly: true,
+              selected: widget.tab == AppTab.search,
+              onTap: () => widget.onSelect(AppTab.search),
+            )
+          else
+            const _SidebarHeader('Library'),
           _SidebarRow(
             icon: NaviGlyph.library,
             label: 'Library',
+            iconOnly: collapsed,
             selected: widget.tab == AppTab.library,
             onTap: () => widget.onSelect(AppTab.library),
           ),
           _SidebarRow(
             icon: NaviGlyph.playlist,
             label: 'Playlists',
+            iconOnly: collapsed,
             onTap: () => navigateInApp(context, const PlaylistsPage()),
           ),
           _SidebarRow(
             icon: NaviGlyph.stack,
             label: 'Albums',
+            iconOnly: collapsed,
             onTap: () => navigateInApp(context, const AlbumsPage()),
           ),
           _SidebarRow(
             icon: NaviGlyph.note,
             label: 'Songs',
+            iconOnly: collapsed,
             onTap: () => navigateInApp(context, const SongsPage()),
           ),
           _SidebarRow(
             icon: NaviGlyph.downloadCircle,
             label: 'Downloaded',
-            onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true)),
+            iconOnly: collapsed,
+            onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true), title: 'Downloaded'),
           ),
-          _SidebarHeader(
-            'Playlists',
-            action: IconButton(
-              tooltip: 'New Playlist',
-              visualDensity: VisualDensity.compact,
-              icon: NaviIcon(NaviGlyph.plus, size: 18, color: t.textSecondary),
-              onPressed: () => showPlaylistEditor(context),
+          if (!collapsed)
+            _SidebarHeader(
+              'Playlists',
+              action: IconButton(
+                tooltip: 'New Playlist',
+                visualDensity: VisualDensity.compact,
+                icon: NaviIcon(NaviGlyph.plus, size: 18, color: t.textSecondary),
+                onPressed: () => showPlaylistEditor(context),
+              ),
             ),
-          ),
           for (final p in playlists)
             _SidebarRow(
               art: CoverArt(
@@ -605,12 +603,13 @@ class _SidebarState extends ConsumerState<_Sidebar> {
                 placeholderIcon: NaviGlyph.playlist,
               ),
               label: p.name,
-              onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p)),
+              onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p), title: p.name),
             ),
           const SizedBox(height: Space.lg),
           _SidebarRow(
             icon: NaviGlyph.gear,
-            label: 'Settings',
+            label: 'Settings (Ctrl+,)',
+            iconOnly: collapsed,
             onTap: () => navigateInApp(context, const SettingsScreen()),
           ),
         ],
@@ -660,53 +659,60 @@ class _DownloadsRow extends ConsumerWidget {
   }
 }
 
-class _SidebarRow extends StatefulWidget {
+class _SidebarRow extends StatelessWidget {
   final NaviGlyph? icon;
   final Widget? art;
   final String label;
   final bool selected;
+  final bool iconOnly;
   final VoidCallback onTap;
 
-  const _SidebarRow({this.icon, this.art, required this.label, this.selected = false, required this.onTap});
-
-  @override
-  State<_SidebarRow> createState() => _SidebarRowState();
-}
-
-class _SidebarRowState extends State<_SidebarRow> {
-  bool _hovered = false;
+  const _SidebarRow({
+    this.icon,
+    this.art,
+    required this.label,
+    this.selected = false,
+    this.iconOnly = false,
+    required this.onTap,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      onEnter: (_) => setState(() => _hovered = true),
-      onExit: (_) => setState(() => _hovered = false),
-      child: GestureDetector(
-        onTap: widget.onTap,
-        child: Container(
-          height: 32,
-          padding: const EdgeInsets.symmetric(horizontal: Space.sm),
-          decoration: BoxDecoration(
-            color: widget.selected ? t.bgOverlay : (_hovered ? t.fill : Colors.transparent),
-            borderRadius: BorderRadius.circular(6),
-          ),
-          child: Row(
-            children: [
-              widget.art ?? NaviIcon(widget.icon!, size: 18, color: t.accent),
-              const SizedBox(width: Space.sm + 2),
-              Expanded(
-                child: Text(
-                  widget.label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: t.subheadline.copyWith(color: t.textPrimary),
-                ),
+    final row = Container(
+      height: 32,
+      padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+      decoration: BoxDecoration(
+        color: selected ? t.bgOverlay : Colors.transparent,
+        borderRadius: BorderRadius.circular(6),
+      ),
+      child: Row(
+        mainAxisAlignment: iconOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
+        children: [
+          art ?? NaviIcon(icon!, size: 18, color: t.accent),
+          if (!iconOnly) ...[
+            const SizedBox(width: Space.sm + 2),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: t.subheadline.copyWith(color: t.textPrimary),
               ),
-            ],
-          ),
-        ),
+            ),
+          ],
+        ],
+      ),
+    );
+    return Semantics(
+      selected: selected,
+      child: NaviFocusable(
+        radius: 6,
+        onTap: onTap,
+        semanticLabel: label,
+        // Hover tint is the row's; the selected row keeps its own fill.
+        hoverTint: !selected,
+        child: iconOnly ? Tooltip(message: label, child: row) : row,
       ),
     );
   }
@@ -840,7 +846,10 @@ class _AboutSong extends ConsumerWidget {
 class _PlayerBar extends ConsumerWidget {
   final _Panel? panel;
   final ValueChanged<_Panel> onTogglePanel;
-  const _PlayerBar({required this.panel, required this.onTogglePanel});
+
+  /// Medium windows: no side panel, so only volume and the full-screen button.
+  final bool compact;
+  const _PlayerBar({required this.panel, required this.onTogglePanel, this.compact = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -864,7 +873,7 @@ class _PlayerBar extends ConsumerWidget {
       child: Row(
         children: [
           SizedBox(
-            width: 300,
+            width: compact ? 220 : 300,
             child: Row(
               children: [
                 MouseRegion(
@@ -942,16 +951,16 @@ class _PlayerBar extends ConsumerWidget {
             ),
           ),
           SizedBox(
-            width: 300,
+            width: compact ? 150 : 300,
             child: Row(
               mainAxisAlignment: MainAxisAlignment.end,
               children: [
-                _BarButton(icon: NaviGlyph.lyrics, tooltip: 'Lyrics', active: panel == _Panel.lyrics, onTap: () => onTogglePanel(_Panel.lyrics)),
-                _BarButton(icon: NaviGlyph.queue, tooltip: 'Queue', active: panel == _Panel.queue, onTap: () => onTogglePanel(_Panel.queue)),
-                _BarButton(icon: NaviGlyph.info, tooltip: 'About this song', active: panel == _Panel.about, onTap: () => onTogglePanel(_Panel.about)),
+                if (!compact) _BarButton(icon: NaviGlyph.lyrics, tooltip: 'Lyrics', active: panel == _Panel.lyrics, onTap: () => onTogglePanel(_Panel.lyrics)),
+                if (!compact) _BarButton(icon: NaviGlyph.queue, tooltip: 'Queue', active: panel == _Panel.queue, onTap: () => onTogglePanel(_Panel.queue)),
+                if (!compact) _BarButton(icon: NaviGlyph.info, tooltip: 'About this song', active: panel == _Panel.about, onTap: () => onTogglePanel(_Panel.about)),
                 const SizedBox(width: Space.sm),
                 SizedBox(
-                  width: 110,
+                  width: compact ? 70 : 110,
                   child: VolumeBar(player: n.player, color: t.textPrimary, trackColor: t.fill, iconColor: t.textSecondary),
                 ),
                 _BarButton(icon: NaviGlyph.expand, tooltip: 'Full-screen player', size: 16, onTap: () => openNowPlaying(context)),

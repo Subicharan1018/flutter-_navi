@@ -17,7 +17,7 @@ import '../providers/settings_provider.dart';
 import '../screens/now_playing_screen.dart';
 import '../utils/platform_utils.dart';
 import 'mascot/microduck_strip.dart';
-import 'ui/ion.dart';
+import 'art/navi_icons.dart';
 
 /// The floating mini player: a solid capsule in the album's colour (so the
 /// song you're hearing tints the bottom of every screen), with the cover,
@@ -177,7 +177,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
                           size: 44,
                           semanticLabel: 'Next',
                           onTap: notifier.playNext,
-                          child: const IonIcon(Ion.playForward, color: Colors.white, size: 26),
+                          child: const NaviIcon(NaviGlyph.next, color: Colors.white, size: 26),
                         ),
                       ],
                     ),

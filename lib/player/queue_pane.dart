@@ -10,7 +10,6 @@ import '../providers/settings_provider.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/ui/action_sheet.dart';
-import '../widgets/ui/ion.dart';
 import 'artwork.dart';
 import 'edge_fade.dart';
 import 'now_playing_style.dart';
@@ -181,7 +180,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                       child: SizedBox(
                         width: 48,
                         height: 48,
-                        child: IonIcon(Ion.dragHandle, color: st.textMuted, size: 18),
+                        child: NaviIcon(NaviGlyph.grip, color: st.textMuted, size: 18),
                       ),
                     ),
                   ),
@@ -219,7 +218,7 @@ class _ModePills extends ConsumerWidget {
         children: [
           Expanded(
             child: _Pill(
-              ion: Ion.shuffle,
+              glyph: NaviGlyph.shuffle,
               label: 'Shuffle',
               active: shuffle,
               style: st,
@@ -230,7 +229,7 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              ion: Ion.repeat,
+              glyph: NaviGlyph.repeat,
               badge: repeat == LoopMode.one ? '1' : null,
               label: switch (repeat) {
                 LoopMode.one => 'Repeat this song',
@@ -245,7 +244,7 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              ion: Ion.infinite,
+              glyph: NaviGlyph.infinite,
               label: 'Autoplay',
               active: autoplay,
               style: st,
@@ -343,10 +342,9 @@ class _ShuffleModeSheet extends ConsumerWidget {
 }
 
 class _Pill extends StatelessWidget {
-  final Ion? ion;
 
-  /// One of NaviVibe's own glyphs, drawn instead of [ion].
-  final NaviGlyph? glyph;
+  /// One of NaviVibe's own glyphs.
+  final NaviGlyph glyph;
 
   /// Small mark on the glyph (the "1" of repeat-one).
   final String? badge;
@@ -363,8 +361,7 @@ class _Pill extends StatelessWidget {
   final bool busy;
 
   const _Pill({
-    this.ion,
-    this.glyph,
+    required this.glyph,
     this.badge,
     required this.label,
     required this.active,
@@ -408,7 +405,7 @@ class _Pill extends StatelessWidget {
                   key: ValueKey(badge),
                   clipBehavior: Clip.none,
                   children: [
-                    if (glyph != null) NaviIcon(glyph!, size: 20, color: fg) else IonIcon(ion!, size: 20, color: fg),
+                    NaviIcon(glyph, size: 20, color: fg),
                     if (badge != null)
                       Positioned(
                         right: -5,
@@ -530,7 +527,7 @@ class _Swipeable extends StatelessWidget {
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
         color: AppThemeTokens.systemRed, // destructive: the one hue kept in monochrome
-        child: const IonIcon(Ion.remove, color: Colors.white),
+        child: const NaviIcon(NaviGlyph.minusCircle, color: Colors.white),
       ),
       child: child,
     );

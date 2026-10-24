@@ -11,7 +11,11 @@ import 'features/local_library/logic/local_library_providers.dart' show localLib
 import 'core/motion.dart';
 import 'core/theme.dart';
 import 'utils/platform_utils.dart';
+import 'services/desktop_tray.dart';
+import 'services/window_manager_service.dart';
 import 'widgets/app_scaffold.dart';
+import 'widgets/shell/title_bar.dart';
+import 'widgets/shell/tv_shell.dart';
 import 'screens/login_screen.dart';
 import 'player/artwork.dart';
 import 'player/artwork_field.dart';
@@ -46,6 +50,7 @@ Future<void> main() async {
   // Note: flutter_cache_manager's DefaultCacheManager is already transitive.
 
   await HiveBoxes.init();
+  await PlatformUtils.detectTelevision();
 
   // BUG-FIX-2: Must initialize OfflineService before runApp() so that
   // DownloadStateNotifier.build() finds _prefs non-null on its very first
@@ -67,13 +72,15 @@ Future<void> main() async {
   // ── Desktop window setup ───────────────────────────────────────────────────
   if (PlatformUtils.supportsWindowManager) {
     await windowManager.ensureInitialized();
-    const options = WindowOptions(
+    final options = WindowOptions(
       title: 'NaviVibe',
       size: Size(1280, 800),
-      minimumSize: Size(900, 600),
+      minimumSize: WindowManagerService.minimumSize,
       center: true,
       backgroundColor: Colors.transparent,
-      titleBarStyle: TitleBarStyle.normal,
+      // Windows draws its own title bar (NaviTitleBar) so the chrome matches.
+      titleBarStyle: NaviTitleBar.enabled ? TitleBarStyle.hidden : TitleBarStyle.normal,
+      windowButtonVisibility: !NaviTitleBar.enabled,
     );
     await windowManager.waitUntilReadyToShow(options, () async {
       await windowManager.show();
@@ -126,6 +133,17 @@ Future<void> main() async {
 
   // Compile the Now Playing artwork-field shader before it's first shown.
   unawaited(ArtworkField.precache());
+
+  if (DesktopTray.supported) {
+    final player = container.read(playerProvider.notifier);
+    unawaited(DesktopTray.instance.init(PlaybackTransport(
+      playPause: player.togglePlay,
+      next: player.playNext,
+      previous: player.playPrev,
+      isPlaying: () => container.read(playerProvider).isPlaying,
+    )));
+    container.listen(playerProvider.select((s) => s.isPlaying), (_, _) => DesktopTray.instance.refreshMenu());
+  }
 
   runApp(
     UncontrolledProviderScope(
@@ -209,7 +227,12 @@ class MyMusicPlayerApp extends ConsumerWidget {
         builder: (context, child) => MotionScope.resolve(
           level: motion,
           systemReduced: MediaQuery.disableAnimationsOf(context),
-          child: child!,
+          // TV: overscan margin and larger type. Windows: our own title bar.
+          child: TvFrame(
+            child: NaviTitleBar.enabled
+                ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
+                : child!,
+          ),
         ),
         home: home,
         debugShowCheckedModeBanner: false,

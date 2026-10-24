@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import 'voice_search_button.dart';
 
 /// iOS search field: grey rounded fill, magnifier, clear button.
 class NaviSearchField extends StatelessWidget {
@@ -12,6 +13,13 @@ class NaviSearchField extends StatelessWidget {
   final FocusNode? focusNode;
   final bool autofocus;
 
+  /// A microphone beside the field for voice typing (hidden where the device
+  /// has no speech service).
+  final bool voice;
+
+  /// The remote's voice key starts dictation into this field.
+  final bool listenForVoiceKey;
+
   const NaviSearchField({
     super.key,
     required this.controller,
@@ -20,10 +28,28 @@ class NaviSearchField extends StatelessWidget {
     this.onSubmitted,
     this.focusNode,
     this.autofocus = false,
+    this.voice = true,
+    this.listenForVoiceKey = false,
   });
 
   @override
   Widget build(BuildContext context) {
+    final field = _field(context);
+    if (!voice) return field;
+    return Row(
+      children: [
+        Expanded(child: field),
+        VoiceSearchButton(
+          controller: controller,
+          onChanged: onChanged,
+          onSubmitted: onSubmitted,
+          listenForVoiceKey: listenForVoiceKey,
+        ),
+      ],
+    );
+  }
+
+  Widget _field(BuildContext context) {
     final t = ThemeTokens.of(context);
     return CupertinoSearchTextField(
       controller: controller,

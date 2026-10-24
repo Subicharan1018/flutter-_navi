@@ -4,7 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/theme.dart';
 import '../../../widgets/ui/action_sheet.dart' show showToast;
 import '../../../widgets/ui/grouped_list.dart';
-import '../../../widgets/ui/ion.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/large_title_page.dart';
 import '../logic/update_providers.dart';
 import '../logic/update_service.dart';
@@ -81,16 +81,16 @@ class _UpdatesScreenState extends ConsumerState<UpdatesScreen> {
                   controller: _source,
                   placeholder: 'github:owner/repo',
                   keyboardType: TextInputType.url,
-                  ion: Ion.globe,
+                  icon: NaviGlyph.globe,
                 ),
                 GroupedTextFieldRow(
                   title: 'Token',
                   controller: _token,
                   placeholder: 'Optional',
                   obscure: true,
-                  ion: Ion.lock,
+                  icon: NaviGlyph.lock,
                 ),
-                GroupedRow(title: 'Save and Check', ion: Ion.sync, onTap: _save),
+                GroupedRow(title: 'Save and Check', icon: NaviGlyph.repeat, onTap: _save),
               ],
             ),
             GroupedSection(
@@ -98,7 +98,7 @@ class _UpdatesScreenState extends ConsumerState<UpdatesScreen> {
               children: [
                 GroupedSwitchRow(
                   title: 'Download on Wi-Fi only',
-                  ion: Ion.wifi,
+                  icon: NaviGlyph.wifi,
                   value: settings.wifiOnly,
                   onChanged: ref.read(updateSettingsProvider.notifier).setWifiOnly,
                 ),

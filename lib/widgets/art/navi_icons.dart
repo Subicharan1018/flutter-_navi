@@ -38,6 +38,14 @@ enum NaviGlyph {
   lyrics,
   group,
   blend,
+  jam,
+  rewind,
+  fastForward,
+  speakerLow,
+  infinite,
+  headphones,
+  phone,
+  desktop,
   mic,
   folder,
   smart,
@@ -448,6 +456,14 @@ class NaviGlyphPainter extends CustomPainter {
             ..cubicTo(19.5, 14.4, 21, 15.8, 21, 18.5),
           stroke,
         );
+      case NaviGlyph.jam:
+        // A room: a ring with people seated on it, one of them filled (the host).
+        canvas.drawCircle(const Offset(12, 12), 7.5, stroke);
+        canvas.drawCircle(const Offset(12, 4.5), 2.2, fill);
+        canvas.drawCircle(const Offset(18.5, 15.75), 2.0, filled ? fill : (Paint()..color = color.withValues(alpha: 0)));
+        canvas.drawCircle(const Offset(18.5, 15.75), 2.0, stroke..strokeWidth = 1.5);
+        canvas.drawCircle(const Offset(5.5, 15.75), 2.0, filled ? fill : (Paint()..color = color.withValues(alpha: 0)));
+        canvas.drawCircle(const Offset(5.5, 15.75), 2.0, stroke..strokeWidth = 1.5);
       case NaviGlyph.blend:
         canvas.drawCircle(const Offset(9, 12), 6, stroke);
         canvas.drawCircle(const Offset(15, 12), 6, stroke);

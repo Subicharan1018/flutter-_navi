@@ -3,7 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
 import '../../../widgets/app_scaffold.dart' show navigateInApp;
-import '../../../widgets/ui/ion.dart';
+import '../../../widgets/art/navi_icons.dart';
 import '../logic/update_providers.dart';
 import 'updates_screen.dart';
 
@@ -32,7 +32,7 @@ class UpdateBanner extends ConsumerWidget {
             scaleFactor: 0.99,
             semanticLabel: 'Update available. Open updates.',
             child: Row(children: [
-              IonIcon(Ion.download, size: 22, color: t.accent),
+              NaviIcon(NaviGlyph.download, size: 22, color: t.accent),
               const SizedBox(width: Space.md),
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -56,7 +56,7 @@ class UpdateBanner extends ConsumerWidget {
           semanticLabel: 'Dismiss',
           child: Padding(
             padding: const EdgeInsets.all(Space.sm),
-            child: IonIcon(Ion.remove, size: 20, color: t.textSecondary),
+            child: NaviIcon(NaviGlyph.close, size: 20, color: t.textSecondary),
           ),
         ),
       ]),

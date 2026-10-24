@@ -87,11 +87,12 @@ class SocialApi {
   Future<JamState> jamRemoveItem(String code, int itemId) =>
       _wrap(() async => _jam(await _delete('/social/jam/$code/queue/$itemId')));
 
-  Future<JamState> jamControl(String code, String action, {int? positionMs, int? index}) =>
+  Future<JamState> jamControl(String code, String action, {int? positionMs, int? index, int? itemId}) =>
       _wrap(() async => _jam(await _post('/social/jam/$code/control', {
             'action': action,
             'position_ms': ?positionMs,
             'index': ?index,
+            'item_id': ?itemId,
           })));
 
   Future<void> jamLeave(String code) => _wrap(() async => _post('/social/jam/$code/leave'));

@@ -1,5 +1,6 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
+import 'package:flutter/services.dart' show MethodChannel;
 
 // =============================================================================
 // platform_utils.dart — Centralised platform detection
@@ -18,6 +19,32 @@ abstract final class PlatformUtils {
   /// of the host OS, so phone screens can be checked on a desktop test host.
   @visibleForTesting
   static bool? debugDesktopOverride;
+
+  /// Test seam: pretend to run on an Android TV (true) or not (false).
+  @visibleForTesting
+  static bool? debugTvOverride;
+
+  static bool _television = false;
+  static const MethodChannel _android = MethodChannel('com.navivibe/android');
+
+  /// True on Android TV / Google TV (leanback). Asked of the platform once at
+  /// startup by [detectTelevision]; false everywhere else.
+  static bool get isTv => debugTvOverride ?? _television;
+
+  /// Asks Android whether this device is a television. Safe on any platform:
+  /// a missing channel or any error means "not a TV".
+  static Future<void> detectTelevision() async {
+    if (!isAndroid) return;
+    try {
+      _television = await _android.invokeMethod<bool>('isTelevision') ?? false;
+    } catch (_) {
+      _television = false;
+    }
+  }
+
+  /// True when focus (D-pad, keyboard Tab) is the primary way to navigate,
+  /// so focus rings and focus-friendly layouts matter most.
+  static bool get isFocusFirst => isTv || isDesktop;
 
   /// True on Linux, Windows, and macOS — i.e. any desktop OS.
   static bool get isDesktop =>

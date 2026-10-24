@@ -230,19 +230,64 @@ class FakeSessionSyncService implements SessionSyncService {
     int? positionMs,
     bool? isPlaying,
     List<String>? queue,
+    String? trackTitle,
+    String? artist,
+    String? album,
+    String? coverArtId,
+    double? durationS,
+    int? queueIndex,
   }) {
     pushedUpdates.add({
       'track_id': trackId,
       'position_ms': positionMs,
       'is_playing': isPlaying,
       'queue': queue,
+      'track_title': trackTitle,
+      'queue_index': queueIndex,
     });
   }
 
   @override
-  void transferPlayback(String deviceId) {
+  void transferPlayback(String deviceId, {String? deviceName}) {
     transferredDevices.add(deviceId);
   }
+
+  final _commandController = StreamController<RemoteCommand>.broadcast();
+  final sentCommands = <String>[];
+
+  void emitCommand(RemoteCommand c) => _commandController.add(c);
+
+  @override
+  Stream<RemoteCommand> get commandStream => _commandController.stream;
+
+  @override
+  void sendCommand(String action, {int? positionMs, double? volume, String? trackId, int? index, List<String>? queue, String? target}) {
+    sentCommands.add(action);
+  }
+
+  @override
+  void releasePlayback() {}
+
+  @override
+  void requestDevices() {}
+
+  @override
+  String? get deviceName => 'Test phone';
+
+  @override
+  List<SyncDevice> get currentDevices => const [];
+
+  @override
+  Stream<List<SyncDevice>> get devicesStream => const Stream.empty();
+
+  @override
+  Stream<CommandResult> get resultStream => const Stream.empty();
+
+  @override
+  SyncConnection get connection => SyncConnection.online;
+
+  @override
+  Stream<SyncConnection> get connectionStream => const Stream.empty();
 
   @override
   Future<void> connect() async {}
@@ -749,6 +794,78 @@ void main() {
       await notifier.claimActiveDevice();
       expect(fakeSyncService.transferredDevices, isEmpty);
 
+      notifier.dispose();
+    });
+  });
+
+  group('PlayerNotifier remote control', () {
+    Future<PlayerNotifier> make({String active = 'device-me'}) async {
+      final container = createContainer();
+      final ref = container.read(Provider((ref) => ref));
+      final notifier = PlayerNotifier(
+        ref,
+        audioHandler,
+        mockSubsonicService,
+        mockCollector,
+        deviceIdProvider: () async => 'device-me',
+      );
+      await Future.delayed(Duration.zero);
+      fakeSyncService.emitSyncState(PlaybackState(activeDevice: active, activeDeviceName: 'Somewhere', trackId: 't1', isPlaying: true));
+      await Future.delayed(Duration.zero);
+      return notifier;
+    }
+
+    test('the active device obeys a pause command', () async {
+      final notifier = await make();
+      expect(notifier.state.syncMode, SyncMode.activeHere);
+      notifier.state = notifier.state.copyWith(isPlaying: true);
+      fakeSyncService.emitCommand(const RemoteCommand(action: 'pause', fromName: 'iPad'));
+      await Future.delayed(const Duration(milliseconds: 20));
+      expect(notifier.state.isPlaying, isFalse);
+      notifier.dispose();
+    });
+
+    test('a passive device ignores commands meant for the active one', () async {
+      final notifier = await make(active: 'device-other');
+      expect(notifier.state.syncMode, SyncMode.passive);
+      fakeSyncService.emitCommand(const RemoteCommand(action: 'play'));
+      await Future.delayed(const Duration(milliseconds: 20));
+      expect(audioHandler.player.playing, isFalse);
+      expect(notifier.state.syncMode, SyncMode.passive);
+      notifier.dispose();
+    });
+
+    test('remoteControl() sends the command to the server instead of playing here', () async {
+      final notifier = await make(active: 'device-other');
+      notifier.remoteControl('next');
+      notifier.remoteControl('seek', positionMs: 5000);
+      expect(fakeSyncService.sentCommands, ['next', 'seek']);
+      expect(audioHandler.player.playing, isFalse);
+      notifier.dispose();
+    });
+
+    test('transferTo() this device claims playback with its own name', () async {
+      final notifier = await make(active: 'device-other');
+      await notifier.transferTo('device-me');
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      notifier.dispose();
+    });
+
+    test('transferTo() another device hands playback over', () async {
+      final notifier = await make();
+      await notifier.transferTo('device-tv');
+      expect(fakeSyncService.transferredDevices, ['device-tv']);
+      notifier.dispose();
+    });
+
+    test('updates carry the song details other devices show', () async {
+      final notifier = await make();
+      fakeSyncService.pushedUpdates.clear();
+      await notifier.setQueue([
+        Song(id: 's1', title: 'Hello', artist: 'Adele', album: '25', coverArt: 'c1', duration: 295, track: 1, year: 2015),
+      ], 0);
+      final withTitle = fakeSyncService.pushedUpdates.where((u) => u['track_title'] == 'Hello');
+      expect(withTitle, isNotEmpty);
       notifier.dispose();
     });
   });

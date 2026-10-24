@@ -317,10 +317,93 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _myDeviceId = await _deviceIdProvider();
       final syncService = _ref.read(sessionSyncServiceProvider);
       _syncSub = syncService.stateStream.listen(_onSyncStateChanged);
+      _commandSub = syncService.commandStream.listen(_onRemoteCommand);
       _onSyncStateChanged(syncService.currentState);
     } catch (e) {
       debugPrint('[PlayerNotifier] ℹ️ SessionSyncService init note: $e');
     }
+  }
+
+  StreamSubscription<RemoteCommand>? _commandSub;
+
+  /// Another of this account's devices is controlling this one. Only the
+  /// device that holds playback obeys; a passive one ignores strays.
+  Future<void> _onRemoteCommand(RemoteCommand c) async {
+    if (state.syncMode != SyncMode.activeHere) return;
+    try {
+      switch (c.action) {
+        case 'play':
+          await play();
+        case 'pause':
+          await pause();
+        case 'toggle':
+          await togglePlay();
+        case 'next':
+          await playNext();
+        case 'prev':
+          await playPrev();
+        case 'seek':
+          if (c.positionMs != null) await seekMs(c.positionMs!);
+        case 'volume':
+          if (c.volume != null) await player.setVolume(c.volume!.clamp(0.0, 1.0));
+        case 'play_track':
+          final byId = c.trackId == null ? -1 : state.queue.indexWhere((s) => s.id == c.trackId);
+          final i = byId >= 0 ? byId : (c.index ?? -1);
+          if (i >= 0 && i < state.queue.length) await jumpTo(i);
+        case 'set_queue':
+          if (c.queue.isEmpty) return;
+          final songs = await _subsonicService.getSongs(c.queue);
+          if (songs.isNotEmpty) await setQueue(songs, (c.index ?? 0).clamp(0, songs.length - 1));
+      }
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ⚠️ Remote command ${c.action} failed: $e');
+    }
+  }
+
+  /// Controls the device that holds playback (this one is only a remote).
+  void remoteControl(
+    String action, {
+    int? positionMs,
+    double? volume,
+    int? index,
+    String? trackId,
+    List<String>? queue,
+  }) {
+    try {
+      _ref.read(sessionSyncServiceProvider).sendCommand(
+        action,
+        positionMs: positionMs,
+        volume: volume,
+        index: index,
+        trackId: trackId,
+        queue: queue,
+      );
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ⚠️ Remote command $action failed to send: $e');
+    }
+  }
+
+  /// "Playing on" → a device was picked. This device claims playback itself,
+  /// or hands it to [deviceId]; the server carries the playhead across.
+  Future<void> transferTo(String deviceId) async {
+    _myDeviceId ??= await _deviceIdProvider();
+    final sync = _ref.read(sessionSyncServiceProvider);
+    if (deviceId == _myDeviceId) {
+      if (state.syncMode == SyncMode.activeHere) return;
+      _claimedAt = DateTime.now();
+      sync.transferPlayback(deviceId, deviceName: sync.deviceName);
+      return;
+    }
+    if (state.syncMode == SyncMode.activeHere) {
+      // Tell the server exactly where we are before it hands the playhead over.
+      _pushUpdate(
+        trackId: state.currentSong?.id,
+        positionMs: player.position.inMilliseconds,
+        isPlaying: state.isPlaying,
+        queue: state.queue.map((s) => s.id).toList(),
+      );
+    }
+    sync.transferPlayback(deviceId);
   }
 
   Future<void> claimActiveDevice() async {
@@ -395,6 +478,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         : 0;
     final resumePositionMs = syncState.positionMs + elapsed;
 
+    // The whole queue travels with the handoff, so "next" keeps working here.
+    final at = syncState.queue.indexOf(syncState.trackId!);
+    if (syncState.queue.length > 1 && at >= 0 && state.queue.map((s) => s.id).join(',') != syncState.queue.join(',')) {
+      try {
+        final songs = await _subsonicService.getSongs(syncState.queue);
+        final i = songs.indexWhere((s) => s.id == syncState.trackId);
+        if (songs.length > 1 && i >= 0) {
+          await setQueue(songs, i);
+          await _audioHandler.seek(Duration(milliseconds: resumePositionMs));
+          if (!syncState.isPlaying) await _audioHandler.pause();
+          _startPositionTick();
+          return;
+        }
+      } catch (e) {
+        debugPrint('[PlayerNotifier] ℹ️ Could not restore the queue, resuming the song only: $e');
+      }
+    }
+
     await _loadAndSeekTrack(
       syncState.trackId!,
       resumePositionMs,
@@ -453,11 +554,21 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }) {
     if (state.syncMode == SyncMode.passive) return; // never push from a passive device
     try {
+      // Every update carries what the other devices need to show this one:
+      // the song's name, artist and cover, its length, and where it sits in the queue.
+      final song = state.currentSong;
+      final describes = song != null && (trackId == null || trackId == song.id);
       _ref.read(sessionSyncServiceProvider).pushStateUpdate(
         trackId: trackId,
         positionMs: positionMs,
         isPlaying: isPlaying,
         queue: queue,
+        trackTitle: describes ? song.title : null,
+        artist: describes ? song.artist : null,
+        album: describes ? song.album : null,
+        coverArtId: describes && song.coverArt.isNotEmpty ? song.coverArt : null,
+        durationS: describes ? song.duration.toDouble() : null,
+        queueIndex: state.currentIndex,
       );
     } catch (e) {
       debugPrint('[PlayerNotifier] ⚠️ Failed to push sync update: $e');
@@ -1068,6 +1179,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   @override
   void dispose() {
     _syncSub?.cancel();
+    _commandSub?.cancel();
     _positionTickTimer?.cancel();
     _shuffleGuardTimer?.cancel();
     _persistTimer?.cancel();

@@ -4,11 +4,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../core/focus/navi_focus.dart';
 import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/song.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/art/navi_icons.dart';
-import '../widgets/ui/ion.dart';
 
 // =============================================================================
 // Shared playback controls. Every control here takes its colours as
@@ -375,6 +376,7 @@ class GlyphButton extends StatefulWidget {
   final Color pressColor;
   final bool selected;
   final Color? selectedColor;
+  final bool autofocus;
 
   const GlyphButton({
     super.key,
@@ -386,6 +388,7 @@ class GlyphButton extends StatefulWidget {
     this.pressColor = const Color(0x24FFFFFF),
     this.selected = false,
     this.selectedColor,
+    this.autofocus = false,
   });
 
   @override
@@ -413,7 +416,12 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
       enabled: enabled,
       selected: widget.selected,
       label: widget.semanticLabel,
-      child: GestureDetector(
+      child: NaviFocusRing(
+        onTap: widget.onTap,
+        onLongPress: widget.onLongPress,
+        autofocus: widget.autofocus,
+        radius: widget.size / 2,
+        child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTapDown: enabled ? (_) => _c.forward() : null,
         onTapUp: enabled ? (_) => _c.reverse() : null,
@@ -452,6 +460,7 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
             },
             child: widget.child,
           ),
+        ),
         ),
       ),
     );
@@ -517,11 +526,12 @@ class TransportControls extends StatelessWidget {
           size: skipBox,
           semanticLabel: 'Previous',
           onTap: onPrevious,
-          child: IonIcon(Ion.playBack, size: 42 * s, color: color),
+          child: NaviIcon(NaviGlyph.rewind, size: 42 * s, color: color),
         ),
         GlyphButton(
           size: playBox,
           semanticLabel: playing ? 'Pause' : 'Play',
+          autofocus: PlatformUtils.isTv,
           onTap: onPlayPause,
           child: PlayPauseGlyph(playing: playing, size: 56 * s, color: color),
         ),
@@ -529,7 +539,7 @@ class TransportControls extends StatelessWidget {
           size: skipBox,
           semanticLabel: 'Next',
           onTap: onNext,
-          child: IonIcon(Ion.playForward, size: 42 * s, color: color),
+          child: NaviIcon(NaviGlyph.fastForward, size: 42 * s, color: color),
         ),
         ?trailing,
       ],
@@ -589,7 +599,7 @@ class _VolumeBarState extends State<VolumeBar> {
       children: [
         GestureDetector(
           onTap: () => _set(0),
-          child: IonIcon(Ion.volumeLow, size: 18, color: widget.iconColor),
+          child: NaviIcon(NaviGlyph.speakerLow, size: 18, color: widget.iconColor),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -605,7 +615,7 @@ class _VolumeBarState extends State<VolumeBar> {
         const SizedBox(width: 10),
         GestureDetector(
           onTap: () => _set(1),
-          child: IonIcon(Ion.volumeHigh, size: 18, color: widget.iconColor),
+          child: NaviIcon(NaviGlyph.speaker, size: 18, color: widget.iconColor),
         ),
       ],
     );
@@ -615,10 +625,10 @@ class _VolumeBarState extends State<VolumeBar> {
 /// Secondary action on the artwork (favourite, more): a plain glyph with a
 /// full-size hit area — no translucent disc behind it.
 class GlassCircleButton extends StatelessWidget {
-  final NaviGlyph? icon;
+  final NaviGlyph icon;
 
-  /// Ionicons glyph, drawn instead of [icon].
-  final Ion? ion;
+  /// Drawn heavier, for an on state (a starred song).
+  final bool filled;
   final VoidCallback onTap;
   final String semanticLabel;
   final Color? iconColor;
@@ -626,13 +636,13 @@ class GlassCircleButton extends StatelessWidget {
 
   const GlassCircleButton({
     super.key,
-    this.icon,
-    this.ion,
+    required this.icon,
+    this.filled = false,
     required this.onTap,
     required this.semanticLabel,
     this.iconColor,
     this.diameter = 34,
-  }) : assert(icon != null || ion != null);
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -648,9 +658,7 @@ class GlassCircleButton extends StatelessWidget {
         duration: const Duration(milliseconds: 240),
         switchInCurve: Curves.easeOutBack,
         transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
-        child: ion != null
-            ? IonIcon(ion!, key: ValueKey(ion), size: size, color: color)
-            : NaviIcon(icon!, key: ValueKey(icon), size: size, color: color),
+        child: NaviIcon(icon, key: ValueKey(filled), size: size, color: color, filled: filled),
       ),
     );
   }

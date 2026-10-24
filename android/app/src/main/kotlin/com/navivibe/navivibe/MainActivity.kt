@@ -38,6 +38,13 @@ class MainActivity : AudioServiceActivity() {
                         }
                         result.success(null)
                     }
+                    "isTelevision" -> {
+                        val ui = getSystemService(android.content.Context.UI_MODE_SERVICE) as android.app.UiModeManager
+                        result.success(
+                            ui.currentModeType == android.content.res.Configuration.UI_MODE_TYPE_TELEVISION ||
+                                packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
+                        )
+                    }
                     else -> result.notImplemented()
                 }
             }

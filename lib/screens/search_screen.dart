@@ -89,6 +89,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
             child: NaviSearchField(
               controller: _controller,
               placeholder: 'Artists, Albums, Songs, Lyrics',
+              listenForVoiceKey: true,
               onChanged: _onChanged,
               onSubmitted: (q) {
                 _searchFor(q.trim());
@@ -124,7 +125,8 @@ class _IdentifyButton extends StatelessWidget {
         child: SizedBox(
           width: 44,
           height: 44,
-          child: Center(child: NaviIcon(NaviGlyph.mic, size: 24, color: t.accent)),
+          // The field's own microphone is voice typing; this one listens to music.
+          child: Center(child: NaviIcon(NaviGlyph.radio, size: 24, color: t.accent)),
         ),
       ),
     );

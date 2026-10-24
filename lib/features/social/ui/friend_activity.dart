@@ -10,7 +10,6 @@ import '../../../widgets/cover_art.dart';
 import '../../../widgets/ui/media.dart';
 import '../data/social_models.dart';
 import '../logic/social_providers.dart';
-import '../../../widgets/art/empty_art.dart' show EmptyArtKind;
 import 'social_widgets.dart';
 
 /// "What are my friends playing" — now playing first, then each person's
@@ -39,7 +38,6 @@ class FriendActivitySection extends ConsumerWidget {
           data: (data) => data.friends.isEmpty
               ? const SocialNote(
                   glyph: NaviGlyph.group,
-                  art: EmptyArtKind.record,
                   title: 'No one is playing right now',
                   message: 'Friends who turned on social features show up here when they listen.',
                 )

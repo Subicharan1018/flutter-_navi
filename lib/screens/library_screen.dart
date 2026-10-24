@@ -4,7 +4,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/theme.dart';
 import '../features/local_library/logic/local_library_providers.dart';
 import '../features/local_library/ui/local_songs_page.dart';
-import '../features/social/ui/social_screen.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -67,23 +66,14 @@ class LibraryScreen extends ConsumerWidget {
         SliverPadding(
           padding: EdgeInsets.only(top: pins.isEmpty ? 0 : Space.lg),
           sliver: SliverList.list(children: [
-            for (final (icon, title, page) in destinations)
+            for (final (i, (icon, title, page)) in destinations.indexed)
               CollectionRow.destination(
                 context: context,
                 icon: icon,
                 title: title,
+                showSeparator: i < destinations.length - 1,
                 onTap: () => navigateInApp(context, page),
               ),
-            CollectionRow(
-              title: 'Sessions',
-              titleStyle: ThemeTokens.of(context).title3.copyWith(fontWeight: FontWeight.w400),
-              leading: SizedBox(
-                width: 30,
-                child: NaviIcon(NaviGlyph.group, size: 26, color: ThemeTokens.of(context).accent),
-              ),
-              showSeparator: false,
-              onTap: () => navigateInApp(context, const SocialScreen()),
-            ),
           ]),
         ),
         if (pins.isEmpty)
