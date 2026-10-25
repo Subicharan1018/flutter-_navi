@@ -83,39 +83,44 @@ class _TvPairScreenState extends ConsumerState<TvPairScreen> {
       backgroundColor: t.bgBase,
       body: SafeArea(
         child: Center(
-          child: SingleChildScrollView(
-            padding: const EdgeInsets.all(Space.xxxl),
-            child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: 1000),
-              child: FocusTraversalGroup(
-                child: ValueListenableBuilder<TvPairState>(
-                  valueListenable: _pairing,
-                  builder: (context, state, _) => switch (state) {
-                    TvPairStarting() => const _Centered(
-                      child: CircularProgressIndicator(),
-                    ),
-                    TvPairWaiting() => _Waiting(
-                      state: state,
-                      onTypeInstead: _typeInstead,
-                    ),
-                    TvPairSigningIn(:final username) => _Centered(
-                      child: Column(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const CircularProgressIndicator(),
-                          const SizedBox(height: Space.xl),
-                          Text('Signing in as $username…', style: t.title2),
-                        ],
+          // One fixed-size design, scaled down to fit whatever the TV gives us
+          // (text scale and overscan included), so nothing is ever cut off.
+          child: Padding(
+            padding: const EdgeInsets.all(Space.xl),
+            child: FittedBox(
+              fit: BoxFit.scaleDown,
+              child: SizedBox(
+                width: 960,
+                child: FocusTraversalGroup(
+                  child: ValueListenableBuilder<TvPairState>(
+                    valueListenable: _pairing,
+                    builder: (context, state, _) => switch (state) {
+                      TvPairStarting() => const _Centered(
+                        child: CircularProgressIndicator(),
                       ),
-                    ),
-                    TvPairDone() => const SizedBox.shrink(),
-                    TvPairFailed(:final message, :final title) => _Failed(
-                      title: title,
-                      message: message,
-                      onRetry: _pairing.start,
-                      onTypeInstead: _typeInstead,
-                    ),
-                  },
+                      TvPairWaiting() => _Waiting(
+                        state: state,
+                        onTypeInstead: _typeInstead,
+                      ),
+                      TvPairSigningIn(:final username) => _Centered(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const CircularProgressIndicator(),
+                            const SizedBox(height: Space.xl),
+                            Text('Signing in as $username…', style: t.title2),
+                          ],
+                        ),
+                      ),
+                      TvPairDone() => const SizedBox.shrink(),
+                      TvPairFailed(:final message, :final title) => _Failed(
+                        title: title,
+                        message: message,
+                        onRetry: _pairing.start,
+                        onTypeInstead: _typeInstead,
+                      ),
+                    },
+                  ),
                 ),
               ),
             ),
@@ -162,7 +167,7 @@ class _Waiting extends ConsumerWidget {
                     now: DateTime.now(),
                     reducedMotion: reduced,
                   ),
-                  size: 96,
+                  size: 80,
                   skin: duck.$2,
                 ),
               const SizedBox(height: Space.lg),
@@ -187,13 +192,16 @@ class _Waiting extends ConsumerWidget {
             label: 'Sign-in code ${state.code.split('').join(' ')}',
             child: Column(
               children: [
-                Text(
-                  PairLink.display(state.code),
-                  maxLines: 1,
-                  style: t.largeTitle.copyWith(
-                    fontSize: 64,
-                    letterSpacing: 6,
-                    fontFeatures: const [FontFeature.tabularFigures()],
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    PairLink.display(state.code),
+                    maxLines: 1,
+                    style: t.largeTitle.copyWith(
+                      fontSize: 64,
+                      letterSpacing: 6,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
                 ),
                 const SizedBox(height: Space.xl),
@@ -216,10 +224,13 @@ class _Waiting extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(height: Space.lg),
-                Text(
-                  'Security check ${state.fingerprint}. A typed code shows this on your phone too.',
-                  textAlign: TextAlign.center,
-                  style: t.footnote,
+                FittedBox(
+                  fit: BoxFit.scaleDown,
+                  child: Text(
+                    'Security check ${state.fingerprint}',
+                    textAlign: TextAlign.center,
+                    style: t.subheadline,
+                  ),
                 ),
               ],
             ),
@@ -333,14 +344,17 @@ class CupertinoClickableButton extends StatelessWidget {
       child: Container(
         height: 56,
         padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
-        alignment: Alignment.center,
         decoration: BoxDecoration(
           color: quiet ? t.fill : t.accent,
           borderRadius: BorderRadius.circular(Radii.capsule),
         ),
-        child: Text(
-          label,
-          style: t.headline.copyWith(color: quiet ? t.textPrimary : t.onAccent),
+        // widthFactor: hug the label instead of stretching to the column.
+        child: Center(
+          widthFactor: 1,
+          child: Text(
+            label,
+            style: t.headline.copyWith(color: quiet ? t.textPrimary : t.onAccent),
+          ),
         ),
       ),
     );
