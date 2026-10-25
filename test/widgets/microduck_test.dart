@@ -115,6 +115,24 @@ void main() {
       });
     }
 
+    for (final bpm in [70, 100, 120, 150, 180]) {
+      test('$bpm bpm: the neck stretches up on the bar line, most on a phrase\'s first beat', () {
+        final beat = danceBeatSeconds(bpm);
+        double neckAt(double beats) {
+          final rig = MicroduckRig();
+          final input = MicroduckInput()..audioPos = beats * beat;
+          rig.solve(MicroduckPose.dance, beats * beat, beat, input);
+          return rig.pose.v[RigPose.neck];
+        }
+
+        expect(neckAt(32), closeTo(0.4, 1e-6), reason: 'phrase downbeat');
+        expect(neckAt(36), closeTo(0.15, 1e-6), reason: 'an ordinary bar line');
+        expect(neckAt(38.5), closeTo(0, 1e-6), reason: 'mid-bar, relaxed');
+        // The same after a seek anywhere in the song.
+        expect(neckAt(32 + 16 * 7), closeTo(0.4, 1e-6));
+      });
+    }
+
     test('moves change on bar lines and the big ones close each phrase', () {
       for (var bar = 0; bar < 48; bar++) {
         final big = const {2, 3, 4}.contains(MicroduckRig.moveForBar(bar));
@@ -285,9 +303,9 @@ void main() {
       final n = SettingsNotifier();
       await n.setMicroduckEnabled(false);
       await n.setMicroduckName('  Quackers ');
-      await n.setMicroduckSkin(MicroduckSkin.grey);
+      await n.setMicroduckSkin(MicroduckSkin.lilac);
       final again = SettingsNotifier().state;
-      expect(again.microduckSkin, MicroduckSkin.grey);
+      expect(again.microduckSkin, MicroduckSkin.lilac);
       expect(again.microduckEnabled, isFalse);
       expect(again.microduckName, 'Quackers');
       await n.setMicroduckName('');

@@ -261,6 +261,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
                           onClosePane: _closePane,
                         ),
                       ),
+                    // Microduck: a layer on top, standing on the scrubber; it
+                    // takes no room from the layout above.
+                    if (_pane == _Pane.none || wide)
+                      MicroduckScrubberOverlay(player: ref.read(playerProvider.notifier).player, song: song),
                   ],
                 ),
               ),
@@ -346,8 +350,7 @@ class _PhoneLayout extends ConsumerWidget {
             child: Column(
               children: [
                 const FlowPill(),
-                PlayerMicroduckStrip(player: notifier.player, song: song, height: 88),
-                Scrubber(player: notifier.player, song: song),
+                Scrubber(key: microduckTrackKey, player: notifier.player, song: song),
                 const SizedBox(height: 6),
                 // Apple Music's three: shuffle and repeat live in the queue.
                 TransportControls(
@@ -1081,9 +1084,8 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                       child: ConstrainedBox(
                         constraints: BoxConstraints(maxWidth: PlatformUtils.isTv ? 520 : 440),
                         child: LayoutBuilder(builder: (context, c) {
-                          // Cover takes what the controls below leave (they need ~330dp,
-                          // plus the robot's 72).
-                          final art = math.max(160.0, math.min(c.maxWidth, c.maxHeight - 418));
+                          // Cover takes what the controls below leave (they need ~330dp).
+                          final art = math.max(160.0, math.min(c.maxWidth, c.maxHeight - 330));
                           return Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
@@ -1095,9 +1097,8 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                               ),
                               const SizedBox(height: 28),
                               _TitleRow(song: widget.song),
-                              const SizedBox(height: 6),
-                              PlayerMicroduckStrip(player: notifier.player, song: widget.song, height: 88),
-                              Scrubber(player: notifier.player, song: widget.song),
+                              const SizedBox(height: 14),
+                              Scrubber(key: microduckTrackKey, player: notifier.player, song: widget.song),
                               const SizedBox(height: 4),
                               TransportControls(
                                 playing: widget.playing,

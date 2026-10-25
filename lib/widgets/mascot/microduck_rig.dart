@@ -64,7 +64,10 @@ class RigPose {
   static const int headYaw = 7, headPitch = 8, headRoll = 9;
   static const int hipL = 10, hipR = 11, rollL = 12, rollR = 13;
   static const int kneeL = 14, kneeR = 15, ankleL = 16, ankleR = 17, led = 18;
-  static const int count = 19;
+
+  /// How far the neck is stretched (0 at rest; 0.3 is 30% longer).
+  static const int neck = 19;
+  static const int count = 20;
 
   final Float64List v = Float64List(count);
 
@@ -148,12 +151,12 @@ class MicroduckRig {
   final RigPose _from = RigPose();
   final RigPose _final = RigPose();
 
-  final Mat3x4 root = Mat3x4(), pelvis = Mat3x4(), neck = Mat3x4(), head = Mat3x4();
+  final Mat3x4 root = Mat3x4(), pelvis = Mat3x4(), neck = Mat3x4(), neckMid = Mat3x4(), head = Mat3x4();
   final Mat3x4 hipL = Mat3x4(), kneeL = Mat3x4(), ankleL = Mat3x4();
   final Mat3x4 hipR = Mat3x4(), kneeR = Mat3x4(), ankleR = Mat3x4();
 
   /// Matrix for each joint, indexed by the mesh's matrix ids.
-  late final List<Mat3x4> matrices = [pelvis, neck, head, hipL, kneeL, ankleL, hipR, kneeR, ankleR];
+  late final List<Mat3x4> matrices = [pelvis, neck, head, hipL, kneeL, ankleL, hipR, kneeR, ankleR, neckMid];
 
   /// How high the body is off the ground right now, in robot units.
   double lift = 0;
@@ -330,7 +333,17 @@ class MicroduckRig {
     final slot = (t / 6).floor();
     final local = t - slot * 6;
     final w = _bump((local - 1.5) / 2.6);
-    switch (slot % 5) {
+    switch (slot % 6) {
+      case 0: // a curious tilt: head cocked, neck stretched, eye wide
+        v[RigPose.headRoll] += 0.45 * w;
+        v[RigPose.headYaw] += 0.3 * w;
+        v[RigPose.headPitch] -= 0.12 * w;
+        v[RigPose.neck] += 0.14 * w;
+      case 5: // shy: turns away and tucks its neck in
+        v[RigPose.headYaw] = v[RigPose.headYaw] * (1 - w) - 0.8 * w;
+        v[RigPose.headPitch] += 0.3 * w;
+        v[RigPose.neck] -= 0.12 * w;
+        v[RigPose.pitch] += 0.06 * w;
       case 1:
         v[RigPose.kneeL] += 0.25 * w;
         v[RigPose.hipL] += 0.25 * w;
@@ -343,10 +356,11 @@ class MicroduckRig {
       case 3:
         v[RigPose.headRoll] += 0.3 * w * math.sin(local * 19);
         v[RigPose.headYaw] = v[RigPose.headYaw] * (1 - w) + 0.4 * w;
-      case 4:
-        v[RigPose.twist] = 0.5 * w * math.sin(local * 4.5);
-        v[RigPose.pitch] -= 0.1 * w;
-        v[RigPose.headPitch] -= 0.25 * w;
+      case 4: // a happy wiggle
+        v[RigPose.twist] = 0.35 * w * math.sin(local * 9);
+        v[RigPose.roll] = 0.08 * w * math.sin(local * 9);
+        v[RigPose.headRoll] += 0.15 * w * math.sin(local * 9 + 1);
+        v[RigPose.neck] += 0.08 * w;
       default:
         break;
     }
@@ -364,6 +378,7 @@ class MicroduckRig {
     v[RigPose.pitch] = lean;
     v[RigPose.headYaw] = -0.12 * s;
     v[RigPose.headPitch] = 0.04 + 0.03 * math.sin(2 * ph);
+    v[RigPose.neck] = 0.04 + 0.04 * math.sin(2 * ph - 0.6); // the neck bobs with each step
     v[RigPose.rollL] = v[RigPose.rollR] = 0.05;
     v[RigPose.led] = 1;
   }
@@ -389,6 +404,7 @@ class MicroduckRig {
     v[RigPose.kneeL] = v[RigPose.kneeR] = 1.55;
     v[RigPose.pitch] = 0.38 + 0.02 * breath;
     v[RigPose.headPitch] = 0.55 + 0.03 * breath;
+    v[RigPose.neck] = -0.14 + 0.01 * breath; // the neck droops
     v[RigPose.headRoll] = 0.12;
     v[RigPose.rollL] = v[RigPose.rollR] = 0.2;
     v[RigPose.led] = 0.1 + 0.05 * breath;
@@ -464,6 +480,7 @@ class MicroduckRig {
     v[RigPose.kneeL] = v[RigPose.kneeR] = 0.3;
     v[RigPose.pitch] = -0.22;
     v[RigPose.headPitch] = -0.35;
+    v[RigPose.neck] = 0.3; // the neck shoots up
     v[RigPose.led] = 1;
   }
 
@@ -498,6 +515,13 @@ class MicroduckRig {
       _a.v[RigPose.yaw] = (_a.v[RigPose.yaw] + math.pi) % _tau - math.pi;
       p.lerpFrom(_a, p, w);
     }
+    // Every beat the head nods and the screen kicks; on each bar line the neck
+    // stretches up, and further on a phrase's first beat.
+    final fb = beats - beats.floorToDouble();
+    final inBar = beats - 4 * (beats / 4).floorToDouble();
+    final inPhrase = beats - 16 * (beats / 16).floorToDouble();
+    p.v[RigPose.headPitch] += 0.1 * amp * math.exp(-7 * fb);
+    if (inBar < 1) p.v[RigPose.neck] += (inPhrase < 1 ? 0.4 : 0.15) * math.exp(-4 * inBar);
     return move;
   }
 
@@ -652,15 +676,29 @@ class MicroduckRig {
       ..rotateY(v[RigPose.twist])
       ..rotateX(v[RigPose.pitch])
       ..rotateZ(v[RigPose.roll]);
+    // The neck is two servo segments and a head, each taking a share of the
+    // head's turn, nod and tilt so the neck bends in a curve; `neck` stretches
+    // the segments.
+    final seg = kNeckSeg * (1 + v[RigPose.neck]);
+    final hy = v[RigPose.headYaw], hp = v[RigPose.headPitch], hr = v[RigPose.headRoll];
     neck
       ..set(pelvis)
-      ..translate(0, kNeckY, 0);
-    head
+      ..translate(0, kNeckBase, 0)
+      ..rotateY(hy * 0.25)
+      ..rotateX(hp * 0.25)
+      ..rotateZ(hr * 0.25);
+    neckMid
       ..set(neck)
-      ..translate(0, kHeadY, 0)
-      ..rotateY(v[RigPose.headYaw])
-      ..rotateX(v[RigPose.headPitch])
-      ..rotateZ(v[RigPose.headRoll]);
+      ..translate(0, seg, 0)
+      ..rotateY(hy * 0.3)
+      ..rotateX(hp * 0.35)
+      ..rotateZ(hr * 0.35);
+    head
+      ..set(neckMid)
+      ..translate(0, seg, 0)
+      ..rotateY(hy * 0.45)
+      ..rotateX(hp * 0.4)
+      ..rotateZ(hr * 0.4);
     _leg(hipL, kneeL, ankleL, -kHipX, v[RigPose.hipL], v[RigPose.kneeL], v[RigPose.rollL], v[RigPose.ankleL], -1);
     _leg(hipR, kneeR, ankleR, kHipX, v[RigPose.hipR], v[RigPose.kneeR], v[RigPose.rollR], v[RigPose.ankleR], 1);
   }
@@ -708,6 +746,74 @@ class MicroduckRig {
 
   // -------------------------------------------------------------------- face
 
+  static double _rnd(int n) {
+    var x = (n * 374761393 + 668265263) & 0x7fffffff;
+    x = ((x ^ (x >> 13)) * 1274126177) & 0x7fffffff;
+    x = x ^ (x >> 16);
+    return (x & 0xffff) / 65535.0;
+  }
+
+  /// How open the eyes are (1 open, about 0.08 closed): blinks at uneven
+  /// intervals, sometimes twice in a row.
+  static double _blinkOpen(double t) {
+    final c = (t / 1.9).floor();
+    if (_rnd(c) > 0.5) return 1;
+    final start = c * 1.9 + 0.2 + 1.4 * _rnd(c + 7919);
+    double shut(double d) => d < 0 || d > 0.16 ? 0 : math.sin(math.pi * d / 0.16);
+    var k = shut(t - start);
+    if (_rnd(c + 31) > 0.75) k = math.max(k, shut(t - start - 0.24));
+    return 1 - 0.92 * k;
+  }
+
+  double _pupX = 0, _pupY = 0, _pupVX = 0, _pupVY = 0;
+
+  /// The lens eye: the pupil follows a finger (or wanders, or looks up while
+  /// thinking), the lids blink and show feeling, the pupil widens when
+  /// pleased and shrinks when startled, the beak's lower lip opens to talk.
+  void _lens(MicroduckPose which, RigPose p, double t, double happy, double startle, MicroduckInput input) {
+    final sx = faceSx, sy = faceSy, ox = faceOx, oy = faceOy;
+    final look = input.lookWeight(t);
+    var tx = input.lookX * 0.12 * look + 0.035 * math.sin(t * 0.8);
+    var ty = input.lookY * 0.09 * look + 0.02 * math.sin(t * 1.1);
+    if (input.thinking) {
+      tx = -0.07;
+      ty = 0.08;
+    }
+    if (_dt <= 0) {
+      _pupX = tx;
+      _pupY = ty;
+      _pupVX = _pupVY = 0;
+    } else {
+      final steps = (_dt / 0.01).ceil().clamp(1, 12);
+      final h = _dt / steps;
+      for (var s = 0; s < steps; s++) {
+        _pupVX += (240 * (tx - _pupX) - 18 * _pupVX) * h;
+        _pupVY += (240 * (ty - _pupY) - 18 * _pupVY) * h;
+        _pupX += _pupVX * h;
+        _pupY += _pupVY * h;
+      }
+    }
+    final asleep = which == MicroduckPose.sleep;
+    final blink = asleep ? 0.92 : 1 - _blinkOpen(t);
+    // Lids: the top one comes down for blinks and drowsiness; the bottom one
+    // comes up for a happy squint.
+    sx[dLidTop] = 1;
+    sy[dLidTop] = (blink + 0.18 * happy).clamp(0.0, 1.0);
+    sx[dLidBot] = 1;
+    sy[dLidBot] = (0.5 * happy + (asleep ? 0.3 : 0.0)).clamp(0.0, 1.0);
+    final size = (1 + 0.25 * happy - 0.4 * startle).clamp(0.5, 1.4);
+    sx[dPupil] = sy[dPupil] = size;
+    ox[dPupil] = _pupX;
+    oy[dPupil] = _pupY;
+    sx[dGlint] = sy[dGlint] = 1;
+    ox[dGlint] = _pupX * 0.4;
+    oy[dGlint] = _pupY * 0.4;
+    // The beak's lower lip: open for talking and for surprise.
+    sx[dJaw] = sy[dJaw] = 1;
+    final jaw = input.talking ? 0.5 + 0.5 * math.sin(t * 13) : 0.0;
+    oy[dJaw] = -0.08 * math.max(jaw, math.max(startle * 0.8, happy * 0.25));
+  }
+
   /// What the screen shows: eyes that blink, look and squint, equaliser bars
   /// while dancing, a heart when liked.
   void _face(
@@ -727,6 +833,8 @@ class MicroduckRig {
     sy.fillRange(0, kDynCount, 0);
     ox.fillRange(0, kDynCount, 0);
     oy.fillRange(0, kDynCount, 0);
+
+    _lens(which, p, t, happy, startle, input);
 
     if (love >= 0) {
       final pulse = 1 + 0.16 * math.sin(t * 14);
@@ -748,23 +856,31 @@ class MicroduckRig {
         sx[dBar0 + i] = 1;
         sy[dBar0 + i] = 0.16 + 0.55 * math.sin(t * (9 + i * 2.3) + i).abs();
       }
+      // The mouth moves with the words.
+      sx[dMouth] = 1;
+      sy[dMouth] = 0.6 + 1.6 * math.sin(t * 13).abs();
       return;
     }
     if (which == MicroduckPose.dance) {
+      // The equaliser: its bars move with the music and everything kicks on
+      // the beat.
       final b = beats;
+      final fb = b - b.floorToDouble();
+      final kick = 0.72 + 0.5 * math.exp(-5 * fb);
       for (var i = 0; i < dBarCount; i++) {
         final h = 0.18 + 0.82 * math.sin(_tau * (b * 0.5 + i * 0.19 + move * 0.07)).abs();
         sx[dBar0 + i] = 1;
-        sy[dBar0 + i] = (h * (0.6 + 0.4 * amp)).clamp(0.12, 1.0);
+        sy[dBar0 + i] = (h * (0.6 + 0.4 * amp) * kick).clamp(0.12, 1.0);
       }
       return;
     }
-    var open = 1.0;
-    if (which == MicroduckPose.sleep) {
-      open = 0.07;
-    } else if ((t % 3.7) < 0.13) {
-      open = 0.08;
+    // The smile.
+    if (which != MicroduckPose.sleep) {
+      sx[dMouth] = 1 + 0.2 * happy;
+      sy[dMouth] = 1 + 0.6 * happy + 1.4 * startle;
     }
+    var open = _blinkOpen(t);
+    if (which == MicroduckPose.sleep) open = 0.07;
     var wide = 1.0, tall = open;
     if (happy > 0) {
       tall = open * (1 - 0.65 * happy);

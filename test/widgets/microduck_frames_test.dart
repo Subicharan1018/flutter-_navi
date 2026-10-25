@@ -182,6 +182,26 @@ void main() {
     ], columns: 2, cell: 512);
   });
 
+  testWidgets('the four colourways', (tester) async {
+    await _sheet(tester, 'colourways', [
+      for (final skin in MicroduckSkin.values) _Cell(MicroduckPose.idle, 0.4, skin: skin),
+      for (final skin in MicroduckSkin.values) _Cell(MicroduckPose.walk, 0.22, skin: skin, facingRight: false),
+    ], columns: 4, cell: 340);
+  });
+
+  testWidgets('expressions and small behaviours', (tester) async {
+    await _sheet(tester, 'expressions', [
+      const _Cell(MicroduckPose.idle, 3.0), // a curious tilt
+      const _Cell(MicroduckPose.idle, 32.8), // shy, turned away
+      const _Cell(MicroduckPose.idle, 26.8), // a happy wiggle
+      _Cell(MicroduckPose.idle, 10.3, setup: (i) => i.tapAt = 10), // happy: a squinting eye
+      _Cell(MicroduckPose.walk, 10.2, setup: (i) => i.startleAt = 10), // startled: wide eye, neck up
+      _Cell(MicroduckPose.idle, 1.0, setup: (i) => i.talking = true), // talking: lip open, voice meter
+      _Cell(MicroduckPose.idle, 1.0, setup: (i) => i.thinking = true), // thinking: looks up, wave on the screen
+      const _Cell(MicroduckPose.sleep, 0.8), // eyes shut, neck drooped
+    ], columns: 4, cell: 340);
+  });
+
   testWidgets('detail close-up of the head and screen', (tester) async {
     await _sheet(tester, 'detail_loved', [
       _Cell(MicroduckPose.idle, 10.8, setup: (i) => i.loveAt = 10),
