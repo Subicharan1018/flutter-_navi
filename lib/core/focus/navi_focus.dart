@@ -37,7 +37,8 @@ bool _isActivateKey(LogicalKeyboardKey k) =>
     k == LogicalKeyboardKey.space;
 
 /// Whether the focus ring should currently show (keys, not touch).
-bool get _navigatingByKey => FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+bool get _navigatingByKey =>
+    FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
 
 class NaviFocusRing extends StatefulWidget {
   final Widget child;
@@ -75,7 +76,8 @@ class NaviFocusRing extends StatefulWidget {
 
 class _NaviFocusRingState extends State<NaviFocusRing> {
   FocusNode? _own;
-  FocusNode get _node => widget.focusNode ?? (_own ??= FocusNode(debugLabel: 'NaviFocusRing'));
+  FocusNode get _node =>
+      widget.focusNode ?? (_own ??= FocusNode(debugLabel: 'NaviFocusRing'));
   bool _focused = false;
   Timer? _hold;
   bool _longFired = false;
@@ -147,6 +149,7 @@ class _NaviFocusRingState extends State<NaviFocusRing> {
     final show = _focused && _navigatingByKey && widget.showRing;
     final lift = widget.lift ?? tv;
     final ring = tv ? 3.0 : 2.0;
+    final gap = tv ? 4.0 : 2.0;
     return Focus(
       focusNode: _node,
       autofocus: widget.autofocus,
@@ -157,13 +160,30 @@ class _NaviFocusRingState extends State<NaviFocusRing> {
         scale: show && lift ? 1.05 : 1,
         duration: const Duration(milliseconds: 140),
         curve: Curves.easeOut,
-        child: DecoratedBox(
-          position: DecorationPosition.foreground,
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(widget.radius + ring),
-            border: show ? Border.all(color: t.accent, width: ring) : null,
-          ),
-          child: widget.child,
+        // The ring sits just outside the child so a pill-shaped child is never
+        // clipped by a rounded-rect ring (and the ring never covers content).
+        child: Stack(
+          clipBehavior: Clip.none,
+          fit: StackFit.passthrough,
+          children: [
+            widget.child,
+            if (show)
+              Positioned(
+                left: -gap,
+                top: -gap,
+                right: -gap,
+                bottom: -gap,
+                child: IgnorePointer(
+                  child: DecoratedBox(
+                    position: DecorationPosition.foreground,
+                    decoration: BoxDecoration(
+                      borderRadius: BorderRadius.circular(widget.radius + gap),
+                      border: Border.all(color: t.accent, width: ring),
+                    ),
+                  ),
+                ),
+              ),
+          ],
         ),
       ),
     );
@@ -214,7 +234,10 @@ class _NaviFocusableState extends State<NaviFocusable> {
     Widget body = widget.child;
     if (widget.hoverTint && _hovered && enabled) {
       body = DecoratedBox(
-        decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(widget.radius)),
+        decoration: BoxDecoration(
+          color: t.fill,
+          borderRadius: BorderRadius.circular(widget.radius),
+        ),
         child: body,
       );
     }

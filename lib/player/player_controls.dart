@@ -142,7 +142,8 @@ class ElasticTrack extends StatefulWidget {
   State<ElasticTrack> createState() => _ElasticTrackState();
 }
 
-class _ElasticTrackState extends State<ElasticTrack> with SingleTickerProviderStateMixin {
+class _ElasticTrackState extends State<ElasticTrack>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _press = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 160),
@@ -175,6 +176,20 @@ class _ElasticTrackState extends State<ElasticTrack> with SingleTickerProviderSt
     setState(() => _dragValue = null);
   }
 
+  /// D-pad / keyboard: Left and Right nudge the value (and commit it).
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final k = event.logicalKey;
+    final dir = k == LogicalKeyboardKey.arrowRight
+        ? 1
+        : (k == LogicalKeyboardKey.arrowLeft ? -1 : 0);
+    if (dir == 0) return KeyEventResult.ignored;
+    final v = (widget.value + dir * 0.03).clamp(0.0, 1.0);
+    widget.onChanged?.call(v);
+    widget.onChangeEnd?.call(v);
+    return KeyEventResult.handled;
+  }
+
   @override
   void dispose() {
     _press.dispose();
@@ -184,49 +199,65 @@ class _ElasticTrackState extends State<ElasticTrack> with SingleTickerProviderSt
   @override
   Widget build(BuildContext context) {
     final enabled = widget.onChangeEnd != null || widget.onChanged != null;
-    String describe(double v) => widget.semanticValue?.call(v) ?? '${(v * 100).round()}%';
+    String describe(double v) =>
+        widget.semanticValue?.call(v) ?? '${(v * 100).round()}%';
     final up = (_shown + 0.05).clamp(0.0, 1.0);
     final down = (_shown - 0.05).clamp(0.0, 1.0);
-    return Semantics(
-      slider: true,
-      label: widget.semanticLabel,
-      value: describe(_shown),
-      increasedValue: enabled ? describe(up) : null,
-      decreasedValue: enabled ? describe(down) : null,
-      onIncrease: enabled ? () => widget.onChangeEnd?.call(up) : null,
-      onDecrease: enabled ? () => widget.onChangeEnd?.call(down) : null,
-      child: LayoutBuilder(
-        builder: (context, c) {
-          final w = c.maxWidth;
-          return GestureDetector(
-            behavior: HitTestBehavior.opaque,
-            onTapDown: enabled ? (d) => _start(d.localPosition, w) : null,
-            onTapUp: enabled ? (_) => _end() : null,
-            onHorizontalDragStart: enabled ? (d) => _start(d.localPosition, w) : null,
-            onHorizontalDragUpdate: enabled ? (d) => _update(d.localPosition, w) : null,
-            onHorizontalDragEnd: enabled ? (_) => _end() : null,
-            onHorizontalDragCancel: enabled ? _end : null,
-            child: SizedBox(
-              width: w,
-              height: 32, // 32dp hit band around a 6dp bar
-              child: AnimatedBuilder(
-                animation: _press,
-                builder: (context, _) {
-                  final t = Curves.easeOutCubic.transform(_press.value);
-                  final h = widget.idleHeight + (widget.activeHeight - widget.idleHeight) * t;
-                  return CustomPaint(
-                    painter: _TrackPainter(
-                      value: _shown,
-                      height: h,
-                      active: widget.activeColor,
-                      inactive: widget.inactiveColor,
-                    ),
-                  );
-                },
-              ),
-            ),
-          );
-        },
+    return Focus(
+      canRequestFocus: false,
+      skipTraversal: true,
+      onKeyEvent: enabled ? _onKey : null,
+      child: NaviFocusRing(
+        radius: Radii.thumb,
+        onTap: enabled ? () {} : null,
+        child: Semantics(
+          slider: true,
+          label: widget.semanticLabel,
+          value: describe(_shown),
+          increasedValue: enabled ? describe(up) : null,
+          decreasedValue: enabled ? describe(down) : null,
+          onIncrease: enabled ? () => widget.onChangeEnd?.call(up) : null,
+          onDecrease: enabled ? () => widget.onChangeEnd?.call(down) : null,
+          child: LayoutBuilder(
+            builder: (context, c) {
+              final w = c.maxWidth;
+              return GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTapDown: enabled ? (d) => _start(d.localPosition, w) : null,
+                onTapUp: enabled ? (_) => _end() : null,
+                onHorizontalDragStart: enabled
+                    ? (d) => _start(d.localPosition, w)
+                    : null,
+                onHorizontalDragUpdate: enabled
+                    ? (d) => _update(d.localPosition, w)
+                    : null,
+                onHorizontalDragEnd: enabled ? (_) => _end() : null,
+                onHorizontalDragCancel: enabled ? _end : null,
+                child: SizedBox(
+                  width: w,
+                  height: 32, // 32dp hit band around a 6dp bar
+                  child: AnimatedBuilder(
+                    animation: _press,
+                    builder: (context, _) {
+                      final t = Curves.easeOutCubic.transform(_press.value);
+                      final h =
+                          widget.idleHeight +
+                          (widget.activeHeight - widget.idleHeight) * t;
+                      return CustomPaint(
+                        painter: _TrackPainter(
+                          value: _shown,
+                          height: h,
+                          active: widget.activeColor,
+                          inactive: widget.inactiveColor,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
       ),
     );
   }
@@ -238,24 +269,38 @@ class _TrackPainter extends CustomPainter {
   final Color active;
   final Color inactive;
 
-  _TrackPainter({required this.value, required this.height, required this.active, required this.inactive});
+  _TrackPainter({
+    required this.value,
+    required this.height,
+    required this.active,
+    required this.inactive,
+  });
 
   @override
   void paint(Canvas canvas, Size size) {
     final top = (size.height - height) / 2;
     final r = Radius.circular(height / 2);
-    final full = RRect.fromRectAndRadius(Rect.fromLTWH(0, top, size.width, height), r);
+    final full = RRect.fromRectAndRadius(
+      Rect.fromLTWH(0, top, size.width, height),
+      r,
+    );
     canvas.drawRRect(full, Paint()..color = inactive);
     if (value <= 0) return;
     canvas.save();
     canvas.clipRRect(full);
-    canvas.drawRect(Rect.fromLTWH(0, top, size.width * value, height), Paint()..color = active);
+    canvas.drawRect(
+      Rect.fromLTWH(0, top, size.width * value, height),
+      Paint()..color = active,
+    );
     canvas.restore();
   }
 
   @override
   bool shouldRepaint(_TrackPainter o) =>
-      o.value != value || o.height != height || o.active != active || o.inactive != inactive;
+      o.value != value ||
+      o.height != height ||
+      o.active != active ||
+      o.inactive != inactive;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -306,7 +351,8 @@ class _ScrubberState extends State<Scrubber> {
           return ValueListenableBuilder<double?>(
             valueListenable: _scrub,
             builder: (context, scrub, _) {
-              final frac = scrub ?? (totalMs > 0 ? pos.inMilliseconds / totalMs : 0.0);
+              final frac =
+                  scrub ?? (totalMs > 0 ? pos.inMilliseconds / totalMs : 0.0);
               final shownPos = Duration(milliseconds: (frac * totalMs).round());
               final active = scrub != null;
               final labelStyle = naviText(
@@ -320,14 +366,18 @@ class _ScrubberState extends State<Scrubber> {
                 children: [
                   ElasticTrack(
                     value: frac,
-                    activeColor: active ? widget.color : widget.color.withValues(alpha: 0.82),
+                    activeColor: active
+                        ? widget.color
+                        : widget.color.withValues(alpha: 0.82),
                     inactiveColor: widget.trackColor,
                     semanticLabel: 'Playback position',
                     semanticValue: (v) =>
                         '${formatClock(Duration(milliseconds: (v * totalMs).round()))} of ${formatClock(total)}',
                     onChanged: (v) => _scrub.value = v,
                     onChangeEnd: (v) {
-                      widget.player.seek(Duration(milliseconds: (v * totalMs).round()));
+                      widget.player.seek(
+                        Duration(milliseconds: (v * totalMs).round()),
+                      );
                       _scrub.value = null;
                     },
                   ),
@@ -343,13 +393,18 @@ class _ScrubberState extends State<Scrubber> {
                             textAlign: TextAlign.center,
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
-                            style: naviText(10.5, FontWeight.w600, widget.labelColor).copyWith(
-                              letterSpacing: 0.6,
-                            ),
+                            style: naviText(
+                              10.5,
+                              FontWeight.w600,
+                              widget.labelColor,
+                            ).copyWith(letterSpacing: 0.6),
                           ),
                         ),
                       ),
-                      Text('-${formatClock(total - shownPos)}', style: labelStyle),
+                      Text(
+                        '-${formatClock(total - shownPos)}',
+                        style: labelStyle,
+                      ),
                     ],
                   ),
                 ],
@@ -395,7 +450,8 @@ class GlyphButton extends StatefulWidget {
   State<GlyphButton> createState() => _GlyphButtonState();
 }
 
-class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStateMixin {
+class _GlyphButtonState extends State<GlyphButton>
+    with SingleTickerProviderStateMixin {
   late final AnimationController _c = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 90),
@@ -422,45 +478,54 @@ class _GlyphButtonState extends State<GlyphButton> with SingleTickerProviderStat
         autofocus: widget.autofocus,
         radius: widget.size / 2,
         child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: enabled ? (_) => _c.forward() : null,
-        onTapUp: enabled ? (_) => _c.reverse() : null,
-        onTapCancel: enabled ? () => _c.reverse() : null,
-        onTap: widget.onTap == null
-            ? null
-            : () {
-                HapticFeedback.lightImpact();
-                widget.onTap!();
-              },
-        onLongPress: widget.onLongPress,
-        child: SizedBox.square(
-          dimension: widget.size,
-          child: AnimatedBuilder(
-            animation: _c,
-            builder: (context, child) {
-              final t = Curves.easeOut.transform(_c.value);
-              return Stack(
-                alignment: Alignment.center,
-                children: [
-                  AnimatedContainer(
-                    duration: const Duration(milliseconds: 220),
-                    curve: Curves.easeOutCubic,
-                    width: widget.size * (widget.selected ? 0.78 : 0.62 + 0.38 * t),
-                    height: widget.size * (widget.selected ? 0.78 : 0.62 + 0.38 * t),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      color: widget.selected
-                          ? (widget.selectedColor ?? const Color(0x2EFFFFFF))
-                          : widget.pressColor.withValues(alpha: widget.pressColor.a * t),
+          behavior: HitTestBehavior.opaque,
+          onTapDown: enabled ? (_) => _c.forward() : null,
+          onTapUp: enabled ? (_) => _c.reverse() : null,
+          onTapCancel: enabled ? () => _c.reverse() : null,
+          onTap: widget.onTap == null
+              ? null
+              : () {
+                  HapticFeedback.lightImpact();
+                  widget.onTap!();
+                },
+          onLongPress: widget.onLongPress,
+          child: SizedBox.square(
+            dimension: widget.size,
+            child: AnimatedBuilder(
+              animation: _c,
+              builder: (context, child) {
+                final t = Curves.easeOut.transform(_c.value);
+                return Stack(
+                  alignment: Alignment.center,
+                  children: [
+                    AnimatedContainer(
+                      duration: const Duration(milliseconds: 220),
+                      curve: Curves.easeOutCubic,
+                      width:
+                          widget.size *
+                          (widget.selected ? 0.78 : 0.62 + 0.38 * t),
+                      height:
+                          widget.size *
+                          (widget.selected ? 0.78 : 0.62 + 0.38 * t),
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: widget.selected
+                            ? (widget.selectedColor ?? const Color(0x2EFFFFFF))
+                            : widget.pressColor.withValues(
+                                alpha: widget.pressColor.a * t,
+                              ),
+                      ),
                     ),
-                  ),
-                  Transform.scale(scale: 1 - (1 - pressedScale(context, 0.92)) * t, child: child),
-                ],
-              );
-            },
-            child: widget.child,
+                    Transform.scale(
+                      scale: 1 - (1 - pressedScale(context, 0.92)) * t,
+                      child: child,
+                    ),
+                  ],
+                );
+              },
+              child: widget.child,
+            ),
           ),
-        ),
         ),
       ),
     );
@@ -477,7 +542,12 @@ class PlayPauseGlyph extends StatelessWidget {
   final bool playing;
   final double size;
   final Color color;
-  const PlayPauseGlyph({super.key, required this.playing, required this.size, required this.color});
+  const PlayPauseGlyph({
+    super.key,
+    required this.playing,
+    required this.size,
+    required this.color,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -518,8 +588,9 @@ class TransportControls extends StatelessWidget {
     final skipBox = (flanked ? 60.0 : 72.0) * s;
     final playBox = (flanked ? 76.0 : 84.0) * s;
     return Row(
-      mainAxisAlignment:
-          flanked ? MainAxisAlignment.spaceBetween : MainAxisAlignment.spaceEvenly,
+      mainAxisAlignment: flanked
+          ? MainAxisAlignment.spaceBetween
+          : MainAxisAlignment.spaceEvenly,
       children: [
         ?leading,
         GlyphButton(
@@ -599,7 +670,11 @@ class _VolumeBarState extends State<VolumeBar> {
       children: [
         GestureDetector(
           onTap: () => _set(0),
-          child: NaviIcon(NaviGlyph.speakerLow, size: 18, color: widget.iconColor),
+          child: NaviIcon(
+            NaviGlyph.speakerLow,
+            size: 18,
+            color: widget.iconColor,
+          ),
         ),
         const SizedBox(width: 10),
         Expanded(
@@ -657,8 +732,15 @@ class GlassCircleButton extends StatelessWidget {
       child: AnimatedSwitcher(
         duration: const Duration(milliseconds: 240),
         switchInCurve: Curves.easeOutBack,
-        transitionBuilder: (child, a) => ScaleTransition(scale: a, child: child),
-        child: NaviIcon(icon, key: ValueKey(filled), size: size, color: color, filled: filled),
+        transitionBuilder: (child, a) =>
+            ScaleTransition(scale: a, child: child),
+        child: NaviIcon(
+          icon,
+          key: ValueKey(filled),
+          size: size,
+          color: color,
+          filled: filled,
+        ),
       ),
     );
   }

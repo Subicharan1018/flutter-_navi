@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/focus/navi_focus.dart';
 import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/download_state.dart';
@@ -11,6 +12,7 @@ import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
+import '../utils/platform_utils.dart';
 import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import 'now_playing_bars.dart';
@@ -82,16 +84,23 @@ class _SongTileState extends ConsumerState<SongTile> {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final song = widget.song;
-    final isCurrent = ref.watch(playerProvider.select((s) => s.currentSong?.id == song.id));
-    final isPlaying = isCurrent && ref.watch(playerProvider.select((s) => s.isPlaying));
-    final textInset = widget.showArtwork ? Space.gutter + SongTile._art + Space.md : Space.gutter + 32;
+    final isCurrent = ref.watch(
+      playerProvider.select((s) => s.currentSong?.id == song.id),
+    );
+    final isPlaying =
+        isCurrent && ref.watch(playerProvider.select((s) => s.isPlaying));
+    final textInset = widget.showArtwork
+        ? Space.gutter + SongTile._art + Space.md
+        : Space.gutter + 32;
 
     final leading = widget.showArtwork
         ? Stack(
             alignment: Alignment.center,
             children: [
               CoverArt(
-                url: ref.read(subsonicServiceProvider).getCoverArtUrl(
+                url: ref
+                    .read(subsonicServiceProvider)
+                    .getCoverArtUrl(
                       song.coverArt.isNotEmpty ? song.coverArt : song.id,
                     ),
                 size: SongTile._art,
@@ -105,17 +114,30 @@ class _SongTileState extends ConsumerState<SongTile> {
                     color: Colors.black.withValues(alpha: 0.45),
                     borderRadius: BorderRadius.circular(Radii.thumb),
                   ),
-                  child: Center(child: NowPlayingBars(isPlaying: isPlaying, color: t.textPrimary, size: 16)),
+                  child: Center(
+                    child: NowPlayingBars(
+                      isPlaying: isPlaying,
+                      color: t.textPrimary,
+                      size: 16,
+                    ),
+                  ),
                 ),
             ],
           )
         : SizedBox(
             width: 32 - Space.md,
             child: isCurrent
-                ? NowPlayingBars(isPlaying: isPlaying, color: t.accent, size: 13)
+                ? NowPlayingBars(
+                    isPlaying: isPlaying,
+                    color: t.accent,
+                    size: 13,
+                  )
                 : Text(
                     '${widget.trackNumber ?? ''}',
-                    style: t.callout.copyWith(color: t.textSecondary, fontFeatures: const [FontFeature.tabularFigures()]),
+                    style: t.callout.copyWith(
+                      color: t.textSecondary,
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
                   ),
           );
 
@@ -128,73 +150,103 @@ class _SongTileState extends ConsumerState<SongTile> {
       child: MouseRegion(
         onEnter: (_) => setState(() => _hovered = true),
         onExit: (_) => setState(() => _hovered = false),
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTapDown: (_) => setState(() => _pressed = true),
-          onTapCancel: () => setState(() => _pressed = false),
-          onTapUp: (_) => setState(() => _pressed = false),
+        child: NaviFocusRing(
+          radius: Radii.thumb,
           onTap: widget.onTap,
           onLongPress: _openMenu,
-          onSecondaryTap: _openMenu,
-          child: AnimatedContainer(
-            duration: _pressed ? Duration.zero : Motion.fast,
-            height: SongTile.extent,
-            color: _pressed ? t.bgSurface : (_hovered ? t.bgSurface.withValues(alpha: 0.6) : Colors.transparent),
-            child: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(left: Space.gutter, right: Space.xs),
-                  child: Row(
-                    children: [
-                      // The cover dips under the finger; the row tint alone
-                      // would be the only cue on a dark theme.
-                      AnimatedScale(
-                        scale: _pressed ? pressedScale(context, 0.92) : 1,
-                        duration: _pressed ? Motion.press : Motion.fast,
-                        curve: Motion.ease,
-                        child: leading,
-                      ),
-                      const SizedBox(width: Space.md),
-                      Expanded(
-                        child: Column(
-                          mainAxisAlignment: MainAxisAlignment.center,
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              song.title,
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: t.body.copyWith(color: isCurrent ? t.accent : t.textPrimary),
-                            ),
-                            if (widget.showArtist) ...[
-                              const SizedBox(height: 1),
-                              Text(artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+          child: GestureDetector(
+            behavior: HitTestBehavior.opaque,
+            onTapDown: (_) => setState(() => _pressed = true),
+            onTapCancel: () => setState(() => _pressed = false),
+            onTapUp: (_) => setState(() => _pressed = false),
+            onTap: widget.onTap,
+            onLongPress: _openMenu,
+            onSecondaryTap: _openMenu,
+            child: AnimatedContainer(
+              duration: _pressed ? Duration.zero : Motion.fast,
+              height: SongTile.extent,
+              color: _pressed
+                  ? t.bgSurface
+                  : (_hovered
+                        ? t.bgSurface.withValues(alpha: 0.6)
+                        : Colors.transparent),
+              child: Stack(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.only(
+                      left: Space.gutter,
+                      right: Space.xs,
+                    ),
+                    child: Row(
+                      children: [
+                        // The cover dips under the finger; the row tint alone
+                        // would be the only cue on a dark theme.
+                        AnimatedScale(
+                          scale: _pressed ? pressedScale(context, 0.92) : 1,
+                          duration: _pressed ? Motion.press : Motion.fast,
+                          curve: Motion.ease,
+                          child: leading,
+                        ),
+                        const SizedBox(width: Space.md),
+                        Expanded(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                song.title,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: t.body.copyWith(
+                                  color: isCurrent ? t.accent : t.textPrimary,
+                                ),
+                              ),
+                              if (widget.showArtist) ...[
+                                const SizedBox(height: 1),
+                                Text(
+                                  artist,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: t.subheadline,
+                                ),
+                              ],
                             ],
-                          ],
+                          ),
                         ),
-                      ),
-                      _DownloadBadge(songId: song.id),
-                      if (widget.showDuration)
-                        Padding(
-                          padding: const EdgeInsets.only(left: Space.sm),
-                          child: Text(formatTrackDuration(song.duration), style: t.footnote),
+                        _DownloadBadge(songId: song.id),
+                        if (widget.showDuration)
+                          Padding(
+                            padding: const EdgeInsets.only(left: Space.sm),
+                            child: Text(
+                              formatTrackDuration(song.duration),
+                              style: t.footnote,
+                            ),
+                          ),
+                        // On a TV the menu is the long-press / Menu key; no extra stop per row.
+                        ExcludeFocus(
+                          excluding: PlatformUtils.isTv,
+                          child: IconButton(
+                            tooltip: 'More',
+                            onPressed: _openMenu,
+                            icon: NaviIcon(
+                              NaviGlyph.more,
+                              size: 20,
+                              color: t.textSecondary,
+                            ),
+                          ),
                         ),
-                      IconButton(
-                        tooltip: 'More',
-                        onPressed: _openMenu,
-                        icon: NaviIcon(NaviGlyph.more, size: 20, color: t.textSecondary),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
-                ),
-                if (widget.showSeparator)
-                  Positioned(
-                    left: textInset,
-                    right: 0,
-                    bottom: 0,
-                    child: Container(height: 0.5, color: t.outline),
-                  ),
-              ],
+                  if (widget.showSeparator)
+                    Positioned(
+                      left: textInset,
+                      right: 0,
+                      bottom: 0,
+                      child: Container(height: 0.5, color: t.outline),
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -216,25 +268,34 @@ class _DownloadBadge extends ConsumerWidget {
     return switch (status) {
       SongDownloadStatus.notDownloaded => const SizedBox.shrink(),
       SongDownloadStatus.queued || SongDownloadStatus.downloading => Padding(
-          padding: const EdgeInsets.only(left: Space.sm),
-          child: SizedBox(
-            width: 14,
-            height: 14,
-            child: CircularProgressIndicator(
-              value: status == SongDownloadStatus.downloading && (state?.progress ?? 0) > 0 ? state!.progress : null,
-              strokeWidth: 1.6,
-              color: t.textSecondary,
-            ),
+        padding: const EdgeInsets.only(left: Space.sm),
+        child: SizedBox(
+          width: 14,
+          height: 14,
+          child: CircularProgressIndicator(
+            value:
+                status == SongDownloadStatus.downloading &&
+                    (state?.progress ?? 0) > 0
+                ? state!.progress
+                : null,
+            strokeWidth: 1.6,
+            color: t.textSecondary,
           ),
         ),
+      ),
       SongDownloadStatus.downloaded => Padding(
-          padding: const EdgeInsets.only(left: Space.sm),
-          child: NaviIcon(NaviGlyph.downloadCircle, size: 15, color: t.textSecondary, filled: true),
+        padding: const EdgeInsets.only(left: Space.sm),
+        child: NaviIcon(
+          NaviGlyph.downloadCircle,
+          size: 15,
+          color: t.textSecondary,
+          filled: true,
         ),
+      ),
       SongDownloadStatus.failed => Padding(
-          padding: const EdgeInsets.only(left: Space.sm),
-          child: NaviIcon(NaviGlyph.alert, size: 15, color: t.danger),
-        ),
+        padding: const EdgeInsets.only(left: Space.sm),
+        child: NaviIcon(NaviGlyph.alert, size: 15, color: t.danger),
+      ),
     };
   }
 }
