@@ -7,32 +7,48 @@ repository and push, none of this runs.
 ## How a push becomes a release
 
 ```
-git push origin main
+git push origin <any branch>
    └─ GitHub Actions: release.yml
         ├─ version   name from pubspec (1.0.0) + build number = run number + 100  → tag v1.0.0+<n>
         ├─ android   signed APKs per ABI (arm64-v8a, armeabi-v7a, x86_64) + one universal APK
         ├─ windows   zip of the Release folder + Velopack installer (Setup.exe, full + delta nupkg)
-        └─ publish   binary patches against the last 3 builds, latest.json, SHA256SUMS.txt,
-                     release notes from commit messages → GitHub Release
+        ├─ publish   binary patches, latest.json, SHA256SUMS.txt, release notes from commit messages → GitHub Release
+        └─ cleanup   deletes old pre-releases
 ```
 
-* `ci.yml` runs `flutter analyze lib` and `flutter test` on every push and pull request.
-* Only pushes to `main` (or a manual run from the Actions tab by someone with write
-  access) publish. `ci.yml` uses `pull_request` and no secrets, so fork PRs can never
-  read the signing key; `release.yml` has no pull-request trigger, read-only default
-  permissions, and `contents: write` only on its final publish job. Actions are pinned
-  to exact versions (except `subosito/flutter-action@v2`; pin a commit SHA if you want
-  stricter supply-chain safety).
-* The build number only goes up (`github.run_number + BUILD_NUMBER_OFFSET`, offset
-  defaults to 100 so it stays above the `+2` already installed). To jump ahead,
+* `ci.yml` runs `flutter analyze lib` and `flutter test` (goldens excluded, they are
+  recorded on Windows) on every push and pull request.
+* **Every push to any branch publishes.** Channels:
+  * `main` → a normal release, marked **latest** (`NaviVibe v1.0.0+130`). This is what
+    the app follows by default.
+  * any other branch → a **pre-release** named `NaviVibe v1.0.0+131 (branch-name)`.
+    It never becomes "latest". The app only offers it when you switch on
+    **Settings → About → Updates → Include pre-releases (beta)** (off by default).
+* **Skip a release:** put `[skip release]` in the head commit message. CI still runs.
+* Rapid pushes to one branch: the newest cancels the older runs (concurrency group per
+  branch), so only the last push is published. A run cancelled while it uploads can
+  leave nothing or a half-made release; delete it on GitHub and push again.
+* **Clean-up:** `cleanup-prereleases.yml` runs after each publish and daily. It keeps
+  the newest 10 pre-releases that are younger than 30 days and deletes the rest with
+  their tags. It only ever lists pre-releases, so normal releases are never touched.
+  You can also run it by hand (Actions → Clean up pre-releases).
+* Only Actions on your own repository run the workflow with secrets; there is no
+  pull-request trigger, so forks never see the signing key. `ci.yml` uses
+  `pull_request` and no secrets.
+* The build number only goes up across all branches (`run_number + BUILD_NUMBER_OFFSET`,
+  offset defaults to 100 so it stays above the `+2` already installed). To jump ahead,
   set the repository variable `BUILD_NUMBER_OFFSET`.
+* **Patches:** each release carries patches cut against the last 3 normal releases plus
+  the last 2 pre-releases, whichever branch they came from. A phone on any of those gets
+  a small patch; a phone further behind gets the full APK. (Simplest rule that stays
+  correct: the app only uses a patch whose source file matches the installed APK by
+  SHA-256, so a patch can never be applied to the wrong base.)
 * To bump the user-visible version (1.0.0 → 1.1.0), edit `version:` in `pubspec.yaml`
   (the part after `+` is ignored by CI).
 * **Roll back:** delete the bad release (and its tag) on GitHub. The app reads
   "latest release", so it falls back to the previous one. Phones that already
   installed the bad build will not go backwards (Android refuses a lower
-  `versionCode`); ship a fix as a new push instead. To stop a release spreading
-  while you fix it, mark it "pre-release" in the GitHub UI.
+  `versionCode`); ship a fix as a new push instead.
 
 ## How updates reach people (sizes)
 
@@ -185,7 +201,8 @@ tests in `test/features/online_fetch/public_build_test.dart` cover both states.
 The download code is still compiled into a public build; it is just unreachable. If
 you need it gone from the binary too, that is a larger refactor (conditional imports).
 
-* `release.yml` passes `PUBLIC_BUILD=true` for everything it publishes.
+* `release.yml` passes `PUBLIC_BUILD=true` for **everything it publishes**, on every branch,
+  stable and beta alike. A personal build is manual-only and is never auto-published.
 * **Personal build in Actions:** Actions → Release → Run workflow → tick
   `personal_build`. It builds without the flag, publishes **nothing**, and leaves
   workflow artifacts that expire after 1 day. Caveat: artifacts of a *public*

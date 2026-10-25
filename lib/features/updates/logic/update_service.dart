@@ -115,11 +115,13 @@ class UpdateService {
     try {
       List<int> bytes;
       if (source.isGithub) {
-        final r = await _dio.getUri<Map<String, dynamic>>(
-          source.latestReleaseApi,
+        final r = await _dio.getUri<Object>(
+          source.releaseApi,
           options: Options(headers: source.apiHeaders, responseType: ResponseType.json),
         );
-        final assets = (r.data!['assets'] as List).cast<Map<String, dynamic>>();
+        final release = UpdateSource.pickRelease(r.data);
+        if (release == null) throw const UpdateException('No release with an update feed was found.');
+        final assets = (release['assets'] as List).cast<Map<String, dynamic>>();
         _githubAssets = {for (final a in assets) a['name'] as String: a['url'] as String};
         final api = _githubAssets['latest.json'];
         if (api == null) throw const UpdateException('The latest release has no latest.json.');

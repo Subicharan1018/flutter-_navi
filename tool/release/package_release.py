@@ -56,6 +56,7 @@ def main():
     ap.add_argument("--asset-base", default="", help="URL prefix of the release assets (public repos)")
     ap.add_argument("--notes-file")
     ap.add_argument("--windows-dir", help="folder holding the Windows assets, listed in latest.json")
+    ap.add_argument("--channel", default="stable", help="stable (main) or beta (other branches)")
     ap.add_argument("--max-patches", type=int, default=3, help="how many previous builds get a patch")
     args = ap.parse_args()
 
@@ -69,6 +70,7 @@ def main():
         "version": args.version,
         "build": args.build,
         "tag": args.tag,
+        "channel": args.channel,
         "published": datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ"),
         "assetBase": args.asset_base,
         "notes": notes,

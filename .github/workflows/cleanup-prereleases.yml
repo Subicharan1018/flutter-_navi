@@ -1,0 +1,37 @@
+name: Clean up pre-releases
+
+# Pre-releases (builds of non-main branches) pile up with every push. Keep the
+# newest 10 that are younger than 30 days; delete the rest and their tags.
+# Normal releases are never touched (tool/release/prune_prereleases.py only
+# ever lists pre-releases).
+on:
+  schedule:
+    - cron: '17 3 * * *'
+  workflow_dispatch:
+  workflow_call:
+
+concurrency:
+  group: cleanup-prereleases
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  prune:
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GH_REPO: ${{ github.repository }}
+    steps:
+      - uses: actions/checkout@v4.2.2
+      - name: Delete old pre-releases
+        run: |
+          set -euo pipefail
+          gh release list --limit 200 --json tagName,isPrerelease,createdAt \
+            | python3 tool/release/prune_prereleases.py --keep 10 --days 30 > prune.txt
+          while IFS= read -r tag; do
+            [ -n "$tag" ] || continue
+            echo "deleting pre-release $tag"
+            gh release delete "$tag" --cleanup-tag --yes
+          done < prune.txt
