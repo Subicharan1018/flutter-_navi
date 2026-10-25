@@ -1,11 +1,13 @@
 name: Release
 
-# Every push to main (or a manual run by someone with write access) publishes a
-# GitHub Release. There is no pull_request trigger, so forks never reach the
-# signing secrets.
+# Every push to any branch publishes a GitHub Release: main as a normal ("latest")
+# release, every other branch as a pre-release, so "latest" is never hijacked.
+# Put [skip release] in the head commit message to skip publishing (CI still runs).
+# There is no pull_request trigger, so forks never reach the signing secrets.
 on:
   push:
-    branches: [main]
+    branches: ['**']
+    tags-ignore: ['**'] # the release's own tag must not start another run
   workflow_dispatch:
     inputs:
       personal_build:
@@ -17,9 +19,10 @@ on:
         type: boolean
         default: false
 
+# Rapid pushes to one branch: only the newest gets published.
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 
 permissions:
   contents: read
@@ -32,6 +35,7 @@ env:
 
 jobs:
   version:
+    if: ${{ !contains(github.event.head_commit.message, '[skip release]') }}
     runs-on: ubuntu-latest
     outputs:
       name: ${{ steps.v.outputs.name }}
@@ -215,8 +219,18 @@ jobs:
         run: |
           set -uo pipefail
           mkdir -p prev
-          # newest 3 earlier releases that have per-ABI APKs
-          for tag in $(gh release list --limit 6 --json tagName -q '.[].tagName'); do
+          # Patches are cut against the last 3 normal releases plus the last 2
+          # pre-releases, whichever branch they came from. A phone on any of
+          # them gets a small patch; anything older gets the full APK.
+          gh release list --limit 40 --json tagName,isPrerelease > releases.json
+          tags=$(python3 - <<'PY'
+          import json
+          rs = json.load(open("releases.json"))
+          pick = [r["tagName"] for r in rs if not r["isPrerelease"]][:3] +                  [r["tagName"] for r in rs if r["isPrerelease"]][:2]
+          print(" ".join(pick))
+          PY
+          )
+          for tag in $tags; do
             b=${tag##*+}
             case "$b" in ''|*[!0-9]*) continue ;; esac
             mkdir -p "prev/$b"
@@ -245,6 +259,7 @@ jobs:
           BUILD: ${{ needs.version.outputs.build }}
           TAG: ${{ needs.version.outputs.tag }}
           REPO: ${{ github.repository }}
+          CHANNEL: ${{ github.ref == 'refs/heads/main' && 'stable' || 'beta' }}
         run: |
           set -euo pipefail
           tagurl=$(python3 -c "import urllib.parse,os;print(urllib.parse.quote(os.environ['TAG']))")
@@ -252,7 +267,7 @@ jobs:
             --apk-dir dist --prev-dir prev --out out \
             --version "$NAME" --build "$BUILD" --tag "$TAG" \
             --asset-base "https://github.com/$REPO/releases/download/$tagurl/" \
-            --notes-file notes.md --windows-dir windist
+            --notes-file notes.md --windows-dir windist --max-patches 5             --channel "$CHANNEL"
           cp dist/*.apk windist/* out/
           ls -l out
 
@@ -260,10 +275,21 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.version.outputs.tag }}
-          IS_MAIN: ${{ github.ref == 'refs/heads/main' }} # manual runs from other branches become pre-releases
+          IS_MAIN: ${{ github.ref == 'refs/heads/main' }}
+          BRANCH: ${{ github.ref_name }}
         run: |
           set -euo pipefail
-          flags=""
-          [ "$IS_MAIN" = "true" ] || flags="--prerelease"
-          gh release create "$TAG" out/* $flags \
-            --target "$GITHUB_SHA" --title "NaviVibe $TAG" --notes-file notes.md
+          if [ "$IS_MAIN" = "true" ]; then
+            title="NaviVibe $TAG"
+            flags="--latest"
+          else
+            title="NaviVibe $TAG ($BRANCH)"
+            flags="--prerelease --latest=false"
+          fi
+          gh release create "$TAG" out/* $flags             --target "$GITHUB_SHA" --title "$title" --notes-file notes.md
+
+  cleanup:
+    needs: publish
+    permissions:
+      contents: write
+    uses: ./.github/workflows/cleanup-prereleases.yml

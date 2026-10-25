@@ -105,6 +105,25 @@ void main() {
       expect(t2.url.toString(), 'https://example.test/x/a%20b.apk');
     });
 
+    test('beta reads the release list; stable reads /releases/latest', () {
+      expect(UpdateSource.parse('github:me/navi')!.releaseApi.path, '/repos/me/navi/releases/latest');
+      final beta = UpdateSource.parse('github:me/navi', beta: true)!.releaseApi;
+      expect(beta.path, '/repos/me/navi/releases');
+      expect(beta.queryParameters['per_page'], '10');
+    });
+
+    test('pickRelease takes the newest non-draft release that has latest.json', () {
+      Map<String, Object?> rel(String tag, {bool draft = false, bool feed = true}) => {
+            'tag_name': tag,
+            'draft': draft,
+            'assets': [if (feed) {'name': 'latest.json', 'url': 'u-$tag'}],
+          };
+      final list = [rel('d', draft: true), rel('nofeed', feed: false), rel('beta1'), rel('stable')];
+      expect(UpdateSource.pickRelease(list)!['tag_name'], 'beta1');
+      expect(UpdateSource.pickRelease(rel('x'))!['tag_name'], 'x'); // /latest returns one object
+      expect(UpdateSource.pickRelease(<Object>[]), isNull);
+    });
+
     test('GitHub assets resolve through the API url', () {
       final m = _manifest();
       final src = UpdateSource.parse('github:me/navi', token: 'tok')!;

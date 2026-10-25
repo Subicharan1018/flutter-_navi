@@ -97,6 +97,13 @@ class _UpdatesScreenState extends ConsumerState<UpdatesScreen> {
               footer: 'Patches are small, but a full download can be 25 MB.',
               children: [
                 GroupedSwitchRow(
+                  title: 'Include pre-releases (beta)',
+                  subtitle: 'Builds of in-progress branches. May be less stable.',
+                  icon: NaviGlyph.flame,
+                  value: settings.beta,
+                  onChanged: ref.read(updateSettingsProvider.notifier).setBeta,
+                ),
+                GroupedSwitchRow(
                   title: 'Download on Wi-Fi only',
                   icon: NaviGlyph.wifi,
                   value: settings.wifiOnly,

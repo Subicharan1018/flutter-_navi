@@ -123,6 +123,7 @@ class HiveBoxes {
   static const kUpdateSource = 'update_source';
   static const kUpdateToken = 'update_token';
   static const kUpdateWifiOnly = 'update_wifi_only';
+  static const kUpdateBeta = 'update_include_prereleases';
   static const kUpdateDismissed = 'update_dismissed_build';
   static const kRecommendationsEnabled = 'recommendations_enabled';
   static const kAllowHttp = 'allow_http';

@@ -27,9 +27,10 @@ class UpdateSettings {
   final String source;
   final String token;
   final bool wifiOnly;
-  const UpdateSettings({this.source = '', this.token = '', this.wifiOnly = true});
+  final bool beta;
+  const UpdateSettings({this.source = '', this.token = '', this.wifiOnly = true, this.beta = false});
 
-  UpdateSource? get parsed => UpdateSource.parse(source, token: token);
+  UpdateSource? get parsed => UpdateSource.parse(source, token: token, beta: beta);
   bool get enabled => parsed != null;
 }
 
@@ -41,24 +42,31 @@ class UpdateSettingsNotifier extends Notifier<UpdateSettings> {
       source: str(HiveBoxes.prefs.get(HiveBoxes.kUpdateSource)),
       token: str(HiveBoxes.auth.get(HiveBoxes.kUpdateToken)),
       wifiOnly: HiveBoxes.prefs.get(HiveBoxes.kUpdateWifiOnly) != false,
+      beta: HiveBoxes.prefs.get(HiveBoxes.kUpdateBeta) == true,
     );
   }
 
   Future<void> setSource(String v) async {
     await HiveBoxes.prefs.put(HiveBoxes.kUpdateSource, v.trim());
-    state = UpdateSettings(source: v.trim(), token: state.token, wifiOnly: state.wifiOnly);
+    state = UpdateSettings(source: v.trim(), token: state.token, wifiOnly: state.wifiOnly, beta: state.beta);
     ref.invalidate(updateCheckProvider);
   }
 
   Future<void> setToken(String v) async {
     await HiveBoxes.auth.put(HiveBoxes.kUpdateToken, v.trim());
-    state = UpdateSettings(source: state.source, token: v.trim(), wifiOnly: state.wifiOnly);
+    state = UpdateSettings(source: state.source, token: v.trim(), wifiOnly: state.wifiOnly, beta: state.beta);
     ref.invalidate(updateCheckProvider);
   }
 
   Future<void> setWifiOnly(bool v) async {
     await HiveBoxes.prefs.put(HiveBoxes.kUpdateWifiOnly, v);
-    state = UpdateSettings(source: state.source, token: state.token, wifiOnly: v);
+    state = UpdateSettings(source: state.source, token: state.token, wifiOnly: v, beta: state.beta);
+  }
+
+  Future<void> setBeta(bool v) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kUpdateBeta, v);
+    state = UpdateSettings(source: state.source, token: state.token, wifiOnly: state.wifiOnly, beta: v);
+    ref.invalidate(updateCheckProvider);
   }
 }
 
