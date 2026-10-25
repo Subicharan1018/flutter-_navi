@@ -319,20 +319,29 @@ class MicroduckRig {
     final v = p.v;
     v[RigPose.yaw] = 0.45 + 0.08 * math.sin(t * 0.37);
     final breath = math.sin(t * 1.9);
-    v[RigPose.hipL] = v[RigPose.hipR] = 0.06 + 0.015 * breath;
-    v[RigPose.kneeL] = v[RigPose.kneeR] = 0.12 + 0.03 * breath;
-    v[RigPose.pitch] = 0.02 * breath;
+    // The real toy stands with its knees bent and its head tipped forward.
+    v[RigPose.hipL] = v[RigPose.hipR] = 0.34 + 0.015 * breath;
+    v[RigPose.kneeL] = v[RigPose.kneeR] = 0.8 + 0.03 * breath;
+    v[RigPose.pitch] = 0.08 + 0.02 * breath;
     v[RigPose.headYaw] = 0.5 * math.sin(t * 0.55) + 0.2 * math.sin(t * 1.4);
-    v[RigPose.headPitch] = 0.07 * math.sin(t * 0.9) - 0.03;
-    v[RigPose.headRoll] = 0.05 * math.sin(t * 0.7);
-    v[RigPose.rollL] = v[RigPose.rollR] = 0.04;
+    v[RigPose.headPitch] = 0.2 + 0.07 * math.sin(t * 0.9);
+    v[RigPose.headRoll] = 0.1 * math.sin(t * 0.7);
+    // Always a little alive: it shifts its weight from foot to foot, sways,
+    // and its neck rises and sinks as it breathes and looks about.
+    final shift = math.sin(t * 0.55);
+    v[RigPose.rollL] = 0.06 + 0.05 * shift;
+    v[RigPose.rollR] = 0.06 - 0.05 * shift;
+    v[RigPose.x] = 0.06 * shift;
+    v[RigPose.roll] = 0.04 * shift;
+    v[RigPose.twist] = 0.08 * math.sin(t * 0.8 + 1);
+    v[RigPose.neck] = 0.05 + 0.05 * math.sin(t * 0.9) + 0.04 * breath;
     v[RigPose.led] = 1;
 
     // A fidget every six seconds: tap a foot, check the screen, scratch the
     // helmet, stretch, or just look about.
-    final slot = (t / 6).floor();
-    final local = t - slot * 6;
-    final w = _bump((local - 1.5) / 2.6);
+    final slot = (t / 4.5).floor();
+    final local = t - slot * 4.5;
+    final w = _bump((local - 0.9) / 2.4);
     switch (slot % 6) {
       case 0: // a curious tilt: head cocked, neck stretched, eye wide
         v[RigPose.headRoll] += 0.45 * w;
@@ -369,10 +378,10 @@ class MicroduckRig {
   void _walk(RigPose p, double ph, double stride, double lift, double lean) {
     final v = p.v;
     final s = math.sin(ph), c = math.cos(ph);
-    v[RigPose.hipL] = stride * s;
-    v[RigPose.hipR] = -stride * s;
-    v[RigPose.kneeL] = 0.14 + lift * math.max(0, c);
-    v[RigPose.kneeR] = 0.14 + lift * math.max(0, -c);
+    v[RigPose.hipL] = 0.22 + stride * s;
+    v[RigPose.hipR] = 0.22 - stride * s;
+    v[RigPose.kneeL] = 0.5 + lift * math.max(0, c);
+    v[RigPose.kneeR] = 0.5 + lift * math.max(0, -c);
     v[RigPose.twist] = 0.2 * s;
     v[RigPose.roll] = 0.05 * s;
     v[RigPose.pitch] = lean;
@@ -811,7 +820,10 @@ class MicroduckRig {
     // The beak's lower lip: open for talking and for surprise.
     sx[dJaw] = sy[dJaw] = 1;
     final jaw = input.talking ? 0.5 + 0.5 * math.sin(t * 13) : 0.0;
-    oy[dJaw] = -0.08 * math.max(jaw, math.max(startle * 0.8, happy * 0.25));
+    // At rest the bill still moves a little: a breath, now and then a little
+    // "kwek".
+    final rest = which == MicroduckPose.sleep ? 0.0 : 0.1 + 0.08 * math.sin(t * 1.9) + 0.3 * math.max(0, math.sin(t * 0.7 + 2) - 0.92) * 12;
+    oy[dJaw] = -0.08 * math.max(math.max(jaw, rest.clamp(0.0, 1.0)), math.max(startle * 0.8, happy * 0.25));
   }
 
   /// What the screen shows: eyes that blink, look and squint, equaliser bars
