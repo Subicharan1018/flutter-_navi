@@ -536,6 +536,9 @@ class CupertinoClickable extends StatefulWidget {
   final String? semanticLabel;
   final bool autofocus;
 
+  /// Corner radius of the D-pad focus ring (match the child: capsule buttons pass [Radii.capsule]).
+  final double focusRadius;
+
   const CupertinoClickable({
     super.key,
     required this.child,
@@ -544,6 +547,7 @@ class CupertinoClickable extends StatefulWidget {
     this.scaleFactor = 0.96,
     this.semanticLabel,
     this.autofocus = false,
+    this.focusRadius = Radii.cover,
   });
 
   @override
@@ -583,6 +587,7 @@ class _CupertinoClickableState extends State<CupertinoClickable>
         onTap: widget.onTap,
         onLongPress: widget.onLongPress,
         autofocus: widget.autofocus,
+        radius: widget.focusRadius,
         child: MouseRegion(
           cursor: _enabled ? SystemMouseCursors.click : MouseCursor.defer,
           child: GestureDetector(

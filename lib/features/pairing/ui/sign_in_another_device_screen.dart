@@ -218,6 +218,7 @@ class _Action extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.sm),
       child: CupertinoClickable(
         onTap: busy ? null : onTap,
+        focusRadius: Radii.capsule,
         scaleFactor: 0.97,
         semanticLabel: label,
         child: Container(

@@ -47,7 +47,8 @@ class TvPairDone extends TvPairState {
 
 class TvPairFailed extends TvPairState {
   final String message;
-  const TvPairFailed(this.message);
+  final String title;
+  const TvPairFailed(this.message, {this.title = 'Couldn’t pair'});
 }
 
 /// Verify and save the credentials; throw with a readable message on failure.
@@ -162,13 +163,13 @@ class TvPairing extends ValueNotifier<TvPairState> {
       await signIn(creds);
       if (!_disposed) value = const TvPairDone();
     } catch (e) {
-      _fail(e.toString().replaceFirst('Exception: ', ''));
+      _fail(e.toString().replaceFirst('Exception: ', ''), title: 'Couldn’t sign in');
     }
   }
 
-  void _fail(String message) {
+  void _fail(String message, {String title = 'Couldn’t pair'}) {
     _timer?.cancel();
-    if (!_disposed) value = TvPairFailed(message);
+    if (!_disposed) value = TvPairFailed(message, title: title);
   }
 
   @override

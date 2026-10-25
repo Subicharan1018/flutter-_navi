@@ -109,7 +109,8 @@ class _TvPairScreenState extends ConsumerState<TvPairScreen> {
                       ),
                     ),
                     TvPairDone() => const SizedBox.shrink(),
-                    TvPairFailed(:final message) => _Failed(
+                    TvPairFailed(:final message, :final title) => _Failed(
+                      title: title,
                       message: message,
                       onRetry: _pairing.start,
                       onTypeInstead: _typeInstead,
@@ -259,10 +260,12 @@ class _Step extends StatelessWidget {
 }
 
 class _Failed extends StatelessWidget {
+  final String title;
   final String message;
   final VoidCallback onRetry;
   final VoidCallback onTypeInstead;
   const _Failed({
+    required this.title,
     required this.message,
     required this.onRetry,
     required this.onTypeInstead,
@@ -275,7 +278,7 @@ class _Failed extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text('Couldn’t sign in', style: t.largeTitle),
+        Text(title, style: t.largeTitle),
         const SizedBox(height: Space.md),
         Text(
           message,
@@ -325,6 +328,7 @@ class CupertinoClickableButton extends StatelessWidget {
     return CupertinoClickable(
       onTap: onTap,
       autofocus: autofocus,
+      focusRadius: Radii.capsule,
       semanticLabel: label,
       child: Container(
         height: 56,

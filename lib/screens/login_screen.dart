@@ -283,6 +283,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
               child: CupertinoClickable(
                 onTap: _ready && !_busy ? _signIn : null,
+                focusRadius: Radii.capsule,
                 scaleFactor: 0.97,
                 semanticLabel: 'Sign In',
                 child: AnimatedContainer(
@@ -381,6 +382,7 @@ class _Chip extends StatelessWidget {
     final t = ThemeTokens.of(context);
     return CupertinoClickable(
       onTap: onTap,
+      focusRadius: Radii.capsule,
       semanticLabel: label,
       child: Container(
         constraints: const BoxConstraints(minHeight: 36),

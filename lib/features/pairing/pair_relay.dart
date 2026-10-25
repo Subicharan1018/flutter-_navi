@@ -91,6 +91,12 @@ class HttpPairRelay implements PairRelay {
     final r = await _call(
       () => _dio.post<dynamic>('/pair', data: {'pub': publicKeyB64}, options: Options(validateStatus: _anyStatus)),
     );
+    if (r.statusCode == 404 || r.statusCode == 405) {
+      throw const PairRelayException(
+        PairRelayProblem.rejected,
+        'This server can’t pair devices yet. Use Type it instead.',
+      );
+    }
     if (r.statusCode != 201) throw _problem(r);
     final d = r.data as Map;
     return PairTicket(d['code'] as String, (d['expires_in'] as num?)?.toInt() ?? 300);

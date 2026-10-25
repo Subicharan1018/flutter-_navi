@@ -52,6 +52,11 @@ Future<void> main() async {
 
   await HiveBoxes.init();
   await PlatformUtils.detectTelevision();
+  // A TV remote is always "keys": without this the focus ring vanishes whenever
+  // the system reports a non-key input (closing the on-screen keyboard, say).
+  if (PlatformUtils.isTv) {
+    FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
+  }
 
   // BUG-FIX-2: Must initialize OfflineService before runApp() so that
   // DownloadStateNotifier.build() finds _prefs non-null on its very first

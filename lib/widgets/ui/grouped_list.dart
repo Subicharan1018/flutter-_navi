@@ -192,11 +192,7 @@ class GroupedRow extends StatelessWidget {
                 trailing!,
               ] else if (onTap != null && showChevron && !destructive) ...[
                 const SizedBox(width: Space.sm),
-                NaviIcon(
-                  NaviGlyph.chevron,
-                  size: 17,
-                  color: t.textMuted,
-                ),
+                NaviIcon(NaviGlyph.chevron, size: 17, color: t.textMuted),
               ],
             ],
           ),
@@ -287,14 +283,21 @@ class GroupedTextFieldRow extends StatefulWidget {
 class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
   late bool _hidden = widget.obscure;
   FocusNode? _own;
-  FocusNode get _node => widget.focusNode ?? (_own ??= FocusNode(debugLabel: 'grouped-field'));
+  FocusNode get _node =>
+      widget.focusNode ?? (_own ??= FocusNode(debugLabel: 'grouped-field'));
   bool _ring = false;
+
+  /// On a TV the keyboard opens only when Select is pressed on a field: moving
+  /// over it with the D-pad must not throw the on-screen keyboard up.
+  bool _editing = false;
+  bool get _readOnly => PlatformUtils.isTv && !_editing;
 
   @override
   void initState() {
     super.initState();
     _node.addListener(_focusChanged);
     FocusManager.instance.addHighlightModeListener(_modeChanged);
+    if (PlatformUtils.isTv) _node.onKeyEvent = _tvKey;
   }
 
   @override
@@ -314,12 +317,49 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
     super.dispose();
   }
 
+  /// TV remote on a text field. Flutter treats arrows in a text field as caret
+  /// movement and never moves focus, which would trap the D-pad here; so while
+  /// the field is not being edited the arrows move focus and Select starts
+  /// editing (and opens the on-screen keyboard).
+  KeyEventResult _tvKey(FocusNode node, KeyEvent event) {
+    if (event is KeyUpEvent) return KeyEventResult.ignored;
+    final vertical =
+        event.logicalKey == LogicalKeyboardKey.arrowUp ||
+        event.logicalKey == LogicalKeyboardKey.arrowDown;
+    // Up and Down always leave a one-line field (they reach us only when the
+    // on-screen keyboard is closed); Left and Right move the caret while editing.
+    if (!_readOnly && !vertical) return KeyEventResult.ignored;
+    if (!_readOnly) setState(() => _editing = false);
+    final k = event.logicalKey;
+    final direction = switch (k) {
+      LogicalKeyboardKey.arrowUp => TraversalDirection.up,
+      LogicalKeyboardKey.arrowDown => TraversalDirection.down,
+      LogicalKeyboardKey.arrowLeft => TraversalDirection.left,
+      LogicalKeyboardKey.arrowRight => TraversalDirection.right,
+      _ => null,
+    };
+    if (direction != null) {
+      node.focusInDirection(direction);
+      return KeyEventResult.handled;
+    }
+    if (k == LogicalKeyboardKey.select || k == LogicalKeyboardKey.enter) {
+      if (event is KeyDownEvent) setState(() => _editing = true);
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   void _modeChanged(FocusHighlightMode _) => _focusChanged();
 
   /// A focus ring on the whole row while the person is moving with keys or a
   /// D-pad (the caret alone is invisible across a living room).
   void _focusChanged() {
-    final ring = _node.hasFocus && FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+    if (!_node.hasFocus && _editing && mounted) {
+      setState(() => _editing = false);
+    }
+    final ring =
+        _node.hasFocus &&
+        FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
     if (ring != _ring && mounted) setState(() => _ring = ring);
   }
 
@@ -330,7 +370,9 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
       position: DecorationPosition.foreground,
       decoration: BoxDecoration(
         borderRadius: BorderRadius.circular(Radii.control),
-        border: _ring ? Border.all(color: t.accent, width: PlatformUtils.isTv ? 3 : 2) : null,
+        border: _ring
+            ? Border.all(color: t.accent, width: PlatformUtils.isTv ? 3 : 2)
+            : null,
       ),
       child: _row(t),
     );
@@ -352,8 +394,16 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
               child: CupertinoTextField(
                 controller: widget.controller,
                 focusNode: _node,
+                readOnly: _readOnly,
+                showCursor: true,
+                onTap: PlatformUtils.isTv
+                    ? () => setState(() => _editing = true)
+                    : null,
                 textInputAction: widget.textInputAction,
-                onSubmitted: widget.onSubmitted,
+                onSubmitted: (v) {
+                  if (_editing) setState(() => _editing = false);
+                  widget.onSubmitted?.call(v);
+                },
                 autofocus: widget.autofocus,
                 autofillHints: widget.autofillHints,
                 placeholder: widget.placeholder,
