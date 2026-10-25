@@ -33,6 +33,9 @@ class Microduck extends StatefulWidget {
   /// Which way it walks.
   final bool facingRight;
   final bool interactive;
+
+  /// How far up from the bottom edge the touch area stops (see the build).
+  final double hitInsetBottom;
   final Object? startleToken;
   final bool love;
 
@@ -59,6 +62,7 @@ class Microduck extends StatefulWidget {
     this.bpm,
     this.facingRight = true,
     this.interactive = false,
+    this.hitInsetBottom = 0,
     this.startleToken,
     this.love = false,
     this.positionSource,
@@ -214,13 +218,29 @@ class _MicroduckState extends State<Microduck> with SingleTickerProviderStateMix
       ),
     );
     if (!widget.interactive) return paint;
-    return Listener(
-      behavior: HitTestBehavior.opaque,
-      onPointerDown: _down,
-      onPointerMove: (e) => _look(e.localPosition),
-      onPointerUp: _up,
-      onPointerCancel: _up,
-      child: paint,
+    // The touch area is drawn separately so its bottom edge can stop short of
+    // the feet: where the robot stands on a bar, the bar keeps its own touches.
+    return SizedBox.square(
+      dimension: widget.size,
+      child: Stack(
+        children: [
+          paint,
+          Positioned(
+            left: 0,
+            right: 0,
+            top: 0,
+            bottom: widget.hitInsetBottom,
+            child: Listener(
+              behavior: HitTestBehavior.opaque,
+              onPointerDown: _down,
+              onPointerMove: (e) => _look(e.localPosition),
+              onPointerUp: _up,
+              onPointerCancel: _up,
+              child: const SizedBox.expand(),
+            ),
+          ),
+        ],
+      ),
     );
   }
 }

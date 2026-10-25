@@ -415,12 +415,15 @@ class StreakCard extends StatelessWidget {
           SizedBox(
             height: 56,
             key: const ValueKey('microduck-slot'),
-            child: AnimatedBuilder(
-              animation: p,
-              builder: (context, _) => MicroduckStrip(
-                progress: _Window(p, 0.1, 0.8).value,
-                height: 56,
-                trackColor: _ink,
+            // Clipped to its slot: the robot never spills over the card.
+            child: ClipRect(
+              child: AnimatedBuilder(
+                animation: p,
+                builder: (context, _) => MicroduckStrip(
+                  progress: _Window(p, 0.1, 0.8).value,
+                  height: 56,
+                  trackColor: _ink,
+                ),
               ),
             ),
           ),

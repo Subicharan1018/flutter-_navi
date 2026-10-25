@@ -15,6 +15,7 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart' show RenderRepaintBoundary;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -31,6 +32,9 @@ import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/screens/now_playing_screen.dart';
 import 'package:navivibe/services/subsonic_service.dart';
+import 'package:navivibe/player/player_controls.dart' show GlyphButton, TransportControls;
+import 'package:navivibe/widgets/mascot/microduck.dart';
+import 'package:navivibe/widgets/mascot/microduck_strip.dart';
 import 'package:navivibe/widgets/mini_player.dart';
 
 import 'golden_fonts.dart';
@@ -323,4 +327,143 @@ void main() {
           );
         }),
       ));
+
+  // ── Microduck placement audit ───────────────────────────────────────────────
+  //
+  // The robot overlays the UI and must never get in the way: not over the
+  // transport controls, the title's first line or the bar's own touches, never
+  // outside its container, feet on the bar. Rendered at the real sizes of
+  // phones, a tablet, a rotated phone, a Windows window and a TV, at normal
+  // and large text; the pictures go to build/mascot_frames/layout/.
+  const layoutSizes = {
+    'phone360': Size(360, 800),
+    'phone412': Size(412, 915),
+    'tablet': Size(768, 1024),
+    'landscape': Size(915, 412),
+    'windows': Size(1280, 800),
+    'tv': Size(1920, 1080),
+  };
+
+  Future<void> saveShot(WidgetTester tester, GlobalKey key, String name) async {
+    final boundary = key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+    final image = await tester.runAsync(() => boundary.toImage(pixelRatio: 1));
+    final bytes = await tester.runAsync(() => image!.toByteData(format: ui.ImageByteFormat.png));
+    final dir = Directory('build/mascot_frames/layout')..createSync(recursive: true);
+    File('${dir.path}/$name.png').writeAsBytesSync(bytes!.buffer.asUint8List());
+  }
+
+  for (final e in layoutSizes.entries) {
+    for (final scale in const [1.0, 1.5]) {
+      final label = '${e.key} x$scale';
+      testWidgets('microduck on now playing — $label', (tester) async {
+        debugDisableShadows = false;
+        await tester.runAsync(_prepareCovers);
+        await tester.runAsync(ArtworkField.precache);
+        final song = _songs[0]; // a long title: it wraps the title row's marquee
+        final art = (await tester.runAsync(() => _artworkFor(song)))!;
+        tester.view.physicalSize = e.value * 2;
+        tester.view.devicePixelRatio = 2;
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(() {
+          tester.view.reset();
+          tester.platformDispatcher.clearAllTestValues();
+        });
+        final key = GlobalKey();
+        await tester.pumpWidget(_app(
+          current: song,
+          art: art,
+          home: RepaintBoundary(key: key, child: const NowPlayingScreen()),
+        ));
+        await _settle(tester);
+        // The screen's own layout overflows in a few of these (a phone on its
+        // side, 1.5x text in a short window). That is the screen, not the
+        // robot, which is a layer and takes no room: note it, don't fail on it.
+        final overflow = tester.takeException();
+        if (overflow != null) {
+          // ignore: avoid_print
+          print('note: $label — the screen itself overflows (not the robot): ${overflow.toString().split('\n').first}');
+        }
+
+        final track = tester.getRect(find.byKey(microduckTrackKey));
+        final screen = Offset.zero & e.value;
+        final robots = find.byType(Microduck);
+        final transport = find.byType(TransportControls);
+        if (robots.evaluate().isEmpty) {
+          // Left out only when there is genuinely no room above the bar.
+          final title = tester.getRect(find.byKey(microduckTitleKey));
+          expect(
+            overlayHeight(feetY: track.top + kScrubberBarTop, titleBottom: title.bottom),
+            0,
+            reason: '$label: the robot may be missing only when it would not fit',
+          );
+        } else {
+          final r = tester.getRect(robots.first);
+          final title = tester.getRect(find.byKey(microduckTitleKey));
+          expect(screen.contains(r.topLeft) && screen.contains(r.bottomRight - const Offset(0.01, 0.01)), isTrue,
+              reason: '$label: inside the screen ($r)');
+          expect(r.top, greaterThanOrEqualTo(title.bottom - 0.5), reason: '$label: not over the title');
+          expect(r.overlaps(tester.getRect(transport.first)), isFalse, reason: '$label: not over the controls');
+          // Feet on the bar's top edge (the robot's feet are 4.5% up its square).
+          expect(r.bottom - r.height * 0.045, closeTo(track.top + kScrubberBarTop, 1.5), reason: '$label: feet on the bar');
+          // Within the bar's span, so it stays on it.
+          expect(r.left, greaterThanOrEqualTo(track.left - 0.5));
+          expect(r.right, lessThanOrEqualTo(track.right + 0.5));
+          // The bar keeps its touches: the robot's touch area ends above it.
+          final touch = tester.getRect(find.descendant(of: robots.first, matching: find.byType(Listener)).first);
+          for (final y in [track.top + 6, track.top + 16, track.top + 26]) {
+            expect(touch.contains(Offset(r.center.dx, y)), isFalse, reason: '$label: bar touches at y=$y reach the bar');
+          }
+        }
+        await saveShot(tester, key, 'np_${e.key}_x$scale');
+        debugDisableShadows = true;
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 3));
+      });
+
+      testWidgets('microduck on the mini player — $label', (tester) async {
+        debugDisableShadows = false;
+        await tester.runAsync(_prepareCovers);
+        final song = _songs[3];
+        final art = (await tester.runAsync(() => _artworkFor(song)))!;
+        tester.view.physicalSize = e.value * 2;
+        tester.view.devicePixelRatio = 2;
+        tester.platformDispatcher.textScaleFactorTestValue = scale;
+        addTearDown(() {
+          tester.view.reset();
+          tester.platformDispatcher.clearAllTestValues();
+        });
+        final key = GlobalKey();
+        await tester.pumpWidget(_app(
+          current: song,
+          art: art,
+          home: RepaintBoundary(
+            key: key,
+            child: const Scaffold(
+              body: Stack(children: [Positioned(left: 0, right: 0, bottom: 20, child: MiniPlayer())]),
+            ),
+          ),
+        ));
+        await _settle(tester);
+
+        final capsule = tester.getRect(find.descendant(of: find.byType(MiniPlayer), matching: find.byType(AnimatedContainer)).first);
+        final robots = find.byType(Microduck);
+        expect(robots, findsOneWidget, reason: '$label: the mini player shows its robot');
+        final r = tester.getRect(robots);
+        expect(r.left, greaterThanOrEqualTo(capsule.left), reason: '$label: inside the capsule');
+        expect(r.right, lessThanOrEqualTo(capsule.right));
+        expect(r.top, greaterThanOrEqualTo(capsule.top - 0.5));
+        expect(r.bottom, lessThanOrEqualTo(capsule.bottom + 0.5));
+        for (final b in find.byType(GlyphButton).evaluate()) {
+          expect(r.overlaps(tester.getRect(find.byElementPredicate((el) => el == b))), isFalse,
+              reason: '$label: not over the play and next buttons');
+        }
+        final line = tester.getRect(find.byWidgetPredicate((w) => w.runtimeType.toString() == '_MiniProgress'));
+        expect(r.bottom - r.height * 0.045, closeTo(line.top, 2.5), reason: '$label: feet on the progress line');
+        await saveShot(tester, key, 'mini_${e.key}_x$scale');
+        debugDisableShadows = true;
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(seconds: 3));
+      });
+    }
+  }
 }

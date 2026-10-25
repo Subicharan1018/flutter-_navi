@@ -5,6 +5,7 @@ import '../art/empty_art.dart';
 import 'microduck.dart';
 import 'microduck_mesh.dart';
 import 'microduck_pose.dart';
+import 'microduck_strip.dart';
 
 /// The empty-state picture: usually the drawing for [kind], but on some days
 /// (see [showDuckInEmptyState]) Microduck stands in, asleep at night. [seed]
@@ -41,21 +42,29 @@ class EmptyIllustration extends StatelessWidget {
     if (kind == EmptyArtKind.offline || !showDuckInEmptyState(seed, now) || !_enabled()) {
       return EmptyArt(kind, width: width);
     }
-    return SizedBox(
+    final duck = SizedBox(
       width: width,
       height: width * 0.9,
-      child: Center(
-        child: Microduck(
-          pose: resolveMicroduckPose(
-            playing: false,
-            now: now,
-            reducedMotion: MediaQuery.maybeDisableAnimationsOf(context) ?? false,
+      child: ClipRect(
+        child: Center(
+          child: Microduck(
+            pose: resolveMicroduckPose(
+              playing: false,
+              now: now,
+              reducedMotion: MediaQuery.maybeDisableAnimationsOf(context) ?? false,
+            ),
+            size: width * 0.9,
+            skin: _skin(),
+            interactive: true,
           ),
-          size: width * 0.9,
-          skin: _skin(),
-          interactive: true,
         ),
       ),
+    );
+    // One robot at a time: with the mini player's up, the drawing stays.
+    return ValueListenableBuilder<bool>(
+      valueListenable: microduckMiniVisible,
+      builder: (context, mini, child) => mini ? EmptyArt(kind, width: width) : child!,
+      child: duck,
     );
   }
 }

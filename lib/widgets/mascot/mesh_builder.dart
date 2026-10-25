@@ -6,6 +6,12 @@ import 'microduck_mesh.dart';
 /// Collects triangles into a [MicroduckMesh]; see the primitives below.
 class MeshBuilder {
   final List<double> _px = [], _py = [], _pz = [], _nx = [], _ny = [], _nz = [], _ao = [], _wear = [], _bias = [];
+
+  /// Which axis a vertex's texture is projected along (-1: pick from its
+  /// normal). Rounded boxes project each whole face (bevel strip included)
+  /// along its own axis, so the texture never tears where a face rounds off.
+  final List<int> _uvAx = [];
+  int _uvAxis = -1;
   final List<int> _matrix = [], _slot = [], _dyn = [], _lodMin = [], _lodMax = [];
   final List<int> _tris = [];
   final Float32List _dcx = Float32List(kDynCount), _dcy = Float32List(kDynCount);
@@ -63,6 +69,7 @@ class MeshBuilder {
     _lodMin.add(_lo);
     _lodMax.add(_hi);
     _bias.add(_biasOverride);
+    _uvAx.add(_uvAxis);
     return _px.length - 1;
   }
 
@@ -156,6 +163,7 @@ class MeshBuilder {
     for (var axis = 0; axis < 3; axis++) {
       for (final sign in const [-1.0, 1.0]) {
         final a = (axis + 1) % 3, b = (axis + 2) % 3;
+        _uvAxis = axis;
         final ka = (h[a] - rr) / h[a], kb = (h[b] - rr) / h[b];
         List<double> steps(double k) => [
               for (var i = bevel; i >= 0; i--) -(k + (1 - k) * i / bevel),
@@ -202,6 +210,7 @@ class MeshBuilder {
         }
       }
     }
+    _uvAxis = -1;
   }
 
   /// A hemisphere (equator at y = cy) squashed to [squash] of its radius.
@@ -470,10 +479,11 @@ class MeshBuilder {
       const k = 64.0;
       final shift = _slot[i] * 23.0 + _matrix[i] * 11.0; // different parts, different grain
       double u, v;
-      if (ay >= ax && ay >= az) {
+      final fixed = _uvAx[i];
+      if (fixed == 1 || (fixed < 0 && ay >= ax && ay >= az)) {
         u = _px[i] * k + shift;
         v = _pz[i] * k;
-      } else if (az >= ax) {
+      } else if (fixed == 2 || (fixed < 0 && az >= ax)) {
         u = _px[i] * k + shift;
         v = _py[i] * k;
       } else {
