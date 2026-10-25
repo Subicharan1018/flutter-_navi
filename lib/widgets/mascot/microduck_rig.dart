@@ -319,11 +319,12 @@ class MicroduckRig {
     final v = p.v;
     v[RigPose.yaw] = 0.45 + 0.08 * math.sin(t * 0.37);
     final breath = math.sin(t * 1.9);
-    v[RigPose.hipL] = v[RigPose.hipR] = 0.06 + 0.015 * breath;
-    v[RigPose.kneeL] = v[RigPose.kneeR] = 0.12 + 0.03 * breath;
-    v[RigPose.pitch] = 0.02 * breath;
+    // The real toy stands with its knees bent and its head tipped forward.
+    v[RigPose.hipL] = v[RigPose.hipR] = 0.34 + 0.015 * breath;
+    v[RigPose.kneeL] = v[RigPose.kneeR] = 0.8 + 0.03 * breath;
+    v[RigPose.pitch] = 0.08 + 0.02 * breath;
     v[RigPose.headYaw] = 0.5 * math.sin(t * 0.55) + 0.2 * math.sin(t * 1.4);
-    v[RigPose.headPitch] = 0.07 * math.sin(t * 0.9) - 0.03;
+    v[RigPose.headPitch] = 0.2 + 0.07 * math.sin(t * 0.9);
     v[RigPose.headRoll] = 0.05 * math.sin(t * 0.7);
     v[RigPose.rollL] = v[RigPose.rollR] = 0.04;
     v[RigPose.led] = 1;
@@ -369,10 +370,10 @@ class MicroduckRig {
   void _walk(RigPose p, double ph, double stride, double lift, double lean) {
     final v = p.v;
     final s = math.sin(ph), c = math.cos(ph);
-    v[RigPose.hipL] = stride * s;
-    v[RigPose.hipR] = -stride * s;
-    v[RigPose.kneeL] = 0.14 + lift * math.max(0, c);
-    v[RigPose.kneeR] = 0.14 + lift * math.max(0, -c);
+    v[RigPose.hipL] = 0.22 + stride * s;
+    v[RigPose.hipR] = 0.22 - stride * s;
+    v[RigPose.kneeL] = 0.5 + lift * math.max(0, c);
+    v[RigPose.kneeR] = 0.5 + lift * math.max(0, -c);
     v[RigPose.twist] = 0.2 * s;
     v[RigPose.roll] = 0.05 * s;
     v[RigPose.pitch] = lean;

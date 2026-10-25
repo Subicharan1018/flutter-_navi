@@ -343,9 +343,9 @@ class _Renderer {
     final wy = m[4] * lx + m[5] * ly + m[6] * lz + m[7];
     final wz = m[8] * lx + m[9] * ly + m[10] * lz + m[11];
     // Facing: the direction from the head's centre out to the lens.
-    final hx = m[1] * 0.82 + m[2] * 0.04 + m[3];
-    final hy = m[5] * 0.82 + m[6] * 0.04 + m[7];
-    final hz = m[9] * 0.82 + m[10] * 0.04 + m[11];
+    final hx = m[1] * kHeadCy + m[3];
+    final hy = m[5] * kHeadCy + m[7];
+    final hz = m[9] * kHeadCy + m[11];
     final dx = wx - hx, dy = wy - hy, dz = wz - hz;
     final len = math.sqrt(dx * dx + dy * dy + dz * dz);
     final facing = (dy * _se + dz * _ce) / len;
@@ -357,7 +357,7 @@ class _Renderer {
       _glow.maskFilter = MaskFilter.blur(BlurStyle.normal, math.max(1.0, unit * 0.2));
       _glowUnit = unit;
     }
-    final rgb = skin.colors[sIris];
+    final rgb = skin.colors[sLens];
     final a = (70 * math.min(1.0, facing * 1.6)).round();
     _glow.color = Color.fromARGB(a, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
     canvas.drawCircle(c, unit * 0.3, _glow);
