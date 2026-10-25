@@ -77,6 +77,14 @@ class _FailingChannel extends StreamChannelMixin implements WebSocketChannel {
   String? get closeReason => null;
 }
 
+class _SlowChannel extends _Channel {
+  final Future<void> _ready;
+  _SlowChannel(this._ready);
+
+  @override
+  Future<void> get ready => _ready;
+}
+
 class _NoJitter implements Random {
   @override
   bool nextBool() => false;
@@ -319,6 +327,98 @@ void main() {
     expect(service.deviceName, 'Android TV (MiTV-MOOQ1)');
     expect(asked, 1);
     service.dispose();
+  });
+
+  group('switching account on one device', () {
+    test('the new account connects with its own token, never the cached one', () async {
+      var user = 'vijay';
+      final channels = <_Channel>[];
+      final uris = <Uri>[];
+      final service = SessionSyncService(
+        jwtSupplier: ({bool forceRefresh = false}) => 'token-for-$user',
+        deviceIdProvider: () async => 'same-device',
+        channelFactory: (u) {
+          uris.add(u);
+          final c = _Channel();
+          channels.add(c);
+          return c;
+        },
+        httpClient: MockClient((_) async => http.Response('{}', 404)),
+      );
+      await service.connect();
+      expect(uris.last.queryParameters['token'], 'token-for-vijay');
+
+      user = 'admin'; // signed out of vijay, signed in as admin on the same install
+      service.resetAccount();
+      await service.connect();
+      expect(uris, hasLength(2));
+      expect(uris.last.queryParameters['token'], 'token-for-admin');
+      expect(uris.last.queryParameters['device_id'], 'same-device'); // the device is the same; the room comes from the login
+      service.dispose();
+    });
+
+    test('the old socket closing late does not take the new one down', () async {
+      final channels = <_Channel>[];
+      final service = SessionSyncService(
+        jwtSupplier: ({bool forceRefresh = false}) => 'tok',
+        deviceIdProvider: () async => 'd',
+        channelFactory: (u) {
+          final c = _Channel();
+          channels.add(c);
+          return c;
+        },
+        httpClient: MockClient((_) async => http.Response('{}', 404)),
+      );
+      await service.connect();
+      service.resetAccount();
+      await service.connect();
+      expect(service.connection, SyncConnection.online);
+      channels.first.serverCloses(); // the first socket's close notice arrives now
+      await _pump();
+      expect(service.connection, SyncConnection.online);
+      expect(service.isConnected, isTrue);
+      service.dispose();
+    });
+
+    test('devices and state of the old account are gone the moment it is left', () async {
+      final ch = _Channel();
+      final service = SessionSyncService(
+        jwtSupplier: ({bool forceRefresh = false}) => 'tok',
+        deviceIdProvider: () async => 'd',
+        channelFactory: (u) => ch,
+        httpClient: MockClient((_) async => http.Response('{}', 404)),
+      );
+      await service.connect();
+      ch.serverSends({'type': 'devices', 'payload': [{'id': 'a', 'name': 'Vijay laptop', 'type': 'desktop', 'active': true}]});
+      ch.serverSends({'type': 'state', 'payload': {'active_device': 'a', 'track_title': 'Secret'}});
+      await _pump();
+      expect(service.currentDevices, isNotEmpty);
+      service.resetAccount();
+      expect(service.currentDevices, isEmpty);
+      expect(service.currentState.trackTitle, isNull);
+      expect(service.currentState.activeDevice, isNull);
+      service.dispose();
+    });
+
+    test('a connect that was still opening when the account changed is thrown away', () async {
+      final slow = Completer<void>();
+      final first = _SlowChannel(slow.future);
+      var n = 0;
+      final service = SessionSyncService(
+        jwtSupplier: ({bool forceRefresh = false}) => 'tok',
+        deviceIdProvider: () async => 'd',
+        channelFactory: (u) => n++ == 0 ? first : _Channel(),
+        httpClient: MockClient((_) async => http.Response('{}', 404)),
+      );
+      final connecting = service.connect();
+      await _pump();
+      service.resetAccount(); // signed out while the socket was opening
+      slow.complete();
+      await connecting;
+      expect(service.isConnected, isFalse);
+      expect(service.connection, SyncConnection.offline);
+      service.dispose();
+    });
   });
 
   group('Devices sheet rows', () {

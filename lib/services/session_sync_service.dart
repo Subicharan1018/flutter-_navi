@@ -389,6 +389,10 @@ class SessionSyncService {
   int _reconnectAttempt = 0;
   Timer? _reconnectTimer;
   Timer? _pingTimer;
+
+  /// Bumped whenever the account or the connection is torn down, so a connect that
+  /// was in flight can tell it is stale.
+  int _generation = 0;
   DateTime _lastInbound = DateTime.now();
   bool _manuallyDisconnected = false;
   bool _isConnecting = false;
@@ -467,8 +471,19 @@ class SessionSyncService {
         'proto': '2',
       });
 
-      _channel = _channelFactory(uri);
-      await _channel!.ready;
+      final generation = _generation;
+      final channel = _channelFactory(uri);
+      _channel = channel;
+      await channel.ready;
+      if (generation != _generation) {
+        // The account changed (or we were told to disconnect) while this socket was opening:
+        // it belongs to someone who is no longer signed in.
+        try {
+          unawaited(Future.sync(() => channel.sink.close()).catchError((_) {}));
+        } catch (_) {}
+        if (identical(_channel, channel)) _channel = null;
+        return;
+      }
 
       _reconnectAttempt = 0;
       _reconnectAttemptController.add(0);
@@ -477,12 +492,18 @@ class SessionSyncService {
       _flushPending();
       _startPingTimer();
 
-      _channel!.stream.listen(
-        _onMessage,
-        onDone: () => _onDisconnected(_channel?.closeCode),
+      // Each socket reports only for itself: a socket we already replaced must not
+      // tear down its successor (that left an orphan connected under the old account).
+      channel.stream.listen(
+        (m) {
+          if (identical(_channel, channel)) _onMessage(m);
+        },
+        onDone: () {
+          if (identical(_channel, channel)) _onDisconnected(channel.closeCode);
+        },
         onError: (e) {
           debugPrint('[SessionSync] ❌ WebSocket error: $e');
-          _onDisconnected(_channel?.closeCode);
+          if (identical(_channel, channel)) _onDisconnected(channel.closeCode);
         },
       );
 
@@ -824,6 +845,7 @@ class SessionSyncService {
 
   /// Manually disconnects the session (e.g. app exit, logout).
   void disconnect() {
+    _generation++;
     _manuallyDisconnected = true;
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
@@ -832,6 +854,20 @@ class SessionSyncService {
     } catch (_) {}
     _channel = null;
     _setConnection(SyncConnection.offline);
+  }
+
+  /// Another account is signing in (or this one signed out): drop the socket, the
+  /// cached token, everything the old account's devices told us, and anything
+  /// queued for it. The next [connect] authenticates from scratch.
+  void resetAccount() {
+    disconnect();
+    _jwt = null;
+    _pending.clear();
+    _devices = const [];
+    if (!_devicesController.isClosed) _devicesController.add(_devices);
+    _emitState(const PlaybackState.initial());
+    _isConnecting = false;
+    _reconnectAttempt = 0;
   }
 
   /// Disposes stream controllers and cleanly tears down connections.

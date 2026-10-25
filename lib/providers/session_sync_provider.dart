@@ -99,7 +99,8 @@ final sessionSyncServiceProvider = Provider<SessionSyncService>((ref) {
   // Signing in, out, or switching account.
   ref.listen(settingsProvider.select((s) => (s.username, s.password)), (prev, next) {
     if (prev == next) return;
-    service.disconnect();
+    // A different account: nothing of the old one (token, socket, devices) may carry over.
+    service.resetAccount();
     if (next.$1.isNotEmpty && next.$2.isNotEmpty) service.connect().ignore();
   });
 
