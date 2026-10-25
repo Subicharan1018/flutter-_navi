@@ -167,6 +167,39 @@ else (a static host or your server) and give them that address with no token.
 * The updater in the app has **no built-in address**; the repo name appears only in
   `latest.json` (`assetBase`) after CI writes it.
 
+## Public vs personal builds
+
+Two flavours come from one code base, switched at compile time by
+`--dart-define=PUBLIC_BUILD=true` (`lib/core/build_flavor.dart`, `kPublicBuild`):
+
+| | Public build (GitHub Releases) | Personal build (default) |
+|---|---|---|
+| Search Online, Send a playlist link, Recognize > Download | hidden | shown (if your server allows it) |
+| Download activity ring, "downloaded" banner, Downloads sidebar entry | never shown | as before |
+| Sign-in screen pre-fills a server address | no (empty) | yes |
+
+Everything else (library, playback, local music, offline downloads from *your own*
+server, social, updates) is identical. All online-download entry points read one
+provider, `onlineFetchAvailableProvider`, so a public build shows no dead buttons;
+tests in `test/features/online_fetch/public_build_test.dart` cover both states.
+The download code is still compiled into a public build; it is just unreachable. If
+you need it gone from the binary too, that is a larger refactor (conditional imports).
+
+* `release.yml` passes `PUBLIC_BUILD=true` for everything it publishes.
+* **Personal build in Actions:** Actions → Release → Run workflow → tick
+  `personal_build`. It builds without the flag, publishes **nothing**, and leaves
+  workflow artifacts that expire after 1 day. Caveat: artifacts of a *public*
+  repository can be downloaded by any signed-in GitHub user while they exist, so for a
+  personal build you would rather run `.	ool\make_release_local.ps1` (personal by
+  default; add `-Public` to mimic the release).
+* **Backup of the full feature set:** the local branch/tag
+  `backup/full-feature-set-2026-10-25` keeps the app exactly as it was before the
+  public/personal split. It lives only in your local clone unless you push it; do not
+  push it to the public repository.
+* Still in the source regardless of flavour: the hosted shuffle and session-sync
+  addresses (`shuffle.subimusic.me`, `session.subimusic.me`). They are visible to
+  anyone who reads the code; decide whether that is acceptable before going public.
+
 ## Local dry run
 
 ```powershell

@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/build_flavor.dart';
 import '../../../models/song.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/settings_provider.dart';
@@ -18,9 +19,14 @@ final onlineFetchApiProvider = Provider<OnlineFetchApi>((ref) {
   }, logTag: 'OnlineFetch'));
 });
 
+/// Whether this build contains the online-download features at all. False in
+/// public builds ([kPublicBuild]); tests override it to cover both.
+final onlineFetchAvailableProvider = Provider<bool>((ref) => !kPublicBuild);
+
 /// Whether the signed-in account may search online (the server decides who).
 /// Re-asks when the account changes; false while signed out or on any error.
 final onlineFetchEnabledProvider = FutureProvider.autoDispose<bool>((ref) async {
+  if (!ref.watch(onlineFetchAvailableProvider)) return false;
   final (user, pass) = ref.watch(settingsProvider.select((s) => (s.username, s.password)));
   if (user.isEmpty || pass.isEmpty) return false;
   return ref.read(onlineFetchApiProvider).enabled();

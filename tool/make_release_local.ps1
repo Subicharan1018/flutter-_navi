@@ -15,7 +15,8 @@
 param(
   [int]$Build = 0,
   [string]$PrevDir = '',
-  [switch]$Windows
+  [switch]$Windows,
+  [switch]$Public   # build like the GitHub release does: --dart-define=PUBLIC_BUILD=true (no online downloads)
 )
 $ErrorActionPreference = 'Stop'
 Set-Location (Split-Path $PSScriptRoot -Parent)
@@ -33,6 +34,7 @@ Remove-Item $dist, $out -Recurse -Force -ErrorAction SilentlyContinue
 New-Item -ItemType Directory -Force $dist, $out | Out-Null
 
 $flags = @('--release', "--build-name=$name", "--build-number=$Build", "--dart-define=NAVI_BUILD=$Build")
+if ($Public) { $flags += '--dart-define=PUBLIC_BUILD=true' }
 flutter build apk @flags --split-per-abi
 if ($LASTEXITCODE) { throw 'split build failed' }
 foreach ($abi in 'arm64-v8a', 'armeabi-v7a', 'x86_64') {
@@ -47,7 +49,7 @@ if ($LASTEXITCODE) { throw 'native libs are compressed' }
 
 $winArgs = @()
 if ($Windows) {
-  flutter build windows --release "--build-name=$name" "--build-number=$Build" "--dart-define=NAVI_BUILD=$Build"
+  flutter build windows --release "--build-name=$name" "--build-number=$Build" "--dart-define=NAVI_BUILD=$Build" $(if ($Public) { '--dart-define=PUBLIC_BUILD=true' })
   if ($LASTEXITCODE) { throw 'windows build failed' }
   $win = "$root\windows"
   Remove-Item $win -Recurse -Force -ErrorAction SilentlyContinue

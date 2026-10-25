@@ -132,6 +132,7 @@ class _FetchFinishedBannerState extends ConsumerState<FetchFinishedBanner> with 
 
   @override
   Widget build(BuildContext context) {
+    if (!ref.watch(onlineFetchAvailableProvider)) return const SizedBox.shrink();
     ref.listen(onlineFetchEnabledProvider, (_, next) {
       if (next.asData?.value == true) ref.read(fetchJobsProvider.notifier).resume();
     });

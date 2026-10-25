@@ -7,6 +7,15 @@ on:
   push:
     branches: [main]
   workflow_dispatch:
+    inputs:
+      personal_build:
+        description: >-
+          Build WITHOUT the public-build switch (keeps Search Online and the other
+          download features). Nothing is published: you get workflow artifacts that
+          expire after 1 day. Artifacts of a public repository can be downloaded by
+          any signed-in GitHub user, so prefer tool/make_release_local.ps1 for this.
+        type: boolean
+        default: false
 
 concurrency:
   group: release-${{ github.ref }}
@@ -29,9 +38,12 @@ jobs:
       build: ${{ steps.v.outputs.build }}
       tag: ${{ steps.v.outputs.tag }}
       win: ${{ steps.v.outputs.win }}
+      public: ${{ steps.v.outputs.public }}
     steps:
       - uses: actions/checkout@v4.2.2
       - id: v
+        env:
+          PERSONAL: ${{ inputs.personal_build }}
         run: |
           set -euo pipefail
           full=$(grep -m1 '^version:' pubspec.yaml | awk '{print $2}')
@@ -44,6 +56,8 @@ jobs:
             echo "tag=v$name+$build"
             # Velopack wants plain SemVer: MAJOR.MINOR.BUILD
             echo "win=$major.$minor.$build"
+            # Everything published to GitHub Releases is a public build.
+            if [ "$PERSONAL" = "true" ]; then echo "public=false"; else echo "public=true"; fi
           } >> "$GITHUB_OUTPUT"
 
   android:
@@ -89,9 +103,11 @@ jobs:
           NAVI_KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
           NAME: ${{ needs.version.outputs.name }}
           BUILD: ${{ needs.version.outputs.build }}
+          PUBLIC: ${{ needs.version.outputs.public }}
         run: |
           set -euo pipefail
           flags="--release --build-name=$NAME --build-number=$BUILD --dart-define=NAVI_BUILD=$BUILD"
+          if [ "$PUBLIC" = "true" ]; then flags="$flags --dart-define=PUBLIC_BUILD=true"; fi
           flutter build apk $flags --split-per-abi
           mkdir -p dist
           for abi in arm64-v8a armeabi-v7a x86_64; do
@@ -107,6 +123,7 @@ jobs:
         with:
           name: android
           path: dist/*.apk
+          retention-days: ${{ needs.version.outputs.public == 'true' && 90 || 1 }}
           if-no-files-found: error
 
   windows:
@@ -125,7 +142,11 @@ jobs:
         env:
           NAME: ${{ needs.version.outputs.name }}
           BUILD: ${{ needs.version.outputs.build }}
-        run: flutter build windows --release "--build-name=$env:NAME" "--build-number=$env:BUILD" "--dart-define=NAVI_BUILD=$env:BUILD"
+          PUBLIC: ${{ needs.version.outputs.public }}
+        run: |
+          $defs = @("--dart-define=NAVI_BUILD=$env:BUILD")
+          if ($env:PUBLIC -eq 'true') { $defs += '--dart-define=PUBLIC_BUILD=true' }
+          flutter build windows --release "--build-name=$env:NAME" "--build-number=$env:BUILD" @defs
 
       - name: Package (zip + Velopack installer)
         shell: pwsh
@@ -152,9 +173,12 @@ jobs:
         with:
           name: windows
           path: winout/*
+          retention-days: ${{ needs.version.outputs.public == 'true' && 90 || 1 }}
           if-no-files-found: error
 
   publish:
+    # Personal builds stop at the (1-day) workflow artifacts; only public builds are released.
+    if: needs.version.outputs.public == 'true'
     needs: [version, android, windows]
     runs-on: ubuntu-latest
     permissions:

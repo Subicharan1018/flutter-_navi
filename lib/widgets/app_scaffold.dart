@@ -217,7 +217,7 @@ class _PhoneShell extends ConsumerWidget {
 /// split off into its own circle at the trailing end. Solid surfaces lifted
 /// from the dock band's colour with a hairline edge (no blur, no shadow);
 /// the selected tab sits on a lighter pill that slides between positions.
-class _TabBar extends StatelessWidget {
+class _TabBar extends ConsumerWidget {
   static const double _height = 62;
 
   final AppTab tab;
@@ -241,8 +241,9 @@ class _TabBar extends StatelessWidget {
       );
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
+    final fetchAvailable = ref.watch(onlineFetchAvailableProvider);
     final bottom = MediaQuery.paddingOf(context).bottom;
     final index = _main.indexOf(tab);
     return Padding(
@@ -296,15 +297,17 @@ class _TabBar extends StatelessWidget {
               button: true,
               selected: tab == AppTab.search,
               label: 'Search',
-              onLongPressHint: 'Show downloads',
+              onLongPressHint: fetchAvailable ? 'Show downloads' : null,
               child: GestureDetector(
                 onTap: () => onSelect(AppTab.search),
                 // Search online downloads: a thin ring while they run; long
                 // press lists them.
-                onLongPress: () {
-                  HapticFeedback.mediumImpact();
-                  showFetchDownloads(context);
-                },
+                onLongPress: fetchAvailable
+                    ? () {
+                        HapticFeedback.mediumImpact();
+                        showFetchDownloads(context);
+                      }
+                    : null,
                 child: FetchActivityRing(
                   child: Container(
                     width: _height,
@@ -646,7 +649,9 @@ class _DownloadsRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
-    if (ref.watch(fetchJobsProvider.select((d) => d.isEmpty))) return const SizedBox.shrink();
+    if (!ref.watch(onlineFetchAvailableProvider) || ref.watch(fetchJobsProvider.select((d) => d.isEmpty))) {
+      return const SizedBox.shrink();
+    }
     return _SidebarRow(
       art: SizedBox(
         width: 18,
