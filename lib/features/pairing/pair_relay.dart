@@ -94,7 +94,7 @@ class HttpPairRelay implements PairRelay {
     if (r.statusCode == 404 || r.statusCode == 405) {
       throw const PairRelayException(
         PairRelayProblem.rejected,
-        'This server can’t pair devices yet. Use Type it instead.',
+        'Sign-in by code is not available yet on your server. Use Type it instead.',
       );
     }
     if (r.statusCode != 201) throw _problem(r);
