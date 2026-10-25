@@ -2,6 +2,7 @@
 /// as host and as guest, the code entry, and Home's Jam card.
 ///
 ///   flutter test test/goldens/jam_test.dart --update-goldens
+@Tags(['golden'])
 library;
 
 import 'package:flutter/material.dart';

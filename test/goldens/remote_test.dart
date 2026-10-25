@@ -1,6 +1,7 @@
 /// Remote control and the "Playing on" sheet at phone size (390×844 @3x).
 ///
 ///   flutter test test/goldens/remote_test.dart --update-goldens
+@Tags(['golden'])
 library;
 
 import 'dart:async';

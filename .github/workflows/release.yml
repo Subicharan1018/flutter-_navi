@@ -136,6 +136,9 @@ jobs:
         with:
           channel: stable
           cache: true
+      - uses: actions/setup-dotnet@v4.3.1
+        with:
+          dotnet-version: '8.0.x'
       - run: flutter pub get
       - name: Build Windows
         shell: pwsh
@@ -160,6 +163,7 @@ jobs:
           New-Item -ItemType Directory -Force winout | Out-Null
           Compress-Archive -Path "$rel\*" -DestinationPath winout\NaviVibe-windows-x64.zip
           dotnet tool install -g vpk
+          $env:PATH += ";$env:USERPROFILE\.dotnet	ools"
           # Earlier releases give vpk what it needs to build delta packages.
           # The first release has none, so a failure here is fine.
           try { vpk download github --repoUrl "https://github.com/$env:REPO" --token $env:GH_TOKEN -o Releases } catch { Write-Host 'no earlier releases to diff against' }

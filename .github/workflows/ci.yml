@@ -39,6 +39,14 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'pubspec.lock') }}
           restore-keys: gradle-${{ runner.os }}-
 
+      # The update-patch tests build their sample with the same bsdiff4 call CI uses.
+      - uses: actions/setup-python@v5.6.0
+        with:
+          python-version: '3.12'
+      - run: python -m pip install bsdiff4
+
       - run: flutter pub get
       - run: flutter analyze lib
-      - run: flutter test
+      # Goldens are recorded on Windows and differ on Linux text rendering, so they
+      # run locally only. The expanded reporter lists every failing test by name.
+      - run: flutter test --exclude-tags golden --reporter expanded

@@ -7,6 +7,9 @@
 // (never committed); otherwise synthetic gradient covers are generated so the
 // goldens stay copyright-free and deterministic in CI.
 
+@Tags(['golden'])
+library;
+
 import 'dart:async';
 import 'dart:io';
 import 'dart:ui' as ui;

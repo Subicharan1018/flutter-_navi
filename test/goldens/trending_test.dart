@@ -1,6 +1,7 @@
 /// Trending page and Home's Trending shelf at phone size (390×844 @3x).
 ///
 ///   flutter test test/goldens/trending_test.dart --update-goldens
+@Tags(['golden'])
 library;
 
 import 'package:flutter/material.dart';
