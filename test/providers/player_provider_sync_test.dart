@@ -268,6 +268,29 @@ class FakeSessionSyncService implements SessionSyncService {
     sentCommands.add(action);
   }
 
+  final _prepareController = StreamController<PrepareTransfer>.broadcast();
+  final readySent = <String>[];
+
+  void emitPrepare(PrepareTransfer p) => _prepareController.add(p);
+
+  @override
+  Stream<PrepareTransfer> get prepareStream => _prepareController.stream;
+
+  @override
+  void sendReady(String transferId) => readySent.add(transferId);
+
+  @override
+  final ClockEstimator clock = ClockEstimator();
+
+  @override
+  int serverNowMs() => DateTime.now().millisecondsSinceEpoch;
+
+  @override
+  bool get serverSpeaksV3 => true;
+
+  @override
+  void resetAccount() {}
+
   @override
   void releasePlayback() {}
 
@@ -916,6 +939,80 @@ void main() {
       expect(notifier.state.syncMode, SyncMode.activeHere);
       expect(fakeSyncService.transferredDevices, ['device-me']);
       UserActivity.debugSet(null);
+      notifier.dispose();
+    });
+
+    test('ECHO: applying the host state never makes this device say or claim anything', () async {
+      UserActivity.debugSet(null);
+      final notifier = await make(active: 'device-other');
+      fakeSyncService.pushedUpdates.clear();
+      for (var i = 0; i < 5; i++) {
+        fakeSyncService.emitSyncState(PlaybackState(
+          activeDevice: 'device-other',
+          activeDeviceName: 'Windows PC',
+          trackId: 't$i',
+          positionMs: i * 1000,
+          isPlaying: i.isEven,
+          queue: const ['t0', 't1'],
+          epoch: 3,
+          version: i,
+        ));
+        await Future.delayed(Duration.zero);
+      }
+      expect(fakeSyncService.pushedUpdates, isEmpty);
+      expect(fakeSyncService.transferredDevices, isEmpty);
+      expect(fakeSyncService.sentCommands, isEmpty);
+      expect(fakeSyncService.readySent, isEmpty);
+      expect(audioHandler.player.playing, isFalse);
+      notifier.dispose();
+    });
+
+    test('a handover order loads the song paused at the host position, then says ready (the host plays on)', () async {
+      final songs = [
+        Song(id: 't1', title: 'One', artist: 'A', album: 'B', coverArt: '', duration: 200, track: 1, year: 2020),
+        Song(id: 't2', title: 'Two', artist: 'A', album: 'B', coverArt: '', duration: 200, track: 2, year: 2020),
+      ];
+      when(() => mockSubsonicService.getSongs(any())).thenAnswer((_) async => songs);
+      final notifier = await make(active: 'device-other');
+      fakeSyncService.emitPrepare(const PrepareTransfer(transferId: 'x1', epoch: 2, trackId: 't2', positionMs: 61000, queue: ['t1', 't2'], queueIndex: 1));
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(fakeSyncService.readySent, ['x1']);
+      expect(notifier.state.queue.map((s) => s.id), ['t1', 't2']);
+      expect(notifier.state.currentIndex, 1);
+      expect(audioHandler.player.playing, isFalse);          // not yet the host: silent
+      expect(notifier.state.syncMode, SyncMode.passive);
+      expect(fakeSyncService.transferredDevices, isEmpty);
+      notifier.dispose();
+    });
+
+    test('a handover that cannot be prepared stays silent, so the server rolls it back', () async {
+      when(() => mockSubsonicService.getSongs(any())).thenAnswer((_) async => <Song>[]);
+      final notifier = await make(active: 'device-other');
+      fakeSyncService.emitPrepare(const PrepareTransfer(transferId: 'x2', epoch: 2, trackId: 'gone', queue: ['gone']));
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(fakeSyncService.readySent, isEmpty);
+      notifier.dispose();
+    });
+
+    test('after a restart the server still names this device host and playing: it picks up where it was', () async {
+      UserActivity.debugSet(null);
+      final container = createContainer();
+      final ref = container.read(Provider((ref) => ref));
+      final notifier = PlayerNotifier(ref, audioHandler, mockSubsonicService, mockCollector, deviceIdProvider: () async => 'device-me');
+      await Future.delayed(Duration.zero);
+      expect(notifier.state.syncMode, SyncMode.idle);
+      fakeSyncService.emitSyncState(PlaybackState(
+        activeDevice: 'device-me',
+        trackId: 'tr',
+        trackTitle: 'Song',
+        positionMs: 10000,
+        isPlaying: true,
+        updatedAt: DateTime.now(),
+        queue: const ['tr'],
+      ));
+      await Future.delayed(const Duration(milliseconds: 80));
+      expect(notifier.state.syncMode, SyncMode.activeHere);
+      expect(audioHandler.player.playing, isTrue);
       notifier.dispose();
     });
 

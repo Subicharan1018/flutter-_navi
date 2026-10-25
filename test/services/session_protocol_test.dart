@@ -14,8 +14,13 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 class _Sink implements WebSocketSink {
   final sent = <Map<String, dynamic>>[];
 
+  final pings = <Map<String, dynamic>>[];
+
   @override
-  void add(dynamic data) => sent.add(jsonDecode(data as String) as Map<String, dynamic>);
+  void add(dynamic data) {
+    final frame = jsonDecode(data as String) as Map<String, dynamic>;
+    (frame['type'] == 'ping' ? pings : sent).add(frame);
+  }
 
   @override
   void addError(Object error, [StackTrace? stackTrace]) {}
@@ -118,7 +123,7 @@ void main() {
   test('connecting says who this device is and asks for the new protocol, with a safe query', () async {
     final (service, _, uris) = await _connected(name: 'Pixel 8', type: SyncDeviceType.phone);
     final q = uris.single.queryParameters;
-    expect(q['proto'], '2');
+    expect(q['proto'], '3');
     expect(q['device_name'], 'Pixel 8');
     expect(q['device_type'], 'phone');
     expect(q['token'], 'tok en/+=');               // survives encoding

@@ -14,11 +14,17 @@ class _FakeWebSocketSink implements WebSocketSink {
   int? closeCode;
   String? closeReason;
 
+  /// Heartbeats are not what these tests are about.
+  final List<dynamic> pings = [];
+
   @override
   void add(dynamic data) {
-    if (!isClosed) {
-      sentMessages.add(data);
+    if (isClosed) return;
+    if (data is String && data.contains('"type":"ping"')) {
+      pings.add(data);
+      return;
     }
+    sentMessages.add(data);
   }
 
   @override

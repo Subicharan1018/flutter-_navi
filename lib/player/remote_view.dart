@@ -16,10 +16,15 @@ import 'devices_sheet.dart';
 import 'player_controls.dart';
 
 /// Where the playhead of [s] is now, projected from when the server stamped it.
-Duration remotePosition(PlaybackState s, DateTime now) {
+///
+/// The server stamped the position with its own clock, so "now" is the server's now:
+/// [offsetMs] is the measured difference between its clock and this device's, which
+/// keeps a phone whose clock is minutes off from showing a playhead that races or stalls.
+Duration remotePosition(PlaybackState s, DateTime now, {int offsetMs = 0}) {
   var ms = s.positionMs;
-  if (s.isPlaying && s.updatedAt != null) {
-    final elapsed = now.difference(s.updatedAt!).inMilliseconds;
+  final stamp = s.positionAtServerMs ?? s.updatedAt?.millisecondsSinceEpoch;
+  if (s.isPlaying && stamp != null) {
+    final elapsed = now.millisecondsSinceEpoch + offsetMs - stamp;
     if (elapsed > 0) ms += elapsed;
   }
   final total = (s.durationS * 1000).round();
@@ -71,7 +76,7 @@ class _RemoteControlViewState extends ConsumerState<RemoteControlView> {
     final width = MediaQuery.sizeOf(context).width;
     final cover = (width - 56).clamp(200.0, 320.0);
     final total = (s.durationS * 1000).round();
-    final pos = remotePosition(s, DateTime.now());
+    final pos = remotePosition(s, DateTime.now(), offsetMs: ref.read(sessionSyncServiceProvider).clock.offsetMs);
     final frac = _dragging ?? (total > 0 ? (pos.inMilliseconds / total).clamp(0.0, 1.0) : 0.0);
     final shown = Duration(milliseconds: (frac * total).round());
     const ink = Colors.white;
