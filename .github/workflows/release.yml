@@ -163,7 +163,7 @@ jobs:
           New-Item -ItemType Directory -Force winout | Out-Null
           Compress-Archive -Path "$rel\*" -DestinationPath winout\NaviVibe-windows-x64.zip
           dotnet tool install -g vpk
-          $env:PATH += ";$env:USERPROFILE\.dotnet	ools"
+          $env:PATH += ";$env:USERPROFILE\.dotnet\tools"
           # Earlier releases give vpk what it needs to build delta packages.
           # The first release has none, so a failure here is fine.
           try { vpk download github --repoUrl "https://github.com/$env:REPO" --token $env:GH_TOKEN -o Releases } catch { Write-Host 'no earlier releases to diff against' }
