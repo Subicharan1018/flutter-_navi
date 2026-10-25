@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
@@ -49,6 +50,9 @@ class MicroduckStrip extends ConsumerStatefulWidget {
   final bool sleepsAtNight;
   final bool interactive;
   final bool enter;
+
+  /// See [Microduck.hitInsetBottom].
+  final double hitInsetBottom;
   final bool sitWhenPaused;
   final Object? startleToken;
   final bool love;
@@ -71,6 +75,7 @@ class MicroduckStrip extends ConsumerStatefulWidget {
     this.sleepsAtNight = true,
     this.interactive = true,
     this.enter = false,
+    this.hitInsetBottom = 0,
     this.sitWhenPaused = false,
     this.startleToken,
     this.love = false,
@@ -193,6 +198,7 @@ class _MicroduckStripState extends ConsumerState<MicroduckStrip> {
                   bpm: widget.bpm,
                   facingRight: right,
                   interactive: widget.interactive,
+                  hitInsetBottom: widget.hitInsetBottom,
                   startleToken: widget.startleToken,
                   love: widget.love,
                   positionSource: widget.positionSource,
@@ -233,6 +239,9 @@ class PlayerMicroduckStrip extends ConsumerStatefulWidget {
   final bool fadeEdges;
   final bool fadeTop;
 
+  /// Keeps the bottom of the robot's touch area off a bar it stands on.
+  final double hitInsetBottom;
+
   const PlayerMicroduckStrip({
     super.key,
     required this.player,
@@ -242,6 +251,7 @@ class PlayerMicroduckStrip extends ConsumerStatefulWidget {
     this.opacity = 1,
     this.fadeEdges = false,
     this.fadeTop = false,
+    this.hitInsetBottom = 0,
   });
 
   @override
@@ -372,6 +382,7 @@ class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
           danceOnBeat: full,
           sleepsAtNight: full,
           interactive: full,
+          hitInsetBottom: widget.hitInsetBottom,
           sitWhenPaused: !full,
           enter: true,
           startleToken: song.id,
@@ -390,7 +401,7 @@ class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
           child: _soften(robot),
         );
         final bubble = _bubble;
-        if (bubble == null || _bubbleFor != song.id) return strip;
+        if (bubble == null || _bubbleFor != song.id || microduckChatOpen.value) return strip;
         // The bubble sits on the free side of the robot, above its head
         // level, so it never reaches the controls below.
         return Stack(
@@ -441,20 +452,45 @@ class _SpeechBubble extends StatelessWidget {
   }
 }
 
-/// Marks the Now Playing scrubber, so the robot can stand on its track.
+/// Marks the Now Playing scrubber, so the robot can stand on its track, and
+/// the song's title, so it never stands in front of the first line.
 final GlobalKey microduckTrackKey = GlobalKey(debugLabel: 'microduck track');
+final GlobalKey microduckTitleKey = GlobalKey(debugLabel: 'microduck title');
+
+/// True while the mini player has the robot on screen: any other robot (an
+/// empty state's) then keeps to its drawing, so there is only ever one.
+final ValueNotifier<bool> microduckMiniVisible = ValueNotifier(false);
+
+/// Where the robot's feet sit on the scrubber, from the top of its box: the
+/// top edge of the 6dp bar in the middle of the 32dp touch band.
+const double kScrubberBarTop = 13;
+
+/// The tallest the Now Playing robot is allowed to be, and the shortest it is
+/// worth showing at.
+const double kOverlayMaxHeight = 56, kOverlayMinHeight = 30;
+
+/// How tall the robot may be when its feet are at [feetY] and the title's
+/// first line ends at [titleBottom] (null: not measured). Zero means "no room:
+/// leave it out" — better absent than covering the title.
+double overlayHeight({required double feetY, double? titleBottom}) {
+  if (titleBottom == null) return 44;
+  final room = feetY - titleBottom;
+  if (room < kOverlayMinHeight) return 0;
+  return room > kOverlayMaxHeight ? kOverlayMaxHeight : room;
+}
 
 /// The robot on Now Playing: a layer over the whole screen, standing on the
-/// scrubber's track, taking no room from the layout. It finds the track by
-/// measuring [microduckTrackKey]'s box once the frame is laid out; it fades
-/// out at the top so it melts into whatever it stands in front of, and the
-/// screen's own edges clip it.
+/// scrubber's bar, taking no room from the layout. It measures the scrubber
+/// and the title once the frame is laid out, stands with its feet on the top
+/// of the bar, and is only as tall as the gap between the title's first line
+/// and the bar allows; with no gap it is not shown at all. It fades out at
+/// the top so it melts into what it stands in front of, and only its upper
+/// part takes touches, so the bar keeps every touch.
 class MicroduckScrubberOverlay extends ConsumerStatefulWidget {
   final AudioPlayer player;
   final Song song;
-  final double height;
 
-  const MicroduckScrubberOverlay({super.key, required this.player, required this.song, this.height = 88});
+  const MicroduckScrubberOverlay({super.key, required this.player, required this.song});
 
   @override
   ConsumerState<MicroduckScrubberOverlay> createState() => _MicroduckScrubberOverlayState();
@@ -462,15 +498,24 @@ class MicroduckScrubberOverlay extends ConsumerStatefulWidget {
 
 class _MicroduckScrubberOverlayState extends ConsumerState<MicroduckScrubberOverlay> {
   Rect? _track;
+  double? _titleBottom;
 
   void _measure() {
     if (!mounted) return;
-    final box = microduckTrackKey.currentContext?.findRenderObject();
-    Rect? next;
-    if (box is RenderBox && box.attached && box.hasSize) {
-      next = box.localToGlobal(Offset.zero) & box.size;
+    final origin = context.findAncestorRenderObjectOfType<RenderStack>()?.localToGlobal(Offset.zero) ?? Offset.zero;
+    Rect? track;
+    final tb = microduckTrackKey.currentContext?.findRenderObject();
+    if (tb is RenderBox && tb.attached && tb.hasSize) track = (tb.localToGlobal(Offset.zero) - origin) & tb.size;
+    double? titleBottom;
+    final ti = microduckTitleKey.currentContext?.findRenderObject();
+    if (ti is RenderBox && ti.attached && ti.hasSize) titleBottom = (ti.localToGlobal(Offset.zero) - origin).dy + ti.size.height;
+    final moved = track != _track || (titleBottom != null && _titleBottom != null && (titleBottom - _titleBottom!).abs() > 0.5) || (_titleBottom == null) != (titleBottom == null);
+    if (moved) {
+      setState(() {
+        _track = track;
+        _titleBottom = titleBottom;
+      });
     }
-    if (next != _track) setState(() => _track = next);
   }
 
   @override
@@ -480,19 +525,24 @@ class _MicroduckScrubberOverlayState extends ConsumerState<MicroduckScrubberOver
     if (track == null || !ref.watch(settingsProvider.select((s) => s.microduckEnabled))) {
       return const SizedBox.shrink();
     }
-    // The feet stand a little below the top of the scrubber box: on the line.
-    final feet = track.top + 14;
+    final feet = track.top + kScrubberBarTop;
+    final height = overlayHeight(feetY: feet, titleBottom: _titleBottom);
+    if (height <= 0) return const SizedBox.shrink();
     return Positioned(
       left: track.left,
       width: track.width,
-      top: feet - widget.height,
-      height: widget.height,
+      // The painted feet sit 4.5% above the bottom of the robot's square.
+      top: feet - height * 0.955,
+      height: height,
       child: PlayerMicroduckStrip(
         player: widget.player,
         song: widget.song,
-        height: widget.height,
-        opacity: 0.8,
+        height: height,
+        opacity: 0.85,
         fadeTop: true,
+        // The feet stand on the bar's top edge: keep touches off the bottom
+        // of the robot, which sits right above the touch band.
+        hitInsetBottom: height * 0.25,
       ),
     );
   }

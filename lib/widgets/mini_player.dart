@@ -85,6 +85,7 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
   void dispose() {
     _nudge?.cancel();
     _dx.dispose();
+    Future.microtask(() => microduckMiniVisible.value = false);
     super.dispose();
   }
 
@@ -119,13 +120,22 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final song = ref.watch(playerProvider.select((s) => s.currentSong));
-    if (song == null) return const SizedBox.shrink();
+    if (song == null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) microduckMiniVisible.value = false;
+      });
+      return const SizedBox.shrink();
+    }
     final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
     final palette = ref.watch(albumPaletteProvider);
     final notifier = ref.read(playerProvider.notifier);
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
     final ground = palette.ground;
     final duck = ref.watch(settingsProvider.select((s) => s.microduckEnabled));
+    // Tell empty states whether this robot is up, so there is only one.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) microduckMiniVisible.value = duck;
+    });
 
     _scheduleNudge();
 
@@ -157,9 +167,12 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
                 children: [
                   if (duck)
                     Positioned(
-                      left: _Content.textInset - 14,
-                      right: _Content.controlsInset - 10,
-                      bottom: 1,
+                      // Exactly the progress line's span (the robot's centre
+                      // runs along it), never reaching the buttons; its feet
+                      // stand on the line's top edge.
+                      left: _Content.textInset,
+                      right: _Content.controlsInset,
+                      bottom: 7,
                       child: IgnorePointer(
                         child: PlayerMicroduckStrip(
                           player: notifier.player,

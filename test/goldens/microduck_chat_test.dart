@@ -107,10 +107,19 @@ void main() {
   });
   tearDown(() => debugCoverImageOverride = null);
 
-  Future<void> shot(WidgetTester tester, String name, ChatState chat, {List<String> expectText = const []}) async {
+  Future<void> shot(
+    WidgetTester tester,
+    String name,
+    ChatState chat, {
+    List<String> expectText = const [],
+    Size size = const Size(390, 844),
+    double textScale = 1,
+  }) async {
+    tester.platformDispatcher.textScaleFactorTestValue = textScale;
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
     await tester.runAsync(_prepareCovers);
     await tester.runAsync(MicroduckTexture.ensure);
-    tester.view.physicalSize = const Size(390, 844) * 3;
+    tester.view.physicalSize = size * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
     final tokens = AppThemeTokens.fromPalette(AlbumPalette.fallback);
@@ -230,4 +239,34 @@ void main() {
       expectText: ['Composed by A. R. Rahman', 'PLAYING NOW'],
     );
   });
+
+  // The chat on a small phone, a rotated phone and with large text: nothing
+  // overflows (a failing overflow would throw).
+  for (final (name, size, scale) in const [
+    ('chat_small_x1.5', Size(360, 640), 1.5),
+    ('chat_landscape', Size(800, 360), 1.0),
+    ('chat_tv', Size(1920, 1080), 1.0),
+  ]) {
+    testWidgets('chat fits — $name', (tester) async {
+      await shot(
+        tester,
+        name,
+        ChatState(messages: [
+          const ChatMessage(ChatRole.you, 'calm Tamil melodies for a long night drive with the windows down'),
+          _duck(
+            'Tuned for Tamil · Melody · calm · 24 songs.',
+            songs: ChatSongs(
+              title: 'Tamil · Melody · calm',
+              songs: _songs.take(3).toList(),
+              because: const {'a1': 'You play a lot of A. R. Rahman'},
+              playAll: () async {},
+              playLabel: 'Play this mix',
+            ),
+          ),
+        ]),
+        size: size,
+        textScale: scale,
+      );
+    });
+  }
 }

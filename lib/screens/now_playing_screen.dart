@@ -901,7 +901,7 @@ class _TitleRow extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(height: 28, child: _FittingTitle(text: song.title, style: titleStyle)),
+              SizedBox(key: microduckTitleKey, height: 28, child: _FittingTitle(text: song.title, style: titleStyle)),
               const SizedBox(height: 2),
               Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: artistStyle),
             ],
