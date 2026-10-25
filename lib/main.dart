@@ -16,6 +16,7 @@ import 'services/window_manager_service.dart';
 import 'widgets/app_scaffold.dart';
 import 'widgets/shell/title_bar.dart';
 import 'widgets/shell/tv_shell.dart';
+import 'features/pairing/ui/tv_pair_screen.dart';
 import 'screens/login_screen.dart';
 import 'player/artwork.dart';
 import 'player/artwork_field.dart';
@@ -214,7 +215,11 @@ class MyMusicPlayerApp extends ConsumerWidget {
     }
 
     // Route: show LoginScreen on first launch, AppScaffold if already logged in.
-    final home = isLoggedIn() ? const AppScaffold() : const LoginScreen();
+    final home = isLoggedIn()
+        ? const AppScaffold()
+        : PlatformUtils.isTv
+            ? const TvPairScreen()
+            : const LoginScreen();
 
     return ThemeTokens(
       tokens: tokens,

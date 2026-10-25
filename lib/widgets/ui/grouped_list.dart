@@ -4,6 +4,8 @@ import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
 import '../art/navi_icons.dart';
+import '../../utils/platform_utils.dart';
+import 'voice_search_button.dart';
 
 /// iOS "inset grouped" list section: optional header and footer, rows on a
 /// rounded #1C1C1E surface with separators inset past the leading icon.
@@ -253,6 +255,14 @@ class GroupedTextFieldRow extends StatefulWidget {
   final bool obscure;
   final TextInputType? keyboardType;
   final NaviGlyph? icon;
+  final FocusNode? focusNode;
+  final TextInputAction? textInputAction;
+  final ValueChanged<String>? onSubmitted;
+  final bool autofocus;
+  final Iterable<String>? autofillHints;
+
+  /// A microphone at the end of the row for dictating the value.
+  final bool voice;
 
   const GroupedTextFieldRow({
     super.key,
@@ -262,6 +272,12 @@ class GroupedTextFieldRow extends StatefulWidget {
     this.obscure = false,
     this.keyboardType,
     this.icon,
+    this.focusNode,
+    this.textInputAction,
+    this.onSubmitted,
+    this.autofocus = false,
+    this.autofillHints,
+    this.voice = false,
   });
 
   @override
@@ -270,10 +286,57 @@ class GroupedTextFieldRow extends StatefulWidget {
 
 class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
   late bool _hidden = widget.obscure;
+  FocusNode? _own;
+  FocusNode get _node => widget.focusNode ?? (_own ??= FocusNode(debugLabel: 'grouped-field'));
+  bool _ring = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _node.addListener(_focusChanged);
+    FocusManager.instance.addHighlightModeListener(_modeChanged);
+  }
+
+  @override
+  void didUpdateWidget(GroupedTextFieldRow old) {
+    super.didUpdateWidget(old);
+    if (old.focusNode != widget.focusNode) {
+      (old.focusNode ?? _own)?.removeListener(_focusChanged);
+      _node.addListener(_focusChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    FocusManager.instance.removeHighlightModeListener(_modeChanged);
+    _node.removeListener(_focusChanged);
+    _own?.dispose();
+    super.dispose();
+  }
+
+  void _modeChanged(FocusHighlightMode _) => _focusChanged();
+
+  /// A focus ring on the whole row while the person is moving with keys or a
+  /// D-pad (the caret alone is invisible across a living room).
+  void _focusChanged() {
+    final ring = _node.hasFocus && FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+    if (ring != _ring && mounted) setState(() => _ring = ring);
+  }
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    return DecoratedBox(
+      position: DecorationPosition.foreground,
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(Radii.control),
+        border: _ring ? Border.all(color: t.accent, width: PlatformUtils.isTv ? 3 : 2) : null,
+      ),
+      child: _row(t),
+    );
+  }
+
+  Widget _row(AppThemeTokens t) {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 48),
       child: Padding(
@@ -288,6 +351,11 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
             Expanded(
               child: CupertinoTextField(
                 controller: widget.controller,
+                focusNode: _node,
+                textInputAction: widget.textInputAction,
+                onSubmitted: widget.onSubmitted,
+                autofocus: widget.autofocus,
+                autofillHints: widget.autofillHints,
                 placeholder: widget.placeholder,
                 obscureText: _hidden,
                 keyboardType: widget.keyboardType,
@@ -312,6 +380,8 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
                   semanticLabel: _hidden ? 'Show password' : 'Hide password',
                 ),
               )
+            else if (widget.voice)
+              VoiceSearchButton(controller: widget.controller)
             else
               const SizedBox(width: Space.md),
           ],

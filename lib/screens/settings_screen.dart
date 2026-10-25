@@ -17,6 +17,7 @@ import '../widgets/last_error_row.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../features/pairing/ui/sign_in_another_device_screen.dart';
 import '../widgets/mascot/microduck_mesh.dart' show MicroduckSkin;
 import '../widgets/mascot/microduck_pose.dart' show defaultMicroduckName;
 import '../services/playback_tuning.dart';
@@ -205,6 +206,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 icon: NaviGlyph.unlock,
                 value: s.allowHttp,
                 onChanged: notifier.setAllowHttp,
+              ),
+              GroupedRow(
+                title: 'Sign in another device',
+                subtitle: 'Send your login to a TV with a code or QR.',
+                icon: NaviGlyph.link,
+                onTap: () => navigateInApp(context, const SignInAnotherDeviceScreen(), title: 'Sign in another device'),
               ),
             ],
           ),

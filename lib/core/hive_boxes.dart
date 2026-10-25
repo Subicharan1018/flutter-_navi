@@ -132,6 +132,7 @@ class HiveBoxes {
   static const kMicroduckName = 'microduck_name';
   static const kMicroduckSkin = 'microduck_skin';
   static const kMicroduckTalks = 'microduck_talks';
+  static const kLastServerUrl = 'last_server_url';
   static const kReplayGainMode = 'replay_gain_mode';
   static const kCrossfadeSeconds = 'crossfade_seconds';
   static const kPlaybackSpeed = 'playback_speed';

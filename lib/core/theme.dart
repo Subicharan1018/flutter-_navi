@@ -534,6 +534,7 @@ class CupertinoClickable extends StatefulWidget {
   final VoidCallback? onLongPress;
   final double scaleFactor;
   final String? semanticLabel;
+  final bool autofocus;
 
   const CupertinoClickable({
     super.key,
@@ -542,6 +543,7 @@ class CupertinoClickable extends StatefulWidget {
     this.onLongPress,
     this.scaleFactor = 0.96,
     this.semanticLabel,
+    this.autofocus = false,
   });
 
   @override
@@ -580,6 +582,7 @@ class _CupertinoClickableState extends State<CupertinoClickable>
       child: NaviFocusRing(
         onTap: widget.onTap,
         onLongPress: widget.onLongPress,
+        autofocus: widget.autofocus,
         child: MouseRegion(
           cursor: _enabled ? SystemMouseCursors.click : MouseCursor.defer,
           child: GestureDetector(
