@@ -27,6 +27,7 @@ String defaultSyncDeviceName() {
     final custom = HiveBoxes.prefs.get('sync_device_name')?.toString().trim() ?? '';
     if (custom.isNotEmpty) return custom;
   } catch (_) {}
+  if (PlatformUtils.isTv) return 'Android TV';
   if (PlatformUtils.isAndroid) return 'Android phone';
   if (PlatformUtils.isMobile) return 'iPhone';
   if (PlatformUtils.isWindows) return 'Windows PC';
@@ -36,6 +37,7 @@ String defaultSyncDeviceName() {
 }
 
 SyncDeviceType defaultSyncDeviceType() {
+  if (PlatformUtils.isTv) return SyncDeviceType.tv;
   if (PlatformUtils.isMobile) return SyncDeviceType.phone;
   if (PlatformUtils.isDesktop) return SyncDeviceType.desktop;
   return SyncDeviceType.unknown;

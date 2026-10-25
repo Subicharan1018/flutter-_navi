@@ -375,6 +375,7 @@ class SessionSyncService {
   int _reconnectAttempt = 0;
   Timer? _reconnectTimer;
   Timer? _pingTimer;
+  DateTime _lastInbound = DateTime.now();
   bool _manuallyDisconnected = false;
   bool _isConnecting = false;
   PlaybackState _lastState = const PlaybackState.initial();
@@ -451,6 +452,8 @@ class SessionSyncService {
       _reconnectAttempt = 0;
       _reconnectAttemptController.add(0);
       _setConnection(SyncConnection.online);
+      debugPrint('[SessionSync] ✅ connected as ${_deviceName ?? 'device'} (${_deviceType.name}) id=${(_deviceId ?? '').length > 6 ? _deviceId!.substring(0, 6) : _deviceId}');
+      _flushPending();
       _startPingTimer();
 
       _channel!.stream.listen(
@@ -471,9 +474,19 @@ class SessionSyncService {
         // WS initial push is the fallback if REST fails; don't block connect on it
       }
     } catch (e) {
-      debugPrint('[SessionSync] ❌ Connection failed: $e');
+      debugPrint('[SessionSync] ❌ Connection failed (${e.runtimeType}): $e');
       final is4001 =
           e.toString().contains('4001') || _channel?.closeCode == 4001;
+      // A socket that never opened must not count as connected: connect()
+      // refuses to start while a channel exists, so leaving it here would stop
+      // every later retry.
+      final broken = _channel;
+      _channel = null;
+      try {
+        unawaited(Future.sync(() => broken?.sink.close()).catchError((_) {}));
+      } catch (_) {}
+      _pingTimer?.cancel();
+      _setConnection(SyncConnection.offline);
       _scheduleReconnect(isAuthFailure: is4001);
     } finally {
       _isConnecting = false;
@@ -485,6 +498,7 @@ class SessionSyncService {
   // ---------------------------------------------------------------------------
 
   void _onMessage(dynamic raw) {
+    _lastInbound = DateTime.now();
     try {
       final Map<String, dynamic> json = raw is String
           ? (jsonDecode(raw) as Map<String, dynamic>)
@@ -536,7 +550,19 @@ class SessionSyncService {
 
   void _startPingTimer() {
     _pingTimer?.cancel();
+    _lastInbound = DateTime.now();
     _pingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
+      // The server answers every ping. Silence for this long means the socket
+      // is half-open (the phone slept, the Wi-Fi changed): start over.
+      if (DateTime.now().difference(_lastInbound) > const Duration(seconds: 35)) {
+        debugPrint('[SessionSync] ⚠️ no reply from the server for 35 s, reconnecting');
+        final dead = _channel;
+        try {
+          unawaited(Future.sync(() => dead?.sink.close()).catchError((_) {}));
+        } catch (_) {}
+        _onDisconnected();
+        return;
+      }
       _send({'type': 'ping'});
     });
   }
@@ -546,6 +572,7 @@ class SessionSyncService {
   // ---------------------------------------------------------------------------
 
   void _onDisconnected([int? closeCode]) {
+    debugPrint('[SessionSync] ⚠️ disconnected (close code ${closeCode ?? 'none'})');
     _pingTimer?.cancel();
     _channel = null;
     _devices = const [];
@@ -728,12 +755,40 @@ class SessionSyncService {
   /// Asks for the device list (it is also pushed whenever it changes).
   void requestDevices() => _send({'type': 'get_devices'});
 
+  /// Frames asked for while the socket was still opening (the first play after
+  /// launch claims playback before the link is up). Kept briefly, newest wins
+  /// per kind, and sent the moment the socket opens.
+  final Map<String, Map<String, dynamic>> _pending = {};
+
   void _send(Map<String, dynamic> msg) {
-    if (_channel == null) return;
+    if (_channel == null) {
+      final type = msg['type']?.toString() ?? '';
+      if (type == 'ping' || _manuallyDisconnected) return;
+      if (type == 'command') {
+        // A command is for right now; if the link is down it is not "later".
+        return;
+      }
+      _pending[type] = msg;
+      return;
+    }
     try {
       _channel!.sink.add(jsonEncode(msg));
     } catch (e) {
       debugPrint('[SessionSync] ❌ Failed to send message: $e');
+    }
+  }
+
+  void _flushPending() {
+    if (_pending.isEmpty) return;
+    // A transfer goes first so the updates that follow come from the active device.
+    final order = [
+      if (_pending.containsKey('transfer_playback')) 'transfer_playback',
+      ..._pending.keys.where((k) => k != 'transfer_playback'),
+    ];
+    final frames = [for (final k in order) _pending[k]!];
+    _pending.clear();
+    for (final m in frames) {
+      _send(m);
     }
   }
 

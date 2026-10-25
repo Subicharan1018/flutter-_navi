@@ -33,6 +33,7 @@ import '../screens/playlist_editor.dart';
 import 'ui/dock_ground.dart';
 import 'ui/one_shot_icon.dart';
 import '../features/social/ui/jam/jam_pill.dart';
+import '../providers/session_sync_provider.dart';
 import 'mini_player.dart';
 import 'shell/app_tab.dart';
 import 'shell/breadcrumb_bar.dart';
@@ -88,6 +89,9 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WindowLifecycleM
   void initState() {
     super.initState();
     tabRequest.addListener(_onTabRequest);
+    // Open the live link at launch so this device is in the "Playing on" list
+    // before anything plays here.
+    ref.read(sessionSyncServiceProvider);
     WidgetsBinding.instance.addPostFrameCallback((_) async {
       // After a server upgrade that renamed song ids, move local history and
       // downloads to the new ids first (a no-op otherwise; gives up after 8 s).

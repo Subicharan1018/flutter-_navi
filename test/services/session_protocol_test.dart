@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'dart:convert';
+import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -54,6 +55,35 @@ class _Channel extends StreamChannelMixin implements WebSocketChannel {
   void serverSends(Map<String, dynamic> m) => _in.add(jsonEncode(m));
 
   void serverCloses() => _in.close();
+}
+
+class _FailingChannel extends StreamChannelMixin implements WebSocketChannel {
+  @override
+  Stream get stream => const Stream.empty();
+
+  @override
+  WebSocketSink get sink => _Sink();
+
+  @override
+  Future<void> get ready => Future.error(WebSocketChannelException('was not upgraded to websocket'));
+
+  @override
+  String? get protocol => null;
+
+  @override
+  int? get closeCode => null;
+
+  @override
+  String? get closeReason => null;
+}
+
+class _NoJitter implements Random {
+  @override
+  bool nextBool() => false;
+  @override
+  double nextDouble() => 0.5;
+  @override
+  int nextInt(int max) => 0;
 }
 
 Future<(SessionSyncService, _Channel, List<Uri>)> _connected({String? name, SyncDeviceType type = SyncDeviceType.unknown}) async {
@@ -194,6 +224,47 @@ void main() {
     final (service, _, uris) = await _connected();
     await service.connect();
     expect(uris, hasLength(1));
+    service.dispose();
+  });
+
+  test('a connection that failed to open does not block the retry (the TV after a slow network start)', () async {
+    final good = _Channel();
+    var attempts = 0;
+    final service = SessionSyncService(
+      jwt: 'tok',
+      deviceIdProvider: () async => 'dev-1',
+      random: _NoJitter(),
+      channelFactory: (u) {
+        attempts++;
+        return attempts == 1 ? _FailingChannel() : good;
+      },
+      httpClient: MockClient((_) async => http.Response('{}', 404)),
+    );
+    await service.connect();
+    expect(service.connection, SyncConnection.offline);
+    expect(service.isConnected, isFalse);
+    await service.connect(); // what the scheduled retry does
+    expect(attempts, 2);
+    expect(service.connection, SyncConnection.online);
+    service.dispose();
+  });
+
+  test('a claim sent while the socket is still opening is delivered once it opens', () async {
+    final ch = _Channel();
+    final service = SessionSyncService(
+      jwt: 'tok',
+      deviceIdProvider: () async => 'dev-1',
+      channelFactory: (u) => ch,
+      httpClient: MockClient((_) async => http.Response('{}', 404)),
+    );
+    service.transferPlayback('dev-1', deviceName: 'Android TV'); // before connect(): the first play after launch
+    service.pushStateUpdate(trackId: 'a', isPlaying: true);
+    service.pushStateUpdate(trackId: 'b', isPlaying: true);       // newest wins
+    service.sendCommand('pause');                                 // commands are for now, not later
+    expect(ch.out.sent, isEmpty);
+    await service.connect();
+    expect(ch.out.sent.map((m) => m['type']), ['transfer_playback', 'state_update']);
+    expect(ch.out.sent[1]['track_id'], 'b');
     service.dispose();
   });
 
