@@ -31,6 +31,7 @@ import '../widgets/desktop_dialogs.dart';
 import '../widgets/mascot/microduck_strip.dart';
 import '../widgets/options_menu.dart';
 import '../player/devices_sheet.dart';
+import '../player/playing_on.dart';
 import '../player/remote_view.dart';
 
 // =============================================================================
@@ -349,6 +350,7 @@ class _PhoneLayout extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
             child: Column(
               children: [
+                const PlayingOnChip(gap: 6),
                 const FlowPill(),
                 Scrubber(key: microduckTrackKey, player: notifier.player, song: song),
                 const SizedBox(height: 6),

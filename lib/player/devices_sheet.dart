@@ -47,11 +47,19 @@ List<DeviceRowData> deviceRows(List<SyncDevice> devices, {required String? thisI
         d,
         d.id == thisId,
         (byName[d.name] ?? 0) > 1 && d.id.length >= 4 ? '${d.name} · ${d.id.substring(d.id.length - 4)}' : d.name,
-        d.id == thisId
-            ? (d.active ? 'This device · Playing here' : 'This device · Tap to play here')
-            : (d.active ? 'Playing now' : 'Tap to move playback here'),
+        _caption(d, isThis: d.id == thisId),
       ),
   ];
+}
+
+/// "This device · Playing here", "Host · seen 40 s ago" and the like.
+String _caption(SyncDevice d, {required bool isThis}) {
+  final parts = <String>[
+    if (isThis) 'This device',
+    if (d.active) (isThis ? 'Playing here' : 'Host · playing now') else (isThis ? 'Tap to play here' : 'Tap to move playback here'),
+    if (!isThis && d.lastSeenS != null && d.lastSeenS! >= 20) 'seen ${d.lastSeenS!.round()} s ago',
+  ];
+  return parts.join(' · ');
 }
 
 Future<void> showDevicesSheet(BuildContext context) =>
@@ -175,7 +183,11 @@ class _DeviceRow extends ConsumerWidget {
                     Text(row.caption, style: t.footnote),
                   ]),
                 ),
-                if (active) NaviIcon(NaviGlyph.speaker, size: 20, color: t.accent),
+                if (active) ...[
+                  Text('Host', style: t.footnote.copyWith(color: t.accent, fontWeight: FontWeight.w600)),
+                  const SizedBox(width: Space.sm),
+                  NaviIcon(NaviGlyph.speaker, size: 20, color: t.accent),
+                ],
               ]),
             ),
           ),

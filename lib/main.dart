@@ -1,4 +1,5 @@
 import 'dart:io' show Platform;
+import 'utils/user_activity.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -37,6 +38,7 @@ late final NaviAudioHandler globalAudioHandler;
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  UserActivity.install();
   CrashLog.install();
 
   // MEM-OPT: Reduced from 40 MB / 100 items. Flutter's image cache holds
@@ -143,9 +145,18 @@ Future<void> main() async {
   if (DesktopTray.supported) {
     final player = container.read(playerProvider.notifier);
     unawaited(DesktopTray.instance.init(PlaybackTransport(
-      playPause: player.togglePlay,
-      next: player.playNext,
-      previous: player.playPrev,
+      playPause: () {
+        UserActivity.mark();
+        player.togglePlay();
+      },
+      next: () {
+        UserActivity.mark();
+        player.playNext();
+      },
+      previous: () {
+        UserActivity.mark();
+        player.playPrev();
+      },
       isPlaying: () => container.read(playerProvider).isPlaying,
     )));
     container.listen(playerProvider.select((s) => s.isPlaying), (_, _) => DesktopTray.instance.refreshMenu());

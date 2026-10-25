@@ -268,6 +268,59 @@ void main() {
     service.dispose();
   });
 
+  test('a person-asked claim carries force, an automatic one does not', () async {
+    final (service, ch, _) = await _connected();
+    service.transferPlayback('dev-1', force: true);
+    service.transferPlayback('dev-1');
+    expect(ch.out.sent[0]['force'], true);
+    expect(ch.out.sent[1].containsKey('force'), isFalse);
+    service.dispose();
+  });
+
+  test('the device list says who is the host and when each was last heard', () async {
+    final (service, ch, _) = await _connected();
+    ch.serverSends({
+      'type': 'devices',
+      'payload': [
+        {'id': 'a', 'name': 'Windows PC (LAPTOP)', 'type': 'desktop', 'active': true, 'host': true, 'last_seen_s': 1.2},
+        {'id': 'b', 'name': 'OnePlus CPH2581', 'type': 'phone', 'active': false, 'host': false, 'last_seen_s': 41.0},
+      ],
+    });
+    await _pump();
+    final d = service.currentDevices;
+    expect(d[0].active, isTrue);
+    expect(d[1].lastSeenS, 41.0);
+    final rows = deviceRows(d, thisId: 'b', thisPlayingHere: false);
+    expect(rows[0].caption, 'This device · Tap to play here');
+    expect(rows[1].caption, 'Host · playing now');
+    expect(CommandResult(ok: false, action: 'transfer', reason: 'claim_cooldown').message, contains('just took over'));
+    service.dispose();
+  });
+
+  test('the device name is looked up once, when connecting', () async {
+    final ch = _Channel();
+    final uris = <Uri>[];
+    var asked = 0;
+    final service = SessionSyncService(
+      jwt: 'tok',
+      deviceIdProvider: () async => 'dev-1',
+      deviceNameProvider: () async {
+        asked++;
+        return 'Android TV (MiTV-MOOQ1)';
+      },
+      channelFactory: (u) {
+        uris.add(u);
+        return ch;
+      },
+      httpClient: MockClient((_) async => http.Response('{}', 404)),
+    );
+    await service.connect();
+    expect(uris.single.queryParameters['device_name'], 'Android TV (MiTV-MOOQ1)');
+    expect(service.deviceName, 'Android TV (MiTV-MOOQ1)');
+    expect(asked, 1);
+    service.dispose();
+  });
+
   group('Devices sheet rows', () {
     const phone = SyncDevice(id: 'aaaa1111', name: 'Android phone', type: SyncDeviceType.phone, active: false);
     const phone2 = SyncDevice(id: 'bbbb2222', name: 'Android phone', type: SyncDeviceType.phone, active: true);
@@ -280,7 +333,7 @@ void main() {
       expect(rows[1].title, 'Android phone · 2222');
       expect(rows[2].title, 'Windows PC');
       expect(rows[0].caption, 'This device · Tap to play here');
-      expect(rows[1].caption, 'Playing now');
+      expect(rows[1].caption, 'Host · playing now');
       expect(rows[2].caption, 'Tap to move playback here');
     });
 

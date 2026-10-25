@@ -34,7 +34,7 @@ import 'ui/dock_ground.dart';
 import 'ui/one_shot_icon.dart';
 import '../features/social/ui/jam/jam_pill.dart';
 import '../providers/session_sync_provider.dart';
-import 'mini_player.dart';
+import '../player/playing_on.dart';
 import 'shell/app_tab.dart';
 import 'shell/breadcrumb_bar.dart';
 import 'shell/nav_stack.dart';
@@ -203,7 +203,7 @@ class _PhoneShell extends ConsumerWidget {
                       if (offline) const _OfflineBanner(),
                       const FetchFinishedBanner(),
                       const JamLivePill(),
-                      const MiniPlayer(),
+                      const AdaptiveMiniPlayer(),
                       _TabBar(tab: tab, onSelect: onSelect, ground: band),
                     ],
                   ),

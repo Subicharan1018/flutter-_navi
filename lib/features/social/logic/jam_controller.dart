@@ -249,7 +249,7 @@ class JamController extends Notifier<JamUiState> {
     }
     _applying = true;
     try {
-      final player = _player;
+      final player = _player..permitClaim(); // being in a Jam is a person's choice to play here
       final nextIds = [for (final q in jam.queue) q.id];
       final songs = [for (final q in jam.queue) q.toSong()];
       if (songs.isEmpty) return;

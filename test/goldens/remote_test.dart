@@ -13,6 +13,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/player/devices_sheet.dart';
+import 'package:navivibe/player/playing_on.dart';
 import 'package:navivibe/player/remote_view.dart';
 import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/session_sync_provider.dart';
@@ -67,7 +68,7 @@ Widget _app(Widget home, {SyncConnection conn = SyncConnection.online, List<Sync
   return ProviderScope(
     overrides: [
       sessionSyncServiceProvider.overrideWithValue(_Svc()),
-      playerProvider.overrideWith((ref) => _Player(_passive().copyWith(syncMode: mode))),
+      playerProvider.overrideWith((ref) => _Player(_passive().copyWith(syncMode: mode, remoteActiveDeviceName: 'Living room TV'))),
       settingsProvider.overrideWith((ref) => _Settings()),
       subsonicServiceProvider.overrideWithValue(_Subsonic()),
       syncConnectionProvider.overrideWith((ref) => Stream.value(conn)),
@@ -131,6 +132,19 @@ void main() {
     ));
     await tester.pump(const Duration(milliseconds: 200));
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('remote/devices.png'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('who is playing: the chip and the remote mini player on a passive device', (tester) async {
+    await phone(tester, height: 220);
+    await tester.pumpWidget(_app(const Scaffold(
+      body: Align(
+        alignment: Alignment.bottomCenter,
+        child: Column(mainAxisSize: MainAxisSize.min, children: [PlayingOnChip(), SizedBox(height: 12), RemoteMiniPlayer()]),
+      ),
+    )));
+    await tester.pump(const Duration(milliseconds: 200));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('remote/mini_passive.png'));
     expect(tester.takeException(), isNull);
   });
 

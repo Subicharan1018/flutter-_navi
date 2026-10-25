@@ -246,15 +246,27 @@ class SyncDevice {
   final String id;
   final String name;
   final SyncDeviceType type;
+
+  /// The host: the device that holds playback.
   final bool active;
 
-  const SyncDevice({required this.id, required this.name, this.type = SyncDeviceType.unknown, this.active = false});
+  /// Seconds since the server last heard from it (null: not reported).
+  final double? lastSeenS;
+
+  const SyncDevice({
+    required this.id,
+    required this.name,
+    this.type = SyncDeviceType.unknown,
+    this.active = false,
+    this.lastSeenS,
+  });
 
   factory SyncDevice.fromJson(Map<String, dynamic> j) => SyncDevice(
         id: j['id']?.toString() ?? '',
         name: j['name']?.toString() ?? 'Unknown device',
         type: SyncDeviceType.parse(j['type']),
-        active: j['active'] == true,
+        active: j['active'] == true || j['host'] == true,
+        lastSeenS: (j['last_seen_s'] as num?)?.toDouble(),
       );
 
   @override
@@ -311,6 +323,7 @@ class CommandResult {
   /// A line for the person: what went wrong and what to do.
   String get message => switch (reason) {
         'no_active_device' => 'Nothing is playing on your devices. Start music on one first.',
+        'claim_cooldown' => 'Another device just took over. Try again in a moment.',
         'device_offline' => 'That device went offline.',
         'device_too_old' => 'That device needs the latest NaviVibe to be controlled.',
         _ => 'That didn’t work. Try again.',
@@ -366,7 +379,8 @@ class SessionSyncService {
   final String _httpBaseUrl;
   final Future<String> Function() _deviceIdProvider;
   final Random _random;
-  final String? _deviceName;
+  String? _deviceName;
+  final Future<String> Function()? _deviceNameProvider;
   final SyncDeviceType _deviceType;
 
   WebSocketChannel? _channel;
@@ -390,8 +404,10 @@ class SessionSyncService {
     Future<String> Function()? deviceIdProvider,
     Random? random,
     String? deviceName,
+    Future<String> Function()? deviceNameProvider,
     SyncDeviceType deviceType = SyncDeviceType.unknown,
   })  : _deviceName = deviceName,
+        _deviceNameProvider = deviceNameProvider,
         _deviceType = deviceType,
         _jwt = jwt,
         _jwtSupplier = jwtSupplier,
@@ -430,6 +446,11 @@ class SessionSyncService {
     try {
       _deviceId ??= await _deviceIdProvider();
       _jwt ??= await _resolveJwt(forceRefresh: false);
+      if (_deviceName == null && _deviceNameProvider != null) {
+        try {
+          _deviceName = await _deviceNameProvider();
+        } catch (_) {}
+      }
 
       if (_jwt == null || _jwt!.isEmpty) {
         debugPrint('[SessionSync] ⚠️ No JWT token available — cannot connect');
@@ -441,7 +462,7 @@ class SessionSyncService {
       final uri = Uri.parse(_wsBaseUrl).replace(queryParameters: {
         'token': _jwt!,
         'device_id': _deviceId!,
-        if (_deviceName != null && _deviceName.isNotEmpty) 'device_name': _deviceName,
+        if (_deviceName != null && _deviceName!.isNotEmpty) 'device_name': _deviceName!,
         if (_deviceType != SyncDeviceType.unknown) 'device_type': _deviceType.name,
         'proto': '2',
       });
@@ -718,11 +739,16 @@ class SessionSyncService {
 
   /// Sends a playback handoff / transfer request to switch active device.
   /// The server hands the playhead over with it.
-  void transferPlayback(String deviceId, {String? deviceName}) {
+  ///
+  /// [force] says a person asked for it: without it the server ignores a claim
+  /// that comes seconds after another device's (two devices fighting over the
+  /// host seat).
+  void transferPlayback(String deviceId, {String? deviceName, bool force = false}) {
     _send({
       'type': 'transfer_playback',
       'device_id': deviceId,
       'device_name': ?deviceName,
+      if (force) 'force': true,
     });
   }
 

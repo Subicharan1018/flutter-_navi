@@ -26,6 +26,7 @@ import 'session_sync_provider.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../utils/async_lock.dart';
 import '../utils/device_utils.dart';
+import '../utils/user_activity.dart';
 
 // ---------------------------------------------------------------------------
 // Sync mode enum
@@ -391,7 +392,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (deviceId == _myDeviceId) {
       if (state.syncMode == SyncMode.activeHere) return;
       _claimedAt = DateTime.now();
-      sync.transferPlayback(deviceId, deviceName: sync.deviceName);
+      sync.transferPlayback(deviceId, deviceName: sync.deviceName, force: true);
       return;
     }
     if (state.syncMode == SyncMode.activeHere) {
@@ -403,7 +404,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         queue: state.queue.map((s) => s.id).toList(),
       );
     }
-    sync.transferPlayback(deviceId);
+    sync.transferPlayback(deviceId, force: true);
   }
 
   Future<void> claimActiveDevice() async {
@@ -411,7 +412,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _myDeviceId ??= await _deviceIdProvider();
     if (_myDeviceId != null) {
       try {
-        _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!);
+        _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!, force: true);
       } catch (e) {
         debugPrint('[PlayerNotifier] ⚠️ Failed to claim active device: $e');
       }
@@ -440,11 +441,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     if (isMineNow) {
       _claimedAt = null;
+      state = state.copyWith(syncMode: SyncMode.activeHere);
       if (wasPassive) {
-        // Transfer just confirmed — resume from the state we were tracking as passive.
+        // Transfer just confirmed — resume from the state we were tracking as
+        // passive. Already the host, so nothing in it may claim again.
         _resumeFromRemoteState(syncState);
       }
-      state = state.copyWith(syncMode: SyncMode.activeHere);
     } else if (syncState.activeDevice != null) {
       // Another device is active — this device goes passive.
       // Stop local playback if it was running; UI rendering handled in Step 7.
@@ -586,19 +588,35 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   bool get _claimPending =>
       _claimedAt != null && DateTime.now().difference(_claimedAt!) < _claimGrace;
 
-  Future<void> _ensureActiveDevice() async {
-    // Starting playback here means "play here", even if another device was
-    // active: claim it, so the server doesn't keep the other device.
-    if (state.syncMode == SyncMode.activeHere) return;
+  /// Code that runs by itself (a restored queue, an autoplay refill, a Jam, a
+  /// remote state) may take playback only inside this window, opened with
+  /// [permitClaim]. A touch or key also opens it: see [UserActivity].
+  DateTime _claimPermittedUntil = DateTime.fromMillisecondsSinceEpoch(0);
+
+  void permitClaim([Duration d = const Duration(seconds: 6)]) => _claimPermittedUntil = DateTime.now().add(d);
+
+  bool get _mayClaim => UserActivity.recent() || DateTime.now().isBefore(_claimPermittedUntil);
+
+  /// Makes this device the host before it starts playing. False means playback
+  /// must not start: another device holds it and nobody here asked to take it.
+  Future<bool> _ensureActiveDevice() async {
+    if (state.syncMode == SyncMode.activeHere) return true;
+    final stealing = state.syncMode == SyncMode.passive;
+    if (stealing && !_mayClaim) {
+      debugPrint('[PlayerNotifier] ⏭ another device is playing and nobody asked to take over; not claiming');
+      return false;
+    }
     _myDeviceId ??= await _deviceIdProvider();
     if (_myDeviceId != null) {
       _claimedAt = DateTime.now();
       try {
-        _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!);
+        // Taking it from a playing device is a person's decision: say so.
+        _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!, force: stealing);
       } catch (e) {
         debugPrint('[PlayerNotifier] ⚠️ Failed to transfer playback: $e');
       }
     }
+    return true;
   }
 
   void _startPositionTick() {
@@ -616,7 +634,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   Future<void> play() async {
-    await _ensureActiveDevice();
+    if (!await _ensureActiveDevice()) return;
     await _audioHandler.play();
     state = state.copyWith(isPlaying: true, syncMode: SyncMode.activeHere);
     _pushUpdate(
@@ -1206,7 +1224,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     debugPrint('🎵 [PlayerProvider] setQueue called with ${songs.length} songs, start: $startIndex, playlist: $playlistName');
     await _queueLock.run(() async {
       _queueEpoch++;
-      await _ensureActiveDevice();
+      if (!await _ensureActiveDevice()) return;
       _clearHistory(); // also calls shuffleNotifier.clearQueue() → _sessionId = null
       _ref.read(shuffleQueueProvider.notifier).initSession(); // start session so feedback fires
       _playlistPool = []; // clear pool — not a playlist-shuffle context
@@ -1284,7 +1302,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (songs.isEmpty) return;
     await _queueLock.run(() async {
       _queueEpoch++;
-      await _ensureActiveDevice();
+      if (!await _ensureActiveDevice()) return;
       _clearHistory();
       _nextSourceContext = 'playlist';
       _markTransition('user_selected');

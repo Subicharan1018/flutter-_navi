@@ -10,6 +10,7 @@ import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/session_sync_provider.dart';
 import 'package:navivibe/services/session_sync_service.dart';
+import 'package:navivibe/utils/user_activity.dart';
 import 'package:navivibe/services/navi_audio_handler.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/listening_event_collector.dart';
@@ -207,6 +208,7 @@ class FakeSessionSyncService implements SessionSyncService {
 
   final List<Map<String, dynamic>> pushedUpdates = [];
   final List<String> transferredDevices = [];
+  final List<bool> forcedClaims = [];
 
   PlaybackState _current = const PlaybackState.initial();
 
@@ -248,8 +250,9 @@ class FakeSessionSyncService implements SessionSyncService {
   }
 
   @override
-  void transferPlayback(String deviceId, {String? deviceName}) {
+  void transferPlayback(String deviceId, {String? deviceName, bool force = false}) {
     transferredDevices.add(deviceId);
+    forcedClaims.add(force);
   }
 
   final _commandController = StreamController<RemoteCommand>.broadcast();
@@ -855,6 +858,64 @@ void main() {
       final notifier = await make();
       await notifier.transferTo('device-tv');
       expect(fakeSyncService.transferredDevices, ['device-tv']);
+      notifier.dispose();
+    });
+
+    test('a passive device never takes playback on its own (no touch behind it)', () async {
+      UserActivity.debugSet(null);
+      final notifier = await make(active: 'device-other');
+      await notifier.play();
+      await notifier.setQueue([
+        Song(id: 's1', title: 'T', artist: 'A', album: 'B', coverArt: '', duration: 100, track: 1, year: 2020),
+      ], 0);
+      expect(fakeSyncService.transferredDevices, isEmpty);
+      expect(audioHandler.player.playing, isFalse);
+      expect(notifier.state.syncMode, SyncMode.passive);
+      notifier.dispose();
+    });
+
+    test('a touch makes the claim legitimate, and it is forced so the server honours it', () async {
+      final notifier = await make(active: 'device-other');
+      UserActivity.debugSet(DateTime.now());
+      await notifier.play();
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      expect(fakeSyncService.forcedClaims, [true]);
+      UserActivity.debugSet(null);
+      notifier.dispose();
+    });
+
+    test('code that runs by itself can take playback only inside a window it opens (Jam)', () async {
+      UserActivity.debugSet(null);
+      final notifier = await make(active: 'device-other');
+      notifier.permitClaim();
+      await notifier.play();
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      notifier.dispose();
+    });
+
+    test('with nobody playing anywhere a device may start, and the claim is not forced', () async {
+      UserActivity.debugSet(null);
+      final container = createContainer();
+      final ref = container.read(Provider((ref) => ref));
+      final notifier = PlayerNotifier(ref, audioHandler, mockSubsonicService, mockCollector, deviceIdProvider: () async => 'device-me');
+      await Future.delayed(Duration.zero);
+      expect(notifier.state.syncMode, SyncMode.idle);
+      await notifier.play();
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      expect(fakeSyncService.forcedClaims, [false]);
+      notifier.dispose();
+    });
+
+    test('becoming the host through a transfer does not claim a second time', () async {
+      final notifier = await make(active: 'device-other');
+      UserActivity.debugSet(DateTime.now());
+      await notifier.claimActiveDevice();
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      fakeSyncService.emitSyncState(PlaybackState(activeDevice: 'device-me', trackId: 't1', isPlaying: true, queue: const ['t1', 't2']));
+      await Future.delayed(const Duration(milliseconds: 50));
+      expect(notifier.state.syncMode, SyncMode.activeHere);
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      UserActivity.debugSet(null);
       notifier.dispose();
     });
 

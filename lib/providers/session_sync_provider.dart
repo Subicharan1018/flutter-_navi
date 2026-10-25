@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/hive_boxes.dart';
+import 'package:device_info_plus/device_info_plus.dart';
 import '../services/session_sync_service.dart';
 import '../utils/platform_utils.dart';
 import 'settings_provider.dart';
@@ -36,6 +37,32 @@ String defaultSyncDeviceName() {
   return 'This device';
 }
 
+/// What this device calls itself in the list: the model on a phone, the
+/// computer name on a PC, "Android TV (model)" on a TV. Falls back to the
+/// generic name if the platform won't say.
+Future<String> loadSyncDeviceName() async {
+  try {
+    final custom = HiveBoxes.prefs.get('sync_device_name')?.toString().trim() ?? '';
+    if (custom.isNotEmpty) return custom;
+  } catch (_) {}
+  try {
+    final info = DeviceInfoPlugin();
+    if (PlatformUtils.isAndroid) {
+      final a = await info.androidInfo;
+      final maker = a.manufacturer.trim();
+      final model = a.model.trim();
+      final full = model.toLowerCase().startsWith(maker.toLowerCase()) || maker.isEmpty
+          ? model
+          : '${maker[0].toUpperCase()}${maker.substring(1)} $model';
+      return PlatformUtils.isTv ? 'Android TV ($model)' : full;
+    }
+    if (PlatformUtils.isWindows) return 'Windows PC (${(await info.windowsInfo).computerName})';
+    if (PlatformUtils.isMacOS) return 'Mac (${(await info.macOsInfo).computerName})';
+    if (PlatformUtils.isLinux) return 'Linux PC (${(await info.linuxInfo).name})';
+  } catch (_) {}
+  return defaultSyncDeviceName();
+}
+
 SyncDeviceType defaultSyncDeviceType() {
   if (PlatformUtils.isTv) return SyncDeviceType.tv;
   if (PlatformUtils.isMobile) return SyncDeviceType.phone;
@@ -49,7 +76,7 @@ SyncDeviceType defaultSyncDeviceType() {
 /// when the ProviderContainer is destroyed.
 final sessionSyncServiceProvider = Provider<SessionSyncService>((ref) {
   final service = SessionSyncService(
-    deviceName: defaultSyncDeviceName(),
+    deviceNameProvider: loadSyncDeviceName,
     deviceType: defaultSyncDeviceType(),
     jwtSupplier: ({bool forceRefresh = false}) {
       final settings = ref.read(settingsProvider);
