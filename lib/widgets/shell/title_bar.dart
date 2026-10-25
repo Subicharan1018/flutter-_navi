@@ -43,35 +43,53 @@ class _NaviTitleBarState extends State<NaviTitleBar> with WindowListener {
   @override
   void onWindowUnmaximize() => setState(() => _maximized = false);
 
-  Future<void> _toggleMaximise() async =>
-      await windowManager.isMaximized() ? windowManager.unmaximize() : windowManager.maximize();
+  Future<void> _toggleMaximise() async => await windowManager.isMaximized()
+      ? windowManager.unmaximize()
+      : windowManager.maximize();
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return Container(
-      height: NaviTitleBar.height,
+    // A Material ancestor gives the text the app's default style (without one
+    // it is drawn with the framework's debug underline).
+    return Material(
       color: t.bgSurface,
-      child: Row(
-        children: [
-          Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.translucent,
-              onPanStart: (_) => windowManager.startDragging(),
-              onDoubleTap: _toggleMaximise,
-              child: Padding(
-                padding: const EdgeInsets.only(left: Space.md),
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: Text('NaviVibe', style: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+      child: SizedBox(
+        height: NaviTitleBar.height,
+        child: Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                behavior: HitTestBehavior.translucent,
+                onPanStart: (_) => windowManager.startDragging(),
+                onDoubleTap: _toggleMaximise,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: Space.md),
+                  child: Align(
+                    alignment: Alignment.centerLeft,
+                    child: Text(
+                      'NaviVibe',
+                      style: t.footnote.copyWith(
+                        color: t.textPrimary,
+                        fontWeight: FontWeight.w600,
+                        decoration: TextDecoration.none,
+                      ),
+                    ),
+                  ),
                 ),
               ),
             ),
-          ),
-          _CaptionButton(kind: _Caption.minimise, onTap: windowManager.minimize),
-          _CaptionButton(kind: _maximized ? _Caption.restore : _Caption.maximise, onTap: _toggleMaximise),
-          _CaptionButton(kind: _Caption.close, onTap: windowManager.close),
-        ],
+            _CaptionButton(
+              kind: _Caption.minimise,
+              onTap: windowManager.minimize,
+            ),
+            _CaptionButton(
+              kind: _maximized ? _Caption.restore : _Caption.maximise,
+              onTap: _toggleMaximise,
+            ),
+            _CaptionButton(kind: _Caption.close, onTap: windowManager.close),
+          ],
+        ),
       ),
     );
   }
@@ -117,7 +135,10 @@ class _CaptionButtonState extends State<_CaptionButton> {
             height: NaviTitleBar.height,
             color: _hovered ? hover : Colors.transparent,
             alignment: Alignment.center,
-            child: CustomPaint(size: const Size(10, 10), painter: _CaptionPainter(widget.kind, ink)),
+            child: CustomPaint(
+              size: const Size(10, 10),
+              painter: _CaptionPainter(widget.kind, ink),
+            ),
           ),
         ),
       ),
@@ -144,7 +165,15 @@ class _CaptionPainter extends CustomPainter {
         canvas.drawRect(Rect.fromLTWH(0.5, 0.5, w - 1, h - 1), p);
       case _Caption.restore:
         canvas.drawRect(Rect.fromLTWH(0.5, 2.5, w - 2.5, h - 2.5), p);
-        canvas.drawPath(Path()..moveTo(2.5, 2.5)..lineTo(2.5, 0.5)..lineTo(w - 0.5, 0.5)..lineTo(w - 0.5, h - 2.5)..lineTo(w - 2.5, h - 2.5), p);
+        canvas.drawPath(
+          Path()
+            ..moveTo(2.5, 2.5)
+            ..lineTo(2.5, 0.5)
+            ..lineTo(w - 0.5, 0.5)
+            ..lineTo(w - 0.5, h - 2.5)
+            ..lineTo(w - 2.5, h - 2.5),
+          p,
+        );
       case _Caption.close:
         canvas.drawLine(const Offset(0, 0), Offset(w, h), p);
         canvas.drawLine(Offset(w, 0), Offset(0, h), p);
@@ -152,5 +181,6 @@ class _CaptionPainter extends CustomPainter {
   }
 
   @override
-  bool shouldRepaint(_CaptionPainter old) => old.kind != kind || old.color != color;
+  bool shouldRepaint(_CaptionPainter old) =>
+      old.kind != kind || old.color != color;
 }

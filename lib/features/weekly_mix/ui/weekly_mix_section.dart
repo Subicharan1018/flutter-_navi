@@ -1,3 +1,4 @@
+import '../../../widgets/ui/horizontal_shelf.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -35,7 +36,10 @@ class WeeklyMixSection extends ConsumerWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           SectionHeader(title: 'Your Weekly Mix', onTap: open),
-          InlineError(message: 'Your mix didn’t load. $e', onRetry: () => ref.invalidate(weeklyMixProvider)),
+          InlineError(
+            message: 'Your mix didn’t load. $e',
+            onRetry: () => ref.invalidate(weeklyMixProvider),
+          ),
         ],
       ),
       data: (mix) {
@@ -45,42 +49,43 @@ class WeeklyMixSection extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             SectionHeader(title: 'Your Weekly Mix', onTap: open),
-            SizedBox(
-              height: _cover + 44,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-                itemCount: shown.length + 1,
-                separatorBuilder: (_, _) => const SizedBox(width: Space.md),
-                itemBuilder: (context, i) {
-                  if (i == 0) {
-                    return MediaCard(
-                      title: 'Weekly Mix',
-                      subtitle: [
-                        if (weekLabel(mix.weekOf).isNotEmpty) weekLabel(mix.weekOf),
-                        songCount(mix.items.length),
-                      ].join(' · '),
-                      art: SizedBox.square(
-                        dimension: _cover,
-                        child: Drift(radius: Radii.cover, child: weeklyMixCover(mix, borderRadius: 0)),
-                      ),
-                      size: _cover,
-                      onTap: open,
-                    );
-                  }
-                  final p = shown[i - 1];
+            HorizontalShelf(
+              height: _cover + captionExtent(context),
+              itemCount: shown.length + 1,
+              itemBuilder: (context, i) {
+                if (i == 0) {
                   return MediaCard(
-                    title: p.title,
-                    subtitle: p.artist,
-                    artUrl: ref.read(subsonicServiceProvider).getCoverArtUrl(p.songId),
+                    title: 'Weekly Mix',
+                    subtitle: [
+                      if (weekLabel(mix.weekOf).isNotEmpty)
+                        weekLabel(mix.weekOf),
+                      songCount(mix.items.length),
+                    ].join(' · '),
+                    art: SizedBox.square(
+                      dimension: _cover,
+                      child: Drift(
+                        radius: Radii.cover,
+                        child: weeklyMixCover(mix, borderRadius: 0),
+                      ),
+                    ),
                     size: _cover,
-                    onTap: () {
-                      HapticFeedback.lightImpact();
-                      playWeeklyMix(context, ref, mix, from: p);
-                    },
+                    onTap: open,
                   );
-                },
-              ),
+                }
+                final p = shown[i - 1];
+                return MediaCard(
+                  title: p.title,
+                  subtitle: p.artist,
+                  artUrl: ref
+                      .read(subsonicServiceProvider)
+                      .getCoverArtUrl(p.songId),
+                  size: _cover,
+                  onTap: () {
+                    HapticFeedback.lightImpact();
+                    playWeeklyMix(context, ref, mix, from: p);
+                  },
+                );
+              },
             ),
           ],
         );
