@@ -10,6 +10,7 @@ import '../../../providers/settings_provider.dart';
 import '../../ai_shuffle/data/services/shuffle_api_service.dart';
 import '../data/fetch_models.dart';
 import '../data/online_fetch_api.dart';
+import '../data/server_capabilities.dart';
 import 'fetch_playlists.dart';
 
 final onlineFetchApiProvider = Provider<OnlineFetchApi>((ref) {
@@ -23,13 +24,21 @@ final onlineFetchApiProvider = Provider<OnlineFetchApi>((ref) {
 /// public builds ([kPublicBuild]); tests override it to cover both.
 final onlineFetchAvailableProvider = Provider<bool>((ref) => !kPublicBuild);
 
-/// Whether the signed-in account may search online (the server decides who).
-/// Re-asks when the account changes; false while signed out or on any error.
+/// What the signed-in account may do on the server (the server decides). Asked
+/// again when the account changes; nothing while signed out or on any error.
+final serverCapabilitiesProvider = FutureProvider.autoDispose<ServerCapabilities>((ref) async {
+  final (user, pass) = ref.watch(settingsProvider.select((s) => (s.username, s.password)));
+  if (user.isEmpty || pass.isEmpty) return ServerCapabilities.none;
+  return ref.read(onlineFetchApiProvider).capabilities();
+});
+
+/// Whether the download features show: this build has them ([kPublicBuild]
+/// off) AND the server says this account may download. A public build answers
+/// no without asking the server at all.
 final onlineFetchEnabledProvider = FutureProvider.autoDispose<bool>((ref) async {
   if (!ref.watch(onlineFetchAvailableProvider)) return false;
-  final (user, pass) = ref.watch(settingsProvider.select((s) => (s.username, s.password)));
-  if (user.isEmpty || pass.isEmpty) return false;
-  return ref.read(onlineFetchApiProvider).enabled();
+  final caps = await ref.watch(serverCapabilitiesProvider.future);
+  return caps.download;
 });
 
 // ─────────────────────────────────────────────────────────────────────────────

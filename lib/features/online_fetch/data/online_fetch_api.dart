@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import 'fetch_models.dart';
+import 'server_capabilities.dart';
 
 /// A "Search online" request failed. [message] is safe to show as is.
 class OnlineFetchException implements Exception {
@@ -20,8 +21,23 @@ class OnlineFetchApi {
   final Dio _dio;
   const OnlineFetchApi(this._dio);
 
-  /// Whether this account may use online search. Any failure means no — the
-  /// button simply doesn't appear.
+  /// What this account may do. Any failure means nothing — the buttons simply
+  /// don't appear. A server older than `/me/capabilities` (404) is asked the
+  /// old question instead, so a new app still works against it.
+  Future<ServerCapabilities> capabilities() async {
+    try {
+      final r = await _dio.get<Map<String, dynamic>>('/me/capabilities');
+      return ServerCapabilities.fromJson(r.data);
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return ServerCapabilities(download: await enabled());
+      return ServerCapabilities.none;
+    } catch (_) {
+      return ServerCapabilities.none;
+    }
+  }
+
+  /// Whether this account may use online search (the pre-capabilities
+  /// endpoint). Any failure means no.
   Future<bool> enabled() async {
     try {
       final r = await _dio.get<Map<String, dynamic>>('/fetch/enabled');

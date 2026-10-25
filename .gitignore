@@ -83,3 +83,6 @@ test/goldens/failures/
 # Generated / large working files: kept on disk, not tracked
 graphify-out/
 design/artwork_board.html
+
+# Sanitised backend export (no history): see docs/backend/SETUP.md
+/export/
