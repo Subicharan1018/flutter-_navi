@@ -369,7 +369,7 @@ class MicroduckMesh {
         ..tier(hi)
         ..use(mHead, sHelmet)
         ..ao = ((x, y, z) => 1 - 0.16 * _s((cy - 0.2 - y) / 0.4))
-        ..roundedBox(0, cy, -0.02, 0.84, 0.68, 0.98, 0.38, bevel: hi ? 3 : 2)
+        ..roundedBox(0, cy, -0.02, 0.84, 0.68, 0.98, 0.42, bevel: hi ? 3 : 2)
         ..ao = null
         // The recessed inside of the hood, which the face looks out of.
         ..use(mHead, sInner)
@@ -395,10 +395,14 @@ class MicroduckMesh {
       // under the face and a lower plate that can open.
       ..use(mHead, sVent, lod: 1, bias: 3)
       ..roundedBox(0.46, cy + 0.06, 0.995, 0.11, 0.05, 0.012, 0.04)
+      // The orange trim wraps the bottom of the face and runs back along the
+      // sides, as on the toy; under it a short, thick, rounded lower bill.
       ..use(mHead, sBeak)
-      ..roundedBox(0.0, cy - 0.46, 1.08, 0.82, 0.07, 0.44, 0.07, bevel: 2)
+      ..roundedBox(0.0, cy - 0.42, 0.93, 0.8, 0.09, 0.13, 0.09, bevel: 2)
+      ..roundedBox(-0.82, cy - 0.42, 0.28, 0.06, 0.09, 0.66, 0.06, bevel: 1)
+      ..roundedBox(0.82, cy - 0.42, 0.28, 0.06, 0.09, 0.66, 0.06, bevel: 1)
       ..use(mHead, sBeak, dyn: dJaw, cx: 0, cy: 0, bias: 1)
-      ..roundedBox(0.0, cy - 0.58, 1.02, 0.76, 0.05, 0.4, 0.05, bevel: 2)
+      ..roundedBox(0.0, cy - 0.57, 0.88, 0.66, 0.11, 0.3, 0.11, bevel: 2)
       // A black servo collar where the neck meets the head, with a horn.
       ..use(mHead, sNeck)
       ..roundedBox(0, 0.1, 0, 0.2, 0.12, 0.17, 0.06);
@@ -425,6 +429,23 @@ class MicroduckMesh {
     b.use(mHead, sSeam, lod: 1, bias: 2);
     for (var k = 0; k < 3; k++) {
       b.simpleBox(0, cy + 0.685, 0.35 - k * 0.45, 0.4, 0.006, 0.006);
+    }
+    // More painted panel work: an orange stripe over the crown with hazard
+    // blocks at its end, a small second ring on each side, a serial plate.
+    b.use(mHead, sRim, lod: 1, bias: 3);
+    b.simpleBox(0, cy + 0.69, -0.1, 0.5, 0.008, 0.045);
+    for (var k = 0; k < 4; k++) {
+      b.simpleBox(-0.36 + k * 0.24, cy + 0.69, -0.72, 0.07, 0.008, 0.05);
+    }
+    for (final sx in const [-1.0, 1.0]) {
+      b
+        ..use(mHead, sRim, lod: 1, bias: 3.4)
+        ..torusX(sx * 0.845, cy - 0.12, -0.7, 0.11, 0.018, 16, 4)
+        ..use(mHead, sLabel, lod: 1, bias: 3.5)
+        ..simpleBox(sx * 0.85, cy + 0.34, 0.2, 0.004, 0.05, 0.14)
+        ..use(mHead, sSeam, lod: 1, bias: 3.6)
+        ..simpleBox(sx * 0.853, cy + 0.36, 0.2, 0.004, 0.006, 0.1)
+        ..simpleBox(sx * 0.853, cy + 0.33, 0.2, 0.004, 0.006, 0.07);
     }
 
     // ---- Legs (relative to hip / knee / ankle joints): black servos, silver
@@ -462,6 +483,16 @@ class MicroduckMesh {
       _horn(b, hip, out * 0.46, 0.0, 0.0, 0.2, dir: out);
       _horn(b, knee, out * 0.27, 0.0, 0.0, 0.14, dir: out);
       _horn(b, ankle, out * 0.2, 0.0, 0.0, 0.11, dir: out);
+      // The thigh panel's own details: an accent stripe, screws, a serial plate.
+      b
+        ..use(hip, sRim, lod: 1, bias: 3)
+        ..simpleBox(out * 0.495, -0.52, 0.0, 0.006, 0.03, 0.34)
+        ..use(hip, sLabel, lod: 1, bias: 3.2)
+        ..simpleBox(out * 0.495, -0.12, -0.16, 0.006, 0.05, 0.12)
+        ..use(hip, sMetal, lod: 1, bias: 3.4);
+      for (final (y, z) in const [(-0.7, 0.3), (-0.7, -0.3), (-0.34, 0.3), (-0.34, -0.3)]) {
+        b.cylinderX(out * 0.495, y, z, 0.03, 0.02, 8);
+      }
       // Two silver rods down the shin, wires, hinge screws.
       b
         ..use(knee, sMetal, lod: 1)

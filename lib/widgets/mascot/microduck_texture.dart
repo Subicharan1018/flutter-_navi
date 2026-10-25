@@ -98,7 +98,8 @@ class MicroduckTexture {
 
     final out = Uint8List(size * size * 4);
     for (var i = 0; i < size * size; i++) {
-      final b = (v[i].clamp(0.0, 1.0) * 255).round();
+      // A bit more contrast than the raw pattern: weathered, not pristine.
+      final b = ((0.935 + (v[i] - 0.935) * 1.5).clamp(0.0, 1.0) * 255).round();
       out[i * 4] = out[i * 4 + 1] = out[i * 4 + 2] = b;
       out[i * 4 + 3] = 255;
     }
