@@ -319,6 +319,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final syncService = _ref.read(sessionSyncServiceProvider);
       _syncSub = syncService.stateStream.listen(_onSyncStateChanged);
       _commandSub = syncService.commandStream.listen(_onRemoteCommand);
+      _prepareSub = syncService.prepareStream.listen(_onPrepareTransfer);
       _onSyncStateChanged(syncService.currentState);
     } catch (e) {
       debugPrint('[PlayerNotifier] ℹ️ SessionSyncService init note: $e');
@@ -326,6 +327,35 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   StreamSubscription<RemoteCommand>? _commandSub;
+  StreamSubscription<PrepareTransfer>? _prepareSub;
+
+  /// The server is about to make this device the host: load the song where it is now,
+  /// paused, and say ready. The current host keeps playing until then, so the handover
+  /// has no gap; if anything here fails the server times out and nothing moves.
+  Future<void> _onPrepareTransfer(PrepareTransfer p) async {
+    if (state.syncMode == SyncMode.activeHere) return;
+    try {
+      final ids = p.queue.isNotEmpty ? p.queue : [if (p.trackId != null) p.trackId!];
+      if (ids.isEmpty) return;
+      final songs = await _subsonicService.getSongs(ids);
+      if (songs.isEmpty) return;
+      var at = p.trackId == null ? p.queueIndex : songs.indexWhere((s) => s.id == p.trackId);
+      if (at < 0 || at >= songs.length) at = 0;
+      // Loading is not listening: the media-item events it causes must not be counted as plays.
+      _suppressDepth++;
+      try {
+        await _audioHandler.setQueue(songs, at, unshuffledSongs: songs);
+        await _audioHandler.pause();
+        await _audioHandler.seek(Duration(milliseconds: p.positionMs));
+        state = state.copyWith(queue: songs, currentIndex: at);
+      } finally {
+        _suppressDepth--;
+      }
+      _ref.read(sessionSyncServiceProvider).sendReady(p.transferId);
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ⚠️ Could not prepare for a handover: $e');
+    }
+  }
 
   /// Another of this account's devices is controlling this one. Only the
   /// device that holds playback obeys; a passive one ignores strays.
@@ -441,8 +471,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     if (isMineNow) {
       _claimedAt = null;
+      // Host according to the server while this device is not playing: resume where it is
+      // (after a restart inside the grace period, or a reconnect that found us still host).
+      final reconcile = state.syncMode != SyncMode.activeHere &&
+          !state.isPlaying &&
+          syncState.isPlaying &&
+          !_claimPending;
       state = state.copyWith(syncMode: SyncMode.activeHere);
-      if (wasPassive) {
+      if (wasPassive || reconcile) {
         // Transfer just confirmed — resume from the state we were tracking as
         // passive. Already the host, so nothing in it may claim again.
         _resumeFromRemoteState(syncState);
@@ -1198,6 +1234,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   void dispose() {
     _syncSub?.cancel();
     _commandSub?.cancel();
+    _prepareSub?.cancel();
     _positionTickTimer?.cancel();
     _shuffleGuardTimer?.cancel();
     _persistTimer?.cancel();

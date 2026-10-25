@@ -27,6 +27,8 @@ class _Svc extends Fake implements SessionSyncService {
   @override
   Stream<CommandResult> get resultStream => const Stream.empty();
   @override
+  final ClockEstimator clock = ClockEstimator();
+  @override
   String? get deviceId => 'aaaa1111';
   @override
   String? get deviceName => 'Android phone';

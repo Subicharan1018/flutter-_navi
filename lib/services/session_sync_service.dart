@@ -42,6 +42,13 @@ class PlaybackState {
   final int queueIndex;
   final DateTime? updatedAt;
 
+  /// Protocol 3: bumped by the server on every change / every change of host.
+  final int? epoch;
+  final int? version;
+
+  /// Server clock (ms since epoch) at which [positionMs] was true.
+  final int? positionAtServerMs;
+
   /// True when connection is offline / disconnected and passive devices
   /// should cease enforcing active device restrictions.
   final bool syncUnknown;
@@ -61,6 +68,9 @@ class PlaybackState {
     this.queueIndex = 0,
     this.updatedAt,
     this.syncUnknown = false,
+    this.epoch,
+    this.version,
+    this.positionAtServerMs,
   });
 
   /// Default initial state before any server synchronization has occurred.
@@ -78,7 +88,10 @@ class PlaybackState {
         queue = const [],
         queueIndex = 0,
         updatedAt = null,
-        syncUnknown = false;
+        syncUnknown = false,
+        epoch = null,
+        version = null,
+        positionAtServerMs = null;
 
   factory PlaybackState.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(dynamic val) {
@@ -119,6 +132,9 @@ class PlaybackState {
           json['is_playing'] as bool? ?? json['isPlaying'] as bool? ?? false,
       queue: parseQueue(json['queue']),
       updatedAt: parseDate(json['updated_at'] ?? json['updatedAt']),
+      epoch: (json['epoch'] as num?)?.toInt(),
+      version: (json['version'] as num?)?.toInt(),
+      positionAtServerMs: (json['position_at_server_ms'] as num?)?.toInt(),
       syncUnknown: json['sync_unknown'] as bool? ??
           json['syncUnknown'] as bool? ??
           false,
@@ -157,6 +173,9 @@ class PlaybackState {
     int? queueIndex,
     DateTime? updatedAt,
     bool? syncUnknown,
+    int? epoch,
+    int? version,
+    int? positionAtServerMs,
   }) {
     return PlaybackState(
       activeDevice: activeDevice ?? this.activeDevice,
@@ -173,6 +192,9 @@ class PlaybackState {
       queueIndex: queueIndex ?? this.queueIndex,
       updatedAt: updatedAt ?? this.updatedAt,
       syncUnknown: syncUnknown ?? this.syncUnknown,
+      epoch: epoch ?? this.epoch,
+      version: version ?? this.version,
+      positionAtServerMs: positionAtServerMs ?? this.positionAtServerMs,
     );
   }
 
@@ -194,6 +216,9 @@ class PlaybackState {
           isPlaying == other.isPlaying &&
           const ListEquality<String>().equals(queue, other.queue) &&
           updatedAt == other.updatedAt &&
+          epoch == other.epoch &&
+          version == other.version &&
+          positionAtServerMs == other.positionAtServerMs &&
           syncUnknown == other.syncUnknown;
 
   @override
@@ -212,6 +237,9 @@ class PlaybackState {
         Object.hashAll(queue),
         updatedAt,
         syncUnknown,
+        epoch,
+        version,
+        positionAtServerMs,
       );
 
   @override
@@ -332,6 +360,71 @@ class CommandResult {
 
 enum SyncConnection { connecting, online, offline }
 
+/// The server asks this device to get ready to become the host: load [trackId] at
+/// [positionMs] (paused), then answer with `sendReady(transferId)`. Until it does,
+/// the current host keeps playing, so there is no gap.
+@immutable
+class PrepareTransfer {
+  final String transferId;
+  final int epoch;
+  final String? trackId;
+  final int positionMs;
+  final List<String> queue;
+  final int queueIndex;
+  final bool play;
+
+  const PrepareTransfer({
+    required this.transferId,
+    required this.epoch,
+    this.trackId,
+    this.positionMs = 0,
+    this.queue = const [],
+    this.queueIndex = 0,
+    this.play = true,
+  });
+
+  factory PrepareTransfer.fromJson(Map<String, dynamic> j) => PrepareTransfer(
+        transferId: j['transfer_id']?.toString() ?? '',
+        epoch: (j['epoch'] as num?)?.toInt() ?? 0,
+        trackId: j['track_id']?.toString(),
+        positionMs: (j['position_ms'] as num?)?.toInt() ?? 0,
+        queue: [for (final q in (j['queue'] as List? ?? const [])) q.toString()],
+        queueIndex: (j['queue_index'] as num?)?.toInt() ?? 0,
+        play: j['play'] != false,
+      );
+}
+
+/// NTP-style estimate of `serverTime - deviceTime` from ping round trips. It keeps
+/// the lowest-RTT of the last eight samples (the least asymmetric one) and eases
+/// toward it, so one slow reply never drags the clock.
+class ClockEstimator {
+  final List<({int rtt, int offset})> _samples = [];
+  int? _offset;
+
+  /// [t0]: device ms when the ping left; [t1]: device ms when the pong arrived;
+  /// [serverT]: server ms when it answered.
+  void add(int t0, int t1, int serverT) {
+    final rtt = t1 - t0;
+    if (rtt < 0 || serverT <= 0) return;
+    // offset = serverT - (t0 + t1) / 2: the server stamped the middle of the trip.
+    final offset = serverT - ((t0 + t1) ~/ 2);
+    _samples.add((rtt: rtt, offset: offset));
+    if (_samples.length > 8) _samples.removeAt(0);
+    final best = _samples.reduce((a, b) => a.rtt <= b.rtt ? a : b);
+    final prev = _offset;
+    _offset = prev == null || (best.offset - prev).abs() > 1000 ? best.offset : ((prev * 7 + best.offset * 3) / 10).round();
+  }
+
+  bool get ready => _offset != null;
+  int get offsetMs => _offset ?? 0;
+  int get rttMs => _samples.isEmpty ? 0 : _samples.map((s) => s.rtt).reduce(min);
+  int serverNowMs(int deviceNowMs) => deviceNowMs + offsetMs;
+  void reset() {
+    _samples.clear();
+    _offset = null;
+  }
+}
+
 typedef WebSocketChannelFactory = WebSocketChannel Function(Uri uri);
 typedef JwtSupplier = FutureOr<String?> Function({bool forceRefresh});
 
@@ -389,7 +482,40 @@ class SessionSyncService {
   int _reconnectAttempt = 0;
   Timer? _reconnectTimer;
   Timer? _pingTimer;
-  DateTime _lastInbound = DateTime.now();
+  Timer? _pongWatch;
+  Timer? _stableTimer;
+  Timer? _quickPings;
+
+  /// Offset between this device's clock and the server's.
+  final ClockEstimator clock = ClockEstimator();
+
+  /// What the server says is true now, by this device's reckoning.
+  int serverNowMs() => clock.serverNowMs(DateTime.now().millisecondsSinceEpoch);
+
+  /// True once the server has shown it speaks protocol 3 (its states carry an epoch).
+  bool _server3 = false;
+  bool get serverSpeaksV3 => _server3;
+
+  int? _seenEpoch;
+  int? _seenVersion;
+
+  final _prepareController = StreamController<PrepareTransfer>.broadcast();
+  Stream<PrepareTransfer> get prepareStream => _prepareController.stream;
+
+  /// Commands sent as `cmd` frames and not yet acknowledged: resent with the same
+  /// id after a reconnect, so a dropped socket never loses or doubles an action.
+  final Map<String, ({Map<String, dynamic> frame, DateTime at, String action})> _unacked = {};
+  static const _retryWindow = Duration(seconds: 15);
+
+  /// 0.5 s · 2^(attempt-1), capped at 30 s, with full jitter (never under 200 ms).
+  static int reconnectDelayMs(int attempt, Random random) {
+    final ceiling = min(0.5 * pow(2, attempt - 1), 30.0);
+    return max(200, (ceiling * 1000 * random.nextDouble()).round());
+  }
+
+  /// Bumped whenever the account or the connection is torn down, so a connect that
+  /// was in flight can tell it is stale.
+  int _generation = 0;
   bool _manuallyDisconnected = false;
   bool _isConnecting = false;
   PlaybackState _lastState = const PlaybackState.initial();
@@ -464,25 +590,48 @@ class SessionSyncService {
         'device_id': _deviceId!,
         if (_deviceName != null && _deviceName!.isNotEmpty) 'device_name': _deviceName!,
         if (_deviceType != SyncDeviceType.unknown) 'device_type': _deviceType.name,
-        'proto': '2',
+        'proto': '3',
       });
 
-      _channel = _channelFactory(uri);
-      await _channel!.ready;
+      final generation = _generation;
+      final channel = _channelFactory(uri);
+      _channel = channel;
+      await channel.ready;
+      if (generation != _generation) {
+        // The account changed (or we were told to disconnect) while this socket was opening:
+        // it belongs to someone who is no longer signed in.
+        try {
+          unawaited(Future.sync(() => channel.sink.close()).catchError((_) {}));
+        } catch (_) {}
+        if (identical(_channel, channel)) _channel = null;
+        return;
+      }
 
-      _reconnectAttempt = 0;
-      _reconnectAttemptController.add(0);
+      _stableTimer?.cancel();
+      _stableTimer = Timer(const Duration(seconds: 30), () {
+        _reconnectAttempt = 0;
+        if (!_reconnectAttemptController.isClosed) _reconnectAttemptController.add(0);
+      });
+      _seenEpoch = null;
+      _seenVersion = null;
       _setConnection(SyncConnection.online);
       debugPrint('[SessionSync] ✅ connected as ${_deviceName ?? 'device'} (${_deviceType.name}) id=${(_deviceId ?? '').length > 6 ? _deviceId!.substring(0, 6) : _deviceId}');
       _flushPending();
+      _resendUnacked();
       _startPingTimer();
 
-      _channel!.stream.listen(
-        _onMessage,
-        onDone: () => _onDisconnected(_channel?.closeCode),
+      // Each socket reports only for itself: a socket we already replaced must not
+      // tear down its successor (that left an orphan connected under the old account).
+      channel.stream.listen(
+        (m) {
+          if (identical(_channel, channel)) _onMessage(m);
+        },
+        onDone: () {
+          if (identical(_channel, channel)) _onDisconnected(channel.closeCode);
+        },
         onError: (e) {
           debugPrint('[SessionSync] ❌ WebSocket error: $e');
-          _onDisconnected(_channel?.closeCode);
+          if (identical(_channel, channel)) _onDisconnected(channel.closeCode);
         },
       );
 
@@ -519,7 +668,6 @@ class SessionSyncService {
   // ---------------------------------------------------------------------------
 
   void _onMessage(dynamic raw) {
-    _lastInbound = DateTime.now();
     try {
       final Map<String, dynamic> json = raw is String
           ? (jsonDecode(raw) as Map<String, dynamic>)
@@ -527,7 +675,28 @@ class SessionSyncService {
 
       switch (json['type']) {
         case 'pong':
+          _pongWatch?.cancel();
+          final t0 = (json['t0'] as num?)?.toInt();
+          final serverT = (json['server_t'] as num?)?.toInt();
+          if (t0 != null && serverT != null) {
+            clock.add(t0, DateTime.now().millisecondsSinceEpoch, serverT);
+          }
           return; // Heartbeat ack, no state change
+        case 'ack':
+          final id = json['cmdId']?.toString() ?? '';
+          final entry = _unacked[id];
+          final status = json['status']?.toString() ?? '';
+          if (status != 'ok' || json['pending'] != true) _unacked.remove(id);
+          if (!_resultController.isClosed && entry != null) {
+            final good = status == 'ok' || status == 'duplicate';
+            _resultController.add(CommandResult(ok: good, action: entry.action, reason: good ? null : (json['reason']?.toString() ?? status)));
+          }
+          return;
+        case 'exec':
+          if (json['action'] == 'prepare' && !_prepareController.isClosed) {
+            _prepareController.add(PrepareTransfer.fromJson(json));
+          }
+          return;
         case 'devices':
           _devices = [
             for (final d in (json['payload'] as List? ?? const []))
@@ -552,7 +721,18 @@ class SessionSyncService {
       // `state` carries its fields flat and again under "payload"; read the
       // payload when there is one.
       final body = json['payload'] is Map ? Map<String, dynamic>.from(json['payload'] as Map) : json;
-      _emitState(PlaybackState.fromJson(body));
+      final incoming = PlaybackState.fromJson(body);
+      if (incoming.epoch != null) {
+        _server3 = true;
+        // The server alone orders states. Within one connection an older one is dropped
+        // (a delayed frame must never roll the picture back).
+        final e = incoming.epoch!;
+        final v = incoming.version ?? 0;
+        if (_seenEpoch != null && (e < _seenEpoch! || (e == _seenEpoch! && v < (_seenVersion ?? 0)))) return;
+        _seenEpoch = e;
+        _seenVersion = v;
+      }
+      _emitState(incoming);
     } catch (e) {
       debugPrint('[SessionSync] ❌ Error parsing message: $e (raw: $raw)');
     }
@@ -571,20 +751,32 @@ class SessionSyncService {
 
   void _startPingTimer() {
     _pingTimer?.cancel();
-    _lastInbound = DateTime.now();
-    _pingTimer = Timer.periodic(const Duration(seconds: 10), (_) {
-      // The server answers every ping. Silence for this long means the socket
-      // is half-open (the phone slept, the Wi-Fi changed): start over.
-      if (DateTime.now().difference(_lastInbound) > const Duration(seconds: 35)) {
-        debugPrint('[SessionSync] ⚠️ no reply from the server for 35 s, reconnecting');
-        final dead = _channel;
-        try {
-          unawaited(Future.sync(() => dead?.sink.close()).catchError((_) {}));
-        } catch (_) {}
-        _onDisconnected();
-        return;
-      }
-      _send({'type': 'ping'});
+    _quickPings?.cancel();
+    _ping();
+    // A few quick pings at the start so the clock estimate settles; then every 25 s,
+    // inside the ~100 s idle limit Cloudflare puts on a quiet socket.
+    var quick = 0;
+    _quickPings = Timer.periodic(const Duration(seconds: 2), (t) {
+      if (++quick >= 3) t.cancel();
+      _ping();
+    });
+    _pingTimer = Timer.periodic(const Duration(seconds: 25), (_) => _ping());
+  }
+
+  void _ping() {
+    if (_channel == null) return;
+    _send({'type': 'ping', 't0': DateTime.now().millisecondsSinceEpoch});
+    // The server answers every ping. No answer in 10 s means the socket is half-open
+    // (the phone slept, the Wi-Fi changed): start over rather than wait for a close
+    // that never comes.
+    _pongWatch?.cancel();
+    _pongWatch = Timer(const Duration(seconds: 10), () {
+      debugPrint('[SessionSync] ⚠️ no pong within 10 s, reconnecting');
+      final dead = _channel;
+      try {
+        unawaited(Future.sync(() => dead?.sink.close()).catchError((_) {}));
+      } catch (_) {}
+      _onDisconnected();
     });
   }
 
@@ -595,6 +787,9 @@ class SessionSyncService {
   void _onDisconnected([int? closeCode]) {
     debugPrint('[SessionSync] ⚠️ disconnected (close code ${closeCode ?? 'none'})');
     _pingTimer?.cancel();
+    _pongWatch?.cancel();
+    _quickPings?.cancel();
+    _stableTimer?.cancel();
     _channel = null;
     _devices = const [];
     if (!_devicesController.isClosed) _devicesController.add(_devices);
@@ -622,7 +817,7 @@ class SessionSyncService {
 
     _reconnectTimer?.cancel();
 
-    if (isAuthFailure) {
+    if (isAuthFailure && _reconnectAttempt < 3) {
       _jwt = null;
       _reconnectAttempt++;
       _reconnectAttemptController.add(_reconnectAttempt);
@@ -644,10 +839,10 @@ class SessionSyncService {
     }
 
     _reconnectAttempt++;
-    final baseSeconds = min(pow(2, _reconnectAttempt - 1).toInt(), 60);
-    final jitter = baseSeconds * 0.2 * (_random.nextDouble() * 2 - 1); // ±20%
-    final delayMs = max(100, ((baseSeconds + jitter) * 1000).round());
-    final delay = Duration(milliseconds: delayMs);
+    if (isAuthFailure) _jwt = null; // ask for the credentials again on the next try
+    // 0.5 s · 2^n, capped at 30 s, with full jitter: a crowd of devices that lost the
+    // server together does not come back together.
+    final delay = Duration(milliseconds: reconnectDelayMs(_reconnectAttempt, _random));
 
     _reconnectTimer = Timer(delay, () {
       if (!_manuallyDisconnected) {
@@ -744,6 +939,12 @@ class SessionSyncService {
   /// that comes seconds after another device's (two devices fighting over the
   /// host seat).
   void transferPlayback(String deviceId, {String? deviceName, bool force = false}) {
+    if (_server3) {
+      // Compare-and-swap on the epoch we last saw: if someone moved playback first, the
+      // server answers "stale" and we adopt its state instead of fighting it.
+      _cmd('transfer', {'toDeviceId': deviceId, 'force': force, 'baseEpoch': ?_seenEpoch}, action: 'transfer');
+      return;
+    }
     _send({
       'type': 'transfer_playback',
       'device_id': deviceId,
@@ -766,6 +967,21 @@ class SessionSyncService {
     List<String>? queue,
     String? target,
   }) {
+    if (_server3) {
+      _cmd(
+        switch (action) { 'set_queue' => 'setQueue', 'play_track' => 'playTrack', _ => action },
+        {
+          'position_ms': ?positionMs,
+          'volume': ?volume,
+          'track_id': ?trackId,
+          'index': ?index,
+          'queue': ?queue,
+          'target': ?target,
+        },
+        action: action,
+      );
+      return;
+    }
     _send({
       'type': 'command',
       'action': action,
@@ -777,6 +993,30 @@ class SessionSyncService {
       'target': ?target,
     });
   }
+
+  /// A protocol-3 command: carries an id, is acknowledged, and is resent after a
+  /// reconnect (once, thanks to the id) if the answer never came.
+  void _cmd(String type, Map<String, dynamic> args, {required String action}) {
+    final id = generateUuid();
+    final frame = {'type': 'cmd', 'cmdId': id, 'cmdType': type, 'args': args, if (_seenVersion != null) 'baseVersion': _seenVersion};
+    _unacked[id] = (frame: frame, at: DateTime.now(), action: action);
+    if (_channel == null && action != 'transfer') {
+      _unacked.remove(id); // "now" commands are not "later" commands
+      return;
+    }
+    _send(frame);
+  }
+
+  void _resendUnacked() {
+    final now = DateTime.now();
+    _unacked.removeWhere((_, e) => now.difference(e.at) > _retryWindow);
+    for (final e in _unacked.values) {
+      _send(e.frame);
+    }
+  }
+
+  /// The prepared device says it has loaded the song; the server may hand it playback.
+  void sendReady(String transferId) => _send({'type': 'ready', 'transfer_id': transferId});
 
   /// Asks for the device list (it is also pushed whenever it changes).
   void requestDevices() => _send({'type': 'get_devices'});
@@ -824,6 +1064,10 @@ class SessionSyncService {
 
   /// Manually disconnects the session (e.g. app exit, logout).
   void disconnect() {
+    _pongWatch?.cancel();
+    _quickPings?.cancel();
+    _stableTimer?.cancel();
+    _generation++;
     _manuallyDisconnected = true;
     _reconnectTimer?.cancel();
     _pingTimer?.cancel();
@@ -834,10 +1078,28 @@ class SessionSyncService {
     _setConnection(SyncConnection.offline);
   }
 
+  /// Another account is signing in (or this one signed out): drop the socket, the
+  /// cached token, everything the old account's devices told us, and anything
+  /// queued for it. The next [connect] authenticates from scratch.
+  void resetAccount() {
+    disconnect();
+    _jwt = null;
+    _pending.clear();
+    _unacked.clear();
+    clock.reset();
+    _server3 = false;
+    _devices = const [];
+    if (!_devicesController.isClosed) _devicesController.add(_devices);
+    _emitState(const PlaybackState.initial());
+    _isConnecting = false;
+    _reconnectAttempt = 0;
+  }
+
   /// Disposes stream controllers and cleanly tears down connections.
   void dispose() {
     disconnect();
     _stateController.close();
+    _prepareController.close();
     _reconnectAttemptController.close();
     _devicesController.close();
     _commandController.close();
