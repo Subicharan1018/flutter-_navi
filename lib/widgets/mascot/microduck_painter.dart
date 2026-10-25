@@ -173,7 +173,7 @@ class _Renderer {
     _setSkin(skin);
     final rig = input.rig..solve(pose, t, beatSeconds, input, facingRight: facingRight, energy: energy);
     final level = meshLevel(s);
-    final unit = s / 6.0;
+    final unit = s / 7.2;
     final ox = origin.dx + s / 2;
     final oy = origin.dy + s * 0.955;
     final led = rig.pose.v[RigPose.led];
@@ -330,20 +330,22 @@ class _Renderer {
       final hm = rig.head.m;
       final hy = hm[7], hz = hm[11];
       final f = 1 / (1 - 0.045 * (hy * _se + hz * _ce)) * unit;
-      _zzz(canvas, ox + hm[3] * f + 0.9 * unit, oy - (hy * _ce - hz * _se) * f - 0.2 * unit, unit, t);
+      _zzz(canvas, ox + hm[3] * f + 1.3 * unit, oy - (hy * _ce - hz * _se) * f - 1.5 * unit, unit, t);
     }
   }
 
-  /// A soft halo around the LED, added on top, when it faces the camera.
+  /// A soft halo around the lens eye, added on top, when it faces the camera.
   void _ledBloom(Canvas canvas, MicroduckRig rig, MicroduckSkin skin, double led, double ox, double oy, double unit) {
     if (led < 0.15) return;
     final m = rig.head.m;
-    const lx = MicroduckMesh.ledX, ly = MicroduckMesh.ledY, lz = MicroduckMesh.ledZ;
+    const lx = kEyeX, ly = kEyeY, lz = kEyeZ;
     final wx = m[0] * lx + m[1] * ly + m[2] * lz + m[3];
     final wy = m[4] * lx + m[5] * ly + m[6] * lz + m[7];
     final wz = m[8] * lx + m[9] * ly + m[10] * lz + m[11];
-    // Facing: the LED's outward direction is from the head centre to it.
-    final hx = m[3], hy = m[7], hz = m[11];
+    // Facing: the direction from the head's centre out to the lens.
+    final hx = m[1] * 0.82 + m[2] * 0.04 + m[3];
+    final hy = m[5] * 0.82 + m[6] * 0.04 + m[7];
+    final hz = m[9] * 0.82 + m[10] * 0.04 + m[11];
     final dx = wx - hx, dy = wy - hy, dz = wz - hz;
     final len = math.sqrt(dx * dx + dy * dy + dz * dz);
     final facing = (dy * _se + dz * _ce) / len;
@@ -355,8 +357,8 @@ class _Renderer {
       _glow.maskFilter = MaskFilter.blur(BlurStyle.normal, math.max(1.0, unit * 0.2));
       _glowUnit = unit;
     }
-    final rgb = skin.colors[sLed];
-    final a = (105 * led * math.min(1.0, facing * 1.6)).round();
+    final rgb = skin.colors[sIris];
+    final a = (70 * math.min(1.0, facing * 1.6)).round();
     _glow.color = Color.fromARGB(a, (rgb >> 16) & 0xFF, (rgb >> 8) & 0xFF, rgb & 0xFF);
     canvas.drawCircle(c, unit * 0.3, _glow);
   }

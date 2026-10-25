@@ -226,12 +226,22 @@ class PlayerMicroduckStrip extends ConsumerStatefulWidget {
   /// talk. The mini player passes false and just walks.
   final bool full;
 
+  /// How solid it is drawn. The robot lays over the UI and never takes its
+  /// room, so over text it is translucent and fades out at the [fadeEdges]
+  /// (left and right) and [fadeTop].
+  final double opacity;
+  final bool fadeEdges;
+  final bool fadeTop;
+
   const PlayerMicroduckStrip({
     super.key,
     required this.player,
     required this.song,
     this.height = 88,
     this.full = true,
+    this.opacity = 1,
+    this.fadeEdges = false,
+    this.fadeTop = false,
   });
 
   @override
@@ -305,6 +315,35 @@ class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
     });
   }
 
+  /// Blends the robot into what is behind it: translucent, with its edges
+  /// dissolving rather than ending in a hard line.
+  Widget _soften(Widget robot) {
+    var w = robot;
+    if (widget.fadeEdges || widget.fadeTop) {
+      w = ShaderMask(
+        blendMode: BlendMode.dstIn,
+        shaderCallback: (r) {
+          final h = widget.fadeEdges
+              ? const LinearGradient(
+                  colors: [Color(0x00FFFFFF), Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+                  stops: [0, 0.14, 0.86, 1],
+                ).createShader(r)
+              : null;
+          if (!widget.fadeTop) return h!;
+          // Top fade only (edges handled by the robot staying on its track).
+          return const LinearGradient(
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
+            colors: [Color(0x00FFFFFF), Color(0xFFFFFFFF), Color(0xFFFFFFFF)],
+            stops: [0, 0.45, 1],
+          ).createShader(r);
+        },
+        child: w,
+      );
+    }
+    return widget.opacity < 1 ? Opacity(opacity: widget.opacity, child: w) : w;
+  }
+
   void _hide() {
     _hideTimer?.cancel();
     if (mounted && _bubble != null) setState(() => _bubble = null);
@@ -348,7 +387,7 @@ class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
         final strip = ValueListenableBuilder<bool>(
           valueListenable: microduckChatOpen,
           builder: (context, open, child) => open ? SizedBox(height: widget.height) : child!,
-          child: robot,
+          child: _soften(robot),
         );
         final bubble = _bubble;
         if (bubble == null || _bubbleFor != song.id) return strip;
@@ -397,6 +436,63 @@ class _SpeechBubble extends StatelessWidget {
             style: const TextStyle(color: Colors.black, fontSize: 12.5, fontWeight: FontWeight.w600, height: 1.25),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Marks the Now Playing scrubber, so the robot can stand on its track.
+final GlobalKey microduckTrackKey = GlobalKey(debugLabel: 'microduck track');
+
+/// The robot on Now Playing: a layer over the whole screen, standing on the
+/// scrubber's track, taking no room from the layout. It finds the track by
+/// measuring [microduckTrackKey]'s box once the frame is laid out; it fades
+/// out at the top so it melts into whatever it stands in front of, and the
+/// screen's own edges clip it.
+class MicroduckScrubberOverlay extends ConsumerStatefulWidget {
+  final AudioPlayer player;
+  final Song song;
+  final double height;
+
+  const MicroduckScrubberOverlay({super.key, required this.player, required this.song, this.height = 88});
+
+  @override
+  ConsumerState<MicroduckScrubberOverlay> createState() => _MicroduckScrubberOverlayState();
+}
+
+class _MicroduckScrubberOverlayState extends ConsumerState<MicroduckScrubberOverlay> {
+  Rect? _track;
+
+  void _measure() {
+    if (!mounted) return;
+    final box = microduckTrackKey.currentContext?.findRenderObject();
+    Rect? next;
+    if (box is RenderBox && box.attached && box.hasSize) {
+      next = box.localToGlobal(Offset.zero) & box.size;
+    }
+    if (next != _track) setState(() => _track = next);
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measure());
+    final track = _track;
+    if (track == null || !ref.watch(settingsProvider.select((s) => s.microduckEnabled))) {
+      return const SizedBox.shrink();
+    }
+    // The feet stand a little below the top of the scrubber box: on the line.
+    final feet = track.top + 14;
+    return Positioned(
+      left: track.left,
+      width: track.width,
+      top: feet - widget.height,
+      height: widget.height,
+      child: PlayerMicroduckStrip(
+        player: widget.player,
+        song: widget.song,
+        height: widget.height,
+        opacity: 0.8,
+        fadeTop: true,
       ),
     );
   }

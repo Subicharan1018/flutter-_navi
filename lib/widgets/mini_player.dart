@@ -155,6 +155,22 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
               clipBehavior: Clip.antiAlias,
               child: Stack(
                 children: [
+                  if (duck)
+                    Positioned(
+                      left: _Content.textInset - 14,
+                      right: _Content.controlsInset - 10,
+                      bottom: 1,
+                      child: IgnorePointer(
+                        child: PlayerMicroduckStrip(
+                          player: notifier.player,
+                          song: song,
+                          height: _duckHeight,
+                          full: false,
+                          opacity: 0.6,
+                          fadeEdges: true,
+                        ),
+                      ),
+                    ),
                   AnimatedBuilder(
                     animation: _dx,
                     builder: (context, child) => Transform.translate(
@@ -194,35 +210,15 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
               ),
             ),
           );
-          // The robot stands on the capsule's top edge and walks it as the
-          // song plays, drawn over whatever is above the bar.
-          return Stack(
-            clipBehavior: Clip.none,
-            fit: StackFit.passthrough,
-            children: [
-              bar,
-              if (duck)
-                Positioned(
-                  left: MiniPlayer.height / 2,
-                  right: MiniPlayer.height / 2,
-                  bottom: MiniPlayer.height - 2,
-                  child: IgnorePointer(
-                    child: PlayerMicroduckStrip(
-                      player: notifier.player,
-                      song: song,
-                      height: _duckHeight,
-                      full: false,
-                    ),
-                  ),
-                ),
-            ],
-          );
+          return bar;
         }),
       ),
     );
   }
 
-  static const double _duckHeight = 36;
+  /// The robot is a layer inside the capsule, under the text: it takes no
+  /// room, never leaves the capsule, and the title reads over it.
+  static const double _duckHeight = 42;
 }
 
 class _Content extends StatelessWidget {

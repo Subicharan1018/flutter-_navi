@@ -238,12 +238,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
               if (s.microduckEnabled)
                 GroupedRow(
-                  title: 'Colour',
+                  title: 'Microduck colour',
                   value: s.microduckSkin.label,
                   onTap: () async {
                     final v = await showChoiceSheet<MicroduckSkin>(
                       context,
-                      title: 'Colour',
+                      title: 'Microduck colour',
                       options: MicroduckSkin.values,
                       selected: s.microduckSkin,
                       label: (m) => m.label,
