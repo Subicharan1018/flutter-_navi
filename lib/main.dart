@@ -15,7 +15,7 @@ import 'services/desktop_tray.dart';
 import 'services/window_manager_service.dart';
 import 'widgets/app_scaffold.dart';
 import 'widgets/shell/title_bar.dart';
-import 'widgets/shell/tv_shell.dart';
+import 'widgets/shell/tv_frame.dart';
 import 'features/pairing/ui/tv_pair_screen.dart';
 import 'screens/login_screen.dart';
 import 'player/artwork.dart';

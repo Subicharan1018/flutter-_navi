@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/focus/navi_focus.dart';
 import '../../core/theme.dart';
 import '../art/navi_icons.dart';
 import '../../utils/platform_utils.dart';
@@ -460,19 +461,23 @@ class _PressableRowState extends State<_PressableRow> {
     if (widget.onTap == null) return widget.child;
     return Semantics(
       button: true,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTapDown: (_) => setState(() => _down = true),
-        onTapCancel: () => setState(() => _down = false),
-        onTapUp: (_) => setState(() => _down = false),
-        onTap: () {
-          HapticFeedback.selectionClick();
-          widget.onTap!();
-        },
-        child: AnimatedContainer(
-          duration: _down ? Duration.zero : Motion.fast,
-          color: _down ? t.bgOverlay : Colors.transparent,
-          child: widget.child,
+      child: NaviFocusRing(
+        radius: Radii.control,
+        onTap: widget.onTap,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTapDown: (_) => setState(() => _down = true),
+          onTapCancel: () => setState(() => _down = false),
+          onTapUp: (_) => setState(() => _down = false),
+          onTap: () {
+            HapticFeedback.selectionClick();
+            widget.onTap!();
+          },
+          child: AnimatedContainer(
+            duration: _down ? Duration.zero : Motion.fast,
+            color: _down ? t.bgOverlay : Colors.transparent,
+            child: widget.child,
+          ),
         ),
       ),
     );

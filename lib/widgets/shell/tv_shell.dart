@@ -10,7 +10,6 @@ import '../../providers/player_provider.dart';
 import '../../providers/settings_provider.dart' show subsonicServiceProvider;
 import '../../screens/now_playing_screen.dart';
 import '../../screens/settings_screen.dart';
-import '../../utils/platform_utils.dart';
 import '../../features/social/ui/jam/jam_pill.dart';
 import '../art/navi_icons.dart';
 import 'app_tab.dart';
@@ -32,43 +31,31 @@ import 'tab_navigators.dart';
 // a tab's root returns to the rail before it leaves the app.
 // =============================================================================
 
-/// Overscan margin and larger type for a TV, applied once for the whole app
-/// (so Now Playing, sheets and dialogs scale with it).
-class TvFrame extends StatelessWidget {
-  final Widget child;
-  const TvFrame({super.key, required this.child});
-
-  /// Android TV's recommended overscan-safe margins.
-  static const EdgeInsets overscan = EdgeInsets.symmetric(horizontal: 48, vertical: 27);
-  static const double textScale = 1.25;
-
-  @override
-  Widget build(BuildContext context) {
-    if (!PlatformUtils.isTv) return child;
-    final mq = MediaQuery.of(context);
-    return MediaQuery(
-      data: mq.copyWith(
-        textScaler: const TextScaler.linear(textScale),
-        padding: mq.padding + overscan,
-        viewPadding: mq.viewPadding + overscan,
-      ),
-      child: Padding(padding: overscan, child: child),
-    );
-  }
-}
-
 class TvShell extends ConsumerStatefulWidget {
   final AppTab tab;
   final Set<AppTab> visited;
   final ValueChanged<AppTab> onSelect;
-  const TvShell({super.key, required this.tab, required this.visited, required this.onSelect});
+  const TvShell({
+    super.key,
+    required this.tab,
+    required this.visited,
+    required this.onSelect,
+  });
 
   @override
   ConsumerState<TvShell> createState() => _TvShellState();
 }
 
 class _TvShellState extends ConsumerState<TvShell> {
-  final FocusScopeNode _rail = FocusScopeNode(debugLabel: 'tv-rail');
+  /// Marks the rail's subtree (not a FocusScope: a scope would trap the D-pad inside it).
+  final FocusNode _rail = FocusNode(
+    debugLabel: 'tv-rail',
+    skipTraversal: true,
+    canRequestFocus: false,
+  );
+
+  /// The rail item for the current tab: where Back returns to.
+  final FocusNode _selectedItem = FocusNode(debugLabel: 'tv-rail-selected');
 
   @override
   void initState() {
@@ -80,6 +67,7 @@ class _TvShellState extends ConsumerState<TvShell> {
   void dispose() {
     _rail.removeListener(_railFocusChanged);
     _rail.dispose();
+    _selectedItem.dispose();
     super.dispose();
   }
 
@@ -90,7 +78,7 @@ class _TvShellState extends ConsumerState<TvShell> {
   /// Back: up one level, else to the rail, else leave the app.
   void _onBack(bool didPop, Object? _) {
     if (didPop) return;
-    if (!popActiveTab()) _rail.requestFocus();
+    if (!popActiveTab()) _selectedItem.requestFocus();
   }
 
   @override
@@ -108,22 +96,34 @@ class _TvShellState extends ConsumerState<TvShell> {
             body: Row(
               children: [
                 FocusTraversalGroup(
-                  child: FocusScope(
-                    node: _rail,
-                    child: TvRail(tab: widget.tab, onSelect: widget.onSelect),
+                  child: Focus(
+                    focusNode: _rail,
+                    child: TvRail(
+                      tab: widget.tab,
+                      onSelect: widget.onSelect,
+                      selectedNode: _selectedItem,
+                    ),
                   ),
                 ),
                 Expanded(
-                  child: Column(
-                    children: [
-                      Expanded(
-                        child: FocusTraversalGroup(
-                          child: TabNavigators(tab: widget.tab, visited: widget.visited),
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      right: MediaQuery.paddingOf(context).right,
+                    ),
+                    child: Column(
+                      children: [
+                        Expanded(
+                          child: FocusTraversalGroup(
+                            child: TabNavigators(
+                              tab: widget.tab,
+                              visited: widget.visited,
+                            ),
+                          ),
                         ),
-                      ),
-                      const Center(child: JamLivePill()),
-                      FocusTraversalGroup(child: const TvPlayerBar()),
-                    ],
+                        const Center(child: JamLivePill()),
+                        FocusTraversalGroup(child: const TvPlayerBar()),
+                      ],
+                    ),
                   ),
                 ),
               ],
@@ -135,27 +135,40 @@ class _TvShellState extends ConsumerState<TvShell> {
   }
 }
 
-/// The destinations as a vertical rail: glyph and label, large targets.
 class TvRail extends StatelessWidget {
   final AppTab tab;
   final ValueChanged<AppTab> onSelect;
-  const TvRail({super.key, required this.tab, required this.onSelect});
+  final FocusNode? selectedNode;
+  const TvRail({
+    super.key,
+    required this.tab,
+    required this.onSelect,
+    this.selectedNode,
+  });
 
-  static const double width = 232;
+  /// Canvas units (see TvFrame): 200 of 1280.
+  static const double width = 200;
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    final inset = MediaQuery.paddingOf(context);
+    // A list, not a column: seven items always fit the 720-high canvas, but a
+    // smaller font setting or a taller label must scroll rather than overflow.
     return Container(
       width: width,
       color: t.bgSurface,
-      padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.xl),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      child: ListView(
+        padding: EdgeInsets.fromLTRB(
+          Space.md,
+          inset.top + Space.md,
+          Space.md,
+          inset.bottom + Space.md,
+        ),
         children: [
           Padding(
-            padding: const EdgeInsets.fromLTRB(Space.md, 0, Space.md, Space.xl),
-            child: Text('NaviVibe', style: t.title2),
+            padding: const EdgeInsets.fromLTRB(Space.md, 0, Space.md, Space.lg),
+            child: Text('NaviVibe', style: t.title3),
           ),
           for (final dest in AppTab.values)
             _RailItem(
@@ -163,9 +176,10 @@ class TvRail extends StatelessWidget {
               label: dest.label,
               selected: dest == tab,
               autofocus: dest == tab,
+              focusNode: dest == tab ? selectedNode : null,
               onTap: () => onSelect(dest),
             ),
-          const Spacer(),
+          const SizedBox(height: Space.lg),
           _RailItem(
             glyph: NaviGlyph.gear,
             label: 'Settings',
@@ -183,6 +197,7 @@ class _RailItem extends StatelessWidget {
   final String label;
   final bool selected;
   final bool autofocus;
+  final FocusNode? focusNode;
   final VoidCallback onTap;
   const _RailItem({
     required this.glyph,
@@ -190,6 +205,7 @@ class _RailItem extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.autofocus = false,
+    this.focusNode,
   });
 
   @override
@@ -203,6 +219,7 @@ class _RailItem extends StatelessWidget {
         padding: const EdgeInsets.only(bottom: Space.xs),
         child: NaviFocusRing(
           autofocus: autofocus,
+          focusNode: focusNode,
           radius: Radii.control,
           lift: false,
           onTap: onTap,
@@ -210,7 +227,7 @@ class _RailItem extends StatelessWidget {
             behavior: HitTestBehavior.opaque,
             onTap: onTap,
             child: Container(
-              height: 60,
+              height: 48,
               padding: const EdgeInsets.symmetric(horizontal: Space.md),
               decoration: BoxDecoration(
                 color: selected ? t.bgOverlay : Colors.transparent,
@@ -218,14 +235,23 @@ class _RailItem extends StatelessWidget {
               ),
               child: Row(
                 children: [
-                  NaviIcon(glyph, size: 26, filled: selected, color: selected ? t.accent : t.textPrimary),
+                  NaviIcon(
+                    glyph,
+                    size: 22,
+                    filled: selected,
+                    color: selected ? t.accent : t.textPrimary,
+                  ),
                   const SizedBox(width: Space.lg),
                   Expanded(
                     child: Text(
                       label,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
-                      style: t.headline.copyWith(fontWeight: selected ? FontWeight.w700 : FontWeight.w500),
+                      style: t.headline.copyWith(
+                        fontWeight: selected
+                            ? FontWeight.w700
+                            : FontWeight.w500,
+                      ),
                     ),
                   ),
                 ],
@@ -252,7 +278,7 @@ class TvPlayerBar extends ConsumerWidget {
     final n = ref.read(playerProvider.notifier);
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
     return Container(
-      height: 88,
+      height: 72,
       padding: const EdgeInsets.symmetric(horizontal: Space.xl),
       decoration: BoxDecoration(
         color: t.bgSurface,
@@ -268,7 +294,13 @@ class TvPlayerBar extends ConsumerWidget {
                 children: [
                   ClipRRect(
                     borderRadius: BorderRadius.circular(Radii.cover),
-                    child: CoverImage(url: url, cacheKey: coverCacheKey(song), width: 64, height: 64, cacheWidth: 192),
+                    child: CoverImage(
+                      url: url,
+                      cacheKey: coverCacheKey(song),
+                      width: 52,
+                      height: 52,
+                      cacheWidth: 156,
+                    ),
                   ),
                   const SizedBox(width: Space.lg),
                   Expanded(
@@ -276,9 +308,19 @@ class TvPlayerBar extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.headline),
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.headline,
+                        ),
                         const SizedBox(height: 2),
-                        Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                        Text(
+                          song.artist,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.subheadline,
+                        ),
                       ],
                     ),
                   ),
@@ -286,7 +328,11 @@ class TvPlayerBar extends ConsumerWidget {
               ),
             ),
           ),
-          _TvTransport(glyph: NaviGlyph.previous, label: 'Previous', onTap: n.playPrev),
+          _TvTransport(
+            glyph: NaviGlyph.previous,
+            label: 'Previous',
+            onTap: n.playPrev,
+          ),
           _TvTransport(
             glyph: playing ? NaviGlyph.pause : NaviGlyph.play,
             label: playing ? 'Pause' : 'Play',
@@ -297,7 +343,11 @@ class TvPlayerBar extends ConsumerWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(left: Space.xl),
-              child: _TvProgress(player: n.player, songId: song.id, total: song.duration * 1000),
+              child: _TvProgress(
+                player: n.player,
+                songId: song.id,
+                total: song.duration * 1000,
+              ),
             ),
           ),
         ],
@@ -311,7 +361,12 @@ class _TvTransport extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final bool big;
-  const _TvTransport({required this.glyph, required this.label, required this.onTap, this.big = false});
+  const _TvTransport({
+    required this.glyph,
+    required this.label,
+    required this.onTap,
+    this.big = false,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -322,7 +377,9 @@ class _TvTransport extends StatelessWidget {
       child: SizedBox(
         width: big ? 72 : 60,
         height: 64,
-        child: Center(child: NaviIcon(glyph, size: big ? 36 : 28, color: t.textPrimary)),
+        child: Center(
+          child: NaviIcon(glyph, size: big ? 36 : 28, color: t.textPrimary),
+        ),
       ),
     );
   }
@@ -332,7 +389,11 @@ class _TvProgress extends StatelessWidget {
   final AudioPlayer player;
   final String songId;
   final int total;
-  const _TvProgress({required this.player, required this.songId, required this.total});
+  const _TvProgress({
+    required this.player,
+    required this.songId,
+    required this.total,
+  });
 
   @override
   Widget build(BuildContext context) {
