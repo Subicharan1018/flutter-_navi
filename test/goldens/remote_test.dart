@@ -80,7 +80,7 @@ Widget _app(Widget home, {SyncConnection conn = SyncConnection.online, List<Sync
             artist: 'Anirudh Ravichander',
             durationS: 238,
             positionMs: 71000,
-            isPlaying: true,
+            isPlaying: false, // paused: a moving playhead would make the picture depend on the clock
             updatedAt: stamp,
           ))),
     ],
