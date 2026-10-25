@@ -15,6 +15,25 @@ import 'package:navivibe/utils/platform_utils.dart';
 
 import 'tv_pairing_test.dart' show FakeRelay;
 
+/// A speech engine that is present on every platform, for layout tests.
+class _AvailableVoice implements VoiceEngine {
+  @override
+  bool get supportedPlatform => true;
+
+  @override
+  bool get listening => false;
+
+  @override
+  Future<bool> start({
+    required void Function(String text, bool isFinal) onText,
+    required void Function(VoiceFailure? failure) onDone,
+  }) async =>
+      false;
+
+  @override
+  Future<void> stop() async {}
+}
+
 Widget host(Widget home) => ProviderScope(
       child: MaterialApp(
         builder: (context, child) => ThemeTokens(tokens: AppThemeTokens.fallback, child: child!),
@@ -79,6 +98,11 @@ void main() {
     });
 
     testWidgets('the password has no microphone, the other fields do', (tester) async {
+      // The real engine hides the microphone on platforms without a speech
+      // service (Linux CI), so the test brings its own that is available.
+      final original = VoiceInput.engine;
+      VoiceInput.engine = _AvailableVoice();
+      addTearDown(() => VoiceInput.engine = original);
       await tester.pumpWidget(host(const LoginScreen()));
       await tester.pump();
       expect(find.bySemanticsLabel('Type by voice'), findsNWidgets(2)); // server + username
