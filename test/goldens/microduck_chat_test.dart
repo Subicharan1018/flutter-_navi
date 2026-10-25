@@ -3,6 +3,9 @@
 //
 //   flutter test test/goldens/microduck_chat_test.dart
 
+@Tags(['golden'])
+library;
+
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;

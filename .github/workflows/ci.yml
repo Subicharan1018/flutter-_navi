@@ -47,6 +47,15 @@ jobs:
 
       - run: flutter pub get
       - run: flutter analyze lib
-      # Goldens are recorded on Windows and differ on Linux text rendering, so they
-      # run locally only. The expanded reporter lists every failing test by name.
-      - run: flutter test --exclude-tags golden --reporter expanded
+      # Goldens and other image renders (tag `golden`) are recorded on Windows and
+      # differ on Linux text rendering, so they run locally only.
+      # The github reporter writes one ::error annotation per failing test (readable
+      # without a login via the check-run annotations API); the JSON file has details.
+      - run: flutter test --exclude-tags golden --reporter github --file-reporter json:test-results.json
+      - name: Keep the test report when tests fail
+        if: failure()
+        uses: actions/upload-artifact@v4.6.2
+        with:
+          name: test-results
+          path: test-results.json
+          retention-days: 7
