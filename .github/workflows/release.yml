@@ -43,6 +43,7 @@ jobs:
       tag: ${{ steps.v.outputs.tag }}
       win: ${{ steps.v.outputs.win }}
       public: ${{ steps.v.outputs.public }}
+      publish: ${{ steps.v.outputs.publish }}
     steps:
       - uses: actions/checkout@v4.2.2
       - id: v
@@ -64,6 +65,8 @@ jobs:
             # server (login + its download access list), not by the app build.
             # Set `public=true` here to publish the build without the download UI.
             echo "public=false"
+            # Whether this run is released: a manual 'personal_build' run stops at artifacts.
+            if [ "$PERSONAL" = "true" ]; then echo "publish=false"; else echo "publish=true"; fi
           } >> "$GITHUB_OUTPUT"
 
   android:
@@ -137,7 +140,7 @@ jobs:
         with:
           name: android
           path: dist/*.apk
-          retention-days: ${{ needs.version.outputs.public == 'true' && 90 || 1 }}
+          retention-days: ${{ needs.version.outputs.publish == 'true' && 90 || 1 }}
           if-no-files-found: error
 
   windows:
@@ -191,12 +194,12 @@ jobs:
         with:
           name: windows
           path: winout/*
-          retention-days: ${{ needs.version.outputs.public == 'true' && 90 || 1 }}
+          retention-days: ${{ needs.version.outputs.publish == 'true' && 90 || 1 }}
           if-no-files-found: error
 
   publish:
-    # Personal builds stop at the (1-day) workflow artifacts; only public builds are released.
-    if: needs.version.outputs.public == 'true'
+    # A manual 'personal_build' run stops at the (1-day) workflow artifacts; every other run is released.
+    if: needs.version.outputs.publish == 'true'
     needs: [version, android, windows]
     runs-on: ubuntu-latest
     permissions:
