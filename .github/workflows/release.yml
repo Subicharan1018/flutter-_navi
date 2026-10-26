@@ -60,8 +60,10 @@ jobs:
             echo "tag=v$name+$build"
             # Velopack wants plain SemVer: MAJOR.MINOR.BUILD
             echo "win=$major.$minor.$build"
-            # Everything published to GitHub Releases is a public build.
-            if [ "$PERSONAL" = "true" ]; then echo "public=false"; else echo "public=true"; fi
+            # Downloads are on in every build. Who may use them is decided by the
+            # server (login + its download access list), not by the app build.
+            # Set `public=true` here to publish the build without the download UI.
+            echo "public=false"
           } >> "$GITHUB_OUTPUT"
 
   android:
