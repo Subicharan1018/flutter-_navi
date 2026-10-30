@@ -38,6 +38,7 @@ import '../player/playing_on.dart';
 import 'shell/app_tab.dart';
 import 'shell/breadcrumb_bar.dart';
 import 'shell/nav_stack.dart';
+import 'shell/system_back.dart';
 import 'shell/tab_navigators.dart';
 import 'shell/tv_shell.dart';
 import '../providers/id_migration_provider.dart';
@@ -134,6 +135,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     return popActiveTab();
   }
 
+  Widget _scoped(Widget shell) => SystemBackScope(
+    tab: _tab,
+    onGoHome: () => _select(AppTab.home),
+    child: shell,
+  );
+
   late final ShellCommands _commands = ShellCommands(
     focusSearch: () => _select(AppTab.search),
     openSettings: () => navigateInApp(context, const SettingsScreen()),
@@ -154,17 +161,21 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
               visited: _visited,
               onSelect: _select,
             ),
-            ShellKind.sidebar => _DesktopShell(
-              tab: _tab,
-              visited: _visited,
-              onSelect: _select,
-              offline: offline,
+            ShellKind.sidebar => _scoped(
+              _DesktopShell(
+                tab: _tab,
+                visited: _visited,
+                onSelect: _select,
+                offline: offline,
+              ),
             ),
-            ShellKind.phone => _PhoneShell(
-              tab: _tab,
-              visited: _visited,
-              onSelect: _select,
-              offline: offline,
+            ShellKind.phone => _scoped(
+              _PhoneShell(
+                tab: _tab,
+                visited: _visited,
+                onSelect: _select,
+                offline: offline,
+              ),
             ),
           };
         },
@@ -195,16 +206,7 @@ class _PhoneShell extends ConsumerWidget {
       backgroundColor: t.bgBase,
       body: Stack(
         children: [
-          // System back pops inside the active tab before leaving the app.
-          AnimatedBuilder(
-            animation: tabTrails[tab]!.routes,
-            builder: (context, child) => NavigatorPopHandler(
-              enabled: tabTrails[tab]!.canPop,
-              onPopWithResult: (_) => popActiveTab(),
-              child: child!,
-            ),
-            child: TabNavigators(tab: tab, visited: visited),
-          ),
+          TabNavigators(tab: tab, visited: visited),
           // The dock: one solid band in the visible page's own colour, with
           // the mini player and tab bar floating on it. Nothing scrolls into
           // view between or beside the controls, and an artwork-coloured page
@@ -525,21 +527,9 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                                   maxWidth: kContentMaxWidth,
                                 ),
                                 child: ClipRect(
-                                  // Android back on a tablet goes up a level first.
-                                  child: AnimatedBuilder(
-                                    animation: tabTrails[widget.tab]!.routes,
-                                    builder: (context, child) =>
-                                        NavigatorPopHandler(
-                                          enabled:
-                                              tabTrails[widget.tab]!.canPop,
-                                          onPopWithResult: (_) =>
-                                              popActiveTab(),
-                                          child: child!,
-                                        ),
-                                    child: TabNavigators(
-                                      tab: widget.tab,
-                                      visited: widget.visited,
-                                    ),
+                                  child: TabNavigators(
+                                    tab: widget.tab,
+                                    visited: widget.visited,
                                   ),
                                 ),
                               ),
