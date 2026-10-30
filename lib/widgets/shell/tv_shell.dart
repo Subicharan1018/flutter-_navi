@@ -12,6 +12,7 @@ import '../../screens/now_playing_screen.dart';
 import '../../screens/settings_screen.dart';
 import '../../features/social/ui/jam/jam_pill.dart';
 import '../art/navi_icons.dart';
+import '../ui/dock_ground.dart';
 import 'app_tab.dart';
 import 'nav_stack.dart';
 import 'tab_navigators.dart';
@@ -91,42 +92,49 @@ class _TvShellState extends ConsumerState<TvShell> {
         return PopScope(
           canPop: atRoot && _rail.hasFocus,
           onPopInvokedWithResult: _onBack,
-          child: Scaffold(
-            backgroundColor: t.bgBase,
-            body: Row(
-              children: [
-                FocusTraversalGroup(
-                  child: Focus(
-                    focusNode: _rail,
-                    child: TvRail(
-                      tab: widget.tab,
-                      onSelect: widget.onSelect,
-                      selectedNode: _selectedItem,
+          child: ValueListenableBuilder<Color?>(
+            valueListenable: DockGround.value,
+            builder: (context, ground, _) => Scaffold(
+              backgroundColor: ground ?? t.bgBase,
+              body: Row(
+                children: [
+                  FocusTraversalGroup(
+                    child: Focus(
+                      focusNode: _rail,
+                      child: TvRail(
+                        tab: widget.tab,
+                        onSelect: widget.onSelect,
+                        selectedNode: _selectedItem,
+                      ),
                     ),
                   ),
-                ),
-                Expanded(
-                  child: Padding(
-                    padding: EdgeInsets.only(
-                      right: MediaQuery.paddingOf(context).right,
-                    ),
-                    child: Column(
-                      children: [
-                        Expanded(
-                          child: FocusTraversalGroup(
-                            child: TabNavigators(
-                              tab: widget.tab,
-                              visited: widget.visited,
+                  Expanded(
+                    child: Padding(
+                      padding: EdgeInsets.only(
+                        right: MediaQuery.paddingOf(context).right,
+                      ),
+                      child: Column(
+                        children: [
+                          Expanded(
+                            child: FocusTraversalGroup(
+                              child: TabNavigators(
+                                tab: widget.tab,
+                                visited: widget.visited,
+                              ),
                             ),
                           ),
-                        ),
-                        const Center(child: JamLivePill()),
-                        FocusTraversalGroup(child: const TvPlayerBar()),
-                      ],
+                          const Center(child: JamLivePill()),
+                          ValueListenableBuilder<Color?>(
+                            valueListenable: DockGround.value,
+                            builder: (_, _, _) =>
+                                FocusTraversalGroup(child: TvPlayerBar()),
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         );
@@ -155,38 +163,46 @@ class TvRail extends StatelessWidget {
     final inset = MediaQuery.paddingOf(context);
     // A list, not a column: seven items always fit the 720-high canvas, but a
     // smaller font setting or a taller label must scroll rather than overflow.
-    return Container(
-      width: width,
-      color: t.bgSurface,
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(
-          Space.md,
-          inset.top + Space.md,
-          Space.md,
-          inset.bottom + Space.md,
-        ),
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(Space.md, 0, Space.md, Space.lg),
-            child: Text('NaviVibe', style: t.title3),
+    return ValueListenableBuilder<Color?>(
+      valueListenable: DockGround.value,
+      builder: (context, ground, _) => Container(
+        width: width,
+        color: tvTint(ground ?? t.bgBase),
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            Space.md,
+            inset.top + Space.md,
+            Space.md,
+            inset.bottom + Space.md,
           ),
-          for (final dest in AppTab.values)
-            _RailItem(
-              glyph: dest.icon,
-              label: dest.label,
-              selected: dest == tab,
-              autofocus: dest == tab,
-              focusNode: dest == tab ? selectedNode : null,
-              onTap: () => onSelect(dest),
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                Space.md,
+                0,
+                Space.md,
+                Space.lg,
+              ),
+              child: Text('NaviVibe', style: t.title3),
             ),
-          const SizedBox(height: Space.lg),
-          _RailItem(
-            glyph: NaviGlyph.gear,
-            label: 'Settings',
-            selected: false,
-            onTap: () => navigateInApp(context, const SettingsScreen()),
-          ),
-        ],
+            for (final dest in AppTab.values)
+              _RailItem(
+                glyph: dest.icon,
+                label: dest.label,
+                selected: dest == tab,
+                autofocus: dest == tab,
+                focusNode: dest == tab ? selectedNode : null,
+                onTap: () => onSelect(dest),
+              ),
+            const SizedBox(height: Space.lg),
+            _RailItem(
+              glyph: NaviGlyph.gear,
+              label: 'Settings',
+              selected: false,
+              onTap: () => navigateInApp(context, const SettingsScreen()),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -280,10 +296,7 @@ class TvPlayerBar extends ConsumerWidget {
     return Container(
       height: 72,
       padding: const EdgeInsets.symmetric(horizontal: Space.xl),
-      decoration: BoxDecoration(
-        color: t.bgSurface,
-        border: Border(top: BorderSide(color: t.separatorOpaque, width: 0.5)),
-      ),
+      color: tvTint(DockGround.value.value ?? t.bgBase),
       child: Row(
         children: [
           Expanded(
@@ -415,3 +428,7 @@ class _TvProgress extends StatelessWidget {
     );
   }
 }
+
+/// The rail and player bar are a faint lift of whatever colour the page is
+/// (never a different-coloured box): one continuous surface, edge to edge.
+Color tvTint(Color ground) => Color.lerp(ground, Colors.white, 0.045)!;
