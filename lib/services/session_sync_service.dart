@@ -513,6 +513,8 @@ class SessionSyncService {
     return max(200, (ceiling * 1000 * random.nextDouble()).round());
   }
 
+  int _failedConnects = 0;
+
   /// Bumped whenever the account or the connection is torn down, so a connect that
   /// was in flight can tell it is stale.
   int _generation = 0;
@@ -614,6 +616,7 @@ class SessionSyncService {
       });
       _seenEpoch = null;
       _seenVersion = null;
+      _failedConnects = 0;
       _setConnection(SyncConnection.online);
       debugPrint('[SessionSync] ✅ connected as ${_deviceName ?? 'device'} (${_deviceType.name}) id=${(_deviceId ?? '').length > 6 ? _deviceId!.substring(0, 6) : _deviceId}');
       _flushPending();
@@ -638,7 +641,9 @@ class SessionSyncService {
       // 5. Initial REST resync on (re)connect
       try {
         final restState = await fetchCurrentState();
-        _emitState(restState);
+        // The socket already delivered a snapshot with an epoch and version: the REST copy can
+        // only be older or equal, and replacing the newer one with it would lose the epoch.
+        if (_seenVersion == null) _emitState(restState);
       } catch (e) {
         debugPrint('[SessionSync] ℹ️ REST initial sync note: $e');
         // WS initial push is the fallback if REST fails; don't block connect on it
@@ -657,6 +662,9 @@ class SessionSyncService {
       } catch (_) {}
       _pingTimer?.cancel();
       _setConnection(SyncConnection.offline);
+      // A server that keeps refusing the upgrade usually means the credentials changed; ask the
+      // supplier again instead of retrying a token that no longer works.
+      if (++_failedConnects >= 2) _jwt = null;
       _scheduleReconnect(isAuthFailure: is4001);
     } finally {
       _isConnecting = false;
