@@ -769,6 +769,18 @@ void main() {
 
     final cover = FetchCandidate.fromJson((_results()['candidates'] as List).last as Map<String, dynamic>);
 
+    testWidgets('another cut in the library: said so, and this one can still be downloaded', (tester) async {
+      final base = (_results()['candidates'] as List).first as Map<String, dynamic>;
+      final c = FetchCandidate.fromJson({...base, 'library': 'other_version'});
+      expect(c.otherVersion, isTrue);
+      expect(c.inLibrary, isFalse);
+      await pump(tester, c);
+      expect(find.text('Other version in your library · Download this version'), findsOneWidget);
+      expect(_glyph(NaviGlyph.downloadCircle), findsOneWidget);
+      expect(_glyph(NaviGlyph.checkCircle), findsNothing);
+      expect(FetchKind.parse('commentary').label, 'Commentary');
+    });
+
     testWidgets('labels a cover', (tester) async {
       await pump(tester, cover);
       expect(find.text('Cover'), findsOneWidget);

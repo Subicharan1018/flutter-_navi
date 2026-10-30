@@ -12,6 +12,7 @@ enum FetchKind {
   karaoke,
   dub,
   live,
+  commentary,
   version;
 
   static FetchKind parse(Object? v) =>
@@ -26,6 +27,7 @@ enum FetchKind {
         FetchKind.karaoke => 'Karaoke',
         FetchKind.dub => 'Other language',
         FetchKind.live => 'Live',
+        FetchKind.commentary => 'Commentary',
         FetchKind.version => 'Other version',
       };
 }
@@ -99,6 +101,10 @@ class FetchCandidate {
   /// Already in the Navidrome library under this exact title and artist.
   final bool inLibrary;
 
+  /// The library has a song of this name, but another cut (a commentary clip,
+  /// a live take, a different length): this one can still be downloaded.
+  final bool otherVersion;
+
   /// The AI check has looked at this result.
   final bool aiChecked;
 
@@ -117,6 +123,7 @@ class FetchCandidate {
     this.coverUrl,
     this.type = FetchSearchType.song,
     this.trackCount,
+    this.otherVersion = false,
   });
 
   bool get isSong => type == FetchSearchType.song;
@@ -129,6 +136,7 @@ class FetchCandidate {
         score: (j['score'] as num?)?.toDouble() ?? 0,
         kind: FetchKind.parse(j['kind']),
         inLibrary: j['library'] == 'in_library',
+        otherVersion: j['library'] == 'other_version',
         aiChecked: j['llm'] != null,
         coverUrl: j['cover_url'] as String?,
         type: FetchSearchType.parse(j['type']),

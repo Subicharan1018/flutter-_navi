@@ -172,7 +172,10 @@ class FetchCandidateRow extends ConsumerWidget {
   }
 
   static String? _songStatus(FetchJob? job, FetchCandidate c) {
-    if (job == null) return c.inLibrary ? 'In your library' : null;
+    if (job == null) {
+      if (c.inLibrary) return 'In your library';
+      return c.otherVersion ? 'Other version in your library · Download this version' : null;
+    }
     return fetchJobStatus(job);
   }
 
