@@ -461,6 +461,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (syncState.syncUnknown) {
       // Outage / reconnecting: degrade to standalone mode.
       // Local playback continues uninterrupted, no active-device enforcement.
+      if (state.syncMode == SyncMode.activeHere) _hostBeforeOutage = true;
       state = state.copyWith(syncMode: SyncMode.standalone);
       return;
     }
@@ -503,7 +504,34 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     } else {
       // activeDevice == null, nobody active — fresh/idle session
       state = state.copyWith(syncMode: SyncMode.idle);
+      if (_hostBeforeOutage) {
+        _hostBeforeOutage = false;
+        // This device was the host when the link dropped and is still playing: the server
+        // gave up on it after its grace period (paused, no host). Take the seat back so
+        // the other devices see the music that is really playing. Nobody else holds it, so
+        // this is not a takeover and needs no force.
+        if (state.isPlaying) unawaited(_reassertHost());
+      }
     }
+  }
+
+  /// True from the moment the link dropped while this device was the host.
+  bool _hostBeforeOutage = false;
+
+  Future<void> _reassertHost() async {
+    _myDeviceId ??= await _deviceIdProvider();
+    final id = _myDeviceId;
+    if (id == null || !state.isPlaying) return;
+    _claimedAt = DateTime.now();
+    final sync = _ref.read(sessionSyncServiceProvider);
+    sync.transferPlayback(id, deviceName: sync.deviceName);
+    _pushUpdate(
+      trackId: state.currentSong?.id,
+      positionMs: player.position.inMilliseconds,
+      isPlaying: true,
+      queue: state.queue.map((s) => s.id).toList(),
+    );
+    _startPositionTick();
   }
 
   Future<void> _resumeFromRemoteState(PlaybackState syncState) async {

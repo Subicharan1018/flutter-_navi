@@ -133,6 +133,35 @@ skew and lopsided latency the error stays under 300 ms (tested).
   reconnect, version ordering, prepare/ready, **echo** (applying remote state sends nothing), reconcile after restart, backoff and
   heartbeat timing (fake async), claim gate (no touch, touch, permit window).
 
+## Live scenarios (real client, real relay)
+
+`test/integration/session_live_test.dart` drives the real `SessionSyncService` against the real `session.py` over real
+WebSockets. The relay is a throwaway copy with fake auth (`tools/session_sim/run_sim.py`, token = base64(`user:sim`)), reached through
+an SSH tunnel; only the reconnect grace is shortened (4 s) for the outage scenarios, every other timing is production. Nothing touches
+production data or credentials. Run: start the sim on the server, tunnel its port, then
+`SESSION_SIM=http://127.0.0.1:5599 flutter test test/integration/session_live_test.dart` (skipped without the variable).
+
+| # | scenario | result | evidence |
+| --- | --- | --- | --- |
+| S1 | two devices of one account see each other with real names and roles; another account sees none of it | PASS | names/types listed, host flag reaches the laptop, vijay's list holds only its own device |
+| S2 | play on A, B shows it and controls it | PASS | pause/play/seek/volume/next reached the host in 8-47 ms; B saw the pause at once |
+| S3 | "Play here" hands over with no gap | PASS | host stayed A and `pending` during B's 600 ms load; one epoch bump; A told it was deposed; 716-744 ms end to end |
+| S4 | three devices claim at the same instant | PASS | one host for 12 s, one host change, both losers told no |
+| S5 | host leaves for a moment / for long | PASS | inside the grace it stays host (same epoch); past it the session pauses at the played position, epoch+1, nobody drafted; reconnecting host reconciles |
+| S6 | network drop | PASS | noticed in 25 ms, reconnected 445 ms later (645 ms total), seat kept, reports flow again |
+| S7 | account switch on one device | PASS | old account's devices/state vanish at once, new room has only its own, admin lost the laptop, no cross-account commands |
+| S8 | 10-minute idle soak, production timings | PASS | 40 samples, never dropped, host never released, clock offset/rtt measured (rtt 10 ms) |
+| S9 | 50-reconnect storm resending one command | PASS | applied exactly once |
+| S10 | proto 1 and 2 clients next to proto 3 | PASS | proto 1 received only `state`/`pong`; their reports reach the new client |
+| S11 | wrong credentials | PASS | 7 refusals in 20 s (three quick retries, then backoff); recovers on its own when the password is right |
+
+What the live run found and fixed: after a reconnect the client replaced the socket's snapshot with the REST copy, which had no epoch
+(client now keeps the newer snapshot; the REST snapshot also carries epoch/version now, `export/session-fix3`); a token that stopped working
+was retried forever (the client now asks for the credentials again after two failed connects).
+
+Not covered by this harness: Cloudflare's own idle handling of the tunnel (the soak ran over SSH), Android Doze and screen-off, wifi/cellular
+switches, the real phone and TV. Those need the devices.
+
 ## Not done yet
 
 * A separate `hello` frame (`lastVersion`, `lastEpoch`) and a distinct `report` frame: the token rides the URL and the host reports with
