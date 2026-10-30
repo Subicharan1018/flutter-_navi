@@ -25,13 +25,18 @@ class FlowState {
   /// What went wrong last, in a sentence to show; cleared by the next success.
   final String? error;
 
-  const FlowState({this.active = false, this.starting = false, this.mood, this.error});
+  /// What the last batch was made of: familiar, fresh and new-language songs.
+  final FlowBlend blend;
 
-  FlowState copyWith({bool? active, bool? starting, Object? mood = _keep, Object? error = _keep}) => FlowState(
+  const FlowState({this.active = false, this.starting = false, this.mood, this.error, this.blend = const FlowBlend()});
+
+  FlowState copyWith({bool? active, bool? starting, Object? mood = _keep, Object? error = _keep, FlowBlend? blend}) =>
+      FlowState(
         active: active ?? this.active,
         starting: starting ?? this.starting,
         mood: identical(mood, _keep) ? this.mood : mood as String?,
         error: identical(error, _keep) ? this.error : error as String?,
+        blend: blend ?? this.blend,
       );
 }
 
@@ -184,7 +189,9 @@ class FlowController extends Notifier<FlowState> {
           mood: state.mood,
           seen: _session.seen,
           feedback: _session.feedback,
+          session: _session.id,
         );
+    if (ref.mounted) state = state.copyWith(blend: batch.blend);
     final songs = await songsForPicks(ref, [for (final p in batch.items) p.songId]);
     _session.served([for (final s in songs) s.id]);
     return songs;

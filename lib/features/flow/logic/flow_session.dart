@@ -1,3 +1,5 @@
+import 'dart:math' show Random;
+
 import '../../listen/data/listen_models.dart';
 
 /// What one Flow run remembers, and the rules for when to ask for more. Pure
@@ -16,6 +18,14 @@ class FlowSession {
   static const int maxFailures = 4;
   static const int maxSeen = 500;
   static const int maxFeedback = 80;
+
+  /// Names this run to the server, which remembers every song it has given it.
+  final String id;
+
+  FlowSession({String? id}) : id = id ?? _newId();
+
+  static String _newId() =>
+      '${DateTime.now().microsecondsSinceEpoch.toRadixString(36)}-${Random().nextInt(1 << 30).toRadixString(36)}';
 
   final List<String> _seen = [];
   final Set<String> _seenSet = {};

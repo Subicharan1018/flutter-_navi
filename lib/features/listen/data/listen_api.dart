@@ -30,6 +30,7 @@ class ListenApi {
     String? mood,
     List<String> seen = const [],
     List<FlowFeedback> feedback = const [],
+    String? session,
   }) =>
       _wrap(() async {
         final r = await _dio.post<Map<String, dynamic>>(
@@ -37,6 +38,7 @@ class ListenApi {
           data: {
             'count': count,
             'mood': ?mood,
+            'session': ?session,
             'seen': seen,
             'feedback': [for (final f in feedback) f.toJson()],
           },

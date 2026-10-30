@@ -277,6 +277,7 @@ class RecommendedSong {
           ? null
           : _parseIntOrNull(cs['days_since_play']),
       why:           json['why']?.toString() ?? '',
+      isExplore:     json['explore'] == true,
     );
   }
 

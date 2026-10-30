@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/features/discover/logic/discover_providers.dart' show mergeDiscover;
 import 'package:navivibe/features/flow/logic/flow_session.dart';
+import 'package:navivibe/features/flow/ui/flow_section.dart' show FlowBlendStrip;
 import 'package:navivibe/features/listen/data/listen_api.dart';
 import 'package:navivibe/features/listen/data/listen_models.dart';
 import 'package:navivibe/features/month/logic/month_providers.dart';
@@ -235,6 +237,63 @@ void main() {
         s.left('s${FlowSession.maxSeen + 9 - (i % 400)}', heard: Duration.zero, durationSec: 100);
       }
       expect(s.feedback.length <= FlowSession.maxFeedback, isTrue);
+    });
+  });
+
+  group('language exploration', () {
+    test('a pick knows it is a try in a new language', () {
+      final p = ListenPick.parse({..._pick, 'kind': 'explore', 'explore': true, 'language': 'ml'})!;
+      expect(p.explore, isTrue);
+      expect(p.languageName, 'Malayalam');
+      expect(ListenPick.parse(_pick)!.explore, isFalse);
+      expect(ListenPick.parse({..._pick, 'language': 'xx'})!.languageName, 'XX');
+    });
+
+    test('a batch reports its blend', () {
+      final b = FlowBatch.fromJson({
+        'items': [_pick],
+        'blend': {'familiar': 4, 'fresh': 3, 'explore': 1},
+      });
+      expect(b.blend, const FlowBlend(familiar: 4, fresh: 3, explore: 1));
+      expect(b.blend.total, 8);
+      expect(FlowBatch.fromJson(const {}).blend.total, 0);
+    });
+
+    test('every Flow run has its own session id, sent with each request', () async {
+      expect(FlowSession().id, isNot(FlowSession().id));
+      expect(FlowSession(id: 'abc').id, 'abc');
+      final (api, adapter) = _api((o) => _json(200, {'items': []}));
+      await api.flowNext(session: 'abc');
+      expect((adapter.seen.single.data as Map)['session'], 'abc');
+      await api.flowNext();
+      expect((adapter.seen.last.data as Map).containsKey('session'), isFalse);
+    });
+
+    test('Discover marks the songs offered as a new language', () {
+      final items = mergeDiscover(const [], [
+        (id: 'a', title: 'A', artist: 'x'),
+        (id: 'b', title: 'B', artist: 'y'),
+      ], newLanguage: {'b'});
+      expect(items.map((i) => i.reason), ['Never played', 'New language']);
+    });
+
+    testWidgets('the blend strip names the three parts and skips empty ones', (tester) async {
+      await tester.pumpWidget(MaterialApp(
+        home: ThemeTokens(
+          tokens: AppThemeTokens.fallback,
+          child: const Scaffold(body: FlowBlendStrip(blend: FlowBlend(familiar: 4, fresh: 3, explore: 1))),
+        ),
+      ));
+      expect(find.text('Familiar 4'), findsOneWidget);
+      expect(find.text('Fresh 3'), findsOneWidget);
+      expect(find.text('New language 1'), findsOneWidget);
+      await tester.pumpWidget(MaterialApp(
+        home: ThemeTokens(
+          tokens: AppThemeTokens.fallback,
+          child: const Scaffold(body: FlowBlendStrip(blend: FlowBlend(familiar: 4, fresh: 4))),
+        ),
+      ));
+      expect(find.textContaining('New language'), findsNothing);
     });
   });
 
