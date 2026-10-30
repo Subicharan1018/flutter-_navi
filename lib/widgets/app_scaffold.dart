@@ -65,7 +65,8 @@ class AppScaffold extends ConsumerStatefulWidget {
   ConsumerState<AppScaffold> createState() => _AppScaffoldState();
 }
 
-class _AppScaffoldState extends ConsumerState<AppScaffold> with WindowLifecycleMixin {
+class _AppScaffoldState extends ConsumerState<AppScaffold>
+    with WindowLifecycleMixin {
   AppTab _tab = AppTab.home;
 
   /// Tabs built so far. A tab is built the first time it's opened and kept
@@ -144,9 +145,23 @@ class _AppScaffoldState extends ConsumerState<AppScaffold> with WindowLifecycleM
       child: LayoutBuilder(
         builder: (context, c) {
           return switch (ShellKind.of(Size(c.maxWidth, c.maxHeight))) {
-            ShellKind.tv => TvShell(tab: _tab, visited: _visited, onSelect: _select),
-            ShellKind.sidebar => _DesktopShell(tab: _tab, visited: _visited, onSelect: _select, offline: offline),
-            ShellKind.phone => _PhoneShell(tab: _tab, visited: _visited, onSelect: _select, offline: offline),
+            ShellKind.tv => TvShell(
+              tab: _tab,
+              visited: _visited,
+              onSelect: _select,
+            ),
+            ShellKind.sidebar => _DesktopShell(
+              tab: _tab,
+              visited: _visited,
+              onSelect: _select,
+              offline: offline,
+            ),
+            ShellKind.phone => _PhoneShell(
+              tab: _tab,
+              visited: _visited,
+              onSelect: _select,
+              offline: offline,
+            ),
           };
         },
       ),
@@ -162,7 +177,12 @@ class _PhoneShell extends ConsumerWidget {
   final ValueChanged<AppTab> onSelect;
   final bool offline;
 
-  const _PhoneShell({required this.tab, required this.visited, required this.onSelect, required this.offline});
+  const _PhoneShell({
+    required this.tab,
+    required this.visited,
+    required this.onSelect,
+    required this.offline,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -230,19 +250,24 @@ class _TabBar extends ConsumerWidget {
   /// The dock band this bar floats on; its surfaces are lighter solid steps
   /// of it, so the bar belongs to whatever page is showing.
   final Color ground;
-  const _TabBar({required this.tab, required this.onSelect, required this.ground});
+  const _TabBar({
+    required this.tab,
+    required this.onSelect,
+    required this.ground,
+  });
 
   static final _main = AppTab.mainTabs;
 
   /// [ground] lifted toward white by [amount], fully opaque.
-  static Color _lift(Color ground, double amount) => Color.lerp(ground, Colors.white, amount)!;
+  static Color _lift(Color ground, double amount) =>
+      Color.lerp(ground, Colors.white, amount)!;
 
   BoxDecoration _surface({bool circle = false}) => BoxDecoration(
-        color: _lift(ground, 0.09),
-        shape: circle ? BoxShape.circle : BoxShape.rectangle,
-        borderRadius: circle ? null : BorderRadius.circular(Radii.capsule),
-        border: Border.all(color: _lift(ground, 0.16), width: 0.5),
-      );
+    color: _lift(ground, 0.09),
+    shape: circle ? BoxShape.circle : BoxShape.rectangle,
+    borderRadius: circle ? null : BorderRadius.circular(Radii.capsule),
+    border: Border.all(color: _lift(ground, 0.16), width: 0.5),
+  );
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -251,7 +276,12 @@ class _TabBar extends ConsumerWidget {
     final bottom = MediaQuery.paddingOf(context).bottom;
     final index = _main.indexOf(tab);
     return Padding(
-      padding: EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, bottom > 0 ? bottom : Space.md),
+      padding: EdgeInsets.fromLTRB(
+        Space.gutter,
+        0,
+        Space.gutter,
+        bottom > 0 ? bottom : Space.md,
+      ),
       child: SizedBox(
         height: _height,
         child: Row(
@@ -260,40 +290,44 @@ class _TabBar extends ConsumerWidget {
               child: Container(
                 decoration: _surface(),
                 padding: const EdgeInsets.all(4),
-                child: LayoutBuilder(builder: (context, c) {
-                  final w = c.maxWidth / _main.length;
-                  return Stack(
-                    children: [
-                      if (index >= 0)
-                        AnimatedPositioned(
-                          duration: Motion.standard,
-                          curve: Curves.easeOutBack,
-                          left: index * w,
-                          top: 0,
-                          bottom: 0,
-                          width: w,
-                          child: DecoratedBox(
-                            decoration: BoxDecoration(
-                              color: _lift(ground, 0.18),
-                              borderRadius: BorderRadius.circular(Radii.capsule),
-                            ),
-                          ),
-                        ),
-                      Row(
-                        children: [
-                          for (final destination in _main)
-                            Expanded(
-                              child: _TabButton(
-                                tab: destination,
-                                selected: destination == tab,
-                                onTap: () => onSelect(destination),
+                child: LayoutBuilder(
+                  builder: (context, c) {
+                    final w = c.maxWidth / _main.length;
+                    return Stack(
+                      children: [
+                        if (index >= 0)
+                          AnimatedPositioned(
+                            duration: Motion.standard,
+                            curve: Curves.easeOutBack,
+                            left: index * w,
+                            top: 0,
+                            bottom: 0,
+                            width: w,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: _lift(ground, 0.18),
+                                borderRadius: BorderRadius.circular(
+                                  Radii.capsule,
+                                ),
                               ),
                             ),
-                        ],
-                      ),
-                    ],
-                  );
-                }),
+                          ),
+                        Row(
+                          children: [
+                            for (final destination in _main)
+                              Expanded(
+                                child: _TabButton(
+                                  tab: destination,
+                                  selected: destination == tab,
+                                  onTap: () => onSelect(destination),
+                                ),
+                              ),
+                          ],
+                        ),
+                      ],
+                    );
+                  },
+                ),
               ),
             ),
             const SizedBox(width: Space.sm + 2),
@@ -338,7 +372,11 @@ class _TabButton extends StatefulWidget {
   final AppTab tab;
   final bool selected;
   final VoidCallback onTap;
-  const _TabButton({required this.tab, required this.selected, required this.onTap});
+  const _TabButton({
+    required this.tab,
+    required this.selected,
+    required this.onTap,
+  });
 
   @override
   State<_TabButton> createState() => _TabButtonState();
@@ -381,7 +419,10 @@ class _TabButtonState extends State<_TabButton> {
             const SizedBox(height: 3),
             Text(
               tab.label,
-              style: t.caption2.copyWith(color: color, fontWeight: selected ? FontWeight.w600 : FontWeight.w500),
+              style: t.caption2.copyWith(
+                color: color,
+                fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+              ),
             ),
           ],
         ),
@@ -404,7 +445,10 @@ class _OfflineBanner extends StatelessWidget {
         children: [
           NaviIcon(NaviGlyph.wifiOff, size: 13, color: t.warning),
           const SizedBox(width: Space.xs + 2),
-          Text('Offline. Playing your downloads.', style: t.caption1.copyWith(color: t.textPrimary)),
+          Text(
+            'Offline. Playing your downloads.',
+            style: t.caption1.copyWith(color: t.textPrimary),
+          ),
         ],
       ),
     );
@@ -421,7 +465,12 @@ class _DesktopShell extends ConsumerStatefulWidget {
   final Set<AppTab> visited;
   final ValueChanged<AppTab> onSelect;
   final bool offline;
-  const _DesktopShell({required this.tab, required this.visited, required this.onSelect, required this.offline});
+  const _DesktopShell({
+    required this.tab,
+    required this.visited,
+    required this.onSelect,
+    required this.offline,
+  });
 
   @override
   ConsumerState<_DesktopShell> createState() => _DesktopShellState();
@@ -430,7 +479,8 @@ class _DesktopShell extends ConsumerStatefulWidget {
 class _DesktopShellState extends ConsumerState<_DesktopShell> {
   _Panel? _panel = _Panel.about;
 
-  void _togglePanel(_Panel p) => setState(() => _panel = _panel == p ? null : p);
+  void _togglePanel(_Panel p) =>
+      setState(() => _panel = _panel == p ? null : p);
 
   @override
   Widget build(BuildContext context) {
@@ -448,7 +498,11 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
             child: Row(
               children: [
                 FocusTraversalGroup(
-                  child: _Sidebar(tab: widget.tab, onSelect: widget.onSelect, collapsed: size == WindowSize.medium),
+                  child: _Sidebar(
+                    tab: widget.tab,
+                    onSelect: widget.onSelect,
+                    collapsed: size == WindowSize.medium,
+                  ),
                 ),
                 Container(width: 0.5, color: t.separatorOpaque),
                 Expanded(
@@ -467,7 +521,10 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                                 onPopWithResult: (_) => popActiveTab(),
                                 child: child!,
                               ),
-                              child: TabNavigators(tab: widget.tab, visited: widget.visited),
+                              child: TabNavigators(
+                                tab: widget.tab,
+                                visited: widget.visited,
+                              ),
                             ),
                           ),
                         ),
@@ -480,7 +537,11 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                 if (panel != null) ...[
                   Container(width: 0.5, color: t.separatorOpaque),
                   FocusTraversalGroup(
-                    child: _SidePanel(panel: panel, onChange: (p) => setState(() => _panel = p), onClose: () => setState(() => _panel = null)),
+                    child: _SidePanel(
+                      panel: panel,
+                      onChange: (p) => setState(() => _panel = p),
+                      onClose: () => setState(() => _panel = null),
+                    ),
                   ),
                 ],
               ],
@@ -503,7 +564,11 @@ class _Sidebar extends ConsumerStatefulWidget {
 
   /// Medium windows: icons only, 72 wide.
   final bool collapsed;
-  const _Sidebar({required this.tab, required this.onSelect, this.collapsed = false});
+  const _Sidebar({
+    required this.tab,
+    required this.onSelect,
+    this.collapsed = false,
+  });
 
   @override
   ConsumerState<_Sidebar> createState() => _SidebarState();
@@ -522,7 +587,9 @@ class _SidebarState extends ConsumerState<_Sidebar> {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final collapsed = widget.collapsed;
-    final playlists = collapsed ? const [] : ref.watch(playlistsProvider).asData?.value ?? const [];
+    final playlists = collapsed
+        ? const []
+        : ref.watch(playlistsProvider).asData?.value ?? const [];
     final service = ref.read(subsonicServiceProvider);
 
     return AnimatedContainer(
@@ -530,7 +597,12 @@ class _SidebarState extends ConsumerState<_Sidebar> {
       width: collapsed ? 72 : 248,
       color: t.bgSurface,
       child: ListView(
-        padding: EdgeInsets.fromLTRB(collapsed ? Space.sm : Space.md, Space.lg, collapsed ? Space.sm : Space.md, Space.lg),
+        padding: EdgeInsets.fromLTRB(
+          collapsed ? Space.sm : Space.md,
+          Space.lg,
+          collapsed ? Space.sm : Space.md,
+          Space.lg,
+        ),
         children: [
           if (!collapsed) ...[
             CupertinoSearchTextField(
@@ -594,7 +666,11 @@ class _SidebarState extends ConsumerState<_Sidebar> {
             icon: NaviGlyph.downloadCircle,
             label: 'Downloaded',
             iconOnly: collapsed,
-            onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true), title: 'Downloaded'),
+            onTap: () => navigateInApp(
+              context,
+              const SongsPage(downloadedOnly: true),
+              title: 'Downloaded',
+            ),
           ),
           if (!collapsed)
             _SidebarHeader(
@@ -602,20 +678,30 @@ class _SidebarState extends ConsumerState<_Sidebar> {
               action: IconButton(
                 tooltip: 'New Playlist',
                 visualDensity: VisualDensity.compact,
-                icon: NaviIcon(NaviGlyph.plus, size: 18, color: t.textSecondary),
+                icon: NaviIcon(
+                  NaviGlyph.plus,
+                  size: 18,
+                  color: t.textSecondary,
+                ),
                 onPressed: () => showPlaylistEditor(context),
               ),
             ),
           for (final p in playlists)
             _SidebarRow(
               art: CoverArt(
-                url: (p.coverArt ?? '').isEmpty ? null : service.getCoverArtUrl(p.coverArt),
+                url: (p.coverArt ?? '').isEmpty
+                    ? null
+                    : service.getCoverArtUrl(p.coverArt),
                 size: 22,
                 radius: Radii.thumb,
                 placeholderIcon: NaviGlyph.playlist,
               ),
               label: p.name,
-              onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p), title: p.name),
+              onTap: () => navigateInApp(
+                context,
+                PlaylistDetailsScreen(playlist: p),
+                title: p.name,
+              ),
             ),
           const SizedBox(height: Space.lg),
           _SidebarRow(
@@ -642,7 +728,12 @@ class _SidebarHeader extends StatelessWidget {
       padding: const EdgeInsets.fromLTRB(Space.sm, Space.xl, 0, Space.xs),
       child: Row(
         children: [
-          Expanded(child: Text(title, style: t.footnote.copyWith(fontWeight: FontWeight.w600))),
+          Expanded(
+            child: Text(
+              title,
+              style: t.footnote.copyWith(fontWeight: FontWeight.w600),
+            ),
+          ),
           ?action,
         ],
       ),
@@ -658,14 +749,17 @@ class _DownloadsRow extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
-    if (!ref.watch(onlineFetchAvailableProvider) || ref.watch(fetchJobsProvider.select((d) => d.isEmpty))) {
+    if (!ref.watch(onlineFetchAvailableProvider) ||
+        ref.watch(fetchJobsProvider.select((d) => d.isEmpty))) {
       return const SizedBox.shrink();
     }
     return _SidebarRow(
       art: SizedBox(
         width: 18,
         height: 18,
-        child: FetchActivityRing(child: NaviIcon(NaviGlyph.download, size: 12, color: t.accent)),
+        child: FetchActivityRing(
+          child: NaviIcon(NaviGlyph.download, size: 12, color: t.accent),
+        ),
       ),
       label: 'Downloads',
       onTap: () => showFetchDownloads(context),
@@ -701,7 +795,9 @@ class _SidebarRow extends StatelessWidget {
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
-        mainAxisAlignment: iconOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
+        mainAxisAlignment: iconOnly
+            ? MainAxisAlignment.center
+            : MainAxisAlignment.start,
         children: [
           art ?? NaviIcon(icon!, size: 18, color: t.accent),
           if (!iconOnly) ...[
@@ -738,7 +834,11 @@ class _SidePanel extends ConsumerWidget {
   final ValueChanged<_Panel> onChange;
   final VoidCallback onClose;
 
-  const _SidePanel({required this.panel, required this.onChange, required this.onClose});
+  const _SidePanel({
+    required this.panel,
+    required this.onChange,
+    required this.onClose,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -753,7 +853,12 @@ class _SidePanel extends ConsumerWidget {
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(Space.md, Space.md, Space.xs, Space.sm),
+              padding: const EdgeInsets.fromLTRB(
+                Space.md,
+                Space.md,
+                Space.xs,
+                Space.sm,
+              ),
               child: Row(
                 children: [
                   Expanded(
@@ -763,14 +868,25 @@ class _SidePanel extends ConsumerWidget {
                       thumbColor: t.bgOverlay,
                       onValueChanged: (p) => p == null ? null : onChange(p),
                       children: {
-                        for (final (p, label) in const [(_Panel.about, 'About'), (_Panel.lyrics, 'Lyrics'), (_Panel.queue, 'Queue')])
-                          p: Text(label, style: t.footnote.copyWith(color: t.textPrimary)),
+                        for (final (p, label) in const [
+                          (_Panel.about, 'About'),
+                          (_Panel.lyrics, 'Lyrics'),
+                          (_Panel.queue, 'Queue'),
+                        ])
+                          p: Text(
+                            label,
+                            style: t.footnote.copyWith(color: t.textPrimary),
+                          ),
                       },
                     ),
                   ),
                   IconButton(
                     tooltip: 'Close',
-                    icon: NaviIcon(NaviGlyph.close, size: 16, color: t.textSecondary),
+                    icon: NaviIcon(
+                      NaviGlyph.close,
+                      size: 16,
+                      color: t.textSecondary,
+                    ),
                     onPressed: onClose,
                   ),
                 ],
@@ -781,13 +897,25 @@ class _SidePanel extends ConsumerWidget {
                 duration: Motion.standard,
                 child: switch (panel) {
                   _Panel.lyrics => LyricsPane(
-                      key: const ValueKey('lyrics'),
-                      style: style,
-                      fontSize: 24,
-                      padding: const EdgeInsets.fromLTRB(Space.xl, Space.md, Space.xl, 0),
+                    key: const ValueKey('lyrics'),
+                    style: style,
+                    fontSize: 24,
+                    padding: const EdgeInsets.fromLTRB(
+                      Space.xl,
+                      Space.md,
+                      Space.xl,
+                      0,
                     ),
-                  _Panel.queue => QueuePane(key: const ValueKey('queue'), style: style, showCurrent: true),
-                  _Panel.about => _AboutSong(key: const ValueKey('about'), song: song),
+                  ),
+                  _Panel.queue => QueuePane(
+                    key: const ValueKey('queue'),
+                    style: style,
+                    showCurrent: true,
+                  ),
+                  _Panel.about => _AboutSong(
+                    key: const ValueKey('about'),
+                    song: song,
+                  ),
                 },
               ),
             ),
@@ -808,23 +936,34 @@ class _AboutSong extends ConsumerWidget {
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
     final quality = qualityLabel(song);
     Widget fact(String k, String v) => Padding(
-          padding: const EdgeInsets.only(bottom: Space.sm + 2),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              SizedBox(width: 84, child: Text(k, style: t.footnote)),
-              Expanded(child: Text(v, style: t.footnote.copyWith(color: t.textPrimary))),
-            ],
+      padding: const EdgeInsets.only(bottom: Space.sm + 2),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          SizedBox(width: 84, child: Text(k, style: t.footnote)),
+          Expanded(
+            child: Text(v, style: t.footnote.copyWith(color: t.textPrimary)),
           ),
-        );
+        ],
+      ),
+    );
     return ListView(
-      padding: const EdgeInsets.fromLTRB(Space.lg, Space.xs, Space.lg, Space.xxl),
+      padding: const EdgeInsets.fromLTRB(
+        Space.lg,
+        Space.xs,
+        Space.lg,
+        Space.xxl,
+      ),
       children: [
         AspectRatio(
           aspectRatio: 1,
           child: ClipRRect(
             borderRadius: BorderRadius.circular(Radii.hero),
-            child: CoverImage(url: url, cacheKey: coverCacheKey(song), cacheWidth: 640),
+            child: CoverImage(
+              url: url,
+              cacheKey: coverCacheKey(song),
+              cacheWidth: 640,
+            ),
           ),
         ),
         const SizedBox(height: Space.lg),
@@ -836,8 +975,14 @@ class _AboutSong extends ConsumerWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: Container(
-              padding: const EdgeInsets.symmetric(horizontal: Space.sm, vertical: Space.xs),
-              decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(Radii.thumb)),
+              padding: const EdgeInsets.symmetric(
+                horizontal: Space.sm,
+                vertical: Space.xs,
+              ),
+              decoration: BoxDecoration(
+                color: t.fill,
+                borderRadius: BorderRadius.circular(Radii.thumb),
+              ),
               child: Text(quality, style: t.caption1),
             ),
           ),
@@ -863,7 +1008,11 @@ class _PlayerBar extends ConsumerWidget {
 
   /// Medium windows: no side panel, so only volume and the full-screen button.
   final bool compact;
-  const _PlayerBar({required this.panel, required this.onTogglePanel, this.compact = false});
+  const _PlayerBar({
+    required this.panel,
+    required this.onTogglePanel,
+    this.compact = false,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -871,7 +1020,9 @@ class _PlayerBar extends ConsumerWidget {
     final song = ref.watch(playerProvider.select((s) => s.currentSong));
     if (song == null) return const SizedBox.shrink();
     final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
-    final starred = ref.watch(playerProvider.select((s) => s.starredIds.contains(song.id)));
+    final starred = ref.watch(
+      playerProvider.select((s) => s.starredIds.contains(song.id)),
+    );
     final shuffle = ref.watch(playerProvider.select((s) => s.shuffleMode));
     final repeat = ref.watch(playerProvider.select((s) => s.repeatMode));
     final n = ref.read(playerProvider.notifier);
@@ -886,8 +1037,8 @@ class _PlayerBar extends ConsumerWidget {
       ),
       child: Row(
         children: [
-          SizedBox(
-            width: compact ? 220 : 300,
+          Expanded(
+            flex: 3,
             child: Row(
               children: [
                 MouseRegion(
@@ -896,19 +1047,38 @@ class _PlayerBar extends ConsumerWidget {
                     onTap: () => openNowPlaying(context),
                     child: ClipRRect(
                       borderRadius: BorderRadius.circular(Radii.cover),
-                      child: CoverImage(url: url, cacheKey: coverCacheKey(song), width: 52, height: 52, cacheWidth: 156),
+                      child: CoverImage(
+                        url: url,
+                        cacheKey: coverCacheKey(song),
+                        width: 52,
+                        height: 52,
+                        cacheWidth: 156,
+                      ),
                     ),
                   ),
                 ),
                 const SizedBox(width: Space.md),
-                Expanded(
+                Flexible(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text(song.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+                      Text(
+                        song.title,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.subheadline.copyWith(
+                          color: t.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
                       const SizedBox(height: 2),
-                      Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
+                      Text(
+                        song.artist,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.footnote,
+                      ),
                     ],
                   ),
                 ),
@@ -923,6 +1093,7 @@ class _PlayerBar extends ConsumerWidget {
             ),
           ),
           Expanded(
+            flex: 5,
             child: Center(
               child: ConstrainedBox(
                 constraints: const BoxConstraints(maxWidth: 600),
@@ -932,9 +1103,19 @@ class _PlayerBar extends ConsumerWidget {
                     Row(
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
-                        _BarButton(icon: NaviGlyph.shuffle, tooltip: 'Shuffle', active: shuffle, onTap: n.toggleShuffle),
+                        _BarButton(
+                          icon: NaviGlyph.shuffle,
+                          tooltip: 'Shuffle',
+                          active: shuffle,
+                          onTap: n.toggleShuffle,
+                        ),
                         const SizedBox(width: Space.sm),
-                        _BarButton(icon: NaviGlyph.previous, tooltip: 'Previous', size: 22, onTap: n.playPrev),
+                        _BarButton(
+                          icon: NaviGlyph.previous,
+                          tooltip: 'Previous',
+                          size: 22,
+                          onTap: n.playPrev,
+                        ),
                         const SizedBox(width: Space.sm),
                         _BarButton(
                           icon: playing ? NaviGlyph.pause : NaviGlyph.play,
@@ -944,10 +1125,17 @@ class _PlayerBar extends ConsumerWidget {
                           onTap: n.togglePlay,
                         ),
                         const SizedBox(width: Space.sm),
-                        _BarButton(icon: NaviGlyph.next, tooltip: 'Next', size: 22, onTap: n.playNext),
+                        _BarButton(
+                          icon: NaviGlyph.next,
+                          tooltip: 'Next',
+                          size: 22,
+                          onTap: n.playNext,
+                        ),
                         const SizedBox(width: Space.sm),
                         _BarButton(
-                          icon: repeat == LoopMode.one ? NaviGlyph.repeatOne : NaviGlyph.repeat,
+                          icon: repeat == LoopMode.one
+                              ? NaviGlyph.repeatOne
+                              : NaviGlyph.repeat,
                           tooltip: switch (repeat) {
                             LoopMode.off => 'Repeat',
                             LoopMode.all => 'Repeat queue',
@@ -964,21 +1152,62 @@ class _PlayerBar extends ConsumerWidget {
               ),
             ),
           ),
-          SizedBox(
-            width: compact ? 150 : 300,
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.end,
-              children: [
-                if (!compact) _BarButton(icon: NaviGlyph.lyrics, tooltip: 'Lyrics', active: panel == _Panel.lyrics, onTap: () => onTogglePanel(_Panel.lyrics)),
-                if (!compact) _BarButton(icon: NaviGlyph.queue, tooltip: 'Queue', active: panel == _Panel.queue, onTap: () => onTogglePanel(_Panel.queue)),
-                if (!compact) _BarButton(icon: NaviGlyph.info, tooltip: 'About this song', active: panel == _Panel.about, onTap: () => onTogglePanel(_Panel.about)),
-                const SizedBox(width: Space.sm),
-                SizedBox(
-                  width: compact ? 70 : 110,
-                  child: VolumeBar(player: n.player, color: t.textPrimary, trackColor: t.fill, iconColor: t.textSecondary),
-                ),
-                _BarButton(icon: NaviGlyph.expand, tooltip: 'Full-screen player', size: 16, onTap: () => openNowPlaying(context)),
-              ],
+          Expanded(
+            flex: 3,
+            child: LayoutBuilder(
+              builder: (context, c) {
+                // Narrow: keep Lyrics / Queue / full screen; the About and volume
+                // controls give way instead of overflowing.
+                final narrow = c.maxWidth < 300;
+                return Row(
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    if (!compact)
+                      _BarButton(
+                        icon: NaviGlyph.lyrics,
+                        tooltip: 'Lyrics',
+                        active: panel == _Panel.lyrics,
+                        onTap: () => onTogglePanel(_Panel.lyrics),
+                      ),
+                    if (!compact)
+                      _BarButton(
+                        icon: NaviGlyph.queue,
+                        tooltip: 'Queue',
+                        active: panel == _Panel.queue,
+                        onTap: () => onTogglePanel(_Panel.queue),
+                      ),
+                    if (!compact && !narrow)
+                      _BarButton(
+                        icon: NaviGlyph.info,
+                        tooltip: 'About this song',
+                        active: panel == _Panel.about,
+                        onTap: () => onTogglePanel(_Panel.about),
+                      ),
+                    if (c.maxWidth >= 220) ...[
+                      const SizedBox(width: Space.sm),
+                      Flexible(
+                        child: ConstrainedBox(
+                          constraints: BoxConstraints(
+                            maxWidth: compact ? 70 : 110,
+                          ),
+                          child: VolumeBar(
+                            player: n.player,
+                            color: t.textPrimary,
+                            trackColor: t.fill,
+                            iconColor: t.textSecondary,
+                          ),
+                        ),
+                      ),
+                    ],
+                    _BarButton(
+                      icon: NaviGlyph.expand,
+                      tooltip: 'Full-screen player',
+                      size: 16,
+                      onTap: () => openNowPlaying(context),
+                    ),
+                  ],
+                );
+              },
             ),
           ),
         ],
@@ -1009,7 +1238,9 @@ class _BarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final color = active ? t.accent : (prominent ? t.textPrimary : t.textSecondary);
+    final color = active
+        ? t.accent
+        : (prominent ? t.textPrimary : t.textSecondary);
     return Tooltip(
       message: tooltip,
       waitDuration: const Duration(milliseconds: 500),
@@ -1043,7 +1274,9 @@ class _BarScrubberState extends ConsumerState<_BarScrubber> {
     final t = ThemeTokens.of(context);
     final player = ref.read(playerProvider.notifier).player;
     final total = widget.song.duration * 1000;
-    final label = t.caption1.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+    final label = t.caption1.copyWith(
+      fontFeatures: const [FontFeature.tabularFigures()],
+    );
     return RepaintBoundary(
       child: PlaybackPosition(
         player: player,
@@ -1054,7 +1287,11 @@ class _BarScrubberState extends ConsumerState<_BarScrubber> {
             children: [
               SizedBox(
                 width: 44,
-                child: Text(formatClock(Duration(milliseconds: (f * total).round())), textAlign: TextAlign.right, style: label),
+                child: Text(
+                  formatClock(Duration(milliseconds: (f * total).round())),
+                  textAlign: TextAlign.right,
+                  style: label,
+                ),
               ),
               const SizedBox(width: Space.sm + 2),
               Expanded(
@@ -1073,7 +1310,13 @@ class _BarScrubberState extends ConsumerState<_BarScrubber> {
                 ),
               ),
               const SizedBox(width: Space.sm + 2),
-              SizedBox(width: 44, child: Text(formatClock(Duration(seconds: widget.song.duration)), style: label)),
+              SizedBox(
+                width: 44,
+                child: Text(
+                  formatClock(Duration(seconds: widget.song.duration)),
+                  style: label,
+                ),
+              ),
             ],
           );
         },

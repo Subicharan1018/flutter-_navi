@@ -1,3 +1,4 @@
+import '../../../widgets/ui/horizontal_shelf.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -45,15 +46,10 @@ class DiscoverSection extends ConsumerWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             _Header(items: items),
-            SizedBox(
-              height: size + 44,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-                itemCount: items.length,
-                separatorBuilder: (_, _) => const SizedBox(width: Space.md),
-                itemBuilder: (context, i) => _DiscoverCard(items: items, index: i, size: size),
-              ),
+            HorizontalShelf(
+              height: size + captionExtent(context),
+              itemCount: items.length,
+              itemBuilder: (context, i) => _DiscoverCard(items: items, index: i, size: size),
             ),
           ],
         );

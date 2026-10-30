@@ -1,3 +1,4 @@
+import '../widgets/ui/horizontal_shelf.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Colors;
 import 'package:flutter/services.dart';
@@ -175,15 +176,10 @@ class _TopPicks extends ConsumerWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         const SectionHeader(title: 'Top Picks for You'),
-        SizedBox(
+        HorizontalShelf(
           height: cardWidth + _FeatureCard.chrome,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-            itemCount: cards.length,
-            separatorBuilder: (_, _) => const SizedBox(width: Space.md),
-            itemBuilder: (_, i) => cards[i],
-          ),
+          itemCount: cards.length,
+          itemBuilder: (_, i) => cards[i],
         ),
       ],
     );

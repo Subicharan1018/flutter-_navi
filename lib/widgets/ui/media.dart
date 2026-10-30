@@ -1,3 +1,4 @@
+import '../../widgets/ui/horizontal_shelf.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
@@ -147,15 +148,10 @@ class MediaShelf extends StatelessWidget {
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         SectionHeader(title: title, onTap: onSeeAll),
-        SizedBox(
-          height: cardSize + (hasSubtitle ? 44 : 26),
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-            itemCount: itemCount,
-            separatorBuilder: (_, _) => const SizedBox(width: Space.md),
-            itemBuilder: itemBuilder,
-          ),
+        HorizontalShelf(
+          height: cardSize + captionExtent(context, subtitle: hasSubtitle),
+          itemCount: itemCount,
+          itemBuilder: itemBuilder,
         ),
       ],
     );
@@ -489,4 +485,11 @@ class TintedButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Room under a card's artwork for its title (and subtitle) line, growing with
+/// the person's text size so a larger font never overflows a fixed-height shelf.
+double captionExtent(BuildContext context, {bool subtitle = true}) {
+  final k = (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1.0, 2.0);
+  return (subtitle ? 44.0 : 26.0) * k;
 }
