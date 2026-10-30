@@ -18,6 +18,7 @@ import '../../../widgets/ui/action_sheet.dart';
 import '../data/fetch_models.dart';
 import '../data/online_fetch_api.dart';
 import '../logic/online_fetch_providers.dart';
+import 'fetch_queue_sheet.dart';
 import 'widgets/fetch_candidate_row.dart';
 
 // =============================================================================
@@ -274,6 +275,12 @@ class FetchDownloadsSheet extends ConsumerWidget {
           child: Row(
             children: [
               Expanded(child: Semantics(header: true, child: Text('Downloads', style: t.title3))),
+              CupertinoButton(
+                padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                minimumSize: const Size(44, 44),
+                onPressed: () => showFetchQueue(context),
+                child: Text('Queue', style: t.body.copyWith(color: t.accent)),
+              ),
               if (anyFinished)
                 CupertinoButton(
                   padding: const EdgeInsets.symmetric(horizontal: Space.sm),

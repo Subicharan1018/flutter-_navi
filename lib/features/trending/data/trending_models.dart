@@ -255,6 +255,10 @@ class TrendingChart {
 
   /// The source's own line about the chart.
   final String? description;
+
+  /// A chart that is itself a Deezer playlist: its link, so the whole chart
+  /// can go on the download queue in one tap.
+  final String? playlistLink;
   final List<ChartEntry> entries;
 
   const TrendingChart({
@@ -266,6 +270,7 @@ class TrendingChart {
     this.date,
     this.weekOf,
     this.description,
+    this.playlistLink,
     this.entries = const [],
   });
 
@@ -280,6 +285,7 @@ class TrendingChart {
         date: DateTime.tryParse(j['date'] as String? ?? ''),
         weekOf: _str(j['week_of']),
         description: _str(j['description']),
+        playlistLink: _str(j['playlist_link']),
         entries: [
           for (final e in (j['entries'] as List? ?? const []))
             if (e is Map) ChartEntry.fromJson(Map<String, dynamic>.from(e)),
