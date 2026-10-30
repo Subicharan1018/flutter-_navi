@@ -129,3 +129,15 @@ void selectAppTab(AppTab tab) => tabRequest.value = tab;
 
 /// Read by the shell; cleared once it has switched.
 final ValueNotifier<AppTab?> tabRequest = ValueNotifier(null);
+
+/// The current tab chosen again: back to its root (iOS); Search goes on into
+/// typing (Spotify), so the thumb never reaches for the field at the top.
+void reselectTab(AppTab tab) {
+  tabNavigators[tab]?.currentState?.popUntil((r) => r.isFirst);
+  if (tab == AppTab.search) searchFieldRequest.value = true;
+}
+
+/// Set to put the caret in Search's field and raise the keyboard (a second
+/// tap on the Search tab, Ctrl+F, '/'). Search clears it once it has, so a
+/// request made before Search was first built still lands.
+final ValueNotifier<bool> searchFieldRequest = ValueNotifier(false);

@@ -30,6 +30,7 @@ import '../services/window_manager_service.dart';
 import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import '../screens/playlist_editor.dart';
+import 'ui/controls.dart';
 import 'ui/dock_ground.dart';
 import 'shell/dock_glass.dart';
 import '../features/social/ui/jam/jam_pill.dart';
@@ -110,11 +111,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
   }
 
   void _select(AppTab tab) {
-    if (tab == _tab) {
-      // Re-selecting the current tab returns to its root (iOS behaviour).
-      tabNavigators[tab]?.currentState?.popUntil((r) => r.isFirst);
-      return;
-    }
+    if (tab == _tab) return reselectTab(tab);
     HapticFeedback.selectionClick();
     // Each tab keeps its own stack, so leaving one never loses where you were.
     setState(() {
@@ -141,8 +138,15 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     child: shell,
   );
 
+  /// Ctrl+F and '/': Search, with the caret already in its field.
+  void _focusSearch() {
+    _select(AppTab.search);
+    searchFieldRequest.value = true;
+  }
+
   late final ShellCommands _commands = ShellCommands(
-    focusSearch: () => _select(AppTab.search),
+    openSearch: () => _select(AppTab.search),
+    focusSearch: _focusSearch,
     openSettings: () => navigateInApp(context, const SettingsScreen()),
     selectTab: (i) => _select(AppTab.values[i]),
     goBack: _back,
@@ -598,12 +602,9 @@ class _SidebarState extends ConsumerState<_Sidebar> {
         ),
         children: [
           if (!collapsed) ...[
-            CupertinoSearchTextField(
+            NaviSearchField(
               controller: _search,
-              placeholder: 'Search',
-              style: t.subheadline.copyWith(color: t.textPrimary),
-              backgroundColor: t.fill,
-              itemColor: t.textSecondary,
+              voice: false,
               onChanged: (q) {
                 ref.read(searchQueryProvider.notifier).state = q;
                 if (widget.tab != AppTab.search) widget.onSelect(AppTab.search);

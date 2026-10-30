@@ -22,7 +22,7 @@ import '../widgets/ui/voice_search_button.dart';
 //     ← →              seek ∓/± 5 s        Ctrl+← →   previous / next
 //     ↑ ↓              volume ± 5 %        M          mute
 //     S R L            shuffle, repeat, like the current song
-//     Ctrl+F           go to Search        Ctrl+1…6   switch tab
+//     Ctrl+F or /      type in Search      Ctrl+1…6   switch tab
 //     Ctrl+,           Settings            Esc / Alt+←  back
 //     mouse back / forward buttons         back
 //
@@ -31,6 +31,10 @@ import '../widgets/ui/voice_search_button.dart';
 
 /// What the shell lets the keys do to navigation.
 class ShellCommands {
+  /// Shows Search (the remote's voice key, which then dictates).
+  final VoidCallback openSearch;
+
+  /// Shows Search with the caret in its field.
   final VoidCallback focusSearch;
   final VoidCallback openSettings;
   final void Function(int index) selectTab;
@@ -39,6 +43,7 @@ class ShellCommands {
   final bool Function() goBack;
 
   const ShellCommands({
+    required this.openSearch,
     required this.focusSearch,
     required this.openSettings,
     required this.selectTab,
@@ -116,7 +121,7 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
 
   // The remote's microphone: open Search and start dictating.
   void voiceKey() {
-    commands?.focusSearch();
+    commands?.openSearch();
     voiceKeyPresses.value++;
   }
 
@@ -145,6 +150,7 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
   if (commands != null) {
     bindings.addAll({
       const SingleActivator(LogicalKeyboardKey.keyF, control: true): commands.focusSearch,
+      const SingleActivator(LogicalKeyboardKey.slash): unlessTyping(commands.focusSearch),
       const SingleActivator(LogicalKeyboardKey.comma, control: true): commands.openSettings,
       const SingleActivator(LogicalKeyboardKey.escape): () => commands.goBack(),
       const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): () => commands.goBack(),

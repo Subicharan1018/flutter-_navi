@@ -206,7 +206,7 @@ void main() {
       }
     });
 
-    testWidgets('with shell commands the desktop gets Ctrl+F, Ctrl+1..5, Esc', (tester) async {
+    testWidgets('with shell commands the desktop gets Ctrl+F, /, Ctrl+1..5, Esc; the voice key only opens Search', (tester) async {
       late Map<ShortcutActivator, VoidCallback> map;
       final calls = <String>[];
       await tester.pumpWidget(ProviderScope(
@@ -214,6 +214,7 @@ void main() {
           map = buildNaviBindings(
             ref,
             ShellCommands(
+              openSearch: () => calls.add('open'),
               focusSearch: () => calls.add('search'),
               openSettings: () => calls.add('settings'),
               selectTab: (i) => calls.add('tab$i'),
@@ -230,7 +231,9 @@ void main() {
       map[const SingleActivator(LogicalKeyboardKey.keyF, control: true)]!();
       map.entries.firstWhere((e) => e.key is SingleActivator && (e.key as SingleActivator).trigger == LogicalKeyboardKey.digit4 && (e.key as SingleActivator).control).value();
       map[const SingleActivator(LogicalKeyboardKey.escape)]!();
-      expect(calls, ['search', 'tab3', 'back']);
+      map[const SingleActivator(LogicalKeyboardKey.slash)]!();
+      map[const SingleActivator(LogicalKeyboardKey.speechInputToggle)]!();
+      expect(calls, ['search', 'tab3', 'back', 'search', 'open']);
     });
   });
 
