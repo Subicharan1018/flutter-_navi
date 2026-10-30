@@ -116,3 +116,12 @@ String displayArtist(Song song, CatalogSong? meta) {
   if (!missing) return song.artist;
   return meta?.composer ?? song.artist;
 }
+
+/// "A • B • C • D • E" → "A • B • C +2": a credit list of a dozen names is
+/// noise in a row; the full list is on the song's page. Splits on the
+/// separators Navidrome and file tags use (•, /, ;, " feat. " is left alone).
+String shortArtists(String artists, {int max = 3}) {
+  final parts = artists.split(RegExp(r'\s*[•/;]\s*')).map((s) => s.trim()).where((s) => s.isNotEmpty).toList();
+  if (parts.length <= max) return artists;
+  return '${parts.take(max).join(' • ')} +${parts.length - max}';
+}

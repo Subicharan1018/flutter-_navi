@@ -11,6 +11,7 @@ import '../features/flow/ui/flow_pill.dart';
 
 import '../core/motion.dart';
 import '../core/theme.dart';
+import '../widgets/art/smart_context.dart';
 import '../widgets/ui/heart_burst.dart';
 import '../widgets/art/navi_icons.dart';
 import '../models/song.dart';
@@ -216,6 +217,8 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
     final living = ref.watch(settingsProvider.select((s) => s.fluidBgEnabled)) && context.motionFull;
     final size = MediaQuery.sizeOf(context);
     final wide = size.width >= 900 && size.width > size.height;
+    // A queue the server chose says so (see SmartContext).
+    final smart = SmartContext.of(ref.read(playerProvider.notifier).currentPlaylistName);
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -248,6 +251,17 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
                       lit: playing,
                       dim: wide ? 0.55 : (_pane == _Pane.none ? 0 : 1),
                     ),
+                    if (smart != null) SmartBackdrop(context: smart, songId: song!.id),
+                    if (smart != null)
+                      SafeArea(
+                        child: Align(
+                          alignment: Alignment.topCenter,
+                          child: Padding(
+                            padding: EdgeInsets.only(top: wide ? 18 : 30),
+                            child: SmartContextPill(context: smart),
+                          ),
+                        ),
+                      ),
                     if (wide)
                       _WideLayout(song: song!, playing: playing)
                     else

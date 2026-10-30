@@ -1,3 +1,4 @@
+import '../../core/layout/window_size.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
@@ -378,7 +379,8 @@ class _TopBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final top = MediaQuery.paddingOf(context).top;
-    final canPop = Navigator.of(context).canPop();
+    // Windows and tablets show the breadcrumb bar's back arrow; one is enough.
+    final canPop = Navigator.of(context).canPop() && ShellKind.ofContext(context) == ShellKind.phone;
     return ValueListenableBuilder<double>(
       valueListenable: offset,
       builder: (context, o, _) {

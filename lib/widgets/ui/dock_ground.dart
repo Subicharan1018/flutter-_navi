@@ -27,3 +27,29 @@ class DockGroundScope extends StatelessWidget {
     return child;
   }
 }
+
+/// A surface in the current page's own colour, optionally [darken]ed or
+/// [lift]ed a little, so chrome around a tinted page (top bar, side panel, rail)
+/// is one continuous surface with it instead of a black frame. Without a tint
+/// it paints nothing and the surrounding default shows.
+class GroundSurface extends StatelessWidget {
+  final double darken;
+  final double lift;
+  final Widget child;
+  const GroundSurface({super.key, this.darken = 0, this.lift = 0, required this.child});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Color?>(
+      valueListenable: DockGround.value,
+      builder: (context, ground, child) {
+        if (ground == null) return child!;
+        var c = ground;
+        if (darken > 0) c = Color.lerp(c, const Color(0xFF000000), darken)!;
+        if (lift > 0) c = Color.lerp(c, const Color(0xFFFFFFFF), lift)!;
+        return ColoredBox(color: c, child: child);
+      },
+      child: child,
+    );
+  }
+}

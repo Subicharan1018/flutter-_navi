@@ -141,7 +141,7 @@ class _SongTileState extends ConsumerState<SongTile> {
                   ),
           );
 
-    final artist = displayArtist(song, ref.watch(catalogSongProvider(song.id)));
+    final artist = shortArtists(displayArtist(song, ref.watch(catalogSongProvider(song.id))));
 
     return Semantics(
       button: true,

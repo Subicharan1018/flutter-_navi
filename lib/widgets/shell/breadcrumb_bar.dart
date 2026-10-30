@@ -42,7 +42,7 @@ class _Bar extends StatelessWidget {
       height: 40,
       padding: const EdgeInsets.symmetric(horizontal: Space.md),
       decoration: BoxDecoration(
-        color: t.bgBase,
+        color: Colors.transparent, // the page's own ground shows through (see GroundSurface)
         border: Border(bottom: BorderSide(color: t.separatorOpaque, width: 0.5)),
       ),
       child: Row(

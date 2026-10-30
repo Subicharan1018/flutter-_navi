@@ -58,6 +58,10 @@ import '../providers/id_migration_provider.dart';
 export 'shell/app_tab.dart' show AppTab;
 export 'shell/nav_stack.dart' show navigateInApp, selectAppTab;
 
+/// Pages stop growing here on a wide window, so rows and text stay readable;
+/// the page colour still runs edge to edge behind them.
+const double kContentMaxWidth = 1180;
+
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key});
 
@@ -491,70 +495,83 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
     );
     // medium: icon-only sidebar, no side panel; expanded: both.
     final panel = size.hasSidePanel && hasSong ? _panel : null;
-    return Scaffold(
-      backgroundColor: t.bgBase,
-      body: Column(
-        children: [
-          Expanded(
-            child: Row(
-              children: [
-                FocusTraversalGroup(
-                  child: _Sidebar(
-                    tab: widget.tab,
-                    onSelect: widget.onSelect,
-                    collapsed: size == WindowSize.medium,
+    return ValueListenableBuilder<Color?>(
+      valueListenable: DockGround.value,
+      builder: (context, ground, _) => Scaffold(
+        backgroundColor: ground ?? t.bgBase,
+        body: Column(
+          children: [
+            Expanded(
+              child: Row(
+                children: [
+                  FocusTraversalGroup(
+                    child: _Sidebar(
+                      tab: widget.tab,
+                      onSelect: widget.onSelect,
+                      collapsed: size == WindowSize.medium,
+                    ),
                   ),
-                ),
-                Container(width: 0.5, color: t.separatorOpaque),
-                Expanded(
-                  child: FocusTraversalGroup(
-                    child: Column(
-                      children: [
-                        if (widget.offline) const _OfflineBanner(),
-                        const BreadcrumbBar(),
-                        Expanded(
-                          child: ClipRect(
-                            // Android back on a tablet goes up a level first.
-                            child: AnimatedBuilder(
-                              animation: tabTrails[widget.tab]!.routes,
-                              builder: (context, child) => NavigatorPopHandler(
-                                enabled: tabTrails[widget.tab]!.canPop,
-                                onPopWithResult: (_) => popActiveTab(),
-                                child: child!,
-                              ),
-                              child: TabNavigators(
-                                tab: widget.tab,
-                                visited: widget.visited,
+                  Container(width: 0.5, color: t.separatorOpaque),
+                  Expanded(
+                    child: FocusTraversalGroup(
+                      child: Column(
+                        children: [
+                          if (widget.offline) const _OfflineBanner(),
+                          const BreadcrumbBar(),
+                          Expanded(
+                            child: Center(
+                              child: ConstrainedBox(
+                                constraints: const BoxConstraints(
+                                  maxWidth: kContentMaxWidth,
+                                ),
+                                child: ClipRect(
+                                  // Android back on a tablet goes up a level first.
+                                  child: AnimatedBuilder(
+                                    animation: tabTrails[widget.tab]!.routes,
+                                    builder: (context, child) =>
+                                        NavigatorPopHandler(
+                                          enabled:
+                                              tabTrails[widget.tab]!.canPop,
+                                          onPopWithResult: (_) =>
+                                              popActiveTab(),
+                                          child: child!,
+                                        ),
+                                    child: TabNavigators(
+                                      tab: widget.tab,
+                                      visited: widget.visited,
+                                    ),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
-                        ),
-                        const Center(child: JamLivePill()),
-                        const FetchFinishedBanner(),
-                      ],
+                          const Center(child: JamLivePill()),
+                          const FetchFinishedBanner(),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-                if (panel != null) ...[
-                  Container(width: 0.5, color: t.separatorOpaque),
-                  FocusTraversalGroup(
-                    child: _SidePanel(
-                      panel: panel,
-                      onChange: (p) => setState(() => _panel = p),
-                      onClose: () => setState(() => _panel = null),
+                  if (panel != null) ...[
+                    Container(width: 0.5, color: t.separatorOpaque),
+                    FocusTraversalGroup(
+                      child: _SidePanel(
+                        panel: panel,
+                        onChange: (p) => setState(() => _panel = p),
+                        onClose: () => setState(() => _panel = null),
+                      ),
                     ),
-                  ),
+                  ],
                 ],
-              ],
+              ),
             ),
-          ),
-          if (hasSong)
-            _PlayerBar(
-              panel: panel,
-              onTogglePanel: _togglePanel,
-              compact: !size.hasSidePanel,
-            ),
-        ],
+            if (hasSong)
+              _PlayerBar(
+                panel: panel,
+                onTogglePanel: _togglePanel,
+                compact: !size.hasSidePanel,
+              ),
+          ],
+        ),
       ),
     );
   }
@@ -848,80 +865,83 @@ class _SidePanel extends ConsumerWidget {
     final song = ref.watch(playerProvider.select((s) => s.currentSong));
     if (song == null) return const SizedBox.shrink();
     final style = NowPlayingStyle.fromTokens(t);
-    return SizedBox(
-      width: 320,
-      child: NowPlayingStyleScope(
-        style: style,
-        child: Column(
-          children: [
-            Padding(
-              padding: const EdgeInsets.fromLTRB(
-                Space.md,
-                Space.md,
-                Space.xs,
-                Space.sm,
-              ),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: CupertinoSlidingSegmentedControl<_Panel>(
-                      groupValue: panel,
-                      backgroundColor: t.fill,
-                      thumbColor: t.bgOverlay,
-                      onValueChanged: (p) => p == null ? null : onChange(p),
-                      children: {
-                        for (final (p, label) in const [
-                          (_Panel.about, 'About'),
-                          (_Panel.lyrics, 'Lyrics'),
-                          (_Panel.queue, 'Queue'),
-                        ])
-                          p: Text(
-                            label,
-                            style: t.footnote.copyWith(color: t.textPrimary),
-                          ),
-                      },
+    return GroundSurface(
+      darken: 0.4,
+      child: SizedBox(
+        width: 320,
+        child: NowPlayingStyleScope(
+          style: style,
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                  Space.md,
+                  Space.md,
+                  Space.xs,
+                  Space.sm,
+                ),
+                child: Row(
+                  children: [
+                    Expanded(
+                      child: CupertinoSlidingSegmentedControl<_Panel>(
+                        groupValue: panel,
+                        backgroundColor: t.fill,
+                        thumbColor: t.bgOverlay,
+                        onValueChanged: (p) => p == null ? null : onChange(p),
+                        children: {
+                          for (final (p, label) in const [
+                            (_Panel.about, 'About'),
+                            (_Panel.lyrics, 'Lyrics'),
+                            (_Panel.queue, 'Queue'),
+                          ])
+                            p: Text(
+                              label,
+                              style: t.footnote.copyWith(color: t.textPrimary),
+                            ),
+                        },
+                      ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Close',
-                    icon: NaviIcon(
-                      NaviGlyph.close,
-                      size: 16,
-                      color: t.textSecondary,
+                    IconButton(
+                      tooltip: 'Close',
+                      icon: NaviIcon(
+                        NaviGlyph.close,
+                        size: 16,
+                        color: t.textSecondary,
+                      ),
+                      onPressed: onClose,
                     ),
-                    onPressed: onClose,
-                  ),
-                ],
+                  ],
+                ),
               ),
-            ),
-            Expanded(
-              child: AnimatedSwitcher(
-                duration: Motion.standard,
-                child: switch (panel) {
-                  _Panel.lyrics => LyricsPane(
-                    key: const ValueKey('lyrics'),
-                    style: style,
-                    fontSize: 24,
-                    padding: const EdgeInsets.fromLTRB(
-                      Space.xl,
-                      Space.md,
-                      Space.xl,
-                      0,
+              Expanded(
+                child: AnimatedSwitcher(
+                  duration: Motion.standard,
+                  child: switch (panel) {
+                    _Panel.lyrics => LyricsPane(
+                      key: const ValueKey('lyrics'),
+                      style: style,
+                      fontSize: 24,
+                      padding: const EdgeInsets.fromLTRB(
+                        Space.xl,
+                        Space.md,
+                        Space.xl,
+                        0,
+                      ),
                     ),
-                  ),
-                  _Panel.queue => QueuePane(
-                    key: const ValueKey('queue'),
-                    style: style,
-                    showCurrent: true,
-                  ),
-                  _Panel.about => _AboutSong(
-                    key: const ValueKey('about'),
-                    song: song,
-                  ),
-                },
+                    _Panel.queue => QueuePane(
+                      key: const ValueKey('queue'),
+                      style: style,
+                      showCurrent: true,
+                    ),
+                    _Panel.about => _AboutSong(
+                      key: const ValueKey('about'),
+                      song: song,
+                    ),
+                  },
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
