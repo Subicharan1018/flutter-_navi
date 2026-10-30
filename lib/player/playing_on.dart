@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../widgets/shell/dock_glass.dart';
 import '../providers/player_provider.dart';
 import '../providers/session_sync_provider.dart';
 import '../providers/settings_provider.dart';
@@ -51,7 +52,7 @@ class PlayingOnChip extends ConsumerWidget {
           decoration: BoxDecoration(
             color: t.fill,
             borderRadius: BorderRadius.circular(Radii.capsule),
-            border: Border.all(color: t.outline, width: 0.5),
+            border: Border.all(color: DockGlass.of(context) ? dockCapsuleEdge(context, t.bgElevated) : t.outline, width: 0.5),
           ),
           child: Row(mainAxisSize: MainAxisSize.min, children: [
             NaviIcon(passive ? NaviGlyph.speaker : NaviGlyph.phone, size: 16, color: t.textPrimary),
@@ -107,9 +108,9 @@ class RemoteMiniPlayer extends ConsumerWidget {
             height: MiniPlayer.height,
             padding: const EdgeInsets.only(left: Space.sm, right: Space.xs),
             decoration: BoxDecoration(
-              color: t.bgElevated,
+              color: dockCapsuleFill(context, t.bgElevated),
               borderRadius: BorderRadius.circular(Radii.capsule),
-              border: Border.all(color: t.outline, width: 0.5),
+              border: Border.all(color: DockGlass.of(context) ? dockCapsuleEdge(context, t.bgElevated) : t.outline, width: 0.5),
             ),
             child: Row(children: [
               ClipRRect(

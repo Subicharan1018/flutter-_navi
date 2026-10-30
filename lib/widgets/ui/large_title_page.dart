@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
+import '../shell/dock_glass.dart';
 import 'dock_ground.dart';
 
 /// The frame of every top-level page: Apple's large title that collapses into
@@ -77,7 +78,7 @@ class LargeTitlePage extends StatelessWidget {
           SliverToBoxAdapter(
             child: SizedBox(
               height: clearPlayer
-                  ? Space.playerClearance + MediaQuery.paddingOf(context).bottom
+                  ? dockClearance(context)
                   : Space.xxxl,
             ),
           ),
