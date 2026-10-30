@@ -10,6 +10,9 @@ import '../core/theme.dart';
 import '../models/song.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/art/navi_icons.dart';
+import 'playback_progress.dart';
+
+export 'playback_progress.dart';
 
 // =============================================================================
 // Shared playback controls. Every control here takes its colours as
@@ -37,73 +40,6 @@ String? qualityLabel(Song song) {
     if (song.bitRate > 0) '${song.bitRate} kbps',
   ];
   return parts.join(' · ');
-}
-
-// ─────────────────────────────────────────────────────────────────────────────
-// Position — a flash-free, throttled position source.
-// just_audio briefly emits 0 while switching sources; a naive StreamBuilder
-// shows a one-frame jump to 0:00. This keeps the last real position until the
-// song actually changes.
-// ─────────────────────────────────────────────────────────────────────────────
-
-class PlaybackPosition extends StatefulWidget {
-  final AudioPlayer player;
-  final String songId;
-  final Widget Function(BuildContext context, Duration position) builder;
-
-  /// Minimum change before rebuilding (sub-second resolution isn't visible
-  /// on a 300px bar; 250 ms keeps the playhead visibly fluid).
-  final Duration resolution;
-
-  const PlaybackPosition({
-    super.key,
-    required this.player,
-    required this.songId,
-    required this.builder,
-    this.resolution = const Duration(milliseconds: 250),
-  });
-
-  @override
-  State<PlaybackPosition> createState() => _PlaybackPositionState();
-}
-
-class _PlaybackPositionState extends State<PlaybackPosition> {
-  StreamSubscription<Duration>? _sub;
-  Duration _pos = Duration.zero;
-
-  @override
-  void initState() {
-    super.initState();
-    _pos = widget.player.position;
-    _sub = widget.player.positionStream.listen(_onPos);
-  }
-
-  void _onPos(Duration p) {
-    if (!mounted) return;
-    if (p == Duration.zero && _pos > const Duration(seconds: 1)) return;
-    if ((p - _pos).abs() >= widget.resolution || p < _pos) {
-      setState(() => _pos = p);
-    }
-  }
-
-  @override
-  void didUpdateWidget(PlaybackPosition old) {
-    super.didUpdateWidget(old);
-    if (old.player != widget.player) {
-      _sub?.cancel();
-      _sub = widget.player.positionStream.listen(_onPos);
-    }
-    if (old.songId != widget.songId) _pos = Duration.zero;
-  }
-
-  @override
-  void dispose() {
-    _sub?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) => widget.builder(context, _pos);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -331,28 +267,29 @@ class Scrubber extends StatefulWidget {
 
 class _ScrubberState extends State<Scrubber> {
   final ValueNotifier<double?> _scrub = ValueNotifier(null);
+  Timer? _release;
 
   @override
   void dispose() {
+    _release?.cancel();
     _scrub.dispose();
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
-    final total = Duration(seconds: widget.song.duration);
-    final totalMs = total.inMilliseconds;
     final quality = widget.showQuality ? qualityLabel(widget.song) : null;
     return RepaintBoundary(
-      child: PlaybackPosition(
+      child: PlaybackProgressBuilder(
         player: widget.player,
-        songId: widget.song.id,
-        builder: (context, pos) {
+        song: widget.song,
+        builder: (context, progress) {
+          final total = progress.total;
+          final totalMs = total.inMilliseconds;
           return ValueListenableBuilder<double?>(
             valueListenable: _scrub,
             builder: (context, scrub, _) {
-              final frac =
-                  scrub ?? (totalMs > 0 ? pos.inMilliseconds / totalMs : 0.0);
+              final frac = scrub ?? progress.fraction;
               final shownPos = Duration(milliseconds: (frac * totalMs).round());
               final active = scrub != null;
               final labelStyle = naviText(
@@ -373,12 +310,22 @@ class _ScrubberState extends State<Scrubber> {
                     semanticLabel: 'Playback position',
                     semanticValue: (v) =>
                         '${formatClock(Duration(milliseconds: (v * totalMs).round()))} of ${formatClock(total)}',
-                    onChanged: (v) => _scrub.value = v,
+                    onChanged: (v) {
+                      _release?.cancel();
+                      _scrub.value = v;
+                    },
                     onChangeEnd: (v) {
-                      widget.player.seek(
+                      progress.seekTo(
+                        widget.player,
                         Duration(milliseconds: (v * totalMs).round()),
                       );
-                      _scrub.value = null;
+                      // Hold the thumb where it was released until the
+                      // player reports the new position, so it can't flick
+                      // back to the old one.
+                      _release?.cancel();
+                      _release = Timer(const Duration(milliseconds: 400), () {
+                        _scrub.value = null;
+                      });
                     },
                   ),
                   Row(

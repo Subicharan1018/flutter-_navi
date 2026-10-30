@@ -115,6 +115,10 @@ class _FakeAudioPlayer extends Fake implements AudioPlayer {
   @override
   Stream<Duration> get positionStream => Stream.value(pos);
   @override
+  Duration? get duration => null;
+  @override
+  Stream<Duration?> get durationStream => const Stream.empty();
+  @override
   double get volume => 0.62;
   @override
   Stream<double> get volumeStream => Stream.value(0.62);
