@@ -9,6 +9,7 @@ import 'package:just_audio/just_audio.dart';
 import '../core/hive_boxes.dart';
 import '../core/motion.dart';
 import '../core/theme.dart';
+import 'shell/dock_glass.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
 import '../player/player_controls.dart';
@@ -158,9 +159,9 @@ class _MiniPlayerState extends ConsumerState<MiniPlayer> with SingleTickerProvid
               curve: Curves.easeOutCubic,
               height: MiniPlayer.height,
               decoration: BoxDecoration(
-                color: ground,
+                color: dockCapsuleFill(context, ground),
                 borderRadius: BorderRadius.circular(Radii.capsule),
-                border: Border.all(color: Color.lerp(ground, Colors.white, 0.12)!, width: 0.5),
+                border: Border.all(color: dockCapsuleEdge(context, ground), width: 0.5),
               ),
               clipBehavior: Clip.antiAlias,
               child: Stack(

@@ -31,7 +31,7 @@ import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import '../screens/playlist_editor.dart';
 import 'ui/dock_ground.dart';
-import 'ui/one_shot_icon.dart';
+import 'shell/dock_glass.dart';
 import '../features/social/ui/jam/jam_pill.dart';
 import '../providers/session_sync_provider.dart';
 import '../player/playing_on.dart';
@@ -206,11 +206,13 @@ class _PhoneShell extends ConsumerWidget {
       backgroundColor: t.bgBase,
       body: Stack(
         children: [
-          TabNavigators(tab: tab, visited: visited),
-          // The dock: one solid band in the visible page's own colour, with
-          // the mini player and tab bar floating on it. Nothing scrolls into
-          // view between or beside the controls, and an artwork-coloured page
-          // keeps its colour right to the bottom edge.
+          // Pages end above the dock: it is part of their bottom padding.
+          // (System back is handled by the shell's back dispatcher.)
+          DockInsetScope(child: TabNavigators(tab: tab, visited: visited)),
+          // The dock: one sheet of frosted glass in the visible page's own
+          // colour (a solid band when glass is off, see `GlassDock`), with
+          // the Jam pill, mini player and tab bar on it. One blur layer for
+          // all three; content scrolls visibly beneath.
           Positioned(
             left: 0,
             right: 0,
@@ -219,10 +221,8 @@ class _PhoneShell extends ConsumerWidget {
               valueListenable: DockGround.value,
               builder: (context, ground, _) {
                 final band = ground ?? t.bgBase;
-                return AnimatedContainer(
-                  duration: Motion.standard,
-                  color: band,
-                  padding: const EdgeInsets.only(top: Space.sm),
+                return GlassDock(
+                  ground: band,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
@@ -268,12 +268,17 @@ class _TabBar extends ConsumerWidget {
   static Color _lift(Color ground, double amount) =>
       Color.lerp(ground, Colors.white, amount)!;
 
-  BoxDecoration _surface({bool circle = false}) => BoxDecoration(
-    color: _lift(ground, 0.09),
-    shape: circle ? BoxShape.circle : BoxShape.rectangle,
-    borderRadius: circle ? null : BorderRadius.circular(Radii.capsule),
-    border: Border.all(color: _lift(ground, 0.16), width: 0.5),
-  );
+  /// Lighter than the dock it floats on: an opaque step of the band, or a
+  /// veil of white over the glass.
+  BoxDecoration _surface(BuildContext context, {bool circle = false}) {
+    final glass = DockGlass.of(context);
+    return BoxDecoration(
+      color: glass ? const Color(0x14FFFFFF) : _lift(ground, 0.09),
+      shape: circle ? BoxShape.circle : BoxShape.rectangle,
+      borderRadius: circle ? null : BorderRadius.circular(Radii.capsule),
+      border: Border.all(color: glass ? const Color(0x2BFFFFFF) : _lift(ground, 0.16), width: 0.5),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -294,7 +299,7 @@ class _TabBar extends ConsumerWidget {
           children: [
             Expanded(
               child: Container(
-                decoration: _surface(),
+                decoration: _surface(context),
                 padding: const EdgeInsets.all(4),
                 child: LayoutBuilder(
                   builder: (context, c) {
@@ -311,7 +316,7 @@ class _TabBar extends ConsumerWidget {
                             width: w,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: _lift(ground, 0.18),
+                                color: DockGlass.of(context) ? const Color(0x24FFFFFF) : _lift(ground, 0.18),
                                 borderRadius: BorderRadius.circular(
                                   Radii.capsule,
                                 ),
@@ -356,12 +361,12 @@ class _TabBar extends ConsumerWidget {
                   child: Container(
                     width: _height,
                     height: _height,
-                    decoration: _surface(circle: true),
+                    decoration: _surface(context, circle: true),
                     alignment: Alignment.center,
                     child: NaviIcon(
                       NaviGlyph.search,
                       size: 26,
-                      color: tab == AppTab.search ? t.accent : t.textPrimary,
+                      color: tab == AppTab.search ? t.accent : t.textSecondary,
                     ),
                   ),
                 ),
@@ -374,7 +379,9 @@ class _TabBar extends ConsumerWidget {
   }
 }
 
-class _TabButton extends StatefulWidget {
+/// One tab: our monochrome glyph over its label. White and filled when
+/// selected, muted otherwise.
+class _TabButton extends StatelessWidget {
   final AppTab tab;
   final bool selected;
   final VoidCallback onTap;
@@ -385,43 +392,20 @@ class _TabButton extends StatefulWidget {
   });
 
   @override
-  State<_TabButton> createState() => _TabButtonState();
-}
-
-class _TabButtonState extends State<_TabButton> {
-  static const double _illustrationSize = 34;
-  final _icon = GlobalKey<OneShotIconState>();
-
-  @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final tab = widget.tab;
-    final selected = widget.selected;
-    final color = selected ? t.accent : t.textPrimary;
-    final illustration = tab.illustration;
+    final color = selected ? t.accent : t.textSecondary;
     return Semantics(
       button: true,
       selected: selected,
       label: tab.label,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: () {
-          // Plays once per tap, then rests on its still frame.
-          _icon.currentState?.play();
-          widget.onTap();
-        },
+        onTap: onTap,
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            if (illustration != null)
-              OneShotIcon(
-                key: _icon,
-                name: illustration,
-                size: _illustrationSize,
-                duration: tab.illustrationDuration,
-              )
-            else
-              NaviIcon(tab.icon, filled: selected, size: 22, color: color),
+            NaviIcon(tab.icon, filled: selected, size: 24, color: color),
             const SizedBox(height: 3),
             Text(
               tab.label,

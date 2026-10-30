@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/theme.dart';
 import '../../player/artwork.dart' show coverPaletteProvider;
 import '../art/navi_icons.dart';
+import '../shell/dock_glass.dart';
 import 'dock_ground.dart';
 
 /// Apple Music's iOS 26.4 collection page: the artwork runs edge to edge at
@@ -126,7 +127,7 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
                                 )
                               : s,
                         SliverToBoxAdapter(
-                          child: SizedBox(height: Space.playerClearance + MediaQuery.paddingOf(context).bottom),
+                          child: SizedBox(height: dockClearance(context)),
                         ),
                       ],
                     ),

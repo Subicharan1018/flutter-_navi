@@ -43,9 +43,6 @@ abstract final class Space {
 
   /// Leading/trailing page margin.
   static const double gutter = 16;
-
-  /// Clearance for content scrolling under the floating mini player + tab bar.
-  static const double playerClearance = 152;
 }
 
 /// Corner radii, matched to the iOS role of each surface.

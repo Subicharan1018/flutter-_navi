@@ -270,7 +270,7 @@ Each cover is reduced off the main isolate to four roles: deep, base, vibrant, a
 - The accent becomes white with black on it. Secondary text is ground + 68%, which measured 6.5–7.6:1 on sample grounds. Tertiary text and the dim accent are ground + 55%.
 
 ### Named Rules
-**The Opaque Chrome Rule.** Every chrome role is a solid colour. No blur, no translucent bars, no glass. The only gradient allowed is artwork dissolving into its own page colour: the collection-page seam, the Top Picks card seam, and the edge fade on scrolling panes.
+**The Opaque Chrome Rule.** Every chrome role is a solid colour. No blur, no translucent bars, no glass, with one explicit exception: the phone dock (Jam pill, mini player, tab bar) is a single sheet of frosted glass (`GlassDock`), and falls back to the solid band under Reduced motion, high contrast, on TV and on a device that can't hold the frame budget. The only gradient allowed is artwork dissolving into its own page colour: the collection-page seam, the Top Picks card seam, and the edge fade on scrolling panes.
 
 **The Never Purple Rule.** Any colour derived from a cover goes through the hue guard. Hues from 250° to 340° are moved to 215° (blue) or 8° (red), and saturation within 20° of either edge of that band is capped at 0.3. The cover image itself is never altered. No purple or pink chrome is ever authored by hand either.
 
@@ -306,7 +306,7 @@ Each cover is reduced off the main isolate to four roles: deep, base, vibrant, a
 The layout is phone first, and wide layouts restructure rather than stretch.
 - **Phone:** the page gutter is 16. Shelves scroll horizontally with 150 covers and 12 gaps. Grids are 2 columns (3 from 600 wide, 5 from 900) with 16 / 20 spacing. Section headers sit 24 above and 12 below their content. Grouped sections are spaced 24 apart. Stats sections are spaced 40 apart, by space alone, and fall into two columns from 900 wide.
 - **Scrolling:** every scrolling page ends with 152 of clearance (plus the safe area) so the last row clears the dock.
-- **Dock:** the bottom of the phone is one solid band in the visible page's colour, published by `DockGroundScope`. The mini player and the tab bar float on that band, so nothing scrolls into view between or beside them.
+- **Dock:** the bottom of the phone is one frosted-glass sheet (a single blur layer, sigma 24, the visible page's colour at 60%, a 0.5 hairline and a soft top highlight, published by `DockGroundScope`); solid band when glass is off. The Jam pill, mini player and tab bar sit on it as part-clear capsules. Content scrolls beneath it, so every tab page ends with the dock's measured height as bottom padding (`dockClearance`).
 - **Collection pages:** on phone, the artwork runs edge to edge as a square. Title, artist and transport sit over the seam. Pulling down stretches the art, and scrolling drifts it at half speed. On wide windows, a 260 cover sits beside the title.
 - **Now Playing (phone):** a grabber sits at the top and the cover takes the space above the title. The cover deck follows the finger 1:1 with neighbouring covers 28 apart. The title sits just above the scrubber. Below that come rewind 40 / play-pause 58 / forward 40, then the volume bar, then Lyrics · Devices · Queue. When Lyrics or Queue opens, the cover flies into a 60 header thumbnail and the pane rises into the space it left.
 - **Desktop:** a 248 sidebar, the content pane, an optional 320 Now Playing side panel, and an 84 player bar along the bottom. Desktop Now Playing places shuffle and repeat either side of the transport.
@@ -366,13 +366,13 @@ On Now Playing the cover radius lerps from 12 to 7 as it becomes the header thum
 
 ### Navigation
 - **Large-title page:** a Cupertino sliver nav bar on the opaque ground. There is no hairline until content scrolls under it, and no transitions between tab routes.
-- **Tab bar:** a 62 floating capsule (ground + 9%, hairline at ground + 16%) holding Home, Shuffle, Stats and Library. The selected tab sits on a lighter pill (ground + 18%) that slides with easeOutBack, with a white label. Each tab's glyph is a 34 illustration that plays once per tap and rests on its still frame. Search is a separate 62 circle at the trailing end with a 26 Ionicons glyph, white when selected.
+- **Tab bar:** a 62 floating capsule (ground + 9%, hairline at ground + 16%) holding Home, Shuffle, Stats and Library. The selected tab sits on a lighter pill (ground + 18%) that slides with easeOutBack, with a white label. Each tab is our monochrome 24 glyph over its label, filled and white when selected, muted otherwise. Search is a separate 62 circle at the trailing end with a 26 Ionicons glyph, white when selected.
 - **Collection top bar:** 36 discs inside 44 targets float over the art. Past the art, the bar fills with the ground and shows the title.
 
 ### Icons
 - **Ionicons (v7, MIT):** the player and Settings draw from one set of white 192px PNGs (`assets/ionicons/`), tinted at draw time through `Ion` and `IonIcon` so one asset serves every colour and size. Transport and the star are filled; everything else is the outline cut. Settings icon squares (30, radius 7) carry a white Ionicons glyph on a system colour.
 - **CupertinoIcons:** everywhere else (Library, collection pages, rows, menus).
-- **Illustrations:** the phone tab bar uses `OneShotIcon`, a still PNG paired with a one-shot animated WebP whose last frame matches the first. A tap plays it once from frame zero, then the still returns; under reduced motion it never plays. `MessageState` can show a 96 still illustration above its message.
+- **Illustrations:** `MessageState` can show a 96 still illustration above its message.
 
 ### Mini Player
 A 58 capsule filled with the playing cover's guarded ground, with a hairline at ground + 12%. It shows the cover, the title, and the artist (ground + 72%), plus a 48 play/pause and a 44 forward. A 2px progress hairline runs under the title (track at + 18%, fill at + 90%). Swipe sideways to skip; tap or swipe up to open Now Playing. The fill animates over 600ms easeOutCubic between songs.
@@ -401,7 +401,7 @@ An artwork header (56 cover) followed by action groups (grouped surface, radius 
 - **Do** honour reduced motion for field drift, the field light (instant), the marquee, count-up figures, the cover scale, the deck glide and the tab illustrations.
 
 ### Don't:
-- **Don't** add blur, glass, translucent bars or scrims over chrome. Chrome is opaque.
+- **Don't** add blur, glass, translucent bars or scrims over chrome, except the phone dock described above.
 - **Don't** paint chrome purple or pink, by hand or from a sampled colour that skipped the hue guard.
 - **Don't** add eyebrow kickers, numbered sections, glows or gradient text.
 - **Don't** put Stats sections in cards. Type, space and the charts carry the structure.
