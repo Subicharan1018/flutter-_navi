@@ -28,6 +28,7 @@ import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/art/navi_icons.dart';
 import '../widgets/collection_actions.dart';
 import '../widgets/cover_art.dart';
+import '../widgets/shell/nav_stack.dart' show searchFieldRequest;
 import '../widgets/song_tile.dart';
 import '../widgets/ui/controls.dart';
 import '../widgets/ui/large_title_page.dart';
@@ -50,13 +51,34 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
   static const _debounce = Duration(milliseconds: 300);
 
   late final _controller = TextEditingController(text: ref.read(searchQueryProvider));
+  final _fieldFocus = FocusNode(debugLabel: 'search-field');
   Timer? _timer;
 
   @override
+  void initState() {
+    super.initState();
+    searchFieldRequest.addListener(_onFieldRequest);
+    _onFieldRequest();
+  }
+
+  @override
   void dispose() {
+    searchFieldRequest.removeListener(_onFieldRequest);
     _timer?.cancel();
     _controller.dispose();
+    _fieldFocus.dispose();
     super.dispose();
+  }
+
+  /// The shell asked for the caret (Search tapped again, Ctrl+F). Focus after
+  /// this frame: a tab switch lifts the hidden tab's ExcludeFocus only then.
+  void _onFieldRequest() {
+    if (!searchFieldRequest.value) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !searchFieldRequest.value) return;
+      searchFieldRequest.value = false;
+      _fieldFocus.requestFocus();
+    });
   }
 
   void _onChanged(String text) {
@@ -88,6 +110,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
           Expanded(
             child: NaviSearchField(
               controller: _controller,
+              focusNode: _fieldFocus,
               placeholder: 'Artists, Albums, Songs, Lyrics',
               listenForVoiceKey: true,
               onChanged: _onChanged,

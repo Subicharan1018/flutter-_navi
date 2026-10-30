@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import '../art/navi_icons.dart';
 import 'voice_search_button.dart';
 
 /// iOS search field: grey rounded fill, magnifier, clear button.
@@ -51,19 +52,54 @@ class NaviSearchField extends StatelessWidget {
 
   Widget _field(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return CupertinoSearchTextField(
-      controller: controller,
-      focusNode: focusNode,
-      autofocus: autofocus,
-      placeholder: placeholder,
-      onChanged: onChanged,
-      onSubmitted: onSubmitted,
-      style: t.body,
-      placeholderStyle: t.body.copyWith(color: t.textSecondary),
-      backgroundColor: t.fill,
-      itemColor: t.textSecondary,
-      borderRadius: BorderRadius.circular(Radii.control),
-      padding: const EdgeInsets.symmetric(horizontal: Space.xs + 2, vertical: Space.sm + 1),
+    // Always a full touch target tall, so the clear button's 44 pt square
+    // never makes the field grow when the first letter is typed.
+    return ConstrainedBox(
+      constraints: const BoxConstraints(minHeight: kMinInteractiveDimensionCupertino),
+      child: CupertinoSearchTextField(
+        controller: controller,
+        focusNode: focusNode,
+        autofocus: autofocus,
+        placeholder: placeholder,
+        onChanged: onChanged,
+        onSubmitted: onSubmitted,
+        style: t.body,
+        placeholderStyle: t.body.copyWith(color: t.textSecondary),
+        backgroundColor: t.fill,
+        itemColor: t.textSecondary,
+        borderRadius: BorderRadius.circular(Radii.control),
+        padding: const EdgeInsets.symmetric(horizontal: Space.xs + 2, vertical: Space.sm + 1),
+        suffixIcon: const _ClearGlyph(),
+        suffixInsets: EdgeInsets.zero,
+      ),
+    );
+  }
+}
+
+/// The search field's clear button. [CupertinoSearchTextField] makes only
+/// its suffix *icon* tappable (20 pt, flush with the edge), so this "icon" is
+/// the whole 44 pt touch target with a small cross centred in it.
+class _ClearGlyph extends Icon {
+  const _ClearGlyph() : super(null);
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Semantics(
+      button: true,
+      label: 'Clear text',
+      child: SizedBox.square(
+        dimension: kMinInteractiveDimensionCupertino,
+        child: Center(
+          child: DecoratedBox(
+            decoration: BoxDecoration(color: t.textMuted, shape: BoxShape.circle),
+            child: Padding(
+              padding: const EdgeInsets.all(Space.xxs),
+              child: NaviIcon(NaviGlyph.close, size: 13, color: t.bgBase),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
