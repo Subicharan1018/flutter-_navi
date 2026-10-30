@@ -9,6 +9,8 @@ import '../../../widgets/ui/media.dart';
 import '../../../widgets/ui/states.dart';
 import '../data/trending_models.dart';
 import '../logic/trending_providers.dart';
+import '../../online_fetch/logic/online_fetch_providers.dart' show onlineFetchEnabledProvider;
+import '../../online_fetch/ui/queue_playlist_button.dart';
 import 'chart_actions.dart';
 import 'widgets/chart_details.dart' show BillboardColumns;
 import 'widgets/chart_row.dart';
@@ -125,6 +127,10 @@ class _ChartHeader extends ConsumerWidget {
               onShuffle: playable == 0 ? null : () => playChart(context, ref, chart, shuffle: true),
             ),
           ),
+          if (chart.playlistLink != null && (ref.watch(onlineFetchEnabledProvider).asData?.value ?? false)) ...[
+            const SizedBox(height: Space.md),
+            Center(child: QueuePlaylistButton(link: chart.playlistLink!)),
+          ],
           if (columns) ...[
             const SizedBox(height: Space.md),
             // Above the rows' LW · PEAK · WKS, clear of the chevron.

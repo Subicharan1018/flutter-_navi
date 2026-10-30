@@ -1,6 +1,7 @@
 import 'package:dio/dio.dart';
 
 import 'fetch_models.dart';
+import 'fetch_queue_models.dart';
 import 'server_capabilities.dart';
 
 /// A "Search online" request failed. [message] is safe to show as is.
@@ -94,6 +95,25 @@ class OnlineFetchApi {
   Future<List<FetchBatch>> recentBatches() => _wrap(() async {
         final r = await _dio.get<List<dynamic>>('/fetch/batches');
         return [for (final b in r.data ?? const []) FetchBatch.fromJson(b as Map<String, dynamic>)];
+      });
+
+  /// The download queue: the account's own downloads, or everyone's for an admin.
+  Future<FetchQueue> queue() => _wrap(() async {
+        final r = await _dio.get<Map<String, dynamic>>('/fetch/queue');
+        return FetchQueue.fromJson(r.data!);
+      });
+
+  /// Stops a queued or running batch.
+  Future<void> cancelBatch(int id) => _batchAction(id, 'cancel');
+
+  /// Queues a failed or cancelled batch again.
+  Future<void> retryBatch(int id) => _batchAction(id, 'retry');
+
+  /// Admin: runs a queued batch next.
+  Future<void> moveBatchToTop(int id) => _batchAction(id, 'top');
+
+  Future<void> _batchAction(int id, String action) => _wrap(() async {
+        await _dio.post<Map<String, dynamic>>('/fetch/batches/$id/$action');
       });
 
   Future<FetchSearch> search(int id) => _wrap(() async {

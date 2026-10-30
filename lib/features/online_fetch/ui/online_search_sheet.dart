@@ -18,6 +18,7 @@ import '../data/fetch_models.dart';
 import '../data/online_fetch_api.dart';
 import '../logic/online_fetch_providers.dart';
 import 'fetch_activity.dart';
+import 'fetch_queue_sheet.dart';
 import 'send_playlist_sheet.dart';
 import 'widgets/fetch_candidate_row.dart';
 
@@ -98,6 +99,12 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
           child: Row(
             children: [
               Expanded(child: Text('Search online', style: t.title3)),
+              CupertinoButton(
+                padding: EdgeInsets.zero,
+                minimumSize: const Size(44, 44),
+                onPressed: () => showFetchQueue(context),
+                child: NaviIcon(NaviGlyph.queue, size: 20, color: t.accent, semanticLabel: 'Download queue'),
+              ),
               // The other way in: a playlist link the user already has.
               CupertinoButton(
                 padding: const EdgeInsets.symmetric(horizontal: Space.sm),
