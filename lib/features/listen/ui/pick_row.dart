@@ -38,6 +38,9 @@ class PickRow extends ConsumerWidget {
 
   /// A small label before the artist ("New", "Familiar").
   final String? tag;
+
+  /// A song in a language you rarely play: marked with a sparkle before its reason.
+  final bool explore;
   final VoidCallback onTap;
   final bool showSeparator;
 
@@ -49,6 +52,7 @@ class PickRow extends ConsumerWidget {
     required this.onTap,
     this.why,
     this.tag,
+    this.explore = false,
     this.showSeparator = true,
   });
 
@@ -91,7 +95,23 @@ class PickRow extends ConsumerWidget {
                             Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                           if (why != null && why!.isNotEmpty) ...[
                             const SizedBox(height: Space.xxs),
-                            Text(why!, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.footnote.copyWith(color: t.textMuted)),
+                            Text.rich(
+                              TextSpan(children: [
+                                // A new-language song is marked by a small sparkle, nothing louder.
+                                if (explore)
+                                  WidgetSpan(
+                                    alignment: PlaceholderAlignment.middle,
+                                    child: Padding(
+                                      padding: const EdgeInsets.only(right: Space.xs),
+                                      child: NaviIcon(NaviGlyph.smart, size: 12, color: t.textSecondary),
+                                    ),
+                                  ),
+                                TextSpan(text: why!),
+                              ]),
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                              style: t.footnote.copyWith(color: t.textMuted),
+                            ),
                           ],
                         ],
                       ),

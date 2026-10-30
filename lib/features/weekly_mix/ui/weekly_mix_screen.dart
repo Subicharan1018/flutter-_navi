@@ -53,6 +53,8 @@ class WeeklyMixScreen extends ConsumerWidget {
                 title: p.title,
                 artist: p.artist,
                 why: p.why,
+                tag: p.explore ? p.languageName : null,
+                explore: p.explore,
                 showSeparator: i < mix.items.length - 1,
                 onTap: () => playWeeklyMix(context, ref, mix, from: p),
               );

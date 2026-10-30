@@ -34,6 +34,9 @@ List<DiscoverItem> mergeDiscover(
   List<({String id, String title, String artist})> unplayed, {
   int maxNew = 12,
   int max = 24,
+
+  /// Ids of unplayed songs the server offers as a try in a new language.
+  Set<String> newLanguage = const {},
 }) {
   final seen = <String>{};
   final out = <DiscoverItem>[];
@@ -50,7 +53,13 @@ List<DiscoverItem> mergeDiscover(
   for (final u in unplayed) {
     if (out.length >= max) break;
     if (u.id.isEmpty || !seen.add(u.id)) continue;
-    out.add(DiscoverItem(songId: u.id, title: u.title, artist: u.artist, reason: 'Never played', fromCharts: false));
+    out.add(DiscoverItem(
+      songId: u.id,
+      title: u.title,
+      artist: u.artist,
+      reason: newLanguage.contains(u.id) ? 'New language' : 'Never played',
+      fromCharts: false,
+    ));
   }
   return out;
 }
@@ -87,7 +96,10 @@ final discoverProvider = FutureProvider.autoDispose<List<DiscoverItem>>(
       for (final s in discovery ?? const <RecommendedSong>[])
         if (s.navidromeId?.isNotEmpty ?? false) (id: s.navidromeId!, title: s.title, artist: s.artist ?? ''),
     ];
-    return mergeDiscover(arrivals ?? const [], unplayed);
+    return mergeDiscover(arrivals ?? const [], unplayed, newLanguage: {
+      for (final s in discovery ?? const <RecommendedSong>[])
+        if (s.isExplore && (s.navidromeId?.isNotEmpty ?? false)) s.navidromeId!,
+    });
   },
   retry: (_, _) => null,
 );

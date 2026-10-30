@@ -20,13 +20,24 @@ class ListenPick {
   /// Flow only: whether you already know it.
   final bool fresh;
 
+  /// A song in a language you rarely play, offered to see if you like it.
+  final bool explore;
+
+  /// Its language code ("ml"), when the server says.
+  final String language;
+
   const ListenPick({
     required this.songId,
     required this.title,
     required this.artist,
     required this.why,
     this.fresh = false,
+    this.explore = false,
+    this.language = '',
   });
+
+  /// "Malayalam" for "ml"; the code itself for a language this app doesn't name.
+  String get languageName => languageNames[language] ?? language.toUpperCase();
 
   /// Null for an item without a song id: it can't be played.
   static ListenPick? parse(Map<String, dynamic> j) {
@@ -38,6 +49,8 @@ class ListenPick {
       artist: _str(j['artist']),
       why: _str(j['why']),
       fresh: j['kind'] == 'fresh',
+      explore: j['explore'] == true || j['kind'] == 'explore',
+      language: _str(j['language']),
     );
   }
 
@@ -82,6 +95,42 @@ class FlowFeedback {
   int get hashCode => Object.hash(songId, action);
 }
 
+const Map<String, String> languageNames = {
+  'ta': 'Tamil',
+  'en': 'English',
+  'te': 'Telugu',
+  'ml': 'Malayalam',
+  'hi': 'Hindi',
+  'kn': 'Kannada',
+  'ko': 'Korean',
+  'ja': 'Japanese',
+  'es': 'Spanish',
+  'fr': 'French',
+  'pa': 'Punjabi',
+  'bn': 'Bengali',
+};
+
+/// How many songs of a Flow batch are familiar, fresh, and in a new language.
+class FlowBlend {
+  final int familiar;
+  final int fresh;
+  final int explore;
+  const FlowBlend({this.familiar = 0, this.fresh = 0, this.explore = 0});
+
+  int get total => familiar + fresh + explore;
+
+  factory FlowBlend.fromJson(Object? j) => j is Map
+      ? FlowBlend(familiar: _int(j['familiar']), fresh: _int(j['fresh']), explore: _int(j['explore']))
+      : const FlowBlend();
+
+  @override
+  bool operator ==(Object other) =>
+      other is FlowBlend && other.familiar == familiar && other.fresh == fresh && other.explore == explore;
+
+  @override
+  int get hashCode => Object.hash(familiar, fresh, explore);
+}
+
 /// One reply of `POST /flow/next`.
 class FlowBatch {
   final List<ListenPick> items;
@@ -89,13 +138,15 @@ class FlowBatch {
   /// How much of the batch is songs you haven't played (0 to 1).
   final double freshShare;
   final String? mood;
+  final FlowBlend blend;
 
-  const FlowBatch({required this.items, this.freshShare = 0.4, this.mood});
+  const FlowBatch({required this.items, this.freshShare = 0.4, this.mood, this.blend = const FlowBlend()});
 
   factory FlowBatch.fromJson(Map<String, dynamic> j) => FlowBatch(
         items: ListenPick.parseAll(j['items']),
         freshShare: _double(j['fresh_share']),
         mood: j['mood'] is String ? j['mood'] as String : null,
+        blend: FlowBlend.fromJson(j['blend']),
       );
 }
 
