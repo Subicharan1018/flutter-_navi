@@ -6,6 +6,7 @@ import '../../core/focus/navi_focus.dart';
 import '../../core/theme.dart';
 import '../../player/artwork.dart';
 import '../../player/player_controls.dart';
+import '../../player/playing_on.dart';
 import '../../providers/player_provider.dart';
 import '../../providers/settings_provider.dart' show subsonicServiceProvider;
 import '../../screens/now_playing_screen.dart';
@@ -273,6 +274,7 @@ class TvPlayerBar extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
     final song = ref.watch(playerProvider.select((s) => s.currentSong));
+    if (ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive))) return const RemoteMiniPlayer();
     if (song == null) return const SizedBox.shrink();
     final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
     final n = ref.read(playerProvider.notifier);

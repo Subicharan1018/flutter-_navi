@@ -437,6 +437,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
     final t = ThemeTokens.of(context);
     final size = WindowSize.ofContext(context);
     final hasSong = ref.watch(playerProvider.select((s) => s.currentSong != null));
+    final remote = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive));
     // medium: icon-only sidebar, no side panel; expanded: both.
     final panel = size.hasSidePanel && hasSong ? _panel : null;
     return Scaffold(
@@ -485,7 +486,11 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
               ],
             ),
           ),
-          if (hasSong) _PlayerBar(panel: panel, onTogglePanel: _togglePanel, compact: !size.hasSidePanel),
+          // Another of your devices is playing: this one is the remote, with or without a song of its own.
+          if (remote)
+            const Padding(padding: EdgeInsets.only(top: Space.sm), child: RemoteMiniPlayer())
+          else if (hasSong)
+            _PlayerBar(panel: panel, onTogglePanel: _togglePanel, compact: !size.hasSidePanel),
         ],
       ),
     );

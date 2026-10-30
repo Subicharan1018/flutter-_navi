@@ -1016,6 +1016,33 @@ void main() {
       notifier.dispose();
     });
 
+    test('a host whose link dropped while it kept playing takes its seat back on reconnect', () async {
+      UserActivity.debugSet(null);
+      final notifier = await make();
+      notifier.state = notifier.state.copyWith(isPlaying: true);
+      fakeSyncService.emitSyncState(const PlaybackState.initial().copyWith(syncUnknown: true)); // the socket dropped
+      await Future.delayed(Duration.zero);
+      expect(notifier.state.syncMode, SyncMode.standalone);
+      fakeSyncService.transferredDevices.clear();
+      fakeSyncService.emitSyncState(const PlaybackState.initial());              // the server let go of it meanwhile
+      await Future.delayed(const Duration(milliseconds: 30));
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      expect(fakeSyncService.forcedClaims.last, isFalse);                        // nobody's seat was taken
+      expect(fakeSyncService.pushedUpdates.last['is_playing'], isTrue);
+      notifier.dispose();
+    });
+
+    test('a device that was NOT the host does not claim after an outage', () async {
+      UserActivity.debugSet(null);
+      final notifier = await make(active: 'device-other');
+      fakeSyncService.emitSyncState(const PlaybackState.initial().copyWith(syncUnknown: true));
+      await Future.delayed(Duration.zero);
+      fakeSyncService.emitSyncState(const PlaybackState.initial());
+      await Future.delayed(const Duration(milliseconds: 30));
+      expect(fakeSyncService.transferredDevices, isEmpty);
+      notifier.dispose();
+    });
+
     test('updates carry the song details other devices show', () async {
       final notifier = await make();
       fakeSyncService.pushedUpdates.clear();
