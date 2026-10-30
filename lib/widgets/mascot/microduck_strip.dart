@@ -366,15 +366,14 @@ class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
     final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
     final song = widget.song;
     final full = widget.full;
-    final total = song.duration * 1000;
     final catalog = full ? ref.watch(catalogSongProvider(song.id)) : null;
     final bpm = full ? (danceBpm(catalog?.bpm) ?? cachedBpm(song.id)) : null;
-    return PlaybackPosition(
+    return PlaybackProgressBuilder(
       player: widget.player,
-      songId: song.id,
+      song: song,
       resolution: const Duration(milliseconds: 500),
-      builder: (context, pos) {
-        final progress = total > 0 ? pos.inMilliseconds / total : 0.0;
+      builder: (context, playback) {
+        final progress = playback.fraction;
         final robot = MicroduckStrip(
           progress: progress,
           playing: playing,

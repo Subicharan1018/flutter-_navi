@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../../core/focus/navi_focus.dart';
 import '../../core/theme.dart';
+import '../../models/song.dart';
 import '../../player/artwork.dart';
 import '../../player/player_controls.dart';
 import '../../providers/player_provider.dart';
@@ -356,11 +357,7 @@ class TvPlayerBar extends ConsumerWidget {
           Expanded(
             child: Padding(
               padding: const EdgeInsets.only(left: Space.xl),
-              child: _TvProgress(
-                player: n.player,
-                songId: song.id,
-                total: song.duration * 1000,
-              ),
+              child: _TvProgress(player: n.player, song: song),
             ),
           ),
         ],
@@ -400,26 +397,21 @@ class _TvTransport extends StatelessWidget {
 
 class _TvProgress extends StatelessWidget {
   final AudioPlayer player;
-  final String songId;
-  final int total;
-  const _TvProgress({
-    required this.player,
-    required this.songId,
-    required this.total,
-  });
+  final Song song;
+  const _TvProgress({required this.player, required this.song});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return RepaintBoundary(
-      child: PlaybackPosition(
+      child: PlaybackProgressBuilder(
         player: player,
-        songId: songId,
-        builder: (context, pos) => ClipRRect(
+        song: song,
+        builder: (context, progress) => ClipRRect(
           borderRadius: BorderRadius.circular(Radii.capsule),
           child: LinearProgressIndicator(
             minHeight: 6,
-            value: total > 0 ? (pos.inMilliseconds / total).clamp(0.0, 1.0) : 0,
+            value: progress.fraction,
             backgroundColor: t.fill,
             valueColor: AlwaysStoppedAnimation(t.textPrimary),
           ),

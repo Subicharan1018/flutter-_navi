@@ -1270,16 +1270,16 @@ class _BarScrubberState extends ConsumerState<_BarScrubber> {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final player = ref.read(playerProvider.notifier).player;
-    final total = widget.song.duration * 1000;
     final label = t.caption1.copyWith(
       fontFeatures: const [FontFeature.tabularFigures()],
     );
     return RepaintBoundary(
-      child: PlaybackPosition(
+      child: PlaybackProgressBuilder(
         player: player,
-        songId: widget.song.id,
-        builder: (context, pos) {
-          final f = _drag ?? (total > 0 ? pos.inMilliseconds / total : 0.0);
+        song: widget.song,
+        builder: (context, progress) {
+          final total = progress.total.inMilliseconds;
+          final f = _drag ?? progress.fraction;
           return Row(
             children: [
               SizedBox(
@@ -1301,7 +1301,10 @@ class _BarScrubberState extends ConsumerState<_BarScrubber> {
                   semanticLabel: 'Playback position',
                   onChanged: (v) => setState(() => _drag = v),
                   onChangeEnd: (v) {
-                    player.seek(Duration(milliseconds: (v * total).round()));
+                    progress.seekTo(
+                      player,
+                      Duration(milliseconds: (v * total).round()),
+                    );
                     setState(() => _drag = null);
                   },
                 ),
@@ -1310,7 +1313,7 @@ class _BarScrubberState extends ConsumerState<_BarScrubber> {
               SizedBox(
                 width: 44,
                 child: Text(
-                  formatClock(Duration(seconds: widget.song.duration)),
+                  formatClock(progress.total),
                   style: label,
                 ),
               ),

@@ -324,16 +324,15 @@ class _MiniProgress extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final total = song.duration * 1000;
     final track = Color.lerp(ground, Colors.white, 0.18)!;
     final fill = Color.lerp(ground, Colors.white, 0.9)!;
     return RepaintBoundary(
-      child: PlaybackPosition(
+      child: PlaybackProgressBuilder(
         player: player,
-        songId: song.id,
+        song: song,
         resolution: const Duration(milliseconds: 500),
-        builder: (context, pos) {
-          final f = total > 0 ? (pos.inMilliseconds / total).clamp(0.0, 1.0) : 0.0;
+        builder: (context, progress) {
+          final f = progress.fraction;
           return ClipRRect(
             borderRadius: BorderRadius.circular(1),
             child: SizedBox(
