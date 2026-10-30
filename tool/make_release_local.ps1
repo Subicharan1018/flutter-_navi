@@ -23,7 +23,9 @@ Set-Location (Split-Path $PSScriptRoot -Parent)
 
 $full = (Select-String -Path pubspec.yaml -Pattern '^version:\s*(\S+)').Matches[0].Groups[1].Value
 $name = $full.Split('+')[0]
-if ($Build -le 0) { $Build = [int](Get-Date -UFormat %s) % 100000000 }  # monotonic enough for a dry run
+# Default 1: far below any CI build (run_number + 100), so a dry-run APK can never block
+# a later CI update on your phone. Do not install a dry run over a CI build.
+if ($Build -le 0) { $Build = 1 }
 $tag = "v$name+$Build"
 Write-Host "Dry run for $tag" -ForegroundColor Cyan
 

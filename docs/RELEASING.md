@@ -28,10 +28,17 @@ git push origin <any branch>
 * Rapid pushes to one branch: the newest cancels the older runs (concurrency group per
   branch), so only the last push is published. A run cancelled while it uploads can
   leave nothing or a half-made release; delete it on GitHub and push again.
-* **Clean-up:** `cleanup-prereleases.yml` runs after each publish and daily. It keeps
-  the newest 10 pre-releases that are younger than 30 days and deletes the rest with
-  their tags. It only ever lists pre-releases, so normal releases are never touched.
-  You can also run it by hand (Actions → Clean up pre-releases).
+* **Clean-up:** a `cleanup` job at the end of `release.yml` runs once per release, only
+  after it was published (a push-triggered run that is skipped or cancelled never
+  cleans). `cleanup-prereleases.yml` is a daily safety net plus a manual button
+  (Actions → Clean up pre-releases); it has no push or call trigger. Both run
+  `tool/release/cleanup_prereleases.sh`: keep the newest 10 pre-releases younger than
+  30 days, delete the rest with their tags, never touch normal releases.
+* **Build time:** the universal APK compiles everything a second time, so only `main`
+  builds it; beta (branch) releases carry the three per-ABI APKs only. Flutter, pub
+  and Gradle caches are restored between runs. Actions are pinned to exact Node-24
+  versions and Linux jobs to `ubuntu-24.04`, so a runner-image change never alters a
+  build; bump them deliberately.
 * Only Actions on your own repository run the workflow with secrets; there is no
   pull-request trigger, so forks never see the signing key. `ci.yml` uses
   `pull_request` and no secrets.
@@ -183,32 +190,24 @@ else (a static host or your server) and give them that address with no token.
 * The updater in the app has **no built-in address**; the repo name appears only in
   `latest.json` (`assetBase`) after CI writes it.
 
-## Public vs personal builds
+## What a published build contains
 
-Two flavours come from one code base, switched at compile time by
-`--dart-define=PUBLIC_BUILD=true` (`lib/core/build_flavor.dart`, `kPublicBuild`):
+**Every published build includes the download features** (Search Online, Send a
+playlist link, Recognize > Download). Who may use them is decided by your server
+(login plus its download access list), not by the app build; `release.yml` sets
+`public=false`, so no `PUBLIC_BUILD` define is passed. The compile-time switch still
+exists for the day you want a build without the download UI: set `public=true` in the
+`version` job of `release.yml` (or pass `--dart-define=PUBLIC_BUILD=true` locally /
+`-Public` to `tool/make_release_local.ps1`). In that flavour (`lib/core/build_flavor.dart`,
+`kPublicBuild`) every entry point reads `onlineFetchAvailableProvider`, so no button is
+left dead, and the sign-in screen does not pre-fill a server address. Tests in
+`test/features/online_fetch/public_build_test.dart` cover both states.
 
-| | Public build (GitHub Releases) | Personal build (default) |
-|---|---|---|
-| Search Online, Send a playlist link, Recognize > Download | hidden | shown (if your server allows it) |
-| Download activity ring, "downloaded" banner, Downloads sidebar entry | never shown | as before |
-| Sign-in screen pre-fills a server address | no (empty) | yes |
-
-Everything else (library, playback, local music, offline downloads from *your own*
-server, social, updates) is identical. All online-download entry points read one
-provider, `onlineFetchAvailableProvider`, so a public build shows no dead buttons;
-tests in `test/features/online_fetch/public_build_test.dart` cover both states.
-The download code is still compiled into a public build; it is just unreachable. If
-you need it gone from the binary too, that is a larger refactor (conditional imports).
-
-* `release.yml` passes `PUBLIC_BUILD=true` for **everything it publishes**, on every branch,
-  stable and beta alike. A personal build is manual-only and is never auto-published.
-* **Personal build in Actions:** Actions → Release → Run workflow → tick
-  `personal_build`. It builds without the flag, publishes **nothing**, and leaves
-  workflow artifacts that expire after 1 day. Caveat: artifacts of a *public*
-  repository can be downloaded by any signed-in GitHub user while they exist, so for a
-  personal build you would rather run `.	ool\make_release_local.ps1` (personal by
-  default; add `-Public` to mimic the release).
+* **Manual run without releasing:** Actions → Release → Run workflow → tick
+  `personal_build`. It builds everything but publishes **nothing** and leaves workflow
+  artifacts that expire after 1 day. Artifacts of a *public* repository can be
+  downloaded by any signed-in GitHub user while they exist, so for a private build run
+  `.\tool\make_release_local.ps1` instead.
 * **Backup of the full feature set:** the local branch/tag
   `backup/full-feature-set-2026-10-25` keeps the app exactly as it was before the
   public/personal split. It lives only in your local clone unless you push it; do not
@@ -230,6 +229,29 @@ Prerequisites: Flutter, Android SDK, `python -m pip install bsdiff4`.
 Update-size checks without a build: `dart run tool/update_size_report.dart` (synthetic) or
 `dart run tool/update_size_report.dart old.apk new.apk` (two real builds). Patch
 logic is covered by `flutter test test/features/updates`.
+
+## Version codes (why updates never get blocked)
+
+Android refuses an install whose `versionCode` is not higher than the installed one.
+Flutter's `--split-per-abi` builds use `versionCode = abiOffset * 1000 + buildNumber`
+with offsets armeabi-v7a 1, arm64-v8a 2, x86_64 4. CI's build number is
+`run_number + 100` (never reused, and it rises across all branches), so within one ABI
+every release has a higher versionCode than the one before (e.g. arm64 build 109 is
+2109, build 110 is 2110). Consequences:
+
+* A phone with 2109 (arm64, +109) takes any later CI release.
+* Builds you made locally with `flutter build apk` use the pubspec number (`+2`), i.e.
+  versionCode 2 (universal) or 2002 (arm64 split), far below CI's 2101+, so CI always
+  upgrades them. The reverse is not true: **never install a local build with a high
+  `--build-number` over a CI build**, and `tool/make_release_local.ps1` therefore
+  defaults to build number 1 (a dry run you inspect, not install).
+* Installing the **universal** APK over a per-ABI one is a downgrade (e.g. 110 < 2109)
+  and Android refuses it; uninstall first or stay on per-ABI APKs. Per-ABI over
+  universal is fine.
+* Above build 999 the arm64 code (2000 + build) overlaps other ABIs' ranges, which is
+  harmless (a phone only ever sees its own ABI). The Updates screen reads the real
+  build number from the `NAVI_BUILD` define CI bakes in, not from the versionCode.
+* The ceiling is 2 100 000 000, which is unreachable here.
 
 ## Measured sizes
 
