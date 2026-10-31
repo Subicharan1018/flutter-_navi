@@ -21,7 +21,7 @@ void main() {
   });
 
   testWidgets('the pill names the source and the backdrop crossfades between songs', (tester) async {
-    const ctx = SmartContext(SmartKind.smartShuffle, 'Smart Shuffle', NaviGlyph.aiShuffle);
+    const ctx = SmartContext(SmartKind.smartShuffle, 'Smart Shuffle', NaviGlyph.smartShuffle);
     await tester.pumpWidget(_app(Stack(children: [
       SmartBackdrop(context: ctx, songId: 'a'),
       const Center(child: SmartContextPill(context: ctx)),

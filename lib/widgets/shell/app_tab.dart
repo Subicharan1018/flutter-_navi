@@ -12,7 +12,7 @@ import '../art/navi_icons.dart';
 /// Everything that switches tabs refers to these by name, never by position.
 enum AppTab {
   home('Home', NaviGlyph.home),
-  shuffle('Shuffle', NaviGlyph.aiShuffle),
+  shuffle('Shuffle', NaviGlyph.smartShuffle),
   jam('Jam', NaviGlyph.jam),
   stats('Stats', NaviGlyph.dashboard),
   library('Library', NaviGlyph.library),

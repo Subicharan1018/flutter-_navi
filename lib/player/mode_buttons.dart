@@ -4,6 +4,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../core/theme.dart';
 import '../providers/player_provider.dart';
+import '../providers/settings_provider.dart';
 import '../widgets/art/navi_icons.dart';
 import 'player_controls.dart';
 
@@ -77,6 +78,17 @@ class _ModeGlyph extends StatelessWidget {
   }
 }
 
+/// True while shuffle is on and the chosen style is Smart Shuffle — the state
+/// in which the shuffle control shows the Smart Shuffle glyph instead.
+final smartShuffleOnProvider = Provider<bool>((ref) {
+  final on = ref.watch(playerProvider.select((s) => s.shuffleMode));
+  final algorithm = ref.watch(settingsProvider.select((s) => s.shuffleAlgorithm));
+  return isSmartShuffleOn(shuffleOn: on, algorithm: algorithm);
+});
+
+bool isSmartShuffleOn({required bool shuffleOn, required ShuffleAlgorithm algorithm}) =>
+    shuffleOn && algorithm == ShuffleAlgorithm.smartLocal;
+
 class ShuffleModeButton extends ConsumerWidget {
   final Color color;
   final double scale;
@@ -85,10 +97,11 @@ class ShuffleModeButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final on = ref.watch(playerProvider.select((s) => s.shuffleMode));
+    final smart = ref.watch(smartShuffleOnProvider);
     return _ModeGlyph(
-      glyph: NaviGlyph.shuffle,
+      glyph: smart ? NaviGlyph.smartShuffle : NaviGlyph.shuffle,
       active: on,
-      semanticLabel: on ? 'Shuffle on' : 'Shuffle off',
+      semanticLabel: smart ? 'Smart Shuffle on' : (on ? 'Shuffle on' : 'Shuffle off'),
       onTap: () => ref.read(playerProvider.notifier).toggleShuffle(),
       color: color,
       scale: scale,

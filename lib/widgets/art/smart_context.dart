@@ -25,7 +25,7 @@ class SmartContext {
   /// The context for the queue named [playlistName] (what `setQueue` /
   /// `playPlaylist` were given), or null for an ordinary queue.
   static SmartContext? of(String? playlistName) => switch (playlistName) {
-        'Smart Shuffle' => const SmartContext(SmartKind.smartShuffle, 'Smart Shuffle', NaviGlyph.aiShuffle),
+        'Smart Shuffle' => const SmartContext(SmartKind.smartShuffle, 'Smart Shuffle', NaviGlyph.smartShuffle),
         flowPlaylistName => const SmartContext(SmartKind.flow, 'Flow', NaviGlyph.flow),
         'Weekly Mix' => const SmartContext(SmartKind.weekly, 'Your Weekly Mix', NaviGlyph.calendar),
         'New in Your Library' => const SmartContext(SmartKind.discover, 'New in Your Library', NaviGlyph.signal),
