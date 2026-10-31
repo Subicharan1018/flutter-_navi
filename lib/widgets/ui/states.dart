@@ -54,62 +54,89 @@ class MessageState extends StatelessWidget {
     String message = 'Check your connection to the server, then try again.',
     required VoidCallback onRetry,
     String? illustration,
-  }) =>
-      MessageState(
-        key: key,
-        icon: NaviGlyph.wifiOff,
-        art: illustration == null ? EmptyArtKind.offline : null,
-        title: title,
-        message: message,
-        actionLabel: 'Try again',
-        onAction: onRetry,
-        illustration: illustration,
-      );
+  }) => MessageState(
+    key: key,
+    icon: NaviGlyph.wifiOff,
+    art: illustration == null ? EmptyArtKind.offline : null,
+    title: title,
+    message: message,
+    actionLabel: 'Try again',
+    onAction: onRetry,
+    illustration: illustration,
+  );
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 320),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.xxl, vertical: Space.huge),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              if (illustration != null)
-                Image.asset(
-                  'assets/icons/$illustration.png',
-                  width: _illustrationSize,
-                  height: _illustrationSize,
-                  cacheWidth: (_illustrationSize * MediaQuery.devicePixelRatioOf(context)).round(),
-                  excludeFromSemantics: true,
-                )
-              else if (art != null)
-                ExcludeSemantics(child: EmptyIllustration(art!, seed: title, width: 128))
-              else if (icon != null)
-                NaviIcon(icon!, size: 48, color: t.textMuted),
-              const SizedBox(height: Space.lg),
-              Text(title, textAlign: TextAlign.center, style: t.title3),
-              const SizedBox(height: Space.sm),
-              Text(message, textAlign: TextAlign.center, style: t.subheadline),
-              if (actionLabel != null && onAction != null) ...[
-                const SizedBox(height: Space.xl),
-                TintedButton(label: actionLabel!, onTap: onAction),
-              ],
-              if (secondaryLabel != null && onSecondary != null) ...[
-                const SizedBox(height: Space.sm),
-                CupertinoButton(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.md),
-                  minimumSize: const Size(44, 44),
-                  onPressed: onSecondary,
-                  child: Text(secondaryLabel!, style: t.subheadline.copyWith(color: t.accent)),
+    // On a short viewport (a phone on its side, large text) the picture goes
+    // and the padding shrinks, and the rest scrolls if it still does not fit,
+    // rather than overflowing the page.
+    return LayoutBuilder(
+      builder: (context, c) {
+        final tight = c.maxHeight.isFinite && c.maxHeight < 420;
+        return Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 320),
+            child: SingleChildScrollView(
+              physics: tight ? null : const NeverScrollableScrollPhysics(),
+              child: Padding(
+                padding: EdgeInsets.symmetric(
+                  horizontal: Space.xxl,
+                  vertical: tight ? Space.md : Space.huge,
                 ),
-              ],
-            ],
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    if (!tight && illustration != null)
+                      Image.asset(
+                        'assets/icons/$illustration.png',
+                        width: _illustrationSize,
+                        height: _illustrationSize,
+                        cacheWidth:
+                            (_illustrationSize *
+                                    MediaQuery.devicePixelRatioOf(context))
+                                .round(),
+                        excludeFromSemantics: true,
+                      )
+                    else if (!tight && art != null)
+                      ExcludeSemantics(
+                        child: EmptyIllustration(art!, seed: title, width: 128),
+                      )
+                    else if (!tight && icon != null)
+                      NaviIcon(icon!, size: 48, color: t.textMuted),
+                    const SizedBox(height: Space.lg),
+                    Text(title, textAlign: TextAlign.center, style: t.title3),
+                    const SizedBox(height: Space.sm),
+                    Text(
+                      message,
+                      textAlign: TextAlign.center,
+                      style: t.subheadline,
+                    ),
+                    if (actionLabel != null && onAction != null) ...[
+                      const SizedBox(height: Space.xl),
+                      TintedButton(label: actionLabel!, onTap: onAction),
+                    ],
+                    if (secondaryLabel != null && onSecondary != null) ...[
+                      const SizedBox(height: Space.sm),
+                      CupertinoButton(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: Space.md,
+                        ),
+                        minimumSize: const Size(44, 44),
+                        onPressed: onSecondary,
+                        child: Text(
+                          secondaryLabel!,
+                          style: t.subheadline.copyWith(color: t.accent),
+                        ),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ),
           ),
-        ),
-      ),
+        );
+      },
     );
   }
 }
@@ -168,17 +195,22 @@ class SkeletonBox extends StatelessWidget {
   final double width;
   final double height;
   final double radius;
-  const SkeletonBox({super.key, required this.width, required this.height, this.radius = Radii.thumb});
+  const SkeletonBox({
+    super.key,
+    required this.width,
+    required this.height,
+    this.radius = Radii.thumb,
+  });
 
   @override
   Widget build(BuildContext context) => Container(
-        width: width,
-        height: height,
-        decoration: BoxDecoration(
-          color: ThemeTokens.of(context).bgSurface,
-          borderRadius: BorderRadius.circular(radius),
-        ),
-      );
+    width: width,
+    height: height,
+    decoration: BoxDecoration(
+      color: ThemeTokens.of(context).bgSurface,
+      borderRadius: BorderRadius.circular(radius),
+    ),
+  );
 }
 
 /// Placeholder covers for a Home shelf while it loads, shimmering as one.
@@ -203,7 +235,11 @@ class SkeletonShelf extends StatelessWidget {
             for (var i = 0; i < count; i++)
               Padding(
                 padding: const EdgeInsets.only(right: Space.md),
-                child: SkeletonBox(width: size, height: size, radius: Radii.cover),
+                child: SkeletonBox(
+                  width: size,
+                  height: size,
+                  radius: Radii.cover,
+                ),
               ),
           ],
         ),
@@ -225,7 +261,10 @@ class TrackListSkeleton extends StatelessWidget {
         children: [
           for (var i = 0; i < rows; i++)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.sm),
+              padding: const EdgeInsets.symmetric(
+                horizontal: Space.gutter,
+                vertical: Space.sm,
+              ),
               child: Row(
                 children: [
                   if (artwork) ...[
