@@ -53,3 +53,62 @@ class GroundSurface extends StatelessWidget {
     );
   }
 }
+
+enum PaneSide { leading, trailing }
+
+/// A side pane (sidebar on the left, Now Playing panel on the right) that grows
+/// out of the page's own tint: at the seam it is exactly the page's colour and
+/// it deepens toward the window edge, so the album-coloured page flows into
+/// both sides with no hard edge. Without a tint it is the flat [fallback].
+class GroundPane extends StatelessWidget {
+  final PaneSide side;
+  final Color fallback;
+  final double darken;
+  final Widget child;
+  const GroundPane({
+    super.key,
+    required this.side,
+    required this.fallback,
+    this.darken = 0.55,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Color?>(
+      valueListenable: DockGround.value,
+      builder: (context, ground, child) {
+        if (ground == null) return ColoredBox(color: fallback, child: child);
+        final edge = Color.lerp(ground, const Color(0xFF000000), darken)!;
+        final leading = side == PaneSide.leading;
+        return DecoratedBox(
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: leading ? [edge, ground] : [ground, edge],
+            ),
+          ),
+          child: child,
+        );
+      },
+      child: child,
+    );
+  }
+}
+
+/// The hairline between a pane and the page, only while there is no tint to
+/// blend: a tinted page flows into its panes instead.
+class GroundDivider extends StatelessWidget {
+  final Color color;
+  const GroundDivider({super.key, required this.color});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<Color?>(
+      valueListenable: DockGround.value,
+      builder: (context, ground, _) =>
+          ground == null ? Container(width: 0.5, color: color) : const SizedBox(width: 0),
+    );
+  }
+}

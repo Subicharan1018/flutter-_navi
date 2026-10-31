@@ -1,3 +1,4 @@
+import '../../../core/layout/window_size.dart';
 import '../../../widgets/ui/horizontal_shelf.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
@@ -83,6 +84,7 @@ class _Header extends ConsumerWidget {
             if (fromCharts > 0) '$fromCharts new from the charts',
             if (list.length - fromCharts > 0) '${list.length - fromCharts} never played',
           ].join(' · ');
+    final flat = ShellKind.ofContext(context) != ShellKind.phone;
     return Padding(
       padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.md),
       child: Column(
@@ -94,10 +96,13 @@ class _Header extends ConsumerWidget {
           if (list != null && list.isNotEmpty) ...[
             const SizedBox(height: Space.md),
             // Paired capsules (DESIGN.md): Play filled, Shuffle tinted, equal halves.
+            // On a phone they are equal halves of the width; on a desktop or a
+            // TV they stay a normal pill size instead of stretching across.
             Row(
               children: [
-                Expanded(
-                  child: TintedButton(
+                _half(
+                  flat,
+                  TintedButton(
                     glyph: NaviGlyph.play,
                     label: 'Play',
                     filled: true,
@@ -106,8 +111,9 @@ class _Header extends ConsumerWidget {
                   ),
                 ),
                 const SizedBox(width: Space.md),
-                Expanded(
-                  child: TintedButton(
+                _half(
+                  flat,
+                  TintedButton(
                     glyph: NaviGlyph.shuffle,
                     label: 'Shuffle',
                     height: 50,
@@ -144,3 +150,8 @@ class _DiscoverCard extends ConsumerWidget {
     );
   }
 }
+
+/// One of the two Home buttons: a half of the row on a phone, a fixed pill
+/// elsewhere.
+Widget _half(bool flat, Widget button) =>
+    flat ? SizedBox(width: 168, child: button) : Expanded(child: button);

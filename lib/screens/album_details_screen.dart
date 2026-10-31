@@ -126,6 +126,7 @@ class AlbumDetailsScreen extends ConsumerWidget {
                     onPlayNext: () => queueSongs(context, ref, [songs[i]], next: true),
                     onPlayLast: () => queueSongs(context, ref, [songs[i]], next: false),
                     child: SongTile(
+                      showAlbum: false,
                       song: songs[i],
                       showArtwork: false,
                       showArtist: songs[i].artist != full.artist,

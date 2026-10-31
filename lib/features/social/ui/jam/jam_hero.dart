@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../core/layout/window_size.dart';
 import '../../../../core/motion.dart';
 import '../../../../core/theme.dart';
 import '../../../../providers/settings_provider.dart';
@@ -37,6 +38,8 @@ class _JamHeroState extends ConsumerState<JamHero> {
     final t = ThemeTokens.of(context);
     final svc = ref.read(subsonicServiceProvider);
     final cur = jam?.current;
+    // Desktop and TV: a plain row under a hairline, not a boxed promo card.
+    final flat = ShellKind.ofContext(context) != ShellKind.phone;
 
     final title = jam == null ? 'Start a Jam' : 'Jam is live';
     final detail = jam == null
@@ -53,12 +56,14 @@ class _JamHeroState extends ConsumerState<JamHero> {
           scaleFactor: 0.98,
           semanticLabel: '$title. $detail',
           child: Container(
-            padding: const EdgeInsets.all(Space.lg),
-            decoration: BoxDecoration(
-              color: t.fill,
-              borderRadius: BorderRadius.circular(Radii.hero + 8),
-              border: Border.all(color: t.outline, width: 0.5),
-            ),
+            padding: EdgeInsets.symmetric(horizontal: flat ? 0 : Space.lg, vertical: Space.lg),
+            decoration: flat
+                ? BoxDecoration(border: Border(bottom: BorderSide(color: t.outline, width: 0.5)))
+                : BoxDecoration(
+                    color: t.fill,
+                    borderRadius: BorderRadius.circular(Radii.hero + 8),
+                    border: Border.all(color: t.outline, width: 0.5),
+                  ),
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -85,7 +90,7 @@ class _JamHeroState extends ConsumerState<JamHero> {
               const SizedBox(width: Space.md),
               RoomRing(
                 members: jam?.members ?? const [],
-                size: 124,
+                size: flat ? 88 : 124,
                 playing: jam?.playing ?? false,
                 minSeats: 5,
                 center: cur != null && cur.coverArt.isNotEmpty

@@ -8,6 +8,10 @@ import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import 'package:navivibe/features/social/ui/jam/jam_tab.dart';
+import 'package:navivibe/models/album.dart';
+import 'package:navivibe/models/playlist.dart';
+import 'package:navivibe/screens/playlist_details_screen.dart';
+import 'package:navivibe/screens/album_details_screen.dart';
 import 'package:navivibe/screens/home_screen.dart';
 import 'package:navivibe/screens/library/albums_page.dart';
 import 'package:navivibe/screens/library/playlists_page.dart';
@@ -18,6 +22,7 @@ import 'package:navivibe/screens/search_screen.dart';
 import 'package:navivibe/screens/settings_screen.dart';
 import 'package:navivibe/screens/stats/stats_screen.dart';
 import 'package:navivibe/utils/platform_utils.dart';
+import 'package:navivibe/widgets/shell/tv_frame.dart';
 
 /// Every main page at every size NaviVibe is meant to fit. The pages are built
 /// with their real providers and no server, so what renders is the loading,
@@ -32,6 +37,7 @@ const _sizes = <(String, Size)>[
   ('desktop 1280x720', Size(1280, 720)),
   ('desktop 1366x768', Size(1366, 768)),
   ('desktop 1920x1080', Size(1920, 1080)),
+  ('desktop 1920x1200', Size(1920, 1200)),
   ('desktop 2560x1440', Size(2560, 1440)),
 ];
 
@@ -47,9 +53,19 @@ final _pages = <(String, Widget Function())>[
   ('Jam', () => const JamTabScreen()),
   ('Stats', () => const StatsScreen()),
   ('Smart Shuffle', () => const AiShuffleScreen()),
+  ('Playlist', () => PlaylistDetailsScreen(playlist: Playlist(id: 'p1', name: 'A playlist with a rather long name', comment: '', songCount: 25, duration: 5400))),
+  (
+    'Album',
+    () => AlbumDetailsScreen(
+          album: Album(id: 'a1', name: 'A very long album title that has to wrap or ellipsise somewhere', artist: 'An Artist With A Long Name', coverArt: 'a1', songCount: 12, duration: 2400, year: 2024),
+        ),
+  ),
 ];
 
 void main() {
+  tvSizes();
+  artScale();
+  gridScale();
   late Directory dir;
 
   setUpAll(() async {
@@ -99,6 +115,7 @@ void main() {
             if (text.contains('overflowed')) failures.add('$label: ${text.split('\n').take(1).join(' | ')}');
           }
         }
+        await tester.pump(const Duration(seconds: 30)); // let retry back-off timers run out
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
         PlatformUtils.debugTvOverride = null;
@@ -106,4 +123,88 @@ void main() {
       });
     }
   }
+}
+
+/// The TV is laid out on its own 1280-wide canvas (TvFrame); the key pages must
+/// fit it at the densities TVs report.
+void tvSizes() {
+  for (final (pageName, build) in [
+    ('Home', () => const HomeScreen() as Widget),
+    ('Library', () => const LibraryScreen()),
+    ('Search', () => const SearchScreen()),
+  ]) {
+    testWidgets('$pageName fits the TV canvas', (tester) async {
+      final failures = <String>[];
+      for (final s in const [(Size(960, 540), 2.0), (Size(1280, 720), 1.5), (Size(1920, 1080), 1.0)]) {
+        PlatformUtils.debugTvOverride = true;
+        tester.view.devicePixelRatio = s.$2;
+        tester.view.physicalSize = s.$1 * s.$2;
+        final errors = <FlutterErrorDetails>[];
+        final previous = FlutterError.onError;
+        FlutterError.onError = errors.add;
+        await tester.pumpWidget(ProviderScope(
+          child: MaterialApp(
+            builder: (context, child) =>
+                ThemeTokens(tokens: AppThemeTokens.fallback, child: TvFrame(child: child!)),
+            home: build(),
+          ),
+        ));
+        await tester.pump(const Duration(milliseconds: 400));
+        await tester.pumpWidget(const SizedBox());
+        await tester.pump(const Duration(milliseconds: 50));
+        FlutterError.onError = previous;
+        for (final e in errors) {
+          if (e.exceptionAsString().contains('overflowed')) failures.add('${s.$1} @${s.$2}: ${e.exceptionAsString().split('\n').first}');
+        }
+      }
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      PlatformUtils.debugTvOverride = null;
+      expect(failures, isEmpty);
+    });
+  }
+}
+
+void artScale() {
+  test('one cover scale per platform: bigger for a sofa, richer on desktop, never inverted', () {
+    for (final a in [ArtSize.phone, ArtSize.desktop, ArtSize.tv]) {
+      expect(a.thumb, lessThan(a.tile));
+      expect(a.player, lessThan(a.tile));
+      expect(a.tile, lessThan(a.header + 60));
+    }
+    expect(ArtSize.tv.thumb, greaterThan(ArtSize.phone.thumb));
+    expect(ArtSize.tv.tile, greaterThan(ArtSize.phone.tile));
+    expect(ArtSize.desktop.panel, greaterThan(0));
+    expect(ArtSize.phone.panel, 0);
+  });
+}
+
+/// Grids stay on the platform's art scale as a window widens: more columns,
+/// never bigger tiles.
+void gridScale() {
+  for (final (label, content) in const [
+    ('1366x768 with sidebar + panel', 1366.0 - 248 - 320 - 32),
+    ('1920x1080 content column', 1180.0 - 32),
+    ('1920x1200 content column', 1180.0 - 32),
+    ('2560x1440 content column', 1180.0 - 32),
+    ('phone 360', 360.0 - 32),
+    ('phone 430', 430.0 - 32),
+  ]) {
+    test('tiles stay on the art scale at $label', () {
+      final desktop = !label.startsWith('phone');
+      final target = (desktop ? ArtSize.desktop : ArtSize.phone).tile;
+      const gap = Space.lg;
+      final cols = gridColumns(content, target);
+      final tile = (content - gap * (cols - 1)) / cols;
+      expect(tile, greaterThan(target * 0.6), reason: '$cols columns of $tile');
+      expect(tile, lessThan(target * 1.45), reason: '$cols columns of $tile');
+      expect(cols, greaterThanOrEqualTo(2));
+    });
+  }
+
+  test('a wider window gets more columns, not bigger tiles', () {
+    final narrow = gridColumns(600, ArtSize.desktop.tile);
+    final wide = gridColumns(1148, ArtSize.desktop.tile);
+    expect(wide, greaterThan(narrow));
+  });
 }

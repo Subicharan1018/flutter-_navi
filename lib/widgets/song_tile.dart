@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/focus/navi_focus.dart';
+import '../core/layout/window_size.dart';
 import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/download_state.dart';
@@ -33,6 +34,9 @@ class SongTile extends ConsumerStatefulWidget {
   final bool showArtwork;
   final int? trackNumber;
   final bool showDuration;
+
+  /// The album column on wide windows; off where every row is the same album.
+  final bool showAlbum;
   final bool showSeparator;
 
   /// Albums hide the artist line unless a track's artist differs from the
@@ -52,6 +56,7 @@ class SongTile extends ConsumerStatefulWidget {
     this.showArtwork = true,
     this.trackNumber,
     this.showDuration = false,
+    this.showAlbum = true,
     this.showSeparator = true,
     this.showArtist = true,
   });
@@ -84,6 +89,9 @@ class _SongTileState extends ConsumerState<SongTile> {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final song = widget.song;
+    final wide =
+        ShellKind.ofContext(context) == ShellKind.sidebar &&
+        MediaQuery.sizeOf(context).width >= 1100;
     final isCurrent = ref.watch(
       playerProvider.select((s) => s.currentSong?.id == song.id),
     );
@@ -141,7 +149,9 @@ class _SongTileState extends ConsumerState<SongTile> {
                   ),
           );
 
-    final artist = shortArtists(displayArtist(song, ref.watch(catalogSongProvider(song.id))));
+    final artist = shortArtists(
+      displayArtist(song, ref.watch(catalogSongProvider(song.id))),
+    );
 
     return Semantics(
       button: true,
@@ -213,6 +223,22 @@ class _SongTileState extends ConsumerState<SongTile> {
                             ],
                           ),
                         ),
+                        // Wide window: the album gets its own column, so extra width
+                        // carries information instead of empty space.
+                        if (wide && widget.showAlbum && song.album.isNotEmpty)
+                          Expanded(
+                            child: Padding(
+                              padding: const EdgeInsets.symmetric(
+                                horizontal: Space.md,
+                              ),
+                              child: Text(
+                                song.album,
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: t.subheadline,
+                              ),
+                            ),
+                          ),
                         _DownloadBadge(songId: song.id),
                         if (widget.showDuration)
                           Padding(

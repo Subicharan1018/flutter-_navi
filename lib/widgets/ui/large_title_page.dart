@@ -1,3 +1,4 @@
+import '../../core/layout/window_size.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -35,7 +36,10 @@ class LargeTitlePage extends StatelessWidget {
     this.trailing,
     this.header,
     this.headerHeight = 52,
-    this.headerPadding = const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.xs),
+    this.headerPadding = const EdgeInsets.symmetric(
+      horizontal: Space.gutter,
+      vertical: Space.xs,
+    ),
     this.onRefresh,
     this.controller,
     this.clearPlayer = true,
@@ -44,46 +48,62 @@ class LargeTitlePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final canPop = Navigator.of(context).canPop();
+    // One back control per platform: the phone draws it here; Windows has the
+    // title bar's back (plus Alt+←, the mouse button); a TV has the remote's Back.
+    final canPop =
+        Navigator.of(context).canPop() &&
+        ShellKind.ofContext(context) == ShellKind.phone;
+    // A desktop window already has its own title bar: the page title is plain
+    // large type in the content, not a second bar.
+    final desktop = ShellKind.ofContext(context) == ShellKind.sidebar;
     return DockGroundScope(
       color: null,
       child: Scaffold(
-      backgroundColor: t.bgBase,
-      body: CustomScrollView(
-        controller: controller,
-        keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
-        slivers: [
-          CupertinoSliverNavigationBar(
-            largeTitle: Text(title),
-            leading: leading,
-            automaticallyImplyLeading: canPop,
-            previousPageTitle: canPop ? 'Back' : null,
-            trailing: trailing,
-            // Opaque: no blur behind the collapsed bar.
-            backgroundColor: t.bgBase,
-            // No hairline while the large title shows; iOS adds one only
-            // once content scrolls under the bar.
-            border: null,
-            // Tabs keep their own navigators; cross-route hero flights between
-            // their bars would collide, so bars don't animate between routes.
-            transitionBetweenRoutes: false,
-          ),
-          if (header != null)
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _PinnedHeader(height: headerHeight, color: t.bgBase, child: header!, padding: headerPadding),
+        backgroundColor: t.bgBase,
+        body: CustomScrollView(
+          controller: controller,
+          keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
+          slivers: [
+            if (desktop)
+              SliverToBoxAdapter(
+                child: _DesktopTitle(title: title, trailing: trailing),
+              )
+            else
+              CupertinoSliverNavigationBar(
+                largeTitle: Text(title),
+                leading: leading,
+                automaticallyImplyLeading: canPop,
+                previousPageTitle: canPop ? 'Back' : null,
+                trailing: trailing,
+                // Opaque: no blur behind the collapsed bar.
+                backgroundColor: t.bgBase,
+                // No hairline while the large title shows; iOS adds one only
+                // once content scrolls under the bar.
+                border: null,
+                // Tabs keep their own navigators; cross-route hero flights between
+                // their bars would collide, so bars don't animate between routes.
+                transitionBetweenRoutes: false,
+              ),
+            if (header != null)
+              SliverPersistentHeader(
+                pinned: true,
+                delegate: _PinnedHeader(
+                  height: headerHeight,
+                  color: t.bgBase,
+                  child: header!,
+                  padding: headerPadding,
+                ),
+              ),
+            if (onRefresh != null)
+              CupertinoSliverRefreshControl(onRefresh: onRefresh),
+            ...slivers,
+            SliverToBoxAdapter(
+              child: SizedBox(
+                height: clearPlayer ? dockClearance(context) : Space.xxxl,
+              ),
             ),
-          if (onRefresh != null) CupertinoSliverRefreshControl(onRefresh: onRefresh),
-          ...slivers,
-          SliverToBoxAdapter(
-            child: SizedBox(
-              height: clearPlayer
-                  ? dockClearance(context)
-                  : Space.xxxl,
-            ),
-          ),
-        ],
-      ),
+          ],
+        ),
       ),
     );
   }
@@ -94,7 +114,12 @@ class _PinnedHeader extends SliverPersistentHeaderDelegate {
   final Color color;
   final Widget child;
   final EdgeInsets padding;
-  _PinnedHeader({required this.height, required this.color, required this.child, required this.padding});
+  _PinnedHeader({
+    required this.height,
+    required this.color,
+    required this.child,
+    required this.padding,
+  });
 
   @override
   double get minExtent => height;
@@ -102,17 +127,24 @@ class _PinnedHeader extends SliverPersistentHeaderDelegate {
   double get maxExtent => height;
 
   @override
-  Widget build(BuildContext context, double shrinkOffset, bool overlapsContent) => ColoredBox(
-        color: color,
-        child: Padding(
-          padding: padding,
-          child: Align(alignment: Alignment.topCenter, child: child),
-        ),
-      );
+  Widget build(
+    BuildContext context,
+    double shrinkOffset,
+    bool overlapsContent,
+  ) => ColoredBox(
+    color: color,
+    child: Padding(
+      padding: padding,
+      child: Align(alignment: Alignment.topCenter, child: child),
+    ),
+  );
 
   @override
   bool shouldRebuild(_PinnedHeader old) =>
-      old.height != height || old.color != color || old.child != child || old.padding != padding;
+      old.height != height ||
+      old.color != color ||
+      old.child != child ||
+      old.padding != padding;
 }
 
 /// Page padding for content inside a [LargeTitlePage].
@@ -123,7 +155,41 @@ class PageSliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SliverPadding(
-        padding: EdgeInsets.fromLTRB(Space.gutter, top, Space.gutter, 0),
-        sliver: sliver,
-      );
+    padding: EdgeInsets.fromLTRB(Space.gutter, top, Space.gutter, 0),
+    sliver: sliver,
+  );
+}
+
+/// The page title on desktop: large, left-aligned, with the page's actions at
+/// the right. No bar, no centred collapsed title.
+class _DesktopTitle extends StatelessWidget {
+  final String title;
+  final Widget? trailing;
+  const _DesktopTitle({required this.title, this.trailing});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        Space.gutter,
+        Space.xl,
+        Space.gutter,
+        Space.sm,
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Text(
+              title,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: t.largeTitle,
+            ),
+          ),
+          ?trailing,
+        ],
+      ),
+    );
+  }
 }

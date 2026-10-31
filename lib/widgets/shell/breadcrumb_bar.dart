@@ -10,7 +10,9 @@ import 'nav_stack.dart';
 /// have room for it. Every step but the last is a link back to it; the arrow
 /// at the left goes up one level. Collapses to nothing at a tab's root.
 class BreadcrumbBar extends StatelessWidget {
-  const BreadcrumbBar({super.key});
+  /// [inTitleBar]: drawn inside the Windows title bar (no border, title-bar height).
+  final bool inTitleBar;
+  const BreadcrumbBar({super.key, this.inTitleBar = false});
 
   @override
   Widget build(BuildContext context) {
@@ -23,7 +25,7 @@ class BreadcrumbBar extends StatelessWidget {
           builder: (context, _, _) {
             final crumbs = trail.crumbs;
             if (!trail.canPop || crumbs.length < 2) return const SizedBox(height: 0);
-            return _Bar(crumbs: crumbs);
+            return _Bar(crumbs: crumbs, inTitleBar: inTitleBar);
           },
         );
       },
@@ -33,17 +35,18 @@ class BreadcrumbBar extends StatelessWidget {
 
 class _Bar extends StatelessWidget {
   final List<Crumb> crumbs;
-  const _Bar({required this.crumbs});
+  final bool inTitleBar;
+  const _Bar({required this.crumbs, required this.inTitleBar});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Container(
-      height: 40,
+      height: inTitleBar ? 36 : 40,
       padding: const EdgeInsets.symmetric(horizontal: Space.md),
       decoration: BoxDecoration(
         color: Colors.transparent, // the page's own ground shows through (see GroundSurface)
-        border: Border(bottom: BorderSide(color: t.separatorOpaque, width: 0.5)),
+        border: inTitleBar ? null : Border(bottom: BorderSide(color: t.separatorOpaque, width: 0.5)),
       ),
       child: Row(
         children: [

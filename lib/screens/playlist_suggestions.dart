@@ -117,7 +117,7 @@ class _PlaylistSuggestionsState extends ConsumerState<PlaylistSuggestions> {
                   const SizedBox(width: Space.gutter),
                   CoverArt(
                     url: svc.getCoverArtUrl(pick.song.coverArt.isNotEmpty ? pick.song.coverArt : pick.song.id),
-                    size: 46,
+                    size: ArtSize.of(context).thumb,
                     radius: Radii.thumb,
                   ),
                   const SizedBox(width: Space.md),

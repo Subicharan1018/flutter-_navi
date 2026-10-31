@@ -40,6 +40,7 @@ import 'shell/app_tab.dart';
 import 'shell/breadcrumb_bar.dart';
 import 'shell/nav_stack.dart';
 import 'shell/system_back.dart';
+import 'shell/title_bar.dart';
 import 'shell/tab_navigators.dart';
 import 'shell/tv_shell.dart';
 import '../providers/id_migration_provider.dart';
@@ -212,7 +213,9 @@ class _PhoneShell extends ConsumerWidget {
         children: [
           // Pages end above the dock: it is part of their bottom padding.
           // (System back is handled by the shell's back dispatcher.)
-          DockInsetScope(child: TabNavigators(tab: tab, visited: visited)),
+          DockInsetScope(
+            child: TabNavigators(tab: tab, visited: visited),
+          ),
           // The dock: one sheet of frosted glass in the visible page's own
           // colour (a solid band when glass is off, see `GlassDock`), with
           // the Jam pill, mini player and tab bar on it. One blur layer for
@@ -280,7 +283,10 @@ class _TabBar extends ConsumerWidget {
       color: glass ? const Color(0x14FFFFFF) : _lift(ground, 0.09),
       shape: circle ? BoxShape.circle : BoxShape.rectangle,
       borderRadius: circle ? null : BorderRadius.circular(Radii.capsule),
-      border: Border.all(color: glass ? const Color(0x2BFFFFFF) : _lift(ground, 0.16), width: 0.5),
+      border: Border.all(
+        color: glass ? const Color(0x2BFFFFFF) : _lift(ground, 0.16),
+        width: 0.5,
+      ),
     );
   }
 
@@ -320,7 +326,9 @@ class _TabBar extends ConsumerWidget {
                             width: w,
                             child: DecoratedBox(
                               decoration: BoxDecoration(
-                                color: DockGlass.of(context) ? const Color(0x24FFFFFF) : _lift(ground, 0.18),
+                                color: DockGlass.of(context)
+                                    ? const Color(0x24FFFFFF)
+                                    : _lift(ground, 0.18),
                                 borderRadius: BorderRadius.circular(
                                   Radii.capsule,
                                 ),
@@ -480,8 +488,12 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final size = WindowSize.ofContext(context);
-    final hasSong = ref.watch(playerProvider.select((s) => s.currentSong != null));
-    final remote = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive));
+    final hasSong = ref.watch(
+      playerProvider.select((s) => s.currentSong != null),
+    );
+    final remote = ref.watch(
+      playerProvider.select((s) => s.syncMode == SyncMode.passive),
+    );
     // medium: icon-only sidebar, no side panel; expanded: both.
     final panel = size.hasSidePanel && hasSong ? _panel : null;
     return ValueListenableBuilder<Color?>(
@@ -500,13 +512,13 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                       collapsed: size == WindowSize.medium,
                     ),
                   ),
-                  Container(width: 0.5, color: t.separatorOpaque),
+                  GroundDivider(color: t.separatorOpaque),
                   Expanded(
                     child: FocusTraversalGroup(
                       child: Column(
                         children: [
                           if (widget.offline) const _OfflineBanner(),
-                          const BreadcrumbBar(),
+                          if (!NaviTitleBar.enabled) const BreadcrumbBar(),
                           Expanded(
                             child: Center(
                               child: ConstrainedBox(
@@ -529,7 +541,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                     ),
                   ),
                   if (panel != null) ...[
-                    Container(width: 0.5, color: t.separatorOpaque),
+                    GroundDivider(color: t.separatorOpaque),
                     FocusTraversalGroup(
                       child: _SidePanel(
                         panel: panel,
@@ -543,7 +555,10 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
             ),
             // Another of your devices is playing: this one is the remote, with or without a song of its own.
             if (remote)
-              const Padding(padding: EdgeInsets.only(top: Space.sm), child: RemoteMiniPlayer())
+              const Padding(
+                padding: EdgeInsets.only(top: Space.sm),
+                child: RemoteMiniPlayer(),
+              )
             else if (hasSong)
               _PlayerBar(
                 panel: panel,
@@ -591,122 +606,127 @@ class _SidebarState extends ConsumerState<_Sidebar> {
         : ref.watch(playlistsProvider).asData?.value ?? const [];
     final service = ref.read(subsonicServiceProvider);
 
-    return AnimatedContainer(
-      duration: Motion.standard,
-      width: collapsed ? 72 : 248,
-      color: t.bgSurface,
-      child: ListView(
-        padding: EdgeInsets.fromLTRB(
-          collapsed ? Space.sm : Space.md,
-          Space.lg,
-          collapsed ? Space.sm : Space.md,
-          Space.lg,
-        ),
-        children: [
-          if (!collapsed) ...[
-            NaviSearchField(
-              controller: _search,
-              voice: false,
-              onChanged: (q) {
-                ref.read(searchQueryProvider.notifier).state = q;
-                if (widget.tab != AppTab.search) widget.onSelect(AppTab.search);
-              },
-            ),
-            const SizedBox(height: Space.lg),
-          ],
-          const _DownloadsRow(),
-          for (final dest in AppTab.browseTabs)
+    return GroundPane(
+      side: PaneSide.leading,
+      fallback: t.bgSurface,
+      child: AnimatedContainer(
+        duration: Motion.standard,
+        width: collapsed ? 72 : 248,
+        child: ListView(
+          padding: EdgeInsets.fromLTRB(
+            collapsed ? Space.sm : Space.md,
+            Space.lg,
+            collapsed ? Space.sm : Space.md,
+            Space.lg,
+          ),
+          children: [
+            if (!collapsed) ...[
+              NaviSearchField(
+                controller: _search,
+                voice: false,
+                onChanged: (q) {
+                  ref.read(searchQueryProvider.notifier).state = q;
+                  if (widget.tab != AppTab.search) {
+                    widget.onSelect(AppTab.search);
+                  }
+                },
+              ),
+              const SizedBox(height: Space.lg),
+            ],
+            const _DownloadsRow(),
+            for (final dest in AppTab.browseTabs)
+              _SidebarRow(
+                icon: dest.icon,
+                label: dest.label,
+                iconOnly: collapsed,
+                selected: widget.tab == dest,
+                onTap: () => widget.onSelect(dest),
+              ),
+            if (collapsed)
+              _SidebarRow(
+                icon: AppTab.search.icon,
+                label: 'Search (Ctrl+F)',
+                iconOnly: true,
+                selected: widget.tab == AppTab.search,
+                onTap: () => widget.onSelect(AppTab.search),
+              )
+            else
+              const _SidebarHeader('Library'),
             _SidebarRow(
-              icon: dest.icon,
-              label: dest.label,
+              icon: NaviGlyph.library,
+              label: 'Library',
               iconOnly: collapsed,
-              selected: widget.tab == dest,
-              onTap: () => widget.onSelect(dest),
+              selected: widget.tab == AppTab.library,
+              onTap: () => widget.onSelect(AppTab.library),
             ),
-          if (collapsed)
             _SidebarRow(
-              icon: AppTab.search.icon,
-              label: 'Search (Ctrl+F)',
-              iconOnly: true,
-              selected: widget.tab == AppTab.search,
-              onTap: () => widget.onSelect(AppTab.search),
-            )
-          else
-            const _SidebarHeader('Library'),
-          _SidebarRow(
-            icon: NaviGlyph.library,
-            label: 'Library',
-            iconOnly: collapsed,
-            selected: widget.tab == AppTab.library,
-            onTap: () => widget.onSelect(AppTab.library),
-          ),
-          _SidebarRow(
-            icon: NaviGlyph.playlist,
-            label: 'Playlists',
-            iconOnly: collapsed,
-            onTap: () => navigateInApp(context, const PlaylistsPage()),
-          ),
-          _SidebarRow(
-            icon: NaviGlyph.stack,
-            label: 'Albums',
-            iconOnly: collapsed,
-            onTap: () => navigateInApp(context, const AlbumsPage()),
-          ),
-          _SidebarRow(
-            icon: NaviGlyph.note,
-            label: 'Songs',
-            iconOnly: collapsed,
-            onTap: () => navigateInApp(context, const SongsPage()),
-          ),
-          _SidebarRow(
-            icon: NaviGlyph.downloadCircle,
-            label: 'Downloaded',
-            iconOnly: collapsed,
-            onTap: () => navigateInApp(
-              context,
-              const SongsPage(downloadedOnly: true),
-              title: 'Downloaded',
+              icon: NaviGlyph.playlist,
+              label: 'Playlists',
+              iconOnly: collapsed,
+              onTap: () => navigateInApp(context, const PlaylistsPage()),
             ),
-          ),
-          if (!collapsed)
-            _SidebarHeader(
-              'Playlists',
-              action: IconButton(
-                tooltip: 'New Playlist',
-                visualDensity: VisualDensity.compact,
-                icon: NaviIcon(
-                  NaviGlyph.plus,
-                  size: 18,
-                  color: t.textSecondary,
-                ),
-                onPressed: () => showPlaylistEditor(context),
-              ),
-            ),
-          for (final p in playlists)
             _SidebarRow(
-              art: CoverArt(
-                url: (p.coverArt ?? '').isEmpty
-                    ? null
-                    : service.getCoverArtUrl(p.coverArt),
-                size: 22,
-                radius: Radii.thumb,
-                placeholderIcon: NaviGlyph.playlist,
-              ),
-              label: p.name,
+              icon: NaviGlyph.stack,
+              label: 'Albums',
+              iconOnly: collapsed,
+              onTap: () => navigateInApp(context, const AlbumsPage()),
+            ),
+            _SidebarRow(
+              icon: NaviGlyph.note,
+              label: 'Songs',
+              iconOnly: collapsed,
+              onTap: () => navigateInApp(context, const SongsPage()),
+            ),
+            _SidebarRow(
+              icon: NaviGlyph.downloadCircle,
+              label: 'Downloaded',
+              iconOnly: collapsed,
               onTap: () => navigateInApp(
                 context,
-                PlaylistDetailsScreen(playlist: p),
-                title: p.name,
+                const SongsPage(downloadedOnly: true),
+                title: 'Downloaded',
               ),
             ),
-          const SizedBox(height: Space.lg),
-          _SidebarRow(
-            icon: NaviGlyph.gear,
-            label: 'Settings (Ctrl+,)',
-            iconOnly: collapsed,
-            onTap: () => navigateInApp(context, const SettingsScreen()),
-          ),
-        ],
+            if (!collapsed)
+              _SidebarHeader(
+                'Playlists',
+                action: IconButton(
+                  tooltip: 'New Playlist',
+                  visualDensity: VisualDensity.compact,
+                  icon: NaviIcon(
+                    NaviGlyph.plus,
+                    size: 18,
+                    color: t.textSecondary,
+                  ),
+                  onPressed: () => showPlaylistEditor(context),
+                ),
+              ),
+            for (final p in playlists)
+              _SidebarRow(
+                art: CoverArt(
+                  url: (p.coverArt ?? '').isEmpty
+                      ? null
+                      : service.getCoverArtUrl(p.coverArt),
+                  size: 22,
+                  radius: Radii.thumb,
+                  placeholderIcon: NaviGlyph.playlist,
+                ),
+                label: p.name,
+                onTap: () => navigateInApp(
+                  context,
+                  PlaylistDetailsScreen(playlist: p),
+                  title: p.name,
+                ),
+              ),
+            const SizedBox(height: Space.lg),
+            _SidebarRow(
+              icon: NaviGlyph.gear,
+              label: 'Settings (Ctrl+,)',
+              iconOnly: collapsed,
+              onTap: () => navigateInApp(context, const SettingsScreen()),
+            ),
+          ],
+        ),
       ),
     );
   }
@@ -1049,9 +1069,9 @@ class _PlayerBar extends ConsumerWidget {
                       child: CoverImage(
                         url: url,
                         cacheKey: coverCacheKey(song),
-                        width: 52,
-                        height: 52,
-                        cacheWidth: 156,
+                        width: ArtSize.of(context).player,
+                        height: ArtSize.of(context).player,
+                        cacheWidth: (ArtSize.of(context).player * 3).round(),
                       ),
                     ),
                   ),
@@ -1314,10 +1334,7 @@ class _BarScrubberState extends ConsumerState<_BarScrubber> {
               const SizedBox(width: Space.sm + 2),
               SizedBox(
                 width: 44,
-                child: Text(
-                  formatClock(progress.total),
-                  style: label,
-                ),
+                child: Text(formatClock(progress.total), style: label),
               ),
             ],
           );
