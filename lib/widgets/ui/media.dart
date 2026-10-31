@@ -127,7 +127,7 @@ class MediaShelf extends StatelessWidget {
   final String title;
   final VoidCallback? onSeeAll;
   final int itemCount;
-  final double cardSize;
+  final double? cardSize;
   final Widget Function(BuildContext, int) itemBuilder;
   final bool hasSubtitle;
 
@@ -137,7 +137,7 @@ class MediaShelf extends StatelessWidget {
     this.onSeeAll,
     required this.itemCount,
     required this.itemBuilder,
-    this.cardSize = 150,
+    this.cardSize,
     this.hasSubtitle = true,
   });
 
@@ -149,7 +149,7 @@ class MediaShelf extends StatelessWidget {
       children: [
         SectionHeader(title: title, onTap: onSeeAll),
         HorizontalShelf(
-          height: cardSize + captionExtent(context, subtitle: hasSubtitle),
+          height: (cardSize ?? ArtSize.of(context).tile) + captionExtent(context, subtitle: hasSubtitle),
           itemCount: itemCount,
           itemBuilder: itemBuilder,
         ),

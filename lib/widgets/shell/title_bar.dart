@@ -3,6 +3,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../../core/theme.dart';
 import '../../utils/platform_utils.dart';
+import 'breadcrumb_bar.dart';
 
 /// Windows only: the window's title bar drawn by the app, so the chrome matches
 /// the page and the window controls sit on it. Drag it to move the window,
@@ -65,16 +66,21 @@ class _NaviTitleBarState extends State<NaviTitleBar> with WindowListener {
                 onDoubleTap: _toggleMaximise,
                 child: Padding(
                   padding: const EdgeInsets.only(left: Space.md),
-                  child: Align(
-                    alignment: Alignment.centerLeft,
-                    child: Text(
-                      'NaviVibe',
-                      style: t.footnote.copyWith(
-                        color: t.textPrimary,
-                        fontWeight: FontWeight.w600,
-                        decoration: TextDecoration.none,
+                  child: Row(
+                    children: [
+                      Text(
+                        'NaviVibe',
+                        style: t.footnote.copyWith(
+                          color: t.textPrimary,
+                          fontWeight: FontWeight.w600,
+                          decoration: TextDecoration.none,
+                        ),
                       ),
-                    ),
+                      const SizedBox(width: Space.lg),
+                      // Back and the trail live in the window's own top bar, so
+                      // there is no second bar under it.
+                      const Expanded(child: BreadcrumbBar(inTitleBar: true)),
+                    ],
                   ),
                 ),
               ),

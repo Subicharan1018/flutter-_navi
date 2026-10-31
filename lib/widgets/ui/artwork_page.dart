@@ -302,7 +302,7 @@ class _WideHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    const art = 260.0;
+    final art = ArtSize.of(context).header;
     return Container(
       // A soft wash of the artwork colour behind the header on wide windows.
       decoration: BoxDecoration(

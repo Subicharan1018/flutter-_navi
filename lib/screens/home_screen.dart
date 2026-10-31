@@ -91,7 +91,6 @@ class HomeScreen extends ConsumerWidget {
 
 /// Cover size on Home's shelves: a step up from Library grids, as on
 /// Apple Music's Home.
-const double _shelfCover = 164;
 
 String? _art(WidgetRef ref, String? id) =>
     (id == null || id.isEmpty) ? null : ref.read(subsonicServiceProvider).getCoverArtUrl(id);
@@ -403,7 +402,7 @@ class _RecentlyPlayed extends ConsumerWidget {
     if (albums.isNotEmpty) {
       return MediaShelf(
         title: 'Recently Played',
-        cardSize: _shelfCover,
+        cardSize: ArtSize.of(context).tile,
         itemCount: albums.length.clamp(0, 15),
         itemBuilder: (context, i) => _AlbumCard(album: albums[i]),
       );
@@ -412,13 +411,13 @@ class _RecentlyPlayed extends ConsumerWidget {
     final shown = songs.take(15).toList();
     return MediaShelf(
       title: 'Recently Played',
-      cardSize: _shelfCover,
+      cardSize: ArtSize.of(context).tile,
       itemCount: shown.length,
       itemBuilder: (context, i) => MediaCard(
         title: shown[i].title,
         subtitle: shown[i].artist,
         artUrl: _art(ref, shown[i].coverArt),
-        size: _shelfCover,
+        size: ArtSize.of(context).tile,
         onTap: () => ref.read(playerProvider.notifier).setQueue(shown, i, playlistName: 'Recently Played'),
       ),
     );
@@ -433,7 +432,7 @@ class _YourPlaylists extends ConsumerWidget {
     final playlists = ref.watch(playlistsProvider).asData?.value ?? const <Playlist>[];
     return MediaShelf(
       title: 'Your Playlists',
-      cardSize: _shelfCover,
+      cardSize: ArtSize.of(context).tile,
       onSeeAll: () => navigateInApp(context, const PlaylistsPage()),
       itemCount: playlists.length.clamp(0, 15),
       itemBuilder: (context, i) {
@@ -442,7 +441,7 @@ class _YourPlaylists extends ConsumerWidget {
           title: p.name,
           subtitle: songCount(p.songCount),
           artUrl: _art(ref, p.coverArt),
-          size: _shelfCover,
+          size: ArtSize.of(context).tile,
           placeholderIcon: NaviGlyph.playlist,
           onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p)),
           onLongPress: () => showCollectionActions(
@@ -468,7 +467,7 @@ class _RecentlyAdded extends ConsumerWidget {
     final albums = ref.watch(recentlyAddedAlbumsProvider).asData?.value ?? const <Album>[];
     return MediaShelf(
       title: 'Recently Added',
-      cardSize: _shelfCover,
+      cardSize: ArtSize.of(context).tile,
       onSeeAll: () => navigateInApp(context, const AlbumsPage()),
       itemCount: albums.length.clamp(0, 15),
       itemBuilder: (context, i) => _AlbumCard(album: albums[i]),
@@ -487,7 +486,7 @@ class _AlbumCard extends ConsumerWidget {
       title: album.name,
       subtitle: album.artist,
       artUrl: art,
-      size: _shelfCover,
+      size: ArtSize.of(context).tile,
       placeholderIcon: NaviGlyph.library,
       onTap: () => navigateInApp(context, AlbumDetailsScreen(album: album)),
       onLongPress: () => showCollectionActions(

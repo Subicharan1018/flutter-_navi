@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/layout/window_size.dart';
 import '../core/theme.dart';
 import '../features/local_library/logic/local_library_providers.dart';
 import '../features/local_library/ui/local_songs_page.dart';
@@ -39,13 +40,16 @@ class LibraryScreen extends ConsumerWidget {
 
     final hasLocal = ref.watch(localFoldersProvider.select((f) => f.isNotEmpty));
 
+    // The desktop sidebar already lists Playlists, Albums, Songs and Downloaded;
+    // here only what it doesn't.
+    final inSidebar = ShellKind.ofContext(context) == ShellKind.sidebar;
     final destinations = <(NaviGlyph, String, Widget)>[
-      (NaviGlyph.playlist, 'Playlists', const PlaylistsPage()),
+      if (!inSidebar) (NaviGlyph.playlist, 'Playlists', const PlaylistsPage()),
       (NaviGlyph.mic, 'Artists', const ArtistsPage()),
-      (NaviGlyph.stack, 'Albums', const AlbumsPage()),
-      (NaviGlyph.note, 'Songs', const SongsPage()),
+      if (!inSidebar) (NaviGlyph.stack, 'Albums', const AlbumsPage()),
+      if (!inSidebar) (NaviGlyph.note, 'Songs', const SongsPage()),
       (NaviGlyph.star, 'Favorites', const FavoritesScreen()),
-      (NaviGlyph.downloadCircle, 'Downloaded', const SongsPage(downloadedOnly: true)),
+      if (!inSidebar) (NaviGlyph.downloadCircle, 'Downloaded', const SongsPage(downloadedOnly: true)),
       if (hasLocal) (NaviGlyph.folder, 'On This Device', const LocalSongsPage()),
     ];
 

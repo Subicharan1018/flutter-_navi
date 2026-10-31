@@ -1,3 +1,4 @@
+import '../../core/layout/window_size.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
@@ -44,7 +45,9 @@ class LargeTitlePage extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final canPop = Navigator.of(context).canPop();
+    // One back control per platform: the phone draws it here; Windows has the
+    // title bar's back (plus Alt+←, the mouse button); a TV has the remote's Back.
+    final canPop = Navigator.of(context).canPop() && ShellKind.ofContext(context) == ShellKind.phone;
     return DockGroundScope(
       color: null,
       child: Scaffold(

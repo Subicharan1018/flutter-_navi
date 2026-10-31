@@ -6,6 +6,7 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import 'album_palette.dart';
+import 'layout/window_size.dart';
 import 'focus/navi_focus.dart';
 import 'motion.dart';
 
@@ -601,4 +602,39 @@ class _CupertinoClickableState extends State<CupertinoClickable>
       ),
     );
   }
+}
+
+/// One artwork size scale per platform. Rows, shelves, headers, the side panel
+/// and the player bar all take their cover size from here, so a cover is the
+/// same size wherever it plays the same role (and bigger on a TV, which is read
+/// from a sofa, smaller on a phone). Never hard-code a cover size in a screen.
+@immutable
+class ArtSize {
+  /// A cover in a list row (songs, playlist rows, suggestions).
+  final double thumb;
+
+  /// The cover in the player bar / mini player.
+  final double player;
+
+  /// A cover tile in a shelf or grid.
+  final double tile;
+
+  /// The big cover at the top of an album / playlist / artist page.
+  final double header;
+
+  /// The cover in the desktop side panel (0 where there is no panel).
+  final double panel;
+
+  const ArtSize({required this.thumb, required this.player, required this.tile, required this.header, required this.panel});
+
+  static const phone = ArtSize(thumb: 46, player: 42, tile: 150, header: 240, panel: 0);
+  static const desktop = ArtSize(thumb: 48, player: 52, tile: 170, header: 232, panel: 288);
+  static const tv = ArtSize(thumb: 56, player: 52, tile: 190, header: 280, panel: 0);
+
+  /// The scale for the platform this context is on.
+  static ArtSize of(BuildContext context) => switch (ShellKind.ofContext(context)) {
+        ShellKind.phone => phone,
+        ShellKind.sidebar => desktop,
+        ShellKind.tv => tv,
+      };
 }
