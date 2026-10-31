@@ -77,15 +77,22 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
   }
 
   bool _onScroll(ScrollNotification n) {
-    if (n.depth == 0 && n.metrics.axis == Axis.vertical) _offset.value = n.metrics.pixels;
+    if (n.depth == 0 && n.metrics.axis == Axis.vertical) {
+      _offset.value = n.metrics.pixels;
+    }
     return false;
   }
 
   @override
   Widget build(BuildContext context) {
-    final palette = widget.paletteCoverId == null || widget.paletteCoverId!.isEmpty
+    final palette =
+        widget.paletteCoverId == null || widget.paletteCoverId!.isEmpty
         ? AlbumPalette.fallback
-        : ref.watch(coverPaletteProvider(widget.paletteCoverId!)).asData?.value ?? AlbumPalette.fallback;
+        : ref
+                  .watch(coverPaletteProvider(widget.paletteCoverId!))
+                  .asData
+                  ?.value ??
+              AlbumPalette.fallback;
     final size = MediaQuery.sizeOf(context);
     final wide = size.width >= ArtworkPage._wideBreakpoint;
 
@@ -104,44 +111,53 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
           child: DockGroundScope(
             color: tokens.bgBase,
             child: AnnotatedRegion<SystemUiOverlayStyle>(
-            value: SystemUiOverlayStyle.light,
-            child: Scaffold(
-              backgroundColor: tokens.bgBase,
-              body: NotificationListener<ScrollNotification>(
-                onNotification: _onScroll,
-                child: Stack(
-                  children: [
-                    CustomScrollView(
-                      slivers: [
-                        SliverToBoxAdapter(
-                          child: wide
-                              ? _WideHeader(page: widget)
-                              : _PhoneHeader(page: widget, width: size.width, offset: _offset),
-                        ),
-                        if (widget.onRefresh != null && wide) CupertinoSliverRefreshControl(onRefresh: widget.onRefresh),
-                        for (final s in widget.slivers)
-                          wide
-                              ? SliverPadding(
-                                  padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
-                                  sliver: s,
-                                )
-                              : s,
-                        SliverToBoxAdapter(
-                          child: SizedBox(height: dockClearance(context)),
-                        ),
-                      ],
-                    ),
-                    _TopBar(
-                      title: widget.title,
-                      actions: widget.actions,
-                      offset: _offset,
-                      revealAt: wide ? 220 : size.width - 80,
-                    ),
-                  ],
+              value: SystemUiOverlayStyle.light,
+              child: Scaffold(
+                backgroundColor: tokens.bgBase,
+                body: NotificationListener<ScrollNotification>(
+                  onNotification: _onScroll,
+                  child: Stack(
+                    children: [
+                      CustomScrollView(
+                        slivers: [
+                          SliverToBoxAdapter(
+                            child: wide
+                                ? _WideHeader(page: widget)
+                                : _PhoneHeader(
+                                    page: widget,
+                                    width: size.width,
+                                    offset: _offset,
+                                  ),
+                          ),
+                          if (widget.onRefresh != null && wide)
+                            CupertinoSliverRefreshControl(
+                              onRefresh: widget.onRefresh,
+                            ),
+                          for (final s in widget.slivers)
+                            wide
+                                ? SliverPadding(
+                                    padding: const EdgeInsets.symmetric(
+                                      horizontal: Space.xxl,
+                                    ),
+                                    sliver: s,
+                                  )
+                                : s,
+                          SliverToBoxAdapter(
+                            child: SizedBox(height: dockClearance(context)),
+                          ),
+                        ],
+                      ),
+                      _TopBar(
+                        title: widget.title,
+                        actions: widget.actions,
+                        offset: _offset,
+                        revealAt: wide ? 220 : size.width - 80,
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),
-          ),
           ),
         );
       },
@@ -157,13 +173,19 @@ class _PhoneHeader extends StatelessWidget {
   final ArtworkPage page;
   final double width;
   final ValueNotifier<double> offset;
-  const _PhoneHeader({required this.page, required this.width, required this.offset});
+  const _PhoneHeader({
+    required this.page,
+    required this.width,
+    required this.offset,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final ground = t.bgBase;
-    final align = page.artistStyle ? CrossAxisAlignment.start : CrossAxisAlignment.center;
+    final align = page.artistStyle
+        ? CrossAxisAlignment.start
+        : CrossAxisAlignment.center;
     final textAlign = page.artistStyle ? TextAlign.start : TextAlign.center;
 
     return Column(
@@ -174,109 +196,133 @@ class _PhoneHeader extends StatelessWidget {
           // track list, but the overscroll stretch extends above the box.
           clipper: _BelowClipper(width),
           child: SizedBox(
-          width: width,
-          height: width,
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              // Stretch on overscroll, half-speed drift on scroll.
-              ValueListenableBuilder<double>(
-                valueListenable: offset,
-                child: page.art(width),
-                builder: (context, o, art) {
-                  // Overscroll moves this box down by `pull`; pin the art to
-                  // the screen top and grow it so it fills the gap.
-                  final pull = math.max(0.0, -o);
-                  return Positioned(
-                    left: 0,
-                    right: 0,
-                    top: o < 0 ? o : o * 0.5,
-                    height: width,
-                    child: Transform.scale(
-                      scale: (width + pull) / width,
-                      alignment: Alignment.topCenter,
-                      child: art,
-                    ),
-                  );
-                },
-              ),
-              // The seam: artwork dissolves into the ground colour, reaching
-              // solid ground before the title block so text never sits on
-              // bright artwork, whatever the cover.
-              Positioned.fill(
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    gradient: LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      stops: const [0, 0.38, 0.66, 0.84, 1],
-                      colors: [
-                        ground.withValues(alpha: 0),
-                        ground.withValues(alpha: 0),
-                        ground.withValues(alpha: 0.85),
-                        ground,
-                        ground,
-                      ],
+            width: width,
+            height: width,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Stretch on overscroll, half-speed drift on scroll.
+                ValueListenableBuilder<double>(
+                  valueListenable: offset,
+                  child: page.art(width),
+                  builder: (context, o, art) {
+                    // Overscroll moves this box down by `pull`; pin the art to
+                    // the screen top and grow it so it fills the gap.
+                    final pull = math.max(0.0, -o);
+                    return Positioned(
+                      left: 0,
+                      right: 0,
+                      top: o < 0 ? o : o * 0.5,
+                      height: width,
+                      child: Transform.scale(
+                        scale: (width + pull) / width,
+                        alignment: Alignment.topCenter,
+                        child: art,
+                      ),
+                    );
+                  },
+                ),
+                // The seam: artwork dissolves into the ground colour, reaching
+                // solid ground before the title block so text never sits on
+                // bright artwork, whatever the cover.
+                Positioned.fill(
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      gradient: LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        stops: const [0, 0.38, 0.66, 0.84, 1],
+                        colors: [
+                          ground.withValues(alpha: 0),
+                          ground.withValues(alpha: 0),
+                          ground.withValues(alpha: 0.85),
+                          ground,
+                          ground,
+                        ],
+                      ),
                     ),
                   ),
                 ),
-              ),
-              Positioned(
-                left: Space.xl,
-                right: Space.xl,
-                bottom: Space.lg,
-                child: Column(
-                  crossAxisAlignment: align,
-                  children: [
-                    Text(
-                      page.title,
-                      textAlign: textAlign,
-                      maxLines: 2,
-                      overflow: TextOverflow.ellipsis,
-                      style: page.artistStyle ? t.largeTitle.copyWith(fontSize: 36) : t.title1,
-                    ),
-                    if (page.subtitle != null && page.subtitle!.isNotEmpty) ...[
-                      const SizedBox(height: Space.xxs),
-                      CupertinoClickable(
-                        onTap: page.onSubtitleTap,
-                        scaleFactor: 0.97,
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Flexible(
-                              child: Text(
-                                page.subtitle!,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: t.title3.copyWith(fontWeight: FontWeight.w500, color: t.accent),
-                              ),
-                            ),
-                            if (page.onSubtitleTap != null)
-                              NaviIcon(NaviGlyph.chevron, size: 15, color: t.textSecondary),
-                          ],
-                        ),
+                Positioned(
+                  left: Space.xl,
+                  right: Space.xl,
+                  bottom: Space.lg,
+                  child: Column(
+                    crossAxisAlignment: align,
+                    children: [
+                      Text(
+                        page.title,
+                        textAlign: textAlign,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: page.artistStyle
+                            ? t.largeTitle.copyWith(fontSize: 36)
+                            : t.title1,
                       ),
+                      if (page.subtitle != null &&
+                          page.subtitle!.isNotEmpty) ...[
+                        const SizedBox(height: Space.xxs),
+                        CupertinoClickable(
+                          onTap: page.onSubtitleTap,
+                          scaleFactor: 0.97,
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Flexible(
+                                child: Text(
+                                  page.subtitle!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: t.title3.copyWith(
+                                    fontWeight: FontWeight.w500,
+                                    color: t.accent,
+                                  ),
+                                ),
+                              ),
+                              if (page.onSubtitleTap != null)
+                                NaviIcon(
+                                  NaviGlyph.chevron,
+                                  size: 15,
+                                  color: t.textSecondary,
+                                ),
+                            ],
+                          ),
+                        ),
+                      ],
+                      if (page.detail != null && page.detail!.isNotEmpty) ...[
+                        const SizedBox(height: Space.xs),
+                        Text(
+                          page.detail!,
+                          textAlign: textAlign,
+                          style: t.footnote,
+                        ),
+                      ],
                     ],
-                    if (page.detail != null && page.detail!.isNotEmpty) ...[
-                      const SizedBox(height: Space.xs),
-                      Text(page.detail!, textAlign: textAlign, style: t.footnote),
-                    ],
-                  ],
+                  ),
                 ),
-              ),
-            ],
-          ),
+              ],
+            ),
           ),
         ),
         if (page.buttons != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, 0),
+            padding: const EdgeInsets.fromLTRB(
+              Space.gutter,
+              Space.xs,
+              Space.gutter,
+              0,
+            ),
             child: Center(child: page.buttons),
           ),
         if (page.description != null && page.description!.isNotEmpty)
           Padding(
             padding: const EdgeInsets.fromLTRB(Space.xl, Space.lg, Space.xl, 0),
-            child: Text(page.description!, maxLines: 3, overflow: TextOverflow.ellipsis, style: t.subheadline),
+            child: Text(
+              page.description!,
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+              style: t.subheadline,
+            ),
           ),
         const SizedBox(height: Space.lg),
       ],
@@ -303,27 +349,35 @@ class _WideHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final art = ArtSize.of(context).header;
-    return Container(
-      // A soft wash of the artwork colour behind the header on wide windows.
-      decoration: BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topCenter,
-          end: Alignment.bottomCenter,
-          colors: [Color.alphaBlend(Colors.white.withValues(alpha: 0.06), t.bgBase), t.bgBase],
-        ),
+    // No box: the page's own tint runs edge to edge behind the header.
+    return Padding(
+      padding: EdgeInsets.fromLTRB(
+        Space.xxxl,
+        MediaQuery.paddingOf(context).top + 56,
+        Space.xxxl,
+        Space.xxl,
       ),
-      padding: EdgeInsets.fromLTRB(Space.xxxl, MediaQuery.paddingOf(context).top + 72, Space.xxxl, Space.xxl),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
           DecoratedBox(
             decoration: BoxDecoration(
               shape: page.artistStyle ? BoxShape.circle : BoxShape.rectangle,
-              borderRadius: page.artistStyle ? null : BorderRadius.circular(Radii.hero),
-              boxShadow: const [BoxShadow(color: Color(0x73000000), blurRadius: 36, offset: Offset(0, 14))],
+              borderRadius: page.artistStyle
+                  ? null
+                  : BorderRadius.circular(Radii.hero),
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x73000000),
+                  blurRadius: 36,
+                  offset: Offset(0, 14),
+                ),
+              ],
             ),
             child: ClipRRect(
-              borderRadius: BorderRadius.circular(page.artistStyle ? art / 2 : Radii.hero),
+              borderRadius: BorderRadius.circular(
+                page.artistStyle ? art / 2 : Radii.hero,
+              ),
               child: page.art(art),
             ),
           ),
@@ -332,22 +386,36 @@ class _WideHeader extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(page.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.largeTitle),
+                Text(
+                  page.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: t.largeTitle,
+                ),
                 if (page.subtitle != null && page.subtitle!.isNotEmpty)
                   CupertinoClickable(
                     onTap: page.onSubtitleTap,
                     scaleFactor: 0.98,
-                    child: Text(page.subtitle!, style: t.title3.copyWith(fontWeight: FontWeight.w500)),
+                    child: Text(
+                      page.subtitle!,
+                      style: t.title3.copyWith(fontWeight: FontWeight.w500),
+                    ),
                   ),
                 if (page.detail != null && page.detail!.isNotEmpty) ...[
                   const SizedBox(height: Space.xs),
                   Text(page.detail!, style: t.footnote),
                 ],
-                if (page.description != null && page.description!.isNotEmpty) ...[
+                if (page.description != null &&
+                    page.description!.isNotEmpty) ...[
                   const SizedBox(height: Space.md),
                   ConstrainedBox(
                     constraints: const BoxConstraints(maxWidth: 560),
-                    child: Text(page.description!, maxLines: 3, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                    child: Text(
+                      page.description!,
+                      maxLines: 3,
+                      overflow: TextOverflow.ellipsis,
+                      style: t.subheadline,
+                    ),
                   ),
                 ],
                 if (page.buttons != null) ...[
@@ -374,14 +442,21 @@ class _TopBar extends StatelessWidget {
   final List<Widget> actions;
   final ValueNotifier<double> offset;
   final double revealAt;
-  const _TopBar({required this.title, required this.actions, required this.offset, required this.revealAt});
+  const _TopBar({
+    required this.title,
+    required this.actions,
+    required this.offset,
+    required this.revealAt,
+  });
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final top = MediaQuery.paddingOf(context).top;
     // Windows and tablets show the breadcrumb bar's back arrow; one is enough.
-    final canPop = Navigator.of(context).canPop() && ShellKind.ofContext(context) == ShellKind.phone;
+    final canPop =
+        Navigator.of(context).canPop() &&
+        ShellKind.ofContext(context) == ShellKind.phone;
     return ValueListenableBuilder<double>(
       valueListenable: offset,
       builder: (context, o, _) {
@@ -391,7 +466,12 @@ class _TopBar extends StatelessWidget {
           padding: EdgeInsets.only(top: top, left: Space.sm, right: Space.sm),
           decoration: BoxDecoration(
             color: t.bgBase.withValues(alpha: reveal),
-            border: Border(bottom: BorderSide(color: t.outline.withValues(alpha: t.outline.a * reveal), width: 0.5)),
+            border: Border(
+              bottom: BorderSide(
+                color: t.outline.withValues(alpha: t.outline.a * reveal),
+                width: 0.5,
+              ),
+            ),
           ),
           child: Row(
             children: [
@@ -414,7 +494,8 @@ class _TopBar extends StatelessWidget {
                 ),
               ),
               ...actions,
-              if (actions.isEmpty && canPop) const SizedBox(width: BarCircleButton.size),
+              if (actions.isEmpty && canPop)
+                const SizedBox(width: BarCircleButton.size),
             ],
           ),
         );
@@ -433,7 +514,13 @@ class BarCircleButton extends StatelessWidget {
   final VoidCallback? onTap;
   final Widget? child;
 
-  const BarCircleButton({super.key, required this.icon, required this.label, this.onTap, this.child});
+  const BarCircleButton({
+    super.key,
+    required this.icon,
+    required this.label,
+    this.onTap,
+    this.child,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -457,10 +544,22 @@ class BarCircleButton extends StatelessWidget {
             decoration: BoxDecoration(
               color: t.bgElevated,
               shape: BoxShape.circle,
-              boxShadow: const [BoxShadow(color: Color(0x33000000), blurRadius: 8, offset: Offset(0, 2))],
+              boxShadow: const [
+                BoxShadow(
+                  color: Color(0x33000000),
+                  blurRadius: 8,
+                  offset: Offset(0, 2),
+                ),
+              ],
             ),
             alignment: Alignment.center,
-            child: child ?? NaviIcon(icon, size: 18, color: onTap == null ? t.textMuted : t.textPrimary),
+            child:
+                child ??
+                NaviIcon(
+                  icon,
+                  size: 18,
+                  color: onTap == null ? t.textMuted : t.textPrimary,
+                ),
           ),
         ),
       ),

@@ -9,6 +9,8 @@ import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import 'package:navivibe/features/social/ui/jam/jam_tab.dart';
 import 'package:navivibe/models/album.dart';
+import 'package:navivibe/models/playlist.dart';
+import 'package:navivibe/screens/playlist_details_screen.dart';
 import 'package:navivibe/screens/album_details_screen.dart';
 import 'package:navivibe/screens/home_screen.dart';
 import 'package:navivibe/screens/library/albums_page.dart';
@@ -35,6 +37,7 @@ const _sizes = <(String, Size)>[
   ('desktop 1280x720', Size(1280, 720)),
   ('desktop 1366x768', Size(1366, 768)),
   ('desktop 1920x1080', Size(1920, 1080)),
+  ('desktop 1920x1200', Size(1920, 1200)),
   ('desktop 2560x1440', Size(2560, 1440)),
 ];
 
@@ -50,6 +53,7 @@ final _pages = <(String, Widget Function())>[
   ('Jam', () => const JamTabScreen()),
   ('Stats', () => const StatsScreen()),
   ('Smart Shuffle', () => const AiShuffleScreen()),
+  ('Playlist', () => PlaylistDetailsScreen(playlist: Playlist(id: 'p1', name: 'A playlist with a rather long name', comment: '', songCount: 25, duration: 5400))),
   (
     'Album',
     () => AlbumDetailsScreen(
@@ -61,6 +65,7 @@ final _pages = <(String, Widget Function())>[
 void main() {
   tvSizes();
   artScale();
+  gridScale();
   late Directory dir;
 
   setUpAll(() async {
@@ -171,5 +176,35 @@ void artScale() {
     expect(ArtSize.tv.tile, greaterThan(ArtSize.phone.tile));
     expect(ArtSize.desktop.panel, greaterThan(0));
     expect(ArtSize.phone.panel, 0);
+  });
+}
+
+/// Grids stay on the platform's art scale as a window widens: more columns,
+/// never bigger tiles.
+void gridScale() {
+  for (final (label, content) in const [
+    ('1366x768 with sidebar + panel', 1366.0 - 248 - 320 - 32),
+    ('1920x1080 content column', 1180.0 - 32),
+    ('1920x1200 content column', 1180.0 - 32),
+    ('2560x1440 content column', 1180.0 - 32),
+    ('phone 360', 360.0 - 32),
+    ('phone 430', 430.0 - 32),
+  ]) {
+    test('tiles stay on the art scale at $label', () {
+      final desktop = !label.startsWith('phone');
+      final target = (desktop ? ArtSize.desktop : ArtSize.phone).tile;
+      const gap = Space.lg;
+      final cols = gridColumns(content, target);
+      final tile = (content - gap * (cols - 1)) / cols;
+      expect(tile, greaterThan(target * 0.6), reason: '$cols columns of $tile');
+      expect(tile, lessThan(target * 1.45), reason: '$cols columns of $tile');
+      expect(cols, greaterThanOrEqualTo(2));
+    });
+  }
+
+  test('a wider window gets more columns, not bigger tiles', () {
+    final narrow = gridColumns(600, ArtSize.desktop.tile);
+    final wide = gridColumns(1148, ArtSize.desktop.tile);
+    expect(wide, greaterThan(narrow));
   });
 }

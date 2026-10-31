@@ -172,7 +172,7 @@ class MediaGrid extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
       sliver: SliverLayoutBuilder(
         builder: (context, c) {
-          final columns = c.crossAxisExtent >= 900 ? 5 : c.crossAxisExtent >= 600 ? 3 : 2;
+          final columns = gridColumns(c.crossAxisExtent, ArtSize.of(context).tile);
           final card = (c.crossAxisExtent - Space.lg * (columns - 1)) / columns;
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

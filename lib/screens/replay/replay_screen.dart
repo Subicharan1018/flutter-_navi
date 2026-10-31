@@ -318,7 +318,7 @@ class _Figures extends StatelessWidget {
     ];
     return LayoutBuilder(
       builder: (context, c) {
-        final columns = c.maxWidth >= 600 ? 4 : 2;
+        final columns = gridColumns(c.maxWidth, 150);
         final w = (c.maxWidth - Space.md * (columns - 1)) / columns;
         return Wrap(
           spacing: Space.md,

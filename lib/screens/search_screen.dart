@@ -246,7 +246,7 @@ class _CategoryGrid extends StatelessWidget {
       sliver: SliverLayoutBuilder(
         builder: (context, c) => SliverGrid(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: c.crossAxisExtent >= 900 ? 4 : c.crossAxisExtent >= 600 ? 3 : 2,
+            crossAxisCount: gridColumns(c.crossAxisExtent, ArtSize.of(context).tile * 1.3),
             crossAxisSpacing: Space.md,
             mainAxisSpacing: Space.md,
             mainAxisExtent: 108,

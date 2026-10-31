@@ -184,7 +184,7 @@ class _PinsGrid extends ConsumerWidget {
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, 0),
       sliver: SliverLayoutBuilder(builder: (context, c) {
-        final columns = c.crossAxisExtent >= 600 ? 6 : 3;
+        final columns = gridColumns(c.crossAxisExtent, ArtSize.of(context).tile * 0.8, min: 3);
         final tile = (c.crossAxisExtent - Space.md * (columns - 1)) / columns;
         return SliverGrid(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(

@@ -638,3 +638,9 @@ class ArtSize {
         ShellKind.tv => tv,
       };
 }
+
+/// How many columns a grid gets: as many tiles of about [target] logical px as
+/// fit [width], at least [min]. More columns appear as a window widens; the
+/// tiles stay the size of the platform's art scale (see [ArtSize]) instead of
+/// growing with the window.
+int gridColumns(double width, double target, {int min = 2}) => math.max(min, (width / target).round());
