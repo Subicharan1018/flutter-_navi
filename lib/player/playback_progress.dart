@@ -46,7 +46,13 @@ class _PlaybackPositionState extends State<PlaybackPosition> {
 
   void _onPos(Duration p) {
     if (!mounted) return;
-    if (p == Duration.zero && _pos > const Duration(seconds: 1)) return;
+    // A zero while playing is just_audio switching sources; a zero while
+    // paused is a real rewind (end of queue, restart) and must show.
+    if (p == Duration.zero &&
+        _pos > const Duration(seconds: 1) &&
+        widget.player.playing) {
+      return;
+    }
     if ((p - _pos).abs() >= widget.resolution || p < _pos) {
       setState(() => _pos = p);
     }

@@ -174,6 +174,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       (state) {
         if (state.processingState == ProcessingState.completed) {
           debugPrint('ℹ️ [NaviAudioHandler] Processing state: completed');
+          // Desktop advances (or stops) in its own completion listener.
+          if (!_isDesktopBridge && _atQueueEnd()) unawaited(_stopAtQueueEnd());
         }
 
         final isStuckState = state.playing &&
@@ -1029,6 +1031,32 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
   }
 
+  /// True when the finished track was the last one and nothing repeats.
+  /// (With more than 100 queued songs the concatenated source ends before the
+  /// queue does; the player notifier advances those itself.)
+  bool _atQueueEnd() {
+    if (_repeatMode != LoopMode.off || _currentQueue.isEmpty) return false;
+    final index = _currentGlobalIndex();
+    return index == null || index >= _currentQueue.length - 1;
+  }
+
+  /// just_audio keeps `playing` true after the last track completes, so the
+  /// UI would show Pause with a full bar forever. Pause, then rewind so Play
+  /// restarts the last song.
+  Future<void> _stopAtQueueEnd() async {
+    debugPrint('🏁 [NaviAudioHandler] End of queue, stopping.');
+    try {
+      await player.pause();
+      // Let the completion listeners that read the final position (scrobble,
+      // listening stats) run before it is rewound.
+      await Future<void>.delayed(const Duration(milliseconds: 400));
+      if (player.playing) return; // something started playback meanwhile
+      await player.seek(Duration.zero);
+    } catch (e) {
+      debugPrint('⚠️ [NaviAudioHandler] Stop at queue end failed: $e');
+    }
+  }
+
   void _startDesktopCompletionListener() {
     _desktopCompletionSub?.cancel();
     _desktopCompletionSub = player.playerStateStream.listen((state) async {
@@ -1053,7 +1081,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         if (_repeatMode == LoopMode.all) {
           next = 0; // wrap around
         } else {
-          return; // end of queue, stay stopped
+          await _stopAtQueueEnd();
+          return;
         }
       }
 

@@ -14,6 +14,10 @@ class _FakePlayer extends Fake implements AudioPlayer {
   Duration _position = Duration.zero;
   Duration? _duration;
   final seeks = <Duration>[];
+  bool isPlaying = true;
+
+  @override
+  bool get playing => isPlaying;
 
   @override
   Duration get position => _position;
@@ -202,6 +206,31 @@ void main() {
       expect(seen.last.position, const Duration(milliseconds: 100500));
       await tick(const Duration(seconds: 101));
       expect(seen.last.position, const Duration(seconds: 101));
+    });
+
+    testWidgets('a rewind to zero while paused shows, while playing it does not', (
+      tester,
+    ) async {
+      final player = _FakePlayer();
+      addTearDown(player.close);
+      final seen = await pumpBuilder(tester, player, _song('a', 240));
+      player.setPosition(const Duration(seconds: 240));
+      await tester.pump();
+      await tester.pump();
+      expect(seen.last.position, const Duration(seconds: 240));
+
+      // A zero emitted while playing is a source switch: keep the bar.
+      player.setPosition(Duration.zero);
+      await tester.pump();
+      await tester.pump();
+      expect(seen.last.position, const Duration(seconds: 240));
+
+      // Paused at the end of the queue: the rewind is real.
+      player.isPlaying = false;
+      player.setPosition(Duration.zero);
+      await tester.pump();
+      await tester.pump();
+      expect(seen.last.position, Duration.zero);
     });
 
     testWidgets('a track change resets position and length', (tester) async {
