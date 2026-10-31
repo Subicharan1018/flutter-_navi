@@ -107,6 +107,33 @@ class FetchQueueItem {
       );
 }
 
+/// A song that didn't come in, and why ("the music bot didn't send this song").
+class FetchFailure {
+  final int batchId;
+  final String title;
+  final String artist;
+
+  /// Short reason; "not available in lossless" when the source only has it lossy.
+  final String reason;
+  final String user;
+
+  const FetchFailure({
+    required this.title,
+    this.batchId = 0,
+    this.artist = '',
+    this.reason = '',
+    this.user = '',
+  });
+
+  factory FetchFailure.fromJson(Map<String, dynamic> j) => FetchFailure(
+        batchId: (j['batch_id'] as num?)?.toInt() ?? 0,
+        title: j['title'] as String? ?? '',
+        artist: j['artist'] as String? ?? '',
+        reason: j['reason'] as String? ?? '',
+        user: j['user'] as String? ?? '',
+      );
+}
+
 class FetchQueue {
   /// This account is an admin: it sees everyone's downloads and can reorder.
   final bool admin;
@@ -117,7 +144,10 @@ class FetchQueue {
   /// Running first, then queued in running order, then the latest finished.
   final List<FetchQueueItem> items;
 
-  const FetchQueue({this.admin = false, this.maxLinks, this.items = const []});
+  /// The latest songs that didn't download, newest first.
+  final List<FetchFailure> failures;
+
+  const FetchQueue({this.admin = false, this.maxLinks, this.items = const [], this.failures = const []});
 
   List<FetchQueueItem> get active => [for (final i in items) if (i.canCancel) i];
   List<FetchQueueItem> get finished => [for (final i in items) if (!i.canCancel) i];
@@ -128,6 +158,10 @@ class FetchQueue {
         items: [
           for (final i in (j['items'] as List? ?? const []))
             if (i is Map) FetchQueueItem.fromJson(Map<String, dynamic>.from(i)),
+        ],
+        failures: [
+          for (final f in (j['failures'] as List? ?? const []))
+            if (f is Map) FetchFailure.fromJson(Map<String, dynamic>.from(f)),
         ],
       );
 }

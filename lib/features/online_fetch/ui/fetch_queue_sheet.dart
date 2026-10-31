@@ -74,7 +74,7 @@ class FetchQueueSheet extends ConsumerWidget {
               message: '$e',
               onRetry: () => ref.invalidate(fetchQueueProvider),
             ),
-            data: (q) => q.items.isEmpty
+            data: (q) => q.items.isEmpty && q.failures.isEmpty
                 ? const MessageState(
                     icon: NaviGlyph.download,
                     title: 'Nothing in the queue',
@@ -126,6 +126,10 @@ class _QueueList extends ConsumerWidget {
         if (finished.isNotEmpty) heading('Finished'),
         for (final (i, item) in finished.indexed)
           FetchQueueRow(item: item, admin: queue.admin, showSeparator: i < finished.length - 1),
+        if (queue.failures.isNotEmpty) ...[
+          heading('Couldn’t download (${queue.failures.length})'),
+          for (final f in queue.failures) _FailureRow(failure: f, showUser: queue.admin),
+        ],
       ],
     );
   }
@@ -225,6 +229,46 @@ class FetchQueueRow extends ConsumerWidget {
                 padding: const EdgeInsets.only(left: art + Space.md),
                 child: Container(height: 0.5, color: t.outline),
               ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// A song that didn't come in: its name, artist and why.
+class _FailureRow extends StatelessWidget {
+  final FetchFailure failure;
+  final bool showUser;
+  const _FailureRow({required this.failure, required this.showUser});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final detail = [
+      if (failure.artist.isNotEmpty) failure.artist,
+      if (failure.reason.isNotEmpty) failure.reason,
+      if (showUser && failure.user.isNotEmpty) failure.user,
+    ].join(' · ');
+    return Semantics(
+      label: '${failure.title}, $detail',
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.xs),
+        child: Row(
+          children: [
+            NaviIcon(NaviGlyph.alert, size: 18, color: t.danger),
+            const SizedBox(width: Space.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(failure.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
+                  if (detail.isNotEmpty)
+                    Text(detail, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.footnote),
+                ],
+              ),
+            ),
           ],
         ),
       ),

@@ -196,6 +196,30 @@ void main() {
       expect(find.byType(GeneratedCover), findsWidgets);                           // no cover from the server
     });
 
+    testWidgets('songs that failed are listed with why', (tester) async {
+      await pumpSheet(tester, {
+        ..._queue(items: [_item(3, 'done', title: 'Mix', more: {'summary': '1 of 3 songs.'})]),
+        'failures': [
+          {'batch_id': 3, 'title': 'Kanne Kanne', 'artist': 'Sam Cs', 'reason': 'the music bot didn’t send this song', 'user': 'subi'},
+          {'batch_id': 3, 'title': 'Lossy Song', 'artist': 'Someone', 'reason': 'not available in lossless', 'user': 'admin'},
+        ],
+      });
+      expect(find.text('Couldn’t download (2)'), findsOneWidget);
+      expect(find.text('Kanne Kanne'), findsOneWidget);
+      expect(find.text('Sam Cs · the music bot didn’t send this song · subi'), findsOneWidget);
+      expect(find.text('Lossy Song'), findsOneWidget);
+      expect(_glyph(NaviGlyph.alert), findsNWidgets(2));
+    });
+
+    testWidgets('only failures still show the list, not the empty message', (tester) async {
+      await pumpSheet(tester, {
+        ..._queue(),
+        'failures': [{'title': 'A', 'artist': 'B', 'reason': 'x', 'user': 'admin'}],
+      });
+      expect(find.text('Nothing in the queue'), findsNothing);
+      expect(find.text('Couldn’t download (1)'), findsOneWidget);
+    });
+
     testWidgets('a plain user has no reorder, and is told the link limit', (tester) async {
       await pumpSheet(
         tester,
