@@ -120,6 +120,8 @@ class HiveBoxes {
   static const kLocalFolders = 'local_music_folders';
   static const kDownloadDir = 'download_dir';
   // App updates (features/updates). The token lives in the encrypted auth box.
+  static const kNotificationsEnabled = 'app_notifications';
+  static const kUpdateNotifiedBuild = 'update_notified_build';
   static const kUpdateSource = 'update_source';
   static const kUpdateToken = 'update_token';
   static const kUpdateWifiOnly = 'update_wifi_only';

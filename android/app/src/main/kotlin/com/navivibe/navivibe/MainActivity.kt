@@ -10,14 +10,51 @@ import io.flutter.plugin.common.MethodChannel
 
 class MainActivity : AudioServiceActivity() {
     private var saf: SafChannel? = null
+    private var appChannel: MethodChannel? = null
+
+    // The intent that opened the app, kept until Dart asks for it once.
+    private var pendingIntent: Map<String, Any?>? = null
+
+    override fun onCreate(savedInstanceState: android.os.Bundle?) {
+        super.onCreate(savedInstanceState)
+        // A re-created activity (rotation) must not replay the same file.
+        if (savedInstanceState == null) pendingIntent = IntentRouter.parse(this, intent)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val parsed = IntentRouter.parse(this, intent) ?: return
+        val channel = appChannel
+        if (channel != null) channel.invokeMethod("onIntent", parsed) else pendingIntent = parsed
+    }
 
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         saf = SafChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         UpdateChannel(this, flutterEngine.dartExecutor.binaryMessenger)
-        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navivibe/android")
-            .setMethodCallHandler { call, result ->
+        AppNotifications.ensureChannels(this)
+        val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navivibe/android")
+        appChannel = channel
+        channel.setMethodCallHandler { call, result ->
                 when (call.method) {
+                    "getInitialIntent" -> {
+                        result.success(pendingIntent)
+                        pendingIntent = null
+                    }
+                    "notify" -> result.success(
+                        AppNotifications.show(
+                            this,
+                            call.argument<String>("channel") ?: "navivibe_updates",
+                            call.argument<Int>("id") ?: 1,
+                            call.argument<String>("title") ?: "NaviVibe",
+                            call.argument<String>("body") ?: "",
+                        ),
+                    )
+                    "notificationsEnabled" -> result.success(AppNotifications.enabled(this))
+                    "openNotificationSettings" -> {
+                        AppNotifications.openSettings(this)
+                        result.success(null)
+                    }
                     "updateWidget" -> {
                         NaviWidget.save(
                             this,

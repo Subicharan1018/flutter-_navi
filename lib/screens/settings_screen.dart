@@ -14,6 +14,7 @@ import '../features/month/ui/month_screen.dart';
 import '../features/taste/ui/taste_screen.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/last_error_row.dart';
+import '../widgets/notification_settings_section.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -522,6 +523,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
+          const NotificationSettingsSection(),
           GroupedSection(
             header: 'About',
             children: [

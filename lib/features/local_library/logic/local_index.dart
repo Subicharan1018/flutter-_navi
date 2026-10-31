@@ -28,6 +28,12 @@ class LocalLibraryIndex {
     _covers = Map.unmodifiable(covers);
   }
 
+  /// Adds one file (for example one opened from a file manager) without
+  /// touching the scanned library.
+  void register(String songId, String path) {
+    _paths = Map.unmodifiable({..._paths, songId: path});
+  }
+
   void clear() => replace(paths: const {}, covers: const {});
 
   /// What `just_audio` opens for a stored location.

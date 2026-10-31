@@ -19,6 +19,7 @@ import 'playback_tuning.dart';
 import '../core/hive_boxes.dart';
 import 'auto/browse_tree.dart';
 import 'auto/car_browser.dart';
+import 'open_intent.dart';
 
 // ---------------------------------------------------------------------------
 // AudioHandler
@@ -368,6 +369,19 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     String mediaId, [
     Map<String, dynamic>? extras,
   ]) => _playRequest(_car.resolve(mediaId), 'playFromMediaId($mediaId)');
+
+  /// Plays what Android opened the app for: a voice request, or an audio
+  /// file chosen with "Open with". Files play through the local-file path.
+  Future<void> playOpenIntent(OpenIntent intent) async {
+    switch (intent) {
+      case SearchIntent():
+        await playFromSearch(intent.query, intent.extras);
+      case ViewIntent():
+        final song = intent.toSong();
+        LocalLibraryIndex.instance.register(song.id, intent.path);
+        await _playRequest(Future.value(CarPlayRequest([song])), 'view(${intent.uri})');
+    }
+  }
 
   /// Voice: "Hey Google, play Radiohead on NaviVibe".
   @override

@@ -26,6 +26,7 @@ import 'providers/settings_provider.dart';
 import 'offline_service.dart';
 import 'services/navi_audio_handler.dart';
 import 'services/android_integration.dart';
+import 'services/notification_triggers.dart';
 import 'services/auto/browse_tree.dart' show CarStyle;
 import 'core/crash_log.dart';
 import 'providers/player_provider.dart';
@@ -134,6 +135,8 @@ Future<void> main() async {
   // Car / browse-tree playback goes through the same path as the UI.
   _wireCarControls(container, globalAudioHandler);
   AndroidIntegration.init(globalAudioHandler);
+  AndroidIntegration.listenForOpenIntents(globalAudioHandler.playOpenIntent);
+  wireNotificationTriggers(container);
 
   // Songs from Settings > Local music: load the file index, match them to the
   // server library, and rescan quietly a few seconds after launch.

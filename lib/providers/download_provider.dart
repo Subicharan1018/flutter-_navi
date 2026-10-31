@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 import '../models/download_state.dart';
 import '../offline_service.dart';
+import '../services/app_notifier.dart';
 import 'settings_provider.dart';
 
 // ---------------------------------------------------------------------------
@@ -136,7 +137,16 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
       return;
     }
 
+    unawaited(AppNotifier.prime()); // while the app is open: the prompt can't show later
     await _performDownload(song);
+    if (statusOf(song.id) == SongDownloadStatus.downloaded) {
+      unawaited(AppNotifier.show(
+        NotifyChannel.downloads,
+        id: 10,
+        title: 'Download finished',
+        body: '${song.title} is ready offline.',
+      ));
+    }
   }
 
   Future<void> _performDownload(Song song) async {
@@ -196,8 +206,18 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
         ),
     };
 
+    unawaited(AppNotifier.prime());
     for (final song in toDownload) {
       await _performDownload(song);
+    }
+    final done = toDownload.where((s) => statusOf(s.id) == SongDownloadStatus.downloaded).length;
+    if (done > 0) {
+      unawaited(AppNotifier.show(
+        NotifyChannel.downloads,
+        id: 10,
+        title: 'Downloads finished',
+        body: downloadsText(done, toDownload.length),
+      ));
     }
   }
 

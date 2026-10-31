@@ -4,6 +4,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../core/hive_boxes.dart';
 import '../utils/platform_utils.dart';
+import 'open_intent.dart';
 
 /// Android-only glue: home-screen widget state and the one-time
 /// POST_NOTIFICATIONS prompt. Every call is best-effort — a missing platform
@@ -64,15 +65,79 @@ class AndroidIntegration {
     });
   }
 
-  /// Asks once, on the first play, so the prompt arrives with a reason.
-  /// If denied, playback continues; only the media notification is hidden.
-  static Future<void> _requestNotificationsOnce() async {
+  /// Opened as a music player: a voice request ("play X on NaviVibe") or an
+  /// audio file ("Open with"). Covers the intent that launched the app (read
+  /// once) and any that arrive while it runs.
+  static void listenForOpenIntents(Future<void> Function(OpenIntent) onIntent) {
+    if (!PlatformUtils.isAndroid) return;
+    Future<void> handle(Object? raw) async {
+      final intent = OpenIntent.parse(raw);
+      if (intent == null) return;
+      try {
+        await onIntent(intent);
+      } catch (e) {
+        debugPrint('[AndroidIntegration] open intent failed: $e');
+      }
+    }
+
+    _channel.setMethodCallHandler((call) async {
+      if (call.method == 'onIntent') await handle(call.arguments);
+    });
+    unawaited(() async {
+      try {
+        await handle(await _channel.invokeMethod<Object?>('getInitialIntent'));
+      } catch (e) {
+        debugPrint('[AndroidIntegration] getInitialIntent failed: $e');
+      }
+    }());
+  }
+
+  /// Asks for the notification permission once, ever. Android 13+ shows the
+  /// system prompt; after two denials it never shows again, which is why
+  /// Settings links to the system page ([openNotificationSettings]).
+  static Future<void> _requestNotificationsOnce() => requestNotificationPermission();
+
+  static Future<void> requestNotificationPermission() async {
+    if (!PlatformUtils.isAndroid) return;
     try {
       if (HiveBoxes.prefs.get(_kAskedNotifications) == true) return;
       await HiveBoxes.prefs.put(_kAskedNotifications, true);
       await _invoke('requestNotificationPermission');
     } catch (_) {}
   }
+
+  /// Posts a notification; false when blocked (denied permission or channel off).
+  static Future<bool> notify({
+    required String channel,
+    required int id,
+    required String title,
+    required String body,
+  }) async {
+    try {
+      return await _channel.invokeMethod<bool>('notify', {
+            'channel': channel,
+            'id': id,
+            'title': title,
+            'body': body,
+          }) ??
+          false;
+    } catch (e) {
+      debugPrint('[AndroidIntegration] notify failed: $e');
+      return false;
+    }
+  }
+
+  /// Whether the system lets the app post notifications at all.
+  static Future<bool> notificationsEnabled() async {
+    if (!PlatformUtils.isAndroid) return true;
+    try {
+      return await _channel.invokeMethod<bool>('notificationsEnabled') ?? true;
+    } catch (_) {
+      return true;
+    }
+  }
+
+  static Future<void> openNotificationSettings() => _invoke('openNotificationSettings');
 
   static Future<void> _invoke(String method, [Object? args]) async {
     try {
