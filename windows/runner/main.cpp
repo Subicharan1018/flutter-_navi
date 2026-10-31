@@ -2,11 +2,26 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 
+#include <cwchar>
+
 #include "flutter_window.h"
 #include "utils.h"
 
+// Velopack runs the installed exe once at install, update and uninstall with
+// --veloapp-install / --veloapp-updated / --veloapp-obsolete / --veloapp-uninstall
+// <version> and waits a few seconds for it to exit. An app that does not answer
+// is killed and Setup reports "Install Partially Succeeded". NaviVibe has
+// nothing to do in these hooks, so it exits 0 before creating a window.
+static bool IsVelopackHook(const wchar_t *command_line) {
+  return command_line != nullptr && wcsstr(command_line, L"--veloapp-") != nullptr;
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
+  if (IsVelopackHook(command_line)) {
+    return EXIT_SUCCESS;
+  }
+
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
   if (!::AttachConsole(ATTACH_PARENT_PROCESS) && ::IsDebuggerPresent()) {
