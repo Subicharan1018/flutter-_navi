@@ -17,6 +17,9 @@ enum NaviGlyph {
   home,
   search,
   aiShuffle,
+
+  /// Crossed shuffle arrows plus a spark: Smart Shuffle, everywhere it's named.
+  smartShuffle,
   dashboard,
   library,
   play,
@@ -220,36 +223,36 @@ class NaviGlyphPainter extends CustomPainter {
         canvas.drawPath(p, fill);
         canvas.drawPath(p, stroke..strokeWidth = 2);
       case NaviGlyph.shuffle:
-        final a = Path()
-          ..moveTo(4, 7)
-          ..lineTo(7.5, 7)
-          ..cubicTo(12.5, 7, 11.5, 17, 16.5, 17)
-          ..lineTo(20, 17);
-        final b = Path()
-          ..moveTo(4, 17)
-          ..lineTo(7.5, 17)
-          ..cubicTo(9, 17, 10, 16.4, 10.8, 15.4);
-        final c = Path()
-          ..moveTo(13.2, 8.6)
-          ..cubicTo(14, 7.6, 15, 7, 16.5, 7)
-          ..lineTo(20, 7);
-        canvas.drawPath(a, stroke);
-        canvas.drawPath(b, stroke);
-        canvas.drawPath(c, stroke);
-        canvas.drawPath(
-          Path()
-            ..moveTo(18, 4.5)
-            ..lineTo(20.5, 7)
-            ..lineTo(18, 9.5),
-          stroke,
+        _shuffleArrows(canvas, stroke);
+      case NaviGlyph.smartShuffle:
+        // The same crossed arrows, tucked into the lower-left of the grid and
+        // drawn slightly lighter, with a four-point spark in the freed corner.
+        canvas.save();
+        canvas.translate(1.4, 6.2);
+        canvas.scale(0.78);
+        _shuffleArrows(
+          canvas,
+          Paint()
+            ..style = PaintingStyle.stroke
+            ..strokeCap = StrokeCap.round
+            ..strokeJoin = StrokeJoin.round
+            ..strokeWidth = stroke.strokeWidth / 0.78
+            ..color = color,
         );
-        canvas.drawPath(
-          Path()
-            ..moveTo(18, 14.5)
-            ..lineTo(20.5, 17)
-            ..lineTo(18, 19.5),
-          stroke,
-        );
+        canvas.restore();
+        const sx = 18.4;
+        const sy = 5.3;
+        const r = 4.1;
+        const pinch = 0.9;
+        final spark = Path()
+          ..moveTo(sx, sy - r)
+          ..quadraticBezierTo(sx + pinch, sy - pinch, sx + r, sy)
+          ..quadraticBezierTo(sx + pinch, sy + pinch, sx, sy + r)
+          ..quadraticBezierTo(sx - pinch, sy + pinch, sx - r, sy)
+          ..quadraticBezierTo(sx - pinch, sy - pinch, sx, sy - r)
+          ..close();
+        canvas.drawPath(spark, fill);
+        canvas.drawPath(spark, stroke..strokeWidth = 0.9);
       case NaviGlyph.addToPlaylist:
         canvas.drawLine(const Offset(4, 7), const Offset(14, 7), stroke);
         canvas.drawLine(const Offset(4, 12), const Offset(14, 12), stroke);
@@ -657,6 +660,47 @@ class NaviGlyphPainter extends CustomPainter {
       default:
         paintNaviGlyphExtra(canvas, glyph, stroke, fill, solid, filled);
     }
+  }
+
+  /// The crossed shuffle arrows on the 24-unit grid; shared by [NaviGlyph.shuffle]
+  /// and [NaviGlyph.smartShuffle].
+  void _shuffleArrows(Canvas canvas, Paint stroke) {
+    canvas.drawPath(
+      Path()
+        ..moveTo(4, 7)
+        ..lineTo(7.5, 7)
+        ..cubicTo(12.5, 7, 11.5, 17, 16.5, 17)
+        ..lineTo(20, 17),
+      stroke,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(4, 17)
+        ..lineTo(7.5, 17)
+        ..cubicTo(9, 17, 10, 16.4, 10.8, 15.4),
+      stroke,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(13.2, 8.6)
+        ..cubicTo(14, 7.6, 15, 7, 16.5, 7)
+        ..lineTo(20, 7),
+      stroke,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(18, 4.5)
+        ..lineTo(20.5, 7)
+        ..lineTo(18, 9.5),
+      stroke,
+    );
+    canvas.drawPath(
+      Path()
+        ..moveTo(18, 14.5)
+        ..lineTo(20.5, 17)
+        ..lineTo(18, 19.5),
+      stroke,
+    );
   }
 
   void _skip(Canvas canvas, Paint stroke, Paint fill, {required bool forward}) {

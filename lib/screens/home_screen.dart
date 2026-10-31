@@ -145,7 +145,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Smart Shuffle',
         subtitle: 'A mix tuned to the time of day and what you play most.',
-        art: MosaicArt(urls: mixArt, size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.signal, seed: coverSeed('Smart Shuffle')),
+        art: MosaicArt(urls: mixArt, size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.smartShuffle, seed: coverSeed('Smart Shuffle')),
         paletteCoverId: albums.isNotEmpty ? albums.first.coverArt : (recent.isNotEmpty ? recent.first.coverArt : null),
         width: cardWidth,
         onTap: () => navigateInApp(context, const AiShuffleScreen()),

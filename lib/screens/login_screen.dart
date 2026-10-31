@@ -159,7 +159,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       width: compact ? 64 : 84,
       height: compact ? 64 : 84,
       decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(compact ? 15 : 20)),
-      child: NaviIcon(NaviGlyph.aiShuffle, size: compact ? 34 : 44, color: t.onAccent),
+      child: NaviIcon(NaviGlyph.smartShuffle, size: compact ? 34 : 44, color: t.onAccent),
     );
     final cross = compact ? CrossAxisAlignment.start : CrossAxisAlignment.center;
     final align = compact ? TextAlign.start : TextAlign.center;

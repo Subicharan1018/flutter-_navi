@@ -266,7 +266,7 @@ class _MixCard extends ConsumerWidget {
           urls: [for (final s in mix.take(12)) svc.getCoverArtUrl(s.coverArt)],
           size: _art,
           radius: Radii.hero,
-          placeholderIcon: NaviGlyph.signal,
+          placeholderIcon: NaviGlyph.smartShuffle,
           seed: coverSeed('Smart Shuffle', mix.map((s) => s.id)),
         ),
         const SizedBox(height: Space.lg),

@@ -12,6 +12,7 @@ import '../widgets/desktop_dialogs.dart';
 import '../widgets/ui/action_sheet.dart';
 import 'artwork.dart';
 import 'edge_fade.dart';
+import 'mode_buttons.dart' show smartShuffleOnProvider;
 import 'now_playing_style.dart';
 
 /// Queue and history in one scroll: history lives ABOVE the anchor (scroll
@@ -204,6 +205,7 @@ class _ModePills extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final st = NowPlayingStyle.of(context);
     final shuffle = ref.watch(playerProvider.select((s) => s.shuffleMode));
+    final smartShuffle = ref.watch(smartShuffleOnProvider);
     final repeat = ref.watch(playerProvider.select((s) => s.repeatMode));
     final autoplay = ref.watch(playerProvider.select((s) => s.autoplayMode));
     final smartBusy = ref.watch(smartReshuffleBusyProvider);
@@ -218,8 +220,8 @@ class _ModePills extends ConsumerWidget {
         children: [
           Expanded(
             child: _Pill(
-              glyph: NaviGlyph.shuffle,
-              label: 'Shuffle',
+              glyph: smartShuffle ? NaviGlyph.smartShuffle : NaviGlyph.shuffle,
+              label: smartShuffle ? 'Smart Shuffle' : 'Shuffle',
               active: shuffle,
               style: st,
               onTap: n.toggleShuffle,
@@ -254,7 +256,7 @@ class _ModePills extends ConsumerWidget {
           const SizedBox(width: 8),
           Expanded(
             child: _Pill(
-              glyph: NaviGlyph.signal,
+              glyph: NaviGlyph.smartShuffle,
               label: 'Smart Reshuffle',
               active: false,
               toggle: false,
@@ -316,7 +318,7 @@ class _ShuffleModeSheet extends ConsumerWidget {
             SheetAction(
               label: 'Smart Reshuffle',
               detail: 'Fresh picks for right now',
-              icon: NaviGlyph.signal,
+              icon: NaviGlyph.smartShuffle,
               onTap: () => runSmartReshuffle(context, parentRef),
             ),
           ]),

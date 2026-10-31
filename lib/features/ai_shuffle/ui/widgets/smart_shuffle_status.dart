@@ -36,7 +36,7 @@ class SmartShuffleStatusButton extends ConsumerWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          const NaviIcon(NaviGlyph.aiShuffle, size: 26, semanticLabel: 'Smart Shuffle status'),
+          const NaviIcon(NaviGlyph.smartShuffle, size: 26, semanticLabel: 'Smart Shuffle status'),
           Positioned(
             right: -1,
             top: -1,
