@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:marquee/marquee.dart';
 
+import '../features/flow/logic/flow_controller.dart' show flowProvider;
 import '../features/flow/ui/flow_pill.dart';
 
 import '../core/motion.dart';
@@ -84,6 +85,11 @@ class NowPlayingRoute extends PageRoute<void> {
 
   bool _dragging = false;
 
+  /// If the finger is lost mid-drag (another gesture took over, a second touch,
+  /// the system cancelled it) no end event arrives and the sheet would sit
+  /// half open. This settles it fully open or closed instead.
+  Timer? _lostFinger;
+
   void dragStart() {
     if (_dragging || controller == null) return;
     _dragging = true;
@@ -93,9 +99,12 @@ class NowPlayingRoute extends PageRoute<void> {
   void dragUpdate(double dy, double height) {
     if (!_dragging) return;
     controller!.value = (controller!.value - dy / height).clamp(0.0, 1.0);
+    _lostFinger?.cancel();
+    _lostFinger = Timer(const Duration(milliseconds: 1500), () => dragEnd(0, height));
   }
 
   void dragEnd(double velocity, double height) {
+    _lostFinger?.cancel();
     if (!_dragging) return;
     _dragging = false;
     final offset = (1 - controller!.value) * height;
@@ -120,6 +129,12 @@ class NowPlayingRoute extends PageRoute<void> {
     } else {
       navigator?.didStopUserGesture();
     }
+  }
+
+  @override
+  void dispose() {
+    _lostFinger?.cancel();
+    super.dispose();
   }
 
   @override
@@ -252,7 +267,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
                       dim: wide ? 0.55 : (_pane == _Pane.none ? 0 : 1),
                     ),
                     if (smart != null) SmartBackdrop(context: smart, songId: song!.id),
-                    if (smart != null)
+                    if (smart != null && wide)
                       SafeArea(
                         child: Align(
                           alignment: Alignment.topCenter,
@@ -323,6 +338,8 @@ class _PhoneLayout extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final notifier = ref.read(playerProvider.notifier);
     final route = _route(context);
+    final flowActive = ref.watch(flowProvider.select((s) => s.active));
+    final smart = SmartContext.of(notifier.currentPlaylistName);
     final height = MediaQuery.sizeOf(context).height;
     // The covers either side of this one, for the swipe carousel.
     final index = ref.watch(playerProvider.select((s) => s.currentIndex));
@@ -342,6 +359,15 @@ class _PhoneLayout extends ConsumerWidget {
     return Column(
       children: [
         dismissible(_Grabber(onTap: () => Navigator.maybePop(context))),
+        // Its own slot between the grabber and the stage, so it never lands on the
+        // title: where this queue came from, and Flow's mood and Stop.
+        if (flowActive || smart != null)
+          dismissible(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: flowActive ? const FlowPill() : SmartContextPill(context: smart!),
+            ),
+          ),
         Expanded(
           child: _Stage(
             song: song,
@@ -365,7 +391,6 @@ class _PhoneLayout extends ConsumerWidget {
             child: Column(
               children: [
                 const PlayingOnChip(gap: 6),
-                const FlowPill(),
                 Scrubber(key: microduckTrackKey, player: notifier.player, song: song),
                 const SizedBox(height: 6),
                 // Apple Music's three: shuffle and repeat live in the queue.
