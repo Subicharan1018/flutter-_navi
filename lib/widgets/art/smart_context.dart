@@ -1,3 +1,5 @@
+import 'dart:ui' show ImageFilter;
+
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
@@ -94,8 +96,12 @@ class SmartBackdrop extends StatelessWidget {
               : const Duration(milliseconds: 700),
           child: Opacity(
             key: ValueKey(seed),
-            opacity: 0.16,
-            child: SizedBox.expand(child: GeneratedCover.seeded(seed: seed)),
+            // A whisper, blurred: the album colour stays the star, text keeps its contrast.
+            opacity: 0.06,
+            child: ImageFiltered(
+              imageFilter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: SizedBox.expand(child: GeneratedCover.seeded(seed: seed)),
+            ),
           ),
         ),
       ),

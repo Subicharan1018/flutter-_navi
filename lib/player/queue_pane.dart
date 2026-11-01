@@ -29,7 +29,12 @@ class QueuePane extends ConsumerStatefulWidget {
   /// Called after a row tap jumps playback (e.g. to collapse a sheet).
   final VoidCallback? onJumped;
 
-  const QueuePane({super.key, required this.style, this.showCurrent = false, this.onJumped});
+  const QueuePane({
+    super.key,
+    required this.style,
+    this.showCurrent = false,
+    this.onJumped,
+  });
 
   @override
   ConsumerState<QueuePane> createState() => _QueuePaneState();
@@ -47,150 +52,167 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
     final notifier = ref.read(playerProvider.notifier);
     final service = ref.read(subsonicServiceProvider);
 
-    final upNext = current + 1 < queue.length ? queue.sublist(current + 1) : const <Song>[];
+    final upNext = current + 1 < queue.length
+        ? queue.sublist(current + 1)
+        : const <Song>[];
     final currentSong = current < queue.length ? queue[current] : null;
 
     return EdgeFade(
       top: 0.03,
       bottom: 0.08,
       child: CustomScrollView(
-      center: _anchor,
-      physics: const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
-      slivers: [
-        // ── History (laid out upward from the anchor) ─────────────────────
-        if (history.isNotEmpty)
-          SliverToBoxAdapter(
-            child: _SectionHeader(
-              title: 'History',
-              style: st,
-              trailing: _TextAction(
-                label: 'Clear',
-                style: st,
-                onTap: () {
-                  HapticFeedback.mediumImpact();
-                  notifier.clearHistory();
-                },
-              ),
-            ),
-          ),
-        if (history.isNotEmpty)
-          SliverList.builder(
-            itemCount: history.length,
-            itemBuilder: (context, i) {
-              // i == 0 is directly above the anchor → most recent first.
-              final song = history[history.length - 1 - i];
-              return Opacity(
-                opacity: 0.62,
-                child: _QueueRow(
-                  song: song,
-                  url: service.getCoverArtUrl(song.coverArt),
-                  style: st,
-                  onTap: () {
-                    final idx = queue.lastIndexWhere((s) => s.id == song.id);
-                    idx >= 0 ? notifier.jumpTo(idx) : notifier.setQueue([song], 0);
-                    widget.onJumped?.call();
-                  },
-                ),
-              );
-            },
-          ),
-
-        // ── Anchor: Playing Next header + mode pills ──────────────────────
-        SliverToBoxAdapter(
-          key: _anchor,
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: [
-              if (widget.showCurrent && currentSong != null) ...[
-                _SectionHeader(title: 'Now Playing', style: st),
-                _QueueRow(
-                  song: currentSong,
-                  url: service.getCoverArtUrl(currentSong.coverArt),
-                  style: st,
-                  isCurrent: true,
-                ),
-              ],
-              _SectionHeader(
-                title: 'Playing Next',
-                style: st,
-                subtitle: upNext.isEmpty
-                    ? null
-                    : '${upNext.length} ${upNext.length == 1 ? 'song' : 'songs'}',
-              ),
-              const _ModePills(),
-              const SizedBox(height: 6),
-            ],
-          ),
+        center: _anchor,
+        physics: const BouncingScrollPhysics(
+          parent: AlwaysScrollableScrollPhysics(),
         ),
-
-        // ── Up next ────────────────────────────────────────────────────────
-        if (upNext.isEmpty)
-          SliverToBoxAdapter(child: _EmptyNext(style: st))
-        else
-          SliverReorderableList(
-            itemCount: upNext.length,
-            proxyDecorator: (child, index, anim) => AnimatedBuilder(
-              animation: anim,
-              builder: (context, c) => Material(
-                color: Colors.transparent,
-                elevation: 0,
-                child: DecoratedBox(
-                  decoration: BoxDecoration(
-                    color: st.rowLifted.withValues(alpha: 0.92 * anim.value),
-                    borderRadius: BorderRadius.circular(12),
-                    boxShadow: [
-                      BoxShadow(
-                        color: Colors.black.withValues(alpha: 0.35 * anim.value),
-                        blurRadius: 18,
-                        offset: const Offset(0, 8),
-                      ),
-                    ],
-                  ),
-                  child: c,
-                ),
-              ),
-              child: child,
-            ),
-            // onReorderItem already reports the post-removal index that
-            // reorderQueue expects.
-            onReorderItem: (oldIdx, newIdx) {
-              if (newIdx == oldIdx) return;
-              HapticFeedback.selectionClick();
-              notifier.reorderQueue(current + 1 + oldIdx, current + 1 + newIdx);
-            },
-            itemBuilder: (context, i) {
-              final song = upNext[i];
-              final qIdx = current + 1 + i;
-              return _Swipeable(
-                // Absolute index keeps keys unique when a song repeats.
-                key: ValueKey('q_${song.id}_$qIdx'),
+        slivers: [
+          // ── History (laid out upward from the anchor) ─────────────────────
+          if (history.isNotEmpty)
+            SliverToBoxAdapter(
+              child: _SectionHeader(
+                title: 'History',
                 style: st,
-                onRemove: () => notifier.removeFromQueue(qIdx),
-                child: _QueueRow(
-                  song: song,
-                  url: service.getCoverArtUrl(song.coverArt),
+                trailing: _TextAction(
+                  label: 'Clear',
                   style: st,
                   onTap: () {
-                    notifier.jumpTo(qIdx);
-                    widget.onJumped?.call();
+                    HapticFeedback.mediumImpact();
+                    notifier.clearHistory();
                   },
-                  trailing: ReorderableDragStartListener(
-                    index: i,
-                    child: Semantics(
-                      label: 'Reorder ${song.title}',
-                      child: SizedBox(
-                        width: 48,
-                        height: 48,
-                        child: NaviIcon(NaviGlyph.grip, color: st.textMuted, size: 18),
+                ),
+              ),
+            ),
+          if (history.isNotEmpty)
+            SliverList.builder(
+              itemCount: history.length,
+              itemBuilder: (context, i) {
+                // i == 0 is directly above the anchor → most recent first.
+                final song = history[history.length - 1 - i];
+                return Opacity(
+                  opacity: 0.62,
+                  child: _QueueRow(
+                    song: song,
+                    url: service.getCoverArtUrl(song.coverArt),
+                    style: st,
+                    onTap: () {
+                      final idx = queue.lastIndexWhere((s) => s.id == song.id);
+                      idx >= 0
+                          ? notifier.jumpTo(idx)
+                          : notifier.setQueue([song], 0);
+                      widget.onJumped?.call();
+                    },
+                  ),
+                );
+              },
+            ),
+
+          // ── Anchor: Playing Next header + mode pills ──────────────────────
+          SliverToBoxAdapter(
+            key: _anchor,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (widget.showCurrent && currentSong != null) ...[
+                  _SectionHeader(title: 'Now Playing', style: st),
+                  _QueueRow(
+                    song: currentSong,
+                    url: service.getCoverArtUrl(currentSong.coverArt),
+                    style: st,
+                    isCurrent: true,
+                  ),
+                ],
+                _SectionHeader(
+                  title: 'Playing Next',
+                  style: st,
+                  subtitle: upNext.isEmpty
+                      ? null
+                      : '${upNext.length} ${upNext.length == 1 ? 'song' : 'songs'}',
+                ),
+                const _ModePills(),
+                const SizedBox(height: 6),
+              ],
+            ),
+          ),
+
+          // ── Up next ────────────────────────────────────────────────────────
+          if (upNext.isEmpty)
+            SliverToBoxAdapter(child: _EmptyNext(style: st))
+          else
+            SliverReorderableList(
+              itemCount: upNext.length,
+              proxyDecorator: (child, index, anim) => AnimatedBuilder(
+                animation: anim,
+                builder: (context, c) => Material(
+                  color: Colors.transparent,
+                  elevation: 0,
+                  child: DecoratedBox(
+                    decoration: BoxDecoration(
+                      color: st.rowLifted.withValues(alpha: 0.92 * anim.value),
+                      borderRadius: BorderRadius.circular(12),
+                      boxShadow: [
+                        BoxShadow(
+                          color: Colors.black.withValues(
+                            alpha: 0.35 * anim.value,
+                          ),
+                          blurRadius: 18,
+                          offset: const Offset(0, 8),
+                        ),
+                      ],
+                    ),
+                    child: c,
+                  ),
+                ),
+                child: child,
+              ),
+              // onReorderItem already reports the post-removal index that
+              // reorderQueue expects.
+              onReorderItem: (oldIdx, newIdx) {
+                if (newIdx == oldIdx) return;
+                HapticFeedback.selectionClick();
+                notifier.reorderQueue(
+                  current + 1 + oldIdx,
+                  current + 1 + newIdx,
+                );
+              },
+              itemBuilder: (context, i) {
+                final song = upNext[i];
+                final qIdx = current + 1 + i;
+                return _Swipeable(
+                  // Absolute index keeps keys unique when a song repeats.
+                  key: ValueKey('q_${song.id}_$qIdx'),
+                  style: st,
+                  onRemove: () => notifier.removeFromQueue(qIdx),
+                  child: _QueueRow(
+                    song: song,
+                    url: service.getCoverArtUrl(song.coverArt),
+                    style: st,
+                    onTap: () {
+                      notifier.jumpTo(qIdx);
+                      widget.onJumped?.call();
+                    },
+                    trailing: ReorderableDragStartListener(
+                      index: i,
+                      child: Semantics(
+                        label: 'Reorder ${song.title}',
+                        child: SizedBox(
+                          width: 48,
+                          height: 48,
+                          child: NaviIcon(
+                            NaviGlyph.grip,
+                            color: st.textMuted,
+                            size: 18,
+                          ),
+                        ),
                       ),
                     ),
                   ),
-                ),
-              );
-            },
+                );
+              },
+            ),
+          SliverToBoxAdapter(
+            child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom),
           ),
-        SliverToBoxAdapter(child: SizedBox(height: 24 + MediaQuery.paddingOf(context).bottom)),
-      ],
+        ],
       ),
     );
   }
@@ -297,7 +319,9 @@ class _ShuffleModeSheet extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
-    final current = ref.watch(settingsProvider.select((s) => s.shuffleAlgorithm));
+    final current = ref.watch(
+      settingsProvider.select((s) => s.shuffleAlgorithm),
+    );
     final shuffleOn = ref.watch(playerProvider.select((s) => s.shuffleMode));
     final modes = [..._quick, if (!_quick.contains(current)) current];
     // The sheet closes before an action runs; act through the page's ref.
@@ -308,35 +332,43 @@ class _ShuffleModeSheet extends ConsumerWidget {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          SheetGroup(children: [
-            SheetAction(
-              label: shuffleOn ? 'Shuffle Up Next Again' : 'Shuffle Up Next',
-              detail: 'Random order',
-              icon: NaviGlyph.shuffle,
-              onTap: player.applyShuffleAlgorithm,
-            ),
-            SheetAction(
-              label: 'Smart Reshuffle',
-              detail: 'Fresh picks for right now',
-              icon: NaviGlyph.smartShuffle,
-              onTap: () => runSmartReshuffle(context, parentRef),
-            ),
-          ]),
-          SheetGroup(children: [
-            for (final algo in modes)
+          SheetGroup(
+            children: [
               SheetAction(
-                label: algo.label,
-                detail: algo.summary,
-                trailing: SizedBox(
-                  width: 22,
-                  child: algo == current ? NaviIcon(NaviGlyph.check, size: 20, color: t.accent) : null,
-                ),
-                onTap: () async {
-                  parentRef.read(settingsProvider.notifier).setShuffleAlgorithm(algo);
-                  if (shuffleOn) await player.applyShuffleAlgorithm();
-                },
+                label: shuffleOn ? 'Shuffle Up Next Again' : 'Shuffle Up Next',
+                detail: 'Random order',
+                icon: NaviGlyph.shuffle,
+                onTap: player.applyShuffleAlgorithm,
               ),
-          ]),
+              SheetAction(
+                label: 'Smart Reshuffle',
+                detail: 'Fresh picks for right now',
+                icon: NaviGlyph.smartShuffle,
+                onTap: () => runSmartReshuffle(context, parentRef),
+              ),
+            ],
+          ),
+          SheetGroup(
+            children: [
+              for (final algo in modes)
+                SheetAction(
+                  label: algo.label,
+                  detail: algo.summary,
+                  trailing: SizedBox(
+                    width: 22,
+                    child: algo == current
+                        ? NaviIcon(NaviGlyph.check, size: 20, color: t.accent)
+                        : null,
+                  ),
+                  onTap: () async {
+                    parentRef
+                        .read(settingsProvider.notifier)
+                        .setShuffleAlgorithm(algo);
+                    if (shuffleOn) await player.applyShuffleAlgorithm();
+                  },
+                ),
+            ],
+          ),
         ],
       ),
     );
@@ -344,7 +376,6 @@ class _ShuffleModeSheet extends ConsumerWidget {
 }
 
 class _Pill extends StatelessWidget {
-
   /// One of NaviVibe's own glyphs.
   final NaviGlyph glyph;
 
@@ -376,46 +407,67 @@ class _Pill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = active ? style.pillOnActive : style.textPrimary;
+    // A bare icon, not a boxed tile (DESIGN.md: no card containers). On: full
+    // strength with a dot under it; off: dimmed with no dot. The whole
+    // equal-width cell stays tappable.
+    final on = active && toggle;
+    final fg = on
+        ? style.textPrimary
+        : style.textPrimary.withValues(alpha: 0.6);
     return CupertinoClickable(
-      semanticLabel: busy ? '$label, working' : (toggle ? '$label ${active ? 'on' : 'off'}' : label),
+      semanticLabel: busy
+          ? '$label, working'
+          : (toggle ? '$label ${active ? 'on' : 'off'}' : label),
       onTap: () {
         if (busy) return;
         HapticFeedback.selectionClick();
         onTap();
       },
       onLongPress: onLongPress,
-      child: AnimatedContainer(
-        duration: const Duration(milliseconds: 220),
-        curve: Curves.easeOutCubic,
-        height: 44,
-        decoration: BoxDecoration(
-          color: active ? style.pillActive : style.pillIdle,
-          borderRadius: BorderRadius.circular(14),
-        ),
-        alignment: Alignment.center,
-        child: AnimatedSwitcher(
-          duration: const Duration(milliseconds: 160),
-          child: busy
-              ? SizedBox(
-                  key: const ValueKey('busy'),
-                  width: 20,
-                  height: 20,
-                  child: CircularProgressIndicator(strokeWidth: 2, color: fg),
-                )
-              : Stack(
-                  key: ValueKey(badge),
-                  clipBehavior: Clip.none,
-                  children: [
-                    NaviIcon(glyph, size: 20, color: fg),
-                    if (badge != null)
-                      Positioned(
-                        right: -5,
-                        top: -4,
-                        child: Text(badge!, style: naviText(10, FontWeight.w800, fg)),
+      child: SizedBox(
+        height: 48,
+        child: Center(
+          child: AnimatedSwitcher(
+            duration: const Duration(milliseconds: 160),
+            child: busy
+                ? SizedBox(
+                    key: const ValueKey('busy'),
+                    width: 20,
+                    height: 20,
+                    child: CircularProgressIndicator(strokeWidth: 2, color: fg),
+                  )
+                : Column(
+                    key: ValueKey(badge),
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          NaviIcon(glyph, size: 22, color: fg),
+                          if (badge != null)
+                            Positioned(
+                              right: -5,
+                              top: -4,
+                              child: Text(
+                                badge!,
+                                style: naviText(10, FontWeight.w800, fg),
+                              ),
+                            ),
+                        ],
                       ),
-                  ],
-                ),
+                      const SizedBox(height: 5),
+                      AnimatedContainer(
+                        duration: const Duration(milliseconds: 200),
+                        width: 4,
+                        height: 4,
+                        decoration: BoxDecoration(
+                          shape: BoxShape.circle,
+                          color: on ? fg : Colors.transparent,
+                        ),
+                      ),
+                    ],
+                  ),
+          ),
         ),
       ),
     );
@@ -514,7 +566,12 @@ class _Swipeable extends StatelessWidget {
   final VoidCallback onRemove;
   final NowPlayingStyle style;
 
-  const _Swipeable({super.key, required this.child, required this.onRemove, required this.style});
+  const _Swipeable({
+    super.key,
+    required this.child,
+    required this.onRemove,
+    required this.style,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -528,7 +585,8 @@ class _Swipeable extends StatelessWidget {
       background: Container(
         alignment: Alignment.centerRight,
         padding: const EdgeInsets.only(right: 24),
-        color: AppThemeTokens.systemRed, // destructive: the one hue kept in monochrome
+        color: AppThemeTokens
+            .systemRed, // destructive: the one hue kept in monochrome
         child: const NaviIcon(NaviGlyph.minusCircle, color: Colors.white),
       ),
       child: child,
@@ -542,7 +600,12 @@ class _SectionHeader extends StatelessWidget {
   final Widget? trailing;
   final NowPlayingStyle style;
 
-  const _SectionHeader({required this.title, required this.style, this.subtitle, this.trailing});
+  const _SectionHeader({
+    required this.title,
+    required this.style,
+    this.subtitle,
+    this.trailing,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -555,7 +618,10 @@ class _SectionHeader extends StatelessWidget {
           Text(title, style: naviText(19, FontWeight.w700, style.textPrimary)),
           if (subtitle != null) ...[
             const SizedBox(width: 8),
-            Text(subtitle!, style: naviText(13, FontWeight.w500, style.textMuted)),
+            Text(
+              subtitle!,
+              style: naviText(13, FontWeight.w500, style.textMuted),
+            ),
           ],
           const Spacer(),
           ?trailing,
@@ -569,14 +635,24 @@ class _TextAction extends StatelessWidget {
   final String label;
   final VoidCallback onTap;
   final NowPlayingStyle style;
-  const _TextAction({required this.label, required this.onTap, required this.style});
+  const _TextAction({
+    required this.label,
+    required this.onTap,
+    required this.style,
+  });
 
   @override
   Widget build(BuildContext context) {
     return TextButton(
       onPressed: onTap,
-      style: TextButton.styleFrom(foregroundColor: style.textSecondary, minimumSize: const Size(48, 40)),
-      child: Text(label, style: naviText(14, FontWeight.w600, style.textSecondary)),
+      style: TextButton.styleFrom(
+        foregroundColor: style.textSecondary,
+        minimumSize: const Size(48, 40),
+      ),
+      child: Text(
+        label,
+        style: naviText(14, FontWeight.w600, style.textSecondary),
+      ),
     );
   }
 }
@@ -594,7 +670,11 @@ class _EmptyNext extends ConsumerWidget {
         autoplay
             ? 'Nothing queued. Autoplay will keep the music going with songs like this one.'
             : 'Nothing queued. Turn on Autoplay to keep the music going when this song ends.',
-        style: naviText(14, FontWeight.w500, style.textSecondary).copyWith(height: 1.45),
+        style: naviText(
+          14,
+          FontWeight.w500,
+          style.textSecondary,
+        ).copyWith(height: 1.45),
       ),
     );
   }

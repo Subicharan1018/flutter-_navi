@@ -20,7 +20,7 @@ class FlowPill extends ConsumerWidget {
     final t = ThemeTokens.of(context);
     final label = mood == null ? 'Flow' : 'Flow · ${mood[0].toUpperCase()}${mood.substring(1)}';
     return Padding(
-      padding: const EdgeInsets.only(bottom: Space.sm),
+      padding: EdgeInsets.zero,
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [

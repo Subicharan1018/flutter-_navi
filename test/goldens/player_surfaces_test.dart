@@ -23,6 +23,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:navivibe/core/album_palette.dart';
 import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/features/flow/logic/flow_controller.dart';
 import 'package:navivibe/lyrics/controllers/lyrics_controller.dart';
 import 'package:navivibe/lyrics/models/lyric_line.dart';
 import 'package:navivibe/models/song.dart';
@@ -125,12 +126,24 @@ class _FakeAudioPlayer extends Fake implements AudioPlayer {
 }
 
 class _FakePlayer extends StateNotifier<PlayerState> implements PlayerNotifier {
+  /// What the queue was started from (null: an ordinary queue).
+  static String? queueName;
+  @override
+  String? get currentPlaylistName => queueName;
+
   final _FakeAudioPlayer _player;
   _FakePlayer(super.state, Duration pos) : _player = _FakeAudioPlayer(pos);
   @override
   AudioPlayer get player => _player;
   @override
   dynamic noSuchMethod(Invocation i) => i.isMethod ? Future<void>.value() : null;
+}
+
+
+/// Flow as the app sees it while it feeds the queue.
+class _ActiveFlow extends FlowController {
+  @override
+  FlowState build() => const FlowState(active: true, mood: 'happy');
 }
 
 class _FakeSettings extends StateNotifier<SettingsState> implements SettingsNotifier {
@@ -201,6 +214,7 @@ Widget _app({
       subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
       nowPlayingArtworkProvider.overrideWith(() => _FixedArtwork(art)),
       lyricsControllerProvider.overrideWith(_FakeLyrics.new),
+      if (_FakePlayer.queueName == 'Flow') flowProvider.overrideWith(_ActiveFlow.new),
     ],
     child: ThemeTokens(
       tokens: tokens,
@@ -300,6 +314,53 @@ void main() {
   testWidgets('now playing — queue', (t) => shot(t, 'np_queue', songIndex: 1, tap: 'Queue'));
   testWidgets('now playing — lyrics', (t) => shot(t, 'np_lyrics', songIndex: 3, tap: 'Lyrics'));
   testWidgets('now playing — wide', (t) => shot(t, 'np_wide', songIndex: 0, size: const Size(1440, 900)));
+  // Phone widths and text sizes, during Flow (the busiest header: the Flow
+  // chips share a slot above the title), normal and queue mode: nothing may overflow.
+  for (final size in const [Size(360, 780), Size(393, 852), Size(412, 915)]) {
+    for (final scale in const [1.0, 1.3]) {
+      for (final queue in const [false, true]) {
+        testWidgets('now playing during Flow fits ${size.width.toInt()}dp x$scale${queue ? ' queue' : ''}', (tester) async {
+          _FakePlayer.queueName = 'Flow';
+          addTearDown(() => _FakePlayer.queueName = null);
+          await tester.runAsync(_prepareCovers);
+          await tester.runAsync(ArtworkField.precache);
+          final art = (await tester.runAsync(() => _artworkFor(_songs[0])))!;
+          tester.view.physicalSize = size * 3;
+          tester.view.devicePixelRatio = 3;
+          tester.view.padding = const FakeViewPadding(top: 47 * 3, bottom: 34 * 3);
+          addTearDown(tester.view.reset);
+          await tester.pumpWidget(_app(
+            current: _songs[0],
+            art: art,
+            home: Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+                child: const NowPlayingScreen(),
+              ),
+            ),
+          ));
+          await _settle(tester);
+          if (queue) {
+            await tester.tap(find.bySemanticsLabel('Queue').first);
+            await _settle(tester);
+          }
+          expect(tester.takeException(), isNull, reason: 'overflow at ${size.width}dp text x$scale');
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump(const Duration(seconds: 3));
+        });
+      }
+    }
+  }
+  testWidgets('now playing — during Flow', (t) async {
+    _FakePlayer.queueName = 'Flow';
+    addTearDown(() => _FakePlayer.queueName = null);
+    await shot(t, 'np_flow', songIndex: 0, size: const Size(412, 915));
+  });
+  testWidgets('now playing — queue during Flow', (t) async {
+    _FakePlayer.queueName = 'Flow';
+    addTearDown(() => _FakePlayer.queueName = null);
+    await shot(t, 'np_flow_queue', songIndex: 1, size: const Size(412, 915), tap: 'Queue');
+  });
   testWidgets('mini player over a list', (t) => shot(
         t,
         'mini_player',
