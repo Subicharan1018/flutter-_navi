@@ -165,6 +165,71 @@ List<FlowMood> parseFlowMoods(Map<String, dynamic> j) => [
         if (_str(m['mood']).isNotEmpty) FlowMood(_str(m['mood']), _int(m['songs'])),
     ];
 
+/// A language the library has songs in.
+class FlowLanguage {
+  final String code;
+  final String name;
+  final int songs;
+  const FlowLanguage(this.code, this.name, this.songs);
+
+  static FlowLanguage? parse(Map<String, dynamic> j) {
+    final code = _str(j['code']);
+    if (code.isEmpty) return null;
+    final name = _str(j['name']);
+    return FlowLanguage(code, name.isEmpty ? (languageNames[code] ?? code.toUpperCase()) : name, _int(j['songs']));
+  }
+}
+
+/// The Flow language setting (`/flow/prefs`): which languages Flow and the weekly
+/// mix draw from ([languages] empty means any), whether the explorer may offer
+/// songs in new languages, and the languages the library has to choose from.
+class FlowPrefs {
+  final List<String> languages;
+  final bool explore;
+  final List<FlowLanguage> available;
+  const FlowPrefs({this.languages = const [], this.explore = true, this.available = const []});
+
+  bool get isAny => languages.isEmpty;
+
+  factory FlowPrefs.fromJson(Map<String, dynamic> j) => FlowPrefs(
+        languages: [
+          if (j['languages'] is List)
+            for (final c in j['languages'] as List)
+              if (c is String && c.isNotEmpty) c,
+        ],
+        explore: j['explore'] != false,
+        available: [for (final m in _maps(j['available'])) ?FlowLanguage.parse(m)],
+      );
+
+  FlowPrefs copyWith({List<String>? languages, bool? explore}) =>
+      FlowPrefs(languages: languages ?? this.languages, explore: explore ?? this.explore, available: available);
+
+  /// The language with its readable name, or its code when the library doesn't list it.
+  String nameOf(String code) {
+    for (final l in available) {
+      if (l.code == code) return l.name;
+    }
+    return languageNames[code] ?? code.toUpperCase();
+  }
+
+  /// How the setting reads in Settings: "Any", "Tamil", "Tamil, Malayalam", "4 languages".
+  String get summary => switch (languages.length) {
+        0 => 'Any',
+        1 || 2 => languages.map(nameOf).join(', '),
+        final n => '$n languages',
+      };
+
+  @override
+  bool operator ==(Object other) =>
+      other is FlowPrefs &&
+      other.explore == explore &&
+      other.languages.length == languages.length &&
+      [for (var i = 0; i < languages.length; i++) other.languages[i] == languages[i]].every((e) => e);
+
+  @override
+  int get hashCode => Object.hash(explore, Object.hashAll(languages));
+}
+
 /// What "never recommend" can be about.
 enum TasteKind {
   song,
