@@ -12,7 +12,7 @@ class ListenException implements Exception {
 }
 
 /// Client for the shuffle server's personal routes: `/mix/weekly`,
-/// `/flow/next`, `/flow/moods`, `/taste/exclusions` and `/stats/month`. Build
+/// `/flow/next`, `/flow/moods`, `/flow/prefs`, `/taste/exclusions` and `/stats/month`. Build
 /// it with `createShuffleDio` so it shares the shuffle client's auth and retries.
 class ListenApi {
   final Dio _dio;
@@ -50,6 +50,22 @@ class ListenApi {
   Future<List<FlowMood>> flowMoods() => _wrap(() async {
         final r = await _dio.get<Map<String, dynamic>>('/flow/moods');
         return parseFlowMoods(r.data ?? const {});
+      });
+
+  /// The Flow language setting, with the languages the library has.
+  Future<FlowPrefs> flowPrefs() => _wrap(() async {
+        final r = await _dio.get<Map<String, dynamic>>('/flow/prefs');
+        return FlowPrefs.fromJson(r.data ?? const {});
+      });
+
+  /// Saves what is given (the rest stays as it was) and returns the setting.
+  Future<FlowPrefs> saveFlowPrefs({List<String>? languages, bool? explore}) => _wrap(() async {
+        final r = await _dio.put<Map<String, dynamic>>(
+          '/flow/prefs',
+          data: {'languages': ?languages, 'explore': ?explore},
+          options: Options(contentType: 'application/json'),
+        );
+        return FlowPrefs.fromJson(r.data ?? const {});
       });
 
   Future<List<TasteExclusion>> exclusions() => _wrap(() async {

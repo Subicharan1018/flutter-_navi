@@ -5,6 +5,7 @@ import 'package:package_info_plus/package_info_plus.dart';
 
 import '../core/motion.dart' show MotionLevel;
 import '../core/theme.dart';
+import '../features/flow/ui/flow_settings.dart';
 import '../features/local_library/ui/download_location_section.dart';
 import '../features/local_library/ui/local_music_section.dart';
 import '../features/social/ui/social_settings_section.dart';
@@ -474,6 +475,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
+          const FlowSettingsSection(),
           GroupedSection(
             footer: 'Songs, artists and composers you never want recommended.',
             children: [
