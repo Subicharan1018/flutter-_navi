@@ -1,6 +1,7 @@
 import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
 import 'package:audio_service_mpris/audio_service_mpris.dart';
@@ -24,8 +25,27 @@ import 'services/navi_audio_handler.dart';
 // ---------------------------------------------------------------------------
 late final NaviAudioHandler globalAudioHandler;
 
+const _notificationPermissionChannel = MethodChannel(
+  'com.navivibe/notification_permissions',
+);
+
+Future<void> _requestAndroidNotificationPermission() async {
+  if (kIsWeb || !Platform.isAndroid) return;
+  try {
+    await _notificationPermissionChannel.invokeMethod<void>(
+      'requestNotificationPermission',
+    );
+  } catch (e, st) {
+    // Keep playback available if the platform permission bridge is unavailable
+    // on an older or unusual Android build.
+    debugPrint('⚠️ Notification permission request failed: $e\n$st');
+  }
+}
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  await _requestAndroidNotificationPermission();
 
   // MEM-OPT: Reduced from 40 MB / 100 items. Flutter's image cache holds
   // decoded RGBA bitmaps. At 60 items × ~100 KB average = ~6 MB retained.
