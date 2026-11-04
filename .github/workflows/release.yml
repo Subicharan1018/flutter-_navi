@@ -73,6 +73,20 @@ jobs:
     runs-on: ubuntu-24.04
     timeout-minutes: 60
     steps:
+      - name: Free runner disk space
+        run: |
+          set -eux
+          # The hosted image contains SDKs that this Android job does not use.
+          # Remove them before checkout and dependency resolution so the runner
+          # still has room for Flutter, Gradle, and the release APKs.
+          sudo rm -rf /usr/share/dotnet
+          sudo rm -rf /opt/ghc
+          sudo rm -rf /usr/local/.ghcup
+          sudo rm -rf /opt/hostedtoolcache/CodeQL
+          sudo rm -rf /usr/local/share/powershell
+          docker system prune --all --force || true
+          df -h
+
       - uses: actions/checkout@v6.1.0
       - uses: actions/setup-java@v6.1.0
         with:
@@ -81,17 +95,10 @@ jobs:
       - uses: subosito/flutter-action@v2.23.0
         with:
           channel: stable
-          cache: true
-      - uses: actions/cache@v5.1.0
-        with:
-          path: |
-            ~/.gradle/caches
-            ~/.gradle/wrapper
-            ~/.gradle/native
-          key: gradle-release-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties', 'pubspec.lock') }}
-          restore-keys: |
-            gradle-release-${{ runner.os }}-
-            gradle-${{ runner.os }}-
+          # Restoring large dependency caches can exhaust the hosted runner
+          # before the first build step. A clean cache costs time but keeps the
+          # release build reliable.
+          cache: false
 
       - name: Restore signing keystore
         env:
@@ -115,6 +122,9 @@ jobs:
 
       - run: flutter pub get
 
+      - name: Show build disk space
+        run: df -h
+
       - name: Build APKs
         env:
           NAVI_KEYSTORE_PASSWORD: ${{ secrets.KEYSTORE_PASSWORD }}
@@ -133,6 +143,9 @@ jobs:
           for abi in arm64-v8a armeabi-v7a x86_64; do
             cp "build/app/outputs/flutter-apk/app-$abi-release.apk" "dist/NaviVibe-$abi.apk"
           done
+          # Keep the split APKs in dist, then remove their build outputs before
+          # the second build so both variants do not coexist on disk.
+          rm -rf build/app/outputs/flutter-apk
           # The universal APK compiles everything a second time (about half of this
           # job), so only normal releases on main carry it.
           if [ "$IS_MAIN" = "true" ]; then
