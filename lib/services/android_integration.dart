@@ -2,7 +2,6 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
-import '../core/hive_boxes.dart';
 import '../utils/platform_utils.dart';
 import 'open_intent.dart';
 
@@ -13,7 +12,7 @@ class AndroidIntegration {
   AndroidIntegration._();
 
   static const _channel = MethodChannel('com.navivibe/android');
-  static const _kAskedNotifications = 'notification_permission_asked';
+  static var _askedThisRun = false;
 
   /// Pure: what the widgets show for the given state. [active] is false when
   /// nothing is loaded (cold start / stopped), so the widget's play button
@@ -92,18 +91,18 @@ class AndroidIntegration {
     }());
   }
 
-  /// Asks for the notification permission once, ever. Android 13+ shows the
-  /// system prompt; after two denials it never shows again, which is why
-  /// Settings links to the system page ([openNotificationSettings]).
   static Future<void> _requestNotificationsOnce() => requestNotificationPermission();
 
+  /// Asks for the notification permission at most once per app run, until it
+  /// is granted. A prompt that never appeared (the app was in the background)
+  /// or was dismissed gets another chance on the next launch; a remembered
+  /// "already asked" would lose the now-playing notification for good. Android
+  /// itself stops showing the prompt after two denials, so this cannot nag, and
+  /// Settings links to the system page ([openNotificationSettings]).
   static Future<void> requestNotificationPermission() async {
-    if (!PlatformUtils.isAndroid) return;
-    try {
-      if (HiveBoxes.prefs.get(_kAskedNotifications) == true) return;
-      await HiveBoxes.prefs.put(_kAskedNotifications, true);
-      await _invoke('requestNotificationPermission');
-    } catch (_) {}
+    if (!PlatformUtils.isAndroid || _askedThisRun) return;
+    _askedThisRun = true;
+    await _invoke('requestNotificationPermission');
   }
 
   /// Posts a notification; false when blocked (denied permission or channel off).

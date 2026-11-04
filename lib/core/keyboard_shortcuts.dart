@@ -69,7 +69,7 @@ class NaviKeyboardShortcuts extends ConsumerWidget {
           if (e.buttons == kBackMouseButton) commands!.goBack();
           if (e.buttons == kForwardMouseButton) return; // no forward stack
         },
-        child: CallbackShortcuts(
+        child: NaviKeyBindings(
           bindings: buildNaviBindings(ref, commands, desktop: PlatformUtils.isDesktop),
           child: child,
         ),
@@ -78,9 +78,50 @@ class NaviKeyboardShortcuts extends ConsumerWidget {
   }
 }
 
-bool _isEditingText() {
-  final widget = FocusManager.instance.primaryFocus?.context?.widget;
-  return widget is EditableText;
+/// Runs the key map. Unlike [CallbackShortcuts] it can pass a key on: a key
+/// that types or moves a caret must reach the focused field, and a shortcut
+/// that merely did nothing would still have swallowed it.
+class NaviKeyBindings extends StatelessWidget {
+  final Map<ShortcutActivator, VoidCallback> bindings;
+  final Widget child;
+
+  const NaviKeyBindings({super.key, required this.bindings, required this.child});
+
+  static final _typingKeys = {
+    LogicalKeyboardKey.space,
+    LogicalKeyboardKey.arrowLeft,
+    LogicalKeyboardKey.arrowRight,
+    LogicalKeyboardKey.arrowUp,
+    LogicalKeyboardKey.arrowDown,
+    LogicalKeyboardKey.keyS,
+    LogicalKeyboardKey.keyR,
+    LogicalKeyboardKey.keyL,
+    LogicalKeyboardKey.keyM,
+    LogicalKeyboardKey.slash,
+  };
+
+  static bool _isEditingText() {
+    final context = FocusManager.instance.primaryFocus?.context;
+    if (context == null) return false;
+    return context.widget is EditableText || context.findAncestorWidgetOfExactType<EditableText>() != null;
+  }
+
+  static bool _belongsToField(ShortcutActivator activator) =>
+      activator is SingleActivator && !activator.control && !activator.alt && _typingKeys.contains(activator.trigger);
+
+  KeyEventResult _onKey(FocusNode node, KeyEvent event) {
+    for (final entry in bindings.entries) {
+      if (!entry.key.accepts(event, HardwareKeyboard.instance)) continue;
+      if (_belongsToField(entry.key) && _isEditingText()) return KeyEventResult.ignored;
+      entry.value();
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
+  @override
+  Widget build(BuildContext context) =>
+      Focus(canRequestFocus: false, skipTraversal: true, onKeyEvent: _onKey, child: child);
 }
 
 /// The key map, split out so tests can drive it without a window.
@@ -104,10 +145,6 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
 
   void volumeBy(double delta) => player().setVolume((player().volume + delta).clamp(0.0, 1.0));
 
-  // Keys that type or move a caret are left alone while a field is focused.
-  VoidCallback unlessTyping(VoidCallback action) => () {
-        if (!_isEditingText()) action();
-      };
 
   final bindings = <ShortcutActivator, VoidCallback>{
     const SingleActivator(LogicalKeyboardKey.mediaPlayPause): playPause,
@@ -131,26 +168,26 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
   if (!desktop) return bindings;
 
   bindings.addAll({
-    const SingleActivator(LogicalKeyboardKey.space): unlessTyping(playPause),
-    const SingleActivator(LogicalKeyboardKey.arrowRight): unlessTyping(() => seekBy(const Duration(seconds: 5))),
-    const SingleActivator(LogicalKeyboardKey.arrowLeft): unlessTyping(() => seekBy(const Duration(seconds: -5))),
-    const SingleActivator(LogicalKeyboardKey.arrowUp): unlessTyping(() => volumeBy(0.05)),
-    const SingleActivator(LogicalKeyboardKey.arrowDown): unlessTyping(() => volumeBy(-0.05)),
+    const SingleActivator(LogicalKeyboardKey.space): playPause,
+    const SingleActivator(LogicalKeyboardKey.arrowRight): () => seekBy(const Duration(seconds: 5)),
+    const SingleActivator(LogicalKeyboardKey.arrowLeft): () => seekBy(const Duration(seconds: -5)),
+    const SingleActivator(LogicalKeyboardKey.arrowUp): () => volumeBy(0.05),
+    const SingleActivator(LogicalKeyboardKey.arrowDown): () => volumeBy(-0.05),
     const SingleActivator(LogicalKeyboardKey.arrowRight, control: true): () => notifier().playNext(),
     const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true): () => notifier().playPrev(),
-    const SingleActivator(LogicalKeyboardKey.keyS): unlessTyping(() => notifier().toggleShuffle()),
-    const SingleActivator(LogicalKeyboardKey.keyR): unlessTyping(() => notifier().cycleRepeat()),
-    const SingleActivator(LogicalKeyboardKey.keyL): unlessTyping(() {
+    const SingleActivator(LogicalKeyboardKey.keyS): () => notifier().toggleShuffle(),
+    const SingleActivator(LogicalKeyboardKey.keyR): () => notifier().cycleRepeat(),
+    const SingleActivator(LogicalKeyboardKey.keyL): () {
       final s = ref.read(playerProvider);
       if (s.queue.isNotEmpty) notifier().toggleStar(s.queue[s.currentIndex].id);
-    }),
-    const SingleActivator(LogicalKeyboardKey.keyM): unlessTyping(() => player().setVolume(player().volume > 0 ? 0 : 1)),
+    },
+    const SingleActivator(LogicalKeyboardKey.keyM): () => player().setVolume(player().volume > 0 ? 0 : 1),
   });
 
   if (commands != null) {
     bindings.addAll({
       const SingleActivator(LogicalKeyboardKey.keyF, control: true): commands.focusSearch,
-      const SingleActivator(LogicalKeyboardKey.slash): unlessTyping(commands.focusSearch),
+      const SingleActivator(LogicalKeyboardKey.slash): commands.focusSearch,
       const SingleActivator(LogicalKeyboardKey.comma, control: true): commands.openSettings,
       const SingleActivator(LogicalKeyboardKey.escape): () => commands.goBack(),
       const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): () => commands.goBack(),

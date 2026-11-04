@@ -46,7 +46,7 @@ class _NotificationSettingsSectionState extends ConsumerState<NotificationSettin
     return GroupedSection(
       header: 'Notifications',
       footer: PlatformUtils.isAndroid && !allowed
-          ? 'Notifications are off for NaviVibe in system settings. Downloads, updates and invitations won’t alert you.'
+          ? 'Notifications are off for NaviVibe in system settings. The now-playing controls may not show, and downloads, updates and invitations won’t alert you.'
           : 'Downloads that finish, updates and invitations, while the app is in the background.',
       children: [
         GroupedSwitchRow(

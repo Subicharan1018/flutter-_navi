@@ -60,7 +60,7 @@ class AppNotifier {
   /// Asks for the Android 13+ permission while the app is on screen (the
   /// prompt can't show from the background). Call when the person does
   /// something that will later notify them: starting a download, turning
-  /// notifications on, first playback. Asks once ever.
+  /// notifications on, first playback. Asks at most once per app run.
   static Future<void> prime() => AndroidIntegration.requestNotificationPermission();
 
   /// Shows a notification now. Returns whether anything was posted.
