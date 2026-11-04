@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- audio_service looks these up by name, which the release resource shrinker
+     can't see. A stripped control icon resolves to id 0, CustomAction throws,
+     and the media session and notification are never published.
+     Add any new icon from navi_audio_handler.dart here. -->
+<resources xmlns:tools="http://schemas.android.com/tools"
+    tools:keep="@drawable/navi_heart,@drawable/navi_heart_filled,@drawable/navi_shuffle,@drawable/navi_shuffle_on,@drawable/navi_repeat,@drawable/navi_repeat_on,@drawable/navi_repeat_one,@mipmap/ic_launcher" />

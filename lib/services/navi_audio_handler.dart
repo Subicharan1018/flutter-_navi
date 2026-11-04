@@ -264,7 +264,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           MediaAction.seekForward,
           MediaAction.seekBackward,
         },
-        androidCompactActionIndices: const [1, 2, 3],
+        // Counted among the notification's own buttons only: audio_service
+        // leaves custom controls out of them, so previous, play and next are
+        // 0, 1, 2. A wider index makes Android below 13 drop the whole player.
+        androidCompactActionIndices: const [0, 1, 2],
         processingState: processingState,
         playing: playing,
         updatePosition: player.position,

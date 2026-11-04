@@ -104,4 +104,47 @@ void main() {
     expect(handler.repeatMode, LoopMode.off);
     expect(handler.playbackState.value.repeatMode, AudioServiceRepeatMode.none);
   });
+
+  // Android below 13 builds the media player from the notification's own
+  // buttons; audio_service leaves custom controls out of them, and an index
+  // past the end makes the system drop the whole player.
+  test('compact buttons point at previous, play and next among the native buttons', () {
+    handler.refreshControls();
+    final state = handler.playbackState.value;
+    final native = state.controls.where((c) => c.customAction == null).toList();
+    final compact = state.androidCompactActionIndices!;
+
+    expect(compact.every((i) => i >= 0 && i < native.length), isTrue, reason: '$compact of ${native.length}');
+    expect(compact.map((i) => native[i].action), [
+      MediaAction.skipToPrevious,
+      MediaAction.play,
+      MediaAction.skipToNext,
+    ]);
+  });
+
+  // audio_service finds icons by name, so the release shrinker removes any that
+  // keep.xml doesn't list; the session then fails with "You must specify an
+  // icon resource id to build a CustomAction".
+  test('every custom control icon exists and survives the release shrinker', () async {
+    final keep = File('android/app/src/main/res/raw/keep.xml').readAsStringSync();
+    final icons = <String>{};
+    for (final liked in [false, true]) {
+      for (final shuffle in [false, true]) {
+        for (final repeat in LoopMode.values) {
+          handler.carState = () => (liked: liked, shuffle: shuffle, repeat: repeat);
+          handler.refreshControls();
+          icons.addAll(handler.playbackState.value.controls
+              .where((c) => c.customAction != null)
+              .map((c) => c.androidIcon));
+        }
+      }
+    }
+
+    expect(icons, hasLength(7));
+    for (final icon in icons) {
+      final name = icon.split('/').last;
+      expect(File('android/app/src/main/res/drawable/$name.xml').existsSync(), isTrue, reason: '$name has no drawable');
+      expect(keep, contains('@$icon'), reason: '$icon is not in keep.xml');
+    }
+  });
 }
