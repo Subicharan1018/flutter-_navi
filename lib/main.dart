@@ -10,6 +10,7 @@ import 'package:window_manager/window_manager.dart';
 import 'core/hive_boxes.dart';
 import 'features/local_library/logic/local_library_providers.dart' show localLibraryBootstrapProvider;
 import 'core/motion.dart';
+import 'core/pointer_anchor.dart';
 import 'core/theme.dart';
 import 'utils/platform_utils.dart';
 import 'services/desktop_tray.dart';
@@ -252,10 +253,12 @@ class MyMusicPlayerApp extends ConsumerWidget {
           level: motion,
           systemReduced: MediaQuery.disableAnimationsOf(context),
           // TV: overscan margin and larger type. Windows: our own title bar.
-          child: TvFrame(
-            child: NaviTitleBar.enabled
-                ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
-                : child!,
+          child: PointerAnchor(
+            child: TvFrame(
+              child: NaviTitleBar.enabled
+                  ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
+                  : child!,
+            ),
           ),
         ),
         home: home,

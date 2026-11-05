@@ -7,6 +7,23 @@ import '../core/theme.dart';
 import '../player/artwork.dart' show testCoverOverride;
 import 'art/navi_icons.dart';
 
+/// The cover sizes a list or tile asks the server for. A few fixed steps, not
+/// the exact pixel count, so the same cover is fetched (and cached) once per
+/// step instead of once per layout, and a slow connection downloads a 128 px
+/// image for a 46 px row instead of the full-size original.
+const kCoverSteps = [96, 160, 256, 384, 512, 768, 1024];
+
+/// [url] (a Subsonic `getCoverArt` link) asking for [px] pixels, rounded up to
+/// the next of [kCoverSteps]. Links that already carry a size, and anything
+/// that is not a cover-art link, come back unchanged.
+String sizedCoverUrl(String url, int px) {
+  if (!url.contains('getCoverArt')) return url;
+  final uri = Uri.tryParse(url);
+  if (uri == null || uri.queryParameters.containsKey('size')) return url;
+  final step = kCoverSteps.firstWhere((s) => s >= px, orElse: () => kCoverSteps.last);
+  return uri.replace(queryParameters: {...uri.queryParameters, 'size': '$step'}).toString();
+}
+
 /// Square cover art, decoded at its display size, with a quiet themed
 /// placeholder (never a coloured gradient) while loading or when the server
 /// has no image. Use this instead of hand-rolling CachedNetworkImage +
@@ -36,6 +53,9 @@ class CoverArt extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final px = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    // The note is for "this has no cover". While a cover loads, a plain panel:
+    // the note never sits under (or fades out over) art that is arriving.
+    final loading = ColoredBox(color: t.bgElevated);
     final placeholder = ColoredBox(
       color: t.bgElevated,
       child: Center(
@@ -64,12 +84,14 @@ class CoverArt extends StatelessWidget {
                 errorBuilder: (_, _, _) => failed,
               )
             : CachedNetworkImage(
-                imageUrl: url!,
+                imageUrl: sizedCoverUrl(url!, px),
                 fit: BoxFit.cover,
                 memCacheWidth: px,
                 memCacheHeight: px,
-                fadeInDuration: const Duration(milliseconds: 150),
-                placeholder: (_, _) => placeholder,
+                fadeInDuration: const Duration(milliseconds: 180),
+                fadeOutDuration: Duration.zero,
+                placeholderFadeInDuration: Duration.zero,
+                placeholder: (_, _) => loading,
                 errorWidget: (_, _, _) => failed,
               );
     return SizedBox(

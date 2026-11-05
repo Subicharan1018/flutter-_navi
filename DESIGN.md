@@ -222,7 +222,7 @@ components:
 
 **Creative North Star: "Apple Music, played straight"**
 
-NaviVibe is the iOS 26 Apple Music app rebuilt at full fidelity for Android phones, with a faithful wide layout on Linux and Windows desktops. It has two translations and no others: a monochrome white accent where Apple uses red, and a pure AMOLED black ground (with no tint) where Apple uses its neutral system greys. Everything else follows Apple's conventions. That means large titles that collapse into a compact bar, inset grouped lists, a floating capsule tab bar with Search split into its own circle, a capsule mini player, iOS page transitions with edge-swipe back, rubber-band scrolling, and presses that respond on touch-down by scaling instead of rippling.
+NaviVibe is the iOS 26 Apple Music app rebuilt at full fidelity for Android phones, with its own desktop layout on Windows and Linux (see Windows below). It has two translations and no others: a monochrome white accent where Apple uses red, and a pure AMOLED black ground (with no tint) where Apple uses its neutral system greys. Everything else follows Apple's conventions. That means large titles that collapse into a compact bar, inset grouped lists, a floating capsule tab bar with Search split into its own circle, a capsule mini player, iOS page transitions with edge-swipe back, rubber-band scrolling, and presses that respond on touch-down by scaling instead of rippling. All of that is the phone. Windows keeps the identity and drops the physics.
 
 The chrome is exact, quiet and opaque. Artwork is the main decoration and the only source of chrome colour. The default chrome stays on the same black ramp whatever is playing. Icons are monochrome and tinted by their role (Ionicons in the player and Settings, CupertinoIcons elsewhere); the one place fixed colour is drawn by hand is the illustrated set: the phone tab icons and the empty-state illustrations. Album colour appears in three places only: the living artwork field behind Now Playing, the mini player (filled with the playing cover's ground), and collection pages (album, playlist, artist), whose ground is sampled from the cover with the artwork dissolving into it. Every sampled colour passes a hue guard, so purple and pink never reach the chrome.
 
@@ -387,6 +387,21 @@ A 58 capsule filled with the playing cover's guarded ground, with a hairline at 
 
 ### Action Sheets
 An artwork header (56 cover) followed by action groups (grouped surface, radius 12, hairlines). Each row has its label on the left and its glyph on the right, as iOS context menus lay them out. Destructive confirmation uses iOS styling.
+
+## Windows (and Linux desktop)
+
+The identity carries over: monochrome white accent, black ground, album-colour tint, our own icons, no card containers. Nothing else does. Windows is **not** the phone layout made wider: it is a desktop music app that happens to share data and logic with the phone one. It is built for a mouse, a keyboard and a big window, and it follows desktop conventions (never another app's look or branding).
+
+**Interaction model**
+- **Pointer first.** Every clickable shows the pointer cursor and a faint white wash (9%) on hover. Icon buttons have tooltips (600 ms). Nothing scales on press: a click is feedback enough.
+- **No iOS physics.** No page slides, no rubber-band, no parallax, no dragging a list with the mouse (drag is for selecting and reordering). Pages cross-fade in 120 ms; scrolling is the wheel with a visible, grabbable scrollbar (8 px, 10 on hover). Back is the toolbar button, Alt+Left or the mouse's back button, never a swipe.
+- **Menus, not sheets.** What a phone shows as a long-press sheet is a right-click menu at the cursor: compact (34 rows, 17 glyph on the left, no artwork header), clamped inside the window, closed by Esc or a click outside. Pickers and forms are centred dialogs, never bottom sheets.
+- **Keyboard everywhere.** Every action is reachable and visible focus is always drawn. Ctrl+K search, Ctrl+F find in a list, Ctrl+/ for the shortcut list, media keys, Space play/pause.
+- **Dense and scannable.** Songs are a table (rows about 48, small thumbnails, columns that drop as the window narrows), not tall cards.
+
+**Layout.** Compact Windows windows keep the Windows shell (rail, top bar, player bar); they never turn into phone tabs. Content uses the full width of its pane with tiles on the desktop art scale (150-180) and an automatic column count: no centred phone column, no black margins.
+
+**Cover art.** A cover is requested at its display size (the next step of 96/160/256/384/512/768/1024) so a slow connection loads small images, and the music-note placeholder is only for "no cover": while a cover loads the tile is a plain panel, and the art fades in on top.
 
 ## Do's and Don'ts
 

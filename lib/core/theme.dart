@@ -9,6 +9,7 @@ import 'album_palette.dart';
 import 'layout/window_size.dart';
 import 'focus/navi_focus.dart';
 import 'motion.dart';
+import '../utils/platform_utils.dart';
 
 export 'album_palette.dart' show AlbumPalette;
 
@@ -459,10 +460,32 @@ class AppTheme {
         color: t.textSecondary,
         linearTrackColor: t.fill,
       ),
-      scrollbarTheme: ScrollbarThemeData(
-        thumbColor: WidgetStateProperty.all(t.textMuted),
-        radius: const Radius.circular(3),
-        thickness: WidgetStateProperty.all(3),
+      scrollbarTheme: PlatformUtils.isDesktop
+          // A real, grabbable bar: wide enough to hit, brighter on hover or drag.
+          ? ScrollbarThemeData(
+              thumbColor: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.dragged) || s.contains(WidgetState.hovered)
+                  ? t.textSecondary
+                  : t.textMuted.withValues(alpha: 0.7)),
+              radius: const Radius.circular(5),
+              thickness: WidgetStateProperty.resolveWith((s) => s.contains(WidgetState.hovered) ? 10 : 8),
+              crossAxisMargin: 2,
+              minThumbLength: 48,
+              interactive: true,
+            )
+          : ScrollbarThemeData(
+              thumbColor: WidgetStateProperty.all(t.textMuted),
+              radius: const Radius.circular(3),
+              thickness: WidgetStateProperty.all(3),
+            ),
+      tooltipTheme: TooltipThemeData(
+        waitDuration: const Duration(milliseconds: 600),
+        decoration: BoxDecoration(
+          color: t.bgElevated,
+          borderRadius: BorderRadius.circular(6),
+          border: Border.all(color: t.outline, width: 0.5),
+        ),
+        textStyle: t.caption1.copyWith(color: t.textPrimary),
+        padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
       ),
       // iOS navigation everywhere: slide in from the right, swipe the left
       // edge to go back — on Android too.
@@ -471,8 +494,8 @@ class AppTheme {
           TargetPlatform.android: NaviPageTransitionsBuilder(),
           TargetPlatform.iOS: NaviPageTransitionsBuilder(),
           TargetPlatform.macOS: NaviPageTransitionsBuilder(),
-          TargetPlatform.linux: NaviPageTransitionsBuilder(),
-          TargetPlatform.windows: NaviPageTransitionsBuilder(),
+          TargetPlatform.linux: NaviDesktopTransitionsBuilder(),
+          TargetPlatform.windows: NaviDesktopTransitionsBuilder(),
         },
       ),
     );
@@ -503,9 +526,12 @@ class AppTheme {
 class NaviScrollBehavior extends MaterialScrollBehavior {
   const NaviScrollBehavior();
 
+  /// Windows rules: the wheel scrolls, content stops at its ends (no rubber
+  /// band), and a mouse never drags a list around (that is for selecting).
   @override
-  ScrollPhysics getScrollPhysics(BuildContext context) =>
-      const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
+  ScrollPhysics getScrollPhysics(BuildContext context) => PlatformUtils.isDesktop
+      ? const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics())
+      : const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics());
 
   @override
   Widget buildOverscrollIndicator(BuildContext context, Widget child, ScrollableDetails details) =>
@@ -514,7 +540,7 @@ class NaviScrollBehavior extends MaterialScrollBehavior {
   @override
   Set<PointerDeviceKind> get dragDevices => {
         PointerDeviceKind.touch,
-        PointerDeviceKind.mouse,
+        if (!PlatformUtils.isDesktop) PointerDeviceKind.mouse,
         PointerDeviceKind.trackpad,
         PointerDeviceKind.stylus,
       };
@@ -574,10 +600,42 @@ class _CupertinoClickableState extends State<CupertinoClickable>
 
   bool get _enabled => widget.onTap != null || widget.onLongPress != null;
 
+  bool _hover = false;
+
+  /// A short label ("Play", "Next") is worth a tooltip; a sentence read out for
+  /// a whole row ("Song, Artist, album") is not.
+  String? get _tooltip {
+    final l = widget.semanticLabel;
+    if (l == null || l.length > 28 || l.contains(',') || l.contains('.')) return null;
+    return l;
+  }
+
   @override
   Widget build(BuildContext context) {
+    final desktop = PlatformUtils.isDesktop;
     final scale = Tween<double>(begin: 1.0, end: pressedScale(context, widget.scaleFactor)).animate(_curve);
-    return Semantics(
+    Widget body = ScaleTransition(scale: scale, child: widget.child);
+    if (desktop && _enabled) {
+      // Pointer feedback: a faint wash while hovered, drawn over the child.
+      body = Stack(
+        fit: StackFit.passthrough,
+        children: [
+          body,
+          if (_hover)
+            Positioned.fill(
+              child: IgnorePointer(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    color: Colors.white.withValues(alpha: 0.09),
+                    borderRadius: BorderRadius.circular(widget.focusRadius),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      );
+    }
+    Widget out = Semantics(
       button: _enabled,
       label: widget.semanticLabel,
       // Every tappable in the app is a D-pad / keyboard target through here.
@@ -588,6 +646,8 @@ class _CupertinoClickableState extends State<CupertinoClickable>
         radius: widget.focusRadius,
         child: MouseRegion(
           cursor: _enabled ? SystemMouseCursors.click : MouseCursor.defer,
+          onEnter: desktop && _enabled ? (_) => setState(() => _hover = true) : null,
+          onExit: desktop && _enabled ? (_) => setState(() => _hover = false) : null,
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTapDown: _enabled ? (_) => _c.forward() : null,
@@ -596,11 +656,14 @@ class _CupertinoClickableState extends State<CupertinoClickable>
             onTap: widget.onTap,
             onLongPress: widget.onLongPress,
             onSecondaryTapUp: widget.onLongPress == null ? null : (_) => widget.onLongPress!(),
-            child: ScaleTransition(scale: scale, child: widget.child),
+            child: body,
           ),
         ),
       ),
     );
+    final tip = _tooltip;
+    if (desktop && _enabled && tip != null && Overlay.maybeOf(context) != null) out = Tooltip(message: tip, child: out);
+    return out;
   }
 }
 

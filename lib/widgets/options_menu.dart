@@ -32,6 +32,7 @@ Future<void> showSongActions(
 }) =>
     showPlatformSheet(
       context: context,
+      menu: true,
       builder: (_) => OptionsMenu(
         song: song,
         playlistId: playlistId,

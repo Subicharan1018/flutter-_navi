@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart' show CupertinoPageTransitionsBuilder;
 import 'package:flutter/material.dart';
 import 'package:flutter/scheduler.dart';
 
+import '../utils/platform_utils.dart';
 import 'theme.dart';
 
 // =============================================================================
@@ -140,7 +141,8 @@ class _EntranceState extends State<Entrance> with SingleTickerProviderStateMixin
 // ─────────────────────────────────────────────────────────────────────────────
 
 /// The scale a pressed control settles at: 1 when motion is reduced.
-double pressedScale(BuildContext context, double scale) => context.motionFull ? scale : 1.0;
+double pressedScale(BuildContext context, double scale) =>
+    context.motionFull && !PlatformUtils.isDesktop ? scale : 1.0;
 
 /// Dips its child while a pointer is down on it. Listens without joining the
 /// gesture arena, so the child's own taps and drags work untouched.
@@ -456,4 +458,26 @@ class NaviPageTransitionsBuilder extends PageTransitionsBuilder {
     };
     return (desktop ? _desktop : _push).buildTransitions<T>(route, context, animation, secondaryAnimation, child);
   }
+}
+
+/// Windows and Linux: no slide, no parallax. The next page fades in over 120 ms
+/// and Back is the toolbar button, Alt+Left or the mouse's back button.
+class NaviDesktopTransitionsBuilder extends PageTransitionsBuilder {
+  const NaviDesktopTransitionsBuilder();
+
+  @override
+  Duration get transitionDuration => const Duration(milliseconds: 120);
+
+  @override
+  Duration get reverseTransitionDuration => const Duration(milliseconds: 90);
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) =>
+      FadeTransition(opacity: CurvedAnimation(parent: animation, curve: Curves.easeOut), child: child);
 }

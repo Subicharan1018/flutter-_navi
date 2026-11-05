@@ -106,7 +106,13 @@ class _HorizontalShelfState extends State<HorizontalShelf> {
                 },
                 child: ScrollConfiguration(
                   behavior: ScrollConfiguration.of(context).copyWith(
-                    dragDevices: {PointerDeviceKind.touch, PointerDeviceKind.mouse, PointerDeviceKind.trackpad},
+                    // Desktop: the arrow buttons and the wheel move a shelf; no scrollbar under it.
+                    scrollbars: !PlatformUtils.isDesktop,
+                    dragDevices: {
+                      PointerDeviceKind.touch,
+                      if (!PlatformUtils.isDesktop) PointerDeviceKind.mouse,
+                      PointerDeviceKind.trackpad,
+                    },
                   ),
                   child: ListView.separated(
                     controller: _controller,

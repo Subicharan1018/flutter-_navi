@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/motion.dart';
 import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/widgets/ui/heart_burst.dart';
 
 Widget _app(Widget child, {MotionLevel level = MotionLevel.full}) => ThemeTokens(
@@ -149,6 +150,8 @@ void main() {
 
   group('PressScale and Pulse', () {
     testWidgets('PressScale dips under a pointer only when Full', (tester) async {
+      PlatformUtils.debugDesktopOverride = false; // a press dips on touch devices, never on desktop
+      addTearDown(() => PlatformUtils.debugDesktopOverride = null);
       for (final level in MotionLevel.values) {
         await tester.pumpWidget(_app(const PressScale(child: SizedBox(key: Key('x'), width: 80, height: 80)), level: level));
         final g = await tester.startGesture(tester.getCenter(find.byKey(const Key('x'))));

@@ -5,6 +5,8 @@ import '../../models/artist.dart';
 import '../../providers/settings_provider.dart';
 import '../../widgets/app_scaffold.dart' show navigateInApp;
 import '../../widgets/art/navi_icons.dart';
+import '../../providers/pins_provider.dart';
+import '../../widgets/collection_actions.dart';
 import '../../widgets/cover_art.dart';
 import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/ui/media.dart';
@@ -68,6 +70,19 @@ class ArtistsPage extends ConsumerWidget {
                         ),
                         showSeparator: i < list.length - 1,
                         onTap: () => navigateInApp(context, ArtistScreen(artistId: a.id, name: a.name)),
+                        onLongPress: () => showCollectionActions(
+                          context,
+                          title: a.name,
+                          subtitle: a.albumCount == 1 ? '1 album' : '${a.albumCount} albums',
+                          artUrl: svc.getCoverArtUrl(a.coverArtId),
+                          placeholderIcon: NaviGlyph.person,
+                          loadSongs: () async {
+                            final albums = await svc.getArtistAlbums(a.id);
+                            final lists = await Future.wait(albums.map((al) => svc.getAlbum(al.id)));
+                            return [for (final l in lists) ...l];
+                          },
+                          pin: Pin.artist(a.id, a.name),
+                        ),
                       );
                     },
                     childCount: list.length,

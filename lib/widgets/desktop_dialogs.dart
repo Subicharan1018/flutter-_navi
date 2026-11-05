@@ -2,6 +2,9 @@ import 'dart:math' show min;
 
 import 'package:flutter/material.dart';
 
+import 'package:flutter/services.dart';
+
+import '../core/pointer_anchor.dart';
 import '../core/theme.dart';
 import '../utils/platform_utils.dart';
 
@@ -15,8 +18,12 @@ Future<T?> showPlatformSheet<T>({
   String? title,
   double maxWidth = 440,
   double maxHeight = 680,
+  bool menu = false,
 }) {
   final t = ThemeTokens.of(context);
+  if (menu && PlatformUtils.isDesktop) {
+    return showDesktopMenu<T>(context: context, builder: builder);
+  }
 
   Widget body(BuildContext ctx) => title == null
       ? builder(ctx)
@@ -75,4 +82,82 @@ Future<T?> showPlatformSheet<T>({
       child: SingleChildScrollView(child: SafeArea(top: false, child: body(ctx))),
     ),
   );
+}
+
+/// True inside a desktop context menu: the sheet primitives ([SheetHeader],
+/// [SheetGroup], [SheetAction]) draw their compact, hover-highlighted form.
+class MenuMode extends InheritedWidget {
+  const MenuMode({super.key, required super.child});
+  static bool of(BuildContext context) => context.getInheritedWidgetOfExactType<MenuMode>() != null;
+  @override
+  bool updateShouldNotify(MenuMode old) => false;
+}
+
+/// A desktop context menu: a small popover opened where the pointer is (or, when
+/// there was no pointer, centred), clamped inside the window, closed by Esc or a
+/// click outside. The content is the same widgets a phone shows as a sheet.
+Future<T?> showDesktopMenu<T>({required BuildContext context, required WidgetBuilder builder, double width = 252}) {
+  final t = ThemeTokens.of(context);
+  final screen = MediaQuery.sizeOf(context);
+  final at = PointerAnchor.recent();
+  return showGeneralDialog<T>(
+    context: context,
+    barrierDismissible: true,
+    barrierLabel: 'Close menu',
+    barrierColor: Colors.transparent,
+    transitionDuration: const Duration(milliseconds: 90),
+    pageBuilder: (ctx, _, _) => CallbackShortcuts(
+      bindings: {const SingleActivator(LogicalKeyboardKey.escape): () => Navigator.of(ctx).pop()},
+      child: Focus(
+        autofocus: true,
+        child: CustomSingleChildLayout(
+          delegate: _MenuLayout(at, screen),
+          child: MenuMode(
+            child: Material(
+              color: t.bgElevated,
+              elevation: 12,
+              shadowColor: Colors.black,
+              clipBehavior: Clip.antiAlias,
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(10),
+                side: BorderSide(color: t.outline, width: 0.5),
+              ),
+              child: ConstrainedBox(
+                constraints: BoxConstraints(
+                  minWidth: width,
+                  maxWidth: width,
+                  maxHeight: min(screen.height - 24, 640),
+                ),
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 6),
+                  child: builder(ctx),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    ),
+    transitionBuilder: (_, a, _, child) => FadeTransition(opacity: a, child: child),
+  );
+}
+
+class _MenuLayout extends SingleChildLayoutDelegate {
+  final Offset? at;
+  final Size screen;
+  _MenuLayout(this.at, this.screen);
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints c) => BoxConstraints.loose(screen);
+
+  @override
+  Offset getPositionForChild(Size size, Size child) {
+    final a = at ?? Offset((size.width - child.width) / 2, (size.height - child.height) / 3);
+    final x = a.dx.clamp(8.0, (size.width - child.width - 8).clamp(8.0, double.infinity));
+    final y = a.dy.clamp(8.0, (size.height - child.height - 8).clamp(8.0, double.infinity));
+    return Offset(x, y);
+  }
+
+  @override
+  bool shouldRelayout(_MenuLayout old) => old.at != at || old.screen != screen;
 }

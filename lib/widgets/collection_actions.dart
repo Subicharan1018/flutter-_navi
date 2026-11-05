@@ -28,6 +28,7 @@ Future<void> showCollectionActions(
 }) =>
     showPlatformSheet(
       context: context,
+      menu: true,
       builder: (_) => _CollectionActions(
         extraActions: extraActions,
         share: share,

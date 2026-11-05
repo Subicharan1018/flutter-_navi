@@ -31,6 +31,8 @@ class SheetHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    // A desktop context menu opens on the thing you clicked: no header needed.
+    if (MenuMode.of(context)) return const SizedBox.shrink();
     return Padding(
       padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.lg),
       child: Row(
@@ -69,6 +71,12 @@ class SheetGroup extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final visible = children.whereType<Widget>().toList();
+    if (MenuMode.of(context)) {
+      return Padding(
+        padding: const EdgeInsets.symmetric(vertical: 2),
+        child: Column(children: visible),
+      );
+    }
     return Padding(
       padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.md),
       child: ClipRRect(
@@ -117,6 +125,44 @@ class SheetAction extends StatelessWidget {
     final t = ThemeTokens.of(context);
     final enabled = onTap != null;
     final color = !enabled ? t.textMuted : (destructive ? t.danger : t.textPrimary);
+    if (MenuMode.of(context)) {
+      return InkWell(
+        onTap: !enabled
+            ? null
+            : () {
+                if (!keepOpen) Navigator.of(context).pop();
+                onTap!();
+              },
+        hoverColor: Colors.white.withValues(alpha: 0.08),
+        focusColor: Colors.white.withValues(alpha: 0.12),
+        child: ConstrainedBox(
+          constraints: const BoxConstraints(minHeight: 34),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: 6),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 22,
+                  child: icon == null ? null : NaviIcon(icon!, size: 17, color: destructive ? t.danger : t.textSecondary),
+                ),
+                const SizedBox(width: Space.sm),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: color)),
+                      if (detail != null) Text(detail!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
+                    ],
+                  ),
+                ),
+                if (trailing != null) ...[const SizedBox(width: Space.sm), trailing!],
+              ],
+            ),
+          ),
+        ),
+      );
+    }
     return InkWell(
       onTap: !enabled
           ? null
