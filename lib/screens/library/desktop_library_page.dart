@@ -362,8 +362,10 @@ class _ListHeader extends StatelessWidget {
     return SliverToBoxAdapter(
       child: Container(
         height: 32,
-        margin: EdgeInsets.symmetric(horizontal: g),
-        padding: const EdgeInsets.symmetric(horizontal: Space.md),
+        // The cover and the labels start at the page's left edge (the title's x); the row
+        // wash, 8 px wider on each side, reaches just outside it.
+        margin: EdgeInsets.symmetric(horizontal: g - Space.sm),
+        padding: const EdgeInsets.symmetric(horizontal: Space.sm),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.outline, width: 0.5))),
         child: Row(
           children: [
@@ -390,7 +392,7 @@ class _ListRow extends StatelessWidget {
     final e = entry;
     final num = t.footnote.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
+      padding: EdgeInsets.symmetric(horizontal: pageGutter(context) - Space.sm),
       child: HoverBuilder(
         builder: (context, hovered) => NaviFocusable(
           radius: 6,
@@ -399,7 +401,7 @@ class _ListRow extends StatelessWidget {
           semanticLabel: '${e.title}, ${e.subtitle}',
           child: Container(
             height: 56,
-            padding: const EdgeInsets.symmetric(horizontal: Space.md),
+            padding: const EdgeInsets.symmetric(horizontal: Space.sm),
             child: Row(
               children: [
                 SizedBox(

@@ -149,6 +149,8 @@ void main() {
       expect(HiveBoxes.prefs.get('desktop_library_grid'), isFalse);
       expect(find.text('Name'), findsOneWidget);
       expect(find.text('Songs'), findsOneWidget);
+      // The cover starts at the page's left edge (24, where the title is), the name 52 after it.
+      expect(tester.getTopLeft(find.text('Name')).dx, 24 + 40 + 12);
 
       double y(String t) => tester.getTopLeft(find.text(t)).dy;
       expect(y('Late Night Drive'), lessThan(y('Focus')), reason: 'library order');
