@@ -11,6 +11,7 @@ import 'dart:typed_data';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
@@ -145,15 +146,24 @@ class _FakeSettings extends StateNotifier<SettingsState> implements SettingsNoti
   dynamic noSuchMethod(Invocation i) => null;
 }
 
+/// What the fake server answers for a playlist: its songs, none, or an error.
+enum _Server { ok, empty, fails }
+
 class _FakeSubsonic extends Fake implements SubsonicService {
+  final _Server mode;
+  _FakeSubsonic([this.mode = _Server.ok]);
   @override
   String getCoverArtUrl(String? id, {int? size}) => 'cover://$id';
   @override
-  Future<List<Song>> getPlaylistSongs(String id, {bool forceRefresh = false}) async => _songs;
+  Future<List<Song>> getPlaylistSongs(String id, {bool forceRefresh = false}) async => switch (mode) {
+        _Server.ok => _songs,
+        _Server.empty => const <Song>[],
+        _Server.fails => throw Exception('offline'),
+      };
 }
 
 class _FakePaged extends StateNotifier<PaginatedSongsState> implements PaginatedSongsNotifier {
-  _FakePaged() : super(PaginatedSongsState(songs: _songs, hasMore: false, isLoadingMore: false, offset: 14));
+  _FakePaged({List<Song>? songs}) : super(PaginatedSongsState(songs: songs ?? _songs, hasMore: false, isLoadingMore: false, offset: 14));
   @override
   dynamic noSuchMethod(Invocation i) => i.isMethod ? Future<void>.value() : null;
 }
@@ -179,7 +189,7 @@ void main() {
     debugCoverImageOverride = null;
   });
 
-  Future<void> shot(WidgetTester tester, Widget page, Size size, String name, {List<Override> extra = const [], bool signedOut = false}) async {
+  Future<void> shot(WidgetTester tester, Widget page, Size size, String name, {List<Override> extra = const [], bool signedOut = false, _Server server = _Server.ok, List<Song>? pagedSongs, Future<void> Function(WidgetTester)? before}) async {
     covers = (await tester.runAsync(_covers))!;
     debugCoverImageOverride = (url, key) => MemoryImage(covers[url.replaceFirst('cover://', '')] ?? covers['g0']!);
     tester.view.devicePixelRatio = 1;
@@ -190,7 +200,7 @@ void main() {
         ...extra,
         playerProvider.overrideWith((ref) => _FakePlayer()),
         settingsProvider.overrideWith((ref) => signedOut ? _SignedOut() : _FakeSettings()),
-        subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
+        subsonicServiceProvider.overrideWithValue(_FakeSubsonic(server)),
         catalogSongProvider.overrideWith((ref, id) => null),
         isOfflineProvider.overrideWithValue(true), // no suggestions shelf, no network in a golden
         updateCheckProvider.overrideWith((ref) async => null),
@@ -198,7 +208,7 @@ void main() {
         sortedPlaylistsProvider.overrideWithValue(AsyncData([for (final n in ["Late Night Drive", "Gym", "Focus", "Tamil Classics", "Road Trip", "Rainy Day"]) Playlist(id: n, name: n, comment: "", songCount: 14, duration: 3000)])),
         sortedAlbumsProvider.overrideWithValue(AsyncData(_albums)),
         libraryArtistsProvider.overrideWith((ref) async => const <Artist>[]),
-        paginatedSongsProvider.overrideWith((ref, arg) => _FakePaged()),
+        paginatedSongsProvider.overrideWith((ref, arg) => _FakePaged(songs: pagedSongs)),
       ],
       child: MaterialApp(
         debugShowCheckedModeBanner: false,
@@ -210,6 +220,13 @@ void main() {
     for (var i = 0; i < 12; i++) {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 60))); // let images decode
       await tester.pump(const Duration(milliseconds: 100));
+    }
+    if (before != null) {
+      await before(tester);
+      for (var i = 0; i < 4; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 40)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
     }
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('desktop/$name.png'));
     await tester.pumpWidget(const SizedBox());
@@ -310,6 +327,12 @@ void main() {
     testWidgets('settings $tag', (tester) async {
       await shot(tester, const SettingsScreen(), size, 'settings_$tag');
     });
+    testWidgets('settings playback $tag', (tester) async {
+      await shot(tester, const SettingsScreen(), size, 'settings_playback_$tag', before: (t) async {
+        await t.tap(find.text('Playback').first);
+        await t.pump();
+      });
+    });
     testWidgets('player bar $tag', (tester) async {
       await shot(
         tester,
@@ -319,6 +342,96 @@ void main() {
       );
     });
   }
+
+  // The states that are not the happy path, on the table pages and Home: each says
+  // what is going on in a few plain words and offers one way out.
+  const stateSize = Size(1366, 768);
+  testWidgets('state: songs empty', (tester) async {
+    await shot(tester, const SongsPage(), stateSize, 'state_songs_empty', pagedSongs: const <Song>[]);
+  });
+  testWidgets('state: songs could not load', (tester) async {
+    await shot(
+      tester,
+      const SongsPage(),
+      stateSize,
+      'state_songs_error',
+      pagedSongs: const <Song>[],
+      extra: [librarySyncProvider.overrideWith(_FailedSync.new)],
+    );
+  });
+  testWidgets('state: playlist empty', (tester) async {
+    await shot(
+      tester,
+      PlaylistDetailsScreen(playlist: Playlist(id: 'p1', name: 'Late Night Drive', comment: '', songCount: 0, duration: 0)),
+      stateSize,
+      'state_playlist_empty',
+      server: _Server.empty,
+    );
+  });
+  testWidgets('state: playlist could not load', (tester) async {
+    await shot(
+      tester,
+      PlaylistDetailsScreen(playlist: Playlist(id: 'p1', name: 'Late Night Drive', comment: '', songCount: 14, duration: 3100)),
+      stateSize,
+      'state_playlist_error',
+      server: _Server.fails,
+    );
+  });
+  testWidgets('state: table find has no match', (tester) async {
+    await shot(
+      tester,
+      const SongsPage(),
+      stateSize,
+      'state_table_no_results',
+      before: (t) async {
+        await t.tap(find.text('Alone'));
+        await t.pump();
+        await t.sendKeyDownEvent(LogicalKeyboardKey.controlLeft);
+        await t.sendKeyEvent(LogicalKeyboardKey.keyF);
+        await t.sendKeyUpEvent(LogicalKeyboardKey.controlLeft);
+        await t.pump(const Duration(milliseconds: 100));
+        await t.enterText(find.byType(EditableText).first, 'zzzz');
+        await t.pump();
+      },
+    );
+  });
+  testWidgets('state: home first run', (tester) async {
+    await shot(
+      tester,
+      const HomeScreen(),
+      stateSize,
+      'state_home_empty',
+      signedOut: true,
+      extra: [
+        recentlyPlayedAlbumsProvider.overrideWith((ref) async => <Album>[]),
+        recentlyPlayedSongsProvider.overrideWith((ref) async => <Song>[]),
+        recentlyAddedAlbumsProvider.overrideWith((ref) async => <Album>[]),
+        favoritesProvider.overrideWith((ref) async => (songs: <Song>[], albums: <Album>[])),
+        playlistsProvider.overrideWith((ref) async => <Playlist>[]),
+      ],
+    );
+  });
+  testWidgets('state: home offline', (tester) async {
+    await shot(
+      tester,
+      const HomeScreen(),
+      stateSize,
+      'state_home_error',
+      signedOut: true,
+      extra: [
+        recentlyPlayedAlbumsProvider.overrideWith((ref) async => throw Exception('offline')),
+        recentlyPlayedSongsProvider.overrideWith((ref) async => throw Exception('offline')),
+        recentlyAddedAlbumsProvider.overrideWith((ref) async => throw Exception('offline')),
+        favoritesProvider.overrideWith((ref) async => (songs: <Song>[], albums: <Album>[])),
+        playlistsProvider.overrideWith((ref) async => throw Exception('offline')),
+      ],
+    );
+  });
+}
+
+class _FailedSync extends LibrarySyncNotifier {
+  @override
+  LibrarySyncState build() => LibrarySyncState(error: Exception('offline'));
 }
 
 class _SignedOut extends StateNotifier<SettingsState> implements SettingsNotifier {
