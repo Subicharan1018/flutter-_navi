@@ -37,7 +37,11 @@ class PlaylistCover extends ConsumerWidget {
   final Playlist playlist;
   final double size;
   final double radius;
-  const PlaylistCover({super.key, required this.playlist, required this.size, this.radius = Radii.cover});
+
+  /// A thumbnail too small for four covers to read (a 40 px list row, the rail's
+  /// 40 px rows): the first song's cover alone, so it is one picture, not stripes.
+  final bool compact;
+  const PlaylistCover({super.key, required this.playlist, required this.size, this.radius = Radii.cover, this.compact = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -46,7 +50,8 @@ class PlaylistCover extends ConsumerWidget {
     if ((playlist.coverArt ?? '').isNotEmpty) {
       return MosaicArt(urls: [svc.getCoverArtUrl(playlist.coverArt)], size: s, radius: radius, placeholderIcon: NaviGlyph.playlist);
     }
-    final ids = ref.watch(playlistMosaicProvider(playlist.id)).asData?.value ?? const <String>[];
+    final all = ref.watch(playlistMosaicProvider(playlist.id)).asData?.value ?? const <String>[];
+    final ids = compact && all.isNotEmpty ? all.take(1).toList() : all;
     return MosaicArt(
       urls: [for (final id in ids) svc.getCoverArtUrl(id)],
       size: s,

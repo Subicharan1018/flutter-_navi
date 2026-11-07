@@ -91,6 +91,8 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
   Widget build(BuildContext context) {
     final entries = _sorted(libraryEntries(context, ref, _kind));
     final pins = ref.watch(pinsProvider);
+    final columns = _columns(_kind, entries);
+    final toolbar = SliverToBoxAdapter(child: _Toolbar(kind: _kind, onKind: (k) => setState(() => _kind = k), onSort: _sortMenu, sort: _sort, asc: _asc));
     return LargeTitlePage(
       title: 'Library',
       slivers: [
@@ -99,8 +101,8 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
           SliverPadding(padding: const EdgeInsets.symmetric(horizontal: Space.md), sliver: PinsGrid(pins: pins)),
           const SliverToBoxAdapter(child: SizedBox(height: Space.xl)),
         ],
-        SliverToBoxAdapter(child: _Toolbar(kind: _kind, onKind: (k) => setState(() => _kind = k), onSort: _sortMenu, sort: _sort, asc: _asc)),
-        if (entries.isEmpty)
+        if (entries.isEmpty) ...[
+          toolbar,
           SliverToBoxAdapter(
             child: MessageState(
               icon: NaviGlyph.library,
@@ -111,22 +113,31 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
               },
               message: 'What you add to your server appears here.',
             ),
-          )
-        else
+          ),
+        ] else
           ValueListenableBuilder<bool>(
             valueListenable: DesktopLayout.libraryGrid,
             builder: (context, grid, _) => grid
-                ? _Grid(entries: entries)
-                : SliverMainAxisGroup(slivers: [
-                    _ListHeader(kind: _kind, sort: _sort, asc: _asc, onSort: _pickSort),
-                    SliverFixedExtentList(
-                      itemExtent: 56,
-                      delegate: SliverChildBuilderDelegate(
-                        (context, i) => _ListRow(entry: entries[i]),
-                        childCount: entries.length,
+                // Tiles: as many columns as the width holds, so a wide window gets
+                // more tiles, not bigger gaps.
+                ? SliverMainAxisGroup(slivers: [toolbar, _Grid(entries: entries)])
+                // List: a table of a few short columns stops being readable when
+                // stretched across 1900 px, so it stops at 1200 (left, on the
+                // title's edge) and the toolbar's sort and view buttons follow it.
+                : SliverConstrainedCrossAxis(
+                    maxExtent: _listMaxWidth,
+                    sliver: SliverMainAxisGroup(slivers: [
+                      toolbar,
+                      _ListHeader(kind: _kind, sort: _sort, asc: _asc, onSort: _pickSort, columns: columns),
+                      SliverFixedExtentList(
+                        itemExtent: 56,
+                        delegate: SliverChildBuilderDelegate(
+                          (context, i) => _ListRow(entry: entries[i], columns: columns),
+                          childCount: entries.length,
+                        ),
                       ),
-                    ),
-                  ]),
+                    ]),
+                  ),
           ),
         const SliverToBoxAdapter(child: SizedBox(height: Space.xxl)),
       ],
@@ -306,12 +317,17 @@ class _Col {
   const _Col(this.label, this.sort, this.text, {this.width, this.right = false});
 }
 
-List<_Col> _columns(LibKind kind) {
+/// The list stops growing here: wider than this the eye loses the row.
+const double _listMaxWidth = 1200;
+
+List<_Col> _columns(LibKind kind, List<LibEntry> entries) {
   String time(LibEntry e) => e.duration <= 0 ? '' : formatLongDuration(e.duration);
   switch (kind) {
     case LibKind.playlists:
       return [
-        _Col('Owner', LibSort.artist, (e) => e.secondary),
+        // An Owner column with nobody in it is a gap, not information: only when
+        // at least one playlist names an owner.
+        if (entries.any((e) => e.secondary.trim().isNotEmpty)) _Col('Owner', LibSort.artist, (e) => e.secondary),
         _Col('Songs', LibSort.count, (e) => '${e.count}', width: 80, right: true),
         _Col('Time', LibSort.duration, time, width: 110, right: true),
       ];
@@ -332,7 +348,8 @@ class _ListHeader extends StatelessWidget {
   final LibSort sort;
   final bool asc;
   final void Function(LibSort) onSort;
-  const _ListHeader({required this.kind, required this.sort, required this.asc, required this.onSort});
+  final List<_Col> columns;
+  const _ListHeader({required this.kind, required this.sort, required this.asc, required this.onSort, required this.columns});
 
   @override
   Widget build(BuildContext context) {
@@ -376,7 +393,7 @@ class _ListHeader extends StatelessWidget {
           children: [
             const SizedBox(width: 40 + Space.md),
             Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: cell('Name', LibSort.name))),
-            for (final c in _columns(kind))
+            for (final c in columns)
               c.width == null
                   ? Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: cell(c.label, c.sort)))
                   : SizedBox(width: c.width, child: Align(alignment: c.right ? Alignment.centerRight : Alignment.centerLeft, child: cell(c.label, c.sort))),
@@ -389,7 +406,8 @@ class _ListHeader extends StatelessWidget {
 
 class _ListRow extends StatelessWidget {
   final LibEntry entry;
-  const _ListRow({required this.entry});
+  final List<_Col> columns;
+  const _ListRow({required this.entry, required this.columns});
 
   @override
   Widget build(BuildContext context) {
@@ -415,7 +433,7 @@ class _ListRow extends StatelessWidget {
                   child: Stack(
                     children: [
                       e.playlist != null && e.artUrl == null
-                          ? PlaylistCover(playlist: e.playlist!, size: 40, radius: Radii.thumb)
+                          ? PlaylistCover(playlist: e.playlist!, size: 40, radius: Radii.thumb, compact: true)
                           : e.artUrl == null
                           ? Container(
                               decoration: BoxDecoration(color: t.bgElevated, borderRadius: BorderRadius.circular(e.circular ? 20 : Radii.thumb)),
@@ -456,7 +474,7 @@ class _ListRow extends StatelessWidget {
                   flex: 5,
                   child: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w500)),
                 ),
-                for (final c in _columns(e.kind))
+                for (final c in columns)
                   c.width == null
                       ? Expanded(flex: 3, child: Text(c.text(e), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote))
                       : SizedBox(width: c.width, child: Text(c.text(e), textAlign: c.right ? TextAlign.right : TextAlign.left, style: num)),
