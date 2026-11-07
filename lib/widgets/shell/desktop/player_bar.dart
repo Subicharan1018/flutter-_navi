@@ -351,7 +351,10 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
           final shown = _hover ?? _drag;
           return Row(
             children: [
-              SizedBox(width: 40, child: Text(formatClock(Duration(milliseconds: (f * total).round())), textAlign: TextAlign.right, style: label)),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 40),
+                child: Text(formatClock(Duration(milliseconds: (f * total).round())), textAlign: TextAlign.right, softWrap: false, style: label),
+              ),
               const SizedBox(width: Space.sm),
               Expanded(
                 child: LayoutBuilder(
@@ -375,6 +378,7 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
                           onTapUp: (d) => progress.seekTo(player, Duration(milliseconds: (at(d.localPosition) * total).round())),
                           onHorizontalDragStart: (d) => setState(() => _drag = at(d.localPosition)),
                           onHorizontalDragUpdate: (d) => setState(() => _drag = at(d.localPosition)),
+                          onHorizontalDragCancel: () => setState(() => _drag = null),
                           onHorizontalDragEnd: (_) {
                             final v = _drag;
                             if (v != null) progress.seekTo(player, Duration(milliseconds: (v * total).round()));
@@ -434,7 +438,10 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
                 ),
               ),
               const SizedBox(width: Space.sm),
-              SizedBox(width: 40, child: Text(formatClock(progress.total), style: label)),
+              ConstrainedBox(
+                constraints: const BoxConstraints(minWidth: 40),
+                child: Text(formatClock(progress.total), softWrap: false, style: label),
+              ),
             ],
           );
         },
@@ -531,6 +538,7 @@ class _DesktopVolumeState extends State<DesktopVolume> {
                       onTapDown: (d) => _set(at(d.localPosition)),
                       onHorizontalDragStart: (_) => setState(() => _drag = true),
                       onHorizontalDragUpdate: (d) => _set(at(d.localPosition)),
+                      onHorizontalDragCancel: () => setState(() => _drag = false),
                       onHorizontalDragEnd: (_) => setState(() => _drag = false),
                       child: SizedBox(
                         height: 28,

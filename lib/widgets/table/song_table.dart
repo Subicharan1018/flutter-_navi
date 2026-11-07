@@ -953,8 +953,8 @@ class _RowState extends ConsumerState<_Row> {
               // selected a stronger 16% fill, the keyboard cursor a 2 px outline inside the row.
               decoration: BoxDecoration(
                 color: selected
-                    ? Colors.white.withValues(alpha: 0.16)
-                    : (_hover ? Colors.white.withValues(alpha: 0.09) : Colors.transparent),
+                    ? t.selected
+                    : (_hover ? t.hover : Colors.transparent),
                 borderRadius: BorderRadius.circular(6),
                 border: _dropBelow == null
                     ? null

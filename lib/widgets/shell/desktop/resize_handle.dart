@@ -62,6 +62,7 @@ class _ResizeHandleState extends State<ResizeHandle> {
             behavior: HitTestBehavior.translucent,
             onHorizontalDragStart: (_) => setState(() => _drag = true),
             onHorizontalDragUpdate: (d) => widget.onDrag(d.delta.dx * (widget.growsRight ? 1 : -1)),
+            onHorizontalDragCancel: () => setState(() => _drag = false),
             onHorizontalDragEnd: (_) {
               setState(() => _drag = false);
               widget.onEnd();

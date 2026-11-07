@@ -53,7 +53,7 @@ class _NaviIconButtonState extends State<NaviIconButton> {
               height: widget.box,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: on && _hover ? Colors.white.withValues(alpha: 0.09) : Colors.transparent,
+                color: on && _hover ? t.hover : Colors.transparent,
               ),
               alignment: Alignment.center,
               child: NaviIcon(widget.glyph, size: widget.size, color: widget.color ?? (on ? t.textSecondary : t.textMuted)),

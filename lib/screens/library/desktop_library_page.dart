@@ -432,7 +432,7 @@ class _ListRow extends StatelessWidget {
                               child: DecoratedBox(
                                 // A 9% white wash (not a black scrim) and a small solid disc that reads on any cover.
                                 decoration: BoxDecoration(
-                                  color: Colors.white.withValues(alpha: 0.09),
+                                  color: t.hover,
                                   borderRadius: BorderRadius.circular(e.circular ? 20 : Radii.thumb),
                                 ),
                                 child: Center(

@@ -292,20 +292,39 @@ class _NaviPressableState extends State<NaviPressable> {
     super.dispose();
   }
 
+  bool _byPointer = false;
+
   @override
-  Widget build(BuildContext context) => NaviFocusRing(
-        focusNode: _node,
-        onTap: widget.onTap,
-        radius: widget.radius,
-        child: GestureDetector(
-          behavior: widget.behavior,
-          onTap: widget.onTap == null
-              ? null
-              : () {
-                  _node.requestFocus();
-                  widget.onTap!();
-                },
-          child: widget.child,
+  Widget build(BuildContext context) => Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        // Any key press while focused means the keyboard is driving again.
+        onKeyEvent: (_, __) {
+          if (_byPointer) setState(() => _byPointer = false);
+          return KeyEventResult.ignored;
+        },
+        child: NaviFocusRing(
+          focusNode: _node,
+          onTap: widget.onTap,
+          radius: widget.radius,
+          showRing: !_byPointer,
+          onFocusChange: (f) {
+            if (!f && _byPointer) setState(() => _byPointer = false);
+          },
+          child: GestureDetector(
+            behavior: widget.behavior,
+            onTap: widget.onTap == null
+                ? null
+                : () {
+                    // A click takes focus (so a panel can hand it back) but must
+                    // not draw the keyboard ring; on Windows the highlight mode
+                    // stays "traditional" after a mouse click, so hide it here.
+                    setState(() => _byPointer = true);
+                    _node.requestFocus();
+                    widget.onTap!();
+                  },
+            child: widget.child,
+          ),
         ),
       );
 }

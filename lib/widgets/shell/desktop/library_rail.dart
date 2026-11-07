@@ -60,12 +60,6 @@ class _LibraryRailState extends ConsumerState<LibraryRail> {
   RailSort _sort = RailSort.library;
 
   @override
-  void initState() {
-    super.initState();
-    _find.addListener(() => setState(() {}));
-  }
-
-  @override
   void dispose() {
     _find.dispose();
     super.dispose();
@@ -152,12 +146,17 @@ class _LibraryRailState extends ConsumerState<LibraryRail> {
                     _FindRow(controller: _find, sort: _sort, onSort: _sortMenu),
                   ],
                   Expanded(
-                    child: _LibraryList(
-                      collapsed: collapsed,
-                      filter: _filter,
-                      sort: _sort,
-                      query: _find.text.trim().toLowerCase(),
-                      onDrop: _addDropped,
+                    // Only the list listens to the find box: a keystroke rebuilds it,
+                    // not the whole rail.
+                    child: ListenableBuilder(
+                      listenable: _find,
+                      builder: (context, _) => _LibraryList(
+                        collapsed: collapsed,
+                        filter: _filter,
+                        sort: _sort,
+                        query: _find.text.trim().toLowerCase(),
+                        onDrop: _addDropped,
+                      ),
                     ),
                   ),
                   Padding(
