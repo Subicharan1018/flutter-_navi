@@ -255,6 +255,42 @@ class GroupedSwitchRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    if (PlatformUtils.isDesktop) {
+      // Windows: a squared monochrome toggle with the white focus ring, no haptics.
+      return GroupedRow(
+        title: title,
+        subtitle: subtitle,
+        icon: icon,
+        trailing: Semantics(
+          toggled: value,
+          label: title,
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: NaviPressable(
+              onTap: () => onChanged(!value),
+              radius: 8,
+              child: AnimatedContainer(
+                duration: const Duration(milliseconds: 120),
+                width: 40,
+                height: 22,
+                padding: const EdgeInsets.all(3),
+                alignment: value ? Alignment.centerRight : Alignment.centerLeft,
+                decoration: BoxDecoration(
+                  color: value ? t.accentFill : t.fill,
+                  borderRadius: BorderRadius.circular(7),
+                  border: value ? null : Border.all(color: t.outline, width: 1),
+                ),
+                child: Container(
+                  width: 16,
+                  height: 16,
+                  decoration: BoxDecoration(color: value ? t.onAccent : t.textSecondary, borderRadius: BorderRadius.circular(4)),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     return GroupedRow(
       title: title,
       subtitle: subtitle,

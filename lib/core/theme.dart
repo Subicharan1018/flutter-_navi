@@ -264,8 +264,9 @@ class AppThemeTokens {
   TextStyle get callout => naviText(15, FontWeight.w400, textPrimary, height: 1.3);
   TextStyle get subheadline => naviText(14, FontWeight.w400, textSecondary, height: 1.3);
   TextStyle get footnote => naviText(12.5, FontWeight.w400, textSecondary, height: 1.3);
-  TextStyle get caption1 => naviText(11.5, FontWeight.w400, textSecondary, height: 1.3);
-  TextStyle get caption2 => naviText(10.5, FontWeight.w500, textSecondary, height: 1.25);
+  // Windows reads at arm's length on a monitor: nothing below 12 there. The phone keeps its sizes.
+  TextStyle get caption1 => naviText(PlatformUtils.isDesktop ? 12 : 11.5, FontWeight.w400, textSecondary, height: 1.3);
+  TextStyle get caption2 => naviText(PlatformUtils.isDesktop ? 12 : 10.5, FontWeight.w500, textSecondary, height: 1.25);
 
   /// Escape hatch for one-off display sizes (hero numbers, desktop titles).
   TextStyle textStyle(double size, FontWeight weight, Color color) =>
@@ -273,6 +274,11 @@ class AppThemeTokens {
 
   /// Always opaque — safe for menus and dialogs over moving content.
   Color get bgSurfaceOpaque => Color.alphaBlend(bgSurface, bgBase);
+
+  /// Pointer states on Windows: hover is a 9% white wash, selected a stronger 16%
+  /// fill. One definition, so a row, a button and a tile agree.
+  Color get hover => const Color(0x17FFFFFF);
+  Color get selected => const Color(0x29FFFFFF);
 
   /// The accent as a solid fill (Play discs, white capsules, selected chips). On
   /// Windows it is a calmer ~89% of the accent, so the brightest thing on a dark
@@ -632,7 +638,7 @@ class _CupertinoClickableState extends State<CupertinoClickable>
               child: IgnorePointer(
                 child: DecoratedBox(
                   decoration: BoxDecoration(
-                    color: Colors.white.withValues(alpha: 0.09),
+                    color: ThemeTokens.of(context).hover,
                     borderRadius: BorderRadius.circular(widget.focusRadius),
                   ),
                 ),

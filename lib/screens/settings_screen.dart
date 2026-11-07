@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/material.dart' show Colors, Scaffold;
+import 'package:flutter/material.dart' show CircularProgressIndicator, Colors, Scaffold;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
@@ -201,7 +201,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   // ── Build ─────────────────────────────────────────────────────────────────
 
-  Widget? _spinner(String key) => _busy == key ? const CupertinoActivityIndicator() : null;
+  Widget? _spinner(String key) => _busy != key
+      ? null
+      : PlatformUtils.isDesktop
+          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          : const CupertinoActivityIndicator();
 
   @override
   Widget build(BuildContext context) {
