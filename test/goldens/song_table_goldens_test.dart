@@ -6,6 +6,7 @@
 @Tags(['golden'])
 library;
 
+import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
@@ -13,8 +14,14 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:hive_ce/hive.dart';
+import 'package:navivibe/core/hive_boxes.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/models/album.dart';
+import 'package:navivibe/models/artist.dart';
+import 'package:navivibe/features/social/logic/social_providers.dart' show invitationCountProvider;
+import 'package:navivibe/features/updates/logic/update_providers.dart' show updateCheckProvider;
 import 'package:navivibe/models/playlist.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/player/artwork.dart';
@@ -22,10 +29,15 @@ import 'package:navivibe/providers/catalog_provider.dart';
 import 'package:navivibe/providers/library_provider.dart';
 import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
+import 'package:navivibe/screens/library/artists_page.dart' show libraryArtistsProvider;
 import 'package:navivibe/screens/library/songs_page.dart';
 import 'package:navivibe/screens/playlist_details_screen.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/utils/platform_utils.dart';
+import 'package:navivibe/widgets/shell/app_tab.dart';
+import 'package:navivibe/widgets/shell/desktop/desktop_layout.dart';
+import 'package:navivibe/widgets/shell/desktop/library_rail.dart';
+import 'package:navivibe/widgets/shell/desktop/top_bar.dart';
 
 import 'golden_fonts.dart';
 
@@ -120,6 +132,8 @@ void main() {
 
   setUpAll(() async {
     await loadGoldenFonts();
+    Hive.init(Directory.systemTemp.createTempSync("hive_gold").path);
+    HiveBoxes.prefs = await Hive.openBox("prefs");
   });
 
   setUp(() => PlatformUtils.debugDesktopOverride = true);
@@ -141,6 +155,11 @@ void main() {
         subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
         catalogSongProvider.overrideWith((ref, id) => null),
         isOfflineProvider.overrideWithValue(true), // no suggestions shelf, no network in a golden
+        updateCheckProvider.overrideWith((ref) async => null),
+        invitationCountProvider.overrideWithValue(0),
+        sortedPlaylistsProvider.overrideWithValue(AsyncData([for (final n in ["Late Night Drive", "Gym", "Focus", "Tamil Classics", "Road Trip", "Rainy Day"]) Playlist(id: n, name: n, comment: "", songCount: 14, duration: 3000)])),
+        sortedAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        libraryArtistsProvider.overrideWith((ref) async => const <Artist>[]),
         paginatedSongsProvider.overrideWith((ref, arg) => _FakePaged()),
       ],
       child: MaterialApp(
@@ -171,6 +190,47 @@ void main() {
     });
     testWidgets('songs table $tag', (tester) async {
       await shot(tester, const SongsPage(), size, 'songs_$tag');
+    });
+  }
+
+  // The shell as one picture: top bar, library rail, a page, the right panel.
+  // (Composed from the real pieces; the shell widget itself needs the whole app.)
+  Widget shellPage(Size size) {
+    final collapsed = size.width < 1200;
+    return Builder(builder: (context) {
+      final t = ThemeTokens.of(context);
+      return Scaffold(body: Column(children: [
+        const DesktopTopBar(),
+        Expanded(
+          child: Row(children: [
+            LibraryRail(tab: AppTab.home, onSelect: (_) {}, forceCollapsed: collapsed),
+            Container(width: 1, color: t.separatorOpaque),
+            Expanded(
+              child: PlaylistDetailsScreen(
+                playlist: Playlist(id: 'p1', name: 'Late Night Drive', comment: '', songCount: 14, duration: 3100),
+              ),
+            ),
+            if (!collapsed) ...[
+              Container(width: 1, color: t.separatorOpaque),
+              Container(
+                width: DesktopLayout.panelWidth.value,
+                color: t.bgSurface,
+                padding: const EdgeInsets.all(Space.lg),
+                alignment: Alignment.topLeft,
+                child: Text('Now Playing panel', style: t.footnote),
+              ),
+            ],
+          ]),
+        ),
+      ]));
+    });
+  }
+
+  for (final size in const [Size(1100, 700), Size(1366, 768), Size(1920, 1080)]) {
+    final tag = '${size.width.toInt()}x${size.height.toInt()}';
+    testWidgets('shell $tag', (tester) async {
+      DesktopLayout.debugReset();
+      await shot(tester, shellPage(size), size, 'shell_$tag');
     });
   }
 }

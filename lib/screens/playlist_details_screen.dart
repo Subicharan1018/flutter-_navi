@@ -302,7 +302,8 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                         ? NaviSearchField(controller: _search, placeholder: 'Find in Playlist')
                         : const SizedBox.shrink(),
                   ),
-                  if (!_editing && _query.isEmpty)
+                  // The table's selection, Delete and drag replace Edit mode on desktop.
+                  if (!_editing && _query.isEmpty && !useSongTable())
                     _BarTextAction(label: 'Edit', onTap: () => setState(() => _editing = true)),
                 ],
               ),

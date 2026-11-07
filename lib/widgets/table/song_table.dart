@@ -1,6 +1,7 @@
+import 'dart:async';
 import 'dart:math' as math;
 
-import 'package:flutter/gestures.dart' show kPrimaryButton, kSecondaryButton;
+import 'package:flutter/gestures.dart' show GestureBinding, PointerCancelEvent, PointerEvent, PointerMoveEvent, PointerUpEvent, kPrimaryButton, kSecondaryButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -129,6 +130,8 @@ class SongTableState extends ConsumerState<SongTableSliver> {
   @override
   void dispose() {
     _live.remove(this);
+    _unroute();
+    _stopAutoScroll();
     _focus.dispose();
     _find.dispose();
     _findFocus.dispose();
@@ -210,6 +213,89 @@ class SongTableState extends ConsumerState<SongTableSliver> {
   void _clearSelection() {
     _selected.clear();
     _anchor = _cursor = -1;
+  }
+
+  // ── Which row is playing ──────────────────────────────────────────────────
+
+  /// Whether the row at [index] showing [song] is the one playing. A song can
+  /// be in a playlist twice, so the song id alone is not enough: when the queue
+  /// is this table's rows in this order, the queue position says which row.
+  /// Otherwise the first row with that song is the playing one.
+  bool _isPlayingRow(PlayerState s, Song song, int index) {
+    if (s.currentSong?.id != song.id) return false;
+    final rows = _rows;
+    if (s.queue.length == rows.length) {
+      var same = true;
+      for (var i = 0; i < rows.length && same; i++) {
+        same = s.queue[i].id == rows[i].id;
+      }
+      if (same) return s.currentIndex == index;
+    }
+    return rows.indexWhere((r) => r.id == song.id) == index;
+  }
+
+  // ── Auto-scroll while dragging ────────────────────────────────────────────
+
+  Timer? _autoScroll;
+  double _autoScrollSpeed = 0;
+
+  /// Called as a dragged row moves: near the top or bottom edge of the list the
+  /// page scrolls, faster the closer the pointer is to the edge.
+  void _dragMoved(Offset global) {
+    final scrollable = Scrollable.maybeOf(context);
+    final box = scrollable?.context.findRenderObject();
+    if (scrollable == null || box is! RenderBox || !box.attached) return;
+    final local = box.globalToLocal(global);
+    const zone = 72.0;
+    // The pinned header covers the top rows; start a little below it.
+    final top = SongTableSliver.headerHeight + 8;
+    double speed = 0;
+    if (local.dy < top + zone) {
+      speed = -((top + zone - local.dy) / zone).clamp(0.0, 1.5) * 18;
+    } else if (local.dy > box.size.height - zone) {
+      speed = ((local.dy - (box.size.height - zone)) / zone).clamp(0.0, 1.5) * 18;
+    }
+    _autoScrollSpeed = speed;
+    if (speed == 0) {
+      _stopAutoScroll();
+      return;
+    }
+    _autoScroll ??= Timer.periodic(const Duration(milliseconds: 16), (_) {
+      final p = scrollable.position;
+      final next = (p.pixels + _autoScrollSpeed).clamp(p.minScrollExtent, p.maxScrollExtent);
+      if (next != p.pixels) p.jumpTo(next);
+    });
+  }
+
+  /// A drag began. Its source row may scroll out of view and be disposed (which
+  /// silences the row's own drag callbacks), so the pointer is followed here instead.
+  void _dragStarted() {
+    if (_routed) return;
+    _routed = true;
+    GestureBinding.instance.pointerRouter.addGlobalRoute(_onPointer);
+  }
+
+  bool _routed = false;
+
+  void _unroute() {
+    if (!_routed) return;
+    _routed = false;
+    GestureBinding.instance.pointerRouter.removeGlobalRoute(_onPointer);
+  }
+
+  void _onPointer(PointerEvent e) {
+    if (e is PointerMoveEvent) {
+      _dragMoved(e.position);
+    } else if (e is PointerUpEvent || e is PointerCancelEvent) {
+      _unroute();
+      _stopAutoScroll();
+    }
+  }
+
+  void _stopAutoScroll() {
+    _autoScroll?.cancel();
+    _autoScroll = null;
+    _autoScrollSpeed = 0;
   }
 
   // ── Selection ─────────────────────────────────────────────────────────────
@@ -633,7 +719,7 @@ class _RowState extends ConsumerState<_Row> {
     final song = widget.song;
     final cols = widget.columns;
     final selected = _selected;
-    final isCurrent = ref.watch(playerProvider.select((s) => s.currentSong?.id == song.id));
+    final isCurrent = ref.watch(playerProvider.select((s) => _t._isPlayingRow(s, song, widget.index)));
     final isPlaying = isCurrent && ref.watch(playerProvider.select((s) => s.isPlaying));
     final artist = shortArtists(displayArtist(song, ref.watch(catalogSongProvider(song.id))));
     final svc = ref.read(subsonicServiceProvider);
@@ -775,6 +861,10 @@ class _RowState extends ConsumerState<_Row> {
       data: SongDrag(dragged, dragIdx, _t.widget.playlistId),
       dragAnchorStrategy: pointerDragAnchorStrategy,
       maxSimultaneousDrags: 1,
+      onDragStarted: _t._dragStarted,
+      onDragEnd: (_) => _t._stopAutoScroll(),
+      onDraggableCanceled: (_, _) => _t._stopAutoScroll(),
+      onDragCompleted: _t._stopAutoScroll,
       feedback: _DragChip(label: dragged.length == 1 ? song.title : '${dragged.length} songs'),
       childWhenDragging: Opacity(opacity: 0.45, child: body),
       child: body,

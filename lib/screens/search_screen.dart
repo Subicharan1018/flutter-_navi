@@ -31,6 +31,7 @@ import '../widgets/cover_art.dart';
 import '../widgets/shell/nav_stack.dart' show searchFieldRequest;
 import '../widgets/song_tile.dart';
 import '../widgets/table/song_table.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/ui/controls.dart';
 import '../widgets/ui/large_title_page.dart';
 import '../widgets/ui/media.dart';
@@ -106,7 +107,10 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
 
     return LargeTitlePage(
       title: 'Search',
-      header: Row(
+      // Desktop: the field is in the top bar, so the page is just its results.
+      header: PlatformUtils.isDesktop
+          ? Align(alignment: Alignment.centerRight, child: _IdentifyButton(onTap: () => showRecognizeSheet(context)))
+          : Row(
         children: [
           Expanded(
             child: NaviSearchField(

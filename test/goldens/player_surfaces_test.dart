@@ -21,6 +21,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
+import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/core/album_palette.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/flow/logic/flow_controller.dart';
@@ -237,10 +238,14 @@ void main() {
   });
 
   setUp(() {
+    PlatformUtils.debugDesktopOverride = false; // phone surfaces, whatever the host OS
     debugCoverImageOverride = (url, key) => MemoryImage(_coverBytes[_idFromKey(url.replaceFirst('cover://', ''))]!);
   });
 
-  tearDown(() => debugCoverImageOverride = null);
+  tearDown(() {
+    debugCoverImageOverride = null;
+    PlatformUtils.debugDesktopOverride = null;
+  });
 
   Future<void> shot(
     WidgetTester tester,

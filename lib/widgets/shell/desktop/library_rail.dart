@@ -1,0 +1,671 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../../core/focus/navi_focus.dart';
+import '../../../core/theme.dart';
+import '../../../features/online_fetch/logic/online_fetch_providers.dart';
+import '../../../features/online_fetch/ui/fetch_activity.dart';
+import '../../../models/album.dart';
+import '../../../models/artist.dart';
+import '../../../models/playlist.dart';
+import '../../../models/song.dart';
+import '../../../providers/library_provider.dart';
+import '../../../providers/pins_provider.dart';
+import '../../../providers/settings_provider.dart';
+import '../../../screens/album_details_screen.dart';
+import '../../../screens/artist_screen.dart';
+import '../../../screens/favorites_screen.dart';
+import '../../../screens/library/artists_page.dart';
+import '../../../screens/library/playlists_page.dart';
+import '../../../screens/library/songs_page.dart';
+import '../../../screens/playlist_details_screen.dart';
+import '../../../screens/playlist_editor.dart';
+import '../../../screens/settings_screen.dart';
+import '../../../utils/format.dart';
+import '../../art/navi_icons.dart';
+import '../../collection_actions.dart';
+import '../../cover_art.dart';
+import '../../desktop_dialogs.dart';
+import '../../table/song_table.dart' show SongDrag;
+import '../../ui/action_sheet.dart';
+import '../../ui/dock_ground.dart';
+import '../app_tab.dart';
+import '../nav_stack.dart';
+import 'desktop_layout.dart';
+
+// =============================================================================
+// library_rail.dart — the left rail of the desktop window.
+//
+// Home, Shuffle, Jam and Stats on top as compact items, then Your Library: what
+// you own, filtered (Playlists, Albums, Artists), searched and sorted. It can
+// be dragged wider or narrower, and collapsed to icons; the width is
+// remembered ([DesktopLayout]). Playlists take right-click and songs dropped
+// from a table.
+// =============================================================================
+
+enum RailFilter { playlists, albums, artists }
+
+enum RailSort { library, alphabetical }
+
+class LibraryRail extends ConsumerStatefulWidget {
+  final AppTab tab;
+  final ValueChanged<AppTab> onSelect;
+
+  /// The window is narrow: always icons, whatever was chosen.
+  final bool forceCollapsed;
+  const LibraryRail({super.key, required this.tab, required this.onSelect, this.forceCollapsed = false});
+
+  @override
+  ConsumerState<LibraryRail> createState() => _LibraryRailState();
+}
+
+class _LibraryRailState extends ConsumerState<LibraryRail> {
+  final _find = TextEditingController();
+  RailFilter? _filter = RailFilter.playlists;
+  RailSort _sort = RailSort.library;
+
+  @override
+  void initState() {
+    super.initState();
+    _find.addListener(() => setState(() {}));
+  }
+
+  @override
+  void dispose() {
+    _find.dispose();
+    super.dispose();
+  }
+
+  /// Songs dropped on a playlist row: add them, say so.
+  Future<void> _addDropped(BuildContext context, Playlist p, List<Song> songs) async {
+    final svc = ref.read(subsonicServiceProvider);
+    try {
+      for (final s in songs) {
+        await svc.updatePlaylist(p.id, songIdToAdd: s.id);
+      }
+      ref.invalidate(playlistsProvider);
+      if (context.mounted) {
+        showToast(context, songs.length == 1 ? 'Added “${songs.first.title}” to ${p.name}' : 'Added ${songs.length} songs to ${p.name}');
+      }
+    } catch (_) {
+      if (context.mounted) showToast(context, 'Couldn’t add to ${p.name}. Try again.');
+    }
+  }
+
+  void _sortMenu() {
+    showDesktopMenu<void>(
+      context: context,
+      width: 200,
+      builder: (_) => SheetGroup(children: [
+        for (final (s, label) in const [(RailSort.library, 'Library order'), (RailSort.alphabetical, 'Alphabetical')])
+          SheetAction(
+            label: label,
+            icon: _sort == s ? NaviGlyph.check : null,
+            onTap: () => setState(() => _sort = s),
+          ),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return ListenableBuilder(
+      listenable: Listenable.merge([DesktopLayout.railWidth, DesktopLayout.railCollapsed]),
+      builder: (context, _) {
+        final collapsed = widget.forceCollapsed || DesktopLayout.railCollapsed.value;
+        final width = collapsed ? DesktopLayout.railIcons : DesktopLayout.railWidth.value;
+        return GroundPane(
+          side: PaneSide.leading,
+          fallback: t.bgSurface,
+          child: SizedBox(
+            width: width,
+            child: FocusTraversalGroup(
+              child: Column(
+                children: [
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(collapsed ? Space.sm : Space.md, Space.md, collapsed ? Space.sm : Space.md, 0),
+                    child: Column(
+                      children: [
+                        for (final dest in AppTab.browseTabs)
+                          RailRow(
+                            icon: dest.icon,
+                            label: dest.label,
+                            iconOnly: collapsed,
+                            selected: widget.tab == dest,
+                            onTap: () => widget.onSelect(dest),
+                          ),
+                        const _DownloadsRow(),
+                      ],
+                    ),
+                  ),
+                  _LibraryHeader(
+                    collapsed: collapsed,
+                    forced: widget.forceCollapsed,
+                    selected: widget.tab == AppTab.library,
+                    onOpen: () => widget.onSelect(AppTab.library),
+                  ),
+                  if (!collapsed) ...[
+                    _Filters(
+                      filter: _filter,
+                      onChange: (f) => setState(() => _filter = f),
+                    ),
+                    _FindRow(controller: _find, sort: _sort, onSort: _sortMenu),
+                  ],
+                  Expanded(
+                    child: _LibraryList(
+                      collapsed: collapsed,
+                      filter: _filter,
+                      sort: _sort,
+                      query: _find.text.trim().toLowerCase(),
+                      onDrop: _addDropped,
+                    ),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(collapsed ? Space.sm : Space.md, 0, collapsed ? Space.sm : Space.md, Space.md),
+                    child: RailRow(
+                      icon: NaviGlyph.gear,
+                      label: 'Settings',
+                      iconOnly: collapsed,
+                      onTap: () => navigateInApp(context, const SettingsScreen()),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        );
+      },
+    );
+  }
+}
+
+// ── Header, filters, find ────────────────────────────────────────────────────
+
+class _LibraryHeader extends StatelessWidget {
+  final bool collapsed;
+  final bool forced;
+  final bool selected;
+  final VoidCallback onOpen;
+  const _LibraryHeader({required this.collapsed, required this.forced, required this.selected, required this.onOpen});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    if (collapsed) {
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(Space.sm, Space.sm, Space.sm, Space.xs),
+        child: Column(
+          children: [
+            RailRow(icon: NaviGlyph.library, label: 'Your Library', iconOnly: true, selected: selected, onTap: onOpen),
+            if (!forced)
+              RailRow(
+                icon: NaviGlyph.sidebarToggle,
+                label: 'Expand the library',
+                iconOnly: true,
+                onTap: () => DesktopLayout.setCollapsed(false),
+              ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.md, Space.md, Space.sm, Space.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: NaviFocusable(
+              radius: 6,
+              onTap: onOpen,
+              semanticLabel: 'Open Your Library',
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: Space.xs, vertical: 6),
+                child: Row(
+                  children: [
+                    NaviIcon(NaviGlyph.library, size: 20, color: selected ? t.accent : t.textSecondary, filled: selected),
+                    const SizedBox(width: Space.sm),
+                    Flexible(
+                      child: Text(
+                        'Your Library',
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t.subheadline.copyWith(fontWeight: FontWeight.w700, color: selected ? t.accent : t.textPrimary),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+          _IconAction(glyph: NaviGlyph.plus, tooltip: 'New playlist', onTap: () => showPlaylistEditor(context)),
+          _IconAction(
+            glyph: NaviGlyph.sidebarToggle,
+            tooltip: 'Collapse the library',
+            onTap: () => DesktopLayout.setCollapsed(true),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _IconAction extends StatelessWidget {
+  final NaviGlyph glyph;
+  final String tooltip;
+  final VoidCallback onTap;
+  const _IconAction({required this.glyph, required this.tooltip, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return IconButton(
+      tooltip: tooltip,
+      visualDensity: VisualDensity.compact,
+      onPressed: onTap,
+      icon: NaviIcon(glyph, size: 18, color: t.textSecondary),
+    );
+  }
+}
+
+class _Filters extends StatelessWidget {
+  final RailFilter? filter;
+  final ValueChanged<RailFilter?> onChange;
+  const _Filters({required this.filter, required this.onChange});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.md, Space.xs, Space.md, Space.xs),
+      child: Wrap(
+        spacing: Space.xs + 2,
+        runSpacing: Space.xs,
+        children: [
+          for (final (f, label) in const [
+            (RailFilter.playlists, 'Playlists'),
+            (RailFilter.albums, 'Albums'),
+            (RailFilter.artists, 'Artists'),
+          ])
+            Semantics(
+              button: true,
+              selected: filter == f,
+              label: label,
+              child: NaviFocusable(
+                radius: Radii.capsule,
+                hoverTint: false,
+                onTap: () => onChange(filter == f ? null : f),
+                child: Container(
+                  height: 28,
+                  padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                  decoration: BoxDecoration(
+                    color: filter == f ? t.textPrimary : t.fill,
+                    borderRadius: BorderRadius.circular(Radii.capsule),
+                  ),
+                  child: Center(
+                    widthFactor: 1,
+                    child: Text(
+                      label,
+                      style: t.caption1.copyWith(
+                        color: filter == f ? t.bgBase : t.textPrimary,
+                        fontWeight: FontWeight.w600,
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FindRow extends StatelessWidget {
+  final TextEditingController controller;
+  final RailSort sort;
+  final VoidCallback onSort;
+  const _FindRow({required this.controller, required this.sort, required this.onSort});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.md, Space.xs, Space.xs, Space.xs),
+      child: Row(
+        children: [
+          Expanded(
+            child: SizedBox(
+              height: 30,
+              child: TextField(
+                controller: controller,
+                style: t.caption1.copyWith(color: t.textPrimary, fontSize: 13),
+                cursorColor: t.textPrimary,
+                decoration: InputDecoration(
+                  isDense: true,
+                  filled: true,
+                  fillColor: t.fill,
+                  hintText: 'Find in Your Library',
+                  hintStyle: t.caption1.copyWith(fontSize: 13),
+                  contentPadding: const EdgeInsets.symmetric(horizontal: Space.sm, vertical: 6),
+                  prefixIcon: Padding(
+                    padding: const EdgeInsets.all(7),
+                    child: NaviIcon(NaviGlyph.search, size: 14, color: t.textSecondary),
+                  ),
+                  prefixIconConstraints: const BoxConstraints(minWidth: 28, minHeight: 28),
+                  border: OutlineInputBorder(borderRadius: BorderRadius.circular(6), borderSide: BorderSide.none),
+                ),
+              ),
+            ),
+          ),
+          Tooltip(
+            message: sort == RailSort.library ? 'Sort: library order' : 'Sort: A–Z',
+            child: IconButton(
+              visualDensity: VisualDensity.compact,
+              onPressed: onSort,
+              icon: NaviIcon(NaviGlyph.listView, size: 18, color: t.textSecondary),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+// ── The list ─────────────────────────────────────────────────────────────────
+
+/// One line of the library list, whatever it is.
+class _Item {
+  final String id;
+  final String title;
+  final String subtitle;
+  final String? artUrl;
+  final NaviGlyph placeholder;
+  final bool circular;
+  final VoidCallback onTap;
+  final VoidCallback? onMenu;
+  final void Function(List<Song>)? onDrop;
+  const _Item({
+    required this.id,
+    required this.title,
+    required this.subtitle,
+    required this.artUrl,
+    required this.placeholder,
+    required this.onTap,
+    this.circular = false,
+    this.onMenu,
+    this.onDrop,
+  });
+}
+
+class _LibraryList extends ConsumerWidget {
+  final bool collapsed;
+  final RailFilter? filter;
+  final RailSort sort;
+  final String query;
+  final Future<void> Function(BuildContext, Playlist, List<Song>) onDrop;
+  const _LibraryList({
+    required this.collapsed,
+    required this.filter,
+    required this.sort,
+    required this.query,
+    required this.onDrop,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final svc = ref.read(subsonicServiceProvider);
+    final showPlaylists = filter == null || filter == RailFilter.playlists;
+    final showAlbums = filter == null || filter == RailFilter.albums;
+    final showArtists = filter == null || filter == RailFilter.artists;
+
+    final playlists = showPlaylists ? ref.watch(sortedPlaylistsProvider).asData?.value ?? const <Playlist>[] : const <Playlist>[];
+    final albums = showAlbums ? ref.watch(sortedAlbumsProvider).asData?.value ?? const <Album>[] : const <Album>[];
+    final artists = showArtists ? ref.watch(libraryArtistsProvider).asData?.value ?? const <Artist>[] : const <Artist>[];
+
+    final items = <_Item>[
+      // What is always yours, ahead of the rest, while playlists are in view.
+      if (showPlaylists) ...[
+        _Item(
+          id: 'fav',
+          title: 'Favorites',
+          subtitle: 'Playlist',
+          artUrl: null,
+          placeholder: NaviGlyph.heart,
+          onTap: () => navigateInApp(context, const FavoritesScreen()),
+        ),
+        _Item(
+          id: 'songs',
+          title: 'Songs',
+          subtitle: 'Every song',
+          artUrl: null,
+          placeholder: NaviGlyph.note,
+          onTap: () => navigateInApp(context, const SongsPage()),
+        ),
+        _Item(
+          id: 'dl',
+          title: 'Downloaded',
+          subtitle: 'On this device',
+          artUrl: null,
+          placeholder: NaviGlyph.downloadCircle,
+          onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true), title: 'Downloaded'),
+        ),
+      ],
+      for (final p in playlists)
+        _Item(
+          id: 'p${p.id}',
+          title: p.name,
+          subtitle: 'Playlist · ${songCount(p.songCount)}',
+          artUrl: (p.coverArt ?? '').isEmpty ? null : svc.getCoverArtUrl(p.coverArt),
+          placeholder: NaviGlyph.playlist,
+          onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p), title: p.name),
+          onMenu: () => showPlaylistMenu(context, ref, p),
+          onDrop: (songs) => onDrop(context, p, songs),
+        ),
+      for (final a in albums)
+        _Item(
+          id: 'a${a.id}',
+          title: a.name,
+          subtitle: 'Album · ${a.artist}',
+          artUrl: svc.getCoverArtUrl(a.coverArt),
+          placeholder: NaviGlyph.library,
+          onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
+          onMenu: () => showCollectionActions(
+            context,
+            title: a.name,
+            subtitle: a.artist,
+            artUrl: svc.getCoverArtUrl(a.coverArt),
+            placeholderIcon: NaviGlyph.library,
+            loadSongs: () => svc.getAlbum(a.id),
+            pin: Pin.album(a),
+          ),
+        ),
+      for (final a in artists)
+        _Item(
+          id: 'r${a.id}',
+          title: a.name,
+          subtitle: 'Artist',
+          artUrl: svc.getCoverArtUrl(a.coverArtId),
+          placeholder: NaviGlyph.person,
+          circular: true,
+          onTap: () => navigateInApp(context, ArtistScreen(artistId: a.id, name: a.name)),
+          onMenu: () => showCollectionActions(
+            context,
+            title: a.name,
+            subtitle: 'Artist',
+            artUrl: svc.getCoverArtUrl(a.coverArtId),
+            placeholderIcon: NaviGlyph.person,
+            loadSongs: () async {
+              final albums = await svc.getArtistAlbums(a.id);
+              final lists = await Future.wait(albums.map((al) => svc.getAlbum(al.id)));
+              return [for (final l in lists) ...l];
+            },
+            pin: Pin.artist(a.id, a.name),
+          ),
+        ),
+    ];
+
+    var shown = query.isEmpty
+        ? items
+        : [for (final i in items) if (i.title.toLowerCase().contains(query) || i.subtitle.toLowerCase().contains(query)) i];
+    if (sort == RailSort.alphabetical) {
+      shown = [...shown]..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+    }
+
+    if (shown.isEmpty) {
+      final t = ThemeTokens.of(context);
+      return Padding(
+        padding: const EdgeInsets.all(Space.lg),
+        child: Text(collapsed ? '' : 'Nothing here matches.', style: t.footnote),
+      );
+    }
+
+    return ListView.builder(
+      padding: EdgeInsets.fromLTRB(collapsed ? Space.sm : Space.sm, Space.xs, collapsed ? Space.sm : Space.sm, Space.sm),
+      itemExtent: collapsed ? 52 : 56,
+      itemCount: shown.length,
+      itemBuilder: (context, i) => _ItemRow(item: shown[i], collapsed: collapsed),
+    );
+  }
+}
+
+class _ItemRow extends StatelessWidget {
+  final _Item item;
+  final bool collapsed;
+  const _ItemRow({required this.item, required this.collapsed});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final art = item.artUrl == null
+        ? Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(color: t.bgElevated, borderRadius: BorderRadius.circular(item.circular ? 20 : Radii.thumb)),
+            alignment: Alignment.center,
+            child: NaviIcon(item.placeholder, size: 20, color: t.textSecondary),
+          )
+        : CoverArt(url: item.artUrl, size: 40, radius: Radii.thumb, circular: item.circular, placeholderIcon: item.placeholder);
+    return DragTarget<SongDrag>(
+      onWillAcceptWithDetails: (_) => item.onDrop != null,
+      onAcceptWithDetails: (d) => item.onDrop?.call(d.data.songs),
+      builder: (context, candidates, _) {
+        final dropping = candidates.isNotEmpty;
+        final row = Container(
+          padding: const EdgeInsets.symmetric(horizontal: Space.xs + 2),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(8),
+            border: dropping ? Border.all(color: t.textPrimary, width: 1.5) : null,
+            color: dropping ? t.bgOverlay : null,
+          ),
+          child: Row(
+            mainAxisAlignment: collapsed ? MainAxisAlignment.center : MainAxisAlignment.start,
+            children: [
+              art,
+              if (!collapsed) ...[
+                const SizedBox(width: Space.md),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(item.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w500)),
+                      Text(item.subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
+                    ],
+                  ),
+                ),
+              ],
+            ],
+          ),
+        );
+        return NaviFocusable(
+          radius: 8,
+          onTap: item.onTap,
+          onSecondaryTap: item.onMenu,
+          semanticLabel: '${item.title}, ${item.subtitle}',
+          child: collapsed ? Tooltip(message: item.title, child: row) : row,
+        );
+      },
+    );
+  }
+}
+
+// ── Shared rail row ──────────────────────────────────────────────────────────
+
+/// A destination in the rail: glyph and label, a wash on hover, a fill when selected.
+class RailRow extends StatelessWidget {
+  final NaviGlyph? icon;
+  final Widget? art;
+  final String label;
+  final bool selected;
+  final bool iconOnly;
+  final VoidCallback onTap;
+  const RailRow({
+    super.key,
+    this.icon,
+    this.art,
+    required this.label,
+    this.selected = false,
+    this.iconOnly = false,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final row = Container(
+      height: 36,
+      padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+      decoration: BoxDecoration(color: selected ? t.bgOverlay : Colors.transparent, borderRadius: BorderRadius.circular(6)),
+      child: Row(
+        mainAxisAlignment: iconOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
+        children: [
+          art ?? NaviIcon(icon!, size: 20, filled: selected, color: selected ? t.accent : t.textSecondary),
+          if (!iconOnly) ...[
+            const SizedBox(width: Space.md),
+            Expanded(
+              child: Text(
+                label,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: t.subheadline.copyWith(color: selected ? t.textPrimary : t.textSecondary, fontWeight: selected ? FontWeight.w600 : FontWeight.w500),
+              ),
+            ),
+          ],
+        ],
+      ),
+    );
+    return Semantics(
+      selected: selected,
+      child: NaviFocusable(
+        radius: 6,
+        onTap: onTap,
+        semanticLabel: label,
+        hoverTint: !selected,
+        child: iconOnly ? Tooltip(message: label, child: row) : row,
+      ),
+    );
+  }
+}
+
+/// "Downloads" while anything from Search online is (or was, this session)
+/// downloading, with a thin progress ring.
+class _DownloadsRow extends ConsumerWidget {
+  const _DownloadsRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    if (!ref.watch(onlineFetchAvailableProvider) || ref.watch(fetchJobsProvider.select((d) => d.isEmpty))) {
+      return const SizedBox.shrink();
+    }
+    return RailRow(
+      art: SizedBox(
+        width: 20,
+        height: 20,
+        child: FetchActivityRing(child: NaviIcon(NaviGlyph.download, size: 12, color: t.accent)),
+      ),
+      label: 'Downloads',
+      onTap: () => showFetchDownloads(context),
+    );
+  }
+}

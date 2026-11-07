@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce_flutter/hive_ce_flutter.dart';
+import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/widgets/shell/app_tab.dart';
@@ -23,6 +24,10 @@ bool _fieldFocused(WidgetTester tester) =>
     tester.widget<EditableText>(find.byType(EditableText)).focusNode.hasFocus;
 
 void main() {
+  // These are phone-shell tests, whatever the host OS is.
+  setUp(() => PlatformUtils.debugDesktopOverride = false);
+  tearDown(() => PlatformUtils.debugDesktopOverride = null);
+
   group('clear button', () {
     Future<TextEditingController> pumpField(WidgetTester tester) async {
       final controller = TextEditingController(text: 'abba');

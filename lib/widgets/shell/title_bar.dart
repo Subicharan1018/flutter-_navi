@@ -4,6 +4,7 @@ import 'package:window_manager/window_manager.dart';
 import '../../core/theme.dart';
 import '../../utils/platform_utils.dart';
 import 'breadcrumb_bar.dart';
+import 'desktop/top_bar.dart' show desktopShellActive;
 
 /// Windows only: the window's title bar drawn by the app, so the chrome matches
 /// the page and the window controls sit on it. Drag it to move the window,
@@ -20,7 +21,17 @@ class NaviTitleBar extends StatefulWidget {
   State<NaviTitleBar> createState() => _NaviTitleBarState();
 }
 
-class _NaviTitleBarState extends State<NaviTitleBar> with WindowListener {
+/// Minimise / maximise-restore / close, as Windows draws them. [height] is the
+/// bar they sit in. Used by the title bar and by the desktop shell's top bar.
+class NaviCaptionButtons extends StatefulWidget {
+  final double height;
+  const NaviCaptionButtons({super.key, this.height = NaviTitleBar.height});
+
+  @override
+  State<NaviCaptionButtons> createState() => _NaviCaptionButtonsState();
+}
+
+class _NaviCaptionButtonsState extends State<NaviCaptionButtons> with WindowListener {
   bool _maximized = false;
 
   @override
@@ -49,7 +60,36 @@ class _NaviTitleBarState extends State<NaviTitleBar> with WindowListener {
       : windowManager.maximize();
 
   @override
+  Widget build(BuildContext context) => Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          _CaptionButton(kind: _Caption.minimise, height: widget.height, onTap: windowManager.minimize),
+          _CaptionButton(
+            kind: _maximized ? _Caption.restore : _Caption.maximise,
+            height: widget.height,
+            onTap: _toggleMaximise,
+          ),
+          _CaptionButton(kind: _Caption.close, height: widget.height, onTap: windowManager.close),
+        ],
+      );
+}
+
+class _NaviTitleBarState extends State<NaviTitleBar> {
+  Future<void> _toggleMaximise() async => await windowManager.isMaximized()
+      ? windowManager.unmaximize()
+      : windowManager.maximize();
+
+  @override
   Widget build(BuildContext context) {
+    // Inside the app the desktop shell's top bar is the title bar; this one is
+    // only for the screens before it (sign-in).
+    return ValueListenableBuilder<bool>(
+      valueListenable: desktopShellActive,
+      builder: (context, shell, _) => shell ? const SizedBox.shrink() : _bar(context),
+    );
+  }
+
+  Widget _bar(BuildContext context) {
     final t = ThemeTokens.of(context);
     // A Material ancestor gives the text the app's default style (without one
     // it is drawn with the framework's debug underline).
@@ -85,15 +125,7 @@ class _NaviTitleBarState extends State<NaviTitleBar> with WindowListener {
                 ),
               ),
             ),
-            _CaptionButton(
-              kind: _Caption.minimise,
-              onTap: windowManager.minimize,
-            ),
-            _CaptionButton(
-              kind: _maximized ? _Caption.restore : _Caption.maximise,
-              onTap: _toggleMaximise,
-            ),
-            _CaptionButton(kind: _Caption.close, onTap: windowManager.close),
+            const NaviCaptionButtons(),
           ],
         ),
       ),
@@ -105,8 +137,9 @@ enum _Caption { minimise, maximise, restore, close }
 
 class _CaptionButton extends StatefulWidget {
   final _Caption kind;
+  final double height;
   final VoidCallback onTap;
-  const _CaptionButton({required this.kind, required this.onTap});
+  const _CaptionButton({required this.kind, required this.onTap, required this.height});
 
   @override
   State<_CaptionButton> createState() => _CaptionButtonState();
@@ -138,7 +171,7 @@ class _CaptionButtonState extends State<_CaptionButton> {
           onTap: widget.onTap,
           child: Container(
             width: 46,
-            height: NaviTitleBar.height,
+            height: widget.height,
             color: _hovered ? hover : Colors.transparent,
             alignment: Alignment.center,
             child: CustomPaint(

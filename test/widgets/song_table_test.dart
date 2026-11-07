@@ -13,6 +13,7 @@ import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/utils/platform_utils.dart';
+import 'package:navivibe/widgets/now_playing_bars.dart';
 import 'package:navivibe/widgets/table/song_table.dart';
 
 Song _s(int i, {int dur = 200, String? album}) => Song(
@@ -30,16 +31,16 @@ Song _s(int i, {int dur = 200, String? album}) => Song(
     );
 
 class _FakePlayer extends StateNotifier<PlayerState> implements PlayerNotifier {
-  _FakePlayer()
-      : super(const PlayerState(
-          queue: [],
-          currentIndex: -1,
-          isPlaying: false,
+  _FakePlayer({List<Song> queue = const [], int index = -1})
+      : super(PlayerState(
+          queue: queue,
+          currentIndex: index,
+          isPlaying: true,
           shuffleMode: false,
           autoplayMode: false,
           repeatMode: LoopMode.off,
-          starredIds: [],
-          history: [],
+          starredIds: const [],
+          history: const [],
           syncMode: SyncMode.activeHere,
         ));
   @override
@@ -65,11 +66,13 @@ Widget _app(
   bool reorder = true,
   String? playlistId = 'pl',
   bool dates = true,
+  List<Song> queue = const [],
+  int playing = -1,
 }) =>
     PointerAnchor(
       child: ProviderScope(
         overrides: [
-          playerProvider.overrideWith((ref) => _FakePlayer()),
+          playerProvider.overrideWith((ref) => _FakePlayer(queue: queue, index: playing)),
           subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
           catalogSongProvider.overrideWith((ref, id) => null),
         ],
@@ -357,6 +360,53 @@ void main() {
       await g.up();
       await tester.pumpAndSettle();
       expect(h.moves, isEmpty);
+    });
+  });
+
+  group('playing mark', () {
+    testWidgets('a song in the list twice is marked on the row actually playing, by queue position', (tester) async {
+      await _size(tester, 1366, 768);
+      final a = _s(1), b = _s(2), c = _s(3);
+      final list = [a, b, a, c]; // "Song A" twice
+      await tester.pumpWidget(_app(h, list, queue: list, playing: 2));
+      final bars = find.byType(NowPlayingBars);
+      expect(bars, findsOneWidget);
+      expect(find.text('3'), findsNothing);
+      expect(find.text('1'), findsOneWidget);
+      expect(find.text('4'), findsOneWidget);
+    });
+
+    testWidgets('with a queue that is not this table, the first row with that song is marked', (tester) async {
+      await _size(tester, 1366, 768);
+      final a = _s(1), b = _s(2);
+      await tester.pumpWidget(_app(h, [b, a, a], queue: [a], playing: 0));
+      expect(find.byType(NowPlayingBars), findsOneWidget);
+      expect(find.text('2'), findsNothing, reason: 'row 2 (first "Song A") is the playing one');
+      expect(find.text('3'), findsOneWidget);
+    });
+  });
+
+  group('auto-scroll while dragging', () {
+    testWidgets('holding a dragged row near the bottom edge scrolls the list, near the top scrolls back', (tester) async {
+      await _size(tester, 1366, 500);
+      final many = [for (var i = 1; i <= 60; i++) _s(i % 26 + 1)];
+      await tester.pumpWidget(_app(h, many));
+      final scrollable = tester.state<ScrollableState>(find.byType(Scrollable).first);
+      expect(scrollable.position.pixels, 0);
+      final g = await tester.startGesture(tester.getCenter(find.textContaining('Song ').first), kind: PointerDeviceKind.mouse);
+      await g.moveBy(const Offset(0, 20));
+      await g.moveTo(const Offset(600, 490)); // the bottom edge
+      await tester.pump(const Duration(milliseconds: 600));
+      final down = scrollable.position.pixels;
+      expect(down, greaterThan(100));
+      await g.moveTo(const Offset(600, 60)); // the top edge, below the header
+      await tester.pump(const Duration(milliseconds: 600));
+      expect(scrollable.position.pixels, lessThan(down));
+      await g.up();
+      await tester.pump(const Duration(seconds: 1));
+      final stopped = scrollable.position.pixels;
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(scrollable.position.pixels, stopped, reason: 'it stops when the drag ends');
     });
   });
 

@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/ui/action_sheet.dart';
@@ -177,6 +178,36 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
               itemBuilder: (context, i) {
                 final song = upNext[i];
                 final qIdx = current + 1 + i;
+                if (PlatformUtils.isDesktop) {
+                  // Desktop: grab the row anywhere to move it; the x removes it;
+                  // there is no swiping.
+                  return ReorderableDragStartListener(
+                    key: ValueKey('q_${song.id}_$qIdx'),
+                    index: i,
+                    child: _QueueRow(
+                      song: song,
+                      url: service.getCoverArtUrl(song.coverArt),
+                      style: st,
+                      onTap: () {
+                        notifier.jumpTo(qIdx);
+                        widget.onJumped?.call();
+                      },
+                      trailing: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          IconButton(
+                            tooltip: 'Remove from queue',
+                            visualDensity: VisualDensity.compact,
+                            onPressed: () => notifier.removeFromQueue(qIdx),
+                            icon: NaviIcon(NaviGlyph.close, size: 14, color: st.textMuted),
+                          ),
+                          NaviIcon(NaviGlyph.grip, color: st.textMuted, size: 18),
+                          const SizedBox(width: Space.sm),
+                        ],
+                      ),
+                    ),
+                  );
+                }
                 return _Swipeable(
                   // Absolute index keeps keys unique when a song repeats.
                   key: ValueKey('q_${song.id}_$qIdx'),

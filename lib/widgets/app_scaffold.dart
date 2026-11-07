@@ -4,7 +4,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
-import '../core/focus/navi_focus.dart';
 import '../core/keyboard_shortcuts.dart';
 import '../core/layout/window_size.dart';
 import '../core/theme.dart';
@@ -18,32 +17,25 @@ import '../player/player_controls.dart';
 import '../player/queue_pane.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
-import '../providers/search_provider.dart';
 import '../providers/settings_provider.dart';
-import '../screens/library/albums_page.dart';
-import '../screens/library/playlists_page.dart';
-import 'table/song_table.dart' show SongDrag;
-import '../models/playlist.dart' show Playlist;
-import 'ui/action_sheet.dart' show showToast;
-import '../screens/library/songs_page.dart';
 import '../screens/now_playing_screen.dart';
-import '../screens/playlist_details_screen.dart';
 import '../screens/settings_screen.dart';
 import '../services/window_manager_service.dart';
+import '../utils/platform_utils.dart';
 import 'art/navi_icons.dart';
-import 'cover_art.dart';
-import '../screens/playlist_editor.dart';
-import 'ui/controls.dart';
 import 'ui/dock_ground.dart';
 import 'shell/dock_glass.dart';
 import '../features/social/ui/jam/jam_pill.dart';
 import '../providers/session_sync_provider.dart';
 import '../player/playing_on.dart';
 import 'shell/app_tab.dart';
-import 'shell/breadcrumb_bar.dart';
 import 'shell/nav_stack.dart';
 import 'shell/system_back.dart';
 import 'shell/title_bar.dart';
+import 'shell/desktop/desktop_layout.dart';
+import 'shell/desktop/library_rail.dart';
+import 'shell/desktop/resize_handle.dart';
+import 'shell/desktop/top_bar.dart';
 import 'shell/tab_navigators.dart';
 import 'shell/tv_shell.dart';
 import '../providers/id_migration_provider.dart';
@@ -145,7 +137,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
   /// Ctrl+F and '/': Search, with the caret already in its field.
   void _focusSearch() {
     _select(AppTab.search);
-    searchFieldRequest.value = true;
+    // Desktop: the field is in the top bar (Ctrl+K); elsewhere it is Search's own.
+    if (PlatformUtils.isDesktop) {
+      desktopSearchFocus.requestFocus();
+    } else {
+      searchFieldRequest.value = true;
+    }
   }
 
   late final ShellCommands _commands = ShellCommands(
@@ -154,6 +151,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     openSettings: () => navigateInApp(context, const SettingsScreen()),
     selectTab: (i) => _select(AppTab.values[i]),
     goBack: _back,
+    goForward: () => goForward(context),
   );
 
   @override
@@ -163,7 +161,10 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
       commands: _commands,
       child: LayoutBuilder(
         builder: (context, c) {
-          return switch (ShellKind.of(Size(c.maxWidth, c.maxHeight))) {
+          var kind = ShellKind.of(Size(c.maxWidth, c.maxHeight));
+          // A narrow Windows window keeps the desktop shell (icon rail, top bar); it never becomes phone tabs.
+          if (PlatformUtils.isDesktop && kind == ShellKind.phone) kind = ShellKind.sidebar;
+          return switch (kind) {
             ShellKind.tv => TvShell(
               tab: _tab,
               visited: _visited,
@@ -488,6 +489,19 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
       setState(() => _panel = _panel == p ? null : p);
 
   @override
+  void initState() {
+    super.initState();
+    // The window's own title bar steps aside: the top bar below is the title bar.
+    WidgetsBinding.instance.addPostFrameCallback((_) => desktopShellActive.value = true);
+  }
+
+  @override
+  void dispose() {
+    desktopShellActive.value = false;
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final size = WindowSize.ofContext(context);
@@ -497,7 +511,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
     final remote = ref.watch(
       playerProvider.select((s) => s.syncMode == SyncMode.passive),
     );
-    // medium: icon-only sidebar, no side panel; expanded: both.
+    // Narrow: icon-only rail, no side panel; wide enough: both.
     final panel = size.hasSidePanel && hasSong ? _panel : null;
     return ValueListenableBuilder<Color?>(
       valueListenable: DockGround.value,
@@ -505,23 +519,36 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
         backgroundColor: ground ?? t.bgBase,
         body: Column(
           children: [
+            DesktopTopBar(
+              dragsWindow: NaviTitleBar.enabled,
+              trailing: NaviTitleBar.enabled ? const NaviCaptionButtons(height: DesktopTopBar.height) : null,
+            ),
             Expanded(
               child: Row(
                 children: [
-                  FocusTraversalGroup(
-                    child: _Sidebar(
-                      tab: widget.tab,
-                      onSelect: widget.onSelect,
-                      collapsed: size == WindowSize.medium,
-                    ),
+                  LibraryRail(
+                    tab: widget.tab,
+                    onSelect: widget.onSelect,
+                    forceCollapsed: size == WindowSize.medium || size == WindowSize.compact,
                   ),
-                  GroundDivider(color: t.separatorOpaque),
+                  // Drag the seam to resize the rail; double-click puts it back.
+                  ValueListenableBuilder<bool>(
+                    valueListenable: DesktopLayout.railCollapsed,
+                    builder: (context, collapsed, _) => collapsed || size != WindowSize.expanded
+                        ? GroundDivider(color: t.separatorOpaque)
+                        : ResizeHandle(
+                            label: 'Resize the library',
+                            growsRight: true,
+                            onDrag: (d) => DesktopLayout.dragRail(DesktopLayout.railWidth.value + d),
+                            onEnd: DesktopLayout.saveRail,
+                            onReset: DesktopLayout.resetRail,
+                          ),
+                  ),
                   Expanded(
                     child: FocusTraversalGroup(
                       child: Column(
                         children: [
                           if (widget.offline) const _OfflineBanner(),
-                          if (!NaviTitleBar.enabled) const BreadcrumbBar(),
                           Expanded(
                             child: Center(
                               child: ConstrainedBox(
@@ -544,7 +571,13 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                     ),
                   ),
                   if (panel != null) ...[
-                    GroundDivider(color: t.separatorOpaque),
+                    ResizeHandle(
+                      label: 'Resize the Now Playing panel',
+                      growsRight: false,
+                      onDrag: (d) => DesktopLayout.dragPanel(DesktopLayout.panelWidth.value + d),
+                      onEnd: DesktopLayout.savePanel,
+                      onReset: DesktopLayout.resetPanel,
+                    ),
                     FocusTraversalGroup(
                       child: _SidePanel(
                         panel: panel,
@@ -575,315 +608,6 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
   }
 }
 
-class _Sidebar extends ConsumerStatefulWidget {
-  final AppTab tab;
-  final ValueChanged<AppTab> onSelect;
-
-  /// Medium windows: icons only, 72 wide.
-  final bool collapsed;
-  const _Sidebar({
-    required this.tab,
-    required this.onSelect,
-    this.collapsed = false,
-  });
-
-  @override
-  ConsumerState<_Sidebar> createState() => _SidebarState();
-}
-
-class _SidebarState extends ConsumerState<_Sidebar> {
-  final _search = TextEditingController();
-
-  @override
-  void dispose() {
-    _search.dispose();
-    super.dispose();
-  }
-
-  /// Songs dropped on a playlist row: add them, say so.
-  Future<void> _addDropped(BuildContext context, Playlist p, List<Song> songs) async {
-    final svc = ref.read(subsonicServiceProvider);
-    try {
-      for (final s in songs) {
-        await svc.updatePlaylist(p.id, songIdToAdd: s.id);
-      }
-      ref.invalidate(playlistsProvider);
-      if (context.mounted) {
-        showToast(context, songs.length == 1 ? 'Added “${songs.first.title}” to ${p.name}' : 'Added ${songs.length} songs to ${p.name}');
-      }
-    } catch (_) {
-      if (context.mounted) showToast(context, 'Couldn’t add to ${p.name}. Try again.');
-    }
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final collapsed = widget.collapsed;
-    final playlists = collapsed
-        ? const []
-        : ref.watch(playlistsProvider).asData?.value ?? const [];
-    final service = ref.read(subsonicServiceProvider);
-
-    return GroundPane(
-      side: PaneSide.leading,
-      fallback: t.bgSurface,
-      child: AnimatedContainer(
-        duration: Motion.standard,
-        width: collapsed ? 72 : 248,
-        child: ListView(
-          padding: EdgeInsets.fromLTRB(
-            collapsed ? Space.sm : Space.md,
-            Space.lg,
-            collapsed ? Space.sm : Space.md,
-            Space.lg,
-          ),
-          children: [
-            if (!collapsed) ...[
-              NaviSearchField(
-                controller: _search,
-                voice: false,
-                onChanged: (q) {
-                  ref.read(searchQueryProvider.notifier).state = q;
-                  if (widget.tab != AppTab.search) {
-                    widget.onSelect(AppTab.search);
-                  }
-                },
-              ),
-              const SizedBox(height: Space.lg),
-            ],
-            const _DownloadsRow(),
-            for (final dest in AppTab.browseTabs)
-              _SidebarRow(
-                icon: dest.icon,
-                label: dest.label,
-                iconOnly: collapsed,
-                selected: widget.tab == dest,
-                onTap: () => widget.onSelect(dest),
-              ),
-            if (collapsed)
-              _SidebarRow(
-                icon: AppTab.search.icon,
-                label: 'Search (Ctrl+F)',
-                iconOnly: true,
-                selected: widget.tab == AppTab.search,
-                onTap: () => widget.onSelect(AppTab.search),
-              )
-            else
-              const _SidebarHeader('Library'),
-            _SidebarRow(
-              icon: NaviGlyph.library,
-              label: 'Library',
-              iconOnly: collapsed,
-              selected: widget.tab == AppTab.library,
-              onTap: () => widget.onSelect(AppTab.library),
-            ),
-            _SidebarRow(
-              icon: NaviGlyph.playlist,
-              label: 'Playlists',
-              iconOnly: collapsed,
-              onTap: () => navigateInApp(context, const PlaylistsPage()),
-            ),
-            _SidebarRow(
-              icon: NaviGlyph.stack,
-              label: 'Albums',
-              iconOnly: collapsed,
-              onTap: () => navigateInApp(context, const AlbumsPage()),
-            ),
-            _SidebarRow(
-              icon: NaviGlyph.note,
-              label: 'Songs',
-              iconOnly: collapsed,
-              onTap: () => navigateInApp(context, const SongsPage()),
-            ),
-            _SidebarRow(
-              icon: NaviGlyph.downloadCircle,
-              label: 'Downloaded',
-              iconOnly: collapsed,
-              onTap: () => navigateInApp(
-                context,
-                const SongsPage(downloadedOnly: true),
-                title: 'Downloaded',
-              ),
-            ),
-            if (!collapsed)
-              _SidebarHeader(
-                'Playlists',
-                action: IconButton(
-                  tooltip: 'New Playlist',
-                  visualDensity: VisualDensity.compact,
-                  icon: NaviIcon(
-                    NaviGlyph.plus,
-                    size: 18,
-                    color: t.textSecondary,
-                  ),
-                  onPressed: () => showPlaylistEditor(context),
-                ),
-              ),
-            for (final p in playlists)
-              _SidebarRow(
-                art: CoverArt(
-                  url: (p.coverArt ?? '').isEmpty
-                      ? null
-                      : service.getCoverArtUrl(p.coverArt),
-                  size: 22,
-                  radius: Radii.thumb,
-                  placeholderIcon: NaviGlyph.playlist,
-                ),
-                label: p.name,
-                onTap: () => navigateInApp(
-                  context,
-                  PlaylistDetailsScreen(playlist: p),
-                  title: p.name,
-                ),
-                onSecondaryTap: () => showPlaylistMenu(context, ref, p),
-                // Drop songs from a table onto the playlist to add them.
-                onDropSongs: (songs) => _addDropped(context, p, songs),
-              ),
-            const SizedBox(height: Space.lg),
-            _SidebarRow(
-              icon: NaviGlyph.gear,
-              label: 'Settings (Ctrl+,)',
-              iconOnly: collapsed,
-              onTap: () => navigateInApp(context, const SettingsScreen()),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _SidebarHeader extends StatelessWidget {
-  final String title;
-  final Widget? action;
-  const _SidebarHeader(this.title, {this.action});
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.sm, Space.xl, 0, Space.xs),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              style: t.footnote.copyWith(fontWeight: FontWeight.w600),
-            ),
-          ),
-          ?action,
-        ],
-      ),
-    );
-  }
-}
-
-/// "Downloads" in the sidebar while anything from Search online is (or was,
-/// this session) downloading, with a thin progress ring.
-class _DownloadsRow extends ConsumerWidget {
-  const _DownloadsRow();
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
-    if (!ref.watch(onlineFetchAvailableProvider) ||
-        ref.watch(fetchJobsProvider.select((d) => d.isEmpty))) {
-      return const SizedBox.shrink();
-    }
-    return _SidebarRow(
-      art: SizedBox(
-        width: 18,
-        height: 18,
-        child: FetchActivityRing(
-          child: NaviIcon(NaviGlyph.download, size: 12, color: t.accent),
-        ),
-      ),
-      label: 'Downloads',
-      onTap: () => showFetchDownloads(context),
-    );
-  }
-}
-
-class _SidebarRow extends StatelessWidget {
-  final NaviGlyph? icon;
-  final Widget? art;
-  final String label;
-  final bool selected;
-  final bool iconOnly;
-  final VoidCallback onTap;
-
-  /// Right-click.
-  final VoidCallback? onSecondaryTap;
-
-  /// Songs dragged out of a song table and dropped on this row.
-  final void Function(List<Song> songs)? onDropSongs;
-
-  const _SidebarRow({
-    this.icon,
-    this.art,
-    required this.label,
-    this.selected = false,
-    this.iconOnly = false,
-    required this.onTap,
-    this.onSecondaryTap,
-    this.onDropSongs,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    return DragTarget<SongDrag>(
-      onWillAcceptWithDetails: (_) => onDropSongs != null,
-      onAcceptWithDetails: (d) => onDropSongs?.call(d.data.songs),
-      builder: (context, candidates, _) => _row(context, t, dropping: candidates.isNotEmpty),
-    );
-  }
-
-  Widget _row(BuildContext context, AppThemeTokens t, {required bool dropping}) {
-    final row = Container(
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: Space.sm),
-      decoration: BoxDecoration(
-        color: dropping ? t.bgOverlay : (selected ? t.bgOverlay : Colors.transparent),
-        border: dropping ? Border.all(color: t.textPrimary, width: 1.5) : null,
-        borderRadius: BorderRadius.circular(6),
-      ),
-      child: Row(
-        mainAxisAlignment: iconOnly
-            ? MainAxisAlignment.center
-            : MainAxisAlignment.start,
-        children: [
-          art ?? NaviIcon(icon!, size: 18, color: t.accent),
-          if (!iconOnly) ...[
-            const SizedBox(width: Space.sm + 2),
-            Expanded(
-              child: Text(
-                label,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: t.subheadline.copyWith(color: t.textPrimary),
-              ),
-            ),
-          ],
-        ],
-      ),
-    );
-    return Semantics(
-      selected: selected,
-      child: NaviFocusable(
-        radius: 6,
-        onTap: onTap,
-        onSecondaryTap: onSecondaryTap,
-        semanticLabel: label,
-        // Hover tint is the row's; the selected row keeps its own fill.
-        hoverTint: !selected,
-        child: iconOnly ? Tooltip(message: label, child: row) : row,
-      ),
-    );
-  }
-}
-
 /// Now Playing side panel: About (artwork + credits), Lyrics, Queue.
 class _SidePanel extends ConsumerWidget {
   final _Panel panel;
@@ -904,8 +628,9 @@ class _SidePanel extends ConsumerWidget {
     final style = NowPlayingStyle.fromTokens(t);
     return GroundSurface(
       darken: 0.4,
-      child: SizedBox(
-        width: 320,
+      child: ValueListenableBuilder<double>(
+        valueListenable: DesktopLayout.panelWidth,
+        builder: (context, w, child) => SizedBox(width: w, child: child),
         child: NowPlayingStyleScope(
           style: style,
           child: Column(

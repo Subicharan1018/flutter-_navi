@@ -97,11 +97,51 @@ final ValueNotifier<AppTab> activeTab = ValueNotifier(AppTab.home);
 /// [title] is the breadcrumb label; without it one is derived from the screen's
 /// class name (`AlbumDetailsScreen` → "Album Details").
 void navigateInApp(BuildContext context, Widget screen, {String? title}) {
+  final tab = activeTab.value;
+  // Going somewhere new ends whatever "forward" there was.
+  if (_forward[tab]!.isNotEmpty) {
+    _forward[tab]!.clear();
+    forwardRevision.value++;
+  }
+  _push(context, tab, screen, title);
+}
+
+void _push(BuildContext context, AppTab tab, Widget screen, String? title) {
+  final name = title ?? titleFromType(screen.runtimeType);
   final route = MaterialPageRoute<void>(
-    settings: RouteSettings(name: title ?? titleFromType(screen.runtimeType)),
+    settings: RouteSettings(name: name),
     builder: (_) => screen,
   );
-  (tabNavigators[activeTab.value]?.currentState ?? Navigator.of(context)).push(route);
+  _entries[route] = _Entry(screen, name);
+  (tabNavigators[tab]?.currentState ?? Navigator.of(context)).push(route);
+}
+
+class _Entry {
+  final Widget screen;
+  final String title;
+  const _Entry(this.screen, this.title);
+}
+
+/// What each pushed route showed, so Back can be undone by Forward.
+final Expando<_Entry> _entries = Expando<_Entry>('route entries');
+
+/// Pages Back stepped out of, newest last, per tab.
+final Map<AppTab, List<_Entry>> _forward = {for (final tab in AppTab.values) tab: []};
+
+/// Bumped whenever a tab's forward list changes, so toolbars can redraw.
+final ValueNotifier<int> forwardRevision = ValueNotifier(0);
+
+bool canGoForward([AppTab? tab]) => _forward[tab ?? activeTab.value]!.isNotEmpty;
+
+/// Re-opens the page Back last left in the active tab. False when there is none.
+bool goForward(BuildContext context) {
+  final tab = activeTab.value;
+  final list = _forward[tab]!;
+  if (list.isEmpty) return false;
+  final e = list.removeLast();
+  forwardRevision.value++;
+  _push(context, tab, e.screen, e.title);
+  return true;
 }
 
 /// "PlaylistDetailsScreen" → "Playlist Details".
@@ -115,6 +155,12 @@ String titleFromType(Type type) {
 bool popActiveTab() {
   final nav = tabNavigators[activeTab.value]?.currentState;
   if (nav == null || !nav.canPop()) return false;
+  final top = tabTrails[activeTab.value]!.routes.value.lastOrNull;
+  final entry = top == null ? null : _entries[top];
+  if (entry != null) {
+    _forward[activeTab.value]!.add(entry);
+    forwardRevision.value++;
+  }
   nav.pop();
   return true;
 }

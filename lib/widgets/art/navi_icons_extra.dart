@@ -384,6 +384,34 @@ void paintNaviGlyphExtra(
       canvas.scale(1, -1);
       _thumb(canvas, stroke, solid, filled);
       canvas.restore();
+    case NaviGlyph.bell:
+      canvas.drawPath(
+        Path()
+          ..moveTo(6, 16.5)
+          ..lineTo(6, 11)
+          ..cubicTo(6, 7.6, 8.7, 5.2, 12, 5.2)
+          ..cubicTo(15.3, 5.2, 18, 7.6, 18, 11)
+          ..lineTo(18, 16.5)
+          ..lineTo(19.5, 16.5)
+          ..moveTo(6, 16.5)
+          ..lineTo(4.5, 16.5)
+          ..moveTo(4.5, 16.5)
+          ..lineTo(19.5, 16.5),
+        stroke,
+      );
+      canvas.drawArc(const Rect.fromLTWH(9.6, 17.6, 4.8, 3.2), 0.2, 2.74, false, stroke);
+      canvas.drawLine(const Offset(12, 3.4), const Offset(12, 5.2), stroke);
+    case NaviGlyph.sidebarToggle:
+      canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(3.5, 5, 17, 14), const Radius.circular(2.5)), stroke);
+      canvas.drawLine(const Offset(9.5, 5), const Offset(9.5, 19), stroke);
+    case NaviGlyph.gridView:
+      for (final o in const [Offset(4.5, 4.5), Offset(13.5, 4.5), Offset(4.5, 13.5), Offset(13.5, 13.5)]) {
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(o.dx, o.dy, 6, 6), const Radius.circular(1.5)), stroke);
+      }
+    case NaviGlyph.listView:
+      canvas.drawLine(const Offset(4, 7), const Offset(20, 7), stroke);
+      canvas.drawLine(const Offset(4, 12), const Offset(20, 12), stroke);
+      canvas.drawLine(const Offset(4, 17), const Offset(20, 17), stroke);
     case NaviGlyph.minusCircle:
       canvas.drawCircle(const Offset(12, 12), 8, solid);
       canvas.drawLine(const Offset(8, 12), const Offset(16, 12), ink);
