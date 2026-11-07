@@ -25,6 +25,37 @@ class GroupedSection extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    if (PlatformUtils.isDesktop) {
+      final page = SectionHeaderScope.of(context);
+      final showHeader = header != null && header!.toLowerCase() != page?.toLowerCase();
+      final g = pageGutter(context) - Space.sm; // rows carry their own 8
+      return FlatRows(
+        child: Padding(
+          padding: EdgeInsets.fromLTRB(g, 0, g, Space.xl),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              if (showHeader)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.sm, Space.sm, Space.sm, Space.xs),
+                  child: Text(header!, style: t.footnote.copyWith(fontWeight: FontWeight.w600)),
+                ),
+              Container(height: 0.5, color: t.outline),
+              for (final (i, c) in children.indexed) ...[
+                c,
+                if (i < children.length - 1) Container(height: 0.5, color: t.outline),
+              ],
+              Container(height: 0.5, color: t.outline),
+              if (footer != null)
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.sm, Space.sm, Space.sm, 0),
+                  child: Text(footer!, style: t.footnote),
+                ),
+            ],
+          ),
+        ),
+      );
+    }
     final rows = <Widget>[];
     for (var i = 0; i < children.length; i++) {
       rows.add(children[i]);
@@ -145,18 +176,19 @@ class GroupedRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final titleColor = destructive ? t.danger : t.textPrimary;
+    final flat = FlatRows.of(context);
     return _PressableRow(
       onTap: onTap,
       child: ConstrainedBox(
         constraints: const BoxConstraints(minHeight: 48),
         child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: Space.lg,
+          padding: EdgeInsets.symmetric(
+            horizontal: flat ? Space.sm : Space.lg,
             vertical: Space.sm + 2,
           ),
           child: Row(
             children: [
-              if (icon != null) ...[
+              if (icon != null && !flat) ...[
                 _IconSquare(icon: icon!),
                 const SizedBox(width: Space.md + 2),
               ],
@@ -178,7 +210,7 @@ class GroupedRow extends StatelessWidget {
                 // The title owns the row; the value takes what it needs up
                 // to a cap, then ellipsizes (iOS Settings behaviour).
                 ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 150),
+                  constraints: BoxConstraints(maxWidth: flat ? 320 : 150),
                   child: Text(
                     value!,
                     maxLines: 1,
@@ -375,24 +407,30 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
             ? Border.all(color: t.accent, width: PlatformUtils.isTv ? 3 : 2)
             : null,
       ),
-      child: _row(t),
+      child: _row(t, FlatRows.of(context)),
     );
   }
 
-  Widget _row(AppThemeTokens t) {
+  Widget _row(AppThemeTokens t, bool flat) {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 48),
       child: Padding(
-        padding: const EdgeInsets.only(left: Space.lg, right: Space.xs),
+        padding: EdgeInsets.only(left: flat ? Space.sm : Space.lg, right: flat ? Space.sm : Space.xs),
         child: Row(
           children: [
-            if (widget.icon != null) ...[
+            if (widget.icon != null && !flat) ...[
               _IconSquare(icon: widget.icon!),
               const SizedBox(width: Space.md + 2),
             ],
-            SizedBox(width: 104, child: Text(widget.title, style: t.body)),
-            Expanded(
+            // Flat (desktop): the label takes the row, the value sits at the right like every other row.
+            if (flat) Expanded(child: Text(widget.title, style: t.body)) else SizedBox(width: 104, child: Text(widget.title, style: t.body)),
+            Flexible(
+              flex: flat ? 0 : 1,
+              fit: FlexFit.tight,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: flat ? 280 : double.infinity),
               child: CupertinoTextField(
+                textAlign: flat ? TextAlign.right : TextAlign.start,
                 controller: widget.controller,
                 focusNode: _node,
                 readOnly: _readOnly,
@@ -418,6 +456,7 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
                 decoration: null,
                 padding: const EdgeInsets.symmetric(vertical: Space.md),
               ),
+              ),
             ),
             if (widget.obscure)
               CupertinoButton(
@@ -434,7 +473,7 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
             else if (widget.voice)
               VoiceSearchButton(controller: widget.controller)
             else
-              const SizedBox(width: Space.md),
+              SizedBox(width: flat ? 0 : Space.md),
           ],
         ),
       ),
@@ -482,4 +521,23 @@ class _PressableRowState extends State<_PressableRow> {
       ),
     );
   }
+}
+
+/// Set by [GroupedSection] on desktop: its rows are flat (a hairline between
+/// them, no tile, no icon square, the label at the left and the control at the right).
+class FlatRows extends InheritedWidget {
+  const FlatRows({super.key, required super.child});
+  static bool of(BuildContext context) => context.getInheritedWidgetOfExactType<FlatRows>() != null;
+  @override
+  bool updateShouldNotify(FlatRows old) => false;
+}
+
+/// Names the page a section sits on, so a section whose header repeats it
+/// (Playback under "Playback") leaves the header out.
+class SectionHeaderScope extends InheritedWidget {
+  final String pageTitle;
+  const SectionHeaderScope({super.key, required this.pageTitle, required super.child});
+  static String? of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<SectionHeaderScope>()?.pageTitle;
+  @override
+  bool updateShouldNotify(SectionHeaderScope old) => old.pageTitle != pageTitle;
 }

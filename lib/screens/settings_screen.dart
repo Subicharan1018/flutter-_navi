@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Colors, Scaffold;
 import 'package:flutter/services.dart';
@@ -55,6 +57,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   late final _pass = TextEditingController(text: _initial.password);
   late final _duckName = TextEditingController(text: _initial.microduckName);
 
+  // Windows saves the account as it changes (and offers Undo); the phone has its Save button.
+  Timer? _saveTimer;
+  late String _savedUser = _initial.username;
+  late String _savedPass = _initial.password;
+  bool _undoing = false;
+
   // Preferences held by services rather than SettingsState.
   bool _imageCache = true;
   bool _musicCache = true;
@@ -76,6 +84,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       () => ref.read(settingsProvider.notifier).setMicroduckName(_duckName.text),
     );
     _loadServicePrefs();
+    if (PlatformUtils.isDesktop) {
+      _user.addListener(_scheduleAutoSave);
+      _pass.addListener(_scheduleAutoSave);
+    }
   }
 
   Future<void> _loadServicePrefs() async {
@@ -99,6 +111,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   @override
   void dispose() {
+    _saveTimer?.cancel();
     for (final c in [_user, _pass, _duckName]) {
       c.dispose();
     }
@@ -106,6 +119,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   // ── Actions ───────────────────────────────────────────────────────────────
+
+  void _scheduleAutoSave() {
+    _saveTimer?.cancel();
+    _saveTimer = Timer(const Duration(milliseconds: 900), _autoSave);
+  }
+
+  Future<void> _autoSave() async {
+    final user = _user.text.trim(), pass = _pass.text;
+    if (user == _savedUser && pass == _savedPass) return;
+    final prevUser = _savedUser, prevPass = _savedPass;
+    final server = ref.read(settingsProvider).serverUrl;
+    await ref.read(settingsProvider.notifier).saveSettings(server, user, pass);
+    ref.read(playerProvider.notifier).refreshShuffleUrl();
+    _savedUser = user;
+    _savedPass = pass;
+    if (!mounted || _undoing) return;
+    showToastWithAction(context, 'Account saved', actionLabel: 'Undo', onAction: () async {
+      _undoing = true;
+      _user.text = prevUser;
+      _pass.text = prevPass;
+      await ref.read(settingsProvider.notifier).saveSettings(server, prevUser, prevPass);
+      ref.read(playerProvider.notifier).refreshShuffleUrl();
+      _savedUser = prevUser;
+      _savedPass = prevPass;
+      _undoing = false;
+    });
+  }
 
   Future<void> _save() async {
     final settings = ref.read(settingsProvider);
@@ -183,7 +223,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SettingsCategory('Account'),
           GroupedSection(
             header: 'Account',
-            footer: 'Changes to your account apply when you tap Save.',
+            footer: PlatformUtils.isDesktop ? 'Changes are saved as you type.' : 'Changes to your account apply when you tap Save.',
             children: [
               GroupedRow(
                 title: 'Server',
@@ -605,25 +645,19 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: Align(
               alignment: Alignment.topLeft,
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 760),
+                constraints: const BoxConstraints(maxWidth: 720),
                 child: ListView(
                   padding: const EdgeInsets.only(top: Space.lg, bottom: Space.xxxl),
                   children: [
                     Padding(
-                      padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.sm),
+                      padding: EdgeInsets.fromLTRB(pageGutter(context), 0, pageGutter(context), Space.sm),
                       child: Row(
                         children: [
                           Expanded(child: Text(selected, style: t.title1)),
-                          if (selected == 'Account')
-                            CupertinoButton(
-                              padding: const EdgeInsets.symmetric(horizontal: Space.md),
-                              onPressed: _save,
-                              child: Text('Save', style: t.headline.copyWith(color: t.accent)),
-                            ),
                         ],
                       ),
                     ),
-                    ...groups[selected]!,
+                    SectionHeaderScope(pageTitle: selected, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: groups[selected]!)),
                   ],
                 ),
               ),

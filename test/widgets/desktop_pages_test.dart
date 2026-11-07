@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter/gestures.dart';
+import 'package:flutter/cupertino.dart' show CupertinoTextField;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -27,7 +28,11 @@ import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/widgets/shell/desktop/desktop_layout.dart';
 import 'package:navivibe/widgets/ui/media.dart';
 
+List<(String, String)> savedAccounts = [];
+
 class _FakeSettings extends StateNotifier<SettingsState> implements SettingsNotifier {
+  @override
+  Future<void> saveSettings(String url, String user, String pass) async => savedAccounts.add((user, pass));
   _FakeSettings() : super(const SettingsState(serverUrl: 'https://music.example', username: 'yogesh', password: 'p'));
   @override
   dynamic noSuchMethod(Invocation i) => null;
@@ -229,14 +234,32 @@ void main() {
       expect(find.text('Username'), findsNothing);
     });
 
-    testWidgets('Save sits with Account, not on every page', (tester) async {
+    testWidgets('the account saves itself a moment after you stop typing, and Undo puts it back', (tester) async {
+      savedAccounts = [];
       await size(tester, 1366, 768);
       await tester.pumpWidget(_app(const SettingsScreen()));
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('Save'), findsOneWidget);
-      await tester.tap(find.text('About').first);
+      expect(find.text('Save'), findsNothing, reason: 'no Save button on desktop');
+      await tester.enterText(find.widgetWithText(CupertinoTextField, 'yogesh'), 'yogesh2');
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('Save'), findsNothing);
+      expect(savedAccounts, isEmpty, reason: 'not while still typing');
+      await tester.pump(const Duration(milliseconds: 800));
+      expect(savedAccounts.single.$1, 'yogesh2');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Account saved'), findsOneWidget);
+      await tester.tap(find.text('Undo'));
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(savedAccounts.last.$1, 'yogesh');
+      await tester.pump(const Duration(seconds: 2));
+    });
+
+    testWidgets('rows are flat: a section whose header repeats the category leaves it out', (tester) async {
+      await size(tester, 1366, 768);
+      await tester.pumpWidget(_app(const SettingsScreen()));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.tap(find.text('Playback').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Playback'), findsNWidgets(2), reason: 'the nav row and the page title, not a third time');
     });
 
     testWidgets('a phone keeps one long list', (tester) async {

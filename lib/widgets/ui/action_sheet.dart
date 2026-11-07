@@ -292,3 +292,17 @@ void showToast(BuildContext context, String message) {
     ..clearSnackBars()
     ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 2)));
 }
+
+/// A toast with one action ("Saved" · Undo). Stays a little longer, so the
+/// action can be reached.
+void showToastWithAction(BuildContext context, String message, {required String actionLabel, required VoidCallback onAction}) {
+  final messenger = ScaffoldMessenger.maybeOf(context);
+  if (messenger == null) return;
+  messenger
+    ..clearSnackBars()
+    ..showSnackBar(SnackBar(
+      content: Text(message),
+      duration: const Duration(seconds: 6),
+      action: SnackBarAction(label: actionLabel, onPressed: onAction),
+    ));
+}
