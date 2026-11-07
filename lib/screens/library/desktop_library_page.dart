@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -344,15 +346,18 @@ class _ListHeader extends StatelessWidget {
           radius: 4,
           hoverTint: false,
           onTap: () => onSort(s),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              Text(label, style: t.caption1.copyWith(color: on ? t.textPrimary : t.textSecondary, fontWeight: FontWeight.w600)),
-              if (on) ...[
-                const SizedBox(width: 4),
-                Transform.rotate(angle: asc ? 3.14159 : 0, child: NaviIcon(NaviGlyph.chevronDown, size: 11, color: t.textPrimary)),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 28, minWidth: 28),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(label, style: t.footnote.copyWith(color: on ? t.textPrimary : t.textSecondary, fontWeight: FontWeight.w600)),
+                if (on) ...[
+                  const SizedBox(width: 4),
+                  Transform.rotate(angle: asc ? math.pi : 0, child: NaviIcon(NaviGlyph.chevronDown, size: 11, color: t.textPrimary)),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       );

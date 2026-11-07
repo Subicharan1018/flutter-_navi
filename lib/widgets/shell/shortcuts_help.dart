@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../core/focus/navi_focus.dart';
 import '../../core/theme.dart';
+import '../ui/navi_icon_button.dart';
 import '../art/navi_icons.dart';
 
 // =============================================================================
@@ -68,11 +69,7 @@ Future<void> showShortcutsHelp(BuildContext context) {
               child: Row(
                 children: [
                   Expanded(child: Text('Keyboard shortcuts', style: t.title2)),
-                  IconButton(
-                    tooltip: 'Close (Esc)',
-                    onPressed: () => Navigator.of(ctx).pop(),
-                    icon: NaviIcon(NaviGlyph.close, size: 16, color: t.textSecondary),
-                  ),
+                  NaviIconButton(glyph: NaviGlyph.close, tooltip: 'Close (Esc)', onTap: () => Navigator.of(ctx).pop(), size: 16),
                 ],
               ),
             ),

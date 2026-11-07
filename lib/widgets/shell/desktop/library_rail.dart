@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/focus/navi_focus.dart';
 import '../../../core/theme.dart';
+import '../../ui/navi_icon_button.dart';
 import '../../../features/online_fetch/logic/online_fetch_providers.dart';
 import '../../../features/social/logic/jam_controller.dart' show jamControllerProvider;
 import '../../../features/social/logic/social_providers.dart' show invitationCountProvider;
@@ -255,13 +256,7 @@ class _IconAction extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    return IconButton(
-      tooltip: tooltip,
-      visualDensity: VisualDensity.compact,
-      onPressed: onTap,
-      icon: NaviIcon(glyph, size: 18, color: t.textSecondary),
-    );
+    return NaviIconButton(glyph: glyph, tooltip: tooltip, onTap: onTap);
   }
 }
 
@@ -355,13 +350,10 @@ class _FindRow extends StatelessWidget {
               ),
             ),
           ),
-          Tooltip(
-            message: sort == RailSort.library ? 'Sort: library order' : 'Sort: A–Z',
-            child: IconButton(
-              visualDensity: VisualDensity.compact,
-              onPressed: onSort,
-              icon: NaviIcon(NaviGlyph.listView, size: 18, color: t.textSecondary),
-            ),
+          NaviIconButton(
+            glyph: NaviGlyph.listView,
+            tooltip: sort == RailSort.library ? 'Sort: library order' : 'Sort: A–Z',
+            onTap: onSort,
           ),
         ],
       ),

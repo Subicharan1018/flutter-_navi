@@ -9,6 +9,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../core/focus/navi_focus.dart';
 import '../shell/desktop/desktop_layout.dart';
 import '../../core/theme.dart';
+import '../ui/navi_icon_button.dart';
 import '../../features/online_fetch/ui/fetch_activity.dart' show showAddSongsToPlaylist;
 import '../../models/song.dart';
 import '../../providers/catalog_provider.dart';
@@ -797,11 +798,7 @@ class _FindBar extends StatelessWidget {
                 child: NaviIcon(NaviGlyph.search, size: 16, color: t.textSecondary),
               ),
               prefixIconConstraints: const BoxConstraints(minWidth: 32, minHeight: 32),
-              suffixIcon: IconButton(
-                tooltip: 'Close (Esc)',
-                onPressed: onClose,
-                icon: NaviIcon(NaviGlyph.close, size: 14, color: t.textSecondary),
-              ),
+              suffixIcon: NaviIconButton(glyph: NaviGlyph.close, tooltip: 'Close (Esc)', onTap: onClose, size: 14),
               border: OutlineInputBorder(borderRadius: BorderRadius.circular(8), borderSide: BorderSide.none),
             ),
           ),
@@ -1012,12 +1009,7 @@ class _RowState extends ConsumerState<_Row> {
               maintainSize: true,
               maintainAnimation: true,
               maintainState: true,
-              child: IconButton(
-                tooltip: 'More',
-                visualDensity: VisualDensity.compact,
-                onPressed: () => _t._menu(widget.index),
-                icon: NaviIcon(NaviGlyph.more, size: 18, color: t.textSecondary),
-              ),
+              child: NaviIconButton(glyph: NaviGlyph.more, tooltip: 'More', onTap: () => _t._menu(widget.index)),
             ),
           ),
         ],
@@ -1072,7 +1064,11 @@ class _RowState extends ConsumerState<_Row> {
 
     return Semantics(
       selected: selected,
+      button: true,
       label: '${song.title}, $artist${isCurrent ? ', now playing' : ''}',
+      // A screen reader plays the row, or opens its menu.
+      onTap: () => _t.widget.onPlay(song, rows),
+      onLongPress: () => _t._menu(widget.index),
       child: MouseRegion(
         onEnter: (_) => setState(() => _hover = true),
         onExit: (_) => setState(() => _hover = false),

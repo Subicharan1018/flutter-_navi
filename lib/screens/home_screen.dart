@@ -682,23 +682,7 @@ class _ContinueTile extends StatelessWidget {
               if (onPlay != null)
                 Padding(
                   padding: const EdgeInsets.only(right: Space.sm),
-                  child: AnimatedOpacity(
-                    duration: const Duration(milliseconds: 120),
-                    opacity: hovered ? 1 : 0,
-                    child: IgnorePointer(
-                      ignoring: !hovered,
-                      child: GestureDetector(
-                        onTap: onPlay,
-                        child: Container(
-                          width: 32,
-                          height: 32,
-                          decoration: BoxDecoration(color: t.accentFill, shape: BoxShape.circle),
-                          alignment: Alignment.center,
-                          child: NaviIcon(NaviGlyph.play, size: 14, filled: true, color: t.onAccent),
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: HoverPlayDisc(visible: hovered, onPlay: onPlay!, label: 'Play $title', size: 32, glyph: 14),
                 ),
             ],
           ),

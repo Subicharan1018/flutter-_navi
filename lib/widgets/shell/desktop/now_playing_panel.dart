@@ -1,7 +1,7 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
+import '../../../core/focus/navi_focus.dart';
 import '../../../core/theme.dart';
 import '../../../models/song.dart';
 import '../../../player/artwork.dart';
@@ -56,33 +56,64 @@ class NowPlayingPanel extends ConsumerWidget {
                 ),
                 child: Row(
                   children: [
+                    // Three tabs, each a keyboard stop with the white ring (not an iOS segmented control).
                     Expanded(
-                      child: CupertinoSlidingSegmentedControl<PanelKind>(
-                        groupValue: panel,
-                        backgroundColor: t.fill,
-                        thumbColor: t.bgOverlay,
-                        onValueChanged: (p) => p == null ? null : onChange(p),
-                        children: {
+                      child: Row(
+                        children: [
                           for (final (p, label) in const [
                             (PanelKind.about, 'About'),
                             (PanelKind.lyrics, 'Lyrics'),
                             (PanelKind.queue, 'Queue'),
                           ])
-                            p: Text(
-                              label,
-                              style: t.footnote.copyWith(color: t.textPrimary),
+                            Padding(
+                              padding: const EdgeInsets.only(right: Space.xs),
+                              child: Semantics(
+                                button: true,
+                                selected: panel == p,
+                                label: label,
+                                child: MouseRegion(
+                                  cursor: SystemMouseCursors.click,
+                                  child: NaviPressable(
+                                    onTap: () => onChange(p),
+                                    radius: Radii.capsule,
+                                    child: Container(
+                                      height: 30,
+                                      padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                                      alignment: Alignment.center,
+                                      decoration: BoxDecoration(
+                                        color: panel == p ? t.bgOverlay : Colors.transparent,
+                                        borderRadius: BorderRadius.circular(Radii.capsule),
+                                      ),
+                                      child: Text(
+                                        label,
+                                        style: t.footnote.copyWith(
+                                          color: panel == p ? t.textPrimary : t.textSecondary,
+                                          fontWeight: panel == p ? FontWeight.w700 : FontWeight.w500,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                              ),
                             ),
-                        },
+                        ],
                       ),
                     ),
-                    IconButton(
-                      tooltip: 'Close',
-                      icon: NaviIcon(
-                        NaviGlyph.close,
-                        size: 16,
-                        color: t.textSecondary,
+                    Tooltip(
+                      message: 'Close',
+                      child: Semantics(
+                        button: true,
+                        label: 'Close',
+                        child: NaviPressable(
+                          onTap: onClose,
+                          radius: 16,
+                          child: SizedBox(
+                            width: 32,
+                            height: 32,
+                            child: Center(child: NaviIcon(NaviGlyph.close, size: 16, color: t.textSecondary)),
+                          ),
+                        ),
                       ),
-                      onPressed: onClose,
                     ),
                   ],
                 ),

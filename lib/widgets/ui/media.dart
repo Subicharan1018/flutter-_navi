@@ -3,6 +3,7 @@ import '../../widgets/ui/horizontal_shelf.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
+import '../../core/focus/navi_focus.dart';
 import '../../core/theme.dart';
 import '../../utils/platform_utils.dart';
 import '../art/navi_icons.dart';
@@ -599,31 +600,60 @@ class CardPlayButton extends StatelessWidget {
   const CardPlayButton({super.key, required this.visible, required this.onPlay, required this.label});
 
   @override
+  Widget build(BuildContext context) => Positioned(
+        right: Space.sm,
+        bottom: Space.sm,
+        child: HoverPlayDisc(visible: visible, onPlay: onPlay, label: label, size: 44, glyph: 20),
+      );
+}
+
+/// A round Play button that shows while the pointer is on its card or while it
+/// has keyboard focus (so it can be reached without a mouse). Labelled, with a
+/// tooltip and the white focus ring.
+class HoverPlayDisc extends StatefulWidget {
+  final bool visible;
+  final VoidCallback onPlay;
+  final String label;
+  final double size;
+  final double glyph;
+  const HoverPlayDisc({super.key, required this.visible, required this.onPlay, required this.label, this.size = 44, this.glyph = 20});
+
+  @override
+  State<HoverPlayDisc> createState() => _HoverPlayDiscState();
+}
+
+class _HoverPlayDiscState extends State<HoverPlayDisc> {
+  bool _focused = false;
+
+  @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return Positioned(
-      right: Space.sm,
-      bottom: Space.sm,
+    final shown = widget.visible || _focused;
+    return AnimatedOpacity(
+      duration: const Duration(milliseconds: 120),
+      opacity: shown ? 1 : 0,
       child: IgnorePointer(
-        ignoring: !visible,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 120),
-          opacity: visible ? 1 : 0,
+        ignoring: !shown,
+        child: Semantics(
+          button: true,
+          label: widget.label,
           child: Tooltip(
-            message: label,
+            message: widget.label,
             child: MouseRegion(
               cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                onTap: onPlay,
-                child: Container(
-                  width: 44,
-                  height: 44,
-                  decoration: BoxDecoration(
-                    color: t.accentFill,
-                    shape: BoxShape.circle,
+              child: NaviFocusRing(
+                onTap: widget.onPlay,
+                radius: widget.size / 2,
+                onFocusChange: (f) => setState(() => _focused = f),
+                child: GestureDetector(
+                  onTap: widget.onPlay,
+                  child: Container(
+                    width: widget.size,
+                    height: widget.size,
+                    decoration: BoxDecoration(color: t.accentFill, shape: BoxShape.circle),
+                    alignment: Alignment.center,
+                    child: NaviIcon(NaviGlyph.play, size: widget.glyph, filled: true, color: t.onAccent),
                   ),
-                  alignment: Alignment.center,
-                  child: NaviIcon(NaviGlyph.play, size: 20, filled: true, color: t.onAccent),
                 ),
               ),
             ),
