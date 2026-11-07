@@ -13,6 +13,7 @@ import '../../widgets/ui/media.dart';
 import '../../widgets/ui/states.dart';
 import '../../widgets/ui/sort_menu_button.dart';
 import 'library_entries.dart';
+import '../../utils/format.dart';
 import '../../providers/pins_provider.dart';
 import '../library_screen.dart' show PinsGrid;
 
@@ -22,7 +23,7 @@ import '../library_screen.dart' show PinsGrid;
 // sortable list, with right-click menus and a Play button on hover.
 // =============================================================================
 
-enum LibSort { library, name, artist, count }
+enum LibSort { library, name, artist, count, duration, year }
 
 class DesktopLibraryPage extends ConsumerStatefulWidget {
   const DesktopLibraryPage({super.key});
@@ -51,16 +52,13 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
           LibSort.name => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
           LibSort.artist => a.secondary.toLowerCase().compareTo(b.secondary.toLowerCase()),
           LibSort.count => a.count.compareTo(b.count),
+          LibSort.duration => a.duration.compareTo(b.duration),
+          LibSort.year => a.year.compareTo(b.year),
           LibSort.library => 0,
         };
     return [...list]..sort(_asc ? cmp : (a, b) => cmp(b, a));
   }
 
-  String get _secondaryLabel => switch (_kind) {
-        LibKind.playlists => 'Songs',
-        LibKind.albums => 'Artist',
-        LibKind.artists => 'Albums',
-      };
 
   void _sortMenu() {
     showDesktopMenu<void>(
@@ -71,7 +69,9 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
           (LibSort.library, 'Library order'),
           (LibSort.name, 'Name'),
           if (_kind == LibKind.albums) (LibSort.artist, 'Artist'),
+          if (_kind == LibKind.albums) (LibSort.year, 'Year'),
           if (_kind != LibKind.artists) (LibSort.count, 'Number of songs') else (LibSort.count, 'Number of albums'),
+          if (_kind != LibKind.artists) (LibSort.duration, 'Length'),
         ])
           SheetAction(
             label: label,
@@ -115,7 +115,7 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
             builder: (context, grid, _) => grid
                 ? _Grid(entries: entries)
                 : SliverMainAxisGroup(slivers: [
-                    _ListHeader(secondary: _secondaryLabel, sort: _sort, asc: _asc, onSort: _pickSort, showSecondary: true),
+                    _ListHeader(kind: _kind, sort: _sort, asc: _asc, onSort: _pickSort),
                     SliverFixedExtentList(
                       itemExtent: 56,
                       delegate: SliverChildBuilderDelegate(
@@ -190,6 +190,8 @@ class _Toolbar extends StatelessWidget {
               LibSort.name => asc ? 'Name A–Z' : 'Name Z–A',
               LibSort.artist => asc ? 'Artist A–Z' : 'Artist Z–A',
               LibSort.count => asc ? 'Fewest first' : 'Most first',
+              LibSort.duration => asc ? 'Shortest first' : 'Longest first',
+              LibSort.year => asc ? 'Oldest first' : 'Newest first',
             },
             onTap: onSort,
           ),
@@ -286,23 +288,55 @@ class _Grid extends StatelessWidget {
   }
 }
 
+/// One column of the list view.
+class _Col {
+  final String label;
+  final LibSort sort;
+  final double? width; // null: flexible
+  final bool right;
+  final String Function(LibEntry) text;
+  const _Col(this.label, this.sort, this.text, {this.width, this.right = false});
+}
+
+List<_Col> _columns(LibKind kind) {
+  String time(LibEntry e) => e.duration <= 0 ? '' : formatLongDuration(e.duration);
+  switch (kind) {
+    case LibKind.playlists:
+      return [
+        _Col('Owner', LibSort.artist, (e) => e.secondary),
+        _Col('Songs', LibSort.count, (e) => '${e.count}', width: 80, right: true),
+        _Col('Time', LibSort.duration, time, width: 110, right: true),
+      ];
+    case LibKind.albums:
+      return [
+        _Col('Artist', LibSort.artist, (e) => e.secondary),
+        _Col('Year', LibSort.year, (e) => e.year > 0 ? '${e.year}' : '', width: 70, right: true),
+        _Col('Songs', LibSort.count, (e) => '${e.count}', width: 80, right: true),
+        _Col('Time', LibSort.duration, time, width: 110, right: true),
+      ];
+    case LibKind.artists:
+      return [_Col('Albums', LibSort.count, (e) => '${e.count}', width: 90, right: true)];
+  }
+}
+
 class _ListHeader extends StatelessWidget {
-  final String secondary;
+  final LibKind kind;
   final LibSort sort;
   final bool asc;
   final void Function(LibSort) onSort;
-  final bool showSecondary;
-  const _ListHeader({required this.secondary, required this.sort, required this.asc, required this.onSort, required this.showSecondary});
+  const _ListHeader({required this.kind, required this.sort, required this.asc, required this.onSort});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     Widget cell(String label, LibSort s) {
       final on = sort == s;
-      return MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
+      return Semantics(
+        button: true,
+        label: 'Sort by $label',
+        child: NaviFocusable(
+          radius: 4,
+          hoverTint: false,
           onTap: () => onSort(s),
           child: Row(
             mainAxisSize: MainAxisSize.min,
@@ -318,24 +352,21 @@ class _ListHeader extends StatelessWidget {
       );
     }
 
+    final g = pageGutter(context);
     return SliverToBoxAdapter(
       child: Container(
         height: 32,
-        margin: const EdgeInsets.symmetric(horizontal: Space.xxl),
+        margin: EdgeInsets.symmetric(horizontal: g),
         padding: const EdgeInsets.symmetric(horizontal: Space.md),
         decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.outline, width: 0.5))),
         child: Row(
           children: [
             const SizedBox(width: 40 + Space.md),
             Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: cell('Name', LibSort.name))),
-            if (showSecondary)
-              Expanded(
-                flex: 3,
-                child: Align(
-                  alignment: Alignment.centerLeft,
-                  child: cell(secondary, secondary == 'Artist' ? LibSort.artist : LibSort.count),
-                ),
-              ),
+            for (final c in _columns(kind))
+              c.width == null
+                  ? Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: cell(c.label, c.sort)))
+                  : SizedBox(width: c.width, child: Align(alignment: c.right ? Alignment.centerRight : Alignment.centerLeft, child: cell(c.label, c.sort))),
           ],
         ),
       ),
@@ -351,8 +382,9 @@ class _ListRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final e = entry;
+    final num = t.footnote.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
+      padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
       child: HoverBuilder(
         builder: (context, hovered) => NaviFocusable(
           radius: 6,
@@ -387,7 +419,7 @@ class _ListRow extends StatelessWidget {
                                   color: Colors.black54,
                                   borderRadius: BorderRadius.circular(e.circular ? 20 : Radii.thumb),
                                 ),
-                                child: Center(child: NaviIcon(NaviGlyph.play, size: 16, filled: true, color: Colors.white)),
+                                child: const Center(child: NaviIcon(NaviGlyph.play, size: 16, filled: true, color: Colors.white)),
                               ),
                             ),
                           ),
@@ -400,7 +432,10 @@ class _ListRow extends StatelessWidget {
                   flex: 5,
                   child: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w500)),
                 ),
-                Expanded(flex: 3, child: Text(e.secondary, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote)),
+                for (final c in _columns(e.kind))
+                  c.width == null
+                      ? Expanded(flex: 3, child: Text(c.text(e), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote))
+                      : SizedBox(width: c.width, child: Text(c.text(e), textAlign: c.right ? TextAlign.right : TextAlign.left, style: num)),
               ],
             ),
           ),

@@ -39,6 +39,10 @@ class LibEntry {
 
   /// A number to sort by: songs in a playlist or album, albums by an artist.
   final int count;
+
+  /// Seconds, and a release year (0: none), for the list view's columns.
+  final int duration;
+  final int year;
   final String? artUrl;
   final NaviGlyph placeholder;
   final bool circular;
@@ -56,6 +60,8 @@ class LibEntry {
     required this.subtitle,
     required this.secondary,
     required this.count,
+    this.duration = 0,
+    this.year = 0,
     required this.artUrl,
     required this.placeholder,
     required this.onTap,
@@ -80,8 +86,9 @@ List<LibEntry> libraryEntries(BuildContext context, WidgetRef ref, LibKind kind)
             id: 'p${p.id}',
             title: p.name,
             subtitle: 'Playlist · ${songCount(p.songCount)}',
-            secondary: songCount(p.songCount),
+            secondary: p.owner ?? '',
             count: p.songCount,
+            duration: p.duration,
             artUrl: (p.coverArt ?? '').isEmpty ? null : svc.getCoverArtUrl(p.coverArt),
             placeholder: NaviGlyph.playlist,
             playlist: p,
@@ -101,6 +108,8 @@ List<LibEntry> libraryEntries(BuildContext context, WidgetRef ref, LibKind kind)
             subtitle: 'Album · ${a.artist}',
             secondary: a.artist,
             count: a.songCount,
+            duration: a.duration,
+            year: a.year,
             artUrl: svc.getCoverArtUrl(a.coverArt),
             placeholder: NaviGlyph.library,
             onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
