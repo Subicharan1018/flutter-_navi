@@ -19,7 +19,7 @@ class HorizontalShelf extends StatefulWidget {
   final NullableIndexedWidgetBuilder itemBuilder;
   final double height;
   final double gap;
-  final EdgeInsets padding;
+  final EdgeInsets? padding;
 
   const HorizontalShelf({
     super.key,
@@ -27,7 +27,7 @@ class HorizontalShelf extends StatefulWidget {
     required this.itemBuilder,
     required this.height,
     this.gap = Space.md,
-    this.padding = const EdgeInsets.symmetric(horizontal: Space.gutter),
+    this.padding,
   });
 
   /// Width of the fade at a cut edge.
@@ -117,7 +117,7 @@ class _HorizontalShelfState extends State<HorizontalShelf> {
                   child: ListView.separated(
                     controller: _controller,
                     scrollDirection: Axis.horizontal,
-                    padding: widget.padding,
+                    padding: widget.padding ?? EdgeInsets.symmetric(horizontal: pageGutter(context)),
                     itemCount: widget.itemCount,
                     separatorBuilder: (_, _) => SizedBox(width: widget.gap),
                     itemBuilder: widget.itemBuilder,

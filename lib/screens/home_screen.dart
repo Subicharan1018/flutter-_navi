@@ -11,7 +11,7 @@ import '../features/discover/logic/discover_providers.dart' show discoverProvide
 import '../features/discover/ui/discover_section.dart';
 import '../features/social/ui/jam/jam_hero.dart';
 import '../features/updates/ui/update_banner.dart';
-import '../features/flow/logic/flow_controller.dart' show flowMoodsProvider;
+import '../features/flow/logic/flow_controller.dart' show flowMoodsProvider, flowProvider;
 import '../features/flow/ui/flow_section.dart';
 import '../features/trending/logic/trending_providers.dart' show trendingChartsProvider;
 import '../features/weekly_mix/logic/weekly_mix_providers.dart' show weeklyMixProvider;
@@ -35,6 +35,8 @@ import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/mosaic_art.dart';
 import '../widgets/ui/states.dart';
+import '../widgets/cover_art.dart';
+import '../utils/queue_actions.dart' show playCollection;
 import 'album_details_screen.dart';
 import 'favorites_screen.dart';
 import 'library/albums_page.dart';
@@ -77,12 +79,13 @@ class HomeScreen extends ConsumerWidget {
         // Desktop: updates are the bell in the top bar and Jam is in the rail.
         if (!PlatformUtils.isDesktop) const SliverToBoxAdapter(child: UpdateBanner()),
         if (!PlatformUtils.isDesktop) const SliverToBoxAdapter(child: JamHero()),
+        if (PlatformUtils.isDesktop) const SliverToBoxAdapter(child: _ContinueStrip()),
         // What's new leads; the charts it came from right below.
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 1, child: DiscoverSection())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 2, child: WeeklyMixSection())),
-        SliverToBoxAdapter(child: Entrance(group: 'home', index: 3, child: FlowSection())),
+        if (!PlatformUtils.isDesktop) SliverToBoxAdapter(child: Entrance(group: 'home', index: 3, child: FlowSection())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 4, child: TrendingSection())),
-        SliverToBoxAdapter(child: Entrance(group: 'home', index: 5, child: _TopPicks())),
+        if (!PlatformUtils.isDesktop) SliverToBoxAdapter(child: Entrance(group: 'home', index: 5, child: _TopPicks())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 6, child: _RecentlyPlayed())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 7, child: _YourPlaylists())),
         SliverToBoxAdapter(child: _RecentlyAdded()),
@@ -527,6 +530,173 @@ class _FirstRun extends ConsumerWidget {
         art: EmptyArtKind.record,
         title: 'Your music will show up here',
         message: 'Play an album or make a playlist and Home fills in with what you listen to.',
+      ),
+    );
+  }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// Continue (desktop)
+// ─────────────────────────────────────────────────────────────────────────────
+
+/// Desktop's lead: small horizontal tiles (a 56 cover and a name) in as many
+/// columns as fit. Flow is the first; tap it to start or stop, right-click to
+/// choose a mood. Hover shows Play on the ones that play.
+class _ContinueStrip extends ConsumerWidget {
+  const _ContinueStrip();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final flow = ref.watch(flowProvider);
+    final flowCtl = ref.read(flowProvider.notifier);
+    final albums = ref.watch(recentlyPlayedAlbumsProvider).asData?.value ?? const <Album>[];
+    final starred = ref.watch(favoritesProvider).asData?.value.songs ?? const <Song>[];
+    final year = DateTime.now().year;
+
+    Widget glyphArt(NaviGlyph g) => ColoredBox(
+          color: t.bgOverlay,
+          child: Center(child: NaviIcon(g, size: 24, color: t.textPrimary)),
+        );
+
+    final tiles = <_ContinueTile>[
+      _ContinueTile(
+        title: flow.active ? 'Stop Flow' : (flow.starting ? 'Starting Flow…' : 'Start Flow'),
+        subtitle: flow.mood ?? 'Endless mix',
+        art: glyphArt(NaviGlyph.flow),
+        onTap: flow.starting
+            ? () {}
+            : () async {
+                if (flow.active) return flowCtl.stop();
+                final ok = await flowCtl.start();
+                if (!ok && context.mounted) showToast(context, ref.read(flowProvider).error ?? 'Flow could not start.');
+              },
+        onMenu: () => showFlowMoodSheet(context, ref),
+      ),
+      _ContinueTile(
+        title: 'Smart Shuffle',
+        art: glyphArt(NaviGlyph.smartShuffle),
+        onTap: () => navigateInApp(context, const AiShuffleScreen()),
+      ),
+      _ContinueTile(
+        title: 'Favorites',
+        subtitle: starred.isEmpty ? null : songCount(starred.length),
+        art: glyphArt(NaviGlyph.heart),
+        onTap: () => navigateInApp(context, const FavoritesScreen()),
+        onPlay: starred.isEmpty
+            ? null
+            : () => ref.read(playerProvider.notifier).playPlaylist(starred, shuffle: true, playlistName: 'Favorites'),
+      ),
+      _ContinueTile(
+        title: 'Replay $year',
+        art: ColoredBox(
+          color: t.bgOverlay,
+          child: Center(child: Text('’${year % 100}', style: t.title2.copyWith(color: t.textPrimary, fontWeight: FontWeight.w800))),
+        ),
+        onTap: () => navigateInApp(context, const ReplayScreen()),
+      ),
+      for (final a in albums.take(2))
+        _ContinueTile(
+          title: a.name,
+          subtitle: a.artist,
+          art: CoverArt(url: _art(ref, a.coverArt), size: 56, radius: 0, placeholderIcon: NaviGlyph.library),
+          onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
+          onPlay: () => playCollection(context, ref, () => ref.read(subsonicServiceProvider).getAlbum(a.id), a.name),
+        ),
+    ];
+
+    final g = pageGutter(context);
+    return Padding(
+      padding: EdgeInsets.fromLTRB(g, Space.lg, g, 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          LayoutBuilder(
+            builder: (context, c) {
+              const gap = Space.md;
+              final cols = (((c.maxWidth + gap) / (260 + gap)).floor()).clamp(1, 4);
+              final w = (c.maxWidth - gap * (cols - 1)) / cols;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: [for (final tile in tiles) SizedBox(width: w, child: tile)],
+              );
+            },
+          ),
+          if (flow.active && flow.blend.total > 0) ...[
+            const SizedBox(height: Space.md),
+            FlowBlendStrip(blend: flow.blend),
+          ],
+          if (flow.error != null) ...[
+            const SizedBox(height: Space.sm),
+            Text(flow.error!, style: t.footnote.copyWith(color: t.danger)),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _ContinueTile extends StatelessWidget {
+  final String title;
+  final String? subtitle;
+  final Widget art;
+  final VoidCallback onTap;
+  final VoidCallback? onPlay;
+  final VoidCallback? onMenu;
+  const _ContinueTile({required this.title, this.subtitle, required this.art, required this.onTap, this.onPlay, this.onMenu});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return HoverBuilder(
+      builder: (context, hovered) => CupertinoClickable(
+        onTap: onTap,
+        onLongPress: onMenu,
+        focusRadius: 8,
+        semanticLabel: subtitle == null ? title : '$title, $subtitle',
+        child: Container(
+          height: 56,
+          decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(8)),
+          clipBehavior: Clip.antiAlias,
+          child: Row(
+            children: [
+              SizedBox(width: 56, height: 56, child: art),
+              const SizedBox(width: Space.md),
+              Expanded(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+                    if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
+                  ],
+                ),
+              ),
+              if (onPlay != null)
+                Padding(
+                  padding: const EdgeInsets.only(right: Space.sm),
+                  child: AnimatedOpacity(
+                    duration: const Duration(milliseconds: 120),
+                    opacity: hovered ? 1 : 0,
+                    child: IgnorePointer(
+                      ignoring: !hovered,
+                      child: GestureDetector(
+                        onTap: onPlay,
+                        child: Container(
+                          width: 32,
+                          height: 32,
+                          decoration: BoxDecoration(color: t.accent, shape: BoxShape.circle),
+                          alignment: Alignment.center,
+                          child: NaviIcon(NaviGlyph.play, size: 14, filled: true, color: t.onAccent),
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }

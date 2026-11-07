@@ -88,7 +88,7 @@ class _Header extends ConsumerWidget {
           ].join(' · ');
     final flat = ShellKind.ofContext(context) != ShellKind.phone;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.md),
+      padding: EdgeInsets.fromLTRB(pageGutter(context), Space.sm, pageGutter(context), Space.md),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [

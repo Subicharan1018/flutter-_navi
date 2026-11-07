@@ -707,3 +707,20 @@ class ArtSize {
 /// tiles stay the size of the platform's art scale (see [ArtSize]) instead of
 /// growing with the window.
 int gridColumns(double width, double target, {int min = 2}) => math.max(min, (width / target).round());
+
+/// The side margin of a page's content: 24 on a desktop window, 16 on a phone.
+/// Every desktop page (Home, Songs, Library, Settings, collection pages) uses
+/// this one number, so their left edges line up.
+double pageGutter(BuildContext context) => PlatformUtils.isDesktop ? Space.xxl : Space.gutter;
+
+/// A card size imposed by the shelf it sits in, so a desktop shelf can fill its
+/// width with equal tiles. [MediaCard] reads it in place of its own size.
+class ShelfSize extends InheritedWidget {
+  final double size;
+  const ShelfSize({super.key, required this.size, required super.child});
+
+  static double? of(BuildContext context) => context.dependOnInheritedWidgetOfExactType<ShelfSize>()?.size;
+
+  @override
+  bool updateShouldNotify(ShelfSize old) => old.size != size;
+}

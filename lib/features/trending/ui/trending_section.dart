@@ -47,7 +47,7 @@ class TrendingSection extends ConsumerWidget {
             header,
             ChartPills(charts: charts, selected: chart.key),
             Padding(
-              padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.xs),
+              padding: EdgeInsets.fromLTRB(pageGutter(context), Space.xs, pageGutter(context), Space.xs),
               child: Text(
                 [chart.source, chartDateLine(chart.date)].where((s) => s.isNotEmpty).join(' · '),
                 maxLines: 1,

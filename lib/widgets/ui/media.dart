@@ -13,13 +13,13 @@ import '../cover_art.dart';
 class SectionHeader extends StatelessWidget {
   final String title;
   final VoidCallback? onTap;
-  final EdgeInsetsGeometry padding;
+  final EdgeInsetsGeometry? padding;
 
   const SectionHeader({
     super.key,
     required this.title,
     this.onTap,
-    this.padding = const EdgeInsets.fromLTRB(Space.gutter, Space.xxl, Space.gutter, Space.md),
+    this.padding,
   });
 
   @override
@@ -36,7 +36,7 @@ class SectionHeader extends StatelessWidget {
       ],
     );
     return Padding(
-      padding: padding,
+      padding: padding ?? EdgeInsets.fromLTRB(pageGutter(context), Space.xxl, pageGutter(context), Space.md),
       child: Semantics(
         header: true,
         button: onTap != null,
@@ -81,6 +81,7 @@ class MediaCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    final size = ShelfSize.of(context) ?? this.size; // a desktop shelf sets the tile size
     Widget cover(bool hovered) {
       final image = art ??
           CoverArt(
@@ -164,6 +165,33 @@ class MediaShelf extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     if (itemCount == 0) return const SizedBox.shrink();
+    // Desktop: equal tiles that fill the row exactly (about 170-190 wide), the rest
+    // a page away behind the arrows, so no shelf ends short of the right edge.
+    if (PlatformUtils.isDesktop) {
+      return LayoutBuilder(
+        builder: (context, c) {
+          const gap = Space.md;
+          final avail = c.maxWidth - pageGutter(context) * 2;
+          final target = cardSize ?? ArtSize.of(context).tile;
+          final fit = ((avail + gap) / (target + gap)).floor().clamp(2, 12);
+          final fewest = ((avail + gap) / (220 + gap)).ceil().clamp(2, 12);
+          // A shelf with just under a row's worth of items stretches them to fill it (up to ~220 wide).
+          final n = itemCount >= fit ? fit : (itemCount >= fewest ? itemCount : fit);
+          final size = (avail - gap * (n - 1)) / n;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              SectionHeader(title: title, onTap: onSeeAll),
+              HorizontalShelf(
+                height: size + captionExtent(context, subtitle: hasSubtitle),
+                itemCount: itemCount,
+                itemBuilder: (context, i) => ShelfSize(size: size, child: itemBuilder(context, i)),
+              ),
+            ],
+          );
+        },
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
