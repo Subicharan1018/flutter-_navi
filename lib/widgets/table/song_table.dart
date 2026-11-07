@@ -1101,8 +1101,7 @@ class _DragChip extends StatelessWidget {
         decoration: BoxDecoration(
           color: t.bgElevated,
           borderRadius: BorderRadius.circular(8),
-          border: Border.all(color: t.outline, width: 0.5),
-          boxShadow: const [BoxShadow(color: Colors.black54, blurRadius: 12)],
+          border: Border.all(color: t.separatorOpaque, width: 1),
         ),
         child: Text(label, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary)),
       ),

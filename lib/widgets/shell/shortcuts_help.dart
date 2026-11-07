@@ -48,11 +48,16 @@ Future<void> showShortcutsHelp(BuildContext context) {
   final t = ThemeTokens.of(context);
   return showDialog<void>(
     context: context,
-    barrierColor: Colors.black54,
+    // Opaque chrome: no dimming and no shadow; the dialog is a tonal step with a hairline.
+    barrierColor: Colors.transparent,
     builder: (ctx) => Dialog(
-      backgroundColor: t.bgSurface,
+      elevation: 0,
+      backgroundColor: t.bgElevated,
       insetPadding: const EdgeInsets.all(Space.xxl),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(Radii.sheet)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(Radii.sheet),
+        side: BorderSide(color: t.separatorOpaque, width: 1),
+      ),
       child: ConstrainedBox(
         constraints: const BoxConstraints(maxWidth: 640, maxHeight: 640),
         child: Column(

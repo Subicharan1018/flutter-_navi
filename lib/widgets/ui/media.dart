@@ -217,7 +217,7 @@ class MediaGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+      padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
       sliver: SliverLayoutBuilder(
         builder: (context, c) {
           final columns = gridColumns(c.crossAxisExtent, ArtSize.of(context).tile);
@@ -309,7 +309,7 @@ class CollectionRow extends StatelessWidget {
       scaleFactor: 0.99,
       semanticLabel: subtitle == null ? title : '$title, $subtitle',
       child: Padding(
-        padding: const EdgeInsets.only(left: Space.gutter),
+        padding: EdgeInsets.only(left: pageGutter(context)),
         // Artwork sits inset in its row (never touching the next row's), and
         // the hairline stays on the row's bottom edge whichever side is taller.
         child: IntrinsicHeight(
@@ -323,7 +323,7 @@ class CollectionRow extends StatelessWidget {
               Expanded(
                 child: Container(
                   constraints: const BoxConstraints(minHeight: 52),
-                  padding: const EdgeInsets.only(right: Space.gutter, top: Space.sm, bottom: Space.sm),
+                  padding: EdgeInsets.only(right: pageGutter(context), top: Space.sm, bottom: Space.sm),
                   decoration: BoxDecoration(
                     border: showSeparator ? Border(bottom: BorderSide(color: t.outline, width: 0.5)) : null,
                   ),
@@ -621,7 +621,6 @@ class CardPlayButton extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: t.accentFill,
                     shape: BoxShape.circle,
-                    boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4))],
                   ),
                   alignment: Alignment.center,
                   child: NaviIcon(NaviGlyph.play, size: 20, filled: true, color: t.onAccent),

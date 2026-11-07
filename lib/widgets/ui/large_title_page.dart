@@ -161,7 +161,7 @@ class PageSliver extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => SliverPadding(
-    padding: EdgeInsets.fromLTRB(Space.gutter, top, Space.gutter, 0),
+    padding: EdgeInsets.fromLTRB(pageGutter(context), top, pageGutter(context), 0),
     sliver: sliver,
   );
 }

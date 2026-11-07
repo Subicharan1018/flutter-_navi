@@ -144,7 +144,7 @@ class _Toolbar extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.xxl, Space.xs, Space.xxl, Space.lg),
+      padding: EdgeInsets.fromLTRB(pageGutter(context), Space.xs, pageGutter(context), Space.lg),
       child: Row(
         children: [
           Expanded(child: Wrap(runSpacing: Space.sm, children: [
@@ -253,7 +253,7 @@ class _Grid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return SliverPadding(
-      padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
+      padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
       sliver: SliverLayoutBuilder(
         builder: (context, c) {
           final columns = gridColumns(c.crossAxisExtent, ArtSize.of(context).tile);
@@ -425,11 +425,20 @@ class _ListRow extends StatelessWidget {
                             child: Tooltip(
                               message: 'Play ${e.title}',
                               child: DecoratedBox(
+                                // A 9% white wash (not a black scrim) and a small solid disc that reads on any cover.
                                 decoration: BoxDecoration(
-                                  color: Colors.black54,
+                                  color: Colors.white.withValues(alpha: 0.09),
                                   borderRadius: BorderRadius.circular(e.circular ? 20 : Radii.thumb),
                                 ),
-                                child: const Center(child: NaviIcon(NaviGlyph.play, size: 16, filled: true, color: Colors.white)),
+                                child: Center(
+                                  child: Container(
+                                    width: 26,
+                                    height: 26,
+                                    decoration: BoxDecoration(color: t.accentFill, shape: BoxShape.circle),
+                                    alignment: Alignment.center,
+                                    child: NaviIcon(NaviGlyph.play, size: 12, filled: true, color: t.onAccent),
+                                  ),
+                                ),
                               ),
                             ),
                           ),
