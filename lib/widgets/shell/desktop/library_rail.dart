@@ -21,6 +21,7 @@ import '../../cover_art.dart';
 import '../../desktop_dialogs.dart';
 import '../../table/song_table.dart' show SongDrag;
 import '../../ui/action_sheet.dart';
+import '../../ui/playlist_cover.dart';
 import '../../ui/dock_ground.dart';
 import '../app_tab.dart';
 import '../nav_stack.dart';
@@ -381,6 +382,9 @@ class _Item {
   final VoidCallback onTap;
   final VoidCallback? onMenu;
   final void Function(List<Song>)? onDrop;
+
+  /// A playlist without a cover of its own is drawn as a mosaic of its songs' covers.
+  final Playlist? playlist;
   const _Item({
     required this.id,
     required this.title,
@@ -391,6 +395,7 @@ class _Item {
     this.circular = false,
     this.onMenu,
     this.onDrop,
+    this.playlist,
   });
 }
 
@@ -421,6 +426,7 @@ class _LibraryList extends ConsumerWidget {
           onTap: e.onTap,
           onMenu: e.onMenu,
           onDrop: e.playlist == null ? null : (songs) => onDrop(context, e.playlist!, songs),
+          playlist: e.playlist,
         );
 
     final items = <_Item>[
@@ -488,7 +494,9 @@ class _ItemRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final art = item.artUrl == null
+    final art = item.playlist != null && item.artUrl == null
+        ? PlaylistCover(playlist: item.playlist!, size: 40, radius: Radii.thumb)
+        : item.artUrl == null
         ? Container(
             width: 40,
             height: 40,

@@ -34,6 +34,7 @@ import '../widgets/ui/large_title_page.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/mosaic_art.dart';
+import '../widgets/ui/playlist_cover.dart';
 import '../widgets/ui/states.dart';
 import '../widgets/cover_art.dart';
 import '../utils/queue_actions.dart' show playCollection;
@@ -452,6 +453,8 @@ class _YourPlaylists extends ConsumerWidget {
           title: p.name,
           subtitle: songCount(p.songCount),
           artUrl: _art(ref, p.coverArt),
+          // No cover of its own: a mosaic of its first songs' covers (desktop; a phone keeps its tile).
+          art: PlatformUtils.isDesktop && (p.coverArt ?? '').isEmpty ? PlaylistCover(playlist: p, size: ArtSize.of(context).tile) : null,
           size: ArtSize.of(context).tile,
           placeholderIcon: NaviGlyph.playlist,
           onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p)),

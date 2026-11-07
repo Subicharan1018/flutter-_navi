@@ -12,6 +12,7 @@ import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/ui/media.dart';
 import '../../widgets/ui/states.dart';
 import '../../widgets/ui/sort_menu_button.dart';
+import '../../widgets/ui/playlist_cover.dart';
 import 'library_entries.dart';
 import '../../utils/format.dart';
 import '../../providers/pins_provider.dart';
@@ -269,8 +270,13 @@ class _Grid extends StatelessWidget {
                 final e = entries[i];
                 return MediaCard(
                   title: e.title,
-                  subtitle: e.kind == LibKind.playlists ? e.secondary : (e.kind == LibKind.albums ? e.secondary : 'Artist'),
+                  subtitle: switch (e.kind) {
+                    LibKind.playlists => songCount(e.count),
+                    LibKind.albums => e.secondary,
+                    LibKind.artists => 'Artist',
+                  },
                   artUrl: e.artUrl,
+                  art: e.playlist != null && e.artUrl == null ? PlaylistCover(playlist: e.playlist!, size: card) : null,
                   size: card,
                   circular: e.circular,
                   placeholderIcon: e.placeholder,
@@ -401,7 +407,9 @@ class _ListRow extends StatelessWidget {
                   height: 40,
                   child: Stack(
                     children: [
-                      e.artUrl == null
+                      e.playlist != null && e.artUrl == null
+                          ? PlaylistCover(playlist: e.playlist!, size: 40, radius: Radii.thumb)
+                          : e.artUrl == null
                           ? Container(
                               decoration: BoxDecoration(color: t.bgElevated, borderRadius: BorderRadius.circular(e.circular ? 20 : Radii.thumb)),
                               alignment: Alignment.center,
