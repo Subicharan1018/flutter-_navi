@@ -176,25 +176,26 @@ class _DesktopTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    final g = pageGutter(context);
+    // One frame for every desktop page: a 24 margin, the title left, the page's
+    // tools right, at the same height everywhere.
     return Padding(
-      padding: const EdgeInsets.fromLTRB(
-        Space.gutter,
-        Space.xl,
-        Space.gutter,
-        Space.sm,
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            child: Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              style: t.largeTitle,
+      padding: EdgeInsets.fromLTRB(g, Space.xl, g, Space.sm),
+      child: SizedBox(
+        height: 44,
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: t.title1.copyWith(fontWeight: FontWeight.w800),
+              ),
             ),
-          ),
-          ?trailing,
-        ],
+            ?trailing,
+          ],
+        ),
       ),
     );
   }

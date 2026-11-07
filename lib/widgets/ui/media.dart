@@ -402,8 +402,8 @@ class PlayShuffleButtons extends StatelessWidget {
             focusRadius: 28,
             semanticLabel: playing ? 'Pause' : 'Play',
             child: Container(
-              width: 52,
-              height: 52,
+              width: 44,
+              height: 44,
               decoration: BoxDecoration(color: enabled ? t.accent : t.fill, shape: BoxShape.circle),
               alignment: Alignment.center,
               child: NaviIcon(

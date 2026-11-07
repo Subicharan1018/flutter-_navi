@@ -105,7 +105,7 @@ class _SongsPageState extends ConsumerState<SongsPage> {
           )
         else ...[
           SliverPadding(
-            padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.md),
+            padding: EdgeInsets.fromLTRB(pageGutter(context), Space.sm, pageGutter(context), Space.md),
             sliver: SliverToBoxAdapter(
               child: Align(
                 alignment: useSongTable() ? Alignment.centerLeft : Alignment.center,
@@ -117,10 +117,13 @@ class _SongsPageState extends ConsumerState<SongsPage> {
             ),
           ),
           if (useSongTable())
-            SongTableSliver(
-              songs: songs,
-              showDateAdded: true,
-              onPlay: (song, ordered) => _play(ordered, index: ordered.indexOf(song)),
+            SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
+              sliver: SongTableSliver(
+                songs: songs,
+                showDateAdded: true,
+                onPlay: (song, ordered) => _play(ordered, index: ordered.indexOf(song)),
+              ),
             )
           else
             SliverFixedExtentList(

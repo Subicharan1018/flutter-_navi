@@ -11,6 +11,7 @@ import '../../widgets/ui/action_sheet.dart';
 import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/ui/media.dart';
 import '../../widgets/ui/states.dart';
+import '../../widgets/ui/sort_menu_button.dart';
 import 'library_entries.dart';
 import '../../providers/pins_provider.dart';
 import '../library_screen.dart' show PinsGrid;
@@ -183,29 +184,14 @@ class _Toolbar extends StatelessWidget {
               ),
             ),
         ])),
-          NaviFocusable(
-            radius: 8,
+          SortMenuButton(
+            label: switch (sort) {
+              LibSort.library => 'Library order',
+              LibSort.name => asc ? 'Name A–Z' : 'Name Z–A',
+              LibSort.artist => asc ? 'Artist A–Z' : 'Artist Z–A',
+              LibSort.count => asc ? 'Fewest first' : 'Most first',
+            },
             onTap: onSort,
-            semanticLabel: 'Sort',
-            child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: 6),
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(
-                    switch (sort) {
-                      LibSort.library => 'Library order',
-                      LibSort.name => asc ? 'Name A–Z' : 'Name Z–A',
-                      LibSort.artist => asc ? 'Artist A–Z' : 'Artist Z–A',
-                      LibSort.count => asc ? 'Fewest first' : 'Most first',
-                    },
-                    style: t.subheadline,
-                  ),
-                  const SizedBox(width: Space.xs),
-                  NaviIcon(NaviGlyph.chevronDown, size: 12, color: t.textSecondary),
-                ],
-              ),
-            ),
           ),
           const SizedBox(width: Space.xs),
           ValueListenableBuilder<bool>(

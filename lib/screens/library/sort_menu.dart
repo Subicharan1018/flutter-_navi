@@ -7,6 +7,8 @@ import '../../models/library_sort.dart';
 import '../../providers/library_provider.dart';
 import '../../widgets/desktop_dialogs.dart';
 import '../../widgets/ui/action_sheet.dart';
+import '../../widgets/ui/sort_menu_button.dart';
+import '../../utils/platform_utils.dart';
 
 const _labels = <LibrarySortField, String>{
   LibrarySortField.name: 'Title',
@@ -26,6 +28,14 @@ class SortButton extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
+    // Desktop: the current sort and a chevron, opening a menu at the pointer.
+    if (PlatformUtils.isDesktop) {
+      final pref = ref.watch(librarySortProvider)[section] ?? const LibrarySortPreference();
+      return SortMenuButton(
+        label: _labels[pref.field] ?? 'Sort',
+        onTap: () => showPlatformSheet(context: context, menu: true, builder: (_) => _SortSheet(section: section, fields: fields)),
+      );
+    }
     return CupertinoButton(
       padding: EdgeInsets.zero,
       minimumSize: const Size(44, 44),
@@ -49,7 +59,7 @@ class _SortSheet extends ConsumerWidget {
       children: [
         Padding(
           padding: const EdgeInsets.only(bottom: Space.md),
-          child: Text('Sort By', style: t.headline),
+          child: MenuMode.of(context) ? const SizedBox.shrink() : Text('Sort By', style: t.headline),
         ),
         SheetGroup(children: [
           for (final f in fields)
