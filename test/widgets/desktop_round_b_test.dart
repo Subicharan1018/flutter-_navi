@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navivibe/core/focus/navi_focus.dart';
 import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/screens/home_screen.dart' show continueTileTint;
+import 'package:navivibe/widgets/shell/shortcuts_help.dart' show KeyboardHelpButton;
+import 'package:navivibe/widgets/ui/grouped_list.dart' show GroupedSwitchRow;
 import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/widgets/art/navi_icons.dart';
 import 'package:navivibe/widgets/shell/desktop/library_rail.dart';
@@ -41,6 +45,41 @@ void main() {
     testWidgets('without a scope nothing extra is drawn', (tester) async {
       await tester.pumpWidget(_host(PlayShuffleButtons(onPlay: () {}, onShuffle: () {})));
       expect(find.textContaining('Plays'), findsNothing);
+    });
+  });
+
+  group('last polish', () {
+    testWidgets('the desktop toggle is a labelled button at least 28 px tall and says its state', (tester) async {
+      final handle = tester.ensureSemantics();
+      var on = false;
+      await tester.pumpWidget(_host(StatefulBuilder(
+        builder: (c, set) => GroupedSwitchRow(title: 'Allow HTTP', value: on, onChanged: (v) => set(() => on = v)),
+      )));
+      final node = tester.getSemantics(find.bySemanticsLabel('Allow HTTP').last);
+      expect(node.flagsCollection.isToggled.toString(), isNot(contains('none')), reason: 'it announces on/off');
+      expect(node.flagsCollection.isButton, isTrue);
+      expect(tester.getSize(find.byType(NaviPressable)).height, greaterThanOrEqualTo(28));
+      await tester.tap(find.byType(NaviPressable));
+      expect(on, isTrue);
+      handle.dispose();
+    });
+
+    testWidgets('a bright cover cannot make a Continue tile unreadable', (tester) async {
+      // 4.5:1 against white text, whatever the tint.
+      final c = continueTileTint(const Color(0xFF1C1C1E), const Color(0xFFFFFF00), 0.30, Colors.white);
+      final l = c.computeLuminance();
+      expect((1.05) / (l + 0.05), greaterThanOrEqualTo(4.5));
+    });
+
+    testWidgets('Library tiles and shelf tiles come from one scale', (tester) async {
+      final (cols, size) = desktopTiles(1318, 170, 16);
+      expect(cols, 7);
+      expect(size, inInclusiveRange(165, 190));
+    });
+
+    testWidgets('the shortcuts button is a keyboard glyph, not a bare question mark', (tester) async {
+      await tester.pumpWidget(_host(const KeyboardHelpButton()));
+      expect(find.bySemanticsLabel('Keyboard shortcuts'), findsOneWidget);
     });
   });
 
