@@ -81,7 +81,10 @@ class _SongsPageState extends ConsumerState<SongsPage> {
       slivers: [
         if (songs.isEmpty)
           SliverFillRemaining(
-            hasScrollBody: false,
+            // The message states measure themselves with a LayoutBuilder, which a
+            // non-scrolling fill cannot ask for its height (it asserts in debug):
+            // on Windows the state gets the remaining space and centres in it.
+            hasScrollBody: useSongTable(),
             child: page.isLoadingMore || sync.syncing
                 ? LoadingState(
                     label: sync.syncing && !widget.downloadedOnly
@@ -112,6 +115,9 @@ class _SongsPageState extends ConsumerState<SongsPage> {
                 child: PlayShuffleButtons(
                   onPlay: () => _play(songs),
                   onShuffle: () => _play(songs, shuffle: true),
+                  // Play starts at the top of the list in the page's own sort (the
+                  // button at the top right), not the table's column sort.
+                  scope: widget.downloadedOnly ? 'Plays your downloads, from the top' : 'Plays your whole library, from the top',
                 ),
               ),
             ),

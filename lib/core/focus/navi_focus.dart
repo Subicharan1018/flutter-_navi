@@ -299,7 +299,7 @@ class _NaviPressableState extends State<NaviPressable> {
         canRequestFocus: false,
         skipTraversal: true,
         // Any key press while focused means the keyboard is driving again.
-        onKeyEvent: (_, __) {
+        onKeyEvent: (_, _) {
           if (_byPointer) setState(() => _byPointer = false);
           return KeyEventResult.ignored;
         },

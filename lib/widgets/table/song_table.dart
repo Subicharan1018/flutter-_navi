@@ -10,6 +10,7 @@ import '../../core/focus/navi_focus.dart';
 import '../shell/desktop/desktop_layout.dart';
 import '../../core/theme.dart';
 import '../ui/navi_icon_button.dart';
+import '../ui/states.dart';
 import '../../features/online_fetch/ui/fetch_activity.dart' show showAddSongsToPlaylist;
 import '../../models/song.dart';
 import '../../providers/catalog_provider.dart';
@@ -593,9 +594,13 @@ class SongTableState extends ConsumerState<SongTableSliver> {
             ),
             if (rows.isEmpty && _find.text.isNotEmpty)
               SliverToBoxAdapter(
-                child: Padding(
-                  padding: const EdgeInsets.all(Space.xxl),
-                  child: Text('No songs match “${_find.text.trim()}”.', style: ThemeTokens.of(context).footnote),
+                child: MessageState(
+                  icon: NaviGlyph.search,
+                  art: EmptyArtKind.noResults,
+                  title: 'No songs match “${_find.text.trim()}”',
+                  message: 'Check the spelling or use fewer words.',
+                  actionLabel: 'Clear search',
+                  onAction: _find.clear,
                 ),
               )
             else

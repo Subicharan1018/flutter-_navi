@@ -597,8 +597,8 @@ class _DesktopHeader extends StatelessWidget {
               DecoratedBox(
                 decoration: BoxDecoration(
                   shape: page.artistStyle ? BoxShape.circle : BoxShape.rectangle,
+                  // No shadow: on the tinted page it drew a hard dark bar under the cover.
                   borderRadius: page.artistStyle ? null : BorderRadius.circular(Radii.cover),
-                  boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 28, offset: Offset(0, 10))],
                 ),
                 child: ClipRRect(
                   borderRadius: BorderRadius.circular(page.artistStyle ? art / 2 : Radii.cover),

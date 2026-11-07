@@ -486,7 +486,7 @@ class _ItemRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final art = item.playlist != null && item.artUrl == null
-        ? PlaylistCover(playlist: item.playlist!, size: 40, radius: Radii.thumb)
+        ? PlaylistCover(playlist: item.playlist!, size: 40, radius: Radii.thumb, compact: true)
         : item.artUrl == null
         ? Container(
             width: 40,
@@ -600,6 +600,21 @@ class RailRow extends StatelessWidget {
         ],
       ),
     );
+    // The active destination also carries a short white bar on its left edge:
+    // in the icon-only rail a faint wash is the only other cue, and the glyph
+    // alone is not enough to tell where you are.
+    final marked = Stack(
+      children: [
+        row,
+        if (selected)
+          Positioned(
+            left: 0,
+            top: 10,
+            bottom: 10,
+            child: Container(width: 3, decoration: BoxDecoration(color: t.accentFill, borderRadius: BorderRadius.circular(2))),
+          ),
+      ],
+    );
     return Semantics(
       selected: selected,
       child: NaviFocusable(
@@ -607,7 +622,7 @@ class RailRow extends StatelessWidget {
         onTap: onTap,
         semanticLabel: label,
         hoverTint: !selected,
-        child: iconOnly ? Tooltip(message: label, child: row) : row,
+        child: iconOnly ? Tooltip(message: label, child: marked) : marked,
       ),
     );
   }
