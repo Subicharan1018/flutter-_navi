@@ -721,7 +721,8 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
           border: Border(bottom: BorderSide(color: t.outline, width: 0.5)),
         ),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+          // No inset: the labels start at the page's left edge, like the title above them.
+          padding: EdgeInsets.zero,
           child: selectionBar != null
               ? SizedBox(height: SongTableSliver.headerHeight, child: selectionBar)
               :
@@ -774,7 +775,7 @@ class _FindBar extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.lg, Space.xs, Space.lg, Space.sm),
+      padding: const EdgeInsets.fromLTRB(0, Space.xs, 0, Space.sm),
       child: CallbackShortcuts(
         bindings: {const SingleActivator(LogicalKeyboardKey.escape): onClose},
         child: SizedBox(
@@ -936,27 +937,50 @@ class _RowState extends ConsumerState<_Row> {
       ),
     );
 
-    Widget body = Container(
+    // The row's text starts exactly at the page's left edge (the same x as the page
+    // title); the hover / selected wash and the focus outline reach [_wash] px beyond it.
+    const wash = 8.0;
+    late Widget Function() content; // the row's columns, defined just below
+    Widget body = SizedBox(
       height: SongTableSliver.rowHeight,
-      padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-      // Three states that cannot be mistaken for each other: hover is a 9% wash,
-      // selected a stronger 16% fill, the keyboard cursor a 2 px outline inside the row.
-      foregroundDecoration: _cursorRow
-          ? BoxDecoration(borderRadius: BorderRadius.circular(6), border: Border.all(color: t.accent, width: 2))
-          : null,
-      decoration: BoxDecoration(
-        color: selected
-            ? Colors.white.withValues(alpha: 0.16)
-            : (_hover ? Colors.white.withValues(alpha: 0.09) : Colors.transparent),
-        borderRadius: BorderRadius.circular(6),
-        border: _dropBelow == null
-            ? null
-            : Border(
-                top: _dropBelow! ? BorderSide.none : BorderSide(color: t.textPrimary, width: 2),
-                bottom: _dropBelow! ? BorderSide(color: t.textPrimary, width: 2) : BorderSide.none,
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          Positioned(
+            left: -wash,
+            right: -wash,
+            top: 0,
+            bottom: 0,
+            child: DecoratedBox(
+              // Three states that cannot be mistaken for each other: hover is a 9% wash,
+              // selected a stronger 16% fill, the keyboard cursor a 2 px outline inside the row.
+              decoration: BoxDecoration(
+                color: selected
+                    ? Colors.white.withValues(alpha: 0.16)
+                    : (_hover ? Colors.white.withValues(alpha: 0.09) : Colors.transparent),
+                borderRadius: BorderRadius.circular(6),
+                border: _dropBelow == null
+                    ? null
+                    : Border(
+                        top: _dropBelow! ? BorderSide.none : BorderSide(color: t.textPrimary, width: 2),
+                        bottom: _dropBelow! ? BorderSide(color: t.textPrimary, width: 2) : BorderSide.none,
+                      ),
               ),
+              position: DecorationPosition.background,
+              child: _cursorRow
+                  ? DecoratedBox(
+                      key: const Key('row-cursor'),
+                      decoration: BoxDecoration(borderRadius: BorderRadius.circular(6), border: Border.all(color: t.accent, width: 2)),
+                    )
+                  : null,
+            ),
+          ),
+          Positioned.fill(child: Builder(builder: (_) => content())),
+        ],
       ),
-      child: Row(
+    );
+
+    content = () => Row(
         children: [
           numCell,
           title,
@@ -997,8 +1021,7 @@ class _RowState extends ConsumerState<_Row> {
             ),
           ),
         ],
-      ),
-    );
+      );
 
     body = Listener(
       behavior: HitTestBehavior.opaque,

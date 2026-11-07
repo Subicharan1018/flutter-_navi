@@ -110,6 +110,7 @@ enum NaviGlyph {
   sidebarToggle,
   speakerOff,
   keyboard,
+  help,
   gridView,
   listView,
   plusCircle,

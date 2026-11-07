@@ -192,18 +192,35 @@ void main() {
     });
   });
 
+  group('alignment', () {
+    testWidgets('table text starts at the page\'s left edge, like the title; the wash reaches just outside it', (tester) async {
+      await size(tester, 1366, 768);
+      await tester.pumpWidget(_app(CustomScrollView(slivers: [
+        SliverPadding(
+          padding: const EdgeInsets.symmetric(horizontal: 24),
+          sliver: SongTableSliver(songs: [_s(1), _s(2)], onPlay: (a, b) {}),
+        ),
+      ])));
+      final left = tester.getTopLeft(find.text('#')).dx;
+      expect(left, 24, reason: 'the # column starts where the page title does');
+      expect(tester.getTopLeft(find.text('1')).dx, 24);
+      final wash = find.descendant(of: find.ancestor(of: find.text('Song A'), matching: find.byType(Stack)).first, matching: find.byType(DecoratedBox)).first;
+      expect(tester.getTopLeft(wash).dx, 16, reason: 'the hover and selected wash start 8 px outside the text edge');
+    });
+  });
+
   group('row states', () {
+    /// The row is a Stack: the wash is its first child (a DecoratedBox reaching 8 px past the text edge).
+    Finder rowOf(String title) => find.ancestor(of: find.text(title), matching: find.byType(Stack)).first;
+
     Color? fillOf(WidgetTester tester, String title) {
-      final c = tester.widget<Container>(find.ancestor(of: find.text(title), matching: find.byType(Container)).first);
-      return ((c.decoration) as BoxDecoration?)?.color;
+      final wash = find.descendant(of: rowOf(title), matching: find.byType(DecoratedBox)).first;
+      return ((tester.widget<DecoratedBox>(wash).decoration) as BoxDecoration).color;
     }
 
     BoxDecoration? outlineOf(WidgetTester tester, String title) {
-      for (final e in find.ancestor(of: find.text(title), matching: find.byType(Container)).evaluate()) {
-        final c = e.widget as Container;
-        if (c.foregroundDecoration != null) return c.foregroundDecoration as BoxDecoration;
-      }
-      return null;
+      final o = find.descendant(of: rowOf(title), matching: find.byKey(const Key('row-cursor')));
+      return o.evaluate().isEmpty ? null : tester.widget<DecoratedBox>(o).decoration as BoxDecoration;
     }
 
     Widget table() => _app(CustomScrollView(slivers: [

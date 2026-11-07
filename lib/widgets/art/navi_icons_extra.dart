@@ -426,6 +426,19 @@ void paintNaviGlyphExtra(
       );
       canvas.drawLine(const Offset(16, 9.5), const Offset(20.5, 14.5), stroke);
       canvas.drawLine(const Offset(20.5, 9.5), const Offset(16, 14.5), stroke);
+    case NaviGlyph.help:
+      // A question mark in a circle: reads at 16 px, and a plain ring never looks toggled.
+      canvas.drawCircle(const Offset(12, 12), 8.5, stroke);
+      canvas.drawPath(
+        Path()
+          ..moveTo(9.6, 9.8)
+          ..quadraticBezierTo(9.6, 7.5, 12, 7.5)
+          ..quadraticBezierTo(14.4, 7.5, 14.4, 9.6)
+          ..quadraticBezierTo(14.4, 11, 12, 12.2)
+          ..lineTo(12, 13.4),
+        stroke,
+      );
+      canvas.drawCircle(const Offset(12, 16.3), 0.9, solid);
     case NaviGlyph.keyboard:
       // Key caps, not a boxed outline: a bordered rectangle reads as a toggled button.
       for (final x in const [3.5, 9.5, 15.5]) {
