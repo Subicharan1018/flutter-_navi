@@ -524,10 +524,30 @@ class _FirstRun extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final empty = (ref.watch(recentlyPlayedAlbumsProvider).asData?.value.isEmpty ?? false) &&
-        (ref.watch(recentlyPlayedSongsProvider).asData?.value.isEmpty ?? false) &&
-        (ref.watch(playlistsProvider).asData?.value.isEmpty ?? false) &&
-        (ref.watch(recentlyAddedAlbumsProvider).asData?.value.isEmpty ?? false);
+    final played = ref.watch(recentlyPlayedAlbumsProvider);
+    final playedSongs = ref.watch(recentlyPlayedSongsProvider);
+    final playlists = ref.watch(playlistsProvider);
+    final added = ref.watch(recentlyAddedAlbumsProvider);
+    // Every shelf failed to load (offline, server down): say so once, with one way
+    // out, instead of a page that just ends under the shortcuts.
+    if (played.hasError && playedSongs.hasError && playlists.hasError && added.hasError) {
+      return Padding(
+        padding: const EdgeInsets.only(top: Space.huge),
+        child: MessageState.error(
+          title: 'Couldn’t load Home',
+          onRetry: () {
+            ref.invalidate(recentlyPlayedAlbumsProvider);
+            ref.invalidate(recentlyPlayedSongsProvider);
+            ref.invalidate(playlistsProvider);
+            ref.invalidate(recentlyAddedAlbumsProvider);
+          },
+        ),
+      );
+    }
+    final empty = (played.asData?.value.isEmpty ?? false) &&
+        (playedSongs.asData?.value.isEmpty ?? false) &&
+        (playlists.asData?.value.isEmpty ?? false) &&
+        (added.asData?.value.isEmpty ?? false);
     if (!empty) return const SizedBox.shrink();
     return const Padding(
       padding: EdgeInsets.only(top: Space.huge),
@@ -606,6 +626,7 @@ class _ContinueStrip extends ConsumerWidget {
           title: a.name,
           subtitle: a.artist,
           art: CoverArt(url: _art(ref, a.coverArt), size: 56, radius: 0, placeholderIcon: NaviGlyph.library),
+          coverId: a.coverArt,
           onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
           onPlay: () => playCollection(context, ref, () => ref.read(subsonicServiceProvider).getAlbum(a.id), a.name),
         ),
@@ -643,48 +664,76 @@ class _ContinueStrip extends ConsumerWidget {
   }
 }
 
-class _ContinueTile extends StatelessWidget {
+/// A shortcut tile. The ones that carry an album take their identity from it: a
+/// faint tint of the cover's own colour at rest, stronger while hovered or
+/// focused. The tint comes from the user's art, so the chrome stays monochrome;
+/// the glyph tiles (Flow, Shuffle, Favorites, Replay) keep the plain fill.
+class _ContinueTile extends ConsumerStatefulWidget {
   final String title;
   final String? subtitle;
   final Widget art;
   final VoidCallback onTap;
   final VoidCallback? onPlay;
   final VoidCallback? onMenu;
-  const _ContinueTile({required this.title, this.subtitle, required this.art, required this.onTap, this.onPlay, this.onMenu});
+
+  /// The cover to take the tint from, if any.
+  final String? coverId;
+  const _ContinueTile({required this.title, this.subtitle, required this.art, required this.onTap, this.onPlay, this.onMenu, this.coverId});
+
+  @override
+  ConsumerState<_ContinueTile> createState() => _ContinueTileState();
+}
+
+class _ContinueTileState extends ConsumerState<_ContinueTile> {
+  bool _focused = false;
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    final title = widget.title;
+    final subtitle = widget.subtitle;
+    final onPlay = widget.onPlay;
+    final id = widget.coverId;
+    final tint = id == null || id.isEmpty ? null : ref.watch(coverPaletteProvider(id)).asData?.value.vibrant;
     return HoverBuilder(
-      builder: (context, hovered) => CupertinoClickable(
-        onTap: onTap,
-        onLongPress: onMenu,
-        focusRadius: 8,
-        semanticLabel: subtitle == null ? title : '$title, $subtitle',
-        child: Container(
-          height: 56,
-          decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(8)),
-          clipBehavior: Clip.antiAlias,
-          child: Row(
-            children: [
-              SizedBox(width: 56, height: 56, child: art),
-              const SizedBox(width: Space.md),
-              Expanded(
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
-                    if (subtitle != null) Text(subtitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
-                  ],
+      builder: (context, hovered) => Focus(
+        canRequestFocus: false,
+        skipTraversal: true,
+        onFocusChange: (f) => setState(() => _focused = f),
+        child: CupertinoClickable(
+          onTap: widget.onTap,
+          onLongPress: widget.onMenu,
+          focusRadius: 8,
+          semanticLabel: subtitle == null ? title : '$title, $subtitle',
+          child: AnimatedContainer(
+            duration: Motion.fast,
+            height: 56,
+            decoration: BoxDecoration(
+              color: tint == null ? t.fill : Color.alphaBlend(tint.withValues(alpha: hovered || _focused ? 0.30 : 0.12), t.fill),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            clipBehavior: Clip.antiAlias,
+            child: Row(
+              children: [
+                SizedBox(width: 56, height: 56, child: widget.art),
+                const SizedBox(width: Space.md),
+                Expanded(
+                  child: Column(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+                      if (subtitle != null) Text(subtitle, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
+                    ],
+                  ),
                 ),
-              ),
-              if (onPlay != null)
-                Padding(
-                  padding: const EdgeInsets.only(right: Space.sm),
-                  child: HoverPlayDisc(visible: hovered, onPlay: onPlay!, label: 'Play $title', size: 32, glyph: 14),
-                ),
-            ],
+                if (onPlay != null)
+                  Padding(
+                    padding: const EdgeInsets.only(right: Space.sm),
+                    child: HoverPlayDisc(visible: hovered, onPlay: onPlay, label: 'Play $title', size: 32, glyph: 14),
+                  ),
+              ],
+            ),
           ),
         ),
       ),

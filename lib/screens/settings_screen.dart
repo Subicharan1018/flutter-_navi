@@ -646,25 +646,37 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           Container(width: 0.5, color: t.separatorOpaque),
           Expanded(
-            child: Align(
-              alignment: Alignment.topLeft,
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 720),
-                child: ListView(
-                  padding: const EdgeInsets.only(top: Space.lg, bottom: Space.xxxl),
-                  children: [
-                    Padding(
-                      padding: EdgeInsets.fromLTRB(pageGutter(context), 0, pageGutter(context), Space.sm),
-                      child: Row(
-                        children: [
-                          Expanded(child: Text(selected, style: t.title1)),
-                        ],
-                      ),
+            child: LayoutBuilder(
+              builder: (context, c) {
+                final sections = groups[selected]!;
+                // A form reads best about 720 px wide; sections of two columns would
+                // split a short list into halves nobody scans. So the pane stays one
+                // column and, once the window is wide, sits centred in the space beside
+                // the categories instead of hugging the left edge with a void on the right.
+                return Align(
+                  alignment: c.maxWidth >= 1000 ? Alignment.topCenter : Alignment.topLeft,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 720),
+                    child: ListView(
+                      padding: const EdgeInsets.only(top: Space.lg, bottom: Space.xxxl),
+                      children: [
+                        Padding(
+                          padding: EdgeInsets.fromLTRB(pageGutter(context), 0, pageGutter(context), Space.sm),
+                          child: Row(
+                            children: [
+                              Expanded(child: Text(selected, style: t.title1)),
+                            ],
+                          ),
+                        ),
+                        SectionHeaderScope(
+                          pageTitle: selected,
+                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: sections),
+                        ),
+                      ],
                     ),
-                    SectionHeaderScope(pageTitle: selected, child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: groups[selected]!)),
-                  ],
-                ),
-              ),
+                  ),
+                );
+              },
             ),
           ),
         ],

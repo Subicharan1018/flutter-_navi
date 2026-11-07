@@ -177,16 +177,21 @@ class MediaShelf extends StatelessWidget {
           final fit = ((avail + gap) / (target + gap)).floor().clamp(2, 12);
           final fewest = ((avail + gap) / (220 + gap)).ceil().clamp(2, 12);
           // A shelf with just under a row's worth of items stretches them to fill it (up to ~220 wide).
-          final n = itemCount >= fit ? fit : (itemCount >= fewest ? itemCount : fit);
-          final size = (avail - gap * (n - 1)) / n;
+          // A shelf with fewer still would end a third of the way short of the right edge,
+          // so its last slot is a "See all" tile and the tiles grow (to 220) to take the row.
+          final short = itemCount < fewest && onSeeAll != null;
+          final n = short ? itemCount + 1 : (itemCount >= fit ? fit : (itemCount >= fewest ? itemCount : fit));
+          final size = short ? ((avail - gap * (n - 1)) / n).clamp(target, 220.0) : (avail - gap * (n - 1)) / n;
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               SectionHeader(title: title, onTap: onSeeAll),
               HorizontalShelf(
                 height: size + captionExtent(context, subtitle: hasSubtitle),
-                itemCount: itemCount,
-                itemBuilder: (context, i) => ShelfSize(size: size, child: itemBuilder(context, i)),
+                itemCount: short ? itemCount + 1 : itemCount,
+                itemBuilder: (context, i) => short && i == itemCount
+                    ? _SeeAllTile(size: size, label: title, onTap: onSeeAll!)
+                    : ShelfSize(size: size, child: itemBuilder(context, i)),
               ),
             ],
           );
@@ -203,6 +208,49 @@ class MediaShelf extends StatelessWidget {
           itemBuilder: itemBuilder,
         ),
       ],
+    );
+  }
+}
+
+/// The last slot of a short desktop shelf: a quiet tile that opens the full list.
+class _SeeAllTile extends StatelessWidget {
+  final double size;
+  final String label;
+  final VoidCallback onTap;
+  const _SeeAllTile({required this.size, required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    // Cover-sized, top-aligned with the covers beside it (the shelf row is taller
+    // than a cover: it holds the captions too).
+    return Align(
+      alignment: Alignment.topLeft,
+      child: Semantics(
+        button: true,
+        label: 'See all $label',
+        child: NaviFocusable(
+          radius: Radii.cover,
+          onTap: onTap,
+          child: SizedBox(
+            width: size,
+            height: size,
+            child: DecoratedBox(
+              decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(Radii.cover)),
+              child: Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text('See all', style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+                    const SizedBox(width: Space.xs),
+                    NaviIcon(NaviGlyph.chevron, size: 14, color: t.textPrimary),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
@@ -380,12 +428,16 @@ class PlayShuffleButtons extends StatelessWidget {
   final bool playing;
   final Widget? trailing;
 
+  /// Windows: one quiet line after the buttons saying what Play will play.
+  final String? scope;
+
   const PlayShuffleButtons({
     super.key,
     required this.onPlay,
     required this.onShuffle,
     this.playing = false,
     this.trailing,
+    this.scope,
   });
 
   @override
@@ -418,6 +470,10 @@ class PlayShuffleButtons extends StatelessWidget {
           const SizedBox(width: Space.md),
           CircleIconButton(icon: NaviGlyph.shuffle, label: 'Shuffle', onTap: onShuffle),
           if (trailing != null) ...[const SizedBox(width: Space.xs), trailing!],
+          if (scope != null) ...[
+            const SizedBox(width: Space.lg),
+            Text(scope!, style: t.footnote.copyWith(color: t.textSecondary)),
+          ],
         ],
       );
     }
