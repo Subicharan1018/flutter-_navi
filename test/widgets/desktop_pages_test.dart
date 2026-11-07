@@ -251,6 +251,91 @@ void main() {
     });
   });
 
+  group('shelves', () {
+    Widget shelf({required List<String> log, int count = 14}) => _app(Scaffold(
+          body: MediaShelf(
+            title: 'Recently Played',
+            cardSize: 170,
+            itemCount: count,
+            itemBuilder: (context, i) => MediaCard(
+              title: 'Album $i',
+              subtitle: 'Artist',
+              size: 170,
+              onTap: () => log.add('open $i'),
+              onPlay: () => log.add('play $i'),
+            ),
+          ),
+        ));
+
+    testWidgets('arrow buttons appear while the pointer is on the shelf, and page it', (tester) async {
+      await size(tester, 1000, 500);
+      await tester.pumpWidget(shelf(log: []));
+      await tester.pump();
+      expect(find.byTooltip('Scroll right'), findsNothing, reason: 'hidden until hovered');
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(const Offset(500, 150));
+      await tester.pump();
+      expect(find.byTooltip('Scroll right'), findsOneWidget);
+      expect(find.byTooltip('Scroll left'), findsNothing, reason: 'already at the start');
+      final scroll = tester.state<ScrollableState>(find.byType(Scrollable).first);
+      expect(scroll.position.pixels, 0);
+      await tester.tap(find.byTooltip('Scroll right'));
+      await tester.pumpAndSettle();
+      expect(scroll.position.pixels, greaterThan(300));
+      expect(find.byTooltip('Scroll left'), findsOneWidget);
+      await tester.tap(find.byTooltip('Scroll left'));
+      await tester.pumpAndSettle();
+      expect(scroll.position.pixels, 0);
+      await mouse.moveTo(const Offset(5, 450));
+      await tester.pump();
+      expect(find.byTooltip('Scroll right'), findsNothing);
+    });
+
+    testWidgets('a short shelf has no arrows to show', (tester) async {
+      await size(tester, 1000, 500);
+      await tester.pumpWidget(shelf(log: [], count: 3));
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      await mouse.moveTo(const Offset(300, 150));
+      await tester.pump();
+      expect(find.byTooltip('Scroll right'), findsNothing);
+    });
+
+    testWidgets('a card shows Play on hover; Play plays without opening, the card opens', (tester) async {
+      final log = <String>[];
+      await size(tester, 1000, 500);
+      await tester.pumpWidget(shelf(log: log));
+      await tester.pump();
+      final mouse = await tester.createGesture(kind: PointerDeviceKind.mouse);
+      await mouse.addPointer(location: Offset.zero);
+      addTearDown(mouse.removePointer);
+      double opacity(int i) => tester
+          .widget<AnimatedOpacity>(find.descendant(of: find.byType(CardPlayButton).at(i), matching: find.byType(AnimatedOpacity)))
+          .opacity;
+      expect(opacity(0), 0);
+      await mouse.moveTo(const Offset(100, 150));
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(opacity(0), 1);
+      expect(opacity(1), 0, reason: 'only the card under the pointer');
+      await tester.tap(find.byTooltip('Play Album 0'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(log, ['play 0']);
+      await tester.tap(find.text('Album 0'));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(log, ['play 0', 'open 0']);
+    });
+
+    testWidgets('a phone card has no Play overlay at all', (tester) async {
+      PlatformUtils.debugDesktopOverride = false;
+      await size(tester, 400, 600);
+      await tester.pumpWidget(shelf(log: []));
+      expect(find.byType(CardPlayButton), findsNothing);
+    });
+  });
+
   group('compact header actions', () {
     testWidgets('Play is a round button on desktop, with Shuffle beside it', (tester) async {
       await size(tester, 1366, 768);

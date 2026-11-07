@@ -70,7 +70,7 @@ class LibraryScreen extends ConsumerWidget {
         ref.invalidate(playlistsProvider);
       },
       slivers: [
-        if (pins.isNotEmpty) _PinsGrid(pins: pins),
+        if (pins.isNotEmpty) PinsGrid(pins: pins),
         SliverPadding(
           padding: EdgeInsets.only(top: pins.isEmpty ? 0 : Space.lg),
           sliver: SliverList.list(children: [
@@ -140,9 +140,9 @@ class LibraryScreen extends ConsumerWidget {
 }
 
 /// Pinned items as a grid of large tiles, three across (artists round).
-class _PinsGrid extends ConsumerWidget {
+class PinsGrid extends ConsumerWidget {
   final List<Pin> pins;
-  const _PinsGrid({required this.pins});
+  const PinsGrid({super.key, required this.pins});
 
   void _open(BuildContext context, WidgetRef ref, Pin p) {
     switch (p.kind) {

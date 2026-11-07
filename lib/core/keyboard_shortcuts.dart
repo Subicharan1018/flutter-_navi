@@ -46,6 +46,9 @@ class ShellCommands {
   /// Re-opens the page Back left (Alt+→, the mouse's forward button).
   final VoidCallback? goForward;
 
+  /// Ctrl+/: the list of shortcuts.
+  final VoidCallback? showShortcuts;
+
   const ShellCommands({
     required this.openSearch,
     required this.focusSearch,
@@ -53,6 +56,7 @@ class ShellCommands {
     required this.selectTab,
     required this.goBack,
     this.goForward,
+    this.showShortcuts,
   });
 }
 
@@ -200,6 +204,7 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
       const SingleActivator(LogicalKeyboardKey.escape): () => commands.goBack(),
       const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): () => commands.goBack(),
       if (commands.goForward != null) const SingleActivator(LogicalKeyboardKey.arrowRight, alt: true): commands.goForward!,
+      if (commands.showShortcuts != null) const SingleActivator(LogicalKeyboardKey.slash, control: true): commands.showShortcuts!,
       // Ctrl+K: the top bar's search field.
       const SingleActivator(LogicalKeyboardKey.keyK, control: true): commands.focusSearch,
       for (var i = 0; i < 6; i++)

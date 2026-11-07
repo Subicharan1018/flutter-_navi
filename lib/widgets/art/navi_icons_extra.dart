@@ -412,6 +412,26 @@ void paintNaviGlyphExtra(
       canvas.drawLine(const Offset(4, 7), const Offset(20, 7), stroke);
       canvas.drawLine(const Offset(4, 12), const Offset(20, 12), stroke);
       canvas.drawLine(const Offset(4, 17), const Offset(20, 17), stroke);
+    case NaviGlyph.speakerOff:
+      canvas.drawPath(
+        Path()
+          ..moveTo(4, 9.5)
+          ..lineTo(8, 9.5)
+          ..lineTo(12.5, 5.5)
+          ..lineTo(12.5, 18.5)
+          ..lineTo(8, 14.5)
+          ..lineTo(4, 14.5)
+          ..close(),
+        stroke,
+      );
+      canvas.drawLine(const Offset(16, 9.5), const Offset(20.5, 14.5), stroke);
+      canvas.drawLine(const Offset(20.5, 9.5), const Offset(16, 14.5), stroke);
+    case NaviGlyph.keyboard:
+      canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(3, 6.5, 18, 11), const Radius.circular(2.5)), stroke);
+      for (final x in const [7.0, 10.5, 14.0, 17.5]) {
+        canvas.drawCircle(Offset(x, 10.2), 0.5, solid);
+      }
+      canvas.drawLine(const Offset(8, 14.2), const Offset(16, 14.2), stroke);
     case NaviGlyph.minusCircle:
       canvas.drawCircle(const Offset(12, 12), 8, solid);
       canvas.drawLine(const Offset(8, 12), const Offset(16, 12), ink);

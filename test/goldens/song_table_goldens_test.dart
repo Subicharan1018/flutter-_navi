@@ -32,6 +32,10 @@ import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/screens/library/artists_page.dart' show libraryArtistsProvider;
 import 'package:navivibe/screens/home_screen.dart';
+import 'package:navivibe/screens/library_screen.dart';
+import 'package:navivibe/screens/settings_screen.dart';
+import 'package:navivibe/widgets/shell/desktop/now_playing_panel.dart' show PanelKind;
+import 'package:navivibe/widgets/shell/desktop/player_bar.dart';
 import 'package:navivibe/screens/library/songs_page.dart';
 import 'package:navivibe/screens/playlist_details_screen.dart';
 import 'package:navivibe/services/subsonic_service.dart';
@@ -58,6 +62,10 @@ const _titles = [
   ('Nenjukkul Peidhidum', 'Harris Jayaraj', 'Vaaranam Aayiram'),
   ('Blinding Lights', 'The Weeknd', 'After Hours'),
   ('Munbe Vaa', 'A. R. Rahman', 'Sillunu Oru Kaadhal'),
+];
+
+final _albums = [
+  for (final (i, t) in _titles.indexed) Album(id: 'g$i', name: t.$3, artist: t.$2, coverArt: 'g$i', songCount: 8 + i, duration: 2400, year: 2024),
 ];
 
 final _songs = [
@@ -93,7 +101,27 @@ Future<Map<String, Uint8List>> _covers() async {
   return out;
 }
 
+class _Audio extends Fake implements AudioPlayer {
+  @override
+  double get volume => 0.7;
+  @override
+  Stream<double> get volumeStream => const Stream.empty();
+  @override
+  Duration get position => const Duration(seconds: 71);
+  @override
+  Stream<Duration> get positionStream => Stream.value(const Duration(seconds: 71));
+  @override
+  Duration? get duration => const Duration(seconds: 261);
+  @override
+  Stream<Duration?> get durationStream => Stream.value(const Duration(seconds: 261));
+  @override
+  bool get playing => true;
+}
+
 class _FakePlayer extends StateNotifier<PlayerState> implements PlayerNotifier {
+  final _audio = _Audio();
+  @override
+  AudioPlayer get player => _audio;
   _FakePlayer()
       : super(PlayerState(
           queue: _songs,
@@ -136,6 +164,9 @@ void main() {
     await loadGoldenFonts();
     Hive.init(Directory.systemTemp.createTempSync("hive_gold").path);
     HiveBoxes.prefs = await Hive.openBox("prefs");
+    HiveBoxes.auth = await Hive.openBox("auth");
+    HiveBoxes.session = await Hive.openBox("session");
+    HiveBoxes.audio = await Hive.openBox("audio");
   });
 
   setUp(() => PlatformUtils.debugDesktopOverride = true);
@@ -161,7 +192,7 @@ void main() {
         updateCheckProvider.overrideWith((ref) async => null),
         invitationCountProvider.overrideWithValue(0),
         sortedPlaylistsProvider.overrideWithValue(AsyncData([for (final n in ["Late Night Drive", "Gym", "Focus", "Tamil Classics", "Road Trip", "Rainy Day"]) Playlist(id: n, name: n, comment: "", songCount: 14, duration: 3000)])),
-        sortedAlbumsProvider.overrideWithValue(const AsyncData(<Album>[])),
+        sortedAlbumsProvider.overrideWithValue(AsyncData(_albums)),
         libraryArtistsProvider.overrideWith((ref) async => const <Artist>[]),
         paginatedSongsProvider.overrideWith((ref, arg) => _FakePaged()),
       ],
@@ -241,9 +272,7 @@ void main() {
   for (final size in const [Size(1366, 768), Size(1920, 1080)]) {
     final tag = '${size.width.toInt()}x${size.height.toInt()}';
     testWidgets('home $tag', (tester) async {
-      final albums = [
-        for (final (i, t) in _titles.indexed) Album(id: 'g$i', name: t.$3, artist: t.$2, coverArt: 'g$i', songCount: 10, duration: 2400, year: 2024),
-      ];
+      final albums = _albums;
       await shot(
         tester,
         const HomeScreen(),
@@ -258,6 +287,31 @@ void main() {
           favoritesProvider.overrideWith((ref) async => (songs: _songs.take(6).toList(), albums: <Album>[])),
           playlistsProvider.overrideWith((ref) async => [for (final n in ['Late Night Drive', 'Gym', 'Focus', 'Tamil Classics', 'Road Trip', 'Rainy Day', 'Study']) Playlist(id: n, name: n, comment: '', songCount: 14, duration: 3000)]),
         ],
+      );
+    });
+  }
+
+  // Library on a desktop: tiles and the list, and Settings with its categories.
+  for (final size in const [Size(1366, 768), Size(1920, 1080)]) {
+    final tag = '${size.width.toInt()}x${size.height.toInt()}';
+    testWidgets('library tiles $tag', (tester) async {
+      DesktopLayout.setLibraryGrid(true);
+      await shot(tester, const LibraryScreen(), size, 'library_tiles_$tag', signedOut: true);
+    });
+    testWidgets('library list $tag', (tester) async {
+      DesktopLayout.setLibraryGrid(false);
+      await shot(tester, const LibraryScreen(), size, 'library_list_$tag', signedOut: true);
+      DesktopLayout.setLibraryGrid(true);
+    });
+    testWidgets('settings $tag', (tester) async {
+      await shot(tester, const SettingsScreen(), size, 'settings_$tag');
+    });
+    testWidgets('player bar $tag', (tester) async {
+      await shot(
+        tester,
+        Scaffold(body: Align(alignment: Alignment.bottomCenter, child: DesktopPlayerBar(panel: PanelKind.queue, onTogglePanel: (_) {}))),
+        size,
+        'player_bar_$tag',
       );
     });
   }

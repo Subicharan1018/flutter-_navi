@@ -12,6 +12,8 @@ import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/ui/media.dart';
 import '../../widgets/ui/states.dart';
 import 'library_entries.dart';
+import '../../providers/pins_provider.dart';
+import '../library_screen.dart' show PinsGrid;
 
 // =============================================================================
 // desktop_library_page.dart — Library on Windows: the whole collection as a
@@ -84,9 +86,15 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
   @override
   Widget build(BuildContext context) {
     final entries = _sorted(libraryEntries(context, ref, _kind));
+    final pins = ref.watch(pinsProvider);
     return LargeTitlePage(
       title: 'Library',
       slivers: [
+        if (pins.isNotEmpty) ...[
+          const SliverToBoxAdapter(child: SectionHeader(title: 'Pinned')),
+          SliverPadding(padding: const EdgeInsets.symmetric(horizontal: Space.md), sliver: PinsGrid(pins: pins)),
+          const SliverToBoxAdapter(child: SizedBox(height: Space.xl)),
+        ],
         SliverToBoxAdapter(child: _Toolbar(kind: _kind, onKind: (k) => setState(() => _kind = k), onSort: _sortMenu, sort: _sort, asc: _asc)),
         if (entries.isEmpty)
           SliverToBoxAdapter(

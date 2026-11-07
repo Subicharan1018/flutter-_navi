@@ -53,6 +53,7 @@ class HomeScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return LargeTitlePage(
       title: 'Home',
+      showTitleOnDesktop: false,
       trailing: PlatformUtils.isDesktop
           ? null
           : CupertinoButton(

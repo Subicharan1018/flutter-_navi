@@ -1,24 +1,14 @@
-import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
 
 import '../core/keyboard_shortcuts.dart';
 import '../core/layout/window_size.dart';
 import '../core/theme.dart';
 import '../features/online_fetch/logic/online_fetch_providers.dart';
 import '../features/online_fetch/ui/fetch_activity.dart';
-import '../models/song.dart';
-import '../player/artwork.dart';
-import '../player/lyrics_pane.dart';
-import '../player/now_playing_style.dart';
-import '../player/player_controls.dart';
-import '../player/queue_pane.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
-import '../providers/settings_provider.dart';
-import '../screens/now_playing_screen.dart';
 import '../screens/settings_screen.dart';
 import '../services/window_manager_service.dart';
 import '../utils/platform_utils.dart';
@@ -32,6 +22,9 @@ import 'shell/app_tab.dart';
 import 'shell/nav_stack.dart';
 import 'shell/system_back.dart';
 import 'shell/title_bar.dart';
+import 'shell/desktop/now_playing_panel.dart';
+import 'shell/desktop/player_bar.dart';
+import 'shell/shortcuts_help.dart';
 import 'shell/desktop/desktop_layout.dart';
 import 'shell/desktop/library_rail.dart';
 import 'shell/desktop/resize_handle.dart';
@@ -152,6 +145,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     selectTab: (i) => _select(AppTab.values[i]),
     goBack: _back,
     goForward: () => goForward(context),
+    showShortcuts: () => showShortcutsHelp(context),
   );
 
   @override
@@ -462,8 +456,6 @@ class _OfflineBanner extends StatelessWidget {
 
 // ── Desktop ─────────────────────────────────────────────────────────────────
 
-/// Which part of the Now Playing side panel is showing.
-enum _Panel { about, lyrics, queue }
 
 class _DesktopShell extends ConsumerStatefulWidget {
   final AppTab tab;
@@ -482,14 +474,14 @@ class _DesktopShell extends ConsumerStatefulWidget {
 }
 
 class _DesktopShellState extends ConsumerState<_DesktopShell> {
-  _Panel? _panel = _Panel.about;
+  PanelKind? _panel = PanelKind.about;
 
   /// The panel opened over the content when the window is too narrow to dock it.
-  _Panel? _overlay;
+  PanelKind? _overlay;
 
-  void _toggleOverlay(_Panel p) => setState(() => _overlay = _overlay == p ? null : p);
+  void _toggleOverlay(PanelKind p) => setState(() => _overlay = _overlay == p ? null : p);
 
-  void _togglePanel(_Panel p) =>
+  void _togglePanel(PanelKind p) =>
       setState(() => _panel = _panel == p ? null : p);
 
   @override
@@ -550,71 +542,29 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                           ),
                   ),
                   Expanded(
-                    child: Stack(
-                      children: [
-                        FocusTraversalGroup(
-                          child: Column(
-                            children: [
-                              if (widget.offline) const _OfflineBanner(),
-                              Expanded(
-                                // Full width: no centred column, no black margins.
-                                child: ClipRect(
-                                  child: TabNavigators(
-                                    tab: widget.tab,
-                                    visited: widget.visited,
-                                  ),
+                    // A window too narrow to dock the Now Playing panel opens it over the content.
+                    child: PanelOverlay(
+                      panel: overlay,
+                      onChange: (p) => setState(() => _overlay = p),
+                      onClose: () => setState(() => _overlay = null),
+                      child: FocusTraversalGroup(
+                        child: Column(
+                          children: [
+                            if (widget.offline) const _OfflineBanner(),
+                            Expanded(
+                              // Full width: no centred column, no black margins.
+                              child: ClipRect(
+                                child: TabNavigators(
+                                  tab: widget.tab,
+                                  visited: widget.visited,
                                 ),
                               ),
-                              const Center(child: JamLivePill()),
-                              const FetchFinishedBanner(),
-                            ],
-                          ),
+                            ),
+                            const Center(child: JamLivePill()),
+                            const FetchFinishedBanner(),
+                          ],
                         ),
-                        // A window too narrow to dock the Now Playing panel opens it over the content.
-                        if (overlay != null) ...[
-                          Positioned.fill(
-                            child: GestureDetector(
-                              behavior: HitTestBehavior.opaque,
-                              onTap: () => setState(() => _overlay = null),
-                              child: const ColoredBox(color: Color(0x59000000)),
-                            ),
-                          ),
-                          Positioned(
-                            right: 0,
-                            top: 0,
-                            bottom: 0,
-                            child: Focus(
-                              autofocus: true,
-                              child: CallbackShortcuts(
-                              bindings: {const SingleActivator(LogicalKeyboardKey.escape): () => setState(() => _overlay = null)},
-                              child: DecoratedBox(
-                                decoration: const BoxDecoration(
-                                  boxShadow: [BoxShadow(color: Color(0x99000000), blurRadius: 28, offset: Offset(-6, 0))],
-                                ),
-                                child: Row(
-                                  children: [
-                                    ResizeHandle(
-                                      label: 'Resize the Now Playing panel',
-                                      growsRight: false,
-                                      onDrag: (d) => DesktopLayout.dragPanel(DesktopLayout.panelWidth.value + d),
-                                      onEnd: DesktopLayout.savePanel,
-                                      onReset: DesktopLayout.resetPanel,
-                                    ),
-                                    FocusTraversalGroup(
-                                      child: _SidePanel(
-                                        panel: overlay,
-                                        onChange: (p) => setState(() => _overlay = p),
-                                        onClose: () => setState(() => _overlay = null),
-                                      ),
-                                    ),
-                                  ],
-                                ),
-                              ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ],
+                      ),
                     ),
                   ),
                   if (panel != null) ...[
@@ -626,7 +576,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                       onReset: DesktopLayout.resetPanel,
                     ),
                     FocusTraversalGroup(
-                      child: _SidePanel(
+                      child: NowPlayingPanel(
                         panel: panel,
                         onChange: (p) => setState(() => _panel = p),
                         onClose: () => setState(() => _panel = null),
@@ -643,7 +593,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                 child: RemoteMiniPlayer(),
               )
             else if (hasSong)
-              _PlayerBar(
+              DesktopPlayerBar(
                 panel: panel ?? overlay,
                 onTogglePanel: size.hasSidePanel ? _togglePanel : _toggleOverlay,
                 compact: size == WindowSize.compact,
@@ -655,503 +605,3 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
   }
 }
 
-/// Now Playing side panel: About (artwork + credits), Lyrics, Queue.
-class _SidePanel extends ConsumerWidget {
-  final _Panel panel;
-  final ValueChanged<_Panel> onChange;
-  final VoidCallback onClose;
-
-  const _SidePanel({
-    required this.panel,
-    required this.onChange,
-    required this.onClose,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
-    final song = ref.watch(playerProvider.select((s) => s.currentSong));
-    if (song == null) return const SizedBox.shrink();
-    final style = NowPlayingStyle.fromTokens(t);
-    return GroundSurface(
-      darken: 0.4,
-      child: ValueListenableBuilder<double>(
-        valueListenable: DesktopLayout.panelWidth,
-        builder: (context, w, child) => SizedBox(width: w, child: child),
-        child: NowPlayingStyleScope(
-          style: style,
-          child: Column(
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  Space.md,
-                  Space.md,
-                  Space.xs,
-                  Space.sm,
-                ),
-                child: Row(
-                  children: [
-                    Expanded(
-                      child: CupertinoSlidingSegmentedControl<_Panel>(
-                        groupValue: panel,
-                        backgroundColor: t.fill,
-                        thumbColor: t.bgOverlay,
-                        onValueChanged: (p) => p == null ? null : onChange(p),
-                        children: {
-                          for (final (p, label) in const [
-                            (_Panel.about, 'About'),
-                            (_Panel.lyrics, 'Lyrics'),
-                            (_Panel.queue, 'Queue'),
-                          ])
-                            p: Text(
-                              label,
-                              style: t.footnote.copyWith(color: t.textPrimary),
-                            ),
-                        },
-                      ),
-                    ),
-                    IconButton(
-                      tooltip: 'Close',
-                      icon: NaviIcon(
-                        NaviGlyph.close,
-                        size: 16,
-                        color: t.textSecondary,
-                      ),
-                      onPressed: onClose,
-                    ),
-                  ],
-                ),
-              ),
-              Expanded(
-                child: AnimatedSwitcher(
-                  duration: Motion.standard,
-                  child: switch (panel) {
-                    _Panel.lyrics => LyricsPane(
-                      key: const ValueKey('lyrics'),
-                      style: style,
-                      fontSize: 24,
-                      padding: const EdgeInsets.fromLTRB(
-                        Space.xl,
-                        Space.md,
-                        Space.xl,
-                        0,
-                      ),
-                    ),
-                    _Panel.queue => QueuePane(
-                      key: const ValueKey('queue'),
-                      style: style,
-                      showCurrent: true,
-                    ),
-                    _Panel.about => _AboutSong(
-                      key: const ValueKey('about'),
-                      song: song,
-                    ),
-                  },
-                ),
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _AboutSong extends ConsumerWidget {
-  final Song song;
-  const _AboutSong({super.key, required this.song});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
-    final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
-    final quality = qualityLabel(song);
-    Widget fact(String k, String v) => Padding(
-      padding: const EdgeInsets.only(bottom: Space.sm + 2),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          SizedBox(width: 84, child: Text(k, style: t.footnote)),
-          Expanded(
-            child: Text(v, style: t.footnote.copyWith(color: t.textPrimary)),
-          ),
-        ],
-      ),
-    );
-    return ListView(
-      padding: const EdgeInsets.fromLTRB(
-        Space.lg,
-        Space.xs,
-        Space.lg,
-        Space.xxl,
-      ),
-      children: [
-        AspectRatio(
-          aspectRatio: 1,
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(Radii.hero),
-            child: CoverImage(
-              url: url,
-              cacheKey: coverCacheKey(song),
-              cacheWidth: 640,
-            ),
-          ),
-        ),
-        const SizedBox(height: Space.lg),
-        Text(song.title, style: t.title3),
-        const SizedBox(height: 2),
-        Text(song.artist, style: t.body.copyWith(color: t.accent)),
-        if (quality != null) ...[
-          const SizedBox(height: Space.md),
-          Align(
-            alignment: Alignment.centerLeft,
-            child: Container(
-              padding: const EdgeInsets.symmetric(
-                horizontal: Space.sm,
-                vertical: Space.xs,
-              ),
-              decoration: BoxDecoration(
-                color: t.fill,
-                borderRadius: BorderRadius.circular(Radii.thumb),
-              ),
-              child: Text(quality, style: t.caption1),
-            ),
-          ),
-        ],
-        const SizedBox(height: Space.xxl),
-        Text('Credits', style: t.headline),
-        const SizedBox(height: Space.md),
-        fact('Artist', song.artist),
-        if (song.composer.isNotEmpty) fact('Composer', song.composer),
-        fact('Album', song.album),
-        if (song.year > 0) fact('Year', '${song.year}'),
-        if (song.genre.isNotEmpty) fact('Genre', song.genre),
-        if (song.playCount > 0) fact('Plays', '${song.playCount}'),
-      ],
-    );
-  }
-}
-
-/// Desktop player bar: now playing, transport + scrubber, panels + volume.
-class _PlayerBar extends ConsumerWidget {
-  final _Panel? panel;
-  final ValueChanged<_Panel> onTogglePanel;
-
-  /// Medium windows: no side panel, so only volume and the full-screen button.
-  final bool compact;
-  const _PlayerBar({
-    required this.panel,
-    required this.onTogglePanel,
-    this.compact = false,
-  });
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
-    final song = ref.watch(playerProvider.select((s) => s.currentSong));
-    if (song == null) return const SizedBox.shrink();
-    final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
-    final starred = ref.watch(
-      playerProvider.select((s) => s.starredIds.contains(song.id)),
-    );
-    final shuffle = ref.watch(playerProvider.select((s) => s.shuffleMode));
-    final repeat = ref.watch(playerProvider.select((s) => s.repeatMode));
-    final n = ref.read(playerProvider.notifier);
-    final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
-
-    return Container(
-      height: 84,
-      padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-      decoration: BoxDecoration(
-        color: t.bgSurface,
-        border: Border(top: BorderSide(color: t.separatorOpaque, width: 0.5)),
-      ),
-      child: Row(
-        children: [
-          Expanded(
-            flex: 3,
-            child: Row(
-              children: [
-                MouseRegion(
-                  cursor: SystemMouseCursors.click,
-                  child: GestureDetector(
-                    onTap: () => openNowPlaying(context),
-                    child: ClipRRect(
-                      borderRadius: BorderRadius.circular(Radii.cover),
-                      child: CoverImage(
-                        url: url,
-                        cacheKey: coverCacheKey(song),
-                        width: ArtSize.of(context).player,
-                        height: ArtSize.of(context).player,
-                        cacheWidth: (ArtSize.of(context).player * 3).round(),
-                      ),
-                    ),
-                  ),
-                ),
-                const SizedBox(width: Space.md),
-                Flexible(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.subheadline.copyWith(
-                          color: t.textPrimary,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                      const SizedBox(height: 2),
-                      Text(
-                        song.artist,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.footnote,
-                      ),
-                    ],
-                  ),
-                ),
-                _BarButton(
-                  icon: NaviGlyph.star,
-                  filled: starred,
-                  tooltip: starred ? 'Remove from Favorites' : 'Favorite',
-                  active: starred,
-                  onTap: () => n.toggleStar(song.id),
-                ),
-              ],
-            ),
-          ),
-          Expanded(
-            flex: 5,
-            child: Center(
-              child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 600),
-                child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        _BarButton(
-                          icon: NaviGlyph.shuffle,
-                          tooltip: 'Shuffle',
-                          active: shuffle,
-                          onTap: n.toggleShuffle,
-                        ),
-                        const SizedBox(width: Space.sm),
-                        _BarButton(
-                          icon: NaviGlyph.previous,
-                          tooltip: 'Previous',
-                          size: 22,
-                          onTap: n.playPrev,
-                        ),
-                        const SizedBox(width: Space.sm),
-                        _BarButton(
-                          icon: playing ? NaviGlyph.pause : NaviGlyph.play,
-                          tooltip: playing ? 'Pause (Space)' : 'Play (Space)',
-                          size: 28,
-                          prominent: true,
-                          onTap: n.togglePlay,
-                        ),
-                        const SizedBox(width: Space.sm),
-                        _BarButton(
-                          icon: NaviGlyph.next,
-                          tooltip: 'Next',
-                          size: 22,
-                          onTap: n.playNext,
-                        ),
-                        const SizedBox(width: Space.sm),
-                        _BarButton(
-                          icon: repeat == LoopMode.one
-                              ? NaviGlyph.repeatOne
-                              : NaviGlyph.repeat,
-                          tooltip: switch (repeat) {
-                            LoopMode.off => 'Repeat',
-                            LoopMode.all => 'Repeat queue',
-                            LoopMode.one => 'Repeat this song',
-                          },
-                          active: repeat != LoopMode.off,
-                          onTap: n.cycleRepeat,
-                        ),
-                      ],
-                    ),
-                    _BarScrubber(song: song),
-                  ],
-                ),
-              ),
-            ),
-          ),
-          Expanded(
-            flex: 3,
-            child: LayoutBuilder(
-              builder: (context, c) {
-                // Narrow: keep Lyrics / Queue / full screen; the About and volume
-                // controls give way instead of overflowing.
-                final narrow = c.maxWidth < 300;
-                return Row(
-                  mainAxisAlignment: MainAxisAlignment.end,
-                  children: [
-                    if (!compact)
-                      _BarButton(
-                        icon: NaviGlyph.lyrics,
-                        tooltip: 'Lyrics',
-                        active: panel == _Panel.lyrics,
-                        onTap: () => onTogglePanel(_Panel.lyrics),
-                      ),
-                    if (!compact)
-                      _BarButton(
-                        icon: NaviGlyph.queue,
-                        tooltip: 'Queue',
-                        active: panel == _Panel.queue,
-                        onTap: () => onTogglePanel(_Panel.queue),
-                      ),
-                    if (!compact && !narrow)
-                      _BarButton(
-                        icon: NaviGlyph.info,
-                        tooltip: 'About this song',
-                        active: panel == _Panel.about,
-                        onTap: () => onTogglePanel(_Panel.about),
-                      ),
-                    if (c.maxWidth >= 220) ...[
-                      const SizedBox(width: Space.sm),
-                      Flexible(
-                        child: ConstrainedBox(
-                          constraints: BoxConstraints(
-                            maxWidth: compact ? 70 : 110,
-                          ),
-                          child: VolumeBar(
-                            player: n.player,
-                            color: t.textPrimary,
-                            trackColor: t.fill,
-                            iconColor: t.textSecondary,
-                          ),
-                        ),
-                      ),
-                    ],
-                    _BarButton(
-                      icon: NaviGlyph.expand,
-                      tooltip: 'Full-screen player',
-                      size: 16,
-                      onTap: () => openNowPlaying(context),
-                    ),
-                  ],
-                );
-              },
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _BarButton extends StatelessWidget {
-  final NaviGlyph icon;
-  final String tooltip;
-  final VoidCallback onTap;
-  final bool active;
-  final bool filled;
-  final bool prominent;
-  final double size;
-
-  const _BarButton({
-    required this.icon,
-    required this.tooltip,
-    required this.onTap,
-    this.active = false,
-    this.filled = false,
-    this.prominent = false,
-    this.size = 18,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final color = active
-        ? t.accent
-        : (prominent ? t.textPrimary : t.textSecondary);
-    return Tooltip(
-      message: tooltip,
-      waitDuration: const Duration(milliseconds: 500),
-      child: CupertinoClickable(
-        onTap: onTap,
-        scaleFactor: 0.9,
-        semanticLabel: tooltip,
-        child: SizedBox(
-          width: prominent ? 44 : 36,
-          height: 40,
-          child: NaviIcon(icon, size: size, color: color, filled: filled),
-        ),
-      ),
-    );
-  }
-}
-
-class _BarScrubber extends ConsumerStatefulWidget {
-  final Song song;
-  const _BarScrubber({required this.song});
-
-  @override
-  ConsumerState<_BarScrubber> createState() => _BarScrubberState();
-}
-
-class _BarScrubberState extends ConsumerState<_BarScrubber> {
-  double? _drag;
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final player = ref.read(playerProvider.notifier).player;
-    final label = t.caption1.copyWith(
-      fontFeatures: const [FontFeature.tabularFigures()],
-    );
-    return RepaintBoundary(
-      child: PlaybackProgressBuilder(
-        player: player,
-        song: widget.song,
-        builder: (context, progress) {
-          final total = progress.total.inMilliseconds;
-          final f = _drag ?? progress.fraction;
-          return Row(
-            children: [
-              SizedBox(
-                width: 44,
-                child: Text(
-                  formatClock(Duration(milliseconds: (f * total).round())),
-                  textAlign: TextAlign.right,
-                  style: label,
-                ),
-              ),
-              const SizedBox(width: Space.sm + 2),
-              Expanded(
-                child: ElasticTrack(
-                  value: f,
-                  idleHeight: 4,
-                  activeHeight: 6,
-                  activeColor: t.textPrimary,
-                  inactiveColor: t.fill,
-                  semanticLabel: 'Playback position',
-                  onChanged: (v) => setState(() => _drag = v),
-                  onChangeEnd: (v) {
-                    progress.seekTo(
-                      player,
-                      Duration(milliseconds: (v * total).round()),
-                    );
-                    setState(() => _drag = null);
-                  },
-                ),
-              ),
-              const SizedBox(width: Space.sm + 2),
-              SizedBox(
-                width: 44,
-                child: Text(formatClock(progress.total), style: label),
-              ),
-            ],
-          );
-        },
-      ),
-    );
-  }
-}

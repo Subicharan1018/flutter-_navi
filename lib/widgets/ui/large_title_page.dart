@@ -28,6 +28,9 @@ class LargeTitlePage extends StatelessWidget {
   /// Set false for pages pushed above the tab bar that have no mini player.
   final bool clearPlayer;
 
+  /// Desktop: false for a page whose name the rail and top bar already say (Home).
+  final bool showTitleOnDesktop;
+
   const LargeTitlePage({
     super.key,
     required this.title,
@@ -43,6 +46,7 @@ class LargeTitlePage extends StatelessWidget {
     this.onRefresh,
     this.controller,
     this.clearPlayer = true,
+    this.showTitleOnDesktop = true,
   });
 
   @override
@@ -66,7 +70,9 @@ class LargeTitlePage extends StatelessWidget {
           slivers: [
             if (desktop)
               SliverToBoxAdapter(
-                child: _DesktopTitle(title: title, trailing: trailing),
+                child: showTitleOnDesktop
+                    ? _DesktopTitle(title: title, trailing: trailing)
+                    : const SizedBox(height: Space.lg),
               )
             else
               CupertinoSliverNavigationBar(
