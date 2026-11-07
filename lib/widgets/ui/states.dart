@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import '../../core/motion.dart';
 import '../../core/theme.dart';
+import '../../utils/platform_utils.dart';
 import '../art/empty_art.dart';
 import '../art/navi_icons.dart';
 import '../mascot/microduck_empty.dart';
@@ -87,7 +88,9 @@ class MessageState extends StatelessWidget {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    if (!tight && illustration != null)
+                    // Windows is monochrome: the coloured bitmap illustrations give way
+                    // to the drawn white-and-grey art (or the glyph).
+                    if (!tight && illustration != null && !PlatformUtils.isDesktop)
                       Image.asset(
                         'assets/icons/$illustration.png',
                         width: _illustrationSize,

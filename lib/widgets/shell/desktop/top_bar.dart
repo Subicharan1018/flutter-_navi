@@ -153,7 +153,7 @@ class _BarButtonState extends State<_BarButton> {
               margin: const EdgeInsets.symmetric(horizontal: 1),
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: on && _hover ? t.fill : Colors.transparent,
+                color: on && _hover ? t.hover : Colors.transparent,
               ),
               alignment: Alignment.center,
               child: NaviIcon(widget.glyph, size: 18, color: on ? t.textPrimary : t.textMuted.withValues(alpha: 0.5)),

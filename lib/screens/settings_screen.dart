@@ -204,7 +204,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Widget? _spinner(String key) => _busy != key
       ? null
       : PlatformUtils.isDesktop
-          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+          ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2, semanticsLabel: 'Working'))
           : const CupertinoActivityIndicator();
 
   @override
@@ -651,14 +651,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 final sections = groups[selected]!;
                 // A form reads best about 720 px wide; sections of two columns would
                 // split a short list into halves nobody scans. So the pane stays one
-                // column and, once the window is wide, sits centred in the space beside
-                // the categories instead of hugging the left edge with a void on the right.
+                // column, 48 px after the categories (the page's 24 gutter twice), so the
+                // nav and its pane read as one unit at any window width.
                 return Align(
-                  alignment: c.maxWidth >= 1000 ? Alignment.topCenter : Alignment.topLeft,
+                  alignment: Alignment.topLeft,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(maxWidth: 720),
+                    constraints: BoxConstraints(maxWidth: 720 + pageGutter(context)),
                     child: ListView(
-                      padding: const EdgeInsets.only(top: Space.lg, bottom: Space.xxxl),
+                      padding: EdgeInsets.only(top: Space.lg, bottom: Space.xxxl, left: pageGutter(context)),
                       children: [
                         Padding(
                           padding: EdgeInsets.fromLTRB(pageGutter(context), 0, pageGutter(context), Space.sm),

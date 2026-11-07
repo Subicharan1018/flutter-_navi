@@ -330,14 +330,14 @@ class _FindRow extends StatelessWidget {
               height: 30,
               child: TextField(
                 controller: controller,
-                style: t.caption1.copyWith(color: t.textPrimary, fontSize: 13),
+                style: t.footnote.copyWith(color: t.textPrimary),
                 cursorColor: t.textPrimary,
                 decoration: InputDecoration(
                   isDense: true,
                   filled: true,
                   fillColor: t.fill,
                   hintText: 'Find in Your Library',
-                  hintStyle: t.caption1.copyWith(fontSize: 13),
+                  hintStyle: t.footnote,
                   contentPadding: const EdgeInsets.symmetric(horizontal: Space.sm, vertical: 6),
                   prefixIcon: Padding(
                     padding: const EdgeInsets.all(7),

@@ -122,7 +122,7 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
                 // more tiles, not bigger gaps.
                 ? SliverMainAxisGroup(slivers: [toolbar, _Grid(entries: entries)])
                 // List: a table of a few short columns stops being readable when
-                // stretched across 1900 px, so it stops at 1200 (left, on the
+                // stretched across 1900 px, so it stops at 1600 (left, on the
                 // title's edge) and the toolbar's sort and view buttons follow it.
                 : SliverConstrainedCrossAxis(
                     maxExtent: _listMaxWidth,
@@ -269,8 +269,7 @@ class _Grid extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
       sliver: SliverLayoutBuilder(
         builder: (context, c) {
-          final columns = gridColumns(c.crossAxisExtent, ArtSize.of(context).tile);
-          final card = (c.crossAxisExtent - Space.lg * (columns - 1)) / columns;
+          final (columns, card) = desktopTiles(c.crossAxisExtent, ArtSize.of(context).tile, Space.lg);
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,
@@ -318,7 +317,10 @@ class _Col {
 }
 
 /// The list stops growing here: wider than this the eye loses the row.
-const double _listMaxWidth = 1200;
+/// The one rule for width on Windows: a table fills its page (the extra goes to
+/// the Name column) up to here, which a real window beside the rail rarely
+/// reaches; a form (Settings) is a 720 column sitting 48 px after its nav.
+const double _listMaxWidth = 1600;
 
 List<_Col> _columns(LibKind kind, List<LibEntry> entries) {
   String time(LibEntry e) => e.duration <= 0 ? '' : formatLongDuration(e.duration);

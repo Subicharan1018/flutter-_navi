@@ -684,6 +684,21 @@ class _ContinueTile extends ConsumerStatefulWidget {
   ConsumerState<_ContinueTile> createState() => _ContinueTileState();
 }
 
+/// [base] with [tint] over it at [alpha], eased back until [text] on it keeps a
+/// 4.5:1 contrast, so a very bright cover (yellow, white) never makes the title
+/// unreadable.
+Color _tinted(Color base, Color tint, double alpha, Color text) {
+  var a = alpha;
+  while (a > 0) {
+    final c = Color.alphaBlend(tint.withValues(alpha: a), base);
+    final l1 = text.computeLuminance(), l2 = c.computeLuminance();
+    final ratio = (l1 > l2 ? l1 + 0.05 : l2 + 0.05) / (l1 > l2 ? l2 + 0.05 : l1 + 0.05);
+    if (ratio >= 4.5) return c;
+    a -= 0.03;
+  }
+  return base;
+}
+
 class _ContinueTileState extends ConsumerState<_ContinueTile> {
   bool _focused = false;
 
@@ -709,7 +724,7 @@ class _ContinueTileState extends ConsumerState<_ContinueTile> {
             duration: Motion.fast,
             height: 56,
             decoration: BoxDecoration(
-              color: tint == null ? t.fill : Color.alphaBlend(tint.withValues(alpha: hovered || _focused ? 0.30 : 0.12), t.fill),
+              color: tint == null ? t.fill : _tinted(t.fill, tint, hovered || _focused ? 0.30 : 0.12, t.textPrimary),
               borderRadius: BorderRadius.circular(8),
             ),
             clipBehavior: Clip.antiAlias,

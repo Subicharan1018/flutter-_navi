@@ -720,6 +720,15 @@ class ArtSize {
 /// growing with the window.
 int gridColumns(double width, double target, {int min = 2}) => math.max(min, (width / target).round());
 
+/// Windows: the same rule the Home shelves use, so a grid tile and a shelf tile
+/// are the same size on the one art scale. Whole tiles of at least [target] fit
+/// the row (never fewer than [min]); they stretch a little to fill it exactly.
+/// Returns (columns, tile size).
+(int, double) desktopTiles(double width, double target, double gap, {int min = 2}) {
+  final cols = math.max(min, ((width + gap) / (target + gap)).floor());
+  return (cols, (width - gap * (cols - 1)) / cols);
+}
+
 /// The side margin of a page's content: 24 on a desktop window, 16 on a phone.
 /// Every desktop page (Home, Songs, Library, Settings, collection pages) uses
 /// this one number, so their left edges line up.

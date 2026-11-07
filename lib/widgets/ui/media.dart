@@ -226,11 +226,12 @@ class _SeeAllTile extends StatelessWidget {
     // than a cover: it holds the captions too).
     return Align(
       alignment: Alignment.topLeft,
-      child: Semantics(
-        button: true,
-        label: 'See all $label',
-        child: NaviFocusable(
+      child: NaviFocusable(
           radius: Radii.cover,
+          // The tile paints its own fill, so no second hover tint; NaviFocusable
+          // already speaks as a button with this label.
+          hoverTint: false,
+          semanticLabel: 'See all $label',
           onTap: onTap,
           child: SizedBox(
             width: size,
@@ -250,7 +251,6 @@ class _SeeAllTile extends StatelessWidget {
             ),
           ),
         ),
-      ),
     );
   }
 }
@@ -269,8 +269,11 @@ class MediaGrid extends StatelessWidget {
       padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
       sliver: SliverLayoutBuilder(
         builder: (context, c) {
-          final columns = gridColumns(c.crossAxisExtent, ArtSize.of(context).tile);
-          final card = (c.crossAxisExtent - Space.lg * (columns - 1)) / columns;
+          final target = ArtSize.of(context).tile;
+          final phoneColumns = gridColumns(c.crossAxisExtent, target);
+          final (columns, card) = PlatformUtils.isDesktop
+              ? desktopTiles(c.crossAxisExtent, target, Space.lg)
+              : (phoneColumns, (c.crossAxisExtent - Space.lg * (phoneColumns - 1)) / phoneColumns);
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,

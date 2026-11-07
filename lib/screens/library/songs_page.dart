@@ -99,7 +99,7 @@ class _SongsPageState extends ConsumerState<SongsPage> {
                     : MessageState(
                         illustration: widget.downloadedOnly ? null : 'books',
                         icon: widget.downloadedOnly ? NaviGlyph.downloadCircle : NaviGlyph.note,
-                        art: widget.downloadedOnly ? EmptyArtKind.downloads : null,
+                        art: widget.downloadedOnly ? EmptyArtKind.downloads : (useSongTable() ? EmptyArtKind.record : null),
                         title: widget.downloadedOnly ? 'No downloads yet' : 'No songs yet',
                         message: widget.downloadedOnly
                             ? 'Download songs from their menu to listen without a connection.'

@@ -255,10 +255,13 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
               urls: [for (final s in _songs.take(24)) svc.getCoverArtUrl(s.coverArt)],
               size: size,
               radius: 0,
-              seed: coverSeed(_playlist.name, _songs.map((s) => s.id)),
+              // A failed load on Windows shows the plain playlist glyph, not a
+              // generated cover that looks like a real one.
+              seed: _failed && PlatformUtils.isDesktop ? null : coverSeed(_playlist.name, _songs.map((s) => s.id)),
             ),
       title: _playlist.name,
-      detail: _loading ? null : songCount(_songs.length),
+      // A count only once it is known: a failed load has none (not "0 songs").
+      detail: _loading || _failed ? null : songCount(_songs.length),
       description: _playlist.comment.trim(),
       buttons: PlayShuffleButtons(
         playing: playingThis,

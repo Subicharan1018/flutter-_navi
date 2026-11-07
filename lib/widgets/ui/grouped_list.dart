@@ -262,6 +262,8 @@ class GroupedSwitchRow extends StatelessWidget {
         subtitle: subtitle,
         icon: icon,
         trailing: Semantics(
+          button: true,
+          enabled: true,
           toggled: value,
           label: title,
           child: MouseRegion(
@@ -271,19 +273,19 @@ class GroupedSwitchRow extends StatelessWidget {
               radius: 8,
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 120),
-                width: 40,
-                height: 22,
-                padding: const EdgeInsets.all(3),
+                width: 44,
+                height: 28, // at least 28 tall: a pointer is not asked to hit 22
+                padding: const EdgeInsets.all(4),
                 alignment: value ? Alignment.centerRight : Alignment.centerLeft,
                 decoration: BoxDecoration(
                   color: value ? t.accentFill : t.fill,
-                  borderRadius: BorderRadius.circular(7),
+                  borderRadius: BorderRadius.circular(8),
                   border: value ? null : Border.all(color: t.outline, width: 1),
                 ),
                 child: Container(
-                  width: 16,
-                  height: 16,
-                  decoration: BoxDecoration(color: value ? t.onAccent : t.textSecondary, borderRadius: BorderRadius.circular(4)),
+                  width: 20,
+                  height: 20,
+                  decoration: BoxDecoration(color: value ? t.onAccent : t.textSecondary, borderRadius: BorderRadius.circular(5)),
                 ),
               ),
             ),
@@ -466,7 +468,7 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
               child: ConstrainedBox(
                 constraints: BoxConstraints(maxWidth: flat ? 280 : double.infinity),
               child: CupertinoTextField(
-                textAlign: flat ? TextAlign.right : TextAlign.start,
+                textAlign: TextAlign.start,
                 controller: widget.controller,
                 focusNode: _node,
                 readOnly: _readOnly,
@@ -489,8 +491,19 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
                 style: t.body,
                 placeholderStyle: t.body.copyWith(color: t.textMuted),
                 cursorColor: t.accent,
-                decoration: null,
-                padding: const EdgeInsets.symmetric(vertical: Space.md),
+                // Windows: an editable value looks like a field (a soft box with a
+                // hairline), so it reads differently from the read-only values
+                // (Server) that are plain text at the right.
+                decoration: flat
+                    ? BoxDecoration(
+                        color: t.fill,
+                        borderRadius: BorderRadius.circular(6),
+                        border: Border.all(color: t.outline, width: 1),
+                      )
+                    : null,
+                padding: flat
+                    ? const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm)
+                    : const EdgeInsets.symmetric(vertical: Space.md),
               ),
               ),
             ),
