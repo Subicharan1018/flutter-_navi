@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
 import '../../utils/platform_utils.dart';
+import 'media.dart' show CircleIconButton;
 import '../../player/artwork.dart' show coverPaletteProvider;
 import '../art/navi_icons.dart';
 import '../shell/dock_glass.dart';
@@ -530,6 +531,9 @@ class BarCircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    // Windows: the same 44 px soft disc as Play, Shuffle and Download beside it (one
+    // size across the action row, and no shadow).
+    if (PlatformUtils.isDesktop) return CircleIconButton(icon: icon, label: label, onTap: onTap, child: child);
     // 36pt disc inside a 44pt touch target.
     return CupertinoClickable(
       onTap: onTap == null
@@ -655,7 +659,7 @@ class _DesktopHeader extends StatelessWidget {
             children: [
               if (page.buttons != null) page.buttons!,
               const SizedBox(width: Space.sm),
-              ...page.actions,
+              for (final a in page.actions) Padding(padding: const EdgeInsets.only(right: Space.sm), child: a),
             ],
           ),
         ],

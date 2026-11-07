@@ -132,7 +132,7 @@ class KeyboardHelpButton extends StatelessWidget {
               width: 32,
               height: 32,
               // Centred, so the glyph keeps its 16 (a tight box would stretch it to 32).
-              child: Center(child: NaviIcon(NaviGlyph.help, size: 16, color: t.textSecondary)),
+              child: Center(child: NaviIcon(NaviGlyph.keyboard, size: 18, color: t.textSecondary)),
             ),
           ),
         ),

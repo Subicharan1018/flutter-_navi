@@ -132,11 +132,11 @@ class DesktopPlayerBar extends ConsumerWidget {
                       mainAxisAlignment: MainAxisAlignment.center,
                       children: [
                         BarIconButton(icon: NaviGlyph.shuffle, tooltip: 'Shuffle (S)', active: shuffle, onTap: n.toggleShuffle),
-                        BarIconButton(icon: NaviGlyph.previous, tooltip: 'Previous (Ctrl+←)', size: 18, onTap: n.playPrev),
+                        BarIconButton(icon: NaviGlyph.previous, tooltip: 'Previous (Ctrl+←)', size: 20, onTap: n.playPrev),
                         const SizedBox(width: Space.xs),
                         _PlayButton(playing: playing, onTap: n.togglePlay),
                         const SizedBox(width: Space.xs),
-                        BarIconButton(icon: NaviGlyph.next, tooltip: 'Next (Ctrl+→)', size: 18, onTap: n.playNext),
+                        BarIconButton(icon: NaviGlyph.next, tooltip: 'Next (Ctrl+→)', size: 20, onTap: n.playNext),
                         BarIconButton(
                           icon: repeat == LoopMode.one ? NaviGlyph.repeatOne : NaviGlyph.repeat,
                           tooltip: switch (repeat) {
@@ -198,7 +198,6 @@ class DesktopPlayerBar extends ConsumerWidget {
                     BarIconButton(
                       icon: NaviGlyph.expand,
                       tooltip: 'Full-screen player',
-                      size: 15,
                       onTap: () => openNowPlaying(context),
                     ),
                   ],
@@ -227,7 +226,7 @@ class BarIconButton extends StatefulWidget {
     required this.onTap,
     this.active = false,
     this.filled = false,
-    this.size = 16,
+    this.size = 18, // 18: the bar's glyphs were 12-16 and read small at arm's length
   });
 
   @override
@@ -310,7 +309,7 @@ class _PlayButtonState extends State<_PlayButton> {
                 height: 34,
                 decoration: BoxDecoration(color: t.accentFill, shape: BoxShape.circle),
                 alignment: Alignment.center,
-                child: NaviIcon(widget.playing ? NaviGlyph.pause : NaviGlyph.play, size: 16, filled: true, color: t.onAccent),
+                child: NaviIcon(widget.playing ? NaviGlyph.pause : NaviGlyph.play, size: 18, filled: true, color: t.onAccent),
               ),
             ),
           ),

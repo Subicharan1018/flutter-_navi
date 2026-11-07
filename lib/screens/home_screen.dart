@@ -607,7 +607,7 @@ class _ContinueStrip extends ConsumerWidget {
       _ContinueTile(
         title: 'Favorites',
         subtitle: starred.isEmpty ? null : songCount(starred.length),
-        art: glyphArt(NaviGlyph.heart),
+        art: glyphArt(NaviGlyph.star), // desktop-only strip; the favourite mark is the star
         onTap: () => navigateInApp(context, const FavoritesScreen()),
         onPlay: starred.isEmpty
             ? null
@@ -687,7 +687,8 @@ class _ContinueTile extends ConsumerStatefulWidget {
 /// [base] with [tint] over it at [alpha], eased back until [text] on it keeps a
 /// 4.5:1 contrast, so a very bright cover (yellow, white) never makes the title
 /// unreadable.
-Color _tinted(Color base, Color tint, double alpha, Color text) {
+@visibleForTesting
+Color continueTileTint(Color base, Color tint, double alpha, Color text) {
   var a = alpha;
   while (a > 0) {
     final c = Color.alphaBlend(tint.withValues(alpha: a), base);
@@ -724,7 +725,7 @@ class _ContinueTileState extends ConsumerState<_ContinueTile> {
             duration: Motion.fast,
             height: 56,
             decoration: BoxDecoration(
-              color: tint == null ? t.fill : _tinted(t.fill, tint, hovered || _focused ? 0.30 : 0.12, t.textPrimary),
+              color: tint == null ? t.fill : continueTileTint(t.fill, tint, hovered || _focused ? 0.30 : 0.12, t.textPrimary),
               borderRadius: BorderRadius.circular(8),
             ),
             clipBehavior: Clip.antiAlias,

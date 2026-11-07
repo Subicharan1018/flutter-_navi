@@ -449,6 +449,18 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
     );
   }
 
+  Widget _eye(AppThemeTokens t, double box) => CupertinoButton(
+        padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+        minimumSize: Size(box, box),
+        onPressed: () => setState(() => _hidden = !_hidden),
+        child: NaviIcon(
+          _hidden ? NaviGlyph.eye : NaviGlyph.eyeOff,
+          size: 20,
+          color: t.textSecondary,
+          semanticLabel: _hidden ? 'Show password' : 'Hide password',
+        ),
+      );
+
   Widget _row(AppThemeTokens t, bool flat) {
     return ConstrainedBox(
       constraints: const BoxConstraints(minHeight: 48),
@@ -494,6 +506,9 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
                 // Windows: an editable value looks like a field (a soft box with a
                 // hairline), so it reads differently from the read-only values
                 // (Server) that are plain text at the right.
+                // The show/hide eye sits inside the field, so every field is the same
+                // width and ends on the same edge as the plain values above it.
+                suffix: flat && widget.obscure ? _eye(t, 32) : null,
                 decoration: flat
                     ? BoxDecoration(
                         color: t.fill,
@@ -507,18 +522,8 @@ class _GroupedTextFieldRowState extends State<GroupedTextFieldRow> {
               ),
               ),
             ),
-            if (widget.obscure)
-              CupertinoButton(
-                padding: const EdgeInsets.symmetric(horizontal: Space.sm),
-                minimumSize: const Size(44, 44),
-                onPressed: () => setState(() => _hidden = !_hidden),
-                child: NaviIcon(
-                  _hidden ? NaviGlyph.eye : NaviGlyph.eyeOff,
-                  size: 20,
-                  color: t.textSecondary,
-                  semanticLabel: _hidden ? 'Show password' : 'Hide password',
-                ),
-              )
+            if (widget.obscure && !flat)
+              _eye(t, 44)
             else if (widget.voice)
               VoiceSearchButton(controller: widget.controller)
             else

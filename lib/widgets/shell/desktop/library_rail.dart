@@ -428,7 +428,7 @@ class _LibraryList extends ConsumerWidget {
           title: 'Favorites',
           subtitle: 'Playlist',
           artUrl: null,
-          placeholder: NaviGlyph.heart,
+          placeholder: NaviGlyph.star, // the app's favourite mark is the star everywhere
           onTap: () => navigateInApp(context, const FavoritesScreen()),
         ),
         _Item(

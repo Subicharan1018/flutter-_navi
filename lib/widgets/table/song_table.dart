@@ -735,7 +735,7 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
               Row(
             children: [
               SizedBox(width: _Columns.num, child: Align(alignment: Alignment.centerLeft, child: cell('#', null))),
-              Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: cell('Title', SongSort.title))),
+              Expanded(flex: 4, child: Align(alignment: Alignment.centerLeft, child: cell('Title', SongSort.title))),
               if (columns.album) Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: cell('Album', SongSort.album))),
               if (columns.added) SizedBox(width: _Columns.dateW, child: Align(alignment: Alignment.centerLeft, child: cell('Added', SongSort.added))),
               SizedBox(width: _Columns.durW, child: Align(alignment: Alignment.centerRight, child: cell('Time', SongSort.duration))),
@@ -906,7 +906,7 @@ class _RowState extends ConsumerState<_Row> {
     );
 
     final title = Expanded(
-      flex: 5,
+      flex: 4, // Title 4 : Album 3, so Album is not pushed 600 px away from the title
       child: Row(
         children: [
           if (_t.widget.showArtwork) ...[
