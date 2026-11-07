@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
+import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/core/hive_boxes.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/smart_playlists/data/smart_evaluator.dart';
@@ -61,6 +62,7 @@ void main() {
   });
 
   testWidgets('rule editor shows a live match count and saves the playlist', (tester) async {
+    PlatformUtils.debugDesktopOverride = true; // the editor opens as a dialog here, as it did on the machine this was written on
     tester.view.physicalSize = const Size(400, 900);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);

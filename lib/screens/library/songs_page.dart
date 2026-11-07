@@ -107,7 +107,8 @@ class _SongsPageState extends ConsumerState<SongsPage> {
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.md),
             sliver: SliverToBoxAdapter(
-              child: Center(
+              child: Align(
+                alignment: useSongTable() ? Alignment.centerLeft : Alignment.center,
                 child: PlayShuffleButtons(
                   onPlay: () => _play(songs),
                   onShuffle: () => _play(songs, shuffle: true),

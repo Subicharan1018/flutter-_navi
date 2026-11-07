@@ -5,6 +5,8 @@ import '../core/layout/window_size.dart';
 import '../core/theme.dart';
 import '../features/local_library/logic/local_library_providers.dart';
 import '../features/local_library/ui/local_songs_page.dart';
+import '../utils/platform_utils.dart';
+import 'library/desktop_library_page.dart';
 import '../models/album.dart';
 import '../models/playlist.dart';
 import '../models/song.dart';
@@ -34,6 +36,8 @@ class LibraryScreen extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // Windows: the collection itself, as tiles or a list.
+    if (PlatformUtils.isDesktop) return const DesktopLibraryPage();
     final recent = ref.watch(recentlyAddedAlbumsProvider).asData?.value ?? const <Album>[];
     final pins = ref.watch(pinsProvider);
     final svc = ref.read(subsonicServiceProvider);

@@ -38,6 +38,7 @@ import '../widgets/ui/states.dart';
 import 'album_details_screen.dart';
 import 'favorites_screen.dart';
 import 'library/albums_page.dart';
+import '../utils/queue_actions.dart';
 import 'library/playlists_page.dart';
 import 'replay/replay_screen.dart';
 import 'playlist_details_screen.dart';
@@ -71,9 +72,10 @@ class HomeScreen extends ConsumerWidget {
         ref.invalidate(weeklyMixProvider);
         ref.invalidate(flowMoodsProvider);
       },
-      slivers: const [
-        SliverToBoxAdapter(child: UpdateBanner()),
-        SliverToBoxAdapter(child: JamHero()),
+      slivers: [
+        // Desktop: updates are the bell in the top bar and Jam is in the rail.
+        if (!PlatformUtils.isDesktop) const SliverToBoxAdapter(child: UpdateBanner()),
+        if (!PlatformUtils.isDesktop) const SliverToBoxAdapter(child: JamHero()),
         // What's new leads; the charts it came from right below.
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 1, child: DiscoverSection())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 2, child: WeeklyMixSection())),
@@ -122,7 +124,8 @@ class _TopPicks extends ConsumerWidget {
     final year = DateTime.now().year;
 
     final width = MediaQuery.sizeOf(context).width;
-    final cardWidth = (width * 0.7).clamp(220.0, 300.0);
+    // Desktop: feature cards on the tile scale, not a phone-width hero.
+    final cardWidth = PlatformUtils.isDesktop ? 236.0 : (width * 0.7).clamp(220.0, 300.0);
 
     final cards = <Widget>[
       if (newListener)
@@ -419,6 +422,7 @@ class _RecentlyPlayed extends ConsumerWidget {
         artUrl: _art(ref, shown[i].coverArt),
         size: ArtSize.of(context).tile,
         onTap: () => ref.read(playerProvider.notifier).setQueue(shown, i, playlistName: 'Recently Played'),
+        onPlay: () => ref.read(playerProvider.notifier).setQueue(shown, i, playlistName: 'Recently Played'),
       ),
     );
   }
@@ -444,6 +448,7 @@ class _YourPlaylists extends ConsumerWidget {
           size: ArtSize.of(context).tile,
           placeholderIcon: NaviGlyph.playlist,
           onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p)),
+          onPlay: () => playCollection(context, ref, () => ref.read(subsonicServiceProvider).getPlaylistSongs(p.id), p.name),
           onLongPress: () => showCollectionActions(
             context,
             title: p.name,
@@ -489,6 +494,7 @@ class _AlbumCard extends ConsumerWidget {
       size: ArtSize.of(context).tile,
       placeholderIcon: NaviGlyph.library,
       onTap: () => navigateInApp(context, AlbumDetailsScreen(album: album)),
+      onPlay: () => playCollection(context, ref, () => ref.read(subsonicServiceProvider).getAlbum(album.id), album.name),
       onLongPress: () => showCollectionActions(
         context,
         title: album.name,

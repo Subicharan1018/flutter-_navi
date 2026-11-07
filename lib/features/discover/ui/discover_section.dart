@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/action_sheet.dart' show showToast;
@@ -19,7 +20,8 @@ class DiscoverSection extends ConsumerWidget {
   const DiscoverSection({super.key});
 
   /// A big cover, as Apple Music's lead shelves: most of a phone's width.
-  static double cardSize(BuildContext context) => (MediaQuery.sizeOf(context).width * 0.56).clamp(180.0, 240.0);
+  static double cardSize(BuildContext context) =>
+      PlatformUtils.isDesktop ? ArtSize.desktop.tile : (MediaQuery.sizeOf(context).width * 0.56).clamp(180.0, 240.0);
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -93,7 +95,8 @@ class _Header extends ConsumerWidget {
           Semantics(header: true, child: Text('New in Your Library', style: t.title1)),
           const SizedBox(height: Space.xxs),
           Text(line, style: t.footnote),
-          if (list != null && list.isNotEmpty) ...[
+          // Desktop: a normal shelf, without the big Play / Shuffle row.
+          if (list != null && list.isNotEmpty && !PlatformUtils.isDesktop) ...[
             const SizedBox(height: Space.md),
             // Paired capsules (DESIGN.md): Play filled, Shuffle tinted, equal halves.
             // On a phone they are equal halves of the width; on a desktop or a

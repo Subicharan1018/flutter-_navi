@@ -1,8 +1,10 @@
+import 'package:flutter/material.dart' show Tooltip;
 import '../../widgets/ui/horizontal_shelf.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/services.dart';
 
 import '../../core/theme.dart';
+import '../../utils/platform_utils.dart';
 import '../art/navi_icons.dart';
 import '../cover_art.dart';
 
@@ -59,6 +61,9 @@ class MediaCard extends StatelessWidget {
   final VoidCallback onTap;
   final VoidCallback? onLongPress;
 
+  /// Desktop: a Play button over the cover while the pointer is on the card.
+  final VoidCallback? onPlay;
+
   const MediaCard({
     super.key,
     required this.title,
@@ -70,11 +75,31 @@ class MediaCard extends StatelessWidget {
     this.placeholderIcon = NaviGlyph.note,
     required this.onTap,
     this.onLongPress,
+    this.onPlay,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    Widget cover(bool hovered) {
+      final image = art ??
+          CoverArt(
+            url: artUrl,
+            size: size,
+            radius: Radii.cover,
+            circular: circular,
+            placeholderIcon: placeholderIcon,
+          );
+      if (onPlay == null || !PlatformUtils.isDesktop) return image;
+      return SizedBox(
+        width: size,
+        height: size,
+        child: Stack(
+          children: [image, CardPlayButton(visible: hovered, onPlay: onPlay!, label: 'Play $title')],
+        ),
+      );
+    }
+
     return CupertinoClickable(
       onTap: onTap,
       onLongPress: onLongPress == null
@@ -85,36 +110,31 @@ class MediaCard extends StatelessWidget {
             },
       scaleFactor: 0.97,
       semanticLabel: subtitle == null ? title : '$title, $subtitle',
-      child: SizedBox(
-        width: size,
-        child: Column(
-          crossAxisAlignment: circular ? CrossAxisAlignment.center : CrossAxisAlignment.start,
-          children: [
-            art ??
-                CoverArt(
-                  url: artUrl,
-                  size: size,
-                  radius: Radii.cover,
-                  circular: circular,
-                  placeholderIcon: placeholderIcon,
-                ),
-            const SizedBox(height: Space.sm - 2),
-            Text(
-              title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-              textAlign: circular ? TextAlign.center : TextAlign.start,
-              style: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w500),
-            ),
-            if (subtitle != null && subtitle!.isNotEmpty)
+      child: HoverBuilder(
+        builder: (context, hovered) => SizedBox(
+          width: size,
+          child: Column(
+            crossAxisAlignment: circular ? CrossAxisAlignment.center : CrossAxisAlignment.start,
+            children: [
+              cover(hovered),
+              const SizedBox(height: Space.sm - 2),
               Text(
-                subtitle!,
+                title,
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
                 textAlign: circular ? TextAlign.center : TextAlign.start,
-                style: t.footnote,
+                style: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w500),
               ),
-          ],
+              if (subtitle != null && subtitle!.isNotEmpty)
+                Text(
+                  subtitle!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  textAlign: circular ? TextAlign.center : TextAlign.start,
+                  style: t.footnote,
+                ),
+            ],
+          ),
         ),
       ),
     );
@@ -343,6 +363,35 @@ class PlayShuffleButtons extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final enabled = onPlay != null;
+    if (PlatformUtils.isDesktop) {
+      // Desktop: a round Play, then Shuffle and the rest as quiet icons, left-aligned
+      // directly above the table.
+      return Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          CupertinoClickable(
+            onTap: enabled ? onPlay : null,
+            focusRadius: 28,
+            semanticLabel: playing ? 'Pause' : 'Play',
+            child: Container(
+              width: 52,
+              height: 52,
+              decoration: BoxDecoration(color: enabled ? t.accent : t.fill, shape: BoxShape.circle),
+              alignment: Alignment.center,
+              child: NaviIcon(
+                playing ? NaviGlyph.pause : NaviGlyph.play,
+                size: 22,
+                filled: true,
+                color: enabled ? t.onAccent : t.textMuted,
+              ),
+            ),
+          ),
+          const SizedBox(width: Space.md),
+          CircleIconButton(icon: NaviGlyph.shuffle, label: 'Shuffle', onTap: onShuffle),
+          if (trailing != null) ...[const SizedBox(width: Space.xs), trailing!],
+        ],
+      );
+    }
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -492,4 +541,68 @@ class TintedButton extends StatelessWidget {
 double captionExtent(BuildContext context, {bool subtitle = true}) {
   final k = (MediaQuery.textScalerOf(context).scale(14) / 14).clamp(1.0, 2.0);
   return (subtitle ? 44.0 : 26.0) * k;
+}
+
+/// Reports whether the pointer is over its child, for hover-only controls.
+class HoverBuilder extends StatefulWidget {
+  final Widget Function(BuildContext context, bool hovered) builder;
+  const HoverBuilder({super.key, required this.builder});
+
+  @override
+  State<HoverBuilder> createState() => _HoverBuilderState();
+}
+
+class _HoverBuilderState extends State<HoverBuilder> {
+  bool _hover = false;
+
+  @override
+  Widget build(BuildContext context) => MouseRegion(
+        onEnter: (_) => setState(() => _hover = true),
+        onExit: (_) => setState(() => _hover = false),
+        child: widget.builder(context, _hover),
+      );
+}
+
+/// The round Play button that fades in over a cover when the pointer is on its card.
+class CardPlayButton extends StatelessWidget {
+  final bool visible;
+  final VoidCallback onPlay;
+  final String label;
+  const CardPlayButton({super.key, required this.visible, required this.onPlay, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Positioned(
+      right: Space.sm,
+      bottom: Space.sm,
+      child: IgnorePointer(
+        ignoring: !visible,
+        child: AnimatedOpacity(
+          duration: const Duration(milliseconds: 120),
+          opacity: visible ? 1 : 0,
+          child: Tooltip(
+            message: label,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: onPlay,
+                child: Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: t.accent,
+                    shape: BoxShape.circle,
+                    boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4))],
+                  ),
+                  alignment: Alignment.center,
+                  child: NaviIcon(NaviGlyph.play, size: 20, filled: true, color: t.onAccent),
+                ),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

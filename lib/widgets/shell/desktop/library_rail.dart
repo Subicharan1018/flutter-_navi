@@ -4,26 +4,19 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/focus/navi_focus.dart';
 import '../../../core/theme.dart';
 import '../../../features/online_fetch/logic/online_fetch_providers.dart';
+import '../../../features/social/logic/jam_controller.dart' show jamControllerProvider;
+import '../../../features/social/logic/social_providers.dart' show invitationCountProvider;
 import '../../../features/online_fetch/ui/fetch_activity.dart';
-import '../../../models/album.dart';
-import '../../../models/artist.dart';
 import '../../../models/playlist.dart';
 import '../../../models/song.dart';
 import '../../../providers/library_provider.dart';
-import '../../../providers/pins_provider.dart';
 import '../../../providers/settings_provider.dart';
-import '../../../screens/album_details_screen.dart';
-import '../../../screens/artist_screen.dart';
 import '../../../screens/favorites_screen.dart';
-import '../../../screens/library/artists_page.dart';
-import '../../../screens/library/playlists_page.dart';
+import '../../../screens/library/library_entries.dart';
 import '../../../screens/library/songs_page.dart';
-import '../../../screens/playlist_details_screen.dart';
 import '../../../screens/playlist_editor.dart';
 import '../../../screens/settings_screen.dart';
-import '../../../utils/format.dart';
 import '../../art/navi_icons.dart';
-import '../../collection_actions.dart';
 import '../../cover_art.dart';
 import '../../desktop_dialogs.dart';
 import '../../table/song_table.dart' show SongDrag;
@@ -109,6 +102,8 @@ class _LibraryRailState extends ConsumerState<LibraryRail> {
 
   @override
   Widget build(BuildContext context) {
+    final jamLive = ref.watch(jamControllerProvider.select((s) => s.jam != null));
+    final invites = ref.watch(invitationCountProvider);
     final t = ThemeTokens.of(context);
     return ListenableBuilder(
       listenable: Listenable.merge([DesktopLayout.railWidth, DesktopLayout.railCollapsed]),
@@ -133,6 +128,8 @@ class _LibraryRailState extends ConsumerState<LibraryRail> {
                             label: dest.label,
                             iconOnly: collapsed,
                             selected: widget.tab == dest,
+                            // A live Jam or a waiting invitation: a dot on Jam.
+                            dot: dest == AppTab.jam && (jamLive || invites > 0),
                             onTap: () => widget.onSelect(dest),
                           ),
                         const _DownloadsRow(),
@@ -413,14 +410,18 @@ class _LibraryList extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final svc = ref.read(subsonicServiceProvider);
     final showPlaylists = filter == null || filter == RailFilter.playlists;
-    final showAlbums = filter == null || filter == RailFilter.albums;
-    final showArtists = filter == null || filter == RailFilter.artists;
-
-    final playlists = showPlaylists ? ref.watch(sortedPlaylistsProvider).asData?.value ?? const <Playlist>[] : const <Playlist>[];
-    final albums = showAlbums ? ref.watch(sortedAlbumsProvider).asData?.value ?? const <Album>[] : const <Album>[];
-    final artists = showArtists ? ref.watch(libraryArtistsProvider).asData?.value ?? const <Artist>[] : const <Artist>[];
+    _Item fromEntry(LibEntry e) => _Item(
+          id: e.id,
+          title: e.title,
+          subtitle: e.subtitle,
+          artUrl: e.artUrl,
+          placeholder: e.placeholder,
+          circular: e.circular,
+          onTap: e.onTap,
+          onMenu: e.onMenu,
+          onDrop: e.playlist == null ? null : (songs) => onDrop(context, e.playlist!, songs),
+        );
 
     final items = <_Item>[
       // What is always yours, ahead of the rest, while playlists are in view.
@@ -450,58 +451,9 @@ class _LibraryList extends ConsumerWidget {
           onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true), title: 'Downloaded'),
         ),
       ],
-      for (final p in playlists)
-        _Item(
-          id: 'p${p.id}',
-          title: p.name,
-          subtitle: 'Playlist · ${songCount(p.songCount)}',
-          artUrl: (p.coverArt ?? '').isEmpty ? null : svc.getCoverArtUrl(p.coverArt),
-          placeholder: NaviGlyph.playlist,
-          onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p), title: p.name),
-          onMenu: () => showPlaylistMenu(context, ref, p),
-          onDrop: (songs) => onDrop(context, p, songs),
-        ),
-      for (final a in albums)
-        _Item(
-          id: 'a${a.id}',
-          title: a.name,
-          subtitle: 'Album · ${a.artist}',
-          artUrl: svc.getCoverArtUrl(a.coverArt),
-          placeholder: NaviGlyph.library,
-          onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
-          onMenu: () => showCollectionActions(
-            context,
-            title: a.name,
-            subtitle: a.artist,
-            artUrl: svc.getCoverArtUrl(a.coverArt),
-            placeholderIcon: NaviGlyph.library,
-            loadSongs: () => svc.getAlbum(a.id),
-            pin: Pin.album(a),
-          ),
-        ),
-      for (final a in artists)
-        _Item(
-          id: 'r${a.id}',
-          title: a.name,
-          subtitle: 'Artist',
-          artUrl: svc.getCoverArtUrl(a.coverArtId),
-          placeholder: NaviGlyph.person,
-          circular: true,
-          onTap: () => navigateInApp(context, ArtistScreen(artistId: a.id, name: a.name)),
-          onMenu: () => showCollectionActions(
-            context,
-            title: a.name,
-            subtitle: 'Artist',
-            artUrl: svc.getCoverArtUrl(a.coverArtId),
-            placeholderIcon: NaviGlyph.person,
-            loadSongs: () async {
-              final albums = await svc.getArtistAlbums(a.id);
-              final lists = await Future.wait(albums.map((al) => svc.getAlbum(al.id)));
-              return [for (final l in lists) ...l];
-            },
-            pin: Pin.artist(a.id, a.name),
-          ),
-        ),
+      if (filter == null || filter == RailFilter.playlists) ...libraryEntries(context, ref, LibKind.playlists).map(fromEntry),
+      if (filter == null || filter == RailFilter.albums) ...libraryEntries(context, ref, LibKind.albums).map(fromEntry),
+      if (filter == null || filter == RailFilter.artists) ...libraryEntries(context, ref, LibKind.artists).map(fromEntry),
     ];
 
     var shown = query.isEmpty
@@ -598,6 +550,9 @@ class RailRow extends StatelessWidget {
   final String label;
   final bool selected;
   final bool iconOnly;
+
+  /// A small dot on the glyph: something is live or waiting here.
+  final bool dot;
   final VoidCallback onTap;
   const RailRow({
     super.key,
@@ -606,6 +561,7 @@ class RailRow extends StatelessWidget {
     required this.label,
     this.selected = false,
     this.iconOnly = false,
+    this.dot = false,
     required this.onTap,
   });
 
@@ -619,7 +575,18 @@ class RailRow extends StatelessWidget {
       child: Row(
         mainAxisAlignment: iconOnly ? MainAxisAlignment.center : MainAxisAlignment.start,
         children: [
-          art ?? NaviIcon(icon!, size: 20, filled: selected, color: selected ? t.accent : t.textSecondary),
+          Stack(
+            clipBehavior: Clip.none,
+            children: [
+              art ?? NaviIcon(icon!, size: 20, filled: selected, color: selected ? t.accent : t.textSecondary),
+              if (dot)
+                Positioned(
+                  right: -2,
+                  top: -2,
+                  child: Container(width: 8, height: 8, decoration: BoxDecoration(color: t.textPrimary, shape: BoxShape.circle, border: Border.all(color: t.bgSurface, width: 1.5))),
+                ),
+            ],
+          ),
           if (!iconOnly) ...[
             const SizedBox(width: Space.md),
             Expanded(

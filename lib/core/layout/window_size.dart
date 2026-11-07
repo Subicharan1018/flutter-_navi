@@ -46,11 +46,14 @@ enum ShellKind {
 
   /// Picks the shell. A TV always gets [tv]; a desktop window or a tablet
   /// (shortest side 600 dp or more) gets [sidebar] once it is wide enough;
-  /// everything else, including a narrowed desktop window, stays [phone].
+  /// everything else stays [phone]. A desktop window is always [sidebar].
   static ShellKind of(Size size) {
     if (PlatformUtils.isTv) return tv;
+    // A desktop window keeps the desktop layout at any width (it never turns into phone tabs);
+    // a tablet gets it once it is wide enough.
+    if (PlatformUtils.isDesktop) return sidebar;
     if (size.width < PlatformUtils.kDesktopBreakpoint) return phone;
-    if (PlatformUtils.isDesktop || size.shortestSide >= 600) return sidebar;
+    if (size.shortestSide >= 600) return sidebar;
     return phone;
   }
 

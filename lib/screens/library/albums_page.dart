@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../utils/queue_actions.dart';
 import '../../models/album.dart';
 import '../../models/library_sort.dart';
 import '../../providers/library_provider.dart';
@@ -79,6 +80,7 @@ class _AlbumCard extends ConsumerWidget {
       size: size,
       placeholderIcon: NaviGlyph.library,
       onTap: () => navigateInApp(context, AlbumDetailsScreen(album: album)),
+      onPlay: () => playCollection(context, ref, () => ref.read(subsonicServiceProvider).getAlbum(album.id), album.name),
       onLongPress: () => showCollectionActions(
         context,
         title: album.name,

@@ -13,6 +13,7 @@ import '../widgets/collection_actions.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/table/song_table.dart';
 import '../widgets/ui/artwork_page.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/states.dart';
@@ -110,8 +111,17 @@ class ArtistScreen extends ConsumerWidget {
           ),
         ],
         data: (_) => [
-          if (latest != null) SliverToBoxAdapter(child: _LatestRelease(album: latest)),
-          if (top.isNotEmpty) ...[
+          // Desktop: popular songs as a table, the albums as a shelf (which already holds the latest).
+          if (latest != null && !useSongTable()) SliverToBoxAdapter(child: _LatestRelease(album: latest)),
+          if (top.isNotEmpty && useSongTable()) ...[
+            const SliverToBoxAdapter(child: SectionHeader(title: 'Popular')),
+            SongTableSliver(
+              songs: top.take(10).toList(),
+              showArtwork: true,
+              onPlay: (song, ordered) =>
+                  ref.read(playerProvider.notifier).setQueue(ordered, ordered.indexOf(song), playlistName: name),
+            ),
+          ] else if (top.isNotEmpty) ...[
             const SliverToBoxAdapter(child: SectionHeader(title: 'Top Songs')),
             SliverFixedExtentList(
               itemExtent: SongTile.extent,
@@ -137,7 +147,7 @@ class ArtistScreen extends ConsumerWidget {
                     title: a.name,
                     subtitle: a.year > 0 ? '${a.year}' : null,
                     artUrl: art,
-                    size: 150,
+                    size: ArtSize.of(context).tile,
                     placeholderIcon: NaviGlyph.library,
                     onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
                     onLongPress: () => showCollectionActions(

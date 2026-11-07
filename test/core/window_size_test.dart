@@ -34,11 +34,11 @@ void main() {
       expect(ShellKind.of(const Size(400, 800)), ShellKind.tv);
     });
 
-    test('a desktop window is a phone shell until 800 wide, then a sidebar', () {
+    test('a desktop window is a sidebar shell at any width: it never turns into phone tabs', () {
       PlatformUtils.debugTvOverride = false;
       PlatformUtils.debugDesktopOverride = true;
-      expect(ShellKind.of(const Size(480, 700)), ShellKind.phone);
-      expect(ShellKind.of(const Size(799, 700)), ShellKind.phone);
+      expect(ShellKind.of(const Size(480, 700)), ShellKind.sidebar);
+      expect(ShellKind.of(const Size(799, 700)), ShellKind.sidebar);
       expect(ShellKind.of(const Size(800, 600)), ShellKind.sidebar);
       expect(ShellKind.of(const Size(1600, 900)), ShellKind.sidebar);
     });

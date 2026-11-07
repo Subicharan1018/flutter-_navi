@@ -291,7 +291,8 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             ],
       onRefresh: _load,
       slivers: [
-        if (!_loading && !_failed && _songs.isNotEmpty)
+        // Desktop: the table has its own find (Ctrl+F), and no Edit mode.
+        if (!_loading && !_failed && _songs.isNotEmpty && !useSongTable())
           SliverPadding(
             padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.xs, Space.sm),
             sliver: SliverToBoxAdapter(

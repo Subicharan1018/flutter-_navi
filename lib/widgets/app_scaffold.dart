@@ -162,8 +162,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
       child: LayoutBuilder(
         builder: (context, c) {
           var kind = ShellKind.of(Size(c.maxWidth, c.maxHeight));
-          // A narrow Windows window keeps the desktop shell (icon rail, top bar); it never becomes phone tabs.
-          if (PlatformUtils.isDesktop && kind == ShellKind.phone) kind = ShellKind.sidebar;
+
           return switch (kind) {
             ShellKind.tv => TvShell(
               tab: _tab,
@@ -485,6 +484,11 @@ class _DesktopShell extends ConsumerStatefulWidget {
 class _DesktopShellState extends ConsumerState<_DesktopShell> {
   _Panel? _panel = _Panel.about;
 
+  /// The panel opened over the content when the window is too narrow to dock it.
+  _Panel? _overlay;
+
+  void _toggleOverlay(_Panel p) => setState(() => _overlay = _overlay == p ? null : p);
+
   void _togglePanel(_Panel p) =>
       setState(() => _panel = _panel == p ? null : p);
 
@@ -513,6 +517,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
     );
     // Narrow: icon-only rail, no side panel; wide enough: both.
     final panel = size.hasSidePanel && hasSong ? _panel : null;
+    final overlay = !size.hasSidePanel && hasSong ? _overlay : null;
     return ValueListenableBuilder<Color?>(
       valueListenable: DockGround.value,
       builder: (context, ground, _) => Scaffold(
@@ -545,16 +550,14 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                           ),
                   ),
                   Expanded(
-                    child: FocusTraversalGroup(
-                      child: Column(
-                        children: [
-                          if (widget.offline) const _OfflineBanner(),
-                          Expanded(
-                            child: Center(
-                              child: ConstrainedBox(
-                                constraints: const BoxConstraints(
-                                  maxWidth: kContentMaxWidth,
-                                ),
+                    child: Stack(
+                      children: [
+                        FocusTraversalGroup(
+                          child: Column(
+                            children: [
+                              if (widget.offline) const _OfflineBanner(),
+                              Expanded(
+                                // Full width: no centred column, no black margins.
                                 child: ClipRect(
                                   child: TabNavigators(
                                     tab: widget.tab,
@@ -562,12 +565,56 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                                   ),
                                 ),
                               ),
+                              const Center(child: JamLivePill()),
+                              const FetchFinishedBanner(),
+                            ],
+                          ),
+                        ),
+                        // A window too narrow to dock the Now Playing panel opens it over the content.
+                        if (overlay != null) ...[
+                          Positioned.fill(
+                            child: GestureDetector(
+                              behavior: HitTestBehavior.opaque,
+                              onTap: () => setState(() => _overlay = null),
+                              child: const ColoredBox(color: Color(0x59000000)),
                             ),
                           ),
-                          const Center(child: JamLivePill()),
-                          const FetchFinishedBanner(),
+                          Positioned(
+                            right: 0,
+                            top: 0,
+                            bottom: 0,
+                            child: Focus(
+                              autofocus: true,
+                              child: CallbackShortcuts(
+                              bindings: {const SingleActivator(LogicalKeyboardKey.escape): () => setState(() => _overlay = null)},
+                              child: DecoratedBox(
+                                decoration: const BoxDecoration(
+                                  boxShadow: [BoxShadow(color: Color(0x99000000), blurRadius: 28, offset: Offset(-6, 0))],
+                                ),
+                                child: Row(
+                                  children: [
+                                    ResizeHandle(
+                                      label: 'Resize the Now Playing panel',
+                                      growsRight: false,
+                                      onDrag: (d) => DesktopLayout.dragPanel(DesktopLayout.panelWidth.value + d),
+                                      onEnd: DesktopLayout.savePanel,
+                                      onReset: DesktopLayout.resetPanel,
+                                    ),
+                                    FocusTraversalGroup(
+                                      child: _SidePanel(
+                                        panel: overlay,
+                                        onChange: (p) => setState(() => _overlay = p),
+                                        onClose: () => setState(() => _overlay = null),
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                              ),
+                            ),
+                          ),
                         ],
-                      ),
+                      ],
                     ),
                   ),
                   if (panel != null) ...[
@@ -597,9 +644,9 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
               )
             else if (hasSong)
               _PlayerBar(
-                panel: panel,
-                onTogglePanel: _togglePanel,
-                compact: !size.hasSidePanel,
+                panel: panel ?? overlay,
+                onTogglePanel: size.hasSidePanel ? _togglePanel : _toggleOverlay,
+                compact: size == WindowSize.compact,
               ),
           ],
         ),

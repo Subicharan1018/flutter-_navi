@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/theme.dart';
+import '../../utils/platform_utils.dart';
 import '../../player/artwork.dart' show coverPaletteProvider;
 import '../art/navi_icons.dart';
 import '../shell/dock_glass.dart';
@@ -94,7 +95,8 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
                   ?.value ??
               AlbumPalette.fallback;
     final size = MediaQuery.sizeOf(context);
-    final wide = size.width >= ArtworkPage._wideBreakpoint;
+    final desktop = PlatformUtils.isDesktop;
+    final wide = size.width >= ArtworkPage._wideBreakpoint || desktop;
 
     // The ground eases to the sampled colour when it arrives instead of
     // snapping, so the page appears to "develop" like a photo.
@@ -121,7 +123,9 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
                       CustomScrollView(
                         slivers: [
                           SliverToBoxAdapter(
-                            child: wide
+                            child: desktop
+                                ? _DesktopHeader(page: widget)
+                                : wide
                                 ? _WideHeader(page: widget)
                                 : _PhoneHeader(
                                     page: widget,
@@ -129,7 +133,7 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
                                     offset: _offset,
                                   ),
                           ),
-                          if (widget.onRefresh != null && wide)
+                          if (widget.onRefresh != null && wide && !desktop)
                             CupertinoSliverRefreshControl(
                               onRefresh: widget.onRefresh,
                             ),
@@ -147,6 +151,7 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
                           ),
                         ],
                       ),
+                      if (!desktop)
                       _TopBar(
                         title: widget.title,
                         actions: widget.actions,
@@ -562,6 +567,98 @@ class BarCircleButton extends StatelessWidget {
                 ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Windows: a compact header, not the phone's. A 192 cover in the page's tint,
+/// the title, one meta line (artist · year · songs · length), at most two lines
+/// of description, then the action row sitting directly above the table.
+class _DesktopHeader extends StatelessWidget {
+  final ArtworkPage page;
+  const _DesktopHeader({required this.page});
+
+  static const double art = 192;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final hasSub = page.subtitle != null && page.subtitle!.isNotEmpty;
+    final hasDetail = page.detail != null && page.detail!.isNotEmpty;
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.xxl, Space.xxl, Space.xxl, Space.sm),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              DecoratedBox(
+                decoration: BoxDecoration(
+                  shape: page.artistStyle ? BoxShape.circle : BoxShape.rectangle,
+                  borderRadius: page.artistStyle ? null : BorderRadius.circular(Radii.cover),
+                  boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 28, offset: Offset(0, 10))],
+                ),
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(page.artistStyle ? art / 2 : Radii.cover),
+                  child: page.art(art),
+                ),
+              ),
+              const SizedBox(width: Space.xxl),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.end,
+                  children: [
+                    Text(page.title, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.largeTitle),
+                    if (hasSub || hasDetail) ...[
+                      const SizedBox(height: Space.xs),
+                      Row(
+                        children: [
+                          if (hasSub)
+                            Flexible(
+                              child: CupertinoClickable(
+                                onTap: page.onSubtitleTap,
+                                child: Text(
+                                  page.subtitle!,
+                                  maxLines: 1,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600),
+                                ),
+                              ),
+                            ),
+                          if (hasSub && hasDetail) Text('  ·  ', style: t.subheadline),
+                          if (hasDetail)
+                            Flexible(
+                              flex: 3,
+                              child: Text(page.detail!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                            ),
+                        ],
+                      ),
+                    ],
+                    if (page.description != null && page.description!.isNotEmpty) ...[
+                      const SizedBox(height: Space.sm),
+                      ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 640),
+                        child: Text(page.description!, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.footnote),
+                      ),
+                    ],
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: Space.lg),
+          // The action row: play, shuffle, download… then the page's own actions (add, more).
+          Row(
+            children: [
+              if (page.buttons != null) page.buttons!,
+              const SizedBox(width: Space.sm),
+              ...page.actions,
+            ],
+          ),
+        ],
       ),
     );
   }

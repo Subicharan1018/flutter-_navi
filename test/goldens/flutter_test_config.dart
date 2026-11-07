@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:navivibe/utils/platform_utils.dart';
+
 import 'anti_alias_comparator.dart';
 
 /// Applies to every test under test/goldens/: compare goldens ignoring only
@@ -12,5 +14,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   if (current is LocalFileComparator) {
     goldenFileComparator = AntiAliasTolerantComparator(current.basedir.resolve('golden_test.dart'));
   }
+  // Phone unless a golden says desktop (see ../flutter_test_config.dart).
+  setUp(() => PlatformUtils.debugDesktopOverride = false);
   await testMain();
 }

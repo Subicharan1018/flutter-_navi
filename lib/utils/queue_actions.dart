@@ -31,3 +31,20 @@ Future<void> queueSongs(
   final what = label ?? (songs.length == 1 ? songs.first.title : '${songs.length} songs');
   showToast(context, next ? 'Playing next: $what' : 'Playing last: $what');
 }
+
+/// Plays a whole collection (album, playlist, artist) from its first song:
+/// loads the songs, starts them as the queue named [name].
+Future<void> playCollection(
+  BuildContext context,
+  WidgetRef ref,
+  Future<List<Song>> Function() load,
+  String name,
+) async {
+  try {
+    final songs = await load();
+    if (songs.isEmpty) return;
+    await ref.read(playerProvider.notifier).setQueue(songs, 0, playlistName: name, unshuffledSongs: songs);
+  } catch (_) {
+    if (context.mounted) showToast(context, 'Couldn’t start “$name”. Check your connection and try again.');
+  }
+}

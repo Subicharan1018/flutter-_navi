@@ -1,0 +1,417 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/focus/navi_focus.dart';
+import '../../core/theme.dart';
+import '../../widgets/art/navi_icons.dart';
+import '../../widgets/cover_art.dart';
+import '../../widgets/desktop_dialogs.dart';
+import '../../widgets/shell/desktop/desktop_layout.dart';
+import '../../widgets/ui/action_sheet.dart';
+import '../../widgets/ui/large_title_page.dart';
+import '../../widgets/ui/media.dart';
+import '../../widgets/ui/states.dart';
+import 'library_entries.dart';
+
+// =============================================================================
+// desktop_library_page.dart — Library on Windows: the whole collection as a
+// page you can read, not a menu. Playlists, Albums or Artists, as tiles or as a
+// sortable list, with right-click menus and a Play button on hover.
+// =============================================================================
+
+enum LibSort { library, name, artist, count }
+
+class DesktopLibraryPage extends ConsumerStatefulWidget {
+  const DesktopLibraryPage({super.key});
+
+  @override
+  ConsumerState<DesktopLibraryPage> createState() => _DesktopLibraryPageState();
+}
+
+class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
+  LibKind _kind = LibKind.playlists;
+  LibSort _sort = LibSort.library;
+  bool _asc = true;
+
+  void _pickSort(LibSort s) => setState(() {
+        if (_sort == s && s != LibSort.library) {
+          _asc = !_asc;
+        } else {
+          _sort = s;
+          _asc = true;
+        }
+      });
+
+  List<LibEntry> _sorted(List<LibEntry> list) {
+    if (_sort == LibSort.library) return list;
+    int cmp(LibEntry a, LibEntry b) => switch (_sort) {
+          LibSort.name => a.title.toLowerCase().compareTo(b.title.toLowerCase()),
+          LibSort.artist => a.secondary.toLowerCase().compareTo(b.secondary.toLowerCase()),
+          LibSort.count => a.count.compareTo(b.count),
+          LibSort.library => 0,
+        };
+    return [...list]..sort(_asc ? cmp : (a, b) => cmp(b, a));
+  }
+
+  String get _secondaryLabel => switch (_kind) {
+        LibKind.playlists => 'Songs',
+        LibKind.albums => 'Artist',
+        LibKind.artists => 'Albums',
+      };
+
+  void _sortMenu() {
+    showDesktopMenu<void>(
+      context: context,
+      width: 220,
+      builder: (_) => SheetGroup(children: [
+        for (final (s, label) in [
+          (LibSort.library, 'Library order'),
+          (LibSort.name, 'Name'),
+          if (_kind == LibKind.albums) (LibSort.artist, 'Artist'),
+          if (_kind != LibKind.artists) (LibSort.count, 'Number of songs') else (LibSort.count, 'Number of albums'),
+        ])
+          SheetAction(
+            label: label,
+            detail: _sort == s && s != LibSort.library ? (_asc ? 'Ascending' : 'Descending') : null,
+            icon: _sort == s ? NaviGlyph.check : null,
+            keepOpen: false,
+            onTap: () => _pickSort(s),
+          ),
+      ]),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final entries = _sorted(libraryEntries(context, ref, _kind));
+    return LargeTitlePage(
+      title: 'Library',
+      slivers: [
+        SliverToBoxAdapter(child: _Toolbar(kind: _kind, onKind: (k) => setState(() => _kind = k), onSort: _sortMenu, sort: _sort, asc: _asc)),
+        if (entries.isEmpty)
+          SliverToBoxAdapter(
+            child: MessageState(
+              icon: NaviGlyph.library,
+              title: switch (_kind) {
+                LibKind.playlists => 'No playlists yet',
+                LibKind.albums => 'No albums yet',
+                LibKind.artists => 'No artists yet',
+              },
+              message: 'What you add to your server appears here.',
+            ),
+          )
+        else
+          ValueListenableBuilder<bool>(
+            valueListenable: DesktopLayout.libraryGrid,
+            builder: (context, grid, _) => grid
+                ? _Grid(entries: entries)
+                : SliverMainAxisGroup(slivers: [
+                    _ListHeader(secondary: _secondaryLabel, sort: _sort, asc: _asc, onSort: _pickSort, showSecondary: true),
+                    SliverFixedExtentList(
+                      itemExtent: 56,
+                      delegate: SliverChildBuilderDelegate(
+                        (context, i) => _ListRow(entry: entries[i]),
+                        childCount: entries.length,
+                      ),
+                    ),
+                  ]),
+          ),
+        const SliverToBoxAdapter(child: SizedBox(height: Space.xxl)),
+      ],
+    );
+  }
+}
+
+class _Toolbar extends StatelessWidget {
+  final LibKind kind;
+  final ValueChanged<LibKind> onKind;
+  final VoidCallback onSort;
+  final LibSort sort;
+  final bool asc;
+  const _Toolbar({required this.kind, required this.onKind, required this.onSort, required this.sort, required this.asc});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.xxl, Space.xs, Space.xxl, Space.lg),
+      child: Row(
+        children: [
+          Expanded(child: Wrap(runSpacing: Space.sm, children: [
+          for (final (k, label) in const [
+            (LibKind.playlists, 'Playlists'),
+            (LibKind.albums, 'Albums'),
+            (LibKind.artists, 'Artists'),
+          ])
+            Padding(
+              padding: const EdgeInsets.only(right: Space.sm),
+              child: Semantics(
+                button: true,
+                selected: kind == k,
+                label: label,
+                child: NaviFocusable(
+                  radius: Radii.capsule,
+                  hoverTint: false,
+                  onTap: () => onKind(k),
+                  child: Container(
+                    height: 32,
+                    padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+                    decoration: BoxDecoration(
+                      color: kind == k ? t.textPrimary : t.fill,
+                      borderRadius: BorderRadius.circular(Radii.capsule),
+                    ),
+                    child: Center(
+                      widthFactor: 1,
+                      child: Text(
+                        label,
+                        style: t.subheadline.copyWith(
+                          color: kind == k ? t.bgBase : t.textPrimary,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+        ])),
+          NaviFocusable(
+            radius: 8,
+            onTap: onSort,
+            semanticLabel: 'Sort',
+            child: Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: 6),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    switch (sort) {
+                      LibSort.library => 'Library order',
+                      LibSort.name => asc ? 'Name A–Z' : 'Name Z–A',
+                      LibSort.artist => asc ? 'Artist A–Z' : 'Artist Z–A',
+                      LibSort.count => asc ? 'Fewest first' : 'Most first',
+                    },
+                    style: t.subheadline,
+                  ),
+                  const SizedBox(width: Space.xs),
+                  NaviIcon(NaviGlyph.chevronDown, size: 12, color: t.textSecondary),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: Space.xs),
+          ValueListenableBuilder<bool>(
+            valueListenable: DesktopLayout.libraryGrid,
+            builder: (context, grid, _) => Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _ViewToggle(glyph: NaviGlyph.gridView, label: 'Tiles', on: grid, onTap: () => DesktopLayout.setLibraryGrid(true)),
+                _ViewToggle(glyph: NaviGlyph.listView, label: 'List', on: !grid, onTap: () => DesktopLayout.setLibraryGrid(false)),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ViewToggle extends StatelessWidget {
+  final NaviGlyph glyph;
+  final String label;
+  final bool on;
+  final VoidCallback onTap;
+  const _ViewToggle({required this.glyph, required this.label, required this.on, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Tooltip(
+      message: label,
+      child: Semantics(
+        button: true,
+        selected: on,
+        label: label,
+        child: NaviFocusable(
+          radius: 8,
+          hoverTint: !on,
+          onTap: onTap,
+          child: Container(
+            width: 36,
+            height: 32,
+            decoration: BoxDecoration(color: on ? t.bgOverlay : Colors.transparent, borderRadius: BorderRadius.circular(8)),
+            alignment: Alignment.center,
+            child: NaviIcon(glyph, size: 18, color: on ? t.textPrimary : t.textSecondary),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _Grid extends StatelessWidget {
+  final List<LibEntry> entries;
+  const _Grid({required this.entries});
+
+  @override
+  Widget build(BuildContext context) {
+    return SliverPadding(
+      padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
+      sliver: SliverLayoutBuilder(
+        builder: (context, c) {
+          final columns = gridColumns(c.crossAxisExtent, ArtSize.of(context).tile);
+          final card = (c.crossAxisExtent - Space.lg * (columns - 1)) / columns;
+          return SliverGrid(
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: columns,
+              crossAxisSpacing: Space.lg,
+              mainAxisSpacing: Space.xl,
+              mainAxisExtent: card + 48,
+            ),
+            delegate: SliverChildBuilderDelegate(
+              (context, i) {
+                final e = entries[i];
+                return MediaCard(
+                  title: e.title,
+                  subtitle: e.kind == LibKind.playlists ? e.secondary : (e.kind == LibKind.albums ? e.secondary : 'Artist'),
+                  artUrl: e.artUrl,
+                  size: card,
+                  circular: e.circular,
+                  placeholderIcon: e.placeholder,
+                  onTap: e.onTap,
+                  onLongPress: e.onMenu,
+                  onPlay: e.onPlay,
+                );
+              },
+              childCount: entries.length,
+            ),
+          );
+        },
+      ),
+    );
+  }
+}
+
+class _ListHeader extends StatelessWidget {
+  final String secondary;
+  final LibSort sort;
+  final bool asc;
+  final void Function(LibSort) onSort;
+  final bool showSecondary;
+  const _ListHeader({required this.secondary, required this.sort, required this.asc, required this.onSort, required this.showSecondary});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    Widget cell(String label, LibSort s) {
+      final on = sort == s;
+      return MouseRegion(
+        cursor: SystemMouseCursors.click,
+        child: GestureDetector(
+          behavior: HitTestBehavior.opaque,
+          onTap: () => onSort(s),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(label, style: t.caption1.copyWith(color: on ? t.textPrimary : t.textSecondary, fontWeight: FontWeight.w600)),
+              if (on) ...[
+                const SizedBox(width: 4),
+                Transform.rotate(angle: asc ? 3.14159 : 0, child: NaviIcon(NaviGlyph.chevronDown, size: 11, color: t.textPrimary)),
+              ],
+            ],
+          ),
+        ),
+      );
+    }
+
+    return SliverToBoxAdapter(
+      child: Container(
+        height: 32,
+        margin: const EdgeInsets.symmetric(horizontal: Space.xxl),
+        padding: const EdgeInsets.symmetric(horizontal: Space.md),
+        decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.outline, width: 0.5))),
+        child: Row(
+          children: [
+            const SizedBox(width: 40 + Space.md),
+            Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: cell('Name', LibSort.name))),
+            if (showSecondary)
+              Expanded(
+                flex: 3,
+                child: Align(
+                  alignment: Alignment.centerLeft,
+                  child: cell(secondary, secondary == 'Artist' ? LibSort.artist : LibSort.count),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ListRow extends StatelessWidget {
+  final LibEntry entry;
+  const _ListRow({required this.entry});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final e = entry;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Space.xxl),
+      child: HoverBuilder(
+        builder: (context, hovered) => NaviFocusable(
+          radius: 6,
+          onTap: e.onTap,
+          onSecondaryTap: e.onMenu,
+          semanticLabel: '${e.title}, ${e.subtitle}',
+          child: Container(
+            height: 56,
+            padding: const EdgeInsets.symmetric(horizontal: Space.md),
+            child: Row(
+              children: [
+                SizedBox(
+                  width: 40,
+                  height: 40,
+                  child: Stack(
+                    children: [
+                      e.artUrl == null
+                          ? Container(
+                              decoration: BoxDecoration(color: t.bgElevated, borderRadius: BorderRadius.circular(e.circular ? 20 : Radii.thumb)),
+                              alignment: Alignment.center,
+                              child: NaviIcon(e.placeholder, size: 20, color: t.textSecondary),
+                            )
+                          : CoverArt(url: e.artUrl, size: 40, radius: Radii.thumb, circular: e.circular, placeholderIcon: e.placeholder),
+                      if (hovered)
+                        Positioned.fill(
+                          child: GestureDetector(
+                            onTap: e.onPlay,
+                            child: Tooltip(
+                              message: 'Play ${e.title}',
+                              child: DecoratedBox(
+                                decoration: BoxDecoration(
+                                  color: Colors.black54,
+                                  borderRadius: BorderRadius.circular(e.circular ? 20 : Radii.thumb),
+                                ),
+                                child: Center(child: NaviIcon(NaviGlyph.play, size: 16, filled: true, color: Colors.white)),
+                              ),
+                            ),
+                          ),
+                        ),
+                    ],
+                  ),
+                ),
+                const SizedBox(width: Space.md),
+                Expanded(
+                  flex: 5,
+                  child: Text(e.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w500)),
+                ),
+                Expanded(flex: 3, child: Text(e.secondary, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote)),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

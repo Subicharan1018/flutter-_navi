@@ -13,9 +13,17 @@ abstract final class DesktopLayout {
   static const _kRail = 'desktop_rail_width';
   static const _kCollapsed = 'desktop_rail_collapsed';
   static const _kPanel = 'desktop_panel_width';
+  static const _kLibraryGrid = 'desktop_library_grid';
 
   static final railWidth = ValueNotifier<double>(_readDouble(_kRail, railDefault, railMin, railMax));
   static final railCollapsed = ValueNotifier<bool>(_readBool(_kCollapsed));
+  /// The Library page: tiles (true) or a list (false).
+  static final libraryGrid = ValueNotifier<bool>(_readBool(_kLibraryGrid, true));
+  static void setLibraryGrid(bool v) {
+    libraryGrid.value = v;
+    _save(_kLibraryGrid, v);
+  }
+
   static final panelWidth = ValueNotifier<double>(_readDouble(_kPanel, panelDefault, panelMin, panelMax));
 
   static double _readDouble(String key, double fallback, double min, double max) {
@@ -26,11 +34,12 @@ abstract final class DesktopLayout {
     return fallback;
   }
 
-  static bool _readBool(String key) {
+  static bool _readBool(String key, [bool fallback = false]) {
     try {
-      return HiveBoxes.prefs.get(key) == true;
+      final v = HiveBoxes.prefs.get(key);
+      return v is bool ? v : fallback;
     } catch (_) {
-      return false;
+      return fallback;
     }
   }
 

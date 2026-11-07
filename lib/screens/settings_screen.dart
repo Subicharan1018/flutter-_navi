@@ -1,10 +1,13 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Colors, Scaffold;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import '../core/motion.dart' show MotionLevel;
 import '../core/theme.dart';
+import '../core/focus/navi_focus.dart';
+import '../utils/platform_utils.dart';
 import '../features/flow/ui/flow_settings.dart';
 import '../features/local_library/ui/download_location_section.dart';
 import '../features/local_library/ui/local_music_section.dart';
@@ -44,6 +47,9 @@ class SettingsScreen extends ConsumerStatefulWidget {
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
+  /// Windows: the category showing on the right.
+  String _category = 'Account';
+
   late final SettingsState _initial = ref.read(settingsProvider);
   late final _user = TextEditingController(text: _initial.username);
   late final _pass = TextEditingController(text: _initial.password);
@@ -170,16 +176,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final version = ref.watch(_appVersionProvider).asData?.value ?? '';
     final lastError = ref.watch(lastErrorProvider).asData?.value;
 
-    return LargeTitlePage(
-      title: 'Settings',
-      trailing: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: _save,
-        child: Text('Save', style: t.headline.copyWith(color: t.accent)),
-      ),
-      slivers: [
-        SliverList.list(children: [
+    // The sections in order; the markers name the categories the desktop's left
+    // list picks between (a phone just scrolls past them).
+    final items = <Widget>[
           const SizedBox(height: Space.sm),
+          const SettingsCategory('Account'),
           GroupedSection(
             header: 'Account',
             footer: 'Changes to your account apply when you tap Save.',
@@ -217,6 +218,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
+          const SettingsCategory('Mascot'),
           GroupedSection(
             header: 'Mascot',
             footer: 'A little robot walks along the mini player, dances to the music on '
@@ -259,6 +261,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
+          const SettingsCategory('Playback'),
           GroupedSection(
             header: 'Playback',
             children: [
@@ -353,6 +356,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
+          const SettingsCategory('Audio quality'),
           GroupedSection(
             header: 'Audio Quality',
             footer: _transcoding
@@ -407,6 +411,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ],
           ),
+          const SettingsCategory('Downloads & storage'),
           GroupedSection(
             header: 'Downloads & Storage',
             children: [
@@ -457,7 +462,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onTap: _busy == null ? () => _deleteAllDownloads(downloads, size) : null,
               ),
             ]),
+          const SettingsCategory('Social'),
           const SocialSettingsSection(),
+          const SettingsCategory('Smart Shuffle'),
           GroupedSection(
             header: 'Smart Shuffle',
             footer: learned == 0
@@ -499,6 +506,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: _busy == null ? _clearRecommendations : null,
             ),
           ]),
+          const SettingsCategory('Your data'),
           GroupedSection(
             header: 'Your Listening Data',
             children: [
@@ -526,6 +534,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           const NotificationSettingsSection(),
+          const SettingsCategory('About'),
           GroupedSection(
             header: 'About',
             children: [
@@ -544,8 +553,84 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
-        ]),
-      ],
+    ];
+
+    if (PlatformUtils.isDesktop) return _desktopLayout(context, items);
+    return LargeTitlePage(
+      title: 'Settings',
+      trailing: CupertinoButton(
+        padding: EdgeInsets.zero,
+        onPressed: _save,
+        child: Text('Save', style: t.headline.copyWith(color: t.accent)),
+      ),
+      slivers: [SliverList.list(children: items)],
+    );
+  }
+
+  /// Windows: categories down the left, the chosen one's settings on the right.
+  Widget _desktopLayout(BuildContext context, List<Widget> items) {
+    final t = ThemeTokens.of(context);
+    final groups = <String, List<Widget>>{};
+    String? current;
+    for (final w in items) {
+      if (w is SettingsCategory) {
+        current = w.name;
+        groups[current] = [];
+      } else if (current != null) {
+        groups[current]!.add(w);
+      }
+    }
+    final names = groups.keys.toList();
+    final selected = names.contains(_category) ? _category : names.first;
+    return Scaffold(
+      backgroundColor: t.bgBase,
+      body: Row(
+        children: [
+          SizedBox(
+            width: 232,
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(Space.md, Space.xxl, Space.md, Space.lg),
+              children: [
+                Padding(
+                  padding: const EdgeInsets.fromLTRB(Space.sm, 0, Space.sm, Space.lg),
+                  child: Text('Settings', style: t.largeTitle),
+                ),
+                for (final n in names)
+                  _SettingsNavRow(label: n, selected: n == selected, onTap: () => setState(() => _category = n)),
+              ],
+            ),
+          ),
+          Container(width: 0.5, color: t.separatorOpaque),
+          Expanded(
+            child: Align(
+              alignment: Alignment.topLeft,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 760),
+                child: ListView(
+                  padding: const EdgeInsets.only(top: Space.lg, bottom: Space.xxxl),
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.sm),
+                      child: Row(
+                        children: [
+                          Expanded(child: Text(selected, style: t.title1)),
+                          if (selected == 'Account')
+                            CupertinoButton(
+                              padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                              onPressed: _save,
+                              child: Text('Save', style: t.headline.copyWith(color: t.accent)),
+                            ),
+                        ],
+                      ),
+                    ),
+                    ...groups[selected]!,
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
 
@@ -565,4 +650,50 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (v != null) onPick(v);
         },
       );
+}
+
+/// Marks where a category of settings begins in the list. Draws nothing: a
+/// phone scrolls past it, the desktop uses it to split the page into the
+/// categories listed on the left.
+class SettingsCategory extends StatelessWidget {
+  final String name;
+  const SettingsCategory(this.name, {super.key});
+
+  @override
+  Widget build(BuildContext context) => const SizedBox.shrink();
+}
+
+class _SettingsNavRow extends StatelessWidget {
+  final String label;
+  final bool selected;
+  final VoidCallback onTap;
+  const _SettingsNavRow({required this.label, required this.selected, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Semantics(
+      button: true,
+      selected: selected,
+      label: label,
+      child: NaviFocusable(
+        radius: 6,
+        hoverTint: !selected,
+        onTap: onTap,
+        child: Container(
+          height: 36,
+          padding: const EdgeInsets.symmetric(horizontal: Space.md),
+          alignment: Alignment.centerLeft,
+          decoration: BoxDecoration(color: selected ? t.bgOverlay : Colors.transparent, borderRadius: BorderRadius.circular(6)),
+          child: Text(
+            label,
+            style: t.subheadline.copyWith(
+              color: selected ? t.textPrimary : t.textSecondary,
+              fontWeight: selected ? FontWeight.w600 : FontWeight.w500,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
 }

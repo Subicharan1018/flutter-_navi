@@ -13,6 +13,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
+import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:navivibe/core/hive_boxes.dart';
@@ -30,6 +31,7 @@ import 'package:navivibe/providers/library_provider.dart';
 import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/screens/library/artists_page.dart' show libraryArtistsProvider;
+import 'package:navivibe/screens/home_screen.dart';
 import 'package:navivibe/screens/library/songs_page.dart';
 import 'package:navivibe/screens/playlist_details_screen.dart';
 import 'package:navivibe/services/subsonic_service.dart';
@@ -142,7 +144,7 @@ void main() {
     debugCoverImageOverride = null;
   });
 
-  Future<void> shot(WidgetTester tester, Widget page, Size size, String name) async {
+  Future<void> shot(WidgetTester tester, Widget page, Size size, String name, {List<Override> extra = const [], bool signedOut = false}) async {
     covers = (await tester.runAsync(_covers))!;
     debugCoverImageOverride = (url, key) => MemoryImage(covers[url.replaceFirst('cover://', '')] ?? covers['g0']!);
     tester.view.devicePixelRatio = 1;
@@ -150,8 +152,9 @@ void main() {
     addTearDown(tester.view.reset);
     await tester.pumpWidget(ProviderScope(
       overrides: [
+        ...extra,
         playerProvider.overrideWith((ref) => _FakePlayer()),
-        settingsProvider.overrideWith((ref) => _FakeSettings()),
+        settingsProvider.overrideWith((ref) => signedOut ? _SignedOut() : _FakeSettings()),
         subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
         catalogSongProvider.overrideWith((ref, id) => null),
         isOfflineProvider.overrideWithValue(true), // no suggestions shelf, no network in a golden
@@ -233,4 +236,35 @@ void main() {
       await shot(tester, shellPage(size), size, 'shell_$tag');
     });
   }
+
+  // Home on a desktop: full width, shelves of 170 tiles, no Jam or update banner.
+  for (final size in const [Size(1366, 768), Size(1920, 1080)]) {
+    final tag = '${size.width.toInt()}x${size.height.toInt()}';
+    testWidgets('home $tag', (tester) async {
+      final albums = [
+        for (final (i, t) in _titles.indexed) Album(id: 'g$i', name: t.$3, artist: t.$2, coverArt: 'g$i', songCount: 10, duration: 2400, year: 2024),
+      ];
+      await shot(
+        tester,
+        const HomeScreen(),
+        size,
+        'home_$tag',
+        signedOut: true,
+        extra: [
+          // Signed out of the smart features (they ask the network), with the library's own shelves filled.
+          recentlyPlayedAlbumsProvider.overrideWith((ref) async => albums.take(9).toList()),
+          recentlyPlayedSongsProvider.overrideWith((ref) async => _songs),
+          recentlyAddedAlbumsProvider.overrideWith((ref) async => albums.reversed.take(9).toList()),
+          favoritesProvider.overrideWith((ref) async => (songs: _songs.take(6).toList(), albums: <Album>[])),
+          playlistsProvider.overrideWith((ref) async => [for (final n in ['Late Night Drive', 'Gym', 'Focus', 'Tamil Classics', 'Road Trip', 'Rainy Day', 'Study']) Playlist(id: n, name: n, comment: '', songCount: 14, duration: 3000)]),
+        ],
+      );
+    });
+  }
+}
+
+class _SignedOut extends StateNotifier<SettingsState> implements SettingsNotifier {
+  _SignedOut() : super(const SettingsState(serverUrl: '', username: '', password: ''));
+  @override
+  dynamic noSuchMethod(Invocation i) => null;
 }
