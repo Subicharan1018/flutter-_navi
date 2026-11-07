@@ -151,7 +151,7 @@ class _MicroduckStripState extends ConsumerState<MicroduckStrip> {
     final height = widget.height;
     var pose = resolveMicroduckPose(
       playing: widget.playing,
-      now: DateTime.now(),
+      now: microduckClock(),
       reducedMotion: reduced,
       sleepsAtNight: widget.sleepsAtNight,
       allowDance: widget.danceOnBeat,
@@ -306,12 +306,12 @@ class _PlayerMicroduckStripState extends ConsumerState<PlayerMicroduckStrip> {
 
   void _scheduleRemark() {
     _speakTimer?.cancel();
-    final now = DateTime.now();
+    final now = microduckClock();
     if (!widget.full || !microduckFeelsChatty(widget.song.id, now)) return;
     _speakTimer = Timer(const Duration(seconds: 9), () {
       if (!mounted || !ref.read(settingsProvider).microduckTalks) return;
       final playing = ref.read(playerProvider).isPlaying;
-      final at = DateTime.now();
+      final at = microduckClock();
       if (!playing || at.difference(_lastSpoke) < _cooldown) return;
       final line = microduckComment(_facts(), at);
       if (line == null) return;

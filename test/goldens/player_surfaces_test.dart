@@ -36,6 +36,7 @@ import 'package:navivibe/screens/now_playing_screen.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/player/player_controls.dart' show GlyphButton, TransportControls;
 import 'package:navivibe/widgets/mascot/microduck.dart';
+import 'package:navivibe/widgets/mascot/microduck_pose.dart' show microduckClock;
 import 'package:navivibe/widgets/mascot/microduck_strip.dart';
 import 'package:navivibe/widgets/mini_player.dart';
 
@@ -239,10 +240,12 @@ void main() {
 
   setUp(() {
     PlatformUtils.debugDesktopOverride = false; // phone surfaces, whatever the host OS
+    microduckClock = () => DateTime(2026, 6, 15, 14); // the duck sleeps from 00:00 to 05:00: pin the hour
     debugCoverImageOverride = (url, key) => MemoryImage(_coverBytes[_idFromKey(url.replaceFirst('cover://', ''))]!);
   });
 
   tearDown(() {
+    microduckClock = DateTime.now;
     debugCoverImageOverride = null;
     PlatformUtils.debugDesktopOverride = null;
   });

@@ -57,6 +57,10 @@ MicroduckSkin cleanMicroduckSkin(String? name) =>
 /// Midnight to 05:00 local time, when the duck sleeps.
 bool isMicroduckNight(DateTime now) => now.hour < 5;
 
+/// What the duck reads as "now". Tests replace it so a golden does not change
+/// with the hour it is run at; the app never sets it.
+DateTime Function() microduckClock = DateTime.now;
+
 /// A believable tempo from a measured [bpm], or null when unknown.
 int? danceBpm(num? bpm) {
   if (bpm == null || bpm < 40 || bpm > 260) return null;

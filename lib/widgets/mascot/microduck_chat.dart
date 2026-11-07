@@ -104,7 +104,7 @@ class _MicroduckChatSheetState extends ConsumerState<MicroduckChatSheet> {
       _seen = chat.messages.length;
       _toEnd();
     }
-    final chips = suggestChips(current: song, now: DateTime.now());
+    final chips = suggestChips(current: song, now: microduckClock());
 
     return Padding(
       padding: EdgeInsets.only(bottom: bottom),
