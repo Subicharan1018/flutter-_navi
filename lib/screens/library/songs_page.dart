@@ -8,6 +8,7 @@ import '../../providers/library_provider.dart';
 import '../../providers/player_provider.dart';
 import '../../utils/queue_actions.dart';
 import '../../widgets/song_tile.dart';
+import '../../widgets/table/song_table.dart';
 import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/art/navi_icons.dart';
 import '../../widgets/ui/media.dart';
@@ -114,19 +115,26 @@ class _SongsPageState extends ConsumerState<SongsPage> {
               ),
             ),
           ),
-          SliverFixedExtentList(
-            itemExtent: SongTile.extent,
-            delegate: SliverChildBuilderDelegate(
-              (context, i) => SwipeActions.queue(
-                rowKey: ValueKey('song_${songs[i].id}'),
-                context: context,
-                onPlayNext: () => queueSongs(context, ref, [songs[i]], next: true),
-                onPlayLast: () => queueSongs(context, ref, [songs[i]], next: false),
-                child: SongTile(song: songs[i], onTap: () => _play(songs, index: i)),
+          if (useSongTable())
+            SongTableSliver(
+              songs: songs,
+              showDateAdded: true,
+              onPlay: (song, ordered) => _play(ordered, index: ordered.indexOf(song)),
+            )
+          else
+            SliverFixedExtentList(
+              itemExtent: SongTile.extent,
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => SwipeActions.queue(
+                  rowKey: ValueKey('song_${songs[i].id}'),
+                  context: context,
+                  onPlayNext: () => queueSongs(context, ref, [songs[i]], next: true),
+                  onPlayLast: () => queueSongs(context, ref, [songs[i]], next: false),
+                  child: SongTile(song: songs[i], onTap: () => _play(songs, index: i)),
+                ),
+                childCount: songs.length,
               ),
-              childCount: songs.length,
             ),
-          ),
           if (page.isLoadingMore)
             const SliverToBoxAdapter(child: Padding(padding: EdgeInsets.all(Space.lg), child: CupertinoActivityIndicator())),
         ],

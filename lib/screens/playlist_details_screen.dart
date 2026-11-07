@@ -24,6 +24,7 @@ import '../widgets/collection_actions.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/table/song_table.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/collection_hero.dart';
 import '../widgets/ui/artwork_page.dart';
@@ -164,6 +165,54 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
     }
   }
 
+  /// Table play: the queue is the rows as the table shows them (sorted or not).
+  Future<void> _playOrdered(Song song, List<Song> ordered) async {
+    var playable = ordered;
+    if (ref.read(isOfflineProvider)) {
+      final dl = ref.read(downloadStateProvider);
+      playable = playable.where((s) => dl[s.id]?.status == SongDownloadStatus.downloaded).toList();
+    }
+    if (playable.isEmpty) {
+      showToast(context, 'None of these songs are downloaded yet');
+      return;
+    }
+    final start = playable.indexOf(song);
+    await ref
+        .read(playerProvider.notifier)
+        .setQueue(playable, start < 0 ? 0 : start, playlistName: _playlist.name, unshuffledSongs: _songs);
+  }
+
+  /// Delete key / "Remove from Playlist" on a selection, one at a time, so each
+
+  Future<void> _removeAll(List<Song> songs) async {
+    for (final s in songs) {
+      await _remove(s);
+    }
+  }
+
+  /// Drag-reorder from the table: rows at [from] go before row [before].
+  Future<void> _moveSongs(List<int> from, int before) async {
+    final moving = [for (final i in from) _songs[i]];
+    final fromSet = from.toSet();
+    final next = <Song>[];
+    var insertAt = 0;
+    for (var i = 0; i < _songs.length; i++) {
+      if (i == before) insertAt = next.length;
+      if (!fromSet.contains(i)) next.add(_songs[i]);
+    }
+    if (before >= _songs.length) insertAt = next.length;
+    next.insertAll(insertAt, moving);
+    final previous = _songs;
+    setState(() => _songs = next);
+    try {
+      await ref.read(subsonicServiceProvider).setPlaylistSongs(_playlist.id, next.map((s) => s.id).toList());
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _songs = previous);
+      showToast(context, 'Couldn’t save the new order. Try again.');
+    }
+  }
+
   Future<void> _addSongs() async {
     await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<bool>(
       fullscreenDialog: true,
@@ -298,6 +347,15 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
               index: i,
               onRemove: () => _remove(_songs[i]),
             ),
+          )
+        else if (useSongTable())
+          SongTableSliver(
+            songs: visible,
+            playlistId: _playlist.id,
+            showDateAdded: false,
+            onPlay: (song, ordered) => _playOrdered(song, ordered),
+            onRemove: _removeAll,
+            onReorder: _query.isEmpty ? _moveSongs : null,
           )
         else
           SliverFixedExtentList(

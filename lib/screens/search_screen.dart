@@ -30,6 +30,7 @@ import '../widgets/collection_actions.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/shell/nav_stack.dart' show searchFieldRequest;
 import '../widgets/song_tile.dart';
+import '../widgets/table/song_table.dart';
 import '../widgets/ui/controls.dart';
 import '../widgets/ui/large_title_page.dart';
 import '../widgets/ui/media.dart';
@@ -471,24 +472,33 @@ class _ResultsState extends ConsumerState<_Results> {
         ),
       if (songs.isNotEmpty) ...[
         const SliverToBoxAdapter(child: SectionHeader(title: 'Songs')),
-        SliverFixedExtentList(
-          itemExtent: SongTile.extent,
-          delegate: SliverChildBuilderDelegate(
-            (context, i) => Entrance(
-              group: 'search',
-              index: i,
-              rise: 8,
-              child: SongTile(
-                song: songs[i],
-                onTap: () {
-                  onUsed();
-                  ref.read(playerProvider.notifier).setQueue(songs, i, playlistName: 'Search');
-                },
+        if (useSongTable())
+          SongTableSliver(
+            songs: songs,
+            onPlay: (song, ordered) {
+              onUsed();
+              ref.read(playerProvider.notifier).setQueue(ordered, ordered.indexOf(song), playlistName: 'Search');
+            },
+          )
+        else
+          SliverFixedExtentList(
+            itemExtent: SongTile.extent,
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => Entrance(
+                group: 'search',
+                index: i,
+                rise: 8,
+                child: SongTile(
+                  song: songs[i],
+                  onTap: () {
+                    onUsed();
+                    ref.read(playerProvider.notifier).setQueue(songs, i, playlistName: 'Search');
+                  },
+                ),
               ),
+              childCount: songs.length,
             ),
-            childCount: songs.length,
           ),
-        ),
       ],
       LocalSearchSection(songs: onDevice, onUsed: onUsed),
       if (lyricMatches.isNotEmpty) _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),

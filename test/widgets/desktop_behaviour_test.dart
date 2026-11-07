@@ -105,6 +105,34 @@ void main() {
     });
   });
 
+  group('mouse long-press', () {
+
+    testWidgets('holding the mouse down does not open the menu on desktop; right-click does', (tester) async {
+      var opened = 0;
+      Widget w() => CupertinoClickable(onTap: () {}, onLongPress: () => opened++, child: const SizedBox(key: Key('c'), width: 100, height: 40));
+      await tester.pumpWidget(_app(Center(child: w())));
+      final g = await tester.startGesture(tester.getCenter(find.byKey(const Key('c'))), kind: PointerDeviceKind.mouse);
+      await tester.pump(const Duration(seconds: 1));
+      await g.up();
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(opened, 0);
+      await tester.tapAt(tester.getCenter(find.byKey(const Key('c'))), buttons: kSecondaryButton);
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(opened, 1);
+    });
+
+    testWidgets('a finger still long-presses on a phone', (tester) async {
+      var opened = 0;
+      await tester.pumpWidget(_app(
+        Center(child: CupertinoClickable(onTap: () {}, onLongPress: () => opened++, child: const SizedBox(key: Key('c'), width: 100, height: 40))),
+        desktop: false,
+      ));
+      await tester.longPress(find.byKey(const Key('c')));
+      await tester.pump(const Duration(milliseconds: 400));
+      expect(opened, 1);
+    });
+  });
+
   group('context menu', () {
     Future<void> openMenu(WidgetTester tester, Offset at) async {
       late BuildContext ctx;

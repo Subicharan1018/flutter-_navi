@@ -13,6 +13,7 @@ import '../utils/queue_actions.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/table/song_table.dart';
 import '../widgets/ui/artwork_page.dart';
 import '../widgets/ui/collection_hero.dart';
 import '../widgets/ui/controls.dart';
@@ -104,19 +105,26 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
                 ),
               ],
             _View.songs => [
-                SliverFixedExtentList(
-                  itemExtent: SongTile.extent,
-                  delegate: SliverChildBuilderDelegate(
-                    (context, i) => SwipeActions.queue(
-                      rowKey: ValueKey('fav_${songs[i].id}'),
-                      context: context,
-                      onPlayNext: () => queueSongs(context, ref, [songs[i]], next: true),
-                      onPlayLast: () => queueSongs(context, ref, [songs[i]], next: false),
-                      child: SongTile(song: songs[i], onTap: () => _play(songs, from: i)),
+                if (useSongTable())
+                  SongTableSliver(
+                    songs: songs,
+                    showDateAdded: true,
+                    onPlay: (song, ordered) => _play(ordered, from: ordered.indexOf(song)),
+                  )
+                else
+                  SliverFixedExtentList(
+                    itemExtent: SongTile.extent,
+                    delegate: SliverChildBuilderDelegate(
+                      (context, i) => SwipeActions.queue(
+                        rowKey: ValueKey('fav_${songs[i].id}'),
+                        context: context,
+                        onPlayNext: () => queueSongs(context, ref, [songs[i]], next: true),
+                        onPlayLast: () => queueSongs(context, ref, [songs[i]], next: false),
+                        child: SongTile(song: songs[i], onTap: () => _play(songs, from: i)),
+                      ),
+                      childCount: songs.length,
                     ),
-                    childCount: songs.length,
                   ),
-                ),
                 SliverToBoxAdapter(child: CollectionSummary(songs: songs)),
               ],
             _View.albums when albums.isEmpty => const [

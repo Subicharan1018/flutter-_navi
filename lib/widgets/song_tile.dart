@@ -170,7 +170,7 @@ class _SongTileState extends ConsumerState<SongTile> {
             onTapCancel: () => setState(() => _pressed = false),
             onTapUp: (_) => setState(() => _pressed = false),
             onTap: widget.onTap,
-            onLongPress: _openMenu,
+            onLongPress: PlatformUtils.isDesktop ? null : _openMenu,
             onSecondaryTap: _openMenu,
             child: AnimatedContainer(
               duration: _pressed ? Duration.zero : Motion.fast,

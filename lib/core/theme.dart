@@ -654,7 +654,7 @@ class _CupertinoClickableState extends State<CupertinoClickable>
             onTapUp: _enabled ? (_) => _c.reverse() : null,
             onTapCancel: _enabled ? () => _c.reverse() : null,
             onTap: widget.onTap,
-            onLongPress: widget.onLongPress,
+            onLongPress: PlatformUtils.isDesktop ? null : widget.onLongPress,
             onSecondaryTapUp: widget.onLongPress == null ? null : (_) => widget.onLongPress!(),
             child: body,
           ),

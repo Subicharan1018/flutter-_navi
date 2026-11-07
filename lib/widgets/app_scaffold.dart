@@ -22,6 +22,9 @@ import '../providers/search_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/library/albums_page.dart';
 import '../screens/library/playlists_page.dart';
+import 'table/song_table.dart' show SongDrag;
+import '../models/playlist.dart' show Playlist;
+import 'ui/action_sheet.dart' show showToast;
 import '../screens/library/songs_page.dart';
 import '../screens/now_playing_screen.dart';
 import '../screens/playlist_details_screen.dart';
@@ -597,6 +600,22 @@ class _SidebarState extends ConsumerState<_Sidebar> {
     super.dispose();
   }
 
+  /// Songs dropped on a playlist row: add them, say so.
+  Future<void> _addDropped(BuildContext context, Playlist p, List<Song> songs) async {
+    final svc = ref.read(subsonicServiceProvider);
+    try {
+      for (final s in songs) {
+        await svc.updatePlaylist(p.id, songIdToAdd: s.id);
+      }
+      ref.invalidate(playlistsProvider);
+      if (context.mounted) {
+        showToast(context, songs.length == 1 ? 'Added “${songs.first.title}” to ${p.name}' : 'Added ${songs.length} songs to ${p.name}');
+      }
+    } catch (_) {
+      if (context.mounted) showToast(context, 'Couldn’t add to ${p.name}. Try again.');
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
@@ -717,6 +736,9 @@ class _SidebarState extends ConsumerState<_Sidebar> {
                   PlaylistDetailsScreen(playlist: p),
                   title: p.name,
                 ),
+                onSecondaryTap: () => showPlaylistMenu(context, ref, p),
+                // Drop songs from a table onto the playlist to add them.
+                onDropSongs: (songs) => _addDropped(context, p, songs),
               ),
             const SizedBox(height: Space.lg),
             _SidebarRow(
@@ -791,6 +813,12 @@ class _SidebarRow extends StatelessWidget {
   final bool iconOnly;
   final VoidCallback onTap;
 
+  /// Right-click.
+  final VoidCallback? onSecondaryTap;
+
+  /// Songs dragged out of a song table and dropped on this row.
+  final void Function(List<Song> songs)? onDropSongs;
+
   const _SidebarRow({
     this.icon,
     this.art,
@@ -798,16 +826,27 @@ class _SidebarRow extends StatelessWidget {
     this.selected = false,
     this.iconOnly = false,
     required this.onTap,
+    this.onSecondaryTap,
+    this.onDropSongs,
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    return DragTarget<SongDrag>(
+      onWillAcceptWithDetails: (_) => onDropSongs != null,
+      onAcceptWithDetails: (d) => onDropSongs?.call(d.data.songs),
+      builder: (context, candidates, _) => _row(context, t, dropping: candidates.isNotEmpty),
+    );
+  }
+
+  Widget _row(BuildContext context, AppThemeTokens t, {required bool dropping}) {
     final row = Container(
       height: 32,
       padding: const EdgeInsets.symmetric(horizontal: Space.sm),
       decoration: BoxDecoration(
-        color: selected ? t.bgOverlay : Colors.transparent,
+        color: dropping ? t.bgOverlay : (selected ? t.bgOverlay : Colors.transparent),
+        border: dropping ? Border.all(color: t.textPrimary, width: 1.5) : null,
         borderRadius: BorderRadius.circular(6),
       ),
       child: Row(
@@ -835,6 +874,7 @@ class _SidebarRow extends StatelessWidget {
       child: NaviFocusable(
         radius: 6,
         onTap: onTap,
+        onSecondaryTap: onSecondaryTap,
         semanticLabel: label,
         // Hover tint is the row's; the selected row keeps its own fill.
         hoverTint: !selected,

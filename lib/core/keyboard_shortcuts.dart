@@ -1,3 +1,4 @@
+import '../widgets/table/song_table.dart' show SongTableSliver;
 import 'package:flutter/gestures.dart' show kBackMouseButton, kForwardMouseButton;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -186,7 +187,10 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
 
   if (commands != null) {
     bindings.addAll({
-      const SingleActivator(LogicalKeyboardKey.keyF, control: true): commands.focusSearch,
+      // Ctrl+F finds in the list on screen; with none, it goes to Search.
+      const SingleActivator(LogicalKeyboardKey.keyF, control: true): () {
+        if (!SongTableSliver.tryFind()) commands.focusSearch();
+      },
       const SingleActivator(LogicalKeyboardKey.slash): commands.focusSearch,
       const SingleActivator(LogicalKeyboardKey.comma, control: true): commands.openSettings,
       const SingleActivator(LogicalKeyboardKey.escape): () => commands.goBack(),

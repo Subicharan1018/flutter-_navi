@@ -257,7 +257,8 @@ class _NaviFocusableState extends State<NaviFocusable> {
           child: GestureDetector(
             behavior: HitTestBehavior.opaque,
             onTap: widget.onTap,
-            onLongPress: widget.onLongPress,
+            // A mouse never long-presses: the menu is a right-click on desktop.
+            onLongPress: PlatformUtils.isDesktop ? null : widget.onLongPress,
             onSecondaryTapUp: secondary == null ? null : (_) => secondary(),
             child: body,
           ),

@@ -16,6 +16,7 @@ import '../widgets/collection_actions.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/song_tile.dart';
+import '../widgets/table/song_table.dart';
 import '../widgets/ui/artwork_page.dart';
 import '../widgets/ui/collection_hero.dart';
 import '../widgets/ui/media.dart';
@@ -113,6 +114,18 @@ class AlbumDetailsScreen extends ConsumerWidget {
             ),
           ],
           data: (_) => [
+            if (useSongTable())
+              SongTableSliver(
+                songs: songs,
+                showArtwork: false,
+                showAlbum: false,
+                onPlay: (song, ordered) async {
+                  if (songs.isEmpty) return;
+                  final n = ref.read(playerProvider.notifier);
+                  await n.setQueue(ordered, ordered.indexOf(song), playlistName: full.name, unshuffledSongs: songs);
+                },
+              )
+            else
             SliverFixedExtentList(
               itemExtent: SongTile.extent,
               delegate: SliverChildBuilderDelegate(

@@ -399,6 +399,8 @@ The identity carries over: monochrome white accent, black ground, album-colour t
 - **Keyboard everywhere.** Every action is reachable and visible focus is always drawn. Ctrl+K search, Ctrl+F find in a list, Ctrl+/ for the shortcut list, media keys, Space play/pause.
 - **Dense and scannable.** Songs are a table (rows about 48, small thumbnails, columns that drop as the window narrows), not tall cards.
 
+**Song table.** Every song list on Windows is a table, never tall cards: 48 px rows, small thumbnails, a pinned header with #, Title (with artist), Album, Added and Time, sortable by click, and columns that drop as the window narrows (Added under 900, Album under 640). Hover turns the number into a play button; the playing row shows the bars. Click selects; Ctrl and Shift extend; double-click or Enter plays; Ctrl+A selects all; Delete removes from a playlist; Ctrl+F finds in the list; right-click opens the menu (a group menu for several rows); rows drag to reorder in a playlist and onto a playlist in the sidebar.
+
 **Layout.** Compact Windows windows keep the Windows shell (rail, top bar, player bar); they never turn into phone tabs. Content uses the full width of its pane with tiles on the desktop art scale (150-180) and an automatic column count: no centred phone column, no black margins.
 
 **Cover art.** A cover is requested at its display size (the next step of 96/160/256/384/512/768/1024) so a slow connection loads small images, and the music-note placeholder is only for "no cover": while a cover loads the tile is a plain panel, and the art fades in on top.

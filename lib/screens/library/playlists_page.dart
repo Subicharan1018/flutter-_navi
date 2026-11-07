@@ -238,3 +238,21 @@ class PlaylistsPage extends ConsumerWidget {
     );
   }
 }
+
+/// The playlist menu (Play, Shuffle, queue, Rename, Delete, Pin, Move to Folder):
+/// a long-press sheet on a phone, a right-click menu on desktop. One definition,
+/// used by Library and by the sidebar's playlist rows.
+void showPlaylistMenu(BuildContext context, WidgetRef ref, Playlist p) {
+  final svc = ref.read(subsonicServiceProvider);
+  showCollectionActions(
+    context,
+    title: p.name,
+    subtitle: songCount(p.songCount),
+    artUrl: (p.coverArt ?? '').isEmpty ? null : svc.getCoverArtUrl(p.coverArt),
+    loadSongs: () => svc.getPlaylistSongs(p.id),
+    onEdit: () => showPlaylistEditor(context, playlist: p),
+    onDelete: () => deletePlaylistWithConfirm(context, ref, p),
+    pin: Pin.playlist(p),
+    extraActions: [FolderMoveAction(playlistId: p.id, page: context)],
+  );
+}
