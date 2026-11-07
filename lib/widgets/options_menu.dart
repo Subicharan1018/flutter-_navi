@@ -117,6 +117,7 @@ class OptionsMenu extends ConsumerWidget {
             ),
           SheetAction(
             label: starred ? 'Remove from Favorites' : 'Favorite',
+            hint: 'L',
             icon: starred ? NaviGlyph.starOff : NaviGlyph.star,
             onTap: () {
               player.toggleStar(song.id);
@@ -182,6 +183,7 @@ class OptionsMenu extends ConsumerWidget {
           SheetGroup(children: [
             SheetAction(
               label: 'Remove from Playlist',
+              hint: 'Del',
               icon: NaviGlyph.minusCircle,
               destructive: true,
               onTap: onRemoveFromPlaylist,

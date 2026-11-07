@@ -178,7 +178,7 @@ class FilterPills<T> extends StatelessWidget {
                   padding: const EdgeInsets.symmetric(horizontal: Space.lg),
                   alignment: Alignment.center,
                   decoration: BoxDecoration(
-                    color: e.key == value ? t.accent : t.fill,
+                    color: e.key == value ? t.accentFill : t.fill,
                     borderRadius: BorderRadius.circular(17),
                   ),
                   child: Text(

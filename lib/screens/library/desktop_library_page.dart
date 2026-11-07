@@ -166,7 +166,7 @@ class _Toolbar extends StatelessWidget {
                     height: 32,
                     padding: const EdgeInsets.symmetric(horizontal: Space.lg),
                     decoration: BoxDecoration(
-                      color: kind == k ? t.textPrimary : t.fill,
+                      color: kind == k ? t.accentFill : t.fill,
                       borderRadius: BorderRadius.circular(Radii.capsule),
                     ),
                     child: Center(

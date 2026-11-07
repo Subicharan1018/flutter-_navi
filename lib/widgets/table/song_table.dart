@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../core/focus/navi_focus.dart';
+import '../shell/desktop/desktop_layout.dart';
 import '../../core/theme.dart';
 import '../../features/online_fetch/ui/fetch_activity.dart' show showAddSongsToPlaylist;
 import '../../models/song.dart';
@@ -127,17 +128,23 @@ class SongTableState extends ConsumerState<SongTableSliver> {
     _idsAtSelection = [for (final s in widget.songs) s.id];
     _find.addListener(() => setState(_clearSelection));
     _focus.addListener(() => setState(() {})); // the cursor outline follows focus
+    DesktopLayout.hiddenColumns.addListener(_columnsChanged);
   }
 
   @override
   void dispose() {
     _live.remove(this);
+    DesktopLayout.hiddenColumns.removeListener(_columnsChanged);
     _unroute();
     _stopAutoScroll();
     _focus.dispose();
     _find.dispose();
     _findFocus.dispose();
     super.dispose();
+  }
+
+  void _columnsChanged() {
+    if (mounted) setState(() {});
   }
 
   void openFind() {
@@ -423,6 +430,7 @@ class SongTableState extends ConsumerState<SongTableSliver> {
       builder: (_) => SheetGroup(children: [
         SheetAction(
           label: 'Play ${songs.length} Songs',
+          hint: 'Enter',
           icon: NaviGlyph.play,
           onTap: () => widget.onPlay(songs.first, songs),
         ),
@@ -444,12 +452,93 @@ class SongTableState extends ConsumerState<SongTableSliver> {
         if (widget.onRemove != null)
           SheetAction(
             label: 'Remove ${songs.length} from Playlist',
+            hint: 'Del',
             icon: NaviGlyph.minus,
             destructive: true,
             onTap: () {
               setState(_clearSelection);
               widget.onRemove!(songs);
             },
+          ),
+      ]),
+    );
+  }
+
+  // ── Several rows selected: a count and what to do with them ───────────────
+
+  Widget _selectionBar(List<Song> songs) {
+    final page = context;
+    return Builder(builder: (context) {
+      final t = ThemeTokens.of(context);
+      Widget action(String label, NaviGlyph icon, VoidCallback onTap, {bool danger = false}) => Semantics(
+            button: true,
+            label: label,
+            child: NaviPressable(
+              onTap: onTap,
+              radius: 6,
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 28),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      NaviIcon(icon, size: 15, color: danger ? t.danger : t.textPrimary),
+                      const SizedBox(width: 6),
+                      Text(label, style: t.footnote.copyWith(color: danger ? t.danger : t.textPrimary, fontWeight: FontWeight.w600)),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          );
+      return Row(
+        children: [
+          Text('${songs.length} selected', style: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700)),
+          const SizedBox(width: Space.lg),
+          action('Play', NaviGlyph.play, () => widget.onPlay(songs.first, songs)),
+          action('Add to…', NaviGlyph.addToPlaylist, () {
+            showDesktopMenu<void>(
+              context: page,
+              builder: (_) => SheetGroup(children: [
+                SheetAction(label: 'Play Next', icon: NaviGlyph.playNext, onTap: () => queueSongs(page, ref, songs, next: true)),
+                SheetAction(label: 'Add to Queue', icon: NaviGlyph.queue, onTap: () => queueSongs(page, ref, songs, next: false)),
+                SheetAction(label: 'A Playlist…', icon: NaviGlyph.addToPlaylist, onTap: () => showAddSongsToPlaylist(page, songs)),
+              ]),
+            );
+          }),
+          if (widget.onRemove != null)
+            action('Remove', NaviGlyph.minus, () {
+              setState(_clearSelection);
+              widget.onRemove!(songs);
+            }, danger: true),
+          const Spacer(),
+          action('Clear', NaviGlyph.close, () => setState(_clearSelection)),
+        ],
+      );
+    });
+  }
+
+  // ── Which columns show ────────────────────────────────────────────────────
+
+  void _columnsMenu() {
+    showDesktopMenu<void>(
+      context: context,
+      width: 200,
+      builder: (_) => SheetGroup(children: [
+        if (widget.showAlbum)
+          SheetAction(
+            label: 'Album',
+            icon: DesktopLayout.hiddenColumns.value.contains('album') ? null : NaviGlyph.check,
+            keepOpen: false,
+            onTap: () => DesktopLayout.toggleColumn('album'),
+          ),
+        if (widget.showDateAdded)
+          SheetAction(
+            label: 'Date added',
+            icon: DesktopLayout.hiddenColumns.value.contains('added') ? null : NaviGlyph.check,
+            keepOpen: false,
+            onTap: () => DesktopLayout.toggleColumn('added'),
           ),
       ]),
     );
@@ -476,11 +565,13 @@ class SongTableState extends ConsumerState<SongTableSliver> {
     return SliverLayoutBuilder(
       builder: (context, c) {
         final w = c.crossAxisExtent;
+        final hidden = DesktopLayout.hiddenColumns.value;
         final cols = _Columns(
-          album: widget.showAlbum && w >= 640,
-          added: widget.showDateAdded && w >= 900,
+          album: widget.showAlbum && w >= 640 && !hidden.contains('album'),
+          added: widget.showDateAdded && w >= 900 && !hidden.contains('added'),
           width: w,
         );
+        final picked = _selectedSongs;
         return SliverMainAxisGroup(
           slivers: [
             if (_finding) SliverToBoxAdapter(child: _FindBar(controller: _find, focus: _findFocus, onClose: _closeFind)),
@@ -494,6 +585,9 @@ class SongTableState extends ConsumerState<SongTableSliver> {
                 onKey: _onKey,
                 onSort: _toggleSort,
                 showArtwork: widget.showArtwork,
+                onColumns: (widget.showAlbum || widget.showDateAdded) ? _columnsMenu : null,
+                selectionCount: picked.length,
+                selectionBar: picked.length > 1 ? _selectionBar(picked) : null,
               ),
             ),
             if (rows.isEmpty && _find.text.isNotEmpty)
@@ -545,6 +639,11 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
   final KeyEventResult Function(FocusNode, KeyEvent) onKey;
   final void Function(SongSort) onSort;
   final bool showArtwork;
+  final VoidCallback? onColumns;
+
+  /// With several rows picked the header becomes this bar (a count, Play, Add to, Remove).
+  final Widget? selectionBar;
+  final int selectionCount;
 
   _HeaderDelegate({
     required this.columns,
@@ -554,6 +653,9 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
     required this.onKey,
     required this.onSort,
     required this.showArtwork,
+    this.onColumns,
+    this.selectionBar,
+    this.selectionCount = 0,
   });
 
   @override
@@ -567,6 +669,7 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
       old.columns.added != columns.added ||
       old.sort != sort ||
       old.asc != asc ||
+      old.selectionCount != selectionCount ||
       old.showArtwork != showArtwork;
 
   @override
@@ -619,14 +722,40 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
         ),
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-          child: Row(
+          child: selectionBar != null
+              ? SizedBox(height: SongTableSliver.headerHeight, child: selectionBar)
+              :
+              Row(
             children: [
               SizedBox(width: _Columns.num, child: Align(alignment: Alignment.centerLeft, child: cell('#', null))),
               Expanded(flex: 5, child: Align(alignment: Alignment.centerLeft, child: cell('Title', SongSort.title))),
               if (columns.album) Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: cell('Album', SongSort.album))),
               if (columns.added) SizedBox(width: _Columns.dateW, child: Align(alignment: Alignment.centerLeft, child: cell('Added', SongSort.added))),
               SizedBox(width: _Columns.durW, child: Align(alignment: Alignment.centerRight, child: cell('Time', SongSort.duration))),
-              const SizedBox(width: _Columns.menuW),
+              SizedBox(
+                width: _Columns.menuW,
+                child: onColumns == null
+                    ? null
+                    : Align(
+                        alignment: Alignment.centerRight,
+                        child: Tooltip(
+                          message: 'Choose columns',
+                          child: Semantics(
+                            button: true,
+                            label: 'Choose columns',
+                            child: NaviPressable(
+                              onTap: onColumns,
+                              radius: 6,
+                              child: SizedBox(
+                                width: 32,
+                                height: 28,
+                                child: Center(child: NaviIcon(NaviGlyph.listView, size: 15, color: t.textSecondary)),
+                              ),
+                            ),
+                          ),
+                        ),
+                      ),
+              ),
             ],
           ),
         ),

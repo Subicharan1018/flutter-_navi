@@ -32,6 +32,7 @@ import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/screens/library/artists_page.dart' show libraryArtistsProvider;
 import 'package:navivibe/screens/home_screen.dart';
+import 'package:navivibe/widgets/mascot/microduck_pose.dart' show microduckClock;
 import 'package:navivibe/screens/library_screen.dart';
 import 'package:navivibe/screens/settings_screen.dart';
 import 'package:navivibe/widgets/shell/desktop/now_playing_panel.dart' show PanelKind;
@@ -161,6 +162,9 @@ void main() {
   late Map<String, Uint8List> covers;
 
   setUpAll(() async {
+    // Pin anything that depends on the date (Replay's year on Home, the mascot's sleep hours).
+    homeClock = () => DateTime(2026, 11, 8, 14);
+    microduckClock = () => DateTime(2026, 11, 8, 14);
     await loadGoldenFonts();
     Hive.init(Directory.systemTemp.createTempSync("hive_gold").path);
     HiveBoxes.prefs = await Hive.openBox("prefs");

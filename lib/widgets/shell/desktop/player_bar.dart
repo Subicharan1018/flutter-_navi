@@ -49,12 +49,22 @@ class DesktopPlayerBar extends ConsumerWidget {
     final n = ref.read(playerProvider.notifier);
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
 
-    return Container(
+    // The bar takes the playing cover's colour (as the pages do), eased in when the
+    // song changes; before the palette arrives it is the plain surface.
+    final palette = song.coverArt.isEmpty ? null : ref.watch(coverPaletteProvider(song.coverArt)).asData?.value;
+    final ground = palette == null ? t.bgSurface : Color.lerp(t.bgSurface, palette.ground, 0.9)!;
+    return TweenAnimationBuilder<Color?>(
+      tween: ColorTween(end: ground),
+      duration: const Duration(milliseconds: 450),
+      curve: Curves.easeOutCubic,
+      builder: (context, color, child) => Container(
       height: height,
       padding: const EdgeInsets.symmetric(horizontal: Space.md),
       decoration: BoxDecoration(
-        color: t.bgSurface,
+        color: color ?? ground,
         border: Border(top: BorderSide(color: t.separatorOpaque, width: 0.5)),
+      ),
+      child: child,
       ),
       child: Row(
         children: [
@@ -113,7 +123,8 @@ class DesktopPlayerBar extends ConsumerWidget {
             flex: 5,
             child: Center(
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 560),
+                // The seek bar grows with the window, up to about 720.
+                constraints: const BoxConstraints(maxWidth: 720),
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   children: [
@@ -174,6 +185,7 @@ class DesktopPlayerBar extends ConsumerWidget {
                           onTap: () => onTogglePanel(PanelKind.about),
                         ),
                     ],
+                    if (!compact) const _GroupGap(),
                     if (c.maxWidth >= 200)
                       Flexible(
                         child: ConstrainedBox(
@@ -181,6 +193,7 @@ class DesktopPlayerBar extends ConsumerWidget {
                           child: DesktopVolume(player: n.player),
                         ),
                       ),
+                    const _GroupGap(),
                     if (!narrow) const KeyboardHelpButton(),
                     BarIconButton(
                       icon: NaviGlyph.expand,
@@ -295,7 +308,7 @@ class _PlayButtonState extends State<_PlayButton> {
               child: Container(
                 width: 34,
                 height: 34,
-                decoration: BoxDecoration(color: t.accent, shape: BoxShape.circle),
+                decoration: BoxDecoration(color: t.accentFill, shape: BoxShape.circle),
                 alignment: Alignment.center,
                 child: NaviIcon(widget.playing ? NaviGlyph.pause : NaviGlyph.play, size: 16, filled: true, color: t.onAccent),
               ),
@@ -327,7 +340,7 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final player = ref.read(playerProvider.notifier).player;
-    final label = t.caption1.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+    final label = t.footnote.copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
     return RepaintBoundary(
       child: PlaybackProgressBuilder(
         player: player,
@@ -374,14 +387,14 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
                               alignment: Alignment.centerLeft,
                               children: [
                                 Container(
-                                  height: hovering ? 6 : 4,
-                                  decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(3)),
+                                  height: hovering ? 8 : 6,
+                                  decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(4)),
                                 ),
                                 FractionallySizedBox(
                                   widthFactor: f,
                                   child: Container(
-                                    height: hovering ? 6 : 4,
-                                    decoration: BoxDecoration(color: hovering ? t.textPrimary : t.textSecondary, borderRadius: BorderRadius.circular(3)),
+                                    height: hovering ? 8 : 6,
+                                    decoration: BoxDecoration(color: hovering ? t.textPrimary : t.textSecondary, borderRadius: BorderRadius.circular(4)),
                                   ),
                                 ),
                                 if (hovering)
@@ -568,5 +581,17 @@ class _RingedRegion extends StatelessWidget {
         onTap: () {},
         radius: 4,
         child: MouseRegion(cursor: cursor, onHover: onHover, onEnter: onEnter, onExit: onExit, child: child),
+      );
+}
+
+/// A hairline between the bar's right-hand groups (panels | volume | window), so
+/// seven icons read as three things.
+class _GroupGap extends StatelessWidget {
+  const _GroupGap();
+
+  @override
+  Widget build(BuildContext context) => Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+        child: Container(width: 1, height: 18, color: ThemeTokens.of(context).separatorOpaque),
       );
 }

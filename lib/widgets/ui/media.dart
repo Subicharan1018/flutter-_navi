@@ -404,7 +404,7 @@ class PlayShuffleButtons extends StatelessWidget {
             child: Container(
               width: 44,
               height: 44,
-              decoration: BoxDecoration(color: enabled ? t.accent : t.fill, shape: BoxShape.circle),
+              decoration: BoxDecoration(color: enabled ? t.accentFill : t.fill, shape: BoxShape.circle),
               alignment: Alignment.center,
               child: NaviIcon(
                 playing ? NaviGlyph.pause : NaviGlyph.play,
@@ -531,7 +531,7 @@ class TintedButton extends StatelessWidget {
     final fg = onTap == null
         ? t.textMuted
         : (filled ? t.onAccent : (destructive ? t.danger : t.accent));
-    final bg = filled && onTap != null ? t.accent : t.fill;
+    final bg = filled && onTap != null ? t.accentFill : t.fill;
     return CupertinoClickable(
       onTap: onTap == null
           ? null
@@ -619,7 +619,7 @@ class CardPlayButton extends StatelessWidget {
                   width: 44,
                   height: 44,
                   decoration: BoxDecoration(
-                    color: t.accent,
+                    color: t.accentFill,
                     shape: BoxShape.circle,
                     boxShadow: const [BoxShadow(color: Color(0x66000000), blurRadius: 12, offset: Offset(0, 4))],
                   ),

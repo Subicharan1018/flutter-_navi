@@ -295,7 +295,7 @@ class _Filters extends StatelessWidget {
                   height: 28,
                   padding: const EdgeInsets.symmetric(horizontal: Space.md),
                   decoration: BoxDecoration(
-                    color: filter == f ? t.textPrimary : t.fill,
+                    color: filter == f ? t.accentFill : t.fill,
                     borderRadius: BorderRadius.circular(Radii.capsule),
                   ),
                   child: Center(

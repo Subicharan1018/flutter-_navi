@@ -11,6 +11,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:hive_ce/hive.dart';
 import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:navivibe/core/hive_boxes.dart';
+import 'package:navivibe/player/artwork.dart' show coverPaletteProvider;
 import 'package:navivibe/core/pointer_anchor.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/models/song.dart';
@@ -112,6 +113,7 @@ Widget _app(Widget child) {
     settingsProvider.overrideWith((ref) => _FakeSettings()),
     subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
     catalogSongProvider.overrideWith((ref, id) => null),
+    coverPaletteProvider('s1').overrideWithValue(const AsyncData(AlbumPalette.fallback)),
   ];
   return PointerAnchor(
     child: ProviderScope(

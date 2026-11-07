@@ -427,11 +427,11 @@ void paintNaviGlyphExtra(
       canvas.drawLine(const Offset(16, 9.5), const Offset(20.5, 14.5), stroke);
       canvas.drawLine(const Offset(20.5, 9.5), const Offset(16, 14.5), stroke);
     case NaviGlyph.keyboard:
-      canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(3, 6.5, 18, 11), const Radius.circular(2.5)), stroke);
-      for (final x in const [7.0, 10.5, 14.0, 17.5]) {
-        canvas.drawCircle(Offset(x, 10.2), 0.5, solid);
+      // Key caps, not a boxed outline: a bordered rectangle reads as a toggled button.
+      for (final x in const [3.5, 9.5, 15.5]) {
+        canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromLTWH(x, 6.5, 5, 5), const Radius.circular(1.2)), stroke);
       }
-      canvas.drawLine(const Offset(8, 14.2), const Offset(16, 14.2), stroke);
+      canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(6.5, 13.5, 11, 4), const Radius.circular(1.2)), stroke);
     case NaviGlyph.minusCircle:
       canvas.drawCircle(const Offset(12, 12), 8, solid);
       canvas.drawLine(const Offset(8, 12), const Offset(16, 12), ink);

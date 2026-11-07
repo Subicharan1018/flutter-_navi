@@ -24,7 +24,28 @@ abstract final class DesktopLayout {
     _save(_kLibraryGrid, v);
   }
 
-  static final panelWidth = ValueNotifier<double>(_readDouble(_kPanel, panelDefault, panelMin, panelMax));
+  static const _kHiddenColumns = 'desktop_table_hidden_columns';
+
+  /// Song-table columns the person turned off ("album", "added"); the choice is
+  /// shared by every song table and remembered.
+  static final hiddenColumns = ValueNotifier<Set<String>>(_readSet(_kHiddenColumns));
+
+  static Set<String> _readSet(String key) {
+    try {
+      final v = HiveBoxes.prefs.get(key);
+      if (v is List) return {for (final e in v) e.toString()};
+    } catch (_) {}
+    return {};
+  }
+
+  static void toggleColumn(String name) {
+    final next = {...hiddenColumns.value};
+    if (!next.remove(name)) next.add(name);
+    hiddenColumns.value = next;
+    _save(_kHiddenColumns, next.toList());
+  }
+
+  static final panelWidth =ValueNotifier<double>(_readDouble(_kPanel, panelDefault, panelMin, panelMax));
 
   static double _readDouble(String key, double fallback, double min, double max) {
     try {
@@ -78,5 +99,6 @@ abstract final class DesktopLayout {
     railWidth.value = railDefault;
     panelWidth.value = panelDefault;
     railCollapsed.value = false;
+    hiddenColumns.value = {};
   }
 }

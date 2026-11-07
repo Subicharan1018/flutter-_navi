@@ -46,6 +46,9 @@ import 'replay/replay_screen.dart';
 import 'playlist_details_screen.dart';
 import 'settings_screen.dart';
 
+/// The date Home shows "Replay 2026" (the current year) for. A seam so a golden does not change on 1 January.
+DateTime Function() homeClock = DateTime.now;
+
 /// Apple Music's Home: Top Picks as tall feature cards, then shelves of what
 /// you played, what you made and what just arrived on the server.
 class HomeScreen extends ConsumerWidget {
@@ -125,7 +128,7 @@ class _TopPicks extends ConsumerWidget {
       for (final s in recent.take(8)) _art(ref, s.coverArt),
     ];
     final favArt = [for (final s in starred.take(12)) _art(ref, s.coverArt)];
-    final year = DateTime.now().year;
+    final year = homeClock().year;
 
     final width = MediaQuery.sizeOf(context).width;
     // Desktop: feature cards on the tile scale, not a phone-width hero.
@@ -552,7 +555,7 @@ class _ContinueStrip extends ConsumerWidget {
     final flowCtl = ref.read(flowProvider.notifier);
     final albums = ref.watch(recentlyPlayedAlbumsProvider).asData?.value ?? const <Album>[];
     final starred = ref.watch(favoritesProvider).asData?.value.songs ?? const <Song>[];
-    final year = DateTime.now().year;
+    final year = homeClock().year;
 
     Widget glyphArt(NaviGlyph g) => ColoredBox(
           color: t.bgOverlay,
@@ -686,7 +689,7 @@ class _ContinueTile extends StatelessWidget {
                         child: Container(
                           width: 32,
                           height: 32,
-                          decoration: BoxDecoration(color: t.accent, shape: BoxShape.circle),
+                          decoration: BoxDecoration(color: t.accentFill, shape: BoxShape.circle),
                           alignment: Alignment.center,
                           child: NaviIcon(NaviGlyph.play, size: 14, filled: true, color: t.onAccent),
                         ),

@@ -269,7 +269,8 @@ class _PanelOverlayState extends State<PanelOverlay> {
               key: const Key('panel-backdrop'),
               behavior: HitTestBehavior.opaque,
               onTap: onClose,
-              child: const ColoredBox(color: Color(0x59000000)),
+              // No dimming (opaque chrome, no scrims): the backdrop only catches the click that closes the panel.
+              child: const SizedBox.expand(),
             ),
           ),
           Positioned(
@@ -282,9 +283,9 @@ class _PanelOverlayState extends State<PanelOverlay> {
                 focusNode: _panelFocus,
                 autofocus: true,
                 child: DecoratedBox(
-                  decoration: const BoxDecoration(
-                    boxShadow: [BoxShadow(color: Color(0x99000000), blurRadius: 28, offset: Offset(-6, 0))],
-                  ),
+                  // The drag handle's hairline is the edge and the panel's own tinted ground is the
+                  // lift: no shadow, no scrim.
+                  decoration: const BoxDecoration(),
                   child: Row(
                     children: [
                       ResizeHandle(

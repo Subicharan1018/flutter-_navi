@@ -274,6 +274,12 @@ class AppThemeTokens {
   /// Always opaque — safe for menus and dialogs over moving content.
   Color get bgSurfaceOpaque => Color.alphaBlend(bgSurface, bgBase);
 
+  /// The accent as a solid fill (Play discs, white capsules, selected chips). On
+  /// Windows it is a calmer ~89% of the accent, so the brightest thing on a dark
+  /// page is not a full #FFFFFF; elsewhere it is the accent itself. Text and
+  /// glyphs on it use [onAccent] (contrast well over 4.5:1 either way).
+  Color get accentFill => PlatformUtils.isDesktop ? Color.lerp(const Color(0xFF000000), accent, 0.89)! : accent;
+
   /// Opaque hairline for places a translucent separator would double up.
   Color get separatorOpaque => outline;
 

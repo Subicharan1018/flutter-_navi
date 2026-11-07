@@ -109,6 +109,10 @@ class SheetAction extends StatelessWidget {
   final bool destructive;
   final bool keepOpen;
 
+  /// The key that does this without the menu ("Enter", "Del", "L"); shown at the
+  /// right of a desktop menu row, and nowhere on a phone.
+  final String? hint;
+
   const SheetAction({
     super.key,
     required this.label,
@@ -118,6 +122,7 @@ class SheetAction extends StatelessWidget {
     this.onTap,
     this.destructive = false,
     this.keepOpen = false,
+    this.hint,
   });
 
   @override
@@ -157,6 +162,10 @@ class SheetAction extends StatelessWidget {
                   ),
                 ),
                 if (trailing != null) ...[const SizedBox(width: Space.sm), trailing!],
+                if (hint != null) ...[
+                  const SizedBox(width: Space.md),
+                  Text(hint!, style: t.caption1.copyWith(color: t.textMuted)),
+                ],
               ],
             ),
           ),
