@@ -309,7 +309,7 @@ The layout is phone first, and wide layouts restructure rather than stretch.
 - **Dock:** the bottom of the phone is one frosted-glass sheet (a single blur layer, sigma 24, the visible page's colour at 60%, a 0.5 hairline and a soft top highlight, published by `DockGroundScope`); solid band when glass is off. The Jam pill, mini player and tab bar sit on it as part-clear capsules. Content scrolls beneath it, so every tab page ends with the dock's measured height as bottom padding (`dockClearance`).
 - **Collection pages:** on phone, the artwork runs edge to edge as a square. Title, artist and transport sit over the seam. Pulling down stretches the art, and scrolling drifts it at half speed. On wide windows, a 260 cover sits beside the title.
 - **Now Playing (phone):** a grabber sits at the top and the cover takes the space above the title. The cover deck follows the finger 1:1 with neighbouring covers 28 apart. The title sits just above the scrubber. Below that come rewind 40 / play-pause 58 / forward 40, then the volume bar, then Lyrics · Devices · Queue. When Lyrics or Queue opens, the cover flies into a 60 header thumbnail and the pane rises into the space it left.
-- **Desktop:** a 248 sidebar, the content pane, an optional 320 Now Playing side panel, and an 84 player bar along the bottom. Desktop Now Playing places shuffle and repeat either side of the transport.
+- **Desktop:** see the Windows section below, which is the authority for the desktop shell: a 44 top bar, a 208-420 library rail (72 collapsed), the page, an optional 280-560 Now Playing panel (docked from 1200 wide, an overlay below) and a 72 player bar. Nothing on this phone page describes Windows.
 
 ## Elevation & Depth
 
@@ -390,6 +390,10 @@ An artwork header (56 cover) followed by action groups (grouped surface, radius 
 
 ## Windows (and Linux desktop)
 
+**Two rules that apply to every control on Windows.**
+- **Soft white.** A solid white fill (Play discs, white capsules, selected chips) is `accentFill`: about 89% of the accent, so the brightest thing on a black page is not #FFFFFF. Glyphs on it use `onAccent`; contrast stays above 4.5:1. Text, titles and the focus ring stay full white. On the phone and TV `accentFill` is the accent itself, so nothing there changes.
+- **Focus, hover, selected.** Every keyboard stop draws a 2 px white ring 2 px off its edge, only while keys (not the mouse) are driving. A table row has no ring of its own: its keyboard cursor is a 2 px outline inside the row. Hover is a 9% white wash, selected a 16% fill, focus an outline, so the three never look alike. F6 and Shift+F6 move between the library, the page, Now Playing and the player bar. Click targets are at least 28 px, table text at least 12-13 px.
+
 The identity carries over: monochrome white accent, black ground, album-colour tint, our own icons, no card containers. Nothing else does. Windows is **not** the phone layout made wider: it is a desktop music app that happens to share data and logic with the phone one. It is built for a mouse, a keyboard and a big window, and it follows desktop conventions (never another app's look or branding).
 
 **Interaction model**
@@ -405,7 +409,7 @@ The identity carries over: monochrome white accent, black ground, album-colour t
 
 **Pages.** Home uses the full width: shelves of 170 tiles with arrow buttons on hover and a round Play on each tile while the pointer is on it; no Jam card (Jam is a rail item with a dot when live) and no update card (the bell). Collection pages (playlist, album, artist, Favorites) have a 192 cover, a title, one meta line, then a single action row (round Play, Shuffle, Download, Add, More) directly above the song table; artists show Popular as a table and their albums as a shelf. Library is the collection as tiles or a sortable list (Playlists / Albums / Artists), with a Play on hover and right-click menus. Settings has its categories down the left and the chosen one on the right. Below 1200 wide the Now Playing panel (About, Lyrics, Queue) opens over the content instead of beside it, closed by Esc or a click outside.
 
-**Player bar.** 72 px, three zones. Left: a 48 cover (opens the full-screen player), title, artist, favorite. Middle: shuffle, previous, a 34 round Play, next, repeat, and under them elapsed time, a seek bar and the total; the bar thickens on hover and a bubble names the time under the pointer, click or drag to seek. Right: Lyrics, Queue, About (white with a dot when open), a mute button with a volume slider (the wheel over it changes 5% a notch), a keyboard-shortcuts button (Ctrl+/ opens the list) and full screen. Every control has a tooltip that names its key.
+**Player bar.** 72 px, three zones, on the playing cover's ground (eased in over 450 ms; the plain surface until the palette arrives). The right-hand icons are grouped by hairlines (panels | volume | window); the help button is a plain question mark in a circle. Left: a 48 cover (opens the full-screen player), title, artist, favorite. Middle: shuffle, previous, a 34 round Play, next, repeat, and under them elapsed time, a seek bar and the total; the bar thickens on hover and a bubble names the time under the pointer, click or drag to seek. Right: Lyrics, Queue, About (white with a dot when open), a mute button with a volume slider (the wheel over it changes 5% a notch), a keyboard-shortcuts button (Ctrl+/ opens the list) and full screen. Every control has a tooltip that names its key.
 
 **Layout.** Compact Windows windows keep the Windows shell (rail, top bar, player bar); they never turn into phone tabs. Content uses the full width of its pane with tiles on the desktop art scale (150-180) and an automatic column count: no centred phone column, no black margins.
 
