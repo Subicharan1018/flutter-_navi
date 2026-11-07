@@ -267,3 +267,45 @@ class _NaviFocusableState extends State<NaviFocusable> {
     );
   }
 }
+
+/// A tap target that is also a keyboard stop: [NaviFocusRing]'s white 2 px ring
+/// (2 px off the edge) while navigating by key, Enter and Space activate it, and
+/// a click moves focus onto it, so closing what it opened can return there.
+/// Use it for the bar's icon buttons, which draw their own hover.
+class NaviPressable extends StatefulWidget {
+  final Widget child;
+  final VoidCallback? onTap;
+  final double radius;
+  final HitTestBehavior behavior;
+  const NaviPressable({super.key, required this.child, required this.onTap, this.radius = 8, this.behavior = HitTestBehavior.opaque});
+
+  @override
+  State<NaviPressable> createState() => _NaviPressableState();
+}
+
+class _NaviPressableState extends State<NaviPressable> {
+  final _node = FocusNode(debugLabel: 'NaviPressable');
+
+  @override
+  void dispose() {
+    _node.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => NaviFocusRing(
+        focusNode: _node,
+        onTap: widget.onTap,
+        radius: widget.radius,
+        child: GestureDetector(
+          behavior: widget.behavior,
+          onTap: widget.onTap == null
+              ? null
+              : () {
+                  _node.requestFocus();
+                  widget.onTap!();
+                },
+          child: widget.child,
+        ),
+      );
+}

@@ -1,3 +1,4 @@
+import '../widgets/shell/desktop/focus_regions.dart';
 import '../widgets/table/song_table.dart' show SongTableSliver;
 import 'package:flutter/gestures.dart' show kBackMouseButton, kForwardMouseButton;
 import 'package:flutter/material.dart';
@@ -205,6 +206,9 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
       const SingleActivator(LogicalKeyboardKey.arrowLeft, alt: true): () => commands.goBack(),
       if (commands.goForward != null) const SingleActivator(LogicalKeyboardKey.arrowRight, alt: true): commands.goForward!,
       if (commands.showShortcuts != null) const SingleActivator(LogicalKeyboardKey.slash, control: true): commands.showShortcuts!,
+      // F6 / Shift+F6: move between the rail, the page, the Now Playing panel and the player bar.
+      const SingleActivator(LogicalKeyboardKey.f6): () => FocusRegion.cycle(),
+      const SingleActivator(LogicalKeyboardKey.f6, shift: true): () => FocusRegion.cycle(reverse: true),
       // Ctrl+K: the top bar's search field.
       const SingleActivator(LogicalKeyboardKey.keyK, control: true): commands.focusSearch,
       for (var i = 0; i < 6; i++)

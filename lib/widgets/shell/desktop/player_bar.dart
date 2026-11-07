@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../../../core/focus/navi_focus.dart';
 import '../../../core/theme.dart';
 import '../../../models/song.dart';
 import '../../../player/artwork.dart';
@@ -236,8 +237,7 @@ class _BarIconButtonState extends State<BarIconButton> {
           cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _hover = true),
           onExit: (_) => setState(() => _hover = false),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          child: NaviPressable(
             onTap: widget.onTap,
             child: SizedBox(
               width: 32,
@@ -286,8 +286,9 @@ class _PlayButtonState extends State<_PlayButton> {
           cursor: SystemMouseCursors.click,
           onEnter: (_) => setState(() => _hover = true),
           onExit: (_) => setState(() => _hover = false),
-          child: GestureDetector(
+          child: NaviPressable(
             onTap: widget.onTap,
+            radius: 17,
             child: AnimatedScale(
               scale: _hover ? 1.06 : 1,
               duration: const Duration(milliseconds: 100),
@@ -352,7 +353,7 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
                       decreasedValue: formatClock(Duration(milliseconds: (total * (f - 0.02).clamp(0.0, 1.0)).round())),
                       onIncrease: () => progress.seekTo(player, Duration(milliseconds: (total * (f + 0.02)).round().clamp(0, total))),
                       onDecrease: () => progress.seekTo(player, Duration(milliseconds: (total * (f - 0.02)).round().clamp(0, total))),
-                      child: MouseRegion(
+                      child: _RingedRegion(
                         cursor: SystemMouseCursors.click,
                         onHover: (e) => setState(() => _hover = at(e.localPosition)),
                         onExit: (_) => setState(() => _hover = null),
@@ -367,7 +368,7 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
                             setState(() => _drag = null);
                           },
                           child: SizedBox(
-                            height: 20,
+                            height: 28,
                             child: Stack(
                               clipBehavior: Clip.none,
                               alignment: Alignment.centerLeft,
@@ -508,7 +509,7 @@ class _DesktopVolumeState extends State<DesktopVolume> {
                   decreasedValue: '${((_v - 0.05).clamp(0.0, 1.0) * 100).round()}%',
                   onIncrease: () => _set(_v + 0.05),
                   onDecrease: () => _set(_v - 0.05),
-                  child: MouseRegion(
+                  child: _RingedRegion(
                     cursor: SystemMouseCursors.click,
                     onEnter: (_) => setState(() => _hover = true),
                     onExit: (_) => setState(() => _hover = false),
@@ -519,7 +520,7 @@ class _DesktopVolumeState extends State<DesktopVolume> {
                       onHorizontalDragUpdate: (d) => _set(at(d.localPosition)),
                       onHorizontalDragEnd: (_) => setState(() => _drag = false),
                       child: SizedBox(
-                        height: 24,
+                        height: 28,
                         child: Stack(
                           clipBehavior: Clip.none,
                           alignment: Alignment.centerLeft,
@@ -550,4 +551,22 @@ class _DesktopVolumeState extends State<DesktopVolume> {
       ),
     );
   }
+}
+
+/// A slider's pointer region that is also a keyboard stop: the focus ring draws
+/// around it, and the arrow keys (the app's seek and volume shortcuts) reach it.
+class _RingedRegion extends StatelessWidget {
+  final MouseCursor cursor;
+  final void Function(PointerHoverEvent)? onHover;
+  final void Function(PointerEnterEvent)? onEnter;
+  final void Function(PointerExitEvent)? onExit;
+  final Widget child;
+  const _RingedRegion({required this.cursor, this.onHover, this.onEnter, this.onExit, required this.child});
+
+  @override
+  Widget build(BuildContext context) => NaviFocusRing(
+        onTap: () {},
+        radius: 4,
+        child: MouseRegion(cursor: cursor, onHover: onHover, onEnter: onEnter, onExit: onExit, child: child),
+      );
 }

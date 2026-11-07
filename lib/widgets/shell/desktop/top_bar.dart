@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:window_manager/window_manager.dart';
 
+import '../../../core/focus/navi_focus.dart';
 import '../../../core/theme.dart';
 import '../../../features/online_fetch/logic/online_fetch_providers.dart';
 import '../../../features/online_fetch/ui/fetch_activity.dart' show showFetchDownloads;
@@ -143,9 +144,9 @@ class _BarButtonState extends State<_BarButton> {
           cursor: on ? SystemMouseCursors.click : SystemMouseCursors.basic,
           onEnter: (_) => setState(() => _hover = true),
           onExit: (_) => setState(() => _hover = false),
-          child: GestureDetector(
-            behavior: HitTestBehavior.opaque,
+          child: NaviPressable(
             onTap: widget.onTap,
+            radius: 16,
             child: Container(
               width: 32,
               height: 32,
@@ -387,7 +388,8 @@ class _Profile extends ConsumerWidget {
       message: name.isEmpty ? 'Profile' : name,
       child: MouseRegion(
         cursor: SystemMouseCursors.click,
-        child: GestureDetector(
+        child: NaviPressable(
+          radius: 15,
           onTap: () => showDesktopMenu<void>(
             context: context,
             builder: (_) => SheetGroup(children: [

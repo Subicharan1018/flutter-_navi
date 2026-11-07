@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../../core/focus/navi_focus.dart';
 import '../../core/theme.dart';
 import '../art/navi_icons.dart';
 
@@ -27,6 +28,7 @@ const List<(String, List<(String, String)>)> kShortcutGroups = [
     ('Alt + ←  /  Alt + →', 'Back, forward'),
     ('Ctrl + 1 … 6', 'Home, Shuffle, Jam, Stats, Library, Search'),
     ('Ctrl + ,', 'Settings'),
+    ('F6  /  Shift + F6', 'Move between the library, the page, Now Playing and the player bar'),
     ('Esc', 'Close a panel, or go back'),
   ]),
   ('In a song list', [
@@ -122,7 +124,7 @@ class KeyboardHelpButton extends StatelessWidget {
         message: 'Keyboard shortcuts (Ctrl+/)',
         child: MouseRegion(
           cursor: SystemMouseCursors.click,
-          child: GestureDetector(
+          child: NaviPressable(
             onTap: () => showShortcutsHelp(context),
             child: SizedBox(
               width: 32,

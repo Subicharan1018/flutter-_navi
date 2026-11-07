@@ -22,6 +22,7 @@ import 'shell/app_tab.dart';
 import 'shell/nav_stack.dart';
 import 'shell/system_back.dart';
 import 'shell/title_bar.dart';
+import 'shell/desktop/focus_regions.dart';
 import 'shell/desktop/now_playing_panel.dart';
 import 'shell/desktop/player_bar.dart';
 import 'shell/shortcuts_help.dart';
@@ -523,10 +524,14 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
             Expanded(
               child: Row(
                 children: [
-                  LibraryRail(
-                    tab: widget.tab,
-                    onSelect: widget.onSelect,
-                    forceCollapsed: size == WindowSize.medium || size == WindowSize.compact,
+                  FocusRegion(
+                    order: 1,
+                    name: 'Library',
+                    child: LibraryRail(
+                      tab: widget.tab,
+                      onSelect: widget.onSelect,
+                      forceCollapsed: size == WindowSize.medium || size == WindowSize.compact,
+                    ),
                   ),
                   // Drag the seam to resize the rail; double-click puts it back.
                   ValueListenableBuilder<bool>(
@@ -547,7 +552,10 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                       panel: overlay,
                       onChange: (p) => setState(() => _overlay = p),
                       onClose: () => setState(() => _overlay = null),
-                      child: FocusTraversalGroup(
+                      child: FocusRegion(
+                        order: 2,
+                        name: 'Page',
+                        child: FocusTraversalGroup(
                         child: Column(
                           children: [
                             if (widget.offline) const _OfflineBanner(),
@@ -564,6 +572,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                             const FetchFinishedBanner(),
                           ],
                         ),
+                        ),
                       ),
                     ),
                   ),
@@ -575,11 +584,15 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                       onEnd: DesktopLayout.savePanel,
                       onReset: DesktopLayout.resetPanel,
                     ),
-                    FocusTraversalGroup(
-                      child: NowPlayingPanel(
-                        panel: panel,
-                        onChange: (p) => setState(() => _panel = p),
-                        onClose: () => setState(() => _panel = null),
+                    FocusRegion(
+                      order: 3,
+                      name: 'Now Playing',
+                      child: FocusTraversalGroup(
+                        child: NowPlayingPanel(
+                          panel: panel,
+                          onChange: (p) => setState(() => _panel = p),
+                          onClose: () => setState(() => _panel = null),
+                        ),
                       ),
                     ),
                   ],
@@ -593,10 +606,14 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
                 child: RemoteMiniPlayer(),
               )
             else if (hasSong)
-              DesktopPlayerBar(
-                panel: panel ?? overlay,
-                onTogglePanel: size.hasSidePanel ? _togglePanel : _toggleOverlay,
-                compact: size == WindowSize.compact,
+              FocusRegion(
+                order: 4,
+                name: 'Player',
+                child: DesktopPlayerBar(
+                  panel: panel ?? overlay,
+                  onTogglePanel: size.hasSidePanel ? _togglePanel : _toggleOverlay,
+                  compact: size == WindowSize.compact,
+                ),
               ),
           ],
         ),

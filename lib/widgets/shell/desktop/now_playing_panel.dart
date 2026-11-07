@@ -203,12 +203,59 @@ class _AboutSong extends ConsumerWidget {
 /// handle on its left, closed by Esc, a click on the backdrop or the panel's
 /// close button. [panel] null means closed. Its width is [DesktopLayout.panelWidth],
 /// shared with the docked panel, and remembered.
-class PanelOverlay extends StatelessWidget {
+class PanelOverlay extends StatefulWidget {
   final Widget child;
   final PanelKind? panel;
   final ValueChanged<PanelKind> onChange;
   final VoidCallback onClose;
   const PanelOverlay({super.key, required this.child, required this.panel, required this.onChange, required this.onClose});
+
+  @override
+  State<PanelOverlay> createState() => _PanelOverlayState();
+}
+
+class _PanelOverlayState extends State<PanelOverlay> {
+  /// What had focus when the panel opened (the bar's Lyrics or Queue button),
+  /// so closing the panel puts the keyboard back where it was.
+  FocusNode? _opener;
+
+  /// The panel's own focus, taken when it opens, so Esc reaches it even though
+  /// the control that opened it still held focus.
+  final _panelFocus = FocusNode(debugLabel: 'now-playing-overlay');
+
+  @override
+  void initState() {
+    super.initState();
+    if (widget.panel != null) _opener = FocusManager.instance.primaryFocus;
+  }
+
+  @override
+  void dispose() {
+    _panelFocus.dispose();
+    super.dispose();
+  }
+
+  @override
+  void didUpdateWidget(PanelOverlay old) {
+    super.didUpdateWidget(old);
+    if (old.panel == null && widget.panel != null) {
+      _opener = FocusManager.instance.primaryFocus;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted && _panelFocus.context != null) _panelFocus.requestFocus();
+      });
+    } else if (old.panel != null && widget.panel == null) {
+      final back = _opener;
+      _opener = null;
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (back != null && back.context != null && back.canRequestFocus) back.requestFocus();
+      });
+    }
+  }
+
+  PanelKind? get panel => widget.panel;
+  Widget get child => widget.child;
+  ValueChanged<PanelKind> get onChange => widget.onChange;
+  VoidCallback get onClose => widget.onClose;
 
   @override
   Widget build(BuildContext context) {
@@ -232,6 +279,7 @@ class PanelOverlay extends StatelessWidget {
             child: CallbackShortcuts(
               bindings: {const SingleActivator(LogicalKeyboardKey.escape): onClose},
               child: Focus(
+                focusNode: _panelFocus,
                 autofocus: true,
                 child: DecoratedBox(
                   decoration: const BoxDecoration(

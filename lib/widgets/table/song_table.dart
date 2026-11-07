@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../core/focus/navi_focus.dart';
 import '../../core/theme.dart';
 import '../../features/online_fetch/ui/fetch_activity.dart' show showAddSongsToPlaylist;
 import '../../models/song.dart';
@@ -125,6 +126,7 @@ class SongTableState extends ConsumerState<SongTableSliver> {
     _live.add(this);
     _idsAtSelection = [for (final s in widget.songs) s.id];
     _find.addListener(() => setState(_clearSelection));
+    _focus.addListener(() => setState(() {})); // the cursor outline follows focus
   }
 
   @override
@@ -587,9 +589,23 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
         ],
       );
       if (s == null) return content;
-      return MouseRegion(
-        cursor: SystemMouseCursors.click,
-        child: GestureDetector(behavior: HitTestBehavior.opaque, onTap: () => onSort(s), child: content),
+      // A real control: focusable (Tab, then Enter or Space sorts), labelled, with the
+      // sort direction named for a screen reader and drawn on the active column.
+      return Semantics(
+        button: true,
+        label: 'Sort by $label',
+        value: on ? (asc ? 'ascending' : 'descending') : null,
+        child: MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: NaviPressable(
+            onTap: () => onSort(s),
+            radius: 4,
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(minHeight: 28, minWidth: 28),
+              child: Center(widthFactor: 1, child: content),
+            ),
+          ),
+        ),
       );
     }
 
@@ -685,6 +701,13 @@ class _RowState extends ConsumerState<_Row> {
   SongTableState get _t => widget.table;
   bool get _selected => _t._selected.contains(widget.index);
 
+  /// The row the keyboard is on: outlined while the table has focus and keys,
+  /// not the mouse, are driving.
+  bool get _cursorRow =>
+      _t._cursor == widget.index &&
+      _t._focus.hasFocus &&
+      FocusManager.instance.highlightMode == FocusHighlightMode.traditional;
+
   @override
   void initState() {
     super.initState();
@@ -737,7 +760,7 @@ class _RowState extends ConsumerState<_Row> {
                   onTap: () => _t.widget.onPlay(song, rows),
                   child: Tooltip(
                     message: 'Play',
-                    child: SizedBox(width: 28, height: 28, child: Center(child: NaviIcon(NaviGlyph.play, size: 16, color: t.textPrimary, filled: true))),
+                    child: SizedBox(width: 32, height: 32, child: Center(child: NaviIcon(NaviGlyph.play, size: 16, color: t.textPrimary, filled: true))),
                   ),
                 ),
               )
@@ -776,7 +799,7 @@ class _RowState extends ConsumerState<_Row> {
                     fontWeight: isCurrent ? FontWeight.w700 : FontWeight.w500,
                   ),
                 ),
-                Text(artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
+                Text(artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
               ],
             ),
           ),
@@ -787,10 +810,15 @@ class _RowState extends ConsumerState<_Row> {
     Widget body = Container(
       height: SongTableSliver.rowHeight,
       padding: const EdgeInsets.symmetric(horizontal: Space.lg),
+      // Three states that cannot be mistaken for each other: hover is a 9% wash,
+      // selected a stronger 16% fill, the keyboard cursor a 2 px outline inside the row.
+      foregroundDecoration: _cursorRow
+          ? BoxDecoration(borderRadius: BorderRadius.circular(6), border: Border.all(color: t.accent, width: 2))
+          : null,
       decoration: BoxDecoration(
         color: selected
-            ? Colors.white.withValues(alpha: 0.12)
-            : (_hover ? Colors.white.withValues(alpha: 0.06) : Colors.transparent),
+            ? Colors.white.withValues(alpha: 0.16)
+            : (_hover ? Colors.white.withValues(alpha: 0.09) : Colors.transparent),
         borderRadius: BorderRadius.circular(6),
         border: _dropBelow == null
             ? null
