@@ -294,13 +294,14 @@ class OnlineSearchBody extends ConsumerWidget {
       return MessageState.error(title: 'Search didn’t work', message: s.error!, onRetry: () => onSearch(s.query));
     }
     if (s.isLoading || search == null) {
-      return LoadingState(
-        label: switch (s.artist) {
-          null => 'Searching online…',
-          final a when a.type == FetchSearchType.label => 'Getting ${a.title}’s tracks…',
-          final a => 'Getting ${a.title}’s songs…',
-        },
-      );
+      final what = switch (s.artist) {
+        null => 'Searching online…',
+        final a when a.type == FetchSearchType.label => 'Getting ${a.title}’s tracks…',
+        final a => 'Getting ${a.title}’s songs…',
+      };
+      // A slow bot or server is "still looking", in the server's words when it has them.
+      final why = s.stillLooking;
+      return LoadingState(label: why == null ? what : '$what\n$why');
     }
     switch (search.status) {
       case FetchSearchStatus.inLibrary:

@@ -8,10 +8,29 @@ import 'server_capabilities.dart';
 class OnlineFetchException implements Exception {
   final String message;
   final int? statusCode;
-  const OnlineFetchException(this.message, {this.statusCode});
+
+  /// The server is up but slow or busy (502/503/504, or the proxy's
+  /// `busy` flag). Not a verdict on the request: keep waiting and asking.
+  final bool busy;
+  const OnlineFetchException(this.message, {this.statusCode, this.busy = false});
+
+  /// Nothing was decided: no connection, or a slow server. Polls carry on.
+  bool get isTransient => statusCode == null || busy;
 
   @override
   String toString() => message;
+}
+
+/// "Search online" waits for a Telegram bot that can take a minute to answer
+/// (the server queues and retries on its own), so its requests get more
+/// patience than the shuffle API's 20 s receive timeout: a slow answer is
+/// "still looking", never an error.
+Dio configureFetchTimeouts(Dio dio) {
+  dio.options
+    ..connectTimeout = const Duration(seconds: 15)
+    ..receiveTimeout = const Duration(seconds: 40)
+    ..sendTimeout = const Duration(seconds: 20);
+  return dio;
 }
 
 /// Client for the shuffle server's /fetch routes. Build it with
@@ -138,14 +157,17 @@ class OnlineFetchApi {
       final code = e.response?.statusCode;
       final body = e.response?.data;
       final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
+      final busy = code == 502 || code == 504 || (body is Map && body['busy'] == true);
       throw OnlineFetchException(
         switch (code) {
           null => 'Can’t reach the server. Check your connection.',
           401 => 'Sign in again to search online.',
           429 => serverMessage ?? 'Too many requests. Try again in a minute.',
+          _ when busy => 'The server is busy — still working on it.',
           _ => serverMessage ?? 'Online search isn’t available right now.',
         },
         statusCode: code,
+        busy: busy,
       );
     }
   }

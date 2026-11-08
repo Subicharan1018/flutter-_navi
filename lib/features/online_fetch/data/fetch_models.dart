@@ -173,6 +173,10 @@ class FetchSearch {
   final bool aiPending;
   final String? error;
 
+  /// What the server is doing while it looks ("Still looking — the music bot
+  /// is slow…"); shown under the spinner, never as an error.
+  final String? note;
+
   /// Owned songs matching the query (set when [status] is inLibrary).
   final List<LibraryMatch> libraryMatches;
   final List<FetchCandidate> candidates;
@@ -185,6 +189,7 @@ class FetchSearch {
     this.didYouMean,
     this.aiPending = false,
     this.error,
+    this.note,
     this.libraryMatches = const [],
     this.candidates = const [],
   });
@@ -217,6 +222,7 @@ class FetchSearch {
       didYouMean: j['did_you_mean'] as String?,
       aiPending: j['llm_state'] == 'pending',
       error: j['error'] as String?,
+      note: j['note'] as String?,
       libraryMatches: matches,
       candidates: [
         for (final c in (j['candidates'] as List? ?? const [])) FetchCandidate.fromJson(c as Map<String, dynamic>),

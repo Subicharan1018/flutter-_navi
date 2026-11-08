@@ -14,10 +14,10 @@ import '../data/server_capabilities.dart';
 import 'fetch_playlists.dart';
 
 final onlineFetchApiProvider = Provider<OnlineFetchApi>((ref) {
-  return OnlineFetchApi(createShuffleDio(() {
+  return OnlineFetchApi(configureFetchTimeouts(createShuffleDio(() {
     final s = ref.read(settingsProvider);
     return (s.username, s.password);
-  }, logTag: 'OnlineFetch'));
+  }, logTag: 'OnlineFetch')));
 });
 
 /// Whether this build contains the online-download features at all. False in
@@ -59,6 +59,10 @@ class OnlineSearchState {
   /// [query] is a pasted playlist link; the results are its songs.
   final bool isLink;
 
+  /// The server is slow to answer (or the phone briefly offline): shown as
+  /// "still looking", the search carries on. Cleared by the next answer.
+  final String? waitNote;
+
   const OnlineSearchState({
     this.query = '',
     this.type = FetchSearchType.song,
@@ -67,9 +71,24 @@ class OnlineSearchState {
     this.artist,
     this.parent,
     this.isLink = false,
+    this.waitNote,
   });
 
   bool get isLoading => error == null && (search == null || search!.isSearching);
+
+  /// What the loading state says under the spinner: the server's own account
+  /// of why it is taking long, else the app's, else nothing.
+  String? get stillLooking => search?.note ?? waitNote;
+
+  OnlineSearchState withWait(String note) => OnlineSearchState(
+        query: query,
+        type: type,
+        search: search,
+        artist: artist,
+        parent: parent,
+        isLink: isLink,
+        waitNote: note,
+      );
 
   /// The results are songs (a song search, or an artist's top songs), so
   /// several can be picked at once. A link's songs go all together.
@@ -92,7 +111,13 @@ class OnlineSearchState {
 class OnlineSearchController extends Notifier<OnlineSearchState> {
   @visibleForTesting
   static Duration pollEvery = const Duration(milliseconds: 1500);
-  static const maxWait = Duration(seconds: 120);
+
+  /// The server retries a slow bot on its own for several minutes (and says so
+  /// in the search's `note`), so the app keeps asking for as long.
+  static const maxWait = Duration(minutes: 8);
+
+  /// Polls that may fail in a row (slow server, no signal) before the user is told.
+  static const maxHardErrors = 4;
 
   int _generation = 0;
 
@@ -146,10 +171,37 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
     try {
       final id = await create();
       final deadline = DateTime.now().add(maxWait);
+      FetchSearch? last;
+      var hardErrors = 0;
       while (true) {
         await Future<void>.delayed(pollEvery);
         if (!ref.mounted || gen != _generation) return;
-        final s = await api.search(id);
+        FetchSearch s;
+        try {
+          s = await api.search(id);
+        } on OnlineFetchException catch (e) {
+          if (!ref.mounted || gen != _generation) return;
+          // A slow or unreachable server is not a failed search: the server
+          // keeps looking. Say so and ask again; only repeated hard errors
+          // (not busy, not offline) or the deadline end it.
+          final isFinal = e.statusCode == 401 || e.statusCode == 403 || e.statusCode == 404;
+          if (!e.isTransient && (isFinal || ++hardErrors >= maxHardErrors)) rethrow;
+          if (DateTime.now().isAfter(deadline)) {
+            state = base.withResult(error: 'No answer from the server yet. Try again in a few minutes.');
+            return;
+          }
+          state = OnlineSearchState(
+            query: base.query,
+            type: base.type,
+            search: last,
+            artist: base.artist,
+            parent: base.parent,
+            isLink: base.isLink,
+          ).withWait(e.isTransient ? 'Still looking — the server is slow right now…' : 'Still looking…');
+          continue;
+        }
+        hardErrors = 0;
+        last = s;
         if (!ref.mounted || gen != _generation) return;
         state = base.withResult(search: s);
         if (s.isSettled) return;
@@ -487,9 +539,9 @@ class FetchJobsController extends Notifier<FetchDownloads> {
         errors = 0;
         offline = 0;
       } on OnlineFetchException catch (e) {
-        if (e.statusCode == null) {
+        if (e.isTransient) {
           // The download carries on on the server; never fail it for being
-          // offline, and don't count the time towards a stall.
+          // offline or for a slow/busy server, and don't count the time towards a stall.
           offline++;
           lastChange = DateTime.now();
           continue;
