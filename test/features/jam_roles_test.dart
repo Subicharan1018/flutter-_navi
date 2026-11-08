@@ -23,7 +23,7 @@ JamState room({
       'admin': 'maya',
       'you_are_host': admin,
       'you_are_admin': admin,
-      if (canEdit != null) 'you_can_edit': canEdit,
+      'you_can_edit': ?canEdit,
       'members': [
         {'username': 'maya', 'is_host': true, 'role': 'admin'},
         {'username': 'Arjun', 'is_host': false, 'role': 'member'},
