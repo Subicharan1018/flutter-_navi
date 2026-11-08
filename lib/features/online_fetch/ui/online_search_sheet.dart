@@ -18,20 +18,31 @@ import '../data/fetch_models.dart';
 import '../data/online_fetch_api.dart';
 import '../logic/online_fetch_providers.dart';
 import 'fetch_activity.dart';
+import '../../../utils/platform_utils.dart';
+import '../../../widgets/shell/nav_stack.dart';
 import 'fetch_queue_sheet.dart';
+import 'online_search_page.dart';
 import 'send_playlist_sheet.dart';
 import 'widgets/fetch_candidate_row.dart';
+import 'widgets/fetch_results_table.dart';
 
 /// "Search online": find songs, albums, artists or playlists that aren't in
 /// the library, confirm it's the right one, and add it (lossless only).
 /// Songs already owned are never fetched — the server says so and offers
 /// them instead. Several songs can be picked and downloaded together;
 /// downloads carry on (and are followed app-wide) after the sheet closes.
-Future<void> showOnlineSearch(BuildContext context, String query) => showPlatformSheet<void>(
-      context: context,
-      maxHeight: 720,
-      builder: (_) => OnlineSearchSheet(query: query),
-    );
+Future<void> showOnlineSearch(BuildContext context, String query) async {
+  // Windows: a page in the window with a results table, not a phone sheet.
+  if (PlatformUtils.isDesktop) {
+    navigateInApp(context, OnlineSearchPage(query: query), title: 'Search online');
+    return;
+  }
+  return showPlatformSheet<void>(
+    context: context,
+    maxHeight: 720,
+    builder: (_) => OnlineSearchSheet(query: query),
+  );
+}
 
 class OnlineSearchSheet extends ConsumerStatefulWidget {
   final String query;
@@ -73,7 +84,7 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
     try {
       final song = await load();
       if (!mounted) return;
-      Navigator.of(context).pop();
+      if (!PlatformUtils.isDesktop) Navigator.of(context).pop(); // a sheet closes; a page stays
       await ref.read(playerProvider.notifier).setQueue([song], 0, playlistName: 'Search');
     } on Exception catch (e) {
       if (mounted) {
@@ -144,9 +155,9 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
             ),
           ),
         ] else
-          _ArtistHeader(state: s),
-        const _ActiveDownloads(),
-        _Body(state: s, onSearch: _search, onPlay: _play),
+          OnlineArtistHeader(state: s),
+        const ActiveFetchDownloads(),
+        OnlineSearchBody(state: s, onSearch: _search, onPlay: _play),
         const SizedBox(height: Space.lg),
       ],
     );
@@ -155,9 +166,9 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
 
 /// "‹ Artists" back to the artist results, the artist's name, and a button
 /// for all of their top songs at once.
-class _ArtistHeader extends ConsumerWidget {
+class OnlineArtistHeader extends ConsumerWidget {
   final OnlineSearchState state;
-  const _ArtistHeader({required this.state});
+  const OnlineArtistHeader({super.key, required this.state});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -166,8 +177,9 @@ class _ArtistHeader extends ConsumerWidget {
     final batch = ref.watch(fetchJobsProvider.select((d) => d.batchFor(artist.id)));
     final songs = state.search?.candidates ?? const <FetchCandidate>[];
     final busy = batch != null && batch.status != FetchBatchStatus.failed;
+    final desk = PlatformUtils.isDesktop;
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.sm, Space.sm, Space.gutter, Space.sm),
+      padding: desk ? const EdgeInsets.only(bottom: Space.sm) : const EdgeInsets.fromLTRB(Space.sm, Space.sm, Space.gutter, Space.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
@@ -195,22 +207,26 @@ class _ArtistHeader extends ConsumerWidget {
             const SizedBox(height: Space.md),
             Padding(
               padding: const EdgeInsets.only(left: Space.sm),
-              child: TintedButton(
-                glyph: busy ? null : NaviGlyph.download,
-                label: busy ? fetchBatchStatus(batch) : 'Download All ${songs.length} Songs',
-                filled: !busy,
-                onTap: busy
-                    ? null
-                    : () async {
-                        final ok = await confirmFetchDownload(
-                          context,
-                          title: artist.type == FetchSearchType.label
-                              ? 'Download ${artist.title}?'
-                              : 'Download ${artist.title}’s top songs?',
-                          count: songs.length,
-                        );
-                        if (ok) ref.read(fetchJobsProvider.notifier).downloadAll([artist]);
-                      },
+              child: _left(
+                desk,
+                TintedButton(
+                  glyph: busy ? null : NaviGlyph.download,
+                  label: busy ? fetchBatchStatus(batch) : 'Download All ${songs.length} Songs',
+                  filled: !busy,
+                  height: desk ? 36 : 44,
+                  onTap: busy
+                      ? null
+                      : () async {
+                          final ok = await confirmFetchDownload(
+                            context,
+                            title: artist.type == FetchSearchType.label
+                                ? 'Download ${artist.title}?'
+                                : 'Download ${artist.title}’s top songs?',
+                            count: songs.length,
+                          );
+                          if (ok) ref.read(fetchJobsProvider.notifier).downloadAll([artist]);
+                        },
+                ),
               ),
             ),
           ],
@@ -219,6 +235,9 @@ class _ArtistHeader extends ConsumerWidget {
     );
   }
 }
+
+/// Windows: a button at its own width, at the left; a phone keeps it full width.
+Widget _left(bool desk, Widget button) => desk ? Align(alignment: Alignment.centerLeft, child: button) : button;
 
 /// "Download Maari 2? Adds 12 songs in lossless quality…" — asked before a
 /// whole album, playlist, artist's top songs or a big selection starts, so
@@ -258,12 +277,12 @@ Future<bool> confirmFetchDownload(BuildContext context, {required String title, 
   return ok == true;
 }
 
-class _Body extends ConsumerWidget {
+class OnlineSearchBody extends ConsumerWidget {
   final OnlineSearchState state;
   final ValueChanged<String> onSearch;
   final Future<void> Function(Future<Song> Function() load) onPlay;
 
-  const _Body({required this.state, required this.onSearch, required this.onPlay});
+  const OnlineSearchBody({super.key, required this.state, required this.onSearch, required this.onPlay});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -370,6 +389,32 @@ class _ResultsState extends ConsumerState<_Results> {
     await ref.read(fetchJobsProvider.notifier).downloadAll([c]);
   }
 
+  /// What a click (or Enter) on a result does.
+  void _primary(FetchCandidate c) {
+    if (_picked != null) {
+      _toggle(c);
+    } else if (c.isSong) {
+      ref.read(fetchJobsProvider.notifier).download(c.id, coverUrl: c.coverUrl);
+    } else if (c.type.opensSongs) {
+      ref.read(onlineSearchProvider.notifier).openCollection(c);
+    } else {
+      _downloadCollection(c);
+    }
+  }
+
+  Future<void> _playOwned(FetchCandidate c) => widget.onPlay(() async {
+        // The exact title + artist is owned; find it through the library search.
+        // Navidrome's search matches any word ("naan naan" also finds
+        // "Naan Nee"), so only a song with this very title may play.
+        final songs = (await ref.read(subsonicServiceProvider).search(c.title)).songs;
+        final sameTitle = songs.where((s) => s.title.trim().toLowerCase() == c.title.trim().toLowerCase());
+        final match = sameTitle.where((s) => s.artist == c.artist).firstOrNull ?? sameTitle.firstOrNull;
+        if (match == null) throw const OnlineFetchException('Couldn’t find it in your library.');
+        return match;
+      });
+
+  Widget _pair(bool desk, Widget button) => desk ? button : Expanded(child: button);
+
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
@@ -396,18 +441,23 @@ class _ResultsState extends ConsumerState<_Results> {
       FetchSearchType.playlist => 'Playlists',
     };
 
+    // Windows: the page already has its margins; and the results are a table.
+    final desk = PlatformUtils.isDesktop;
+    final g = desk ? 0.0 : Space.gutter;
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         if (dym != null && dym.toLowerCase() != search.query.toLowerCase())
           Padding(
-            padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.sm),
+            padding: EdgeInsets.fromLTRB(g, 0, g, Space.sm),
             child: Semantics(
               button: true,
               label: 'Did you mean $dym? Search for it',
               excludeSemantics: true,
               child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
                 onTap: () => widget.onSearch(dym),
                 child: Text.rich(
                   TextSpan(style: t.subheadline, children: [
@@ -420,7 +470,7 @@ class _ResultsState extends ConsumerState<_Results> {
             ),
           ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.sm, Space.xs),
+          padding: EdgeInsets.fromLTRB(g, Space.sm, desk ? 0 : Space.sm, Space.xs),
           child: Row(
             children: [
               Expanded(
@@ -437,7 +487,13 @@ class _ResultsState extends ConsumerState<_Results> {
                 const SizedBox(width: Space.xs),
                 Text('Checking', style: t.footnote),
               ],
-              if (songs && pickable.length > 1)
+              if (songs && pickable.length > 1 && desk)
+                TintedButton(
+                  label: picked == null ? 'Select songs' : 'Cancel',
+                  height: 36,
+                  onTap: () => setState(() => _picked = picked == null ? <int>{} : null),
+                )
+              else if (songs && pickable.length > 1)
                 CupertinoButton(
                   padding: const EdgeInsets.symmetric(horizontal: Space.sm),
                   minimumSize: const Size(44, 44),
@@ -449,53 +505,48 @@ class _ResultsState extends ConsumerState<_Results> {
         ),
         if (picked != null)
           Padding(
-            padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.sm),
+            padding: EdgeInsets.fromLTRB(g, Space.xs, g, Space.sm),
             child: Row(
+              mainAxisAlignment: desk ? MainAxisAlignment.start : MainAxisAlignment.center,
               children: [
-                Expanded(
-                  child: TintedButton(
+                // Windows: inline buttons at their own width; a phone fills the row.
+                _pair(
+                  desk,
+                  TintedButton(
                     label: picked.length == pickable.length ? 'Select None' : 'Select All',
+                    height: desk ? 36 : 44,
                     onTap: () => setState(() => _picked = picked.length == pickable.length ? <int>{} : {...pickable}),
                   ),
                 ),
                 const SizedBox(width: Space.md),
-                Expanded(
-                  child: TintedButton(
+                _pair(
+                  desk,
+                  TintedButton(
                     glyph: NaviGlyph.download,
                     label: picked.isEmpty ? 'Download' : 'Download ${picked.length == 1 ? '1 Song' : '${picked.length} Songs'}',
                     filled: true,
+                    height: desk ? 36 : 44,
                     onTap: picked.isEmpty ? null : _downloadPicked,
                   ),
                 ),
               ],
             ),
           ),
+        if (desk)
+          FetchResultsTable(
+            candidates: search.candidates,
+            picked: picked,
+            onPrimary: _primary,
+            onPlayOwned: _playOwned,
+          )
+        else
         for (final (i, c) in search.candidates.indexed)
           FetchCandidateRow(
             candidate: c,
             showSeparator: i < search.candidates.length - 1,
             selected: picked == null || !c.isSong ? null : picked.contains(c.id),
-            onDownload: () {
-              if (picked != null) {
-                _toggle(c);
-              } else if (c.isSong) {
-                ref.read(fetchJobsProvider.notifier).download(c.id, coverUrl: c.coverUrl);
-              } else if (c.type.opensSongs) {
-                ref.read(onlineSearchProvider.notifier).openCollection(c);
-              } else {
-                _downloadCollection(c);
-              }
-            },
-            onPlayOwned: () => widget.onPlay(() async {
-              // The exact title + artist is owned; find it through the library search.
-              // Navidrome's search matches any word ("naan naan" also finds
-              // "Naan Nee"), so only a song with this very title may play.
-              final songs = (await ref.read(subsonicServiceProvider).search(c.title)).songs;
-              final sameTitle = songs.where((s) => s.title.trim().toLowerCase() == c.title.trim().toLowerCase());
-              final match = sameTitle.where((s) => s.artist == c.artist).firstOrNull ?? sameTitle.firstOrNull;
-              if (match == null) throw const OnlineFetchException('Couldn’t find it in your library.');
-              return match;
-            }),
+            onDownload: () => _primary(c),
+            onPlayOwned: () => _playOwned(c),
           ),
         _DoneActions(listed: [for (final c in search.candidates) c.id]),
       ],
@@ -533,29 +584,31 @@ class _DoneActionsState extends ConsumerState<_DoneActions> with FetchSongAction
     }));
     if (ids == null) return const SizedBox.shrink();
     final (songIds, name) = ids;
+    // Windows: inline buttons at their own width, and Play leaves the page where it is.
+    final desk = PlatformUtils.isDesktop;
+    final g = desk ? 0.0 : Space.gutter;
+    Widget fit(Widget b) => desk ? b : Expanded(child: b);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.lg, Space.gutter, 0),
+      padding: EdgeInsets.fromLTRB(g, Space.lg, g, 0),
       child: Row(
         children: [
-          Expanded(
-            child: TintedButton(
-              glyph: NaviGlyph.play,
-              label: 'Play',
-              filled: true,
-              onTap: () async {
-                await playSongs(songIds, name: name);
-                if (context.mounted) Navigator.of(context).pop();
-              },
-            ),
-          ),
+          fit(TintedButton(
+            glyph: NaviGlyph.play,
+            label: 'Play',
+            filled: true,
+            height: desk ? 36 : 44,
+            onTap: () async {
+              await playSongs(songIds, name: name);
+              if (!desk && context.mounted) Navigator.of(context).pop();
+            },
+          )),
           const SizedBox(width: Space.md),
-          Expanded(
-            child: TintedButton(
-              glyph: NaviGlyph.addToPlaylist,
-              label: 'Add to Playlist',
-              onTap: () => addSongsToPlaylist(songIds),
-            ),
-          ),
+          fit(TintedButton(
+            glyph: NaviGlyph.addToPlaylist,
+            label: 'Add to Playlist',
+            height: desk ? 36 : 44,
+            onTap: () => addSongsToPlaylist(songIds),
+          )),
         ],
       ),
     );
@@ -569,8 +622,8 @@ class _DoneActionsState extends ConsumerState<_DoneActions> with FetchSongAction
 /// Downloads started earlier (this sheet or a previous one) that aren't among
 /// the results on screen, so closing and reopening the sheet never hides one.
 /// A download whose result is listed below shows its progress there instead.
-class _ActiveDownloads extends ConsumerWidget {
-  const _ActiveDownloads();
+class ActiveFetchDownloads extends ConsumerWidget {
+  const ActiveFetchDownloads({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {

@@ -3,7 +3,11 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
+
+import '../art/navi_icons.dart';
 import '../shell/dock_glass.dart';
+import 'navi_icon_button.dart';
 import 'dock_ground.dart';
 
 /// The frame of every top-level page: Apple's large title that collapses into
@@ -60,7 +64,18 @@ class LargeTitlePage extends StatelessWidget {
     // A desktop window already has its own title bar: the page title is plain
     // large type in the content, not a second bar.
     final desktop = ShellKind.ofContext(context) == ShellKind.sidebar;
-    return DockGroundScope(
+    // Windows has no pull-to-refresh: a Refresh button beside the page's tools, and F5.
+    final refresh = onRefresh;
+    final deskTrailing = desktop && refresh != null
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              NaviIconButton(glyph: NaviGlyph.repeat, tooltip: 'Refresh (F5)', box: 40, onTap: () => refresh()),
+              if (trailing != null) ...[const SizedBox(width: Space.sm), trailing!],
+            ],
+          )
+        : trailing;
+    Widget page = DockGroundScope(
       color: null,
       child: Scaffold(
         // Desktop: the window's one ground shows through.
@@ -72,7 +87,7 @@ class LargeTitlePage extends StatelessWidget {
             if (desktop)
               SliverToBoxAdapter(
                 child: showTitleOnDesktop
-                    ? _DesktopTitle(title: title, trailing: trailing)
+                    ? _DesktopTitle(title: title, trailing: deskTrailing)
                     : const SizedBox(height: Space.lg),
               )
             else
@@ -101,7 +116,7 @@ class LargeTitlePage extends StatelessWidget {
                   padding: headerPadding,
                 ),
               ),
-            if (onRefresh != null)
+            if (onRefresh != null && !desktop)
               CupertinoSliverRefreshControl(onRefresh: onRefresh),
             ...slivers,
             SliverToBoxAdapter(
@@ -113,6 +128,13 @@ class LargeTitlePage extends StatelessWidget {
         ),
       ),
     );
+    if (desktop && refresh != null) {
+      page = CallbackShortcuts(
+        bindings: {const SingleActivator(LogicalKeyboardKey.f5): () => refresh()},
+        child: Focus(autofocus: false, child: page),
+      );
+    }
+    return page;
   }
 }
 

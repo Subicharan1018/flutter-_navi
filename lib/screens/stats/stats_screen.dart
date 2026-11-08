@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../features/ai_shuffle/data/models/contribution_graph_response.dart';
 import '../../features/ai_shuffle/data/models/listening_stats_response.dart';
 import '../../features/ai_shuffle/logic/shuffle_providers.dart';
+import '../../utils/platform_utils.dart';
 import '../../widgets/ui/controls.dart';
 import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/motion/reveal.dart';
@@ -71,17 +72,26 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
     final model = ref.watch(modelStatusProvider).asData?.value;
     final days = ref.watch(contributionGraphProvider).asData?.value.days ?? const <ContributionDay>[];
 
+    final desk = PlatformUtils.isDesktop;
+    final g = desk ? pageGutter(context) : Space.gutter; // one page margin on Windows
     return LargeTitlePage(
       title: 'Stats',
       onRefresh: () async => _refresh(),
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.xxl),
+          padding: EdgeInsets.fromLTRB(g, Space.sm, g, Space.xxl),
           sliver: SliverToBoxAdapter(
-            child: NaviSegmented<StatsPeriod>(
-              segments: {for (final p in StatsPeriod.values) p: p.label},
-              value: _period,
-              onChanged: (p) => setState(() => _period = p),
+            // Windows: the period switch is a control at the left, not a page-wide bar.
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: desk ? 420 : double.infinity),
+                child: NaviSegmented<StatsPeriod>(
+                  segments: {for (final p in StatsPeriod.values) p: p.label},
+                  value: _period,
+                  onChanged: (p) => setState(() => _period = p),
+                ),
+              ),
             ),
           ),
         ),
@@ -115,7 +125,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ];
             return [
               SliverPadding(
-                padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, 0),
+                padding: EdgeInsets.fromLTRB(g, Space.sm, g, 0),
                 sliver: SliverToBoxAdapter(
                   child: SummaryHero(
                     stats: s,
@@ -125,7 +135,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 ),
               ),
               SliverPadding(
-                padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+                padding: EdgeInsets.symmetric(horizontal: g),
                 sliver: SliverLayoutBuilder(builder: (context, c) {
                   if (c.crossAxisExtent < 900) return SliverList.list(children: sections);
                   // Two columns once there's room, like Health on iPad.

@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/controls.dart';
 import '../../../widgets/ui/large_title_page.dart';
@@ -57,11 +58,13 @@ class TrendingScreen extends ConsumerWidget {
                 message: '$e',
                 onRetry: () => ref.invalidate(trendingChartsProvider),
               ),
-              data: (_) => const MessageState(
+              data: (_) => MessageState(
                 icon: NaviGlyph.trending,
                 art: EmptyArtKind.signal,
                 title: 'No charts yet',
-                message: 'The server collects today’s charts after 4 AM. Pull down to check again.',
+                message: PlatformUtils.isDesktop
+                  ? 'The server collects today’s charts after 4 AM. Press F5 to check again.'
+                  : 'The server collects today’s charts after 4 AM. Pull down to check again.',
               ),
             ),
           ),
@@ -101,8 +104,12 @@ class _ChartHeader extends ConsumerWidget {
       '$playable of ${chart.entries.length} in your library',
     ];
     final columns = chart.kind == ChartKind.billboard && MediaQuery.sizeOf(context).width >= ChartRow.columnsFrom;
+    final desk = PlatformUtils.isDesktop;
+    final g = desk ? pageGutter(context) : Space.gutter;
+    // Windows: the buttons sit at the left under the text, not centred in the page.
+    Widget lead(Widget w) => desk ? Align(alignment: Alignment.centerLeft, child: w) : Center(child: w);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, Space.sm),
+      padding: EdgeInsets.fromLTRB(g, Space.md, g, Space.sm),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
@@ -121,15 +128,13 @@ class _ChartHeader extends ConsumerWidget {
             Text(chart.note!, style: t.footnote.copyWith(color: t.textMuted)),
           ],
           const SizedBox(height: Space.lg),
-          Center(
-            child: PlayShuffleButtons(
-              onPlay: playable == 0 ? null : () => playChart(context, ref, chart),
-              onShuffle: playable == 0 ? null : () => playChart(context, ref, chart, shuffle: true),
-            ),
-          ),
+          lead(PlayShuffleButtons(
+            onPlay: playable == 0 ? null : () => playChart(context, ref, chart),
+            onShuffle: playable == 0 ? null : () => playChart(context, ref, chart, shuffle: true),
+          )),
           if (chart.playlistLink != null && (ref.watch(onlineFetchEnabledProvider).asData?.value ?? false)) ...[
             const SizedBox(height: Space.md),
-            Center(child: QueuePlaylistButton(link: chart.playlistLink!)),
+            lead(QueuePlaylistButton(link: chart.playlistLink!)),
           ],
           if (columns) ...[
             const SizedBox(height: Space.md),

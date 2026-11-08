@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme.dart';
 import '../../../../providers/settings_provider.dart';
+import '../../../../utils/platform_utils.dart';
 import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/cover_art.dart';
 import '../../data/trending_models.dart';
@@ -48,6 +49,10 @@ class ChartRow extends ConsumerWidget {
     final wide = detailed && entry.billboard != null && MediaQuery.sizeOf(context).width >= columnsFrom;
     final stats = detailed ? chartStatsLine(entry, withBillboardColumns: wide) : null;
     final badges = detailed ? ChartBadges.labels(entry) : const <String>[];
+    // One page margin and the one list-art size (the phone keeps its 16 / 46).
+    final desk = PlatformUtils.isDesktop;
+    final gutter = desk ? pageGutter(context) : Space.gutter;
+    final artSize = desk ? ArtSize.of(context).thumb : art;
     final text = Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -92,14 +97,14 @@ class ChartRow extends ConsumerWidget {
         constraints: BoxConstraints(minHeight: height, maxHeight: detailed ? double.infinity : height),
         child: Row(
           children: [
-            const SizedBox(width: Space.gutter),
+            SizedBox(width: gutter),
             SizedBox(width: rankWidth, child: _Rank(entry: entry)),
-            Opacity(opacity: dim ? 0.45 : 1, child: CoverArt(url: artUrl, size: art, radius: Radii.thumb)),
+            Opacity(opacity: dim ? 0.45 : 1, child: CoverArt(url: artUrl, size: artSize, radius: Radii.thumb)),
             const SizedBox(width: Space.md),
             Expanded(
               child: Container(
                 constraints: const BoxConstraints(minHeight: height),
-                padding: EdgeInsets.only(right: Space.gutter, top: detailed ? Space.sm : 0, bottom: detailed ? Space.sm : 0),
+                padding: EdgeInsets.only(right: gutter, top: detailed ? Space.sm : 0, bottom: detailed ? Space.sm : 0),
                 decoration: BoxDecoration(
                   border: showSeparator && !expanded ? Border(bottom: BorderSide(color: t.outline, width: 0.5)) : null,
                 ),
