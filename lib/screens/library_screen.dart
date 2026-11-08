@@ -70,20 +70,22 @@ class LibraryScreen extends ConsumerWidget {
         ref.invalidate(playlistsProvider);
       },
       slivers: [
-        if (pins.isNotEmpty) PinsGrid(pins: pins),
-        SliverPadding(
-          padding: EdgeInsets.only(top: pins.isEmpty ? 0 : Space.lg),
-          sliver: SliverList.list(children: [
-            for (final (i, (icon, title, page)) in destinations.indexed)
-              CollectionRow.destination(
-                context: context,
-                icon: icon,
-                title: title,
-                showSeparator: i < destinations.length - 1,
-                onTap: () => navigateInApp(context, page),
-              ),
-          ]),
-        ),
+        // The sections come first and stay where they are; pins (which come and
+        // go) sit below them, so the destinations never jump as pins are added.
+        SliverList.list(children: [
+          for (final (i, (icon, title, page)) in destinations.indexed)
+            CollectionRow.destination(
+              context: context,
+              icon: icon,
+              title: title,
+              showSeparator: i < destinations.length - 1,
+              onTap: () => navigateInApp(context, page),
+            ),
+        ]),
+        if (pins.isNotEmpty) ...[
+          const SliverToBoxAdapter(child: SectionHeader(title: 'Pinned')),
+          PinsGrid(pins: pins),
+        ],
         if (pins.isEmpty)
           SliverToBoxAdapter(
             child: Builder(builder: (context) {
@@ -185,54 +187,40 @@ class PinsGrid extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final svc = ref.read(subsonicServiceProvider);
-    return SliverPadding(
-      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, 0),
-      sliver: SliverLayoutBuilder(builder: (context, c) {
-        final columns = gridColumns(c.crossAxisExtent, ArtSize.of(context).tile * 0.8, min: 3);
-        final tile = (c.crossAxisExtent - Space.md * (columns - 1)) / columns;
-        return SliverGrid(
-          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: columns,
-            crossAxisSpacing: Space.md,
-            mainAxisSpacing: Space.lg,
-            mainAxisExtent: tile + 38,
-          ),
-          delegate: SliverChildBuilderDelegate(
-            (context, i) {
-              final p = pins[i];
-              final artist = p.kind == PinKind.artist;
-              final url = p.coverArt.isEmpty ? null : svc.getCoverArtUrl(p.coverArt);
-              return MediaCard(
-                title: p.title,
-                subtitle: p.subtitle,
-                art: CoverArt(
-                  url: url,
-                  size: tile,
-                  radius: Radii.cover,
-                  circular: artist,
-                  placeholderIcon: switch (p.kind) {
-                    PinKind.album => NaviGlyph.library,
-                    PinKind.playlist => NaviGlyph.playlist,
-                    PinKind.artist => NaviGlyph.person,
-                  },
-                ),
-                size: tile,
-                circular: artist,
-                onTap: () => _open(context, ref, p),
-                onLongPress: () => showCollectionActions(
-                  context,
-                  title: p.title,
-                  subtitle: p.subtitle,
-                  artUrl: url,
-                  loadSongs: () => _songs(ref, p),
-                  pin: p,
-                ),
-              );
+    // The same grid, and so the same tile size, as Recently Added below it.
+    return MediaGrid(
+      itemCount: pins.length,
+      itemBuilder: (context, i, tile) {
+        final p = pins[i];
+        final artist = p.kind == PinKind.artist;
+        final url = p.coverArt.isEmpty ? null : svc.getCoverArtUrl(p.coverArt);
+        return MediaCard(
+          title: p.title,
+          subtitle: p.subtitle,
+          art: CoverArt(
+            url: url,
+            size: tile,
+            radius: Radii.cover,
+            circular: artist,
+            placeholderIcon: switch (p.kind) {
+              PinKind.album => NaviGlyph.library,
+              PinKind.playlist => NaviGlyph.playlist,
+              PinKind.artist => NaviGlyph.person,
             },
-            childCount: pins.length,
+          ),
+          size: tile,
+          circular: artist,
+          onTap: () => _open(context, ref, p),
+          onLongPress: () => showCollectionActions(
+            context,
+            title: p.title,
+            subtitle: p.subtitle,
+            artUrl: url,
+            loadSongs: () => _songs(ref, p),
+            pin: p,
           ),
         );
-      }),
+      },
     );
   }
 }

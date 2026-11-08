@@ -106,7 +106,7 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
       slivers: [
         if (pins.isNotEmpty) ...[
           const SliverToBoxAdapter(child: SectionHeader(title: 'Pinned')),
-          SliverPadding(padding: const EdgeInsets.symmetric(horizontal: Space.md), sliver: PinsGrid(pins: pins)),
+          PinsGrid(pins: pins),
           const SliverToBoxAdapter(child: SizedBox(height: Space.xl)),
         ],
         if (entries.isEmpty) ...[
