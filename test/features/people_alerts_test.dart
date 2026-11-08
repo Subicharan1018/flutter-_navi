@@ -1,3 +1,4 @@
+// ignore_for_file: library_private_types_in_public_api
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/features/social/data/social_api.dart';
@@ -45,7 +46,9 @@ PeopleList list(PresenceState bob, {String? room}) => PeopleList(enabled: true, 
       ),
     ]);
 
-({ProviderContainer c, _Sink sink, _MemoryPrefs prefs, _Api api}) setUp(List<PeopleList> script, {_MemoryPrefs? prefs}) {
+typedef _Rig = ({ProviderContainer c, _Sink sink, _MemoryPrefs prefs, _Api api});
+
+_Rig setUp(List<PeopleList> script, {_MemoryPrefs? prefs}) {
   final sink = _Sink();
   final p = prefs ?? _MemoryPrefs();
   final api = _Api(script);

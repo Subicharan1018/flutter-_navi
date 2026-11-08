@@ -58,7 +58,13 @@ void main() {
     expect(fake.saved.single.$1, isTrue);
     expect(find.text('Hide My Activity'), findsOneWidget);
 
-    await tester.tap(find.byType(CupertinoSwitch).last);
+    // Hiding what you listen to is its own switch, and alerts are off until switched on.
+    expect(find.text('Hide What I’m Listening To'), findsOneWidget);
+    expect(find.text('Friend Alerts'), findsOneWidget);
+    expect(tester.widget<CupertinoSwitch>(find.byType(CupertinoSwitch).at(3)).value, isFalse);
+    expect(find.text('Quiet Hours'), findsNothing); // only once alerts are on
+
+    await tester.tap(find.byType(CupertinoSwitch).at(1));
     await tester.pumpAndSettle();
     expect(fake.saved.last, (null, true));
   });
