@@ -131,17 +131,38 @@ class JamItem {
       });
 }
 
+/// How a room is run. In a [jam] the creator is the admin and members can only
+/// add songs; in a [collab] room everyone edits one shared queue.
+enum JamMode {
+  jam,
+  collab;
+
+  static JamMode parse(Object? v) => v == 'collab' ? JamMode.collab : JamMode.jam;
+  String get wire => name;
+  String get label => this == JamMode.jam ? 'Jam' : 'Collab';
+}
+
 class JamMember {
   final String username;
   final bool isHost;
   const JamMember(this.username, this.isHost);
+
+  /// The room's admin (the old name for it is "host").
+  bool get isAdmin => isHost;
+  String get role => isHost ? 'Admin' : 'Member';
 }
 
 class JamState {
   final String code;
   final int version;
+  final JamMode mode;
   final String host;
   final bool youAreHost;
+
+  /// Whether this person may reorder, remove, skip and control playback. Always
+  /// true for the admin and, in a collab room, for everyone. The server is the
+  /// real gate; this only decides which controls to show.
+  final bool youCanEdit;
   final List<JamMember> members;
   final List<JamItem> queue;
   final int index;
@@ -162,15 +183,23 @@ class JamState {
     required this.playing,
     required this.positionMs,
     required this.serverMs,
-  });
+    this.mode = JamMode.jam,
+    bool? youCanEdit,
+  }) : youCanEdit = youCanEdit ?? (youAreHost || mode == JamMode.collab);
+
+  String get admin => host;
+  bool get youAreAdmin => youAreHost;
+  bool get isCollab => mode == JamMode.collab;
 
   JamItem? get current => index >= 0 && index < queue.length ? queue[index] : null;
 
   factory JamState.fromJson(Map<String, dynamic> j) => JamState(
         code: _s(j['code']),
         version: _i(j['version']),
-        host: _s(j['host']),
-        youAreHost: j['you_are_host'] == true,
+        mode: JamMode.parse(j['mode']),
+        host: _s(j['admin'] ?? j['host']),
+        youAreHost: (j['you_are_admin'] ?? j['you_are_host']) == true,
+        youCanEdit: j['you_can_edit'] is bool ? j['you_can_edit'] as bool : null,
         members: [
           for (final m in (j['members'] as List? ?? const []))
             if (m is Map) JamMember(_s(m['username']), m['is_host'] == true),

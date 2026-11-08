@@ -46,7 +46,8 @@ class SocialApi {
 
   // ── Jam ──────────────────────────────────────────────────────────────────
 
-  Future<JamState> jamCreate() => _wrap(() async => _jam(await _post('/social/jam')));
+  Future<JamState> jamCreate({JamMode mode = JamMode.jam}) =>
+      _wrap(() async => _jam(await _post('/social/jam', {'mode': mode.wire})));
 
   Future<JamState> jamJoin(String code) =>
       _wrap(() async => _jam(await _post('/social/jam/join', {'code': code.trim()})));
@@ -94,6 +95,16 @@ class SocialApi {
             'index': ?index,
             'item_id': ?itemId,
           })));
+
+  Future<JamState> jamClear(String code) => _wrap(() async => _jam(await _post('/social/jam/$code/clear')));
+
+  /// Admin only: hand the role to another member.
+  Future<JamState> jamTransferAdmin(String code, String to) =>
+      _wrap(() async => _jam(await _post('/social/jam/$code/admin', {'to': to})));
+
+  /// Admin only: remove a member from the room.
+  Future<JamState> jamKick(String code, String user) =>
+      _wrap(() async => _jam(await _post('/social/jam/$code/kick', {'user': user})));
 
   Future<void> jamLeave(String code) => _wrap(() async => _post('/social/jam/$code/leave'));
 

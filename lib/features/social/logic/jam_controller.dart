@@ -53,6 +53,8 @@ class JamController extends Notifier<JamUiState> {
   int _version = 0;
   int _quietUntilMs = 0; // after we drive the player, don't read its echo as a user action
   int _lastCorrectionMs = 0;
+  int _lastOkMs = 0; // last poll the server answered
+  static const _removedWindowMs = 15000;
 
   SocialApi get _api => ref.read(socialApiProvider);
   PlayerNotifier get _player => ref.read(playerProvider.notifier);
@@ -89,7 +91,7 @@ class JamController extends Notifier<JamUiState> {
     }
   }
 
-  Future<bool> start() => _run(() async => _enter(await _api.jamCreate()));
+  Future<bool> start({JamMode mode = JamMode.jam}) => _run(() async => _enter(await _api.jamCreate(mode: mode)));
 
   Future<bool> join(String code) => _run(() async => _enter(await _api.jamJoin(code)));
 
@@ -122,28 +124,52 @@ class JamController extends Notifier<JamUiState> {
 
   Future<bool> addSongs(List<Song> songs) => _withJam((code) async => _accept(await _api.jamAddSongs(code, songs)));
 
+  // Everything below changes the queue or the playback. In a Jam only the admin
+  // may; in a Collab room everyone may. The server enforces the same rule; the
+  // check here keeps a stale screen from even sending a request that will be
+  // refused.
+
   Future<bool> removeItem(int itemId) =>
-      _withJam((code) async => _accept(await _api.jamRemoveItem(code, itemId)));
+      _edit((code) async => _accept(await _api.jamRemoveItem(code, itemId)));
+
+  Future<bool> clearQueue() => _edit((code) async => _accept(await _api.jamClear(code)));
 
   Future<bool> togglePlay() {
     final jam = state.jam;
     if (jam == null) return Future.value(false);
-    return _control(jam.playing ? 'pause' : 'play', positionMs: _localPositionMs());
+    return _control(jam.playing ? 'pause' : 'play', withPosition: true);
   }
 
   Future<bool> next() => _control('next');
-  Future<bool> previous() => _control('prev', positionMs: _localPositionMs());
+  Future<bool> previous() => _control('prev', withPosition: true);
   Future<bool> jumpTo(int index) => _control('jump', index: index);
   Future<bool> seek(int ms) => _control('seek', positionMs: ms);
 
-  /// Host: drag queue item [itemId] to position [toIndex].
-  Future<bool> moveItem(int itemId, int toIndex) => _withJam(
+  /// Drag queue item [itemId] to position [toIndex].
+  Future<bool> moveItem(int itemId, int toIndex) => _edit(
         (code) async => _accept(await _api.jamControl(code, 'move', index: toIndex, itemId: itemId)),
       );
 
-  Future<bool> _control(String action, {int? positionMs, int? index}) => _withJam(
-        (code) async => _accept(await _api.jamControl(code, action, positionMs: positionMs, index: index)),
+  /// [withPosition] reports this phone's playhead; it is read only once the
+  /// permission check has passed.
+  Future<bool> _control(String action, {int? positionMs, int? index, bool withPosition = false}) => _edit(
+        (code) async => _accept(await _api.jamControl(
+          code,
+          action,
+          positionMs: withPosition ? _localPositionMs() : positionMs,
+          index: index,
+        )),
       );
+
+  // ── admin only ──────────────────────────────────────────────────────────
+
+  /// Hand the admin role to another member (you become a member).
+  Future<bool> makeAdmin(String user) =>
+      _admin((code) async => _accept(await _api.jamTransferAdmin(code, user)));
+
+  /// Remove a member from the room.
+  Future<bool> removeMember(String user) =>
+      _admin((code) async => _accept(await _api.jamKick(code, user)));
 
   // ── plumbing ────────────────────────────────────────────────────────────
 
@@ -151,6 +177,25 @@ class JamController extends Notifier<JamUiState> {
     final code = state.jam?.code;
     if (code == null) return false;
     return _run(() => call(code));
+  }
+
+  Future<bool> _edit(Future<void> Function(String code) call) {
+    final jam = state.jam;
+    if (jam == null) return Future.value(false);
+    if (!jam.youCanEdit) return _refuse('Only the admin controls the queue. You can add songs.');
+    return _withJam(call);
+  }
+
+  Future<bool> _admin(Future<void> Function(String code) call) {
+    final jam = state.jam;
+    if (jam == null) return Future.value(false);
+    if (!jam.youAreAdmin) return _refuse('Only the admin can do that.');
+    return _withJam(call);
+  }
+
+  Future<bool> _refuse(String notice) {
+    state = JamUiState(jam: state.jam, notice: notice);
+    return Future.value(false);
   }
 
   Future<bool> _run(Future<void> Function() call) async {
@@ -175,6 +220,7 @@ class JamController extends Notifier<JamUiState> {
     _appliedIndex = -1;
     _appliedPlaying = false;
     _version = 0;
+    _lastOkMs = _nowMs;
     state = JamUiState(jam: jam);
     _timer ??= Timer.periodic(_pollEvery, (_) => _tick());
     unawaited(_apply(jam));
@@ -202,6 +248,7 @@ class JamController extends Notifier<JamUiState> {
       final t0 = _nowMs;
       final poll = await _api.jamPoll(jam.code, _version == 0 ? jam.version : _version);
       _clock.add(t0, _nowMs, poll.serverMs);
+      _lastOkMs = _nowMs;
       final fresh = poll.state;
       if (fresh != null) _accept(fresh);
       await _hostPublish();
@@ -210,7 +257,13 @@ class JamController extends Notifier<JamUiState> {
       if (e.ended) {
         _reset(notice: 'This Jam has ended.');
       } else if (e.notInJam) {
-        await _rejoinOrLeave(jam.code);
+        // Polling fine a moment ago and now refused: the admin removed us. Only
+        // someone who was silent long enough to be timed out tries the code again.
+        if (_nowMs - _lastOkMs < _removedWindowMs) {
+          _reset(notice: 'The admin removed you from this Jam.');
+        } else {
+          await _rejoinOrLeave(jam.code);
+        }
       }
       // Network blips just skip a beat; the next poll catches up.
     } finally {
@@ -233,7 +286,9 @@ class JamController extends Notifier<JamUiState> {
     _version = fresh.version;
     state = JamUiState(jam: fresh, notice: state.notice);
     if (!old.youAreHost && fresh.youAreHost) {
-      state = JamUiState(jam: fresh, notice: 'You’re the host now.');
+      state = JamUiState(jam: fresh, notice: 'You’re the admin now.');
+    } else if (old.youAreHost && !fresh.youAreHost) {
+      state = JamUiState(jam: fresh, notice: '${fresh.admin} is the admin now.');
     }
     unawaited(_apply(fresh));
   }
