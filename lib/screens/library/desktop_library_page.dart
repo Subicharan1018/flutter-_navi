@@ -59,8 +59,12 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
           LibSort.year => a.year.compareTo(b.year),
           LibSort.library => 0,
         };
-    return [...list]..sort(_asc ? cmp : (a, b) => cmp(b, a));
+    // Sorting never mixes your playlists with other people's.
+    return sortWithinSections(list, _asc ? cmp : (a, b) => cmp(b, a));
   }
+
+  /// "Shared with you" folds away.
+  bool _sharedCollapsed = false;
 
 
   void _sortMenu() {
@@ -89,7 +93,11 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
 
   @override
   Widget build(BuildContext context) {
-    final entries = _sorted(libraryEntries(context, ref, _kind));
+    var entries = libraryEntries(context, ref, _kind);
+    // In library order the sections still come first, in their order.
+    entries = _sort == LibSort.library ? sortWithinSections(entries, (a, b) => 0) : _sorted(entries);
+    final rows = sectionRows(entries, sharedCollapsed: _sharedCollapsed);
+    void toggleShared() => setState(() => _sharedCollapsed = !_sharedCollapsed);
     final pins = ref.watch(pinsProvider);
     final columns = _columns(_kind, entries);
     final toolbar = SliverToBoxAdapter(child: _Toolbar(kind: _kind, onKind: (k) => setState(() => _kind = k), onSort: _sortMenu, sort: _sort, asc: _asc));
@@ -98,7 +106,7 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
       slivers: [
         if (pins.isNotEmpty) ...[
           const SliverToBoxAdapter(child: SectionHeader(title: 'Pinned')),
-          SliverPadding(padding: const EdgeInsets.symmetric(horizontal: Space.md), sliver: PinsGrid(pins: pins)),
+          PinsGrid(pins: pins),
           const SliverToBoxAdapter(child: SizedBox(height: Space.xl)),
         ],
         if (entries.isEmpty) ...[
@@ -120,7 +128,14 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
             builder: (context, grid, _) => grid
                 // Tiles: as many columns as the width holds, so a wide window gets
                 // more tiles, not bigger gaps.
-                ? SliverMainAxisGroup(slivers: [toolbar, _Grid(entries: entries)])
+                ? SliverMainAxisGroup(slivers: [
+                    toolbar,
+                    // Each section is its own grid under its own header.
+                    for (final group in _groups(rows)) ...[
+                      if (group.$1 != null) SliverToBoxAdapter(child: _PageSectionHeader(header: group.$1!, onToggle: toggleShared)),
+                      if (group.$2.isNotEmpty) _Grid(entries: group.$2),
+                    ],
+                  ])
                 // List: a table of a few short columns stops being readable when
                 // stretched across 1900 px, so it stops at 1600 (left, on the
                 // title's edge) and the toolbar's sort and view buttons follow it.
@@ -129,11 +144,13 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
                     sliver: SliverMainAxisGroup(slivers: [
                       toolbar,
                       _ListHeader(kind: _kind, sort: _sort, asc: _asc, onSort: _pickSort, columns: columns),
-                      SliverFixedExtentList(
-                        itemExtent: 56,
+                      SliverList(
                         delegate: SliverChildBuilderDelegate(
-                          (context, i) => _ListRow(entry: entries[i], columns: columns),
-                          childCount: entries.length,
+                          (context, i) => switch (rows[i]) {
+                            LibHeaderRow() => _PageSectionHeader(header: rows[i] as LibHeaderRow, onToggle: toggleShared),
+                            LibEntryRow(:final entry) => SizedBox(height: 56, child: _ListRow(entry: entry, columns: columns)),
+                          },
+                          childCount: rows.length,
                         ),
                       ),
                     ]),
@@ -141,6 +158,59 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
           ),
         const SliverToBoxAdapter(child: SizedBox(height: Space.xxl)),
       ],
+    );
+  }
+}
+
+/// Rows as (header, entries under it) groups, for the tile view.
+List<(LibHeaderRow?, List<LibEntry>)> _groups(List<LibRow> rows) {
+  final out = <(LibHeaderRow?, List<LibEntry>)>[];
+  for (final r in rows) {
+    switch (r) {
+      case LibHeaderRow():
+        out.add((r, <LibEntry>[]));
+      case LibEntryRow(:final entry):
+        if (out.isEmpty) out.add((null, <LibEntry>[]));
+        out.last.$2.add(entry);
+    }
+  }
+  return out;
+}
+
+/// "Your playlists" / "Collab playlists" / "Shared with you" on the page: text,
+/// no card. "Shared with you" folds away.
+class _PageSectionHeader extends StatelessWidget {
+  final LibHeaderRow header;
+  final VoidCallback onToggle;
+  const _PageSectionHeader({required this.header, required this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final row = Row(children: [
+      Text(header.section.title, style: t.title3),
+      const SizedBox(width: Space.sm),
+      Text('${header.count}', style: t.footnote),
+      if (header.collapsible) ...[
+        const SizedBox(width: Space.xs),
+        AnimatedRotation(
+          turns: header.collapsed ? 0 : 0.25,
+          duration: const Duration(milliseconds: 150),
+          child: NaviIcon(NaviGlyph.chevron, size: 14, color: t.textMuted),
+        ),
+      ],
+    ]);
+    return Semantics(
+      header: true,
+      label: header.collapsible
+          ? '${header.section.title}, ${header.count}, ${header.collapsed ? 'collapsed' : 'expanded'}'
+          : header.section.title,
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(pageGutter(context), Space.xl, pageGutter(context), Space.sm),
+        child: header.collapsible
+            ? NaviFocusable(radius: 6, onTap: onToggle, semanticLabel: header.section.title, child: row)
+            : row,
+      ),
     );
   }
 }

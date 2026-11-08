@@ -73,7 +73,72 @@ class LibEntry {
     required this.onPlay,
     this.circular = false,
     this.playlist,
+    this.section,
   });
+
+  /// Which playlist section this belongs to (null for albums and artists).
+  final LibSection? section;
+}
+
+/// The three kinds of playlist the Library separates, in the order shown.
+enum LibSection {
+  yours('Your playlists'),
+  collab('Collab playlists'),
+  shared('Shared with you');
+
+  final String title;
+  const LibSection(this.title);
+}
+
+/// A row of a sectioned library list: a quiet header, or an entry.
+sealed class LibRow {
+  const LibRow();
+}
+
+class LibHeaderRow extends LibRow {
+  final LibSection section;
+  final int count;
+
+  /// Only "Shared with you" folds away.
+  final bool collapsible;
+  final bool collapsed;
+  const LibHeaderRow(this.section, this.count, {this.collapsible = false, this.collapsed = false});
+}
+
+class LibEntryRow extends LibRow {
+  final LibEntry entry;
+  const LibEntryRow(this.entry);
+}
+
+/// [entries] laid out under section headers. Headers appear only when there is
+/// something to separate (a section other than "Your playlists" has entries);
+/// a section with nothing in it has no header; entries without a section (albums,
+/// artists) pass through. [sharedCollapsed] hides the "Shared with you" entries
+/// but keeps its header, with the count, so it can be opened again.
+List<LibRow> sectionRows(List<LibEntry> entries, {bool sharedCollapsed = false}) {
+  final sections = {for (final e in entries) if (e.section != null) e.section!};
+  final separate = sections.any((s) => s != LibSection.yours);
+  if (!separate) return [for (final e in entries) LibEntryRow(e)];
+  final rows = <LibRow>[];
+  for (final s in LibSection.values) {
+    final of = [for (final e in entries) if (e.section == s) e];
+    if (of.isEmpty) continue;
+    final collapsed = s == LibSection.shared && sharedCollapsed;
+    rows.add(LibHeaderRow(s, of.length, collapsible: s == LibSection.shared, collapsed: collapsed));
+    if (!collapsed) rows.addAll([for (final e in of) LibEntryRow(e)]);
+  }
+  // Anything with no section (not expected in a playlists list) stays at the end.
+  rows.addAll([for (final e in entries) if (e.section == null) LibEntryRow(e)]);
+  return rows;
+}
+
+/// Sorts inside each section, so a sort never mixes your playlists with
+/// other people's.
+List<LibEntry> sortWithinSections(List<LibEntry> entries, int Function(LibEntry, LibEntry) cmp) {
+  return [
+    for (final s in [...LibSection.values, null])
+      ...([for (final e in entries) if (e.section == s) e]..sort(cmp)),
+  ];
 }
 
 /// The library's [kind], from the providers the app already keeps (the user's
@@ -95,8 +160,9 @@ List<LibEntry> libraryEntries(BuildContext context, WidgetRef ref, LibKind kind)
             title: p.name,
             // Your playlists, then Collab playlists, then Shared with you (read-only).
             subtitle: shared
-                ? 'Shared with you · ${(p.owner ?? '').isEmpty ? songCount(p.songCount) : p.owner}'
+                ? '${(p.owner ?? '').isEmpty ? '' : '${p.owner} · '}${songCount(p.songCount)}'
                 : 'Playlist · ${songCount(p.songCount)}',
+            section: shared ? LibSection.shared : LibSection.yours,
             secondary: p.owner ?? '',
             count: p.songCount,
             duration: p.duration,
@@ -115,7 +181,8 @@ List<LibEntry> libraryEntries(BuildContext context, WidgetRef ref, LibKind kind)
             kind: kind,
             id: 'c${c.id}',
             title: c.name,
-            subtitle: 'Collab playlist · ${collabSubtitle(c)}',
+            subtitle: collabSubtitle(c),
+            section: LibSection.collab,
             secondary: c.owner,
             count: c.songCount,
             artUrl: null,

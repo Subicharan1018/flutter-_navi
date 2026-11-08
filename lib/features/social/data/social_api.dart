@@ -110,6 +110,18 @@ class SocialApi {
 
   Future<JamState> jamClear(String code) => _wrap(() async => _jam(await _post('/social/jam/$code/clear')));
 
+  /// A member asks the admin to skip the song that is playing.
+  Future<JamState> jamRequestSkip(String code) =>
+      _wrap(() async => _jam(await _post('/social/jam/$code/skip-request')));
+
+  /// Admin: approve (skips the song) or dismiss the open requests.
+  Future<JamState> jamResolveSkip(String code, {required bool approve, String? user}) => _wrap(() async =>
+      _jam(await _post('/social/jam/$code/skip-request/resolve', {'approve': approve, 'user': ?user})));
+
+  /// Put a just-removed song back where it was.
+  Future<JamState> jamUndo(String code, int itemId) =>
+      _wrap(() async => _jam(await _post('/social/jam/$code/undo', {'item_id': itemId})));
+
   /// Admin only: hand the role to another member.
   Future<JamState> jamTransferAdmin(String code, String to) =>
       _wrap(() async => _jam(await _post('/social/jam/$code/admin', {'to': to})));

@@ -6,12 +6,14 @@
 library;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/social/data/social_models.dart';
 import 'package:navivibe/features/social/logic/jam_controller.dart';
+import 'package:navivibe/features/social/logic/jam_hints.dart';
 import 'package:navivibe/features/social/logic/social_providers.dart';
 import 'package:navivibe/features/social/ui/jam/jam_hero.dart';
 import 'package:navivibe/features/social/ui/jam/jam_pill.dart';
@@ -40,6 +42,31 @@ class _FakeJam extends JamController {
   JamUiState build() => initial;
   @override
   Future<void> restore() async {}
+
+  /// What the screens asked for, in order.
+  static final log = <String>[];
+  static bool note(String s) {
+    log.add(s);
+    return true;
+  }
+  @override
+  Future<bool> removeItem(int itemId) async => note('remove $itemId');
+  @override
+  Future<bool> undoRemove(int itemId) async => note('undo $itemId');
+  @override
+  Future<bool> moveItem(int itemId, int toIndex) async => note('move $itemId to $toIndex');
+  @override
+  Future<bool> requestSkip() async => note('request-skip');
+  @override
+  Future<bool> resolveSkip({required bool approve, String? user}) async => note(approve ? 'approve' : 'dismiss');
+}
+
+class _MemHints implements HintStore {
+  final seen_ = <String>{};
+  @override
+  bool seen(String key) => seen_.contains(key);
+  @override
+  void markSeen(String key) => seen_.add(key);
 }
 
 class _FakeSocial extends SocialSettingsNotifier {
@@ -47,10 +74,19 @@ class _FakeSocial extends SocialSettingsNotifier {
   Future<SocialSettings> build() async => const SocialSettings(enabled: true);
 }
 
-JamState _jam({required bool host, bool playing = true, int people = 4, int songs = 5, String mode = 'jam'}) => JamState.fromJson({
+JamState _jam({
+  required bool host,
+  bool playing = true,
+  int people = 4,
+  int songs = 5,
+  String mode = 'jam',
+  Map<String, Object?> extra = const {},
+}) =>
+    JamState.fromJson({
       'code': 'K7QX2M',
       'version': 9,
       'mode': mode,
+      ...extra,
       'host': host ? 'maya' : 'Arjun',
       'you_are_host': host,
       'members': [
@@ -73,10 +109,11 @@ JamState _jam({required bool host, bool playing = true, int people = 4, int song
       'server_ms': 1000000,
     });
 
-Widget _app(Widget home, JamUiState jam) {
+Widget _app(Widget home, JamUiState jam, {HintStore? hints}) {
   final tokens = AppThemeTokens.fallback;
   return ProviderScope(
     overrides: [
+      hintStoreProvider.overrideWithValue(hints ?? _MemHints()),
       settingsProvider.overrideWith((ref) => _FakeSettings()),
       subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
       jamControllerProvider.overrideWith(() => _FakeJam(jam)),
@@ -184,6 +221,165 @@ void main() {
     expect(find.bySemanticsLabel('Previous'), findsOneWidget);
     expect(find.text('Leave Jam'), findsNothing); // no loose buttons: they live in the menu
     expect(find.bySemanticsLabel('Room options'), findsOneWidget);
+  });
+
+  group('skip requests, undo, recently left and the reorder hint', () {
+    setUp(_FakeJam.log.clear);
+
+    testWidgets('a Jam member can ask to skip, once', (tester) async {
+      await phone(tester, height: 1000);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: false))));
+      await settle(tester);
+      expect(find.text('Ask to skip this song'), findsOneWidget);
+      await tester.tap(find.text('Ask to skip this song'));
+      await tester.pump();
+      expect(_FakeJam.log, ['request-skip']);
+
+      await tester.pumpWidget(const SizedBox()); // a fresh screen
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: false, extra: {'you_requested_skip': true}))));
+      await settle(tester);
+      expect(find.text('Skip requested'), findsOneWidget);
+      expect(find.text('Ask to skip this song'), findsNothing);
+    });
+
+    testWidgets('the admin and Collab members are never offered Ask to skip', (tester) async {
+      await phone(tester, height: 1000);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true))));
+      await settle(tester);
+      expect(find.text('Ask to skip this song'), findsNothing);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: false, mode: 'collab'))));
+      await settle(tester);
+      expect(find.text('Ask to skip this song'), findsNothing);
+    });
+
+    testWidgets('the admin sees who asks, and Approve or Dismiss reaches the controller', (tester) async {
+      await phone(tester, height: 1000);
+      final jam = _jam(host: true, extra: {
+        'skip_requests': [
+          {'username': 'Arjun', 'item_id': 2},
+          {'username': 'Sana', 'item_id': 2},
+        ],
+      });
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: jam)));
+      await settle(tester);
+      expect(find.text('Arjun and Sana ask to skip'), findsOneWidget);
+      await tester.tap(find.text('Approve'));
+      await tester.tap(find.text('Dismiss'));
+      expect(_FakeJam.log, ['approve', 'dismiss']);
+    });
+
+    testWidgets('a member never sees the requests', (tester) async {
+      await phone(tester, height: 1000);
+      final jam = _jam(host: false, extra: {'skip_requests': [{'username': 'Sana', 'item_id': 2}]});
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: jam)));
+      await settle(tester);
+      expect(find.textContaining('ask to skip'), findsNothing);
+      expect(find.text('Approve'), findsNothing);
+    });
+
+    testWidgets('Removing a song says so with Undo, and Undo asks the controller to put it back', (tester) async {
+      await phone(tester, height: 1200);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true))));
+      await settle(tester);
+      await tester.longPress(find.text('Alone'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('Remove from room'));
+      await tester.pump(const Duration(milliseconds: 600));
+      await tester.pump(const Duration(seconds: 1)); // the toast has slid in
+      expect(_FakeJam.log, ['remove 3']);
+      expect(find.text('Removed Alone'), findsOneWidget);
+      await tester.tap(find.text('Undo'));
+      await tester.pump();
+      expect(_FakeJam.log, ['remove 3', 'undo 3']);
+    });
+
+    testWidgets('the long-press sheet reorders without dragging', (tester) async {
+      await phone(tester, height: 1200);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true))));
+      await settle(tester);
+      await tester.longPress(find.text('Alone'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Move up'), findsOneWidget);
+      expect(find.text('Move down'), findsOneWidget);
+      await tester.tap(find.text('Move up'));
+      await tester.pump();
+      expect(_FakeJam.log, ['move 3 to 1']);
+    });
+
+    testWidgets('screen readers get Reorder and Remove actions on each song', (tester) async {
+      final semantics = tester.ensureSemantics();
+      await phone(tester, height: 1200);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true))));
+      await settle(tester);
+      final node = tester.getSemantics(find.bySemanticsLabel(RegExp('^Alone,')).first);
+      final labels = [for (final id in node.getSemanticsData().customSemanticsActionIds ?? const <int>[]) CustomSemanticsAction.getAction(id)!.label];
+      expect(labels, containsAll(['Reorder: move up', 'Reorder: move down', 'Remove from room']));
+      semantics.dispose();
+    });
+
+    testWidgets('a member gets none of the editing actions', (tester) async {
+      await phone(tester, height: 1200);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: false))));
+      await settle(tester);
+      await tester.longPress(find.text('Alone'));
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('Move up'), findsNothing);
+      expect(find.text('Remove from room'), findsNothing);
+    });
+
+    testWidgets('the reorder hint shows once, and goes for good after Got it', (tester) async {
+      await phone(tester, height: 1200);
+      final hints = _MemHints();
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true)), hints: hints));
+      await settle(tester);
+      expect(find.text('Press and hold a song to reorder or remove it.'), findsOneWidget);
+      await tester.tap(find.text('Got it'));
+      await tester.pump();
+      expect(find.text('Press and hold a song to reorder or remove it.'), findsNothing);
+      // A fresh session reads the saved flag: it stays gone.
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true)), hints: hints));
+      await settle(tester);
+      expect(find.text('Press and hold a song to reorder or remove it.'), findsNothing);
+    });
+
+    testWidgets('using what the hint teaches also retires it, and a member never sees it', (tester) async {
+      await phone(tester, height: 1200);
+      final hints = _MemHints();
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true)), hints: hints));
+      await settle(tester);
+      await tester.longPress(find.text('Alone'));
+      await tester.pump(const Duration(milliseconds: 500));
+      await tester.tap(find.text('Move down'));
+      await tester.pump();
+      expect(hints.seen(JamQueueHint.key), isTrue);
+
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: false))));
+      await settle(tester);
+      expect(find.text('Press and hold a song to reorder or remove it.'), findsNothing);
+    });
+
+    testWidgets('Recently left lists the last people, newest first, with when', (tester) async {
+      await phone(tester, height: 2600);
+      final jam = _jam(host: true, extra: {
+        'recently_left': [
+          {'username': 'Ila', 'reason': 'removed', 'ago_s': 120},
+          {'username': 'Dev', 'reason': 'left', 'ago_s': 2000},
+        ],
+      });
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: jam)));
+      await settle(tester);
+      expect(find.text('Recently left'), findsOneWidget);
+      expect(find.text('Removed 2 min ago'), findsOneWidget);
+      expect(find.text('Left 33 min ago'), findsOneWidget);
+      expect(tester.getTopLeft(find.text('Ila').last).dy, lessThan(tester.getTopLeft(find.text('Dev').last).dy));
+    });
+
+    testWidgets('no Recently left section when no one has left', (tester) async {
+      await phone(tester, height: 2600);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true))));
+      await settle(tester);
+      expect(find.text('Recently left'), findsNothing);
+    });
   });
 
   testWidgets('the room code has a visible Copy and Share', (tester) async {

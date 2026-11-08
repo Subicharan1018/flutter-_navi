@@ -97,7 +97,10 @@ class _RoomPane extends ConsumerWidget {
           style: t.footnote,
           textAlign: TextAlign.center,
         ),
+      JamSkipRequests(jam: jam),
+      JamAskToSkip(jam: jam),
       Align(alignment: Alignment.centerLeft, child: JamMembers(jam: jam)),
+      Align(alignment: Alignment.centerLeft, child: JamRecentlyLeft(jam: jam)),
     ]);
   }
 }
@@ -144,7 +147,7 @@ class _QueuePaneState extends ConsumerState<_QueuePane> {
       return KeyEventResult.handled;
     }
     if (k == LogicalKeyboardKey.delete) {
-      c.removeItem(jam.queue[at].id);
+      removeFromRoom(context, ref, jam, jam.queue[at]);
       final keep = (at).clamp(0, jam.queue.length - 2);
       setState(() => _selected = jam.queue.length > 1 ? jam.queue[keep == at ? at + 1 : keep].id : null);
       return KeyEventResult.handled;
@@ -273,7 +276,7 @@ class _RowState extends ConsumerState<_Row> {
         padding: const EdgeInsets.only(bottom: Space.md),
         child: SheetGroup(children: [
           SheetAction(label: 'Play now', hint: 'Enter', onTap: () => c.jumpTo(widget.index)),
-          SheetAction(label: 'Remove from room', hint: 'Del', destructive: true, onTap: () => c.removeItem(item.id)),
+          SheetAction(label: 'Remove from room', hint: 'Del', destructive: true, onTap: () => removeFromRoom(context, ref, widget.jam, item)),
         ]),
       ),
     );

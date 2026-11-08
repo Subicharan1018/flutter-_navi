@@ -245,6 +245,25 @@ class JamMember {
   String get role => isHost ? 'Admin' : 'Member';
 }
 
+/// A member asking the admin to skip the song that is playing.
+class SkipRequest {
+  final String username;
+  final int itemId;
+  const SkipRequest(this.username, this.itemId);
+}
+
+/// Someone who left, timed out or was removed, for "Recently left".
+class LeftMember {
+  final String username;
+
+  /// 'left' or 'removed'.
+  final String reason;
+  final int agoS;
+  const LeftMember(this.username, this.reason, this.agoS);
+
+  bool get removed => reason == 'removed';
+}
+
 class JamState {
   final String code;
   final int version;
@@ -259,6 +278,15 @@ class JamState {
   /// true for the admin and, in a collab room, for everyone. The server is the
   /// real gate; this only decides which controls to show.
   final bool youCanEdit;
+
+  /// Open requests to skip the current song (the admin acts on these).
+  final List<SkipRequest> skipRequests;
+
+  /// You already asked to skip the current song.
+  final bool youRequestedSkip;
+
+  /// The last few people who left or were removed, newest first.
+  final List<LeftMember> recentlyLeft;
   final List<JamMember> members;
   final List<JamItem> queue;
   final int index;
@@ -281,6 +309,9 @@ class JamState {
     required this.serverMs,
     this.mode = JamMode.jam,
     this.open = false,
+    this.skipRequests = const [],
+    this.youRequestedSkip = false,
+    this.recentlyLeft = const [],
     bool? youCanEdit,
   }) : youCanEdit = youCanEdit ?? (youAreHost || mode == JamMode.collab);
 
@@ -295,6 +326,15 @@ class JamState {
         version: _i(j['version']),
         mode: JamMode.parse(j['mode']),
         open: j['open'] == true,
+        skipRequests: [
+          for (final r in (j['skip_requests'] as List? ?? const []))
+            if (r is Map) SkipRequest(_s(r['username']), _i(r['item_id'])),
+        ],
+        youRequestedSkip: j['you_requested_skip'] == true,
+        recentlyLeft: [
+          for (final r in (j['recently_left'] as List? ?? const []))
+            if (r is Map) LeftMember(_s(r['username']), _s(r['reason']), _i(r['ago_s'])),
+        ],
         host: _s(j['admin'] ?? j['host']),
         youAreHost: (j['you_are_admin'] ?? j['you_are_host']) == true,
         youCanEdit: j['you_can_edit'] is bool ? j['you_can_edit'] as bool : null,

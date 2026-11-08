@@ -28,6 +28,7 @@ import '../../widgets/desktop_dialogs.dart';
 import '../../widgets/ui/action_sheet.dart';
 import '../../widgets/ui/large_title_page.dart';
 import '../../widgets/ui/media.dart';
+import 'library_entries.dart' show LibSection;
 import '../../widgets/ui/states.dart';
 import '../playlist_editor.dart';
 import '../favorites_screen.dart';
@@ -116,17 +117,22 @@ class PlaylistsPage extends ConsumerWidget {
             // Yours first, editable; other people's in their own section, read-only.
             final split = splitByOwner(list, ref.watch(settingsProvider.select((s) => s.username)));
             final entries = buildPlaylistEntries(folders: folders, smart: smart, server: split.mine);
+            final hasCollab = (ref.watch(collabListProvider).asData?.value ?? const <CollabPlaylist>[]).any((c) => !c.invited);
+            final separated = split.shared.isNotEmpty || hasCollab || ref.watch(socialEnabledProvider);
             return [
+              // Yours first, under its own header once there is something to tell it apart from.
+              if (separated) SliverToBoxAdapter(child: SectionHeader(title: LibSection.yours.title)),
               SliverList.builder(itemCount: entries.length, itemBuilder: (context, i) => row(entries[i])),
               // Playlists several people edit: collaborators shown, each song's contributor inside.
               const SliverToBoxAdapter(child: _CollabPlaylists()),
-              if (split.shared.isNotEmpty) ...[
-                SliverToBoxAdapter(child: SectionHeader(title: 'Shared with you')),
-                SliverList.builder(
-                  itemCount: split.shared.length,
-                  itemBuilder: (context, i) => _serverRow(context, ref, split.shared[i], false),
+              // Other people's playlists: read-only, below, folds away.
+              if (split.shared.isNotEmpty)
+                SliverToBoxAdapter(
+                  child: SharedPlaylistsSection(
+                    count: split.shared.length,
+                    rows: [for (final p in split.shared) _serverRow(context, ref, p, false)],
+                  ),
                 ),
-              ],
             ];
           },
         ),
@@ -244,6 +250,52 @@ class PlaylistsPage extends ConsumerWidget {
   }
 }
 
+/// "Shared with you": other people's playlists, read-only. The header folds the
+/// list away and says how many there are.
+class SharedPlaylistsSection extends StatefulWidget {
+  final int count;
+  final List<Widget> rows;
+  const SharedPlaylistsSection({super.key, required this.count, required this.rows});
+
+  @override
+  State<SharedPlaylistsSection> createState() => _SharedPlaylistsSectionState();
+}
+
+class _SharedPlaylistsSectionState extends State<SharedPlaylistsSection> {
+  bool _open = true;
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Semantics(
+        header: true,
+        button: true,
+        expanded: _open,
+        label: '${LibSection.shared.title}, ${widget.count}',
+        child: CupertinoClickable(
+          onTap: () => setState(() => _open = !_open),
+          scaleFactor: 0.99,
+          child: Padding(
+            padding: EdgeInsets.fromLTRB(pageGutter(context), Space.xxl, pageGutter(context), Space.md),
+            child: Row(children: [
+              Expanded(child: Text(LibSection.shared.title, style: t.title2, maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Text('${widget.count}', style: t.subheadline),
+              const SizedBox(width: Space.sm),
+              AnimatedRotation(
+                turns: _open ? 0.25 : 0,
+                duration: const Duration(milliseconds: 180),
+                child: NaviIcon(NaviGlyph.chevron, size: 18, color: t.textMuted),
+              ),
+            ]),
+          ),
+        ),
+      ),
+      if (_open) ...widget.rows,
+    ]);
+  }
+}
+
 /// "Collab playlists": the ones you share with people (you own it, or you were
 /// invited and joined). Hidden while social features are off and you have none.
 class _CollabPlaylists extends ConsumerWidget {
@@ -257,7 +309,7 @@ class _CollabPlaylists extends ConsumerWidget {
     final mine = [for (final p in lists) if (!p.invited) p];
     if (!enabled && mine.isEmpty) return const SizedBox.shrink();
     return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-      SectionHeader(title: 'Collab playlists'),
+      SectionHeader(title: LibSection.collab.title),
       for (final p in mine) CollabRow(playlist: p),
       if (enabled)
         CollectionRow(

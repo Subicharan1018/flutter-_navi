@@ -55,6 +55,13 @@ class _Api extends Fake implements SocialApi {
   @override
   Future<JamState> jamKick(String code, String user) async => reply..let(() => calls.add('kick $user'));
   @override
+  Future<JamState> jamRequestSkip(String code) async => reply..let(() => calls.add('request-skip'));
+  @override
+  Future<JamState> jamResolveSkip(String code, {required bool approve, String? user}) async =>
+      reply..let(() => calls.add(approve ? 'approve-skip' : 'dismiss-skip'));
+  @override
+  Future<JamState> jamUndo(String code, int itemId) async => reply..let(() => calls.add('undo $itemId'));
+  @override
   Future<JamState> jamAddSongs(String code, List songs) async => reply..let(() => calls.add('add'));
 }
 
@@ -166,6 +173,68 @@ void main() {
       expect(await c.makeAdmin('Arjun'), isTrue);
       expect(await c.removeMember('Arjun'), isTrue);
       expect(r.api.calls, ['move', 'remove 2', 'next', 'jump', 'clear', 'admin Arjun', 'kick Arjun']);
+    });
+  });
+
+  group('skip requests and undo', () {
+    test('a Jam member can ask to skip, once, and cannot approve it', () async {
+      final r = setUpRoom(room());
+      final c = r.c.read(jamControllerProvider.notifier);
+      expect(await c.requestSkip(), isTrue);
+      expect(r.api.calls, ['request-skip']);
+      expect(await c.resolveSkip(approve: true), isFalse); // only the admin
+      expect(r.api.calls, ['request-skip']);
+    });
+
+    test('a member who already asked is not sent again', () async {
+      final r = setUpRoom(JamState.fromJson({
+        'code': 'K7QX2M', 'version': 1, 'mode': 'jam', 'host': 'maya', 'you_are_host': false, 'you_requested_skip': true,
+        'members': <Object>[], 'queue': [{'id': 1, 'song_id': 's1', 'title': 'T'}], 'index': 0, 'playing': true,
+        'position_ms': 0, 'server_ms': 0,
+      }));
+      expect(await r.c.read(jamControllerProvider.notifier).requestSkip(), isTrue);
+      expect(r.api.calls, isEmpty);
+    });
+
+    test('the admin skips for themselves, and a Collab member needs no request', () async {
+      final admin = setUpRoom(room(admin: true));
+      expect(await admin.c.read(jamControllerProvider.notifier).requestSkip(), isFalse);
+      final collab = setUpRoom(room(mode: 'collab'));
+      expect(await collab.c.read(jamControllerProvider.notifier).requestSkip(), isFalse);
+      expect(admin.api.calls, isEmpty);
+      expect(collab.api.calls, isEmpty);
+    });
+
+    test('the admin approves or dismisses', () async {
+      final r = setUpRoom(room(admin: true));
+      final c = r.c.read(jamControllerProvider.notifier);
+      expect(await c.resolveSkip(approve: true), isTrue);
+      expect(await c.resolveSkip(approve: false), isTrue);
+      expect(r.api.calls, ['approve-skip', 'dismiss-skip']);
+    });
+
+    test('undo is for whoever may edit: the admin in a Jam, anyone in a Collab room, never a member', () async {
+      final admin = setUpRoom(room(admin: true));
+      expect(await admin.c.read(jamControllerProvider.notifier).undoRemove(3), isTrue);
+      final collab = setUpRoom(room(mode: 'collab'));
+      expect(await collab.c.read(jamControllerProvider.notifier).undoRemove(3), isTrue);
+      final member = setUpRoom(room());
+      expect(await member.c.read(jamControllerProvider.notifier).undoRemove(3), isFalse);
+      expect(member.api.calls, isEmpty);
+    });
+
+    test('the room state carries requests and who left', () {
+      final j = JamState.fromJson({
+        'code': 'K7QX2M', 'version': 1, 'mode': 'jam', 'host': 'maya', 'you_are_host': true,
+        'members': <Object>[], 'queue': <Object>[], 'index': 0, 'playing': false, 'position_ms': 0, 'server_ms': 0,
+        'skip_requests': [{'username': 'Arjun', 'item_id': 4}],
+        'recently_left': [
+          {'username': 'Sana', 'reason': 'removed', 'ago_s': 40},
+          {'username': 'Dev', 'reason': 'left', 'ago_s': 400},
+        ],
+      });
+      expect(j.skipRequests.single.username, 'Arjun');
+      expect(j.recentlyLeft.map((m) => m.removed), [true, false]);
     });
   });
 
