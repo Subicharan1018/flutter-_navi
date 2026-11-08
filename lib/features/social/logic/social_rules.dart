@@ -42,6 +42,40 @@ List<T> movedTo<T>(List<T> items, int from, int to) {
   return next;
 }
 
+// ── Room extras ──────────────────────────────────────────────────────────────
+
+/// "just now", "3 min ago", "2 hr ago".
+String agoText(int seconds) {
+  if (seconds < 60) return 'just now';
+  final m = seconds ~/ 60;
+  if (m < 60) return '$m min ago';
+  final h = m ~/ 60;
+  return h < 24 ? '$h hr ago' : '${h ~/ 24} d ago';
+}
+
+/// One line for the admin: who is asking to skip.
+String skipRequestSummary(List<SkipRequest> requests) {
+  final names = [for (final r in requests) r.username];
+  return switch (names.length) {
+    0 => '',
+    1 => '${names[0]} asks to skip',
+    2 => '${names[0]} and ${names[1]} ask to skip',
+    final n => '${names[0]} and ${n - 1} others ask to skip',
+  };
+}
+
+/// Whether this person is offered "Ask to skip": a Jam member who can't skip
+/// themselves, with a song playing. (A Collab room needs no requests.)
+bool canRequestSkip(JamState jam) => !jam.youCanEdit && !jam.isCollab && jam.current != null;
+
+/// "Recently left" line: "left 3 min ago" or "removed 2 min ago".
+String leftLine(LeftMember m) => '${m.removed ? 'Removed' : 'Left'} ${agoText(m.agoS)}';
+
+/// What to do with a removal's toast: the text, and whether Undo applies (only
+/// whoever may edit can put it back).
+({String text, bool canUndo}) removalToast(JamState jam, String title) =>
+    (text: 'Removed $title', canUndo: jam.youCanEdit);
+
 // ── People ───────────────────────────────────────────────────────────────────
 
 /// Sorted for display: listening now first, then idle, offline, not sharing.

@@ -67,6 +67,29 @@ void main() {
     });
   });
 
+  group('room extras', () {
+    test('agoText reads like a person', () {
+      expect(agoText(5), 'just now');
+      expect(agoText(60), '1 min ago');
+      expect(agoText(59 * 60), '59 min ago');
+      expect(agoText(2 * 3600), '2 hr ago');
+      expect(agoText(3 * 86400), '3 d ago');
+    });
+
+    test('skip requests are summarised for the admin', () {
+      const a = SkipRequest('Arjun', 1), b = SkipRequest('Sana', 1), c = SkipRequest('Dev', 1);
+      expect(skipRequestSummary([a]), 'Arjun asks to skip');
+      expect(skipRequestSummary([a, b]), 'Arjun and Sana ask to skip');
+      expect(skipRequestSummary([a, b, c]), 'Arjun and 2 others ask to skip');
+      expect(skipRequestSummary(const []), '');
+    });
+
+    test('Recently left says left or removed, and when', () {
+      expect(leftLine(const LeftMember('Sana', 'removed', 130)), 'Removed 2 min ago');
+      expect(leftLine(const LeftMember('Dev', 'left', 10)), 'Left just now');
+    });
+  });
+
   group('People', () {
     test('listening now first, then idle, offline, and people who are not sharing last', () {
       final sorted = sortPeople([

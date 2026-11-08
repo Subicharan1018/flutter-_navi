@@ -132,6 +132,23 @@ class JamController extends Notifier<JamUiState> {
   Future<bool> removeItem(int itemId) =>
       _edit((code) async => _accept(await _api.jamRemoveItem(code, itemId)));
 
+  /// Put a song removed a moment ago back where it was (the admin in a Jam,
+  /// anyone in a Collab room).
+  Future<bool> undoRemove(int itemId) => _edit((code) async => _accept(await _api.jamUndo(code, itemId)));
+
+  /// A member (who can't skip) asks the admin to skip the current song.
+  Future<bool> requestSkip() {
+    final jam = state.jam;
+    if (jam == null) return Future.value(false);
+    if (jam.youCanEdit) return _refuse('You can skip this yourself.');
+    if (jam.youRequestedSkip) return Future.value(true); // already asked
+    return _withJam((code) async => _accept(await _api.jamRequestSkip(code)));
+  }
+
+  /// Admin: approve the skip requests (skips the song) or dismiss them.
+  Future<bool> resolveSkip({required bool approve, String? user}) =>
+      _admin((code) async => _accept(await _api.jamResolveSkip(code, approve: approve, user: user)));
+
   Future<bool> clearQueue() => _edit((code) async => _accept(await _api.jamClear(code)));
 
   Future<bool> togglePlay() {

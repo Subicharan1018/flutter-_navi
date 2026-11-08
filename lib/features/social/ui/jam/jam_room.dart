@@ -1,5 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart' show Material;
+import 'package:flutter/semantics.dart' show CustomSemanticsAction;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
@@ -18,6 +19,8 @@ import '../../../../widgets/mascot/microduck_pose.dart';
 import '../../../../widgets/ui/action_sheet.dart';
 import '../../data/social_models.dart';
 import '../../logic/jam_controller.dart';
+import '../../logic/jam_hints.dart';
+import '../../logic/social_rules.dart';
 import '../collab_screens.dart' show saveQueueAsCollab;
 import '../social_widgets.dart';
 import 'code_entry.dart';
@@ -184,14 +187,17 @@ List<Widget> jamRoomSlivers(BuildContext context, WidgetRef ref, JamUiState ui) 
           message: jam.youCanEdit ? 'Anyone in the room can add songs. Add the first one.' : 'Add the first song.',
         ),
       )
-    else if (jam.youCanEdit)
-      _EditableQueue(jam: jam)
+    else if (jam.youCanEdit) ...[
+      if (jam.queue.length > 1) const SliverToBoxAdapter(child: JamQueueHintLine()),
+      _EditableQueue(jam: jam),
+    ]
     else
       SliverList.builder(
         itemCount: jam.queue.length,
         itemBuilder: (context, i) => JamQueueRow(jam: jam, index: i, key: ValueKey(jam.queue[i].id)),
       ),
     SliverToBoxAdapter(child: JamMembers(jam: jam)),
+    SliverToBoxAdapter(child: JamRecentlyLeft(jam: jam)),
     const SliverToBoxAdapter(child: SizedBox(height: Space.xl)),
   ];
 }
@@ -397,21 +403,27 @@ class _Transport extends ConsumerWidget {
         );
     if (!jam.youCanEdit) {
       // No dead controls: say who holds them and point at what a member can do.
-      return Padding(
-        padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, 0),
-        child: Center(
-          child: Text(
-            'The admin controls the queue. ${jam.admin} plays, skips and reorders. You can add songs.',
-            style: t.footnote,
-            textAlign: TextAlign.center,
+      return Column(children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.md, Space.gutter, 0),
+          child: Center(
+            child: Text(
+              'The admin controls the queue. ${jam.admin} plays, skips and reorders. You can add songs.',
+              style: t.footnote,
+              textAlign: TextAlign.center,
+            ),
           ),
         ),
-      );
+        JamAskToSkip(jam: jam),
+      ]);
     }
-    return Row(mainAxisAlignment: MainAxisAlignment.center, children: [
-      button(NaviGlyph.previous, 'Previous', c.previous),
-      button(jam.playing ? NaviGlyph.pause : NaviGlyph.play, jam.playing ? 'Pause' : 'Play', c.togglePlay, size: 42),
-      button(NaviGlyph.next, 'Next', c.next),
+    return Column(children: [
+      Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+        button(NaviGlyph.previous, 'Previous', c.previous),
+        button(jam.playing ? NaviGlyph.pause : NaviGlyph.play, jam.playing ? 'Pause' : 'Play', c.togglePlay, size: 42),
+        button(NaviGlyph.next, 'Next', c.next),
+      ]),
+      JamSkipRequests(jam: jam),
     ]);
   }
 }
@@ -463,7 +475,9 @@ class _EditableQueue extends ConsumerWidget {
     return SliverReorderableList(
       itemCount: jam.queue.length,
       onReorderItem: (from, to) {
-        if (to != from) c.moveItem(jam.queue[from].id, to);
+        if (to == from) return;
+        ref.read(jamQueueHintProvider.notifier).done();
+        c.moveItem(jam.queue[from].id, to);
       },
       proxyDecorator: (child, _, _) => Material(color: const Color(0x00000000), child: child),
       itemBuilder: (context, i) => ReorderableDelayedDragStartListener(
@@ -492,7 +506,17 @@ class JamQueueRow extends ConsumerWidget {
     return Entrance(
       group: 'jam-queue',
       index: index,
-      child: CupertinoClickable(
+      // Screen readers get the same actions the long press and the drag give.
+      child: Semantics(
+        customSemanticsActions: jam.youCanEdit
+            ? {
+                if (index > 0) const CustomSemanticsAction(label: 'Reorder: move up'): () => moveInRoom(ref, jam, index, index - 1),
+                if (index < jam.queue.length - 1)
+                  const CustomSemanticsAction(label: 'Reorder: move down'): () => moveInRoom(ref, jam, index, index + 1),
+                const CustomSemanticsAction(label: 'Remove from room'): () => removeFromRoom(context, ref, jam, item),
+              }
+            : const {},
+        child: CupertinoClickable(
         onTap: jam.youCanEdit ? () => c.jumpTo(index) : null,
         onLongPress: jam.youCanEdit
             ? () => showPlatformSheet(
@@ -500,8 +524,17 @@ class JamQueueRow extends ConsumerWidget {
                   title: item.title,
                   builder: (_) => Padding(
                     padding: const EdgeInsets.only(bottom: Space.md),
-                    child: SheetGroup(children: [
-                      SheetAction(label: 'Remove from room', destructive: true, onTap: () => c.removeItem(item.id)),
+                    child: Column(mainAxisSize: MainAxisSize.min, children: [
+                      // Reordering without dragging: the same thing, one step at a time.
+                      if (index > 0 || index < jam.queue.length - 1)
+                        SheetGroup(children: [
+                          if (index > 0) SheetAction(label: 'Move up', onTap: () => moveInRoom(ref, jam, index, index - 1)),
+                          if (index < jam.queue.length - 1)
+                            SheetAction(label: 'Move down', onTap: () => moveInRoom(ref, jam, index, index + 1)),
+                        ]),
+                      SheetGroup(children: [
+                        SheetAction(label: 'Remove from room', destructive: true, onTap: () => removeFromRoom(context, ref, jam, item)),
+                      ]),
                     ]),
                   ),
                 )
@@ -536,11 +569,160 @@ class JamQueueRow extends ConsumerWidget {
           ]),
         ),
       ),
+      ),
+    );
+  }
+}
+
+/// Removes [item] and says so, with Undo for whoever may put it back.
+Future<void> removeFromRoom(BuildContext context, WidgetRef ref, JamState jam, JamItem item) async {
+  final c = ref.read(jamControllerProvider.notifier);
+  ref.read(jamQueueHintProvider.notifier).done(); // they found it
+  final toast = removalToast(jam, item.title);
+  if (!await c.removeItem(item.id) || !context.mounted) return;
+  if (toast.canUndo) {
+    showToastWithAction(
+      context,
+      toast.text,
+      actionLabel: 'Undo',
+      onAction: () => c.undoRemove(item.id),
+    );
+  } else {
+    showToast(context, toast.text);
+  }
+}
+
+/// Moves the song at [from] to [to] (the long-press sheet and the screen
+/// reader's Reorder actions; dragging does the same).
+void moveInRoom(WidgetRef ref, JamState jam, int from, int to) {
+  ref.read(jamQueueHintProvider.notifier).done();
+  ref.read(jamControllerProvider.notifier).moveItem(jam.queue[from].id, to);
+}
+
+/// A quiet first-run line above the queue: how to reorder and remove. Goes
+/// away for good once dismissed or once the person reorders or removes.
+class JamQueueHintLine extends ConsumerWidget {
+  const JamQueueHintLine({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!ref.watch(jamQueueHintProvider)) return const SizedBox.shrink();
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.sm, Space.sm),
+      child: Row(children: [
+        Expanded(
+          child: Text('Press and hold a song to reorder or remove it.', style: t.footnote),
+        ),
+        CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: Space.md),
+          minimumSize: const Size(44, 44),
+          onPressed: ref.read(jamQueueHintProvider.notifier).done,
+          child: Text('Got it', style: t.subheadline.copyWith(color: t.accent, fontWeight: FontWeight.w600)),
+        ),
+      ]),
+    );
+  }
+}
+
+// ── requests to skip ─────────────────────────────────────────────────────────
+
+/// For the admin: a quiet line when members ask to skip, with Approve and Dismiss.
+class JamSkipRequests extends ConsumerWidget {
+  final JamState jam;
+  const JamSkipRequests({super.key, required this.jam});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!jam.youAreAdmin || jam.skipRequests.isEmpty) return const SizedBox.shrink();
+    final t = ThemeTokens.of(context);
+    final c = ref.read(jamControllerProvider.notifier);
+    final text = skipRequestSummary(jam.skipRequests);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.sm, 0),
+      child: Semantics(
+        liveRegion: true,
+        label: text,
+        child: Row(children: [
+          Expanded(child: Text(text, style: t.footnote.copyWith(color: t.textPrimary), maxLines: 2, overflow: TextOverflow.ellipsis)),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: Space.md),
+            minimumSize: const Size(44, 44),
+            onPressed: () => c.resolveSkip(approve: false),
+            child: Text('Dismiss', style: t.subheadline.copyWith(color: t.textSecondary)),
+          ),
+          CupertinoButton(
+            padding: const EdgeInsets.symmetric(horizontal: Space.md),
+            minimumSize: const Size(44, 44),
+            onPressed: () => c.resolveSkip(approve: true),
+            child: Text('Approve', style: t.subheadline.copyWith(color: t.accent, fontWeight: FontWeight.w600)),
+          ),
+        ]),
+      ),
+    );
+  }
+}
+
+/// For a Jam member: ask the admin to skip the song that is playing.
+class JamAskToSkip extends ConsumerWidget {
+  final JamState jam;
+  const JamAskToSkip({super.key, required this.jam});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    if (!canRequestSkip(jam)) return const SizedBox.shrink();
+    final t = ThemeTokens.of(context);
+    final asked = jam.youRequestedSkip;
+    return Padding(
+      padding: const EdgeInsets.only(top: Space.xs),
+      child: Center(
+        child: CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: Space.md),
+          minimumSize: const Size(44, 44),
+          onPressed: asked ? null : () => ref.read(jamControllerProvider.notifier).requestSkip(),
+          child: Text(
+            asked ? 'Skip requested' : 'Ask to skip this song',
+            style: t.subheadline.copyWith(color: asked ? t.textMuted : t.accent, fontWeight: FontWeight.w600),
+          ),
+        ),
+      ),
     );
   }
 }
 
 // ── people ───────────────────────────────────────────────────────────────────
+
+/// Who left or was removed lately, newest first.
+class JamRecentlyLeft extends StatelessWidget {
+  final JamState jam;
+  const JamRecentlyLeft({super.key, required this.jam});
+
+  @override
+  Widget build(BuildContext context) {
+    if (jam.recentlyLeft.isEmpty) return const SizedBox.shrink();
+    final t = ThemeTokens.of(context);
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xl, Space.gutter, Space.xs),
+        child: Semantics(header: true, child: Text('Recently left', style: t.title3)),
+      ),
+      for (final m in jam.recentlyLeft)
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.xs),
+          child: Semantics(
+            label: '${m.username}. ${leftLine(m)}',
+            excludeSemantics: true,
+            child: Row(children: [
+              PersonAvatar(m.username, size: 28),
+              const SizedBox(width: Space.md),
+              Expanded(child: Text(m.username, style: t.body.copyWith(color: t.textSecondary), maxLines: 1, overflow: TextOverflow.ellipsis)),
+              Text(leftLine(m), style: t.footnote),
+            ]),
+          ),
+        ),
+    ]);
+  }
+}
 
 /// Who is in the room and what each person is. The admin can open a member's
 /// actions (make admin, remove).
