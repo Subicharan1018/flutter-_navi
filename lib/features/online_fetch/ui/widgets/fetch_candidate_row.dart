@@ -50,13 +50,7 @@ class FetchCandidateRow extends ConsumerWidget {
     final batch = song ? null : ref.watch(fetchJobsProvider.select((d) => d.batchFor(c.id)));
     final status = song ? _songStatus(job, c) : (batch == null ? null : fetchBatchStatus(batch));
     final selecting = selected != null;
-    final tappable = switch (c.type) {
-      _ when !interactive => false,
-      _ when selecting => !c.inLibrary && (job == null || job.phase == FetchJobPhase.failed),
-      FetchSearchType.song => c.inLibrary || job == null || job.phase == FetchJobPhase.failed,
-      FetchSearchType.artist || FetchSearchType.label => true,
-      _ => batch == null || batch.status == FetchBatchStatus.failed,
-    };
+    final tappable = fetchCandidateTappable(c, job: job, batch: batch, selecting: selecting, interactive: interactive);
     final art = 44.0;
 
     return Semantics(
@@ -157,6 +151,11 @@ class FetchCandidateRow extends ConsumerWidget {
     );
   }
 
+  /// The same words and colours the phone row uses, for the Windows table row.
+  static String subtitleOf(FetchCandidate c) => _subtitle(c);
+  static String? statusOf(FetchJob? job, FetchCandidate c) => _songStatus(job, c);
+  static Color statusColorOf(AppThemeTokens t, FetchJob? job, FetchBatch? batch, FetchCandidate c) => _statusColor(t, job, batch, c);
+
   static String _subtitle(FetchCandidate c) {
     String songs(int n) => n == 1 ? '1 song' : '$n songs';
     return switch (c.type) {
@@ -196,6 +195,23 @@ class FetchCandidateRow extends ConsumerWidget {
     };
   }
 }
+
+/// Whether a result can be acted on right now (one rule for the phone row and
+/// the Windows table row).
+bool fetchCandidateTappable(
+  FetchCandidate c, {
+  required FetchJob? job,
+  required FetchBatch? batch,
+  required bool selecting,
+  bool interactive = true,
+}) =>
+    switch (c.type) {
+      _ when !interactive => false,
+      _ when selecting => !c.inLibrary && (job == null || job.phase == FetchJobPhase.failed),
+      FetchSearchType.song => c.inLibrary || job == null || job.phase == FetchJobPhase.failed,
+      FetchSearchType.artist || FetchSearchType.label => true,
+      _ => batch == null || batch.status == FetchBatchStatus.failed,
+    };
 
 /// Where a download is, in the user's words — shared by the result rows and
 /// the downloads lists.

@@ -47,6 +47,9 @@ import 'package:navivibe/widgets/shell/desktop/desktop_layout.dart';
 import 'package:navivibe/widgets/shell/desktop/library_rail.dart';
 import 'package:navivibe/widgets/shell/desktop/top_bar.dart';
 import 'package:navivibe/widgets/shell/desktop/window_ground.dart';
+import 'package:navivibe/features/online_fetch/data/fetch_models.dart';
+import 'package:navivibe/features/online_fetch/logic/online_fetch_providers.dart';
+import 'package:navivibe/features/online_fetch/ui/online_search_page.dart';
 
 import 'golden_fonts.dart';
 
@@ -147,6 +150,16 @@ class _FakeSettings extends StateNotifier<SettingsState> implements SettingsNoti
   _FakeSettings() : super(const SettingsState(serverUrl: 'https://music.example', username: 'u', password: 'p'));
   @override
   dynamic noSuchMethod(Invocation i) => null;
+}
+
+/// A search that already has its results and never calls the network.
+class _FakeSearch extends OnlineSearchController {
+  final OnlineSearchState fixed;
+  _FakeSearch(this.fixed);
+  @override
+  OnlineSearchState build() => fixed;
+  @override
+  Future<void> start(String query, {FetchSearchType type = FetchSearchType.song}) async {}
 }
 
 /// What the fake server answers for a playlist: its songs, none, or an error.
@@ -352,6 +365,31 @@ void main() {
   // The states that are not the happy path, on the table pages and Home: each says
   // what is going on in a few plain words and offers one way out.
   const stateSize = Size(1366, 768);
+  // Search online on Windows: a page with a results table, not a phone sheet.
+  testWidgets('online search results', (tester) async {
+    FetchCandidate song(int id, String title, String artist, String album, {bool owned = false, FetchKind kind = FetchKind.original}) =>
+        FetchCandidate(id: id, title: title, artist: artist, album: album, score: 1, kind: kind, inLibrary: owned, aiChecked: true, coverUrl: 'cover://g$id');
+    final results = [
+      song(1, 'Naan Nee', 'Yuvan Shankar Raja', 'Paiyaa', owned: true),
+      song(2, 'Thuli Thuli', 'Yuvan Shankar Raja', 'Paiyaa'),
+      song(3, 'Adada Mazhaida', 'Yuvan Shankar Raja', 'Paiyaa'),
+      song(4, 'Naan Nee (Reprise)', 'Karthik', 'Paiyaa', kind: FetchKind.cover),
+      song(5, 'En Kadhal Solla', 'Yuvan Shankar Raja', 'Paiyaa', kind: FetchKind.live),
+    ];
+    await shot(
+      tester,
+      shellPage(const Size(1366, 768), page: const OnlineSearchPage(query: 'naan nee')),
+      const Size(1366, 768),
+      'online_search_1366x768',
+      extra: [
+        onlineSearchProvider.overrideWith(() => _FakeSearch(OnlineSearchState(
+              query: 'naan nee',
+              search: FetchSearch(id: 1, query: 'naan nee', status: FetchSearchStatus.done, candidates: results),
+            ))),
+      ],
+    );
+  });
+
   testWidgets('state: songs empty', (tester) async {
     await shot(tester, const SongsPage(), stateSize, 'state_songs_empty', pagedSongs: const <Song>[]);
   });
