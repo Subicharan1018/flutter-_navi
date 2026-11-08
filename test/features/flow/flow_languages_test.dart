@@ -234,7 +234,7 @@ void main() {
       await tester.tap(find.byType(CupertinoSwitch));
       await tester.pumpAndSettle();
       expect(server.explore, isFalse);
-      expect(find.textContaining('and nothing outside them'), findsOneWidget);
+      expect(find.textContaining('stay in these languages.'), findsOneWidget);
     });
 
     testWidgets('on a TV every choice can take focus from the D-pad and nothing overflows', (tester) async {

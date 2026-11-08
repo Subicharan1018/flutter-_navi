@@ -163,12 +163,14 @@ class _MoodChip extends StatelessWidget {
         child: Container(
           height: 32,
           padding: const EdgeInsets.symmetric(horizontal: Space.lg),
-          alignment: Alignment.center,
           decoration: BoxDecoration(color: selected ? t.accentFill : t.fill, borderRadius: BorderRadius.circular(16)),
-          child: Text(
-            label,
-            maxLines: 1,
-            style: t.subheadline.copyWith(color: selected ? t.onAccent : t.textPrimary, fontWeight: FontWeight.w600),
+          child: Center(
+            widthFactor: 1,
+            child: Text(
+              label,
+              maxLines: 1,
+              style: t.subheadline.copyWith(color: selected ? t.onAccent : t.textPrimary, fontWeight: FontWeight.w600),
+            ),
           ),
         ),
       ),
@@ -189,8 +191,8 @@ class _InlineNote extends StatelessWidget {
     final t = ThemeTokens.of(context);
     return Row(
       children: [
-        Expanded(child: Text(text, style: t.footnote.copyWith(color: danger ? t.danger : t.textSecondary))),
-        const SizedBox(width: Space.md),
+        Flexible(child: Text(text, style: t.footnote.copyWith(color: danger ? t.danger : t.textSecondary))),
+        const SizedBox(width: Space.sm),
         ConstrainedBox(
           constraints: const BoxConstraints(minHeight: 44, minWidth: 44),
           child: CupertinoClickable(
