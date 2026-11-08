@@ -7,13 +7,24 @@ int _i(Object? v) => v is num ? v.toInt() : int.tryParse(_s(v)) ?? 0;
 class SocialSettings {
   final bool enabled;
   final bool hideActivity;
-  const SocialSettings({this.enabled = false, this.hideActivity = false});
 
-  factory SocialSettings.fromJson(Map<String, dynamic> j) =>
-      SocialSettings(enabled: j['enabled'] == true, hideActivity: j['hide_activity'] == true);
+  /// Hide "what I'm listening to" (People, Listening now, notifications). The
+  /// server makes it follow [hideActivity] until the person sets it themselves.
+  final bool hideListening;
+  const SocialSettings({this.enabled = false, this.hideActivity = false, bool? hideListening})
+      : hideListening = hideListening ?? hideActivity;
 
-  SocialSettings copyWith({bool? enabled, bool? hideActivity}) =>
-      SocialSettings(enabled: enabled ?? this.enabled, hideActivity: hideActivity ?? this.hideActivity);
+  factory SocialSettings.fromJson(Map<String, dynamic> j) => SocialSettings(
+        enabled: j['enabled'] == true,
+        hideActivity: j['hide_activity'] == true,
+        hideListening: j['hide_listening'] is bool ? j['hide_listening'] as bool : null,
+      );
+
+  SocialSettings copyWith({bool? enabled, bool? hideActivity, bool? hideListening}) => SocialSettings(
+        enabled: enabled ?? this.enabled,
+        hideActivity: hideActivity ?? this.hideActivity,
+        hideListening: hideListening ?? this.hideListening,
+      );
 }
 
 // ── Friend activity ──────────────────────────────────────────────────────────
@@ -83,6 +94,88 @@ class FriendFeed {
             if (f is Map) FriendActivity.fromJson(Map<String, dynamic>.from(f)),
         ],
       );
+}
+
+// ── People ───────────────────────────────────────────────────────────────────
+
+/// How present someone is. Shown by shape (filled / half / hollow / dashed),
+/// never by colour alone.
+enum PresenceState {
+  active,
+  idle,
+  offline,
+
+  /// Chose not to share what they listen to: nothing else is known.
+  hidden;
+
+  static PresenceState parse(Object? v) => switch (v) {
+        'active' => PresenceState.active,
+        'idle' => PresenceState.idle,
+        'hidden' => PresenceState.hidden,
+        _ => PresenceState.offline,
+      };
+
+  String get label => switch (this) {
+        PresenceState.active => 'Listening now',
+        PresenceState.idle => 'Idle',
+        PresenceState.offline => 'Offline',
+        PresenceState.hidden => 'Not sharing',
+      };
+}
+
+/// The room a person is in, as far as the server lets you see it.
+class PersonRoom {
+  final JamMode mode;
+  final bool open;
+  final int members;
+
+  /// Only present when the room's admin opened it to friends.
+  final String? code;
+  final bool joinable;
+  const PersonRoom({required this.mode, this.open = false, this.members = 1, this.code, this.joinable = false});
+
+  factory PersonRoom.fromJson(Map<String, dynamic> j) => PersonRoom(
+        mode: JamMode.parse(j['mode']),
+        open: j['open'] == true,
+        members: _i(j['members']),
+        code: j['code'] as String?,
+        joinable: j['joinable'] == true && j['code'] is String,
+      );
+}
+
+class Person {
+  final String username;
+  final PresenceState state;
+  final FriendSong? nowPlaying;
+  final PersonRoom? room;
+  const Person({required this.username, this.state = PresenceState.offline, this.nowPlaying, this.room});
+
+  bool get isActive => state == PresenceState.active;
+
+  factory Person.fromJson(Map<String, dynamic> j) => Person(
+        username: _s(j['username']),
+        state: PresenceState.parse(j['state']),
+        nowPlaying:
+            j['now_playing'] is Map ? FriendSong.fromJson(Map<String, dynamic>.from(j['now_playing'] as Map)) : null,
+        room: j['room'] is Map ? PersonRoom.fromJson(Map<String, dynamic>.from(j['room'] as Map)) : null,
+      );
+}
+
+class PeopleList {
+  /// False until this person turned social features on.
+  final bool enabled;
+  final List<Person> people;
+  const PeopleList({this.enabled = false, this.people = const []});
+
+  factory PeopleList.fromJson(Map<String, dynamic> j) => PeopleList(
+        enabled: j['enabled'] == true,
+        people: [
+          for (final p in (j['people'] as List? ?? const []))
+            if (p is Map) Person.fromJson(Map<String, dynamic>.from(p)),
+        ],
+      );
+
+  List<Person> get listeningNow => [for (final p in people) if (p.isActive) p];
 }
 
 // ── Jam ──────────────────────────────────────────────────────────────────────
@@ -156,6 +249,9 @@ class JamState {
   final String code;
   final int version;
   final JamMode mode;
+
+  /// The admin opened the room to friends: they can join from People.
+  final bool open;
   final String host;
   final bool youAreHost;
 
@@ -184,6 +280,7 @@ class JamState {
     required this.positionMs,
     required this.serverMs,
     this.mode = JamMode.jam,
+    this.open = false,
     bool? youCanEdit,
   }) : youCanEdit = youCanEdit ?? (youAreHost || mode == JamMode.collab);
 
@@ -197,6 +294,7 @@ class JamState {
         code: _s(j['code']),
         version: _i(j['version']),
         mode: JamMode.parse(j['mode']),
+        open: j['open'] == true,
         host: _s(j['admin'] ?? j['host']),
         youAreHost: (j['you_are_admin'] ?? j['you_are_host']) == true,
         youCanEdit: j['you_can_edit'] is bool ? j['you_can_edit'] as bool : null,

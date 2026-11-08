@@ -29,13 +29,25 @@ class SocialApi {
   Future<SocialSettings> settings() =>
       _wrap(() async => SocialSettings.fromJson(await _get('/social/settings')));
 
-  Future<SocialSettings> saveSettings({bool? enabled, bool? hideActivity}) => _wrap(() async {
+  Future<SocialSettings> saveSettings({bool? enabled, bool? hideActivity, bool? hideListening}) => _wrap(() async {
         final r = await _dio.put<Map<String, dynamic>>('/social/settings', data: {
           'enabled': ?enabled,
           'hide_activity': ?hideActivity,
+          'hide_listening': ?hideListening,
         });
         return SocialSettings.fromJson(r.data ?? const {});
       });
+
+  /// Everyone who turned social features on, with who is listening now.
+  Future<PeopleList> people() => _wrap(() async => PeopleList.fromJson(await _get('/social/people')));
+
+  /// Admin: let friends join this room from People.
+  Future<JamState> jamSetOpen(String code, bool open) =>
+      _wrap(() async => _jam(await _post('/social/jam/$code/open', {'open': open})));
+
+  /// Any collaborator: put song [entryId] at [index].
+  Future<CollabPlaylist> collabMove(String id, int entryId, int index) =>
+      _wrap(() async => _collab(await _post('/social/collab/$id/move', {'entry_id': entryId, 'index': index})));
 
   Future<List<String>> users() => _wrap(() async {
         final j = await _get('/social/users');
