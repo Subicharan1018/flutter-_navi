@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../services/app_notifier.dart' show AppNotifier;
 import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../widgets/ui/action_sheet.dart';
 import '../../../widgets/ui/grouped_list.dart';
@@ -77,7 +78,10 @@ class SocialSettingsSection extends ConsumerWidget {
             title: 'Friend Alerts',
             subtitle: 'A notification when a friend starts listening. At most one per friend every 30 minutes.',
             value: alerts.enabled,
-            onChanged: alertsCtl.setEnabled,
+            onChanged: (v) {
+              alertsCtl.setEnabled(v);
+              if (v) AppNotifier.prime(); // asks for the Android notification permission while the app is on screen
+            },
           ),
         if (loaded && s.enabled && alerts.enabled)
           GroupedRow(

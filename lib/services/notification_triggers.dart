@@ -3,8 +3,13 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:flutter/widgets.dart' show AppLifecycleListener;
+
 import '../core/hive_boxes.dart';
+import '../features/social/logic/people_providers.dart';
 import '../features/social/logic/social_providers.dart';
+import '../features/social/logic/social_rules.dart';
+import '../widgets/app_scaffold.dart' show AppTab, selectAppTab;
 import '../features/updates/logic/update_providers.dart';
 import 'app_notifier.dart';
 
@@ -30,7 +35,65 @@ String invitationText(int count) =>
 /// app is alive they are re-read at this interval (only with social turned on).
 const invitationPollEvery = Duration(minutes: 10);
 
+// ── friends starting to listen ───────────────────────────────────────────────
+
+/// Title and body of the "friend started listening" notification.
+@visibleForTesting
+(String, String) friendAlertText(FriendAlert a) {
+  final s = a.song;
+  final song = s == null ? null : (s.artist.isEmpty ? s.title : '${s.title} · ${s.artist}');
+  final room = a.roomMode == null
+      ? null
+      : (a.joinCode != null ? 'In a ${a.roomMode!.label} room. Open People to join.' : 'In a ${a.roomMode!.label} room.');
+  return ('${a.username} is listening', [?song, ?room].join(' · '));
+}
+
+/// Raises the notification (only when the app is not on screen; the People
+/// view already shows it otherwise) and remembers that one is waiting, so
+/// opening the app straight after lands on People.
+class AppFriendAlertSink implements FriendAlertSink {
+  const AppFriendAlertSink();
+
+  @override
+  Future<void> show(FriendAlert alert) async {
+    final (title, body) = friendAlertText(alert);
+    final shown = await AppNotifier.show(
+      NotifyChannel.social,
+      // One slot per friend: a newer alert replaces their older one.
+      id: 100 + (alert.username.toLowerCase().hashCode & 0xfff),
+      title: title,
+      body: body,
+    );
+    if (shown) FriendAlertOpen.mark();
+  }
+}
+
+/// A notification tap just brings the app forward (the native side has no
+/// payload), so "opens that friend's activity" is done on the next resume: if
+/// a friend alert was posted in the last couple of minutes, show People.
+class FriendAlertOpen {
+  FriendAlertOpen._();
+  static const window = Duration(minutes: 2);
+  static DateTime? _at;
+
+  static void mark([DateTime? now]) => _at = now ?? DateTime.now();
+
+  /// True once per posted alert, and only inside [window].
+  static bool consume([DateTime? now]) {
+    final at = _at;
+    _at = null;
+    return at != null && (now ?? DateTime.now()).difference(at) <= window;
+  }
+}
+
 void wireNotificationTriggers(ProviderContainer container) {
+  // Friend alerts: start the People poll (it only runs while social features
+  // and alerts are on) and open People when the app comes forward after one.
+  container.read(peopleProvider);
+  AppLifecycleListener(onResume: () {
+    if (FriendAlertOpen.consume()) selectAppTab(AppTab.jam);
+  });
+
   container.listen(updateCheckProvider, (_, next) {
     final check = next.asData?.value;
     if (check == null || !check.available) return;
