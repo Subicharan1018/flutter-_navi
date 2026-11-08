@@ -35,6 +35,7 @@ import '../utils/platform_utils.dart';
 import '../widgets/ui/controls.dart';
 import '../widgets/ui/large_title_page.dart';
 import '../widgets/ui/media.dart';
+import '../widgets/ui/sliver_width_builder.dart';
 import '../widgets/ui/states.dart';
 import 'album_details_screen.dart';
 import 'artist_screen.dart';
@@ -246,12 +247,13 @@ class _CategoryGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tile = ArtSize.of(context).tile * 1.3;
     return SliverPadding(
       padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.lg),
-      sliver: SliverLayoutBuilder(
-        builder: (context, c) => SliverGrid(
+      sliver: SliverWidthBuilder(
+        builder: (context, width) => SliverGrid(
           gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-            crossAxisCount: gridColumns(c.crossAxisExtent, ArtSize.of(context).tile * 1.3),
+            crossAxisCount: gridColumns(width, tile),
             crossAxisSpacing: Space.md,
             mainAxisSpacing: Space.md,
             mainAxisExtent: 108,

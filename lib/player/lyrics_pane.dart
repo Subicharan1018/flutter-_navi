@@ -12,6 +12,7 @@ import '../lyrics/controllers/lyrics_translation_controller.dart';
 import '../lyrics/models/lyric_line.dart';
 import '../lyrics/models/lyric_translation.dart';
 import '../providers/player_provider.dart';
+import '../utils/platform_utils.dart';
 import 'edge_fade.dart';
 import 'now_playing_style.dart';
 
@@ -128,7 +129,7 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
         bottom: 0.14,
         child: SingleChildScrollView(
           controller: _scroll,
-          physics: const BouncingScrollPhysics(),
+          physics: PlatformUtils.isDesktop ? const ClampingScrollPhysics() : const BouncingScrollPhysics(),
           padding: widget.padding.copyWith(bottom: 320),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -173,7 +174,7 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
         .copyWith(height: 1.5);
     return SingleChildScrollView(
       key: const ValueKey('plain'),
-      physics: const BouncingScrollPhysics(),
+      physics: PlatformUtils.isDesktop ? const ClampingScrollPhysics() : const BouncingScrollPhysics(),
       padding: widget.padding.copyWith(bottom: 120),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
