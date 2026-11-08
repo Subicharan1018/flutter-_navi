@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navivibe/services/app_notifier.dart';
 import 'package:navivibe/services/desktop_tray.dart';
 import 'package:navivibe/services/windows_smtc.dart';
 
@@ -114,5 +115,37 @@ void main() {
     expect(DesktopTray.tooltipFor(title: 'A', artist: 'B'), 'A · B');
     expect(DesktopTray.tooltipFor(title: 'A'), 'A');
     expect(DesktopTray.tooltipFor(title: 'x' * 300).length, 127);
+  });
+
+  test('a track change restarts the timeline at zero', () async {
+    items.add(const MediaItem(id: '1', title: 'A', duration: Duration(seconds: 100)));
+    states.add(playing(80));
+    await pump();
+    items.add(const MediaItem(id: '2', title: 'B', duration: Duration(seconds: 50)));
+    await pump();
+    expect(sink.calls.last, 'timeline:0/50');
+  });
+
+  test('metadata and status are published even if the state arrives first', () async {
+    states.add(playing(0));
+    await pump();
+    expect(sink.calls, ['status:playing']); // nothing to show yet, no timeline
+    items.add(const MediaItem(id: '1', title: 'A', duration: Duration(seconds: 9)));
+    await pump();
+    expect(sink.calls, ['status:playing', 'track:A:null', 'timeline:0/9']);
+  });
+
+  test('clearing the item clears the flyout', () async {
+    items.add(const MediaItem(id: '1', title: 'A'));
+    items.add(null);
+    await pump();
+    expect(sink.calls, contains('track:null:null'));
+  });
+
+  test('the Windows identity icon is the bundled ico, else the exe', () {
+    final exe = ['C:','app','navivibe.exe'].join('\\');
+    final ico = ['C:','app','data','flutter_assets','assets','tray','tray.ico'].join('\\');
+    expect(AppNotifier.windowsIconPath(exe: exe, exists: (_) => true), ico);
+    expect(AppNotifier.windowsIconPath(exe: exe, exists: (_) => false), exe);
   });
 }

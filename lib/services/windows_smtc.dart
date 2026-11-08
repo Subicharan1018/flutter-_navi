@@ -127,6 +127,11 @@ class SmtcController {
     final durationChanged = duration != _duration;
     _track = track;
     _duration = duration;
+    if (changed) {
+      // A new song starts at zero, not where the last one stopped.
+      _position = Duration.zero;
+      _positionAt = null;
+    }
     if (changed) unawaited(_safe(() => sink.setTrack(track)));
     if (changed || durationChanged) _sendTimeline();
   }

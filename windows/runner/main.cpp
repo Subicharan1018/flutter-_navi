@@ -1,6 +1,7 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
+#include <shobjidl.h>
 
 #include <cwchar>
 
@@ -21,6 +22,10 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   if (IsVelopackHook(command_line)) {
     return EXIT_SUCCESS;
   }
+
+  // One stable identity for the taskbar, the volume flyout (SMTC) and toasts.
+  // Must match AppNotifier._aumid in Dart, and be set before any window exists.
+  ::SetCurrentProcessExplicitAppUserModelID(L"NaviVibe");
 
   // Attach to console when present (e.g., 'flutter run') or create a
   // new console when running with a debugger.
