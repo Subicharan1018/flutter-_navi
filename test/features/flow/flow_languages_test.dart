@@ -226,7 +226,7 @@ void main() {
 
     testWidgets('the Settings section shows the choice and Try new languages saves at once', (tester) async {
       await show(tester, const SingleChildScrollView(child: FlowSettingsSection()), prefs: _prefs(languages: ['ta', 'ml']));
-      expect(find.text('Flow & Mixes'), findsOneWidget);
+      expect(find.text('Flow languages'), findsOneWidget);
       expect(find.text('Languages'), findsOneWidget);
       expect(find.text('Tamil, Malayalam'), findsOneWidget);
       expect(find.text('Try new languages'), findsOneWidget);
@@ -234,7 +234,7 @@ void main() {
       await tester.tap(find.byType(CupertinoSwitch));
       await tester.pumpAndSettle();
       expect(server.explore, isFalse);
-      expect(find.textContaining('and nothing outside them'), findsOneWidget);
+      expect(find.textContaining('stay in these languages.'), findsOneWidget);
     });
 
     testWidgets('on a TV every choice can take focus from the D-pad and nothing overflows', (tester) async {

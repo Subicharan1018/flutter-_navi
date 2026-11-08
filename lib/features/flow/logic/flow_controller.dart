@@ -111,6 +111,15 @@ class FlowController extends Notifier<FlowState> {
     }
   }
 
+  /// Try again after an error: refills the queue while Flow runs, otherwise
+  /// starts it. Returns whether Flow is running afterwards.
+  Future<bool> retry() async {
+    if (!state.active) return start();
+    state = state.copyWith(error: null);
+    await _refill();
+    return state.active;
+  }
+
   /// Ends Flow. What's queued keeps playing as an ordinary queue.
   void stop() {
     _release();
