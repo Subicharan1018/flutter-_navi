@@ -111,7 +111,7 @@ Widget _app(Widget home, JamUiState jam) {
     ],
     child: ThemeTokens(
       tokens: tokens,
-      child: MaterialApp(debugShowCheckedModeBanner: false, theme: AppTheme.build(tokens), home: home),
+      child: MaterialApp(debugShowCheckedModeBanner: false, theme: AppTheme.build(tokens), home: ColoredBox(color: tokens.bgBase, child: home)),
     ),
   );
 }
