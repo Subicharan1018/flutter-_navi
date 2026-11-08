@@ -8,6 +8,7 @@ import '../../core/theme.dart';
 import '../../utils/platform_utils.dart';
 import '../art/navi_icons.dart';
 import '../cover_art.dart';
+import 'sliver_width_builder.dart';
 
 /// Apple Music section title: Title 2, and when it leads somewhere, a chevron
 /// right after the words (iOS 17+) rather than a separate "See All" link.
@@ -265,15 +266,16 @@ class MediaGrid extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final target = ArtSize.of(context).tile;
     return SliverPadding(
       padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
-      sliver: SliverLayoutBuilder(
-        builder: (context, c) {
-          final target = ArtSize.of(context).tile;
-          final phoneColumns = gridColumns(c.crossAxisExtent, target);
+      // Not a SliverLayoutBuilder: that rebuilt every visible card on every scroll frame.
+      sliver: SliverWidthBuilder(
+        builder: (context, width) {
+          final phoneColumns = gridColumns(width, target);
           final (columns, card) = PlatformUtils.isDesktop
-              ? desktopTiles(c.crossAxisExtent, target, Space.lg)
-              : (phoneColumns, (c.crossAxisExtent - Space.lg * (phoneColumns - 1)) / phoneColumns);
+              ? desktopTiles(width, target, Space.lg)
+              : (phoneColumns, (width - Space.lg * (phoneColumns - 1)) / phoneColumns);
           return SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: columns,

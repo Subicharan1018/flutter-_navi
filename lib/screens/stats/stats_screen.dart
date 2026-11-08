@@ -8,6 +8,7 @@ import '../../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../../utils/platform_utils.dart';
 import '../../widgets/ui/controls.dart';
 import '../../widgets/ui/large_title_page.dart';
+import '../../widgets/ui/sliver_width_builder.dart';
 import '../../widgets/motion/reveal.dart';
 import '../../widgets/ui/states.dart';
 import 'widgets/fortnight_chart.dart';
@@ -136,8 +137,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               ),
               SliverPadding(
                 padding: EdgeInsets.symmetric(horizontal: g),
-                sliver: SliverLayoutBuilder(builder: (context, c) {
-                  if (c.crossAxisExtent < 900) return SliverList.list(children: sections);
+                sliver: SliverWidthBuilder(builder: (context, width) {
+                  if (width < 900) return SliverList.list(children: sections);
                   // Two columns once there's room, like Health on iPad.
                   return SliverToBoxAdapter(
                     child: Row(

@@ -82,6 +82,10 @@ class LargeTitlePage extends StatelessWidget {
         backgroundColor: desktop ? Colors.transparent : t.bgBase,
         body: CustomScrollView(
           controller: controller,
+          // Windows: build ~2 screens of rows ahead, so rows are already there
+          // when a wheel glide reaches them instead of being built mid-scroll.
+          // ignore: deprecated_member_use
+          cacheExtent: desktop ? 900 : null,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,
           slivers: [
             if (desktop)

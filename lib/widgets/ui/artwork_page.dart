@@ -126,6 +126,9 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
                   child: Stack(
                     children: [
                       CustomScrollView(
+                        // Windows: rows are built ahead of the wheel glide, not during it.
+                        // ignore: deprecated_member_use
+                        cacheExtent: desktop ? 900 : null,
                         slivers: [
                           SliverToBoxAdapter(
                             child: desktop

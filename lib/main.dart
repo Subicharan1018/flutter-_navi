@@ -11,6 +11,7 @@ import 'core/hive_boxes.dart';
 import 'features/local_library/logic/local_library_providers.dart' show localLibraryBootstrapProvider;
 import 'core/motion.dart';
 import 'core/pointer_anchor.dart';
+import 'core/smooth_wheel.dart';
 import 'core/theme.dart';
 import 'utils/platform_utils.dart';
 import 'services/desktop_tray.dart';
@@ -48,6 +49,16 @@ Future<void> main() async {
   // 25 MB is the hard ceiling before eviction starts.
   PaintingBinding.instance.imageCache.maximumSizeBytes = 25 * 1024 * 1024;
   PaintingBinding.instance.imageCache.maximumSize = 60;
+  if (PlatformUtils.isDesktop) {
+    // A 1000-row table shows ~25 covers at a time and scrolls back over them;
+    // 60 decoded images evicted each other and re-decoded on every pass. 36-250 px
+    // thumbnails are 20-250 KB each, so 400 of them fit well inside 160 MB.
+    PaintingBinding.instance.imageCache
+      ..maximumSizeBytes = 160 * 1024 * 1024
+      ..maximumSize = 400;
+    // Eased mouse-wheel scrolling instead of a jump per notch.
+    SmoothWheel.install();
+  }
 
   // MEM-OPT: Configure CachedNetworkImage's separate cache manager.
   // Without this, it uses DefaultCacheManager which has no object count limit

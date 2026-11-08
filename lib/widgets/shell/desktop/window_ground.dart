@@ -64,11 +64,23 @@ class WindowGround extends StatelessWidget {
       builder: (context, c, child) {
         final top = c ?? tint ?? fallback;
         final bottom = tint == null ? top : Color.lerp(top, const Color(0xFF000000), deepen)!;
-        return DecoratedBox(
-          decoration: BoxDecoration(
-            gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [top, bottom]),
-          ),
-          child: child,
+        // The gradient is its own layer, beside the window rather than under it:
+        // nothing above it (a list scrolling, a hover, the progress bar ticking)
+        // repaints it, and it repaints only while the tint eases.
+        return Stack(
+          fit: StackFit.expand,
+          children: [
+            Positioned.fill(
+              child: RepaintBoundary(
+                child: DecoratedBox(
+                  decoration: BoxDecoration(
+                    gradient: LinearGradient(begin: Alignment.topCenter, end: Alignment.bottomCenter, colors: [top, bottom]),
+                  ),
+                ),
+              ),
+            ),
+            child!,
+          ],
         );
       },
       child: child,

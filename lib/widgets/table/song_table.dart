@@ -10,6 +10,7 @@ import '../../core/focus/navi_focus.dart';
 import '../shell/desktop/desktop_layout.dart';
 import '../../core/theme.dart';
 import '../ui/navi_icon_button.dart';
+import '../ui/sliver_width_builder.dart';
 import '../ui/states.dart';
 import '../../features/online_fetch/ui/fetch_activity.dart' show showAddSongsToPlaylist;
 import '../../models/song.dart';
@@ -561,65 +562,66 @@ class SongTableState extends ConsumerState<SongTableSliver> {
         }
       });
 
+  /// Rebuilt when this State builds (selection, sort, rows, columns) or the
+  /// width changes; not on every frame of a scroll (see [SliverWidthBuilder]).
   @override
   Widget build(BuildContext context) {
     final rows = _rows;
-    return SliverLayoutBuilder(
-      builder: (context, c) {
-        final w = c.crossAxisExtent;
-        final hidden = DesktopLayout.hiddenColumns.value;
-        final cols = _Columns(
-          album: widget.showAlbum && w >= 640 && !hidden.contains('album'),
-          added: widget.showDateAdded && w >= 900 && !hidden.contains('added'),
-          width: w,
-        );
-        final picked = _selectedSongs;
-        return SliverMainAxisGroup(
-          slivers: [
-            if (_finding) SliverToBoxAdapter(child: _FindBar(controller: _find, focus: _findFocus, onClose: _closeFind)),
-            SliverPersistentHeader(
-              pinned: true,
-              delegate: _HeaderDelegate(
-                columns: cols,
-                sort: _sort,
-                asc: _asc,
-                focus: _focus,
-                onKey: _onKey,
-                onSort: _toggleSort,
-                showArtwork: widget.showArtwork,
-                onColumns: (widget.showAlbum || widget.showDateAdded) ? _columnsMenu : null,
-                selectionCount: picked.length,
-                selectionBar: picked.length > 1 ? _selectionBar(picked) : null,
-              ),
+    return SliverWidthBuilder(builder: (context, w) => _table(rows, w));
+  }
+
+  Widget _table(List<Song> rows, double w) {
+    final hidden = DesktopLayout.hiddenColumns.value;
+    final cols = _Columns(
+      album: widget.showAlbum && w >= 640 && !hidden.contains('album'),
+      added: widget.showDateAdded && w >= 900 && !hidden.contains('added'),
+      width: w,
+    );
+    final picked = _selectedSongs;
+    return SliverMainAxisGroup(
+      slivers: [
+        if (_finding) SliverToBoxAdapter(child: _FindBar(controller: _find, focus: _findFocus, onClose: _closeFind)),
+        SliverPersistentHeader(
+          pinned: true,
+          delegate: _HeaderDelegate(
+            columns: cols,
+            sort: _sort,
+            asc: _asc,
+            focus: _focus,
+            onKey: _onKey,
+            onSort: _toggleSort,
+            showArtwork: widget.showArtwork,
+            onColumns: (widget.showAlbum || widget.showDateAdded) ? _columnsMenu : null,
+            selectionCount: picked.length,
+            selectionBar: picked.length > 1 ? _selectionBar(picked) : null,
+          ),
+        ),
+        if (rows.isEmpty && _find.text.isNotEmpty)
+          SliverToBoxAdapter(
+            child: MessageState(
+              icon: NaviGlyph.search,
+              art: EmptyArtKind.noResults,
+              title: 'No songs match “${_find.text.trim()}”',
+              message: 'Check the spelling or use fewer words.',
+              actionLabel: 'Clear search',
+              onAction: _find.clear,
             ),
-            if (rows.isEmpty && _find.text.isNotEmpty)
-              SliverToBoxAdapter(
-                child: MessageState(
-                  icon: NaviGlyph.search,
-                  art: EmptyArtKind.noResults,
-                  title: 'No songs match “${_find.text.trim()}”',
-                  message: 'Check the spelling or use fewer words.',
-                  actionLabel: 'Clear search',
-                  onAction: _find.clear,
-                ),
-              )
-            else
-              SliverFixedExtentList(
-                itemExtent: SongTableSliver.rowHeight,
-                delegate: SliverChildBuilderDelegate(
-                  (context, i) => _Row(
-                    key: ValueKey('row_${rows[i].id}_$i'),
-                    table: this,
-                    index: i,
-                    song: rows[i],
-                    columns: cols,
-                  ),
-                  childCount: rows.length,
-                ),
+          )
+        else
+          SliverFixedExtentList(
+            itemExtent: SongTableSliver.rowHeight,
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => _Row(
+                key: ValueKey('row_${rows[i].id}_$i'),
+                table: this,
+                index: i,
+                song: rows[i],
+                columns: cols,
               ),
-          ],
-        );
-      },
+              childCount: rows.length,
+            ),
+          ),
+      ],
     );
   }
 }
@@ -1009,13 +1011,11 @@ class _RowState extends ConsumerState<_Row> {
           ),
           SizedBox(
             width: _Columns.menuW,
-            child: Visibility(
-              visible: _hover || selected,
-              maintainSize: true,
-              maintainAnimation: true,
-              maintainState: true,
-              child: NaviIconButton(glyph: NaviGlyph.more, tooltip: 'More', onTap: () => _t._menu(widget.index)),
-            ),
+            // Built only while shown: a hidden button per visible row was a
+            // focusable, tooltip and ink for ~25 rows, rebuilt as rows scroll in.
+            child: _hover || selected
+                ? NaviIconButton(glyph: NaviGlyph.more, tooltip: 'More', onTap: () => _t._menu(widget.index))
+                : null,
           ),
         ],
       );

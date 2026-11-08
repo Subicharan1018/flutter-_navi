@@ -63,9 +63,10 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
       bottom: 0.08,
       child: CustomScrollView(
         center: _anchor,
-        physics: const BouncingScrollPhysics(
-          parent: AlwaysScrollableScrollPhysics(),
-        ),
+        // Windows: the wheel stops at the ends, like every other list.
+        physics: PlatformUtils.isDesktop
+            ? const ClampingScrollPhysics(parent: AlwaysScrollableScrollPhysics())
+            : const BouncingScrollPhysics(parent: AlwaysScrollableScrollPhysics()),
         slivers: [
           // ── History (laid out upward from the anchor) ─────────────────────
           if (history.isNotEmpty)
