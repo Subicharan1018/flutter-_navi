@@ -14,6 +14,7 @@ import 'core/pointer_anchor.dart';
 import 'core/theme.dart';
 import 'utils/platform_utils.dart';
 import 'services/desktop_tray.dart';
+import 'services/windows_smtc.dart';
 import 'services/window_manager_service.dart';
 import 'widgets/app_scaffold.dart';
 import 'widgets/shell/title_bar.dart';
@@ -168,12 +169,36 @@ Future<void> main() async {
       isPlaying: () => container.read(playerProvider).isPlaying,
     )));
     container.listen(playerProvider.select((s) => s.isPlaying), (_, _) => DesktopTray.instance.refreshMenu());
+    globalAudioHandler.mediaItem.listen(
+      (m) => DesktopTray.instance.setNowPlaying(title: m?.title, artist: m?.artist),
+    );
+    unawaited(_startSmtc(container, globalAudioHandler));
   }
 
   runApp(
     UncontrolledProviderScope(
       container: container,
       child: const MyMusicPlayerApp(),
+    ),
+  );
+}
+
+/// Windows volume flyout / lock screen / hardware media keys. Same path as the
+/// tray: through [PlayerNotifier], so they behave like the in-app buttons.
+Future<void> _startSmtc(ProviderContainer container, NaviAudioHandler handler) async {
+  final sink = await SmtcWindowsSink.create();
+  if (sink == null) return;
+  PlayerNotifier player() => container.read(playerProvider.notifier);
+  SmtcController(
+    sink: sink,
+    mediaItem: handler.mediaItem,
+    playbackState: handler.playbackState,
+    transport: SmtcTransport(
+      play: () => player().play(),
+      pause: () => player().pause(),
+      next: () => player().playNext(),
+      previous: () => player().playPrev(),
+      stop: () => player().stop(),
     ),
   );
 }
