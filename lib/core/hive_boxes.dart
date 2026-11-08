@@ -122,6 +122,8 @@ class HiveBoxes {
   // App updates (features/updates). The token lives in the encrypted auth box.
   static const kNotificationsEnabled = 'app_notifications';
   static const kKeepPlayingInTray = 'windows_keep_in_tray';
+  static const kGlobalHotkeyEnabled = 'windows_hotkey_enabled';
+  static const kGlobalHotkey = 'windows_hotkey';
   static const kUpdateNotifiedBuild = 'update_notified_build';
   static const kUpdateSource = 'update_source';
   static const kUpdateToken = 'update_token';

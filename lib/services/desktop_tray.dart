@@ -4,6 +4,7 @@ import 'package:window_manager/window_manager.dart';
 
 import '../core/hive_boxes.dart';
 import '../utils/platform_utils.dart';
+import 'mini_player.dart';
 
 // =============================================================================
 // desktop_tray.dart — Windows notification-area icon with transport controls.
@@ -35,6 +36,9 @@ class DesktopTray with TrayListener, WindowListener {
 
   static bool get supported => PlatformUtils.isWindows;
 
+  /// True once the notification-area icon is up.
+  bool get ready => _ready;
+
   /// Safe to call once at startup; any failure leaves the app without a tray.
   Future<void> init(PlaybackTransport transport) async {
     if (!supported || _ready) return;
@@ -62,6 +66,7 @@ class DesktopTray with TrayListener, WindowListener {
         MenuItem(key: 'next', label: 'Next'),
         MenuItem(key: 'previous', label: 'Previous'),
         MenuItem.separator(),
+        MenuItem(key: 'mini', label: MiniPlayer.instance.active.value ? 'Back to full player' : 'Mini player'),
         MenuItem(key: 'show', label: 'Show NaviVibe'),
         MenuItem(key: 'quit', label: 'Quit'),
       ]),
@@ -90,6 +95,8 @@ class DesktopTray with TrayListener, WindowListener {
         _transport?.next();
       case 'previous':
         _transport?.previous();
+      case 'mini':
+        MiniPlayer.instance.toggle();
       case 'show':
         _show();
       case 'quit':

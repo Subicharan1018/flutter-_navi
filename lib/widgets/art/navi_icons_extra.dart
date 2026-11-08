@@ -473,6 +473,12 @@ void paintNaviGlyphExtra(
           ..lineTo(9.5, 19.5),
         stroke,
       );
+    case NaviGlyph.miniPlayer:
+      canvas.drawRRect(RRect.fromRectAndRadius(const Rect.fromLTWH(3.5, 5.5, 17, 13), const Radius.circular(2.2)), stroke);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(const Rect.fromLTWH(11.5, 11.5, 6, 4.5), const Radius.circular(1)),
+        fill,
+      );
     case NaviGlyph.swap:
       canvas.drawLine(const Offset(5, 8), const Offset(19, 8), stroke);
       canvas.drawPath(

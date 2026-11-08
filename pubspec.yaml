@@ -68,6 +68,7 @@ dependencies:
   qr_flutter: ^4.1.0
   mobile_scanner: ^7.4.2
   smtc_windows: ^1.1.0
+  hotkey_manager: 0.2.3
   # mesh_gradient removed (ARCH-2): declared but never imported anywhere
 
 dev_dependencies:
