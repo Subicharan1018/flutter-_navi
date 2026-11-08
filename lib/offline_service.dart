@@ -6,6 +6,7 @@ import 'package:dio/dio.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import '../models/song.dart';
 import '../models/playlist.dart';
+import 'features/status/logic/download_speed.dart';
 import 'features/local_library/logic/download_location.dart';
 import 'services/subsonic_service.dart';
 
@@ -260,10 +261,12 @@ class OfflineService {
       // leaving the download state stuck at "downloading" forever.
       dio.options.connectTimeout = const Duration(seconds: 15);
       dio.options.receiveTimeout = const Duration(seconds: 120);
+      DownloadSpeedMeter.instance.startFile();
       await dio.download(
         url,
         filePath,
         onReceiveProgress: (received, total) {
+          DownloadSpeedMeter.instance.record(received);
           if (total > 0 && onProgress != null) {
             onProgress(received / total);
           }

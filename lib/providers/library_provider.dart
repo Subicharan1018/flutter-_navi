@@ -363,6 +363,9 @@ DateTime? _lastSyncedAt() {
   }
 }
 
+/// When the last complete library sync finished (for the status screen).
+DateTime? librarySyncedAt() => _lastSyncedAt();
+
 void _markSynced() {
   try {
     HiveBoxes.prefs.put(_kLibrarySyncedAtMs, DateTime.now().millisecondsSinceEpoch);

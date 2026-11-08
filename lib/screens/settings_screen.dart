@@ -16,6 +16,7 @@ import '../features/local_library/ui/local_music_section.dart';
 import '../features/social/ui/social_settings_section.dart';
 import '../features/updates/logic/update_providers.dart' show updateCheckProvider, updatesSupported;
 import '../features/updates/ui/updates_screen.dart';
+import '../features/status/ui/status_screen.dart';
 import '../features/month/ui/month_screen.dart';
 import '../features/taste/ui/taste_screen.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
@@ -585,6 +586,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             header: 'About',
             children: [
               GroupedRow(title: 'Version', value: version),
+              GroupedRow(
+                title: 'Connection & status',
+                icon: NaviGlyph.signal,
+                onTap: () => navigateInApp(context, const StatusScreen()),
+              ),
               if (updatesSupported)
                 GroupedRow(
                   title: 'Updates',
