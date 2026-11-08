@@ -15,7 +15,7 @@ import '../logic/flow_prefs_provider.dart';
 void _failed(BuildContext context, Object e) =>
     showToast(context, e is ListenException ? e.message : 'Couldn’t save that. Try again.');
 
-/// Settings > Flow & Mixes: which languages Flow and the weekly mix draw from,
+/// Settings > Flow languages: which languages Flow and the weekly mix draw from,
 /// and whether NaviVibe may try new ones. Both save at once and are kept on the
 /// server, so the same choice applies on every device.
 class FlowSettingsSection extends ConsumerWidget {
@@ -26,10 +26,10 @@ class FlowSettingsSection extends ConsumerWidget {
     final prefs = ref.watch(flowPrefsProvider).asData?.value;
     final loaded = prefs != null;
     return GroupedSection(
-      header: 'Flow & Mixes',
+      header: 'Flow languages',
       footer: !loaded || prefs.explore
-          ? 'Flow and your weekly mix play the languages you pick. Trying new languages slips in an occasional song from one you rarely play, one language at a time.'
-          : 'Flow and your weekly mix play the languages you pick, and nothing outside them.',
+          ? 'Flow and your weekly mix stay in these languages, with an occasional song from a new one.'
+          : 'Flow and your weekly mix stay in these languages.',
       children: [
         GroupedRow(
           title: 'Languages',
@@ -91,8 +91,8 @@ class FlowLanguagesScreen extends ConsumerWidget {
             GroupedSection(
               header: 'Or pick languages',
               footer: prefs.explore
-                  ? 'Flow and your weekly mix play only these. Try new languages can still offer a song from another one now and then.'
-                  : 'Flow and your weekly mix play only these.',
+                  ? 'Flow and your weekly mix stay in these, with an occasional song from a new language.'
+                  : 'Flow and your weekly mix stay in these.',
               children: [
                 for (final l in prefs.available)
                   _ChoiceRow(
