@@ -63,7 +63,8 @@ class LargeTitlePage extends StatelessWidget {
     return DockGroundScope(
       color: null,
       child: Scaffold(
-        backgroundColor: t.bgBase,
+        // Desktop: the window's one ground shows through.
+        backgroundColor: desktop ? Colors.transparent : t.bgBase,
         body: CustomScrollView(
           controller: controller,
           keyboardDismissBehavior: ScrollViewKeyboardDismissBehavior.onDrag,

@@ -194,22 +194,15 @@ void main() {
       await tester.pump(const Duration(milliseconds: 600));
     }
 
-    Color barColor(WidgetTester tester) {
-      final box = find.descendant(of: find.byType(DesktopPlayerBar), matching: find.byType(Container)).first;
-      return ((tester.widget<Container>(box).decoration) as BoxDecoration).color!;
-    }
-
-    testWidgets('takes the playing cover\'s colour', (tester) async {
+    testWidgets('has no ground or edge of its own: the window\'s one tint shows through', (tester) async {
       const palette = AlbumPalette(deep: Color(0xFF3B1010), base: Color(0xFF7A2A2A), vibrant: Color(0xFFC04040), glow: Color(0xFFE08080));
       await bar(tester, 1366, extra: [coverPaletteProvider('s1').overrideWithValue(const AsyncData(palette))]);
-      final tinted = barColor(tester);
-      expect(tinted, isNot(AppThemeTokens.fallback.bgSurface));
-      expect(tinted.r, greaterThan(tinted.b), reason: 'a red cover gives a red-leaning bar');
-    });
-
-    testWidgets('is the plain surface until a palette arrives', (tester) async {
-      await bar(tester, 1366, extra: [coverPaletteProvider.overrideWith((ref, id) => Completer<AlbumPalette>().future)]);
-      expect(barColor(tester), AppThemeTokens.fallback.bgSurface);
+      final painted = find.descendant(of: find.byType(DesktopPlayerBar), matching: find.byType(DecoratedBox)).evaluate().where((e) {
+        final w = e.widget as DecoratedBox;
+        final size = e.size!;
+        return w.decoration is BoxDecoration && size.height == DesktopPlayerBar.height;
+      });
+      expect(painted, isEmpty, reason: 'no full-height coloured box, no top hairline');
     });
 
     testWidgets('the seek bar grows with the window, up to about 720', (tester) async {

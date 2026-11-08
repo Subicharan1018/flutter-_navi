@@ -30,6 +30,7 @@ import 'shell/desktop/desktop_layout.dart';
 import 'shell/desktop/library_rail.dart';
 import 'shell/desktop/resize_handle.dart';
 import 'shell/desktop/top_bar.dart';
+import 'shell/desktop/window_ground.dart';
 import 'shell/tab_navigators.dart';
 import 'shell/tv_shell.dart';
 import '../providers/id_migration_provider.dart';
@@ -511,10 +512,11 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
     // Narrow: icon-only rail, no side panel; wide enough: both.
     final panel = size.hasSidePanel && hasSong ? _panel : null;
     final overlay = !size.hasSidePanel && hasSong ? _overlay : null;
-    return ValueListenableBuilder<Color?>(
-      valueListenable: DockGround.value,
-      builder: (context, ground, _) => Scaffold(
-        backgroundColor: ground ?? t.bgBase,
+    // ONE tint for the whole window: the playing song's art, else (nothing
+    // playing) the page's own cover. Everything below is transparent over it.
+    return DesktopWindowGround(
+            child: Scaffold(
+        backgroundColor: Colors.transparent,
         body: Column(
           children: [
             DesktopTopBar(
@@ -617,7 +619,7 @@ class _DesktopShellState extends ConsumerState<_DesktopShell> {
               ),
           ],
         ),
-      ),
+            ),
     );
   }
 }

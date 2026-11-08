@@ -49,23 +49,12 @@ class DesktopPlayerBar extends ConsumerWidget {
     final n = ref.read(playerProvider.notifier);
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
 
-    // The bar takes the playing cover's colour (as the pages do), eased in when the
-    // song changes; before the palette arrives it is the plain surface.
-    final palette = song.coverArt.isEmpty ? null : ref.watch(coverPaletteProvider(song.coverArt)).asData?.value;
-    final ground = palette == null ? t.bgSurface : Color.lerp(t.bgSurface, palette.ground, 0.9)!;
-    return TweenAnimationBuilder<Color?>(
-      tween: ColorTween(end: ground),
-      duration: const Duration(milliseconds: 450),
-      curve: Curves.easeOutCubic,
-      builder: (context, color, child) => Container(
+    // No ground of its own: the window's one tint (the playing cover) shows through,
+    // with no edge between the bar and the page above it.
+    return SizedBox(
       height: height,
+      child: Padding(
       padding: const EdgeInsets.symmetric(horizontal: Space.md),
-      decoration: BoxDecoration(
-        color: color ?? ground,
-        border: Border(top: BorderSide(color: t.separatorOpaque, width: 0.5)),
-      ),
-      child: child,
-      ),
       child: Row(
         children: [
           // ── Left: the song ──────────────────────────────────────────────
@@ -206,6 +195,7 @@ class DesktopPlayerBar extends ConsumerWidget {
             ),
           ),
         ],
+      ),
       ),
     );
   }

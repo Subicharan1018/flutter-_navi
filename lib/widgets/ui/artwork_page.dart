@@ -10,6 +10,7 @@ import '../../core/theme.dart';
 import '../../utils/platform_utils.dart';
 import 'media.dart' show CircleIconButton;
 import '../../player/artwork.dart' show coverPaletteProvider;
+import '../shell/desktop/window_ground.dart' show windowPaletteProvider;
 import '../art/navi_icons.dart';
 import '../shell/dock_glass.dart';
 import 'dock_ground.dart';
@@ -87,16 +88,19 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
 
   @override
   Widget build(BuildContext context) {
-    final palette =
-        widget.paletteCoverId == null || widget.paletteCoverId!.isEmpty
+    final desktop = PlatformUtils.isDesktop;
+    // Desktop has ONE tint for the whole window: the playing song's art. This
+    // page's own cover colours the window only while nothing plays.
+    final window = desktop ? ref.watch(windowPaletteProvider) : null;
+    final palette = window ??
+        (widget.paletteCoverId == null || widget.paletteCoverId!.isEmpty
         ? AlbumPalette.fallback
         : ref
                   .watch(coverPaletteProvider(widget.paletteCoverId!))
                   .asData
                   ?.value ??
-              AlbumPalette.fallback;
+              AlbumPalette.fallback);
     final size = MediaQuery.sizeOf(context);
-    final desktop = PlatformUtils.isDesktop;
     final wide = size.width >= ArtworkPage._wideBreakpoint || desktop;
 
     // The ground eases to the sampled colour when it arrives instead of
@@ -116,7 +120,7 @@ class _ArtworkPageState extends ConsumerState<ArtworkPage> {
             child: AnnotatedRegion<SystemUiOverlayStyle>(
               value: SystemUiOverlayStyle.light,
               child: Scaffold(
-                backgroundColor: tokens.bgBase,
+                backgroundColor: desktop ? Colors.transparent : tokens.bgBase,
                 body: NotificationListener<ScrollNotification>(
                   onNotification: _onScroll,
                   child: Stack(

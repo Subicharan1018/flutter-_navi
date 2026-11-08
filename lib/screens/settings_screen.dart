@@ -627,7 +627,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final names = groups.keys.toList();
     final selected = names.contains(_category) ? _category : names.first;
     return Scaffold(
-      backgroundColor: t.bgBase,
+      backgroundColor: Colors.transparent, // the window's one ground shows through
       body: Row(
         children: [
           SizedBox(

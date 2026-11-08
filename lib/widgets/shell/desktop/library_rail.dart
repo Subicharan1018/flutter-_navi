@@ -23,7 +23,6 @@ import '../../desktop_dialogs.dart';
 import '../../table/song_table.dart' show SongDrag;
 import '../../ui/action_sheet.dart';
 import '../../ui/playlist_cover.dart';
-import '../../ui/dock_ground.dart';
 import '../app_tab.dart';
 import '../nav_stack.dart';
 import 'desktop_layout.dart';
@@ -100,15 +99,13 @@ class _LibraryRailState extends ConsumerState<LibraryRail> {
   Widget build(BuildContext context) {
     final jamLive = ref.watch(jamControllerProvider.select((s) => s.jam != null));
     final invites = ref.watch(invitationCountProvider);
-    final t = ThemeTokens.of(context);
     return ListenableBuilder(
       listenable: Listenable.merge([DesktopLayout.railWidth, DesktopLayout.railCollapsed]),
       builder: (context, _) {
         final collapsed = widget.forceCollapsed || DesktopLayout.railCollapsed.value;
         final width = collapsed ? DesktopLayout.railIcons : DesktopLayout.railWidth.value;
-        return GroundPane(
-          side: PaneSide.leading,
-          fallback: t.bgSurface,
+        return ColoredBox(
+          color: Colors.transparent, // the window's one ground shows through
           child: SizedBox(
             width: width,
             child: FocusTraversalGroup(

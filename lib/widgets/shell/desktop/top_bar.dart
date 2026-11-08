@@ -50,9 +50,8 @@ class DesktopTopBar extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
     Widget bar = Material(
-      color: t.bgSurface,
+      color: Colors.transparent, // the window's one ground shows through
       child: SizedBox(
         height: height,
         child: Row(

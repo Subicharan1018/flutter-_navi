@@ -12,7 +12,6 @@ import '../../../player/queue_pane.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../art/navi_icons.dart';
-import '../../ui/dock_ground.dart';
 import '../desktop/desktop_layout.dart';
 import '../desktop/resize_handle.dart';
 
@@ -38,8 +37,8 @@ class NowPlayingPanel extends ConsumerWidget {
     final song = ref.watch(playerProvider.select((s) => s.currentSong));
     if (song == null) return const SizedBox.shrink();
     final style = NowPlayingStyle.fromTokens(t);
-    return GroundSurface(
-      darken: 0.4,
+    return ColoredBox(
+      color: Colors.transparent, // the window's one ground shows through
       child: ValueListenableBuilder<double>(
         valueListenable: DesktopLayout.panelWidth,
         builder: (context, w, child) => SizedBox(width: w, child: child),

@@ -46,6 +46,7 @@ import 'package:navivibe/widgets/shell/app_tab.dart';
 import 'package:navivibe/widgets/shell/desktop/desktop_layout.dart';
 import 'package:navivibe/widgets/shell/desktop/library_rail.dart';
 import 'package:navivibe/widgets/shell/desktop/top_bar.dart';
+import 'package:navivibe/widgets/shell/desktop/window_ground.dart';
 
 import 'golden_fonts.dart';
 
@@ -250,34 +251,32 @@ void main() {
 
   // The shell as one picture: top bar, library rail, a page, the right panel.
   // (Composed from the real pieces; the shell widget itself needs the whole app.)
-  Widget shellPage(Size size) {
+  Widget shellPage(Size size, {Widget? page}) {
     final collapsed = size.width < 1200;
     return Builder(builder: (context) {
       final t = ThemeTokens.of(context);
-      return Scaffold(body: Column(children: [
+      // The same ground the real shell uses: one tint behind everything, every pane transparent.
+      return DesktopWindowGround(child: Scaffold(backgroundColor: Colors.transparent, body: Column(children: [
         const DesktopTopBar(),
         Expanded(
           child: Row(children: [
             LibraryRail(tab: AppTab.home, onSelect: (_) {}, forceCollapsed: collapsed),
-            Container(width: 1, color: t.separatorOpaque),
             Expanded(
-              child: PlaylistDetailsScreen(
+              child: page ?? PlaylistDetailsScreen(
                 playlist: Playlist(id: 'p1', name: 'Late Night Drive', comment: '', songCount: 14, duration: 3100),
               ),
             ),
-            if (!collapsed) ...[
-              Container(width: 1, color: t.separatorOpaque),
+            if (!collapsed)
               Container(
                 width: DesktopLayout.panelWidth.value,
-                color: t.bgSurface,
                 padding: const EdgeInsets.all(Space.lg),
                 alignment: Alignment.topLeft,
                 child: Text('Now Playing panel', style: t.footnote),
               ),
-            ],
           ]),
         ),
-      ]));
+        DesktopPlayerBar(panel: PanelKind.queue, onTogglePanel: (_) {}),
+      ])));
     });
   }
 
@@ -288,6 +287,17 @@ void main() {
       await shot(tester, shellPage(size), size, 'shell_$tag');
     });
   }
+
+  // Settings in the same window: the same ground as every other page, no black centre.
+  testWidgets('shell with settings', (tester) async {
+    DesktopLayout.debugReset();
+    await shot(tester, shellPage(const Size(1366, 768), page: const SettingsScreen()), const Size(1366, 768), 'shell_settings_1366x768');
+  });
+  // A song table page (the page's own cover is different from the playing song's): still one tint.
+  testWidgets('shell with songs', (tester) async {
+    DesktopLayout.debugReset();
+    await shot(tester, shellPage(const Size(1366, 768), page: const SongsPage()), const Size(1366, 768), 'shell_songs_1366x768');
+  });
 
   // Home on a desktop: full width, shelves of 170 tiles, no Jam or update banner.
   for (final size in const [Size(1366, 768), Size(1920, 1080)]) {
