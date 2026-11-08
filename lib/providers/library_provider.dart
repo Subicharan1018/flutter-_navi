@@ -10,6 +10,7 @@ import '../models/playlist.dart';
 import '../models/playlist_access.dart';
 import '../models/song.dart';
 import 'settings_provider.dart';
+import '../features/library_extras/logic/library_extras_providers.dart' show hiddenSongsProvider;
 import 'download_provider.dart';
 import '../models/download_state.dart';
 import '../database/app_database.dart';
@@ -788,6 +789,9 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
     ref.listen(isOfflineProvider, (prev, next) {
       loadNextPage(isRefresh: true);
     });
+    ref.listen(hiddenSongsProvider, (prev, next) {
+      loadNextPage(isRefresh: true);
+    });
     if (arg.filter == LibraryFilter.downloaded || ref.read(isOfflineProvider)) {
       ref.listen(downloadedSongIdsProvider, (prev, next) {
         loadNextPage(isRefresh: true);
@@ -846,6 +850,10 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
         }
         query.where((t) => t.songId.isIn(downloadedIds.toList()));
       }
+
+      // Duplicates the user chose to hide (device-local; see Merge Duplicates).
+      final hiddenIds = ref.read(hiddenSongsProvider);
+      if (hiddenIds.isNotEmpty) query.where((t) => t.songId.isNotIn(hiddenIds.toList()));
 
       query.orderBy([
         (t) {

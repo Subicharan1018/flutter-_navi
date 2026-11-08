@@ -16,6 +16,10 @@ import '../../widgets/ui/states.dart';
 import '../../widgets/ui/sort_menu_button.dart';
 import '../../widgets/ui/playlist_cover.dart';
 import 'library_entries.dart';
+import '../../features/library_extras/logic/library_extras_providers.dart' show duplicateCountProvider, sharedInboxProvider;
+import '../../features/library_extras/ui/duplicates_screen.dart';
+import '../../features/library_extras/ui/shared_inbox_screen.dart';
+import '../../widgets/shell/nav_stack.dart' show navigateInApp;
 import '../../utils/format.dart';
 import '../../providers/pins_provider.dart';
 import '../library_screen.dart' show PinsGrid;
@@ -100,7 +104,22 @@ class _DesktopLibraryPageState extends ConsumerState<DesktopLibraryPage> {
     void toggleShared() => setState(() => _sharedCollapsed = !_sharedCollapsed);
     final pins = ref.watch(pinsProvider);
     final columns = _columns(_kind, entries);
-    final toolbar = SliverToBoxAdapter(child: _Toolbar(kind: _kind, onKind: (k) => setState(() => _kind = k), onSort: _sortMenu, sort: _sort, asc: _asc));
+    final inbox = ref.watch(sharedInboxProvider);
+    final toolbar = SliverToBoxAdapter(
+      child: _Toolbar(
+        kind: _kind,
+        onKind: (k) => setState(() => _kind = k),
+        onSort: _sortMenu,
+        sort: _sort,
+        asc: _asc,
+        inboxTotal: inbox.entries.length,
+        inboxNew: inbox.newCount,
+        // Offered once the scan has found something, so a clean library shows no tool.
+        hasDuplicates: ref.watch(duplicateCountProvider) > 0,
+        onInbox: () => navigateInApp(context, const SharedInboxScreen(), title: 'Shared with you'),
+        onDuplicates: () => navigateInApp(context, const DuplicatesScreen(), title: 'Merge Duplicates'),
+      ),
+    );
     return LargeTitlePage(
       title: 'Library',
       slivers: [
@@ -221,7 +240,23 @@ class _Toolbar extends StatelessWidget {
   final VoidCallback onSort;
   final LibSort sort;
   final bool asc;
-  const _Toolbar({required this.kind, required this.onKind, required this.onSort, required this.sort, required this.asc});
+  final int inboxTotal;
+  final int inboxNew;
+  final bool hasDuplicates;
+  final VoidCallback onInbox;
+  final VoidCallback onDuplicates;
+  const _Toolbar({
+    required this.kind,
+    required this.onKind,
+    required this.onSort,
+    required this.sort,
+    required this.asc,
+    required this.inboxTotal,
+    required this.inboxNew,
+    required this.hasDuplicates,
+    required this.onInbox,
+    required this.onDuplicates,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -267,6 +302,10 @@ class _Toolbar extends StatelessWidget {
                 ),
               ),
             ),
+          // Tools, set apart from the kinds by their quieter text.
+          if (inboxNew > 0)
+            _ToolLink(label: 'Shared with you · $inboxNew new', onTap: onInbox),
+          if (hasDuplicates) _ToolLink(label: 'Merge duplicates', onTap: onDuplicates),
         ])),
           SortMenuButton(
             label: switch (sort) {
@@ -291,6 +330,34 @@ class _Toolbar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+class _ToolLink extends StatelessWidget {
+  final String label;
+  final VoidCallback onTap;
+  const _ToolLink({required this.label, required this.onTap});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(right: Space.sm),
+      child: Semantics(
+        button: true,
+        label: label,
+        child: NaviFocusable(
+          radius: Radii.capsule,
+          onTap: onTap,
+          child: Container(
+            height: 32,
+            padding: const EdgeInsets.symmetric(horizontal: Space.md),
+            alignment: Alignment.center,
+            child: Text(label, style: t.subheadline.copyWith(color: t.textSecondary, fontWeight: FontWeight.w600)),
+          ),
+        ),
       ),
     );
   }
