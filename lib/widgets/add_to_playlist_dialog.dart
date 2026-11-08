@@ -102,7 +102,7 @@ class _AddToPlaylistSheetState extends ConsumerState<AddToPlaylistSheet> {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final playlists = ref.watch(playlistsProvider);
+    final playlists = ref.watch(editablePlaylistsProvider); // other people's playlists are read-only
     final svc = ref.read(subsonicServiceProvider);
 
     return Column(

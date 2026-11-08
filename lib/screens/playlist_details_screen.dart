@@ -10,6 +10,7 @@ import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/download_state.dart';
 import '../models/playlist.dart';
+import '../models/playlist_access.dart';
 import '../models/song.dart';
 import '../providers/download_provider.dart';
 import '../providers/library_provider.dart';
@@ -62,6 +63,20 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   Playlist? _live;
   Playlist get _playlist => _live ?? widget.playlist;
   String get _query => _search.text.trim().toLowerCase();
+
+  /// Someone else's playlist: read-only for everyone, whatever their role in a
+  /// room. The service refuses the writes too; this keeps the screen honest.
+  bool get _readOnly => _playlist.isSharedFor(ref.read(settingsProvider).username);
+
+  Future<void> _makeCopy() async {
+    try {
+      final copy = await ref.read(playlistControllerProvider).makeCopy(_playlist);
+      if (!mounted) return;
+      showToast(context, 'Copied to “${copy.name}”');
+    } catch (_) {
+      if (mounted) showToast(context, 'Couldn’t make a copy. Try again.');
+    }
+  }
 
   List<Song> get _visible => _query.isEmpty
       ? _songs
@@ -132,6 +147,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   // ── Editing ───────────────────────────────────────────────────────────────
 
   Future<void> _remove(Song song) async {
+    if (_readOnly) return;
     final index = _songs.indexOf(song);
     if (index == -1) return;
     HapticFeedback.mediumImpact();
@@ -149,6 +165,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   }
 
   Future<void> _reorder(int from, int to) async {
+    if (_readOnly) return;
     final before = _songs;
     setState(() {
       final next = [..._songs];
@@ -192,6 +209,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
 
   /// Drag-reorder from the table: rows at [from] go before row [before].
   Future<void> _moveSongs(List<int> from, int before) async {
+    if (_readOnly) return;
     final moving = [for (final i in from) _songs[i]];
     final fromSet = from.toSet();
     final next = <Song>[];
@@ -214,6 +232,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   }
 
   Future<void> _addSongs() async {
+    if (_readOnly) return;
     await Navigator.of(context, rootNavigator: true).push(MaterialPageRoute<bool>(
       fullscreenDialog: true,
       builder: (_) => SongPickerScreen(playlistId: _playlist.id, playlistName: _playlist.name),
@@ -223,10 +242,12 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
   }
 
   Future<void> _edit() async {
+    if (_readOnly) return;
     if (await showPlaylistEditor(context, playlist: _playlist)) _load();
   }
 
   Future<void> _delete() async {
+    if (_readOnly) return;
     if (await deletePlaylistWithConfirm(context, ref, _playlist) && mounted) {
       Navigator.of(context).pop();
     }
@@ -244,6 +265,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
     final svc = ref.read(subsonicServiceProvider);
     final ownCover = (_playlist.coverArt ?? '').isNotEmpty;
     final paletteId = _playlist.resolvedCoverArtId(_songs);
+    final readOnly = _readOnly;
 
     return ArtworkPage(
       paletteCoverId: paletteId,
@@ -274,7 +296,10 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
       actions: _editing
           ? [_BarTextAction(label: 'Done', bold: true, onTap: () => setState(() => _editing = false))]
           : [
-              BarCircleButton(icon: NaviGlyph.plus, label: 'Add Songs', onTap: _addSongs),
+              if (readOnly)
+                BarCircleButton(icon: NaviGlyph.copy, label: 'Make a Copy', onTap: _makeCopy)
+              else
+                BarCircleButton(icon: NaviGlyph.plus, label: 'Add Songs', onTap: _addSongs),
               BarCircleButton(
                 icon: NaviGlyph.more,
                 label: 'More',
@@ -284,16 +309,25 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                   subtitle: songCount(_songs.length),
                   artUrl: _coverUrl,
                   loadSongs: () async => _songs,
-                  onEdit: _edit,
-                  onDelete: _delete,
+                  onEdit: readOnly ? null : _edit,
+                  onDelete: readOnly ? null : _delete,
                   pin: Pin.playlist(_playlist),
                   share: ShareTarget.playlist(_playlist),
-                  extraActions: [FolderMoveAction(playlistId: _playlist.id, page: context)],
+                  extraActions: [
+                    if (readOnly)
+                      SheetAction(label: 'Make a Copy', icon: NaviGlyph.copy, onTap: _makeCopy)
+                    else
+                      FolderMoveAction(playlistId: _playlist.id, page: context),
+                  ],
                 ),
               ),
             ],
       onRefresh: _load,
       slivers: [
+        if (readOnly)
+          SliverToBoxAdapter(
+            child: _ReadOnlyNote(owner: _playlist.owner ?? '', onCopy: _makeCopy),
+          ),
         // Desktop: the table has its own find (Ctrl+F), and no Edit mode.
         if (!_loading && !_failed && _songs.isNotEmpty && !useSongTable())
           SliverPadding(
@@ -307,7 +341,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                         : const SizedBox.shrink(),
                   ),
                   // The table's selection, Delete and drag replace Edit mode on desktop.
-                  if (!_editing && _query.isEmpty && !useSongTable())
+                  if (!readOnly && !_editing && _query.isEmpty && !useSongTable())
                     _BarTextAction(label: 'Edit', onTap: () => setState(() => _editing = true)),
                 ],
               ),
@@ -322,9 +356,9 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             child: MessageState(
               icon: NaviGlyph.playlist,
               title: 'This playlist is empty',
-              message: 'Add songs from your library to start listening.',
-              actionLabel: 'Add Songs',
-              onAction: _addSongs,
+              message: readOnly ? 'There’s nothing in it yet.' : 'Add songs from your library to start listening.',
+              actionLabel: readOnly ? null : 'Add Songs',
+              onAction: readOnly ? null : _addSongs,
             ),
           )
         else if (visible.isEmpty)
@@ -338,7 +372,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
               onAction: _search.clear,
             ),
           )
-        else if (_editing)
+        else if (_editing && !readOnly)
           SliverReorderableList(
             itemCount: _songs.length,
             onReorderItem: _reorder,
@@ -356,11 +390,11 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
         else if (useSongTable())
           SongTableSliver(
             songs: visible,
-            playlistId: _playlist.id,
+            playlistId: readOnly ? null : _playlist.id,
             showDateAdded: false,
             onPlay: (song, ordered) => _playOrdered(song, ordered),
-            onRemove: _removeAll,
-            onReorder: _query.isEmpty ? _moveSongs : null,
+            onRemove: readOnly ? null : _removeAll,
+            onReorder: _query.isEmpty && !readOnly ? _moveSongs : null,
           )
         else
           SliverFixedExtentList(
@@ -381,8 +415,8 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                       song: song,
                       showDuration: PlatformUtils.isDesktop,
                       onTap: () => _play(from: song),
-                      playlistId: _playlist.id,
-                      onRemoveFromPlaylist: () => _remove(song),
+                      playlistId: readOnly ? null : _playlist.id,
+                      onRemoveFromPlaylist: readOnly ? null : () => _remove(song),
                     ),
                   ),
                 );
@@ -392,7 +426,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
           ),
         if (!_loading && _songs.isNotEmpty && _query.isEmpty)
           SliverToBoxAdapter(child: CollectionSummary(songs: _songs)),
-        if (!_loading && !_failed && !_editing && _query.isEmpty && _songs.length >= 2 && !ref.watch(isOfflineProvider))
+        if (!readOnly && !_loading && !_failed && !_editing && _query.isEmpty && _songs.length >= 2 && !ref.watch(isOfflineProvider))
           SliverToBoxAdapter(
             child: PlaylistSuggestions(
               playlistId: _playlist.id,
@@ -402,6 +436,39 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
             ),
           ),
       ],
+    );
+  }
+}
+
+/// Said on top of someone else's playlist: it is read-only, here is how to
+/// change it.
+class _ReadOnlyNote extends StatelessWidget {
+  final String owner;
+  final VoidCallback onCopy;
+  const _ReadOnlyNote({required this.owner, required this.onCopy});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.md),
+      child: Row(children: [
+        Expanded(
+          child: Text(
+            owner.isEmpty ? 'Read-only. Make a copy to change it.' : '$owner’s playlist · read-only',
+            style: t.footnote,
+            maxLines: 2,
+            overflow: TextOverflow.ellipsis,
+          ),
+        ),
+        const SizedBox(width: Space.sm),
+        CupertinoButton(
+          padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+          minimumSize: const Size(44, 44),
+          onPressed: onCopy,
+          child: Text('Make a copy', style: t.subheadline.copyWith(color: t.accent, fontWeight: FontWeight.w600)),
+        ),
+      ]),
     );
   }
 }

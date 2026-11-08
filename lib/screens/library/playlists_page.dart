@@ -11,6 +11,7 @@ import '../../features/smart_playlists/ui/smart_actions.dart';
 import '../../features/smart_playlists/ui/smart_playlist_screen.dart';
 import '../../features/smart_playlists/ui/smart_widgets.dart';
 import '../../models/playlist.dart';
+import '../../models/playlist_access.dart';
 import '../../providers/library_provider.dart';
 import '../../providers/pins_provider.dart';
 import '../../providers/settings_provider.dart';
@@ -109,8 +110,19 @@ class PlaylistsPage extends ConsumerWidget {
             ];
           },
           data: (list) {
-            final entries = buildPlaylistEntries(folders: folders, smart: smart, server: list);
-            return [SliverList.builder(itemCount: entries.length, itemBuilder: (context, i) => row(entries[i]))];
+            // Yours first, editable; other people's in their own section, read-only.
+            final split = splitByOwner(list, ref.watch(settingsProvider.select((s) => s.username)));
+            final entries = buildPlaylistEntries(folders: folders, smart: smart, server: split.mine);
+            return [
+              SliverList.builder(itemCount: entries.length, itemBuilder: (context, i) => row(entries[i])),
+              if (split.shared.isNotEmpty) ...[
+                SliverToBoxAdapter(child: SectionHeader(title: 'Shared with you')),
+                SliverList.builder(
+                  itemCount: split.shared.length,
+                  itemBuilder: (context, i) => _serverRow(context, ref, split.shared[i], false),
+                ),
+              ],
+            ];
           },
         ),
       ],
@@ -162,25 +174,13 @@ class PlaylistsPage extends ConsumerWidget {
       padding: EdgeInsets.only(left: inFolder ? _indent : 0),
       child: CollectionRow(
         title: p.name,
-        subtitle: songCount(p.songCount),
+        subtitle: p.isSharedFor(ref.read(settingsProvider).username) && (p.owner ?? '').isNotEmpty
+            ? '${songCount(p.songCount)} · ${p.owner}'
+            : songCount(p.songCount),
         leading: CoverArt(url: art, size: 56, radius: Radii.cover, placeholderIcon: NaviGlyph.playlist),
         onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p)),
-        onLongPress: () => _actions(context, ref, p, art),
+        onLongPress: () => showPlaylistMenu(context, ref, p),
       ),
-    );
-  }
-
-  void _actions(BuildContext context, WidgetRef ref, Playlist p, String? art) {
-    showCollectionActions(
-      context,
-      title: p.name,
-      subtitle: songCount(p.songCount),
-      artUrl: art,
-      loadSongs: () => ref.read(subsonicServiceProvider).getPlaylistSongs(p.id),
-      onEdit: () => showPlaylistEditor(context, playlist: p),
-      onDelete: () => deletePlaylistWithConfirm(context, ref, p),
-      pin: Pin.playlist(p),
-      extraActions: [FolderMoveAction(playlistId: p.id, page: context)],
     );
   }
 
@@ -244,15 +244,33 @@ class PlaylistsPage extends ConsumerWidget {
 /// used by Library and by the sidebar's playlist rows.
 void showPlaylistMenu(BuildContext context, WidgetRef ref, Playlist p) {
   final svc = ref.read(subsonicServiceProvider);
+  // Someone else's playlist: no Edit, Delete or folder; Make a Copy instead.
+  final shared = p.isSharedFor(ref.read(settingsProvider).username);
   showCollectionActions(
     context,
     title: p.name,
     subtitle: songCount(p.songCount),
     artUrl: (p.coverArt ?? '').isEmpty ? null : svc.getCoverArtUrl(p.coverArt),
     loadSongs: () => svc.getPlaylistSongs(p.id),
-    onEdit: () => showPlaylistEditor(context, playlist: p),
-    onDelete: () => deletePlaylistWithConfirm(context, ref, p),
+    onEdit: shared ? null : () => showPlaylistEditor(context, playlist: p),
+    onDelete: shared ? null : () => deletePlaylistWithConfirm(context, ref, p),
     pin: Pin.playlist(p),
-    extraActions: [FolderMoveAction(playlistId: p.id, page: context)],
+    extraActions: [
+      if (shared)
+        SheetAction(
+          label: 'Make a Copy',
+          icon: NaviGlyph.copy,
+          onTap: () async {
+            try {
+              final copy = await ref.read(playlistControllerProvider).makeCopy(p);
+              if (context.mounted) showToast(context, 'Copied to “${copy.name}”');
+            } catch (_) {
+              if (context.mounted) showToast(context, 'Couldn’t make a copy. Try again.');
+            }
+          },
+        )
+      else
+        FolderMoveAction(playlistId: p.id, page: context),
+    ],
   );
 }

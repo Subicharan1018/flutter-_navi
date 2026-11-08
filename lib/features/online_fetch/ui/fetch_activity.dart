@@ -490,7 +490,7 @@ class _AddSongsSheetState extends ConsumerState<_AddSongsSheet> {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final playlists = ref.watch(playlistsProvider).asData?.value ?? const [];
+    final playlists = ref.watch(editablePlaylistsProvider).asData?.value ?? const [];
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
