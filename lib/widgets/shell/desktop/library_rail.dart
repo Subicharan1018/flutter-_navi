@@ -390,7 +390,7 @@ class _Item {
   });
 }
 
-class _LibraryList extends ConsumerWidget {
+class _LibraryList extends ConsumerStatefulWidget {
   final bool collapsed;
   final RailFilter? filter;
   final RailSort sort;
@@ -405,7 +405,21 @@ class _LibraryList extends ConsumerWidget {
   });
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<_LibraryList> createState() => _LibraryListState();
+}
+
+class _LibraryListState extends ConsumerState<_LibraryList> {
+  /// "Shared with you" folds away; a search always shows what matches.
+  bool _sharedCollapsed = false;
+
+  bool get collapsed => widget.collapsed;
+  RailFilter? get filter => widget.filter;
+  RailSort get sort => widget.sort;
+  String get query => widget.query;
+  Future<void> Function(BuildContext, Playlist, List<Song>) get onDrop => widget.onDrop;
+
+  @override
+  Widget build(BuildContext context) {
     final showPlaylists = filter == null || filter == RailFilter.playlists;
     _Item fromEntry(LibEntry e) => _Item(
           id: e.id,
@@ -448,17 +462,44 @@ class _LibraryList extends ConsumerWidget {
           onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true), title: 'Downloaded'),
         ),
       ],
-      if (filter == null || filter == RailFilter.playlists) ...libraryEntries(context, ref, LibKind.playlists).map(fromEntry),
-      if (filter == null || filter == RailFilter.albums) ...libraryEntries(context, ref, LibKind.albums).map(fromEntry),
-      if (filter == null || filter == RailFilter.artists) ...libraryEntries(context, ref, LibKind.artists).map(fromEntry),
     ];
 
-    var shown = query.isEmpty
-        ? items
-        : [for (final i in items) if (i.title.toLowerCase().contains(query) || i.subtitle.toLowerCase().contains(query)) i];
+    bool matches(String title, String subtitle) =>
+        query.isEmpty || title.toLowerCase().contains(query) || subtitle.toLowerCase().contains(query);
+    int byTitle(LibEntry a, LibEntry b) => a.title.toLowerCase().compareTo(b.title.toLowerCase());
+
+    // Playlists: yours, collab and shared with you, each under a quiet header.
+    var playlistEntries = [
+      if (filter == null || filter == RailFilter.playlists)
+        for (final e in libraryEntries(context, ref, LibKind.playlists)) if (matches(e.title, e.subtitle)) e,
+    ];
+    if (sort == RailSort.alphabetical) playlistEntries = sortWithinSections(playlistEntries, byTitle);
+    final playlistRows = sectionRows(playlistEntries, sharedCollapsed: _sharedCollapsed && query.isEmpty);
+
+    var others = [
+      for (final i in items) if (matches(i.title, i.subtitle)) i,
+      if (filter == null || filter == RailFilter.albums)
+        for (final e in libraryEntries(context, ref, LibKind.albums)) if (matches(e.title, e.subtitle)) fromEntry(e),
+      if (filter == null || filter == RailFilter.artists)
+        for (final e in libraryEntries(context, ref, LibKind.artists)) if (matches(e.title, e.subtitle)) fromEntry(e),
+    ];
     if (sort == RailSort.alphabetical) {
-      shown = [...shown]..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
+      others = [...others]..sort((a, b) => a.title.toLowerCase().compareTo(b.title.toLowerCase()));
     }
+
+    // What is always yours (Favorites, Songs, Downloaded) stays on top, then the
+    // playlist sections, then albums and artists.
+    final pinnedIds = {'fav', 'songs', 'dl'};
+    final rows = <_RailRow>[
+      for (final i in others) if (pinnedIds.contains(i.id)) _RailRow.item(i),
+      for (final r in playlistRows)
+        switch (r) {
+          LibHeaderRow() => _RailRow.header(r),
+          LibEntryRow(:final entry) => _RailRow.item(fromEntry(entry)),
+        },
+      for (final i in others) if (!pinnedIds.contains(i.id)) _RailRow.item(i),
+    ];
+    final shown = rows;
 
     if (shown.isEmpty) {
       final t = ThemeTokens.of(context);
@@ -468,11 +509,89 @@ class _LibraryList extends ConsumerWidget {
       );
     }
 
+    final itemExtent = collapsed ? 52.0 : 56.0;
     return ListView.builder(
       padding: EdgeInsets.fromLTRB(collapsed ? Space.sm : Space.sm, Space.xs, collapsed ? Space.sm : Space.sm, Space.sm),
-      itemExtent: collapsed ? 52 : 56,
+      itemExtentBuilder: (i, _) => shown[i].header == null ? itemExtent : (collapsed ? 14.0 : 36.0),
       itemCount: shown.length,
-      itemBuilder: (context, i) => _ItemRow(item: shown[i], collapsed: collapsed),
+      itemBuilder: (context, i) {
+        final r = shown[i];
+        final h = r.header;
+        if (h != null) {
+          return _SectionHeader(
+            header: h,
+            collapsedRail: collapsed,
+            onToggle: h.collapsible ? () => setState(() => _sharedCollapsed = !_sharedCollapsed) : null,
+          );
+        }
+        return _ItemRow(item: r.item!, collapsed: collapsed);
+      },
+    );
+  }
+}
+
+/// One line of the rail: an item, or a section header.
+class _RailRow {
+  final _Item? item;
+  final LibHeaderRow? header;
+  const _RailRow.item(_Item i)
+      : item = i,
+        header = null;
+  const _RailRow.header(LibHeaderRow h)
+      : header = h,
+        item = null;
+  String get title => item?.title ?? '';
+}
+
+/// "Your playlists", "Collab playlists", "Shared with you": small, quiet text
+/// on the rail itself (no card). "Shared with you" folds away. In the icon-only
+/// rail a header is just a hairline.
+class _SectionHeader extends StatelessWidget {
+  final LibHeaderRow header;
+  final bool collapsedRail;
+  final VoidCallback? onToggle;
+  const _SectionHeader({required this.header, required this.collapsedRail, this.onToggle});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    if (collapsedRail) {
+      return Center(child: Container(height: 0.5, margin: const EdgeInsets.symmetric(horizontal: Space.sm), color: t.outline));
+    }
+    final label = Row(children: [
+      Expanded(
+        child: Text(
+          header.section.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: t.caption1.copyWith(color: t.textMuted, fontWeight: FontWeight.w600),
+        ),
+      ),
+      if (header.collapsible) ...[
+        Text('${header.count}', style: t.caption1.copyWith(color: t.textMuted)),
+        const SizedBox(width: Space.xs),
+        AnimatedRotation(
+          turns: header.collapsed ? 0 : 0.25,
+          duration: const Duration(milliseconds: 150),
+          child: NaviIcon(NaviGlyph.chevron, size: 12, color: t.textMuted),
+        ),
+      ],
+    ]);
+    return Semantics(
+      header: true,
+      container: true,
+      label: header.collapsible
+          ? '${header.section.title}, ${header.count}, ${header.collapsed ? 'collapsed' : 'expanded'}'
+          : header.section.title,
+      child: NaviFocusable(
+        radius: 6,
+        onTap: onToggle,
+        semanticLabel: header.section.title,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(Space.xs + 2, Space.sm, Space.xs + 2, Space.xs),
+          child: Align(alignment: Alignment.bottomLeft, child: label),
+        ),
+      ),
     );
   }
 }

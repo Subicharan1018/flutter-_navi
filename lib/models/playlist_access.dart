@@ -8,9 +8,13 @@ extension PlaylistOwnership on Playlist {
   /// doesn't report is treated as the user's own (older servers list only
   /// your playlists).
   bool isOwnedBy(String user) {
-    final o = owner;
-    if (o == null || o.isEmpty) return true;
-    return o.toLowerCase() == user.toLowerCase();
+    final o = owner?.trim();
+    final me = user.trim();
+    // No owner reported, or no signed-in name to compare with: don't guess
+    // someone else's. (Navidrome lists your own playlists and everyone's public
+    // ones, each with its owner's name; names compare without case.)
+    if (o == null || o.isEmpty || me.isEmpty) return true;
+    return o.toLowerCase() == me.toLowerCase();
   }
 
   /// Someone else's playlist, read-only here.
@@ -61,8 +65,8 @@ class PlaylistAccess {
 
   bool canEdit(String playlistId) {
     if (!_owners.containsKey(playlistId)) return true; // unknown: the server still enforces its own rules
-    final o = _owners[playlistId];
-    return o == null || o.isEmpty || o.toLowerCase() == username.toLowerCase();
+    final o = _owners[playlistId]?.trim();
+    return o == null || o.isEmpty || username.trim().isEmpty || o.toLowerCase() == username.trim().toLowerCase();
   }
 
   /// Throws [PlaylistNotEditable] unless [playlistId] is the user's.
