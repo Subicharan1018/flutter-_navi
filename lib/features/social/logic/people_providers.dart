@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/hive_boxes.dart';
 import '../data/social_api.dart';
 import '../data/social_models.dart';
+import 'reaction_rules.dart';
 import 'social_providers.dart';
 import 'social_rules.dart';
 
@@ -96,6 +97,52 @@ class NoAlertSink implements FriendAlertSink {
 
 final friendAlertSinkProvider = Provider<FriendAlertSink>((ref) => const NoAlertSink());
 
+// ── reactions received ───────────────────────────────────────────────────────
+
+/// Raises one "a friend reacted to your song" notification. Like
+/// [FriendAlertSink]: the real one is set at startup, the default is silent.
+abstract class ReactionAlertSink {
+  Future<void> show(Reaction reaction);
+}
+
+class NoReactionSink implements ReactionAlertSink {
+  const NoReactionSink();
+  @override
+  Future<void> show(Reaction reaction) async {}
+}
+
+final reactionAlertSinkProvider = Provider<ReactionAlertSink>((ref) => const NoReactionSink());
+
+/// The highest reaction id already shown, kept on this device so a restart
+/// doesn't replay the day's reactions.
+abstract class ReactionSeenStore {
+  int? read();
+  void write(int id);
+}
+
+class HiveReactionSeenStore implements ReactionSeenStore {
+  static const _key = 'reaction_seen_v1';
+
+  @override
+  int? read() {
+    try {
+      final v = HiveBoxes.prefs.get(_key);
+      return v is int ? v : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  @override
+  void write(int id) {
+    try {
+      HiveBoxes.prefs.put(_key, id);
+    } catch (_) {}
+  }
+}
+
+final reactionSeenStoreProvider = Provider<ReactionSeenStore>((ref) => HiveReactionSeenStore());
+
 // ── People, polled ───────────────────────────────────────────────────────────
 
 class PeopleState {
@@ -120,6 +167,8 @@ class PeopleNotifier extends Notifier<PeopleState> {
   bool _busy = false;
   int _viewers = 0;
   PeopleList? _previous;
+  int? _reactionMark;
+  bool _markLoaded = false;
   late final FriendAlertPolicy _policy = FriendAlertPolicy();
 
   @override
@@ -155,6 +204,30 @@ class PeopleNotifier extends Notifier<PeopleState> {
     _timer = Timer.periodic(_viewers > 0 ? viewInterval : interval, (_) => refresh());
   }
 
+  /// Notifies once per new reaction, then moves the mark past everything seen.
+  /// Only when friend alerts are on (that is what keeps the poll running in the
+  /// background); the People view lists them either way.
+  void _announceReactions(PeopleList list) {
+    if (list.reactions.isEmpty) return;
+    final store = ref.read(reactionSeenStoreProvider);
+    if (!_markLoaded) {
+      _reactionMark = store.read();
+      _markLoaded = true;
+    }
+    final settings = ref.read(friendAlertSettingsProvider);
+    final fresh = settings.enabled
+        ? reactionsToAnnounce(list.reactions, lastSeen: _reactionMark, settings: settings, now: DateTime.now())
+        : const <Reaction>[];
+    final top = highestReactionId(list.reactions, _reactionMark);
+    if (top != null && top != _reactionMark) {
+      _reactionMark = top;
+      store.write(top);
+    }
+    for (final r in fresh) {
+      unawaited(ref.read(reactionAlertSinkProvider).show(r));
+    }
+  }
+
   Future<void> refresh() async {
     if (_busy || !ref.read(socialEnabledProvider)) return;
     _busy = true;
@@ -172,6 +245,7 @@ class PeopleNotifier extends Notifier<PeopleState> {
       for (final a in alerts) {
         unawaited(ref.read(friendAlertSinkProvider).show(a));
       }
+      _announceReactions(list);
     } on SocialException catch (e) {
       debugPrint('[People] ${e.message}');
       state = PeopleState(list: state.list, failed: true);

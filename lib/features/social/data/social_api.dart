@@ -54,6 +54,31 @@ class SocialApi {
         return [for (final u in (j['users'] as List? ?? const [])) u.toString()];
       });
 
+  /// React to the song [to] is playing. Throws a [SocialException] with status
+  /// 404 when the server is too old to know reactions, or [to] left social.
+  Future<void> react(String to, String emoji, {String note = '', String songId = '', String title = '', String artist = ''}) => _wrap(() async {
+        await _post('/social/react', {
+          'to': to,
+          'emoji': emoji,
+          if (note.isNotEmpty) 'note': note,
+          'song_id': songId,
+          'title': title,
+          'artist': artist,
+        });
+      });
+
+  /// This week's listening next to each Blend friend, or null when the server
+  /// is too old to have the recap (404).
+  Future<WeeklyRecap?> recap() async {
+    try {
+      final j = await _wrap(() => _get('/social/recap'));
+      return j['enabled'] == false ? null : WeeklyRecap.fromJson(j);
+    } on SocialException catch (e) {
+      if (e.status == 404) return null;
+      rethrow;
+    }
+  }
+
   Future<FriendFeed> activity() => _wrap(() async => FriendFeed.fromJson(await _get('/social/activity')));
 
   // ── Jam ──────────────────────────────────────────────────────────────────

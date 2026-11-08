@@ -13,6 +13,7 @@ import '../collab_screens.dart';
 import '../friend_activity.dart';
 import '../invitations.dart';
 import '../people.dart';
+import '../recap_screens.dart';
 import '../social_widgets.dart';
 import 'jam_desktop.dart';
 import 'jam_room.dart';
@@ -84,6 +85,7 @@ class _JamTabScreenState extends ConsumerState<JamTabScreen> {
           const SliverToBoxAdapter(child: FriendActivitySection()),
           const SliverToBoxAdapter(child: CollabSection()),
           const SliverToBoxAdapter(child: BlendSection()),
+          const SliverToBoxAdapter(child: RecapSection()),
           const SliverToBoxAdapter(
             child: SocialFootnote(
               'Only people who turned on social features can see you here. Hide your activity any time in Settings.',

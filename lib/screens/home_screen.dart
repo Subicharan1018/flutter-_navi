@@ -11,6 +11,8 @@ import '../features/discover/logic/discover_providers.dart' show discoverProvide
 import '../features/discover/ui/discover_section.dart';
 import '../features/social/ui/jam/jam_hero.dart';
 import '../features/social/ui/people.dart' show ListeningNowStrip;
+import '../features/social/logic/social_providers.dart' show recapProvider;
+import '../features/social/ui/recap_screens.dart' show HomeRecapSection;
 import '../features/updates/ui/update_banner.dart';
 import '../features/flow/logic/flow_controller.dart' show flowMoodsProvider, flowProvider;
 import '../features/flow/ui/flow_section.dart';
@@ -79,6 +81,7 @@ class HomeScreen extends ConsumerWidget {
         ref.invalidate(discoverProvider);
         ref.invalidate(weeklyMixProvider);
         ref.invalidate(flowMoodsProvider);
+        ref.invalidate(recapProvider);
       },
       slivers: [
         // Desktop: updates are the bell in the top bar and Jam is in the rail.
@@ -87,6 +90,8 @@ class HomeScreen extends ConsumerWidget {
         // Windows: who is listening now, with Join for open rooms.
         if (PlatformUtils.isDesktop) const SliverToBoxAdapter(child: ListeningNowStrip()),
         if (PlatformUtils.isDesktop) const SliverToBoxAdapter(child: _ContinueStrip()),
+        // Weekly: your week next to your Blend friends (hidden until there is one).
+        const SliverToBoxAdapter(child: HomeRecapSection()),
         // What's new leads; the charts it came from right below.
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 1, child: DiscoverSection())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 2, child: WeeklyMixSection())),

@@ -30,7 +30,7 @@ import 'providers/settings_provider.dart';
 import 'offline_service.dart';
 import 'services/navi_audio_handler.dart';
 import 'services/android_integration.dart';
-import 'features/social/logic/people_providers.dart' show friendAlertSinkProvider;
+import 'features/social/logic/people_providers.dart' show friendAlertSinkProvider, reactionAlertSinkProvider;
 import 'services/notification_triggers.dart';
 import 'services/auto/browse_tree.dart' show CarStyle;
 import 'core/crash_log.dart';
@@ -115,6 +115,7 @@ Future<void> main() async {
   final container = ProviderContainer(overrides: [
     // "Friend started listening" notifications (Android notification / Windows toast).
     friendAlertSinkProvider.overrideWithValue(const AppFriendAlertSink()),
+    reactionAlertSinkProvider.overrideWithValue(const AppReactionAlertSink()),
   ]);
 
   // ── MPRIS registration (Linux only) ──────────────────────────────────────

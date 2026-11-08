@@ -37,6 +37,7 @@ class SocialSettingsNotifier extends AsyncNotifier<SocialSettings> {
     ref.invalidate(friendFeedProvider);
     ref.invalidate(socialUsersProvider);
     ref.invalidate(blendListProvider);
+    ref.invalidate(recapProvider);
   }
 }
 
@@ -109,5 +110,15 @@ final blendListProvider = FutureProvider.autoDispose<List<Blend>>(
 
 final blendDetailProvider = FutureProvider.autoDispose.family<Blend, String>(
   (ref, id) => ref.read(socialApiProvider).blend(id),
+  retry: (_, _) => null,
+);
+
+/// This week's listening next to each Blend friend. Null when social is off or
+/// the server is too old to have the recap (404): the recap is then hidden.
+final recapProvider = FutureProvider.autoDispose<WeeklyRecap?>(
+  (ref) async {
+    if (!_signedIn(ref) || !ref.watch(socialEnabledProvider)) return null;
+    return ref.read(socialApiProvider).recap();
+  },
   retry: (_, _) => null,
 );
