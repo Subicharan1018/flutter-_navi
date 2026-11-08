@@ -18,6 +18,7 @@ import '../../../../widgets/mascot/microduck_pose.dart';
 import '../../../../widgets/ui/action_sheet.dart';
 import '../../data/social_models.dart';
 import '../../logic/jam_controller.dart';
+import '../collab_screens.dart' show saveQueueAsCollab;
 import '../social_widgets.dart';
 import 'code_entry.dart';
 import 'room_ring.dart';
@@ -65,12 +66,28 @@ void shareJamInvite(String code) =>
 /// Leave, End for everyone (admin) and Clear queue (whoever may edit).
 Future<void> showJamRoomMenu(BuildContext context, WidgetRef ref, JamState jam) {
   final c = ref.read(jamControllerProvider.notifier);
+  final container = ProviderScope.containerOf(context);
   return showPlatformSheet(
     context: context,
     title: jam.isCollab ? 'Collab room' : 'Jam room',
     builder: (_) => Padding(
       padding: const EdgeInsets.only(bottom: Space.md),
       child: Column(mainAxisSize: MainAxisSize.min, children: [
+        if (jam.isCollab && jam.queue.isNotEmpty)
+          SheetGroup(children: [
+            SheetAction(
+              label: 'Save queue as collab playlist',
+              onTap: () => saveQueueAsCollab(context, container, [for (final q in jam.queue) q.songId]),
+            ),
+          ]),
+        if (jam.youAreAdmin)
+          SheetGroup(children: [
+            SheetAction(
+              label: jam.open ? 'Hide from People' : 'Show in People',
+              detail: jam.open ? 'Friends can no longer join without the code' : 'Friends can join from People, without the code',
+              onTap: () => c.setOpen(!jam.open),
+            ),
+          ]),
         if (jam.youCanEdit && jam.queue.isNotEmpty)
           SheetGroup(children: [
             SheetAction(

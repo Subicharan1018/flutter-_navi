@@ -10,6 +10,9 @@ import '../../features/smart_playlists/ui/rule_editor_screen.dart';
 import '../../features/smart_playlists/ui/smart_actions.dart';
 import '../../features/smart_playlists/ui/smart_playlist_screen.dart';
 import '../../features/smart_playlists/ui/smart_widgets.dart';
+import '../../features/social/data/social_models.dart' show CollabPlaylist;
+import '../../features/social/logic/social_providers.dart' show collabListProvider, socialEnabledProvider;
+import '../../features/social/ui/collab_screens.dart' show CollabRow, createCollab;
 import '../../models/playlist.dart';
 import '../../models/playlist_access.dart';
 import '../../providers/library_provider.dart';
@@ -115,6 +118,8 @@ class PlaylistsPage extends ConsumerWidget {
             final entries = buildPlaylistEntries(folders: folders, smart: smart, server: split.mine);
             return [
               SliverList.builder(itemCount: entries.length, itemBuilder: (context, i) => row(entries[i])),
+              // Playlists several people edit: collaborators shown, each song's contributor inside.
+              const SliverToBoxAdapter(child: _CollabPlaylists()),
               if (split.shared.isNotEmpty) ...[
                 SliverToBoxAdapter(child: SectionHeader(title: 'Shared with you')),
                 SliverList.builder(
@@ -236,6 +241,34 @@ class PlaylistsPage extends ConsumerWidget {
         ],
       ),
     );
+  }
+}
+
+/// "Collab playlists": the ones you share with people (you own it, or you were
+/// invited and joined). Hidden while social features are off and you have none.
+class _CollabPlaylists extends ConsumerWidget {
+  const _CollabPlaylists();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final enabled = ref.watch(socialEnabledProvider);
+    final lists = ref.watch(collabListProvider).asData?.value ?? const <CollabPlaylist>[];
+    final mine = [for (final p in lists) if (!p.invited) p];
+    if (!enabled && mine.isEmpty) return const SizedBox.shrink();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      SectionHeader(title: 'Collab playlists'),
+      for (final p in mine) CollabRow(playlist: p),
+      if (enabled)
+        CollectionRow(
+          title: 'New Collab Playlist…',
+          titleColor: t.accent,
+          leading: SizedBox(width: 56, height: 56, child: Center(child: NaviIcon(NaviGlyph.group, size: 26, color: t.accent))),
+          showChevron: false,
+          showSeparator: false,
+          onTap: () => createCollab(context, ProviderScope.containerOf(context)),
+        ),
+    ]);
   }
 }
 

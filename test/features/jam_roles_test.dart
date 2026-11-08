@@ -148,6 +148,7 @@ void main() {
       final c = r.c.read(jamControllerProvider.notifier);
       expect(await c.makeAdmin('Arjun'), isFalse);
       expect(await c.removeMember('maya'), isFalse);
+      expect(await c.setOpen(true), isFalse); // showing the room in People is the admin's call
       expect(r.api.calls, isEmpty);
       expect(r.c.read(jamControllerProvider).notice, 'Only the admin can do that.');
     });

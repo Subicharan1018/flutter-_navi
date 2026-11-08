@@ -17,9 +17,9 @@ class _FakeSettings extends SocialSettingsNotifier {
   Future<SocialSettings> build() async => initial;
 
   @override
-  Future<void> save({bool? enabled, bool? hideActivity}) async {
+  Future<void> save({bool? enabled, bool? hideActivity, bool? hideListening}) async {
     saved.add((enabled, hideActivity));
-    state = AsyncData(initial.copyWith(enabled: enabled, hideActivity: hideActivity));
+    state = AsyncData(initial.copyWith(enabled: enabled, hideActivity: hideActivity, hideListening: hideListening));
   }
 }
 

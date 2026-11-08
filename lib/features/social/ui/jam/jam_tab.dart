@@ -12,6 +12,7 @@ import '../blend_screens.dart';
 import '../collab_screens.dart';
 import '../friend_activity.dart';
 import '../invitations.dart';
+import '../people.dart';
 import '../social_widgets.dart';
 import 'jam_desktop.dart';
 import 'jam_room.dart';
@@ -79,6 +80,7 @@ class _JamTabScreenState extends ConsumerState<JamTabScreen> {
           SliverToBoxAdapter(child: _Intro())
         else ...[
           const SliverToBoxAdapter(child: InvitationsSection()),
+          const SliverToBoxAdapter(child: PeopleSection()),
           const SliverToBoxAdapter(child: FriendActivitySection()),
           const SliverToBoxAdapter(child: CollabSection()),
           const SliverToBoxAdapter(child: BlendSection()),

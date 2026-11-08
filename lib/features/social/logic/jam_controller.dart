@@ -167,6 +167,9 @@ class JamController extends Notifier<JamUiState> {
   Future<bool> makeAdmin(String user) =>
       _admin((code) async => _accept(await _api.jamTransferAdmin(code, user)));
 
+  /// Let friends see this room in People and join from there (off by default).
+  Future<bool> setOpen(bool open) => _admin((code) async => _accept(await _api.jamSetOpen(code, open)));
+
   /// Remove a member from the room.
   Future<bool> removeMember(String user) =>
       _admin((code) async => _accept(await _api.jamKick(code, user)));

@@ -1,6 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/features/social/data/social_models.dart';
 import 'package:navivibe/features/social/logic/social_rules.dart';
+import 'package:navivibe/features/social/ui/collab_screens.dart' show collabSubtitle;
 
 CollabPlaylist collab({String status = 'active', bool owner = false, List<(int, String, String)> songs = const []}) =>
     CollabPlaylist.fromJson({
@@ -9,6 +10,7 @@ CollabPlaylist collab({String status = 'active', bool owner = false, List<(int, 
       'owner': 'maya',
       'is_owner': owner,
       'status': status,
+      'song_count': songs.length,
       'members': [
         {'username': 'Arjun', 'status': 'active'},
         {'username': 'maya', 'status': 'active'},
@@ -45,6 +47,11 @@ void main() {
 
     test('collaborators list the owner first and leave out invitees', () {
       expect(collaborators(collab()).map((m) => m.username), ['maya', 'Arjun']);
+    });
+
+    test('the Library row names the collaborators', () {
+      expect(collabSubtitle(collab(songs: [(1, 'a', 'maya')])), '1 song · maya, Arjun');
+      expect(collabSubtitle(collab()), '0 songs · maya, Arjun');
     });
 
     test('contributions count who added what, most first', () {
