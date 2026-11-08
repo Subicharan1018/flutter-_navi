@@ -94,12 +94,18 @@ class CoverArt extends StatelessWidget {
                 placeholder: (_, _) => loading,
                 errorWidget: (_, _, _) => failed,
               );
-    return SizedBox(
-      width: size,
-      height: size,
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(circular ? size / 2 : radius),
-        child: image,
+    // Always size × size: Align lets a tight, non-square parent (a stretched
+    // row, a tile of another shape) have its box while the art keeps its square.
+    return Align(
+      widthFactor: 1,
+      heightFactor: 1,
+      child: SizedBox(
+        width: size,
+        height: size,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(circular ? size / 2 : radius),
+          child: image,
+        ),
       ),
     );
   }

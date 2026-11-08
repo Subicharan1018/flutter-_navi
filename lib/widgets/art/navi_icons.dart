@@ -164,7 +164,12 @@ class NaviGlyphPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 24, size.height / 24);
+    // Native proportions, centred in whatever box the parent gave: a tight
+    // non-square box (a 30 × 24 leading slot, a stretched Row) must never squash
+    // the glyph, so the scale is one number, not one per axis.
+    final side = size.shortestSide;
+    canvas.translate((size.width - side) / 2, (size.height - side) / 2);
+    canvas.scale(side / 24);
     final stroke = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round

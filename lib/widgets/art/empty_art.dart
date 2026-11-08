@@ -108,7 +108,10 @@ class EmptyArtPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
-    canvas.scale(size.width / 160, size.height / 120);
+    // One scale, centred: the art keeps its 4:3 proportions in any box.
+    final k = (size.width / 160 < size.height / 120) ? size.width / 160 : size.height / 120;
+    canvas.translate((size.width - 160 * k) / 2, (size.height - 120 * k) / 2);
+    canvas.scale(k);
     final faint = Paint()
       ..style = PaintingStyle.stroke
       ..strokeCap = StrokeCap.round
