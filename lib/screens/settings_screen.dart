@@ -626,9 +626,15 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     final names = groups.keys.toList();
     final selected = names.contains(_category) ? _category : names.first;
+    // One group: the categories and their form, centred in the content area so it
+    // never hugs the left edge with dead space to its right.
     return Scaffold(
       backgroundColor: Colors.transparent, // the window's one ground shows through
-      body: Row(
+      body: Align(
+        alignment: Alignment.topCenter,
+        child: ConstrainedBox(
+          constraints: BoxConstraints(maxWidth: 232 + 0.5 + 720 + 2 * pageGutter(context)),
+          child: Row(
         children: [
           SizedBox(
             width: 232,
@@ -637,7 +643,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               children: [
                 Padding(
                   padding: const EdgeInsets.fromLTRB(Space.sm, 0, Space.sm, Space.lg),
-                  child: Text('Settings', style: t.largeTitle),
+                  child: SizedBox(height: _titleBox, child: Align(alignment: Alignment.bottomLeft, child: Text('Settings', style: t.largeTitle))),
                 ),
                 for (final n in names)
                   _SettingsNavRow(label: n, selected: n == selected, onTap: () => setState(() => _category = n)),
@@ -653,36 +659,32 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 // split a short list into halves nobody scans. So the pane stays one
                 // column, 48 px after the categories (the page's 24 gutter twice), so the
                 // nav and its pane read as one unit at any window width.
-                return Align(
-                  alignment: Alignment.topLeft,
-                  child: ConstrainedBox(
-                    constraints: BoxConstraints(maxWidth: 720 + pageGutter(context)),
-                    child: ListView(
-                      padding: EdgeInsets.only(top: Space.lg, bottom: Space.xxxl, left: pageGutter(context)),
-                      children: [
-                        Padding(
-                          padding: EdgeInsets.fromLTRB(pageGutter(context), 0, pageGutter(context), Space.sm),
-                          child: Row(
-                            children: [
-                              Expanded(child: Text(selected, style: t.title1)),
-                            ],
-                          ),
-                        ),
-                        SectionHeaderScope(
-                          pageTitle: selected,
-                          child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: sections),
-                        ),
-                      ],
+                return ListView(
+                  // Same top as the "Settings" title beside it, so the two read as one page.
+                  padding: EdgeInsets.only(top: Space.xxl, bottom: Space.xxxl, left: pageGutter(context)),
+                  children: [
+                    Padding(
+                      padding: EdgeInsets.fromLTRB(pageGutter(context), 0, pageGutter(context), Space.sm),
+                      child: SizedBox(height: _titleBox, child: Align(alignment: Alignment.bottomLeft, child: Text(selected, style: t.title1))),
                     ),
-                  ),
+                    SectionHeaderScope(
+                      pageTitle: selected,
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: sections),
+                    ),
+                  ],
                 );
               },
             ),
           ),
         ],
       ),
+        ),
+      ),
     );
   }
+
+  /// Both headings sit bottom-aligned in a box this tall, so their baselines match.
+  static const double _titleBox = 44;
 
   Widget _bitrateRow(String title, NaviGlyph icon, int current, ValueChanged<int> onPick) =>
       GroupedRow(

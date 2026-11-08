@@ -145,19 +145,34 @@ class _LibraryRailState extends ConsumerState<LibraryRail> {
                   Expanded(
                     // Only the list listens to the find box: a keystroke rebuilds it,
                     // not the whole rail.
-                    child: ListenableBuilder(
-                      listenable: _find,
-                      builder: (context, _) => _LibraryList(
-                        collapsed: collapsed,
-                        filter: _filter,
-                        sort: _sort,
-                        query: _find.text.trim().toLowerCase(),
-                        onDrop: _addDropped,
+                    // The list fades out above the Settings entry instead of being cut
+                    // through a row.
+                    child: ShaderMask(
+                      blendMode: BlendMode.dstIn,
+                      shaderCallback: (r) => const LinearGradient(
+                        begin: Alignment.topCenter,
+                        end: Alignment.bottomCenter,
+                        colors: [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)],
+                        stops: [0, 0.94, 1],
+                      ).createShader(r),
+                      child: ListenableBuilder(
+                        listenable: _find,
+                        builder: (context, _) => _LibraryList(
+                          collapsed: collapsed,
+                          filter: _filter,
+                          sort: _sort,
+                          query: _find.text.trim().toLowerCase(),
+                          onDrop: _addDropped,
+                        ),
                       ),
                     ),
                   ),
                   Padding(
-                    padding: EdgeInsets.fromLTRB(collapsed ? Space.sm : Space.md, 0, collapsed ? Space.sm : Space.md, Space.md),
+                    padding: EdgeInsets.symmetric(horizontal: collapsed ? Space.sm : Space.md),
+                    child: Divider(height: 1, thickness: 0.5, color: ThemeTokens.of(context).outline),
+                  ),
+                  Padding(
+                    padding: EdgeInsets.fromLTRB(collapsed ? Space.sm : Space.md, Space.xs, collapsed ? Space.sm : Space.md, Space.md),
                     child: RailRow(
                       icon: NaviGlyph.gear,
                       label: 'Settings',

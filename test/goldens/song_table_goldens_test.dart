@@ -36,7 +36,7 @@ import 'package:navivibe/screens/home_screen.dart';
 import 'package:navivibe/widgets/mascot/microduck_pose.dart' show microduckClock;
 import 'package:navivibe/screens/library_screen.dart';
 import 'package:navivibe/screens/settings_screen.dart';
-import 'package:navivibe/widgets/shell/desktop/now_playing_panel.dart' show PanelKind;
+import 'package:navivibe/widgets/shell/desktop/now_playing_panel.dart' show NowPlayingPanel, PanelKind;
 import 'package:navivibe/widgets/shell/desktop/player_bar.dart';
 import 'package:navivibe/screens/library/songs_page.dart';
 import 'package:navivibe/screens/playlist_details_screen.dart';
@@ -92,8 +92,10 @@ Future<Map<String, Uint8List>> _covers() async {
   final out = <String, Uint8List>{};
   for (final s in _songs) {
     final h = s.id.codeUnits.fold<int>(7, (a, b) => (a * 31 + b) & 0xffff);
-    final c1 = HSLColor.fromAHSL(1, (h % 360).toDouble(), 0.7, 0.4).toColor();
-    final c2 = HSLColor.fromAHSL(1, ((h * 7) % 360).toDouble(), 0.8, 0.6).toColor();
+    // Warm and teal fixtures only: the app never shows purple, so neither do its goldens.
+    final hue = 10 + (h % 6) * 9;
+    final c1 = HSLColor.fromAHSL(1, hue.toDouble(), 0.55, 0.38).toColor();
+    final c2 = HSLColor.fromAHSL(1, (hue + 160).toDouble(), 0.40, 0.50).toColor();
     final rec = ui.PictureRecorder();
     final canvas = Canvas(rec);
     const r = Rect.fromLTWH(0, 0, 200, 200);
@@ -254,7 +256,6 @@ void main() {
   Widget shellPage(Size size, {Widget? page}) {
     final collapsed = size.width < 1200;
     return Builder(builder: (context) {
-      final t = ThemeTokens.of(context);
       // The same ground the real shell uses: one tint behind everything, every pane transparent.
       return DesktopWindowGround(child: Scaffold(backgroundColor: Colors.transparent, body: Column(children: [
         const DesktopTopBar(),
@@ -266,13 +267,8 @@ void main() {
                 playlist: Playlist(id: 'p1', name: 'Late Night Drive', comment: '', songCount: 14, duration: 3100),
               ),
             ),
-            if (!collapsed)
-              Container(
-                width: DesktopLayout.panelWidth.value,
-                padding: const EdgeInsets.all(Space.lg),
-                alignment: Alignment.topLeft,
-                child: Text('Now Playing panel', style: t.footnote),
-              ),
+            // The real panel (About), as the shell shows it while a song plays.
+            if (!collapsed) NowPlayingPanel(panel: PanelKind.about, onChange: (_) {}, onClose: () {}),
           ]),
         ),
         DesktopPlayerBar(panel: PanelKind.queue, onTogglePanel: (_) {}),
