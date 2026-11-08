@@ -28,8 +28,10 @@ class SocialSettingsNotifier extends AsyncNotifier<SocialSettings> {
     return ref.read(socialApiProvider).settings();
   }
 
-  Future<void> save({bool? enabled, bool? hideActivity}) async {
-    final saved = await ref.read(socialApiProvider).saveSettings(enabled: enabled, hideActivity: hideActivity);
+  Future<void> save({bool? enabled, bool? hideActivity, bool? hideListening}) async {
+    final saved = await ref
+        .read(socialApiProvider)
+        .saveSettings(enabled: enabled, hideActivity: hideActivity, hideListening: hideListening);
     state = AsyncData(saved);
     // What other people can see of us, and what we can see, just changed.
     ref.invalidate(friendFeedProvider);

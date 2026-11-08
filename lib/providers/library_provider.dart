@@ -7,6 +7,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import '../models/album.dart';
 import '../models/library_sort.dart';
 import '../models/playlist.dart';
+import '../models/playlist_access.dart';
 import '../models/song.dart';
 import 'settings_provider.dart';
 import 'download_provider.dart';
@@ -608,6 +609,13 @@ final sortedAlbumsProvider = Provider<AsyncValue<List<Album>>>((ref) {
   });
 });
 
+/// Only the playlists this person owns: the targets for "Add to Playlist" and
+/// anything else that writes. Other people's playlists are read-only.
+final editablePlaylistsProvider = Provider.autoDispose<AsyncValue<List<Playlist>>>((ref) {
+  final me = ref.watch(settingsProvider.select((s) => s.username));
+  return ref.watch(playlistsProvider).whenData((all) => [for (final p in all) if (p.isOwnedBy(me)) p]);
+});
+
 /// Sorted playlists.
 final sortedPlaylistsProvider = Provider<AsyncValue<List<Playlist>>>((ref) {
   final sortPrefs = ref.watch(librarySortProvider);
@@ -648,6 +656,20 @@ class PlaylistController {
     ref.invalidate(playlistsProvider);
   }
 
+  /// "Make a copy": a new playlist of your own holding [source]'s songs. This
+  /// is the way to change someone else's playlist.
+  Future<Playlist> makeCopy(Playlist source, {String? name}) async {
+    final service = ref.read(subsonicServiceProvider);
+    final songs = await service.getPlaylistSongs(source.id, forceRefresh: true);
+    final copy = await create(name ?? '${source.name} (copy)');
+    if (songs.isNotEmpty) {
+      await service.setPlaylistSongs(copy.id, [for (final s in songs) s.id]);
+    }
+    ref.invalidate(songsInPlaylistProvider(copy.id));
+    ref.invalidate(playlistsProvider);
+    return copy;
+  }
+
   Future<int> batchUpdate({
     required String songId,
     required Set<String> adds,
@@ -655,6 +677,11 @@ class PlaylistController {
   }) async {
     final service = ref.read(subsonicServiceProvider);
     int successCount = 0;
+
+    // Someone else's playlist is read-only: never touched, whatever asked.
+    final access = service.playlistAccess;
+    adds = {for (final id in adds) if (access.canEdit(id)) id};
+    removes = {for (final id in removes) if (access.canEdit(id)) id};
 
     for (final playlistId in adds) {
       await service.updatePlaylist(playlistId, songIdToAdd: songId);

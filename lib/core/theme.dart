@@ -191,6 +191,12 @@ class AppThemeTokens {
   /// filled with it put [onAccent] (black) on top.
   static const Color brandAccent = Color(0xFFFFFFFF);
 
+  /// Ink and glass over artwork (Now Playing): always white, in every theme,
+  /// because the artwork behind it is always darkened.
+  static const Color onArtwork = Color(0xFFFFFFFF);
+  static Color get onArtworkGlass => onArtwork.withValues(alpha: 0.16);
+  static Color get onArtworkDim => onArtwork.withValues(alpha: 0.8);
+
   /// Secondary marks next to the accent (dim chart bars, the second swipe
   /// action) — systemGray2, so white still leads.
   static const Color brandAccentDim = Color(0xFF636366);

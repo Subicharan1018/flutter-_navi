@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../../utils/platform_utils.dart';
 import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/ui/action_sheet.dart';
 import '../../../../widgets/ui/large_title_page.dart';
@@ -11,7 +12,9 @@ import '../blend_screens.dart';
 import '../collab_screens.dart';
 import '../friend_activity.dart';
 import '../invitations.dart';
+import '../people.dart';
 import '../social_widgets.dart';
+import 'jam_desktop.dart';
 import 'jam_room.dart';
 
 /// The Jam tab. A live room when you are in one, otherwise the empty room with
@@ -57,6 +60,8 @@ class _JamTabScreenState extends ConsumerState<JamTabScreen> {
       slivers: [
         if (ui.jam == null)
           SliverToBoxAdapter(child: JamStage(busy: ui.busy))
+        else if (PlatformUtils.isDesktop)
+          SliverToBoxAdapter(child: JamDesktopRoom(ui: ui))
         else
           ...jamRoomSlivers(context, ref, ui),
         if (settings.isLoading && !settings.hasValue)
@@ -75,6 +80,7 @@ class _JamTabScreenState extends ConsumerState<JamTabScreen> {
           SliverToBoxAdapter(child: _Intro())
         else ...[
           const SliverToBoxAdapter(child: InvitationsSection()),
+          const SliverToBoxAdapter(child: PeopleSection()),
           const SliverToBoxAdapter(child: FriendActivitySection()),
           const SliverToBoxAdapter(child: CollabSection()),
           const SliverToBoxAdapter(child: BlendSection()),

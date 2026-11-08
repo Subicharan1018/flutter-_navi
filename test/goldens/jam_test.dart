@@ -17,6 +17,7 @@ import 'package:navivibe/features/social/ui/jam/jam_hero.dart';
 import 'package:navivibe/features/social/ui/jam/jam_pill.dart';
 import 'package:navivibe/features/social/ui/jam/jam_tab.dart';
 import 'package:navivibe/providers/settings_provider.dart';
+import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 
 import 'golden_fonts.dart';
@@ -46,9 +47,10 @@ class _FakeSocial extends SocialSettingsNotifier {
   Future<SocialSettings> build() async => const SocialSettings(enabled: true);
 }
 
-JamState _jam({required bool host, bool playing = true, int people = 4, int songs = 5}) => JamState.fromJson({
+JamState _jam({required bool host, bool playing = true, int people = 4, int songs = 5, String mode = 'jam'}) => JamState.fromJson({
       'code': 'K7QX2M',
       'version': 9,
+      'mode': mode,
       'host': host ? 'maya' : 'Arjun',
       'you_are_host': host,
       'members': [
@@ -151,11 +153,87 @@ void main() {
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('jam/room_guest.png'));
   });
 
+  testWidgets('live collab room: everyone has the controls and each song names its contributor', (tester) async {
+    await phone(tester, height: 1500);
+    await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: false, mode: 'collab'))));
+    await settle(tester);
+    expect(find.bySemanticsLabel('Pause'), findsOneWidget);
+    expect(find.textContaining('Added by Sana'), findsOneWidget);
+    expect(find.textContaining('everyone edits the queue'), findsOneWidget);
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('jam/room_collab.png'));
+  });
+
+  testWidgets('a Jam member gets no dead controls: a line saying who has them, and Add songs', (tester) async {
+    await phone(tester, height: 2600);
+    await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: false))));
+    await settle(tester);
+    expect(find.bySemanticsLabel('Pause'), findsNothing);
+    expect(find.bySemanticsLabel('Previous'), findsNothing);
+    expect(find.textContaining('The admin controls the queue'), findsOneWidget);
+    expect(find.text('Add songs'), findsOneWidget);
+    // The people list shows each person's role.
+    expect(find.text('Admin'), findsOneWidget);
+    expect(find.text('Member'), findsNWidgets(3));
+  });
+
+  testWidgets('the admin has the controls and the room menu holds Leave and End', (tester) async {
+    await phone(tester, height: 1000);
+    await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true))));
+    await settle(tester);
+    expect(find.bySemanticsLabel('Pause'), findsOneWidget);
+    expect(find.bySemanticsLabel('Previous'), findsOneWidget);
+    expect(find.text('Leave Jam'), findsNothing); // no loose buttons: they live in the menu
+    expect(find.bySemanticsLabel('Room options'), findsOneWidget);
+  });
+
+  testWidgets('the room code has a visible Copy and Share', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true))));
+    await settle(tester);
+    expect(find.text('Copy'), findsOneWidget);
+    expect(find.text('Share'), findsOneWidget);
+  });
+
+  group('Windows room', () {
+    setUp(() => PlatformUtils.debugDesktopOverride = true);
+    tearDown(() => PlatformUtils.debugDesktopOverride = null);
+
+    Future<void> desktop(WidgetTester tester) async {
+      tester.view.physicalSize = const Size(1440, 900);
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+    }
+
+    testWidgets('admin: ring, code and people left, queue table right', (tester) async {
+      await desktop(tester);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: true))));
+      await settle(tester);
+      expect(tester.takeException(), isNull);
+      expect(find.text('Up next'), findsOneWidget);
+      expect(find.text('Added by'), findsOneWidget); // the table's column
+      await expectLater(find.byType(MaterialApp), matchesGoldenFile('jam/desktop_admin.png'));
+    });
+
+    testWidgets('member: the table has no drag handles and Delete does nothing', (tester) async {
+      await desktop(tester);
+      await tester.pumpWidget(_app(const JamTabScreen(), JamUiState(jam: _jam(host: false))));
+      await settle(tester);
+      expect(tester.takeException(), isNull);
+      expect(find.byType(ReorderableDragStartListener), findsNothing);
+      await expectLater(find.byType(MaterialApp), matchesGoldenFile('jam/desktop_member.png'));
+    });
+  });
+
   testWidgets('nothing overflows on a small phone (320 wide), room and empty room', (tester) async {
     tester.view.physicalSize = const Size(320, 640) * 2;
     tester.view.devicePixelRatio = 2;
     addTearDown(tester.view.reset);
-    for (final ui in [const JamUiState(), JamUiState(jam: _jam(host: true)), JamUiState(jam: _jam(host: false, people: 5), driftMs: 100)]) {
+    for (final ui in [
+      const JamUiState(),
+      JamUiState(jam: _jam(host: true)),
+      JamUiState(jam: _jam(host: false, people: 5), driftMs: 100),
+      JamUiState(jam: _jam(host: false, mode: 'collab')),
+    ]) {
       await tester.pumpWidget(_app(const JamTabScreen(), ui));
       await settle(tester);
       expect(tester.takeException(), isNull);

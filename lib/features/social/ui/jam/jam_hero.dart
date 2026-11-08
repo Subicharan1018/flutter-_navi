@@ -1,7 +1,6 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../../core/layout/window_size.dart';
 import '../../../../core/motion.dart';
 import '../../../../core/theme.dart';
 import '../../../../providers/settings_provider.dart';
@@ -38,8 +37,6 @@ class _JamHeroState extends ConsumerState<JamHero> {
     final t = ThemeTokens.of(context);
     final svc = ref.read(subsonicServiceProvider);
     final cur = jam?.current;
-    // Desktop and TV: a plain row under a hairline, not a boxed promo card.
-    final flat = ShellKind.ofContext(context) != ShellKind.phone;
 
     final title = jam == null ? 'Start a Jam' : 'Jam is live';
     final detail = jam == null
@@ -56,14 +53,8 @@ class _JamHeroState extends ConsumerState<JamHero> {
           scaleFactor: 0.98,
           semanticLabel: '$title. $detail',
           child: Container(
-            padding: EdgeInsets.symmetric(horizontal: flat ? 0 : Space.lg, vertical: Space.lg),
-            decoration: flat
-                ? BoxDecoration(border: Border(bottom: BorderSide(color: t.outline, width: 0.5)))
-                : BoxDecoration(
-                    color: t.fill,
-                    borderRadius: BorderRadius.circular(Radii.hero + 8),
-                    border: Border.all(color: t.outline, width: 0.5),
-                  ),
+            padding: const EdgeInsets.symmetric(vertical: Space.lg),
+            decoration: BoxDecoration(border: Border(bottom: BorderSide(color: t.outline, width: 0.5))),
             child: Row(children: [
               Expanded(
                 child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
@@ -71,26 +62,25 @@ class _JamHeroState extends ConsumerState<JamHero> {
                     Row(children: [
                       _LiveDot(motion: context.motionFull),
                       const SizedBox(width: Space.sm),
-                      Text(jam.code, style: t.footnote.copyWith(color: t.textPrimary, letterSpacing: 2)),
+                      Flexible(
+                        child: Text(
+                          jam.code,
+                          style: t.footnote.copyWith(color: t.textPrimary, letterSpacing: 2),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
                     ]),
                   if (jam != null) const SizedBox(height: Space.xs),
-                  Text(title, style: t.title2),
+                  Text(title, style: t.title2, maxLines: 1, overflow: TextOverflow.ellipsis),
                   const SizedBox(height: Space.xs),
                   Text(detail, style: t.subheadline, maxLines: 3, overflow: TextOverflow.ellipsis),
-                  if (jam == null) ...[
-                    const SizedBox(height: Space.md),
-                    Container(
-                      padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
-                      decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(Radii.capsule)),
-                      child: Text('Start', style: t.headline.copyWith(color: t.onAccent)),
-                    ),
-                  ],
                 ]),
               ),
               const SizedBox(width: Space.md),
               RoomRing(
                 members: jam?.members ?? const [],
-                size: flat ? 88 : 124,
+                size: 96,
                 playing: jam?.playing ?? false,
                 minSeats: 5,
                 center: cur != null && cur.coverArt.isNotEmpty
@@ -100,6 +90,26 @@ class _JamHeroState extends ConsumerState<JamHero> {
             ]),
           ),
         ),
+        // A real button of its own, not a painted capsule inside a tap area.
+        if (jam == null)
+          Padding(
+            padding: const EdgeInsets.only(top: Space.md),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: CupertinoClickable(
+                onTap: () => selectAppTab(AppTab.jam),
+                scaleFactor: 0.97,
+                semanticLabel: 'Start',
+                child: Container(
+                  constraints: const BoxConstraints(minHeight: 44, minWidth: 96),
+                  alignment: Alignment.center,
+                  padding: const EdgeInsets.symmetric(horizontal: Space.xl),
+                  decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(Radii.capsule)),
+                  child: Text('Start', style: t.headline.copyWith(color: t.onAccent)),
+                ),
+              ),
+            ),
+          ),
         if (invites > 0)
           CupertinoClickable(
             onTap: () => selectAppTab(AppTab.jam),

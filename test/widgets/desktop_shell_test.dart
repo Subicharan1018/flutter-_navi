@@ -14,7 +14,8 @@ import 'package:navivibe/core/pointer_anchor.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/models/album.dart';
 import 'package:navivibe/models/artist.dart';
-import 'package:navivibe/features/social/logic/social_providers.dart' show invitationCountProvider;
+import 'package:navivibe/features/social/data/social_models.dart' show CollabPlaylist;
+import 'package:navivibe/features/social/logic/social_providers.dart' show collabListProvider, invitationCountProvider;
 import 'package:navivibe/features/updates/logic/update_providers.dart' show updateCheckProvider;
 import 'package:navivibe/models/playlist.dart';
 import 'package:navivibe/providers/library_provider.dart';
@@ -51,6 +52,7 @@ List<Override> _overrides() => [
       playerProvider.overrideWith((ref) => _FakePlayer()),
       updateCheckProvider.overrideWith((ref) async => null),
       invitationCountProvider.overrideWithValue(0),
+      collabListProvider.overrideWith((ref) async => const <CollabPlaylist>[]),
       subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
       sortedPlaylistsProvider.overrideWithValue(AsyncData([_pl('1', 'Late Night Drive'), _pl('2', 'Gym'), _pl('3', 'Focus')])),
       sortedAlbumsProvider.overrideWithValue(AsyncData([_al('a1', 'Short n’ Sweet', 'Sabrina Carpenter'), _al('a2', 'Starboy', 'The Weeknd')])),

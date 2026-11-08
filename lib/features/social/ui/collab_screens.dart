@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/material.dart' show Material, ReorderableDelayedDragStartListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show ProviderOrFamily;
 
@@ -19,6 +20,7 @@ import '../../../widgets/ui/states.dart';
 import '../data/social_api.dart';
 import '../data/social_models.dart';
 import '../logic/social_providers.dart';
+import '../logic/social_rules.dart';
 import 'social_widgets.dart';
 
 String _msg(Object e) => e is SocialException ? e.message : 'Something went wrong. Try again.';
@@ -109,12 +111,13 @@ class CollabRow extends ConsumerWidget {
         ]),
       );
     }
-    final others = p.members.where((m) => m.active).length;
     return CollectionRow(
       title: p.name,
-      subtitle: '${p.songCount} ${p.songCount == 1 ? 'song' : 'songs'} · $others ${others == 1 ? 'person' : 'people'}',
+      subtitle: collabSubtitle(p),
       leading: _cover(p, 52),
+      trailing: CollaboratorAvatars(playlist: p),
       onTap: () => navigateInApp(context, CollabScreen(id: p.id)),
+      onLongPress: () => showCollabMenu(context, ref, p),
     );
   }
 
@@ -125,6 +128,124 @@ class CollabRow extends ConsumerWidget {
     } catch (e) {
       if (context.mounted) showToast(context, _msg(e));
     }
+  }
+}
+
+/// "12 songs · maya, Arjun +1": the count and who collaborates.
+String collabSubtitle(CollabPlaylist p) {
+  final names = [for (final m in collaborators(p)) m.username];
+  final shown = names.take(2).join(', ');
+  final more = names.length > 2 ? ' +${names.length - 2}' : '';
+  return '${p.songCount} ${p.songCount == 1 ? 'song' : 'songs'}${names.isEmpty ? '' : ' · $shown$more'}';
+}
+
+/// Up to three overlapping avatars of the people who collaborate.
+class CollaboratorAvatars extends StatelessWidget {
+  final CollabPlaylist playlist;
+  const CollaboratorAvatars({super.key, required this.playlist});
+
+  @override
+  Widget build(BuildContext context) {
+    final people = collaborators(playlist).take(3).toList();
+    const size = 24.0, overlap = 8.0;
+    return Semantics(
+      label: 'With ${people.map((m) => m.username).join(', ')}',
+      excludeSemantics: true,
+      child: SizedBox(
+        width: size + (people.length - 1).clamp(0, 2) * (size - overlap),
+        height: size,
+        child: Stack(children: [
+          for (var i = 0; i < people.length; i++)
+            Positioned(left: i * (size - overlap), child: PersonAvatar(people[i].username, size: size)),
+        ]),
+      ),
+    );
+  }
+}
+
+/// The long-press / right-click menu of a collab playlist: Open, then the
+/// owner's Rename / Delete or a collaborator's Leave. Collaborators who are not
+/// the owner never see the owner's actions.
+Future<void> showCollabMenu(BuildContext context, WidgetRef ref, CollabPlaylist p) {
+  return showPlatformSheet(
+    context: context,
+    title: p.name,
+    builder: (_) => Padding(
+      padding: const EdgeInsets.only(bottom: Space.md),
+      child: SheetGroup(children: [
+        SheetAction(label: 'Open', onTap: () => navigateInApp(context, CollabScreen(id: p.id))),
+        if (canManageCollab(p, ''))
+          SheetAction(
+            label: 'Rename',
+            onTap: () async {
+              final name = await askForText(context, title: 'Rename', placeholder: 'Name', action: 'Save', initial: p.name);
+              if (name == null) return;
+              try {
+                await ref.read(socialApiProvider).collabRename(p.id, name);
+                _refresh(ref.invalidate, p.id);
+              } catch (e) {
+                if (context.mounted) showToast(context, _msg(e));
+              }
+            },
+          ),
+        if (canManageCollab(p, ''))
+          SheetAction(
+            label: 'Delete playlist',
+            destructive: true,
+            onTap: () async {
+              final sure = await confirmDestructive(
+                context,
+                title: 'Delete this playlist?',
+                message: 'It is removed for everyone who shares it.',
+                confirmLabel: 'Delete',
+              );
+              if (!sure) return;
+              try {
+                await ref.read(socialApiProvider).collabDelete(p.id);
+                _refresh(ref.invalidate);
+              } catch (e) {
+                if (context.mounted) showToast(context, _msg(e));
+              }
+            },
+          )
+        else
+          SheetAction(
+            label: 'Leave playlist',
+            destructive: true,
+            onTap: () async {
+              try {
+                await ref.read(socialApiProvider).collabRemoveMember(p.id, ref.read(settingsProvider).username);
+                _refresh(ref.invalidate);
+              } catch (e) {
+                if (context.mounted) showToast(context, _msg(e));
+              }
+            },
+          ),
+      ]),
+    ),
+  );
+}
+
+/// A Collab room's "Save queue as collab playlist": names it, makes it with
+/// the room's songs, and opens it. Returns whether it was made.
+Future<bool> saveQueueAsCollab(BuildContext context, ProviderContainer c, List<String> songIds) async {
+  if (songIds.isEmpty) {
+    showToast(context, 'The queue is empty.');
+    return false;
+  }
+  final name = await askForText(context, title: 'Save as collab playlist', placeholder: 'Name', action: 'Save');
+  if (name == null) return false;
+  try {
+    final p = await c.read(socialApiProvider).collabCreate(name, songIds: songIds);
+    _refresh(c.invalidate);
+    if (context.mounted) {
+      showToast(context, 'Saved “${p.name}”');
+      navigateInApp(context, CollabScreen(id: p.id));
+    }
+    return true;
+  } catch (e) {
+    if (context.mounted) showToast(context, _msg(e));
+    return false;
   }
 }
 
@@ -233,10 +354,10 @@ class _CollabBody extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final p = playlist;
     final t = ThemeTokens.of(context);
-    final me = ref.read(settingsProvider).username.toLowerCase();
+    final me = ref.read(settingsProvider).username;
+    final canEdit = canEditCollab(p, me);
     final songs = ref.watch(socialSongsProvider(p.songs.map((e) => e.songId).join(','))).asData?.value ?? const {};
     final playable = [for (final e in p.songs) if (songs[e.songId] != null) songs[e.songId]!];
-    final svc = ref.read(subsonicServiceProvider);
 
     Future<void> run(Future<void> Function() action) async {
       try {
@@ -291,54 +412,27 @@ class _CollabBody extends ConsumerWidget {
               message: 'Add the first song. Everyone in this playlist can add more.',
             ),
           )
+        else if (canEdit)
+          // Every collaborator reorders: press and drag a song.
+          SliverReorderableList(
+            itemCount: p.songs.length,
+            onReorderItem: (from, to) {
+              if (to == from) return;
+              run(() => ref.read(socialApiProvider).collabMove(p.id, p.songs[from].entryId, to));
+            },
+            proxyDecorator: (child, _, _) => Material(color: const Color(0x00000000), child: child),
+            itemBuilder: (context, i) => ReorderableDelayedDragStartListener(
+              key: ValueKey(p.songs[i].entryId),
+              index: i,
+              child: _songRow(context, ref, p, i, songs, playable, canEdit, run),
+            ),
+          )
         else
           SliverList.builder(
             itemCount: p.songs.length,
-            itemBuilder: (context, i) {
-              final e = p.songs[i];
-              final s = songs[e.songId];
-              final canRemove = p.isOwner || e.addedBy.toLowerCase() == me;
-              return CupertinoClickable(
-                onTap: s == null ? null : () => ref.read(playerProvider.notifier).setQueue(playable, playable.indexOf(s), playlistName: p.name),
-                onLongPress: canRemove
-                    ? () => showPlatformSheet(
-                          context: context,
-                          title: s?.title ?? 'Song',
-                          builder: (_) => Padding(
-                            padding: const EdgeInsets.only(bottom: Space.md),
-                            child: SheetGroup(children: [
-                              SheetAction(
-                                label: 'Remove from playlist',
-                                destructive: true,
-                                onTap: () => run(() => ref.read(socialApiProvider).collabRemoveSong(p.id, e.entryId)),
-                              ),
-                            ]),
-                          ),
-                        )
-                    : null,
-                scaleFactor: 0.99,
-                semanticLabel: '${s?.title ?? 'Song not in library'}, added by ${e.addedBy}',
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.xs + 2),
-                  child: Row(children: [
-                    CoverArt(url: s == null ? null : svc.getCoverArtUrl(s.coverArt), size: 46, radius: Radii.thumb),
-                    const SizedBox(width: Space.md),
-                    Expanded(
-                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-                        Text(s?.title ?? 'Not in the library', style: t.body, maxLines: 1, overflow: TextOverflow.ellipsis),
-                        Text(
-                          s == null ? 'Added by ${e.addedBy}' : '${s.artist} · added by ${e.addedBy}',
-                          style: t.footnote,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
-                      ]),
-                    ),
-                  ]),
-                ),
-              );
-            },
+            itemBuilder: (context, i) => _songRow(context, ref, p, i, songs, playable, canEdit, run),
           ),
+        if (canEdit)
         SliverToBoxAdapter(
           child: Center(
             child: SocialButton(
@@ -366,6 +460,65 @@ class _CollabBody extends ConsumerWidget {
           ),
         ),
       ],
+    );
+  }
+
+  /// One song with who contributed it. Any collaborator removes it (press and
+  /// hold) or reorders it (press and drag).
+  Widget _songRow(
+    BuildContext context,
+    WidgetRef ref,
+    CollabPlaylist p,
+    int i,
+    Map<String, Song> songs,
+    List<Song> playable,
+    bool canEdit,
+    Future<void> Function(Future<void> Function()) run,
+  ) {
+    final t = ThemeTokens.of(context);
+    final svc = ref.read(subsonicServiceProvider);
+    final e = p.songs[i];
+    final s = songs[e.songId];
+    return CupertinoClickable(
+      onTap: s == null ? null : () => ref.read(playerProvider.notifier).setQueue(playable, playable.indexOf(s), playlistName: p.name),
+      onLongPress: canEdit
+          ? () => showPlatformSheet(
+                context: context,
+                title: s?.title ?? 'Song',
+                builder: (_) => Padding(
+                  padding: const EdgeInsets.only(bottom: Space.md),
+                  child: SheetGroup(children: [
+                    SheetAction(
+                      label: 'Remove from playlist',
+                      destructive: true,
+                      onTap: () => run(() => ref.read(socialApiProvider).collabRemoveSong(p.id, e.entryId)),
+                    ),
+                  ]),
+                ),
+              )
+          : null,
+      scaleFactor: 0.99,
+      semanticLabel: '${s?.title ?? 'Song not in library'}, added by ${e.addedBy}',
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.xs + 2),
+        child: Row(children: [
+          CoverArt(url: s == null ? null : svc.getCoverArtUrl(s.coverArt), size: 46, radius: Radii.thumb),
+          const SizedBox(width: Space.md),
+          Expanded(
+            child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+              Text(s?.title ?? 'Not in the library', style: t.body, maxLines: 1, overflow: TextOverflow.ellipsis),
+              Text(
+                s == null ? 'Added by ${e.addedBy}' : '${s.artist} · added by ${e.addedBy}',
+                style: t.footnote,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ]),
+          ),
+          const SizedBox(width: Space.sm),
+          PersonAvatar(e.addedBy, size: 24), // who contributed it
+        ]),
+      ),
     );
   }
 

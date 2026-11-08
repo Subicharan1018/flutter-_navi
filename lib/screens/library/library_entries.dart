@@ -1,7 +1,11 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../features/social/data/social_models.dart' show CollabPlaylist;
+import '../../features/social/logic/social_providers.dart' show collabListProvider;
+import '../../features/social/ui/collab_screens.dart' show CollabScreen, collabSubtitle, showCollabMenu;
 import '../../models/album.dart';
+import '../../models/playlist_access.dart';
 import '../../models/artist.dart';
 import '../../models/song.dart';
 import '../../models/playlist.dart';
@@ -78,24 +82,49 @@ List<LibEntry> libraryEntries(BuildContext context, WidgetRef ref, LibKind kind)
   final svc = ref.read(subsonicServiceProvider);
   switch (kind) {
     case LibKind.playlists:
-      final list = ref.watch(sortedPlaylistsProvider).asData?.value ?? const <Playlist>[];
-      return [
-        for (final p in list)
-          LibEntry(
+      final me = ref.watch(settingsProvider.select((s) => s.username));
+      final all = ref.watch(sortedPlaylistsProvider).asData?.value ?? const <Playlist>[];
+      final split = splitByOwner(all, me);
+      final collabs = [
+        for (final c in ref.watch(collabListProvider).asData?.value ?? const <CollabPlaylist>[])
+          if (!c.invited) c,
+      ];
+      LibEntry playlistEntry(Playlist p, {required bool shared}) => LibEntry(
             kind: kind,
             id: 'p${p.id}',
             title: p.name,
-            subtitle: 'Playlist · ${songCount(p.songCount)}',
+            // Your playlists, then Collab playlists, then Shared with you (read-only).
+            subtitle: shared
+                ? 'Shared with you · ${(p.owner ?? '').isEmpty ? songCount(p.songCount) : p.owner}'
+                : 'Playlist · ${songCount(p.songCount)}',
             secondary: p.owner ?? '',
             count: p.songCount,
             duration: p.duration,
             artUrl: (p.coverArt ?? '').isEmpty ? null : svc.getCoverArtUrl(p.coverArt),
             placeholder: NaviGlyph.playlist,
-            playlist: p,
+            // Only your own playlists take dropped songs.
+            playlist: shared ? null : p,
             onTap: () => navigateInApp(context, PlaylistDetailsScreen(playlist: p), title: p.name),
             onMenu: () => showPlaylistMenu(context, ref, p),
             onPlay: () => playCollection(context, ref, () => svc.getPlaylistSongs(p.id), p.name),
+          );
+      return [
+        for (final p in split.mine) playlistEntry(p, shared: false),
+        for (final c in collabs)
+          LibEntry(
+            kind: kind,
+            id: 'c${c.id}',
+            title: c.name,
+            subtitle: 'Collab playlist · ${collabSubtitle(c)}',
+            secondary: c.owner,
+            count: c.songCount,
+            artUrl: null,
+            placeholder: NaviGlyph.group,
+            onTap: () => navigateInApp(context, CollabScreen(id: c.id), title: c.name),
+            onMenu: () => showCollabMenu(context, ref, c),
+            onPlay: () => navigateInApp(context, CollabScreen(id: c.id), title: c.name),
           ),
+        for (final p in split.shared) playlistEntry(p, shared: true),
       ];
     case LibKind.albums:
       final list = ref.watch(sortedAlbumsProvider).asData?.value ?? const <Album>[];

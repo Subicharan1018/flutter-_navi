@@ -13,6 +13,7 @@ import '../models/song.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
 import '../models/playlist.dart';
+import '../models/playlist_access.dart';
 import '../models/search_results.dart';
 import '../features/local_library/logic/local_index.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
@@ -51,6 +52,9 @@ class SubsonicService {
   // ---------------------------------------------------------------------------
   late final String _coverArtSalt;
   late final String _coverArtToken;
+
+  /// Who owns which playlist; every playlist write goes through it.
+  late final PlaylistAccess playlistAccess = PlaylistAccess(username);
 
   SubsonicService({
     required String serverUrl,
@@ -541,10 +545,12 @@ class SubsonicService {
     // BUG-31: _playlistsCache removed — playlistsProvider.keepAlive() owns it.
     final res = await _get('getPlaylists.view');
     final playlists = _getList(_getMap(res, 'playlists'), 'playlist');
-    return playlists
+    final parsed = playlists
         .whereType<Map>()
         .map((e) => Playlist.fromJson(Map<String, dynamic>.from(e)))
         .toList();
+    playlistAccess.learn(parsed);
+    return parsed;
   }
 
   // ---------------------------------------------------------------------------
@@ -616,10 +622,14 @@ class SubsonicService {
   Future<Playlist?> createPlaylist(String name) async {
     final res = await _get('createPlaylist.view', {'name': name});
     final map = _getMap(res, 'playlist');
-    return map.isEmpty ? null : Playlist.fromJson(map);
+    if (map.isEmpty) return null;
+    final created = Playlist.fromJson(map);
+    playlistAccess.learnOne(created); // a playlist you just made is yours
+    return created;
   }
 
   Future<void> deletePlaylist(String id) async {
+    playlistAccess.requireEditable(id);
     await _get('deletePlaylist.view', {'id': id});
   }
 
@@ -630,6 +640,7 @@ class SubsonicService {
     String? name,
     String? comment,
   }) async {
+    playlistAccess.requireEditable(playlistId);
     final params = <String, String>{'playlistId': playlistId};
     if (songIdToAdd != null) params['songIdToAdd'] = songIdToAdd;
     if (songIndexToRemove != null) {
@@ -653,6 +664,7 @@ class SubsonicService {
   /// `Map<String, String>` cannot express repeated keys so we build the URI
   /// manually using [Uri.queryParametersAll] which accepts `Map<String, List<String>>`.
   Future<void> setPlaylistSongs(String playlistId, List<String> songIds) async {
+    playlistAccess.requireEditable(playlistId);
     final salt = _generateSalt();
     final token = _generateToken(salt);
 
@@ -678,6 +690,7 @@ class SubsonicService {
   }
 
   Future<void> setPlaylistImage(String playlistId, File imageFile) async {
+    playlistAccess.requireEditable(playlistId);
     final salt = _generateSalt();
     final token = _generateToken(salt);
 

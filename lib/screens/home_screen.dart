@@ -10,6 +10,7 @@ import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
 import '../features/discover/logic/discover_providers.dart' show discoverProvider;
 import '../features/discover/ui/discover_section.dart';
 import '../features/social/ui/jam/jam_hero.dart';
+import '../features/social/ui/people.dart' show ListeningNowStrip;
 import '../features/updates/ui/update_banner.dart';
 import '../features/flow/logic/flow_controller.dart' show flowMoodsProvider, flowProvider;
 import '../features/flow/ui/flow_section.dart';
@@ -83,6 +84,8 @@ class HomeScreen extends ConsumerWidget {
         // Desktop: updates are the bell in the top bar and Jam is in the rail.
         if (!PlatformUtils.isDesktop) const SliverToBoxAdapter(child: UpdateBanner()),
         if (!PlatformUtils.isDesktop) const SliverToBoxAdapter(child: JamHero()),
+        // Windows: who is listening now, with Join for open rooms.
+        if (PlatformUtils.isDesktop) const SliverToBoxAdapter(child: ListeningNowStrip()),
         if (PlatformUtils.isDesktop) const SliverToBoxAdapter(child: _ContinueStrip()),
         // What's new leads; the charts it came from right below.
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 1, child: DiscoverSection())),

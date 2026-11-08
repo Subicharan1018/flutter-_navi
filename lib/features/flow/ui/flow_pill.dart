@@ -1,4 +1,4 @@
-import 'package:flutter/material.dart';
+import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
@@ -31,9 +31,9 @@ class FlowPill extends ConsumerWidget {
               child: Row(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  const NaviIcon(NaviGlyph.flow, size: 16, color: Colors.white),
+                  NaviIcon(NaviGlyph.flow, size: 16, color: AppThemeTokens.onArtwork),
                   const SizedBox(width: Space.xs),
-                  Text(label, style: t.footnote.copyWith(color: Colors.white, fontWeight: FontWeight.w600)),
+                  Text(label, style: t.footnote.copyWith(color: AppThemeTokens.onArtwork, fontWeight: FontWeight.w600)),
                 ],
               ),
             ),
@@ -43,7 +43,7 @@ class FlowPill extends ConsumerWidget {
             onTap: ref.read(flowProvider.notifier).stop,
             semanticLabel: 'Stop Flow',
             child: _Capsule(
-              child: Text('Stop', style: t.footnote.copyWith(color: Colors.white.withValues(alpha: 0.8))),
+              child: Text('Stop', style: t.footnote.copyWith(color: AppThemeTokens.onArtworkDim)),
             ),
           ),
         ],
@@ -62,7 +62,7 @@ class _Capsule extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: Space.md),
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: Colors.white.withValues(alpha: 0.16),
+          color: AppThemeTokens.onArtworkGlass,
           borderRadius: BorderRadius.circular(Radii.capsule),
         ),
         child: child,
