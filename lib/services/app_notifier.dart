@@ -90,16 +90,35 @@ class AppNotifier {
   /// Toasts need an app identity. Registering a display name under the
   /// current user's AppUserModelId key (no installer, no admin) makes Windows
   /// show "NaviVibe" with its icon and list it in Settings > Notifications.
-  static Future<void> _registerWindowsApp() async {
-    if (_registered) return;
+  static Future<void> _registerWindowsApp() => registerWindowsIdentity();
+
+  /// The same identity names the app in the volume flyout (media session), so
+  /// it is registered at startup, not only before the first toast. The runner
+  /// sets this AppUserModelId on the process (windows/runner/main.cpp).
+  static Future<void> registerWindowsIdentity() async {
+    if (_registered || !PlatformUtils.isWindows) return;
     _registered = true;
-    Future<void> put(String name, String value, [String type = 'REG_SZ']) => Process.run('reg', [
-      'add', r'HKCU\Software\Classes\AppUserModelId\' + _aumid,
-      '/v', name, '/t', type, '/d', value, '/f',
-    ]);
-    await put('DisplayName', 'NaviVibe');
-    await put('ShowInSettings', '1', 'REG_DWORD');
-    await put('IconUri', Platform.resolvedExecutable);
+    try {
+      Future<void> put(String name, String value, [String type = 'REG_SZ']) => Process.run('reg', [
+        'add', r'HKCU\Software\Classes\AppUserModelId\' + _aumid,
+        '/v', name, '/t', type, '/d', value, '/f',
+      ]);
+      await put('DisplayName', 'NaviVibe');
+      await put('ShowInSettings', '1', 'REG_DWORD');
+      await put('IconUri', windowsIconPath());
+    } catch (e) {
+      debugPrint('[AppNotifier] identity registration failed: $e');
+    }
+  }
+
+  /// The bundled app icon (an image file, as the registry value requires),
+  /// falling back to the exe.
+  @visibleForTesting
+  static String windowsIconPath({String? exe, bool Function(String)? exists}) {
+    final exePath = exe ?? Platform.resolvedExecutable;
+    final dir = File(exePath).parent.path;
+    final ico = '$dir\\data\\flutter_assets\\assets\\tray\\tray.ico';
+    return (exists ?? (p) => File(p).existsSync())(ico) ? ico : exePath;
   }
 
   static Future<bool> _windowsToast(String title, String body) async {

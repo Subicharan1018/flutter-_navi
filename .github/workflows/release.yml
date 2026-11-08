@@ -204,7 +204,7 @@ jobs:
           # Earlier releases give vpk what it needs to build delta packages.
           # The first release has none, so a failure here is fine.
           try { vpk download github --repoUrl "https://github.com/$env:REPO" --token $env:GH_TOKEN -o Releases } catch { Write-Host 'no earlier releases to diff against' }
-          vpk pack --packId NaviVibe --packVersion $env:WINVER --packDir $rel --mainExe navivibe.exe --packTitle NaviVibe -o Releases
+          vpk pack --packId NaviVibe --packVersion $env:WINVER --packDir $rel --mainExe navivibe.exe --packTitle NaviVibe --icon windows/runner/resources/app_icon.ico -o Releases
           if ($LASTEXITCODE -ne 0) { throw 'vpk pack failed' }
           # Only this build's files go into the release (Releases/ also holds older nupkgs).
           Get-ChildItem Releases | Where-Object { $_.Name -match "$($env:WINVER -replace '\.','\.')" -or $_.Name -like 'releases.*.json' -or $_.Name -like 'RELEASES*' -or $_.Name -like '*Setup.exe' } | Copy-Item -Destination winout

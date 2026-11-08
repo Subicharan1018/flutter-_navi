@@ -13,6 +13,7 @@ import 'core/motion.dart';
 import 'core/pointer_anchor.dart';
 import 'core/theme.dart';
 import 'utils/platform_utils.dart';
+import 'services/app_notifier.dart';
 import 'services/desktop_tray.dart';
 import 'services/windows_smtc.dart';
 import 'services/window_manager_service.dart';
@@ -172,7 +173,7 @@ Future<void> main() async {
     globalAudioHandler.mediaItem.listen(
       (m) => DesktopTray.instance.setNowPlaying(title: m?.title, artist: m?.artist),
     );
-    unawaited(_startSmtc(container, globalAudioHandler));
+    unawaited(AppNotifier.registerWindowsIdentity().then((_) => _startSmtc(container, globalAudioHandler)));
   }
 
   runApp(
