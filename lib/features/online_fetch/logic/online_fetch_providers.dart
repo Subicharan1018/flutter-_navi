@@ -591,6 +591,8 @@ class FetchJobsController extends Notifier<FetchDownloads> {
         );
       case FetchJobPhase.rejected:
         _finished.announce(headline: 'Not available in lossless quality', detail: label, coverUrl: cover);
+      case FetchJobPhase.blocked:
+        _finished.announce(headline: 'Blocked by the author', detail: label.isEmpty ? kBlockedByAuthor : label, coverUrl: cover);
       case FetchJobPhase.failed:
         _finished.announce(headline: 'Download didn’t finish', detail: job.error ?? label, coverUrl: cover);
       default:

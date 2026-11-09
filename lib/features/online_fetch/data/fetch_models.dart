@@ -111,6 +111,10 @@ class FetchCandidate {
   /// Album art the source shows with this result (a public CDN image).
   final String? coverUrl;
 
+  /// The bot already refused this song (blocked by the author): downloading
+  /// it again can't work.
+  final bool blocked;
+
   const FetchCandidate({
     required this.id,
     required this.title,
@@ -124,6 +128,7 @@ class FetchCandidate {
     this.type = FetchSearchType.song,
     this.trackCount,
     this.otherVersion = false,
+    this.blocked = false,
   });
 
   bool get isSong => type == FetchSearchType.song;
@@ -141,6 +146,7 @@ class FetchCandidate {
         coverUrl: j['cover_url'] as String?,
         type: FetchSearchType.parse(j['type']),
         trackCount: (j['track_count'] as num?)?.toInt(),
+        blocked: j['blocked'] == true,
       );
 }
 
@@ -246,8 +252,15 @@ enum FetchJobPhase {
 
   /// The source only has a lossy file; nothing was downloaded.
   rejected,
+
+  /// The author / rights holder withdrew the song, so the bot can't send it.
+  /// Final: asking again changes nothing (a new search is the user's call).
+  blocked,
   failed,
 }
+
+/// What the app says for a song the bot can't send because its author blocked it.
+const kBlockedByAuthor = 'Blocked by the author — the bot can’t send this one';
 
 class FetchJob {
   final int id;
@@ -275,7 +288,12 @@ class FetchJob {
   });
 
   bool get isFinished => switch (phase) {
-        FetchJobPhase.ready || FetchJobPhase.duplicate || FetchJobPhase.rejected || FetchJobPhase.failed => true,
+        FetchJobPhase.ready ||
+        FetchJobPhase.duplicate ||
+        FetchJobPhase.rejected ||
+        FetchJobPhase.blocked ||
+        FetchJobPhase.failed =>
+          true,
         _ => false,
       };
 
@@ -288,6 +306,7 @@ class FetchJob {
         'ready' => FetchJobPhase.ready,
         'duplicate' => FetchJobPhase.duplicate,
         'rejected' => FetchJobPhase.rejected,
+        'blocked' => FetchJobPhase.blocked,
         _ => FetchJobPhase.failed,
       };
 
@@ -338,6 +357,10 @@ class FetchBatch {
   /// Songs that couldn't be found or downloaded (skipped).
   final int failed;
 
+  /// Songs the author blocked: the bot can't send them. Counted apart from
+  /// [failed] — nothing went wrong, and asking again won't help.
+  final int blocked;
+
   /// 0–1 over the whole batch.
   final double progress;
   final List<FetchJob> items;
@@ -359,10 +382,14 @@ class FetchBatch {
     this.owned = 0,
     this.lossy = 0,
     this.failed = 0,
+    this.blocked = 0,
     this.progress = 0,
     this.items = const [],
     this.playlistId,
   });
+
+  /// Songs settled so far, whatever the outcome.
+  int get handled => added + owned + lossy + failed + blocked;
 
   FetchBatch copyWith({int? id, FetchBatchStatus? status, String? error, String? playlistId}) => FetchBatch(
         id: id ?? this.id,
@@ -378,6 +405,7 @@ class FetchBatch {
         owned: owned,
         lossy: lossy,
         failed: failed,
+        blocked: blocked,
         progress: progress,
         items: items,
         playlistId: playlistId ?? this.playlistId,
@@ -400,7 +428,9 @@ class FetchBatch {
         FetchSearchType.album => 'Album downloaded',
         FetchSearchType.playlist => 'Playlist ready',
         FetchSearchType.label => 'Label songs downloaded',
-        _ => added == 1 && owned == 0 && failed == 0 && lossy == 0 ? 'Song downloaded' : 'Songs downloaded',
+        _ => added == 1 && owned == 0 && failed == 0 && lossy == 0 && blocked == 0
+            ? 'Song downloaded'
+            : 'Songs downloaded',
       };
 
   static String _songs(int n) => n == 1 ? '1 song' : '$n songs';
@@ -408,6 +438,7 @@ class FetchBatch {
   List<String> get _skipped => [
         if (lossy > 0) '$lossy ${lossy == 1 ? 'isn’t' : 'aren’t'} available in lossless',
         if (failed > 0) '$failed couldn’t be found',
+        if (blocked > 0) '$blocked ${blocked == 1 ? 'is' : 'are'} blocked by the author',
       ];
 
   /// Album / songs: "12 songs added, 2 already owned, 1 isn’t available in
@@ -444,6 +475,7 @@ class FetchBatch {
       owned: (j['owned'] as num?)?.toInt() ?? 0,
       lossy: (j['lossy'] as num?)?.toInt() ?? 0,
       failed: (j['failed'] as num?)?.toInt() ?? 0,
+      blocked: (j['blocked'] as num?)?.toInt() ?? 0,
       progress: ((j['progress'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0),
       items: [for (final i in (j['items'] as List? ?? const [])) FetchJob.fromJson(i as Map<String, dynamic>)],
       playlistId: j['playlist_id'] as String?,

@@ -129,7 +129,7 @@ class FetchCandidateRow extends ConsumerWidget {
                           _ when !interactive && job == null => c.inLibrary
                               ? NaviIcon(NaviGlyph.checkCircle, size: 22, color: t.textMuted)
                               : const SizedBox.shrink(),
-                          FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary),
+                          FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary, blocked: c.blocked),
                           FetchSearchType.artist || FetchSearchType.label => NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
                           _ => FetchBatchIndicator(batch: batch),
                         },
@@ -173,6 +173,7 @@ class FetchCandidateRow extends ConsumerWidget {
   static String? _songStatus(FetchJob? job, FetchCandidate c) {
     if (job == null) {
       if (c.inLibrary) return 'In your library';
+      if (c.blocked) return kBlockedByAuthor;
       return c.otherVersion ? 'Other version in your library · Download this version' : null;
     }
     return fetchJobStatus(job);
@@ -189,6 +190,9 @@ class FetchCandidateRow extends ConsumerWidget {
     return switch (job?.phase) {
       FetchJobPhase.ready => t.positive,
       FetchJobPhase.rejected || FetchJobPhase.failed => t.danger,
+      // Blocked is not an error: nothing went wrong and nothing can be done.
+      FetchJobPhase.blocked => t.textSecondary,
+      null when c.blocked && !c.inLibrary => t.textSecondary,
       // "Cover", "Remix"…: information, so secondary text, not a warning hue.
       null when c.kind != FetchKind.original && !c.inLibrary => t.textSecondary,
       _ => t.textMuted,
@@ -207,6 +211,8 @@ bool fetchCandidateTappable(
 }) =>
     switch (c.type) {
       _ when !interactive => false,
+      // A blocked song has no Retry: the bot can't send it. (Search again is offered by the results.)
+      FetchSearchType.song when !c.inLibrary && (c.blocked || job?.phase == FetchJobPhase.blocked) => false,
       _ when selecting => !c.inLibrary && (job == null || job.phase == FetchJobPhase.failed),
       FetchSearchType.song => c.inLibrary || job == null || job.phase == FetchJobPhase.failed,
       FetchSearchType.artist || FetchSearchType.label => true,
@@ -222,13 +228,14 @@ String fetchJobStatus(FetchJob job) => switch (job.phase) {
       FetchJobPhase.ready => 'Added to your library',
       FetchJobPhase.duplicate => 'Already in your library',
       FetchJobPhase.rejected => 'Not available in lossless quality',
+      FetchJobPhase.blocked => kBlockedByAuthor,
       FetchJobPhase.failed => job.error ?? 'Download didn’t finish. Tap to try again.',
     };
 
 /// Where a batch is: "Getting the songs…", "23 of 80 songs", or its summary.
 String fetchBatchStatus(FetchBatch b) => switch (b.status) {
       FetchBatchStatus.starting => 'Getting the songs…',
-      FetchBatchStatus.running => '${b.added + b.owned + b.lossy + b.failed} of ${b.total} songs',
+      FetchBatchStatus.running => '${b.handled} of ${b.total} songs',
       FetchBatchStatus.done => b.summary,
       FetchBatchStatus.failed => b.error ?? 'Download didn’t finish. Tap to try again.',
     };
@@ -239,12 +246,18 @@ String fetchBatchStatus(FetchBatch b) => switch (b.status) {
 class FetchJobIndicator extends StatelessWidget {
   final FetchJob? job;
   final bool inLibrary;
-  const FetchJobIndicator({super.key, required this.job, this.inLibrary = false});
+
+  /// The bot already refused this song (no job yet): no download glyph.
+  final bool blocked;
+  const FetchJobIndicator({super.key, required this.job, this.inLibrary = false, this.blocked = false});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final j = job;
+    if (j == null && blocked && !inLibrary) {
+      return NaviIcon(NaviGlyph.close, size: 22, color: t.textMuted);
+    }
     if (j == null) {
       return NaviIcon(
         inLibrary ? NaviGlyph.playCircle : NaviGlyph.downloadCircle,
@@ -259,6 +272,7 @@ class FetchJobIndicator extends StatelessWidget {
         NaviIcon(NaviGlyph.checkCircle, size: 24, color: t.positive, filled: true),
       FetchJobPhase.rejected || FetchJobPhase.failed =>
         NaviIcon(NaviGlyph.alert, size: 24, color: t.danger),
+      FetchJobPhase.blocked => NaviIcon(NaviGlyph.close, size: 22, color: t.textMuted),
     };
   }
 }
