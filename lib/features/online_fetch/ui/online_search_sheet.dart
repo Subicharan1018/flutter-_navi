@@ -428,8 +428,11 @@ class _ResultsState extends ConsumerState<_Results> {
     final downloads = ref.watch(fetchJobsProvider);
     final pickable = [
       for (final c in search.candidates)
-        if (c.isSong && !c.inLibrary && (downloads.jobFor(c.id)?.phase ?? FetchJobPhase.failed) == FetchJobPhase.failed) c.id,
+        if (c.isSong && !c.inLibrary && !c.blocked && (downloads.jobFor(c.id)?.phase ?? FetchJobPhase.failed) == FetchJobPhase.failed) c.id,
     ];
+    // The bot refused some of these (blocked by the author): no Retry on them, but the
+    // user may search again by hand (the song might be offered in another form).
+    final anyBlocked = search.candidates.any((c) => c.isSong && !c.inLibrary && (c.blocked || downloads.jobFor(c.id)?.phase == FetchJobPhase.blocked));
     final dym = search.didYouMean;
     final heading = switch (s.type) {
       _ when s.artist?.type == FetchSearchType.label => 'Tracks',
@@ -468,6 +471,21 @@ class _ResultsState extends ConsumerState<_Results> {
                   ]),
                 ),
               ),
+            ),
+          ),
+        if (anyBlocked)
+          Padding(
+            padding: EdgeInsets.fromLTRB(g, 0, g, Space.sm),
+            child: Row(
+              children: [
+                Expanded(child: Text(kBlockedByAuthor, style: t.footnote)),
+                CupertinoButton(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.sm),
+                  minimumSize: const Size(44, 44),
+                  onPressed: () => widget.onSearch(search.query),
+                  child: Text('Search again', style: t.subheadline.copyWith(color: t.accent)),
+                ),
+              ],
             ),
           ),
         Padding(

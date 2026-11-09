@@ -171,7 +171,7 @@ class _Row extends ConsumerWidget {
               child: Center(
                 child: switch (c.type) {
                   _ when selecting => const SizedBox.shrink(),
-                  FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary),
+                  FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary, blocked: c.blocked),
                   FetchSearchType.artist || FetchSearchType.label => NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
                   _ => FetchBatchIndicator(batch: batch),
                 },

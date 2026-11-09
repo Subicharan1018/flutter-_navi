@@ -47,6 +47,9 @@ class FetchQueueItem {
   final int lossy;
   final int failed;
 
+  /// Blocked by the author: counted apart from [failed].
+  final int blocked;
+
   /// 0–1 over the whole batch.
   final double progress;
 
@@ -70,12 +73,13 @@ class FetchQueueItem {
     this.owned = 0,
     this.lossy = 0,
     this.failed = 0,
+    this.blocked = 0,
     this.progress = 0,
     this.summary,
   });
 
   /// Songs settled so far, whatever the outcome.
-  int get handled => added + owned + lossy + failed;
+  int get handled => added + owned + lossy + failed + blocked;
 
   bool get canCancel => status == QueueStatus.queued || status == QueueStatus.running;
   bool get canRetry => status == QueueStatus.failed || status == QueueStatus.cancelled;
@@ -97,6 +101,7 @@ class FetchQueueItem {
         owned: (j['owned'] as num?)?.toInt() ?? 0,
         lossy: (j['lossy'] as num?)?.toInt() ?? 0,
         failed: (j['failed'] as num?)?.toInt() ?? 0,
+        blocked: (j['blocked'] as num?)?.toInt() ?? 0,
         progress: ((j['progress'] as num?)?.toDouble() ?? 0).clamp(0.0, 1.0),
         summary: j['summary'] as String?,
       );
