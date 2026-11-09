@@ -38,6 +38,9 @@ class WindowManagerService with WindowListener {
   static const String _keyX = 'x';
   static const String _keyY = 'y';
 
+  /// True while the mini player has the window: its size is not the user's.
+  static bool suspendSaving = false;
+
   bool _attached = false;
 
   // ── Lifecycle ──────────────────────────────────────────────────────────────
@@ -74,6 +77,7 @@ class WindowManagerService with WindowListener {
   // ── Private helpers ────────────────────────────────────────────────────────
 
   Future<void> _saveWindowState() async {
+    if (suspendSaving) return;
     try {
       final size = await windowManager.getSize();
       final position = await windowManager.getPosition();

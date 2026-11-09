@@ -14,6 +14,7 @@ import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../screens/now_playing_screen.dart';
 import '../../../player/player_controls.dart' show formatClock;
+import '../../../services/mini_player.dart';
 import '../../art/navi_icons.dart';
 import '../shortcuts_help.dart';
 import 'now_playing_panel.dart';
@@ -123,7 +124,7 @@ class DesktopPlayerBar extends ConsumerWidget {
                         BarIconButton(icon: NaviGlyph.shuffle, tooltip: 'Shuffle (S)', active: shuffle, onTap: n.toggleShuffle),
                         BarIconButton(icon: NaviGlyph.previous, tooltip: 'Previous (Ctrl+←)', size: 20, onTap: n.playPrev),
                         const SizedBox(width: Space.xs),
-                        _PlayButton(playing: playing, onTap: n.togglePlay),
+                        BarPlayButton(playing: playing, onTap: n.togglePlay),
                         const SizedBox(width: Space.xs),
                         BarIconButton(icon: NaviGlyph.next, tooltip: 'Next (Ctrl+→)', size: 20, onTap: n.playNext),
                         BarIconButton(
@@ -184,6 +185,12 @@ class DesktopPlayerBar extends ConsumerWidget {
                       ),
                     const _GroupGap(),
                     if (!narrow) const KeyboardHelpButton(),
+                    if (!narrow && MiniPlayer.supported)
+                      BarIconButton(
+                        icon: NaviGlyph.miniPlayer,
+                        tooltip: 'Mini player',
+                        onTap: MiniPlayer.instance.enter,
+                      ),
                     BarIconButton(
                       icon: NaviGlyph.expand,
                       tooltip: 'Full-screen player',
@@ -264,16 +271,16 @@ class _BarIconButtonState extends State<BarIconButton> {
   }
 }
 
-class _PlayButton extends StatefulWidget {
+class BarPlayButton extends StatefulWidget {
   final bool playing;
   final VoidCallback onTap;
-  const _PlayButton({required this.playing, required this.onTap});
+  const BarPlayButton({super.key, required this.playing, required this.onTap});
 
   @override
-  State<_PlayButton> createState() => _PlayButtonState();
+  State<BarPlayButton> createState() => _BarPlayButtonState();
 }
 
-class _PlayButtonState extends State<_PlayButton> {
+class _BarPlayButtonState extends State<BarPlayButton> {
   bool _hover = false;
 
   @override

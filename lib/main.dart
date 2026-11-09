@@ -17,6 +17,11 @@ import 'utils/platform_utils.dart';
 import 'services/app_notifier.dart';
 import 'services/desktop_tray.dart';
 import 'services/windows_smtc.dart';
+import 'services/windows_startup.dart';
+import 'services/global_hotkey.dart';
+import 'services/mini_player.dart';
+import 'widgets/shell/desktop/top_bar.dart' show desktopSearchFocus;
+import 'widgets/shell/mini_player_view.dart';
 import 'services/window_manager_service.dart';
 import 'widgets/app_scaffold.dart';
 import 'widgets/shell/title_bar.dart';
@@ -42,8 +47,10 @@ import 'providers/player_provider.dart';
 // ---------------------------------------------------------------------------
 late final NaviAudioHandler globalAudioHandler;
 
-Future<void> main() async {
+Future<void> main(List<String> args) async {
   WidgetsFlutterBinding.ensureInitialized();
+  // "Start with Windows" launches with --minimized: open hidden in the tray.
+  final startHidden = WindowsStartup.supported && WindowsStartup.startsMinimized(args);
   UserActivity.install();
   CrashLog.install();
 
@@ -107,6 +114,8 @@ Future<void> main() async {
       windowButtonVisibility: !NaviTitleBar.enabled,
     );
     await windowManager.waitUntilReadyToShow(options, () async {
+      // Hidden only when the tray can bring it back (the icon is set up below).
+      if (startHidden && DesktopTray.keepInTray) return;
       await windowManager.show();
       await windowManager.focus();
     });
@@ -165,7 +174,8 @@ Future<void> main() async {
 
   if (DesktopTray.supported) {
     final player = container.read(playerProvider.notifier);
-    unawaited(DesktopTray.instance.init(PlaybackTransport(
+    unawaited(DesktopTray.instance
+        .init(PlaybackTransport(
       playPause: () {
         UserActivity.mark();
         player.togglePlay();
@@ -179,11 +189,19 @@ Future<void> main() async {
         player.playPrev();
       },
       isPlaying: () => container.read(playerProvider).isPlaying,
-    )));
+    ))
+        .then((_) async {
+      // Started hidden but the tray icon failed: nothing could bring the window back.
+      if (startHidden && !DesktopTray.instance.ready) {
+        await windowManager.show();
+        await windowManager.focus();
+      }
+    }));
     container.listen(playerProvider.select((s) => s.isPlaying), (_, _) => DesktopTray.instance.refreshMenu());
     globalAudioHandler.mediaItem.listen(
       (m) => DesktopTray.instance.setNowPlaying(title: m?.title, artist: m?.artist),
     );
+    unawaited(GlobalHotkey.instance.init(_bringForwardForSearch));
     unawaited(AppNotifier.registerWindowsIdentity().then((_) => _startSmtc(container, globalAudioHandler)));
   }
 
@@ -193,6 +211,23 @@ Future<void> main() async {
       child: const MyMusicPlayerApp(),
     ),
   );
+}
+
+/// The global shortcut: leave the mini player, show and focus the window, and
+/// put the caret in the search field.
+Future<void> _bringForwardForSearch() async {
+  try {
+    await MiniPlayer.instance.exit();
+    if (await windowManager.isMinimized()) await windowManager.restore();
+    await windowManager.show();
+    await windowManager.focus();
+    selectAppTab(AppTab.search);
+    // The field exists once the Search tab has built; ask after the next frame.
+    WidgetsBinding.instance.addPostFrameCallback((_) => desktopSearchFocus.requestFocus());
+    WidgetsBinding.instance.scheduleFrame();
+  } catch (e) {
+    debugPrint('[Hotkey] could not open search: $e');
+  }
 }
 
 /// Windows volume flyout / lock screen / hardware media keys. Same path as the
@@ -296,9 +331,11 @@ class MyMusicPlayerApp extends ConsumerWidget {
           // TV: overscan margin and larger type. Windows: our own title bar.
           child: PointerAnchor(
             child: TvFrame(
-              child: NaviTitleBar.enabled
-                  ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
-                  : child!,
+              child: MiniPlayerHost(
+                child: NaviTitleBar.enabled
+                    ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
+                    : child!,
+              ),
             ),
           ),
         ),

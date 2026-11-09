@@ -116,6 +116,9 @@ enum NaviGlyph {
   plusCircle,
   grip,
   expand,
+
+  /// A window with a small window in its corner: the Windows mini player.
+  miniPlayer,
   swap,
   metronome,
   grid,
