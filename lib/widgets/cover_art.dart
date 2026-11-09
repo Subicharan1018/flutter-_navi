@@ -73,21 +73,22 @@ class CoverArt extends StatelessWidget {
             ? Image.file(
                 File.fromUri(Uri.parse(url!)),
                 fit: BoxFit.cover,
+                // Width only: giving both sizes decodes to exactly px × px and
+                // squashes any cover that is not square.
                 cacheWidth: px,
-                cacheHeight: px,
                 errorBuilder: (_, _, _) => failed,
               )
             : override != null
             ? Image(
-                image: ResizeImage(override, width: px, height: px),
+                image: ResizeImage(override, width: px, height: px, policy: ResizeImagePolicy.fit),
                 fit: BoxFit.cover,
                 errorBuilder: (_, _, _) => failed,
               )
             : CachedNetworkImage(
                 imageUrl: sizedCoverUrl(url!, px),
                 fit: BoxFit.cover,
+                // Width only (see above): both would stretch a non-square cover.
                 memCacheWidth: px,
-                memCacheHeight: px,
                 fadeInDuration: const Duration(milliseconds: 180),
                 fadeOutDuration: Duration.zero,
                 placeholderFadeInDuration: Duration.zero,

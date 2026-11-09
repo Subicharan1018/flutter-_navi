@@ -169,6 +169,21 @@ void main() {
     });
   });
 
+  group('Home mood chips (Windows)', () {
+    for (final active in [false, true]) {
+      testWidgets('the moods are in view ${active ? 'while Flow runs' : 'before it starts'}', (tester) async {
+        await size(tester, const Size(1366, 768), desktop: true);
+        final calls = <String>[];
+        await tester.pumpWidget(flowApp(const FlowMoodChips(), FlowState(active: active), calls));
+        await tester.pumpAndSettle();
+        expect(find.text('Any mood'), findsOneWidget);
+        await tester.tap(find.text('Chill'));
+        await tester.pump();
+        expect(calls, contains('mood:chill'));
+      });
+    }
+  });
+
   group('Windows', () {
     testWidgets('one inline row: Start sits beside the words and does not stretch', (tester) async {
       await size(tester, const Size(1280, 800), desktop: true);

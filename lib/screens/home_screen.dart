@@ -658,6 +658,10 @@ class _ContinueStrip extends ConsumerWidget {
               );
             },
           ),
+          // The mood, in view before Flow starts and while it runs (right-click on
+          // the tile still opens the same choices).
+          const SizedBox(height: Space.md),
+          const FlowMoodChips(),
           if (flow.active && flow.blend.total > 0) ...[
             const SizedBox(height: Space.md),
             FlowBlendStrip(blend: flow.blend),

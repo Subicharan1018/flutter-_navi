@@ -16,7 +16,9 @@ import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../screens/now_playing_screen.dart';
 import '../../../widgets/art/navi_icons.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../widgets/song_tile.dart';
+import '../../../widgets/table/song_table.dart';
 import '../../../widgets/ui/action_sheet.dart';
 import '../../../widgets/ui/controls.dart';
 import '../../../widgets/ui/large_title_page.dart';
@@ -121,24 +123,33 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
     final loading = shuffleState.isLoading || predict.isLoading || syncing;
     final error = shuffleState.error ?? (predict.hasError ? predict.errorMessage : null);
 
+    final desk = PlatformUtils.isDesktop;
+    final g = desk ? pageGutter(context) : Space.gutter;
     return LargeTitlePage(
       title: 'Smart Shuffle',
       trailing: const SmartShuffleStatusButton(),
       onRefresh: () async => _fetch(),
       slivers: [
         SliverPadding(
-          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.lg),
+          padding: EdgeInsets.fromLTRB(g, Space.xs, g, Space.lg),
           sliver: SliverToBoxAdapter(
-            child: NaviSegmented<PredictMode>(
-              segments: {for (final m in PredictMode.values) m: m.displayLabel},
-              value: predict.mode,
-              onChanged: _fetch,
+            // Windows: tabs are as wide as their words, at the left.
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: ConstrainedBox(
+                constraints: BoxConstraints(maxWidth: desk ? 360 : double.infinity),
+                child: NaviSegmented<PredictMode>(
+                  segments: {for (final m in PredictMode.values) m: m.displayLabel},
+                  value: predict.mode,
+                  onChanged: _fetch,
+                ),
+              ),
             ),
           ),
         ),
         SliverToBoxAdapter(child: DescribeMixField(onClear: _fetch)),
         SliverPadding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+          padding: desk ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: Space.gutter),
           sliver: SliverToBoxAdapter(
             child: _MixCard(
               context: predict.context,
@@ -180,13 +191,23 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
           )
         else ...[
           const SliverToBoxAdapter(child: SectionHeader(title: 'In This Mix')),
-          SliverFixedExtentList(
-            itemExtent: SongTile.extent,
-            delegate: SliverChildBuilderDelegate(
-              (context, i) => SongTile(song: mix[i], onTap: () => _play(shown, start: i)),
-              childCount: mix.length,
+          if (desk)
+            // Windows: the same song table as every other list.
+            SliverPadding(
+              padding: EdgeInsets.symmetric(horizontal: g),
+              sliver: SongTableSliver(
+                songs: mix,
+                onPlay: (song, _) => _play(shown, start: mix.indexWhere((s) => s.id == song.id).clamp(0, mix.length - 1)),
+              ),
+            )
+          else
+            SliverFixedExtentList(
+              itemExtent: SongTile.extent,
+              delegate: SliverChildBuilderDelegate(
+                (context, i) => SongTile(song: mix[i], onTap: () => _play(shown, start: i)),
+                childCount: mix.length,
+              ),
             ),
-          ),
           if (missing > 0)
             SliverToBoxAdapter(
               child: Builder(
@@ -258,20 +279,65 @@ class _MixCard extends ConsumerWidget {
       if (c?.temperatureC != null) '${c!.temperatureC!.round()}°',
     ].join(', ');
 
+    final title1 = mode == PredictMode.discovery ? 'Discoveries for $title' : 'Your Mix for $title';
+    final art = MosaicArt(
+      urls: [for (final s in mix.take(12)) svc.getCoverArtUrl(s.coverArt)],
+      size: PlatformUtils.isDesktop ? ArtSize.of(buildContext).header : _art,
+      radius: Radii.hero,
+      placeholderIcon: NaviGlyph.smartShuffle,
+      seed: coverSeed('Smart Shuffle', mix.map((s) => s.id)),
+    );
+
+    // Windows: the art at the left, the words and compact buttons beside it,
+    // like an album page header.
+    if (PlatformUtils.isDesktop) {
+      final g = pageGutter(buildContext);
+      return Padding(
+        padding: EdgeInsets.fromLTRB(g, 0, g, 0),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            art,
+            const SizedBox(width: Space.xl),
+            Flexible(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(title1, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.title1),
+                  if (details.isNotEmpty) ...[
+                    const SizedBox(height: Space.xxs),
+                    Text(details, style: t.title3.copyWith(color: t.accent, fontWeight: FontWeight.w500)),
+                  ],
+                  if (c != null) ...[
+                    const SizedBox(height: Space.sm),
+                    Text(_confidence(c), style: t.footnote),
+                  ],
+                  const SizedBox(height: Space.lg),
+                  Wrap(
+                    spacing: Space.sm,
+                    runSpacing: Space.sm,
+                    children: [
+                      TintedButton(filled: true, height: 36, glyph: NaviGlyph.play, label: 'Play', onTap: busy ? null : onPlay),
+                      TintedButton(height: 36, glyph: NaviGlyph.shuffle, label: 'Reshuffle', onTap: onReshuffle),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
     // The mix as an Apple playlist header: art, name, why, transport. No
     // card around it; the page is the surface.
     return Column(
       children: [
-        MosaicArt(
-          urls: [for (final s in mix.take(12)) svc.getCoverArtUrl(s.coverArt)],
-          size: _art,
-          radius: Radii.hero,
-          placeholderIcon: NaviGlyph.smartShuffle,
-          seed: coverSeed('Smart Shuffle', mix.map((s) => s.id)),
-        ),
+        art,
         const SizedBox(height: Space.lg),
         Text(
-          mode == PredictMode.discovery ? 'Discoveries for $title' : 'Your Mix for $title',
+          title1,
           textAlign: TextAlign.center,
           maxLines: 2,
           overflow: TextOverflow.ellipsis,
@@ -326,7 +392,7 @@ class _StarterRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.fromLTRB(Space.gutter, Space.lg, Space.gutter, 0),
+      padding: EdgeInsets.fromLTRB(pageGutter(context), Space.lg, pageGutter(context), 0),
       child: Row(
         children: [
           NaviIcon(NaviGlyph.sun, size: 18, color: t.accent),

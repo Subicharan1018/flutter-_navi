@@ -46,7 +46,7 @@ class DesktopTopBar extends ConsumerWidget {
   final Widget? trailing;
   const DesktopTopBar({super.key, this.dragsWindow = false, this.trailing});
 
-  static const double height = 44;
+  static const double height = 48;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -241,7 +241,7 @@ class _TopSearchState extends ConsumerState<_TopSearch> {
           },
         },
         child: Container(
-          height: 34,
+          height: 36, // centred in the 48 bar: 6 px above and below
           decoration: BoxDecoration(
             color: focused ? t.bgElevated : t.fill,
             borderRadius: BorderRadius.circular(Radii.capsule),

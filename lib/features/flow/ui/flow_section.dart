@@ -143,6 +143,38 @@ class FlowSection extends ConsumerWidget {
   }
 }
 
+/// Windows: "Mood" and its choices as one wrapping row of pills, always shown on
+/// Home (before Flow starts and while it runs). Empty until the moods load.
+class FlowMoodChips extends ConsumerWidget {
+  const FlowMoodChips({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final moods = ref.watch(flowMoodsProvider).asData?.value ?? const <FlowMood>[];
+    if (moods.isEmpty) return const SizedBox.shrink();
+    final mood = ref.watch(flowProvider.select((s) => s.mood));
+    final controller = ref.read(flowProvider.notifier);
+    return Wrap(
+      spacing: Space.sm,
+      runSpacing: Space.sm,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(right: Space.xs),
+          child: Semantics(header: true, child: Text('Flow mood', style: t.footnote.copyWith(fontWeight: FontWeight.w600))),
+        ),
+        for (final e in {_anyMood: 'Any mood', for (final m in moods) m.mood: m.label}.entries)
+          _MoodChip(
+            label: e.value,
+            selected: (mood ?? _anyMood) == e.key,
+            onTap: () => controller.selectMood(e.key == _anyMood ? null : e.key),
+          ),
+      ],
+    );
+  }
+}
+
 /// One mood on Windows: a pill that washes on hover, shows the keyboard ring,
 /// and is read out as selected.
 class _MoodChip extends StatelessWidget {

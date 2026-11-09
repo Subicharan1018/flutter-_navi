@@ -13,6 +13,7 @@ import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/media.dart';
+import '../widgets/ui/navi_icon_button.dart';
 
 /// "Suggested Songs" under a playlist: library songs that fit it, each with
 /// the reason, and a plus that adds the song straight to the playlist.
@@ -59,6 +60,38 @@ class _PlaylistSuggestionsState extends ConsumerState<PlaylistSuggestions> {
     if (_signature != _loadedFor) _load();
   }
 
+  /// Every song suggested so far on this page, so Refresh never repeats one.
+  final _seen = <String>{};
+  bool _refreshing = false;
+
+  /// A new batch: asks for more than a screenful and shows the first ten that
+  /// have not been suggested before (the server has no "exclude" of its own).
+  Future<void> _refresh() async {
+    if (_refreshing) return;
+    setState(() => _refreshing = true);
+    try {
+      final found = await ref
+          .read(shuffleRepositoryProvider)
+          .getPlaylistSuggestions(widget.songs.map((s) => s.id).toList(), limit: 60);
+      final library = {for (final s in await ref.read(allSongsProvider.future)) s.id: s};
+      if (!mounted) return;
+      final fresh = <_Pick>[
+        for (final f in found)
+          if (library[f.id] != null && !_seen.contains(f.id)) (song: library[f.id]!, why: f.why),
+      ].take(10).toList();
+      if (fresh.isEmpty) {
+        showToast(context, 'No new suggestions right now.');
+      } else {
+        _seen.addAll(fresh.map((p) => p.song.id));
+        setState(() => _picks = fresh);
+      }
+    } catch (_) {
+      if (mounted) showToast(context, 'Couldn’t get new suggestions. Try again.');
+    } finally {
+      if (mounted) setState(() => _refreshing = false);
+    }
+  }
+
   Future<void> _load() async {
     final signature = _loadedFor = _signature;
     try {
@@ -67,10 +100,12 @@ class _PlaylistSuggestionsState extends ConsumerState<PlaylistSuggestions> {
           .getPlaylistSuggestions(widget.songs.map((s) => s.id).toList(), limit: 10);
       final library = {for (final s in await ref.read(allSongsProvider.future)) s.id: s};
       if (!mounted || signature != _loadedFor) return;
-      setState(() => _picks = [
-            for (final f in found)
-              if (library[f.id] != null) (song: library[f.id]!, why: f.why),
-          ]);
+      final picks = [
+        for (final f in found)
+          if (library[f.id] != null) (song: library[f.id]!, why: f.why),
+      ];
+      _seen.addAll(picks.map((p) => p.song.id));
+      setState(() => _picks = picks);
     } catch (_) {
       // Suggestions are a bonus: no server, no section.
       if (mounted && signature == _loadedFor) setState(() => _picks = const []);
@@ -106,7 +141,20 @@ class _PlaylistSuggestionsState extends ConsumerState<PlaylistSuggestions> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const SectionHeader(title: 'Suggested Songs'),
+        Row(
+          children: [
+            const Expanded(child: SectionHeader(title: 'Suggested Songs')),
+            Padding(
+              padding: EdgeInsets.only(right: pageGutter(context), top: Space.xl),
+              child: NaviIconButton(
+                glyph: NaviGlyph.repeat,
+                tooltip: 'Refresh suggestions',
+                box: 40,
+                onTap: _refreshing ? null : _refresh,
+              ),
+            ),
+          ],
+        ),
         for (final pick in _picks)
           InkWell(
             onTap: () => ref.read(playerProvider.notifier).setQueue([pick.song], 0),

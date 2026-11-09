@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme.dart';
+import '../../../../utils/platform_utils.dart';
 import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/ui/controls.dart';
 import '../../logic/mix_intent_provider.dart';
@@ -38,11 +39,17 @@ class _DescribeMixFieldState extends ConsumerState<DescribeMixField> {
     final s = ref.watch(mixIntentProvider);
     final result = s.result;
 
-    return Column(
+    final g = pageGutter(context);
+    // Windows: a field has a sensible width, at the page's left margin.
+    return Align(
+      alignment: Alignment.topLeft,
+      child: ConstrainedBox(
+        constraints: BoxConstraints(maxWidth: PlatformUtils.isDesktop ? 640 + g * 2 : double.infinity),
+        child: Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+          padding: EdgeInsets.symmetric(horizontal: g),
           child: NaviSearchField(
             controller: _text,
             placeholder: 'Describe a mix, like “calm Tamil melodies”',
@@ -50,7 +57,7 @@ class _DescribeMixFieldState extends ConsumerState<DescribeMixField> {
           ),
         ),
         Padding(
-          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, Space.md),
+          padding: EdgeInsets.fromLTRB(g, Space.xs, g, Space.md),
           child: switch ((s.busy, s.error, result)) {
             (true, _, _) => Row(children: [
                 const CupertinoActivityIndicator(radius: 7),
@@ -84,6 +91,8 @@ class _DescribeMixFieldState extends ConsumerState<DescribeMixField> {
           },
         ),
       ],
+        ),
+      ),
     );
   }
 }
