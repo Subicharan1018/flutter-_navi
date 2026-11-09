@@ -6,7 +6,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/widgets.dart' show AppLifecycleListener;
 
 import '../core/hive_boxes.dart';
+import '../features/social/data/social_models.dart' show Reaction;
 import '../features/social/logic/people_providers.dart';
+import '../features/social/logic/reaction_rules.dart' show reactionText;
 import '../features/social/logic/social_providers.dart';
 import '../features/social/logic/social_rules.dart';
 import '../widgets/app_scaffold.dart' show AppTab, selectAppTab;
@@ -61,6 +63,23 @@ class AppFriendAlertSink implements FriendAlertSink {
       NotifyChannel.social,
       // One slot per friend: a newer alert replaces their older one.
       id: 100 + (alert.username.toLowerCase().hashCode & 0xfff),
+      title: title,
+      body: body,
+    );
+    if (shown) FriendAlertOpen.mark();
+  }
+}
+
+/// Raises "a friend reacted to your song" the same way (one slot per friend).
+class AppReactionAlertSink implements ReactionAlertSink {
+  const AppReactionAlertSink();
+
+  @override
+  Future<void> show(Reaction reaction) async {
+    final (title, body) = reactionText(reaction);
+    final shown = await AppNotifier.show(
+      NotifyChannel.social,
+      id: 5000 + (reaction.from.toLowerCase().hashCode & 0xfff),
       title: title,
       body: body,
     );

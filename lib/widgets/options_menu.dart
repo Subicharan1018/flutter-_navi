@@ -6,6 +6,7 @@ import '../core/theme.dart';
 import '../features/share/share_sheet.dart';
 import '../features/social/logic/jam_controller.dart';
 import '../features/social/ui/collab_screens.dart' show showAddToCollab;
+import '../features/social/ui/share_now_playing_action.dart' show runShareNowPlaying;
 import '../features/taste/ui/never_recommend.dart';
 import '../models/album.dart';
 import '../models/download_state.dart';
@@ -63,6 +64,7 @@ class OptionsMenu extends ConsumerWidget {
     final page = Navigator.of(context).context;
     final starred = ref.watch(playerProvider.select((s) => s.starredIds.contains(song.id)));
     final inJam = ref.watch(jamControllerProvider.select((s) => s.active));
+    final isPlayingNow = ref.watch(playerProvider.select((s) => s.currentSong?.id == song.id));
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -130,6 +132,12 @@ class OptionsMenu extends ConsumerWidget {
             icon: NaviGlyph.share,
             onTap: () => showShareSheet(page, ShareTarget.song(song)),
           ),
+          if (isPlayingNow)
+            SheetAction(
+              label: 'Share now playing',
+              icon: NaviGlyph.share,
+              onTap: () => runShareNowPlaying(page, song),
+            ),
           if (song.albumId.isNotEmpty)
             SheetAction(
               label: 'Go to Album',

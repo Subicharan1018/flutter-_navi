@@ -161,11 +161,59 @@ class Person {
       );
 }
 
+/// A friend's emoji (and short note) on a song you played.
+class Reaction {
+  /// Only grows on the server: the app remembers the highest it has shown.
+  final int id;
+  final String from;
+  final String emoji;
+  final String note;
+  final String songId;
+  final String title;
+  final String artist;
+
+  /// Unix seconds.
+  final int at;
+  const Reaction({
+    required this.id,
+    required this.from,
+    required this.emoji,
+    this.note = '',
+    this.songId = '',
+    this.title = '',
+    this.artist = '',
+    this.at = 0,
+  });
+
+  factory Reaction.fromJson(Map<String, dynamic> j) => Reaction(
+        id: _i(j['id']),
+        from: _s(j['from']),
+        emoji: _s(j['emoji']),
+        note: _s(j['note']),
+        songId: _s(j['song_id']),
+        title: _s(j['title']),
+        artist: _s(j['artist']),
+        at: _i(j['at']),
+      );
+}
+
 class PeopleList {
   /// False until this person turned social features on.
   final bool enabled;
   final List<Person> people;
-  const PeopleList({this.enabled = false, this.people = const []});
+
+  /// Friends' reactions to what you played, oldest first.
+  final List<Reaction> reactions;
+
+  /// False when the server is too old to know about reactions (the list has no
+  /// `reactions` key): the React action is then hidden.
+  final bool reactionsSupported;
+  const PeopleList({
+    this.enabled = false,
+    this.people = const [],
+    this.reactions = const [],
+    this.reactionsSupported = false,
+  });
 
   factory PeopleList.fromJson(Map<String, dynamic> j) => PeopleList(
         enabled: j['enabled'] == true,
@@ -173,6 +221,11 @@ class PeopleList {
           for (final p in (j['people'] as List? ?? const []))
             if (p is Map) Person.fromJson(Map<String, dynamic>.from(p)),
         ],
+        reactions: [
+          for (final r in (j['reactions'] as List? ?? const []))
+            if (r is Map) Reaction.fromJson(Map<String, dynamic>.from(r)),
+        ],
+        reactionsSupported: j['reactions'] is List,
       );
 
   List<Person> get listeningNow => [for (final p in people) if (p.isActive) p];
@@ -475,4 +528,101 @@ class Blend {
         ],
         notEnoughListening: j['not_enough_listening'] == true,
       );
+}
+
+// ── Weekly recap ─────────────────────────────────────────────────────────────
+
+/// A name with how many times it was played (or, for something shared, how
+/// often each of you played it).
+class RecapEntry {
+  final String name;
+  final String songId;
+  final int you;
+  final int them;
+  const RecapEntry({required this.name, this.songId = '', this.you = 0, this.them = 0});
+
+  /// Top lists carry `plays`; shared ones carry `you` and `them`.
+  factory RecapEntry.fromJson(Map<String, dynamic> j) => RecapEntry(
+        name: _s(j['name'] ?? j['title']),
+        songId: _s(j['song_id']),
+        you: _i(j['you'] ?? j['plays']),
+        them: _i(j['them']),
+      );
+}
+
+List<RecapEntry> _entries(Object? v) => [
+      for (final e in (v as List? ?? const []))
+        if (e is Map) RecapEntry.fromJson(Map<String, dynamic>.from(e)),
+    ];
+
+/// Your week next to one Blend friend.
+class RecapFriend {
+  final String username;
+  final String blendId;
+  final int? matchPct;
+
+  /// The friend hides what they listen to: only the match is shown.
+  final bool hidden;
+  final int? theirMinutes;
+  final List<RecapEntry> sharedArtists;
+  final List<RecapEntry> sharedSongs;
+  const RecapFriend({
+    required this.username,
+    this.blendId = '',
+    this.matchPct,
+    this.hidden = false,
+    this.theirMinutes,
+    this.sharedArtists = const [],
+    this.sharedSongs = const [],
+  });
+
+  bool get hasShared => sharedArtists.isNotEmpty || sharedSongs.isNotEmpty;
+
+  factory RecapFriend.fromJson(Map<String, dynamic> j) => RecapFriend(
+        username: _s(j['username']),
+        blendId: _s(j['blend_id']),
+        matchPct: j['match_pct'] == null ? null : _i(j['match_pct']),
+        hidden: j['hidden'] == true,
+        theirMinutes: j['their_minutes'] == null ? null : _i(j['their_minutes']),
+        sharedArtists: _entries(j['shared_artists']),
+        sharedSongs: _entries(j['shared_songs']),
+      );
+}
+
+class WeeklyRecap {
+  final String weekStart;
+  final String weekEnd;
+  final int minutes;
+  final int plays;
+  final List<RecapEntry> topArtists;
+  final List<RecapEntry> topSongs;
+  final List<RecapFriend> friends;
+  const WeeklyRecap({
+    this.weekStart = '',
+    this.weekEnd = '',
+    this.minutes = 0,
+    this.plays = 0,
+    this.topArtists = const [],
+    this.topSongs = const [],
+    this.friends = const [],
+  });
+
+  /// Worth showing: there is a Blend friend and some listening to talk about.
+  bool get hasContent => friends.isNotEmpty && plays > 0;
+
+  factory WeeklyRecap.fromJson(Map<String, dynamic> j) {
+    final you = j['you'] is Map ? Map<String, dynamic>.from(j['you'] as Map) : const <String, dynamic>{};
+    return WeeklyRecap(
+      weekStart: _s(j['week_start']),
+      weekEnd: _s(j['week_end']),
+      minutes: _i(you['minutes']),
+      plays: _i(you['plays']),
+      topArtists: _entries(you['top_artists']),
+      topSongs: _entries(you['top_songs']),
+      friends: [
+        for (final f in (j['friends'] as List? ?? const []))
+          if (f is Map) RecapFriend.fromJson(Map<String, dynamic>.from(f)),
+      ],
+    );
+  }
 }

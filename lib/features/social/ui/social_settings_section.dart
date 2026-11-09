@@ -76,7 +76,7 @@ class SocialSettingsSection extends ConsumerWidget {
         if (loaded && s.enabled)
           GroupedSwitchRow(
             title: 'Friend Alerts',
-            subtitle: 'A notification when a friend starts listening. At most one per friend every 30 minutes.',
+            subtitle: 'A notification when a friend starts listening or reacts to your song. At most one start alert per friend every 30 minutes.',
             value: alerts.enabled,
             onChanged: (v) {
               alertsCtl.setEnabled(v);

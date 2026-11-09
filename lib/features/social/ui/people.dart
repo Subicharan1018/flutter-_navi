@@ -10,9 +10,11 @@ import '../../../widgets/ui/media.dart';
 import '../data/social_models.dart';
 import '../logic/jam_controller.dart';
 import '../logic/people_providers.dart';
+import '../logic/reaction_rules.dart';
 import '../logic/social_providers.dart';
 import '../logic/social_rules.dart';
 import 'jam/jam_room.dart' show JamChipButton;
+import 'reaction_sheet.dart';
 import 'social_widgets.dart';
 
 /// A small mark for how present someone is. The state is in the shape, not the
@@ -137,6 +139,7 @@ class _PeopleSectionState extends ConsumerState<PeopleSection> {
         )
       else
         for (final (i, p) in people.indexed) PersonRow(person: p, showSeparator: i < people.length - 1),
+      const ReactionsReceived(),
     ]);
   }
 }
@@ -190,6 +193,7 @@ class PersonRow extends ConsumerWidget {
     final p = person;
     final alerts = ref.read(friendAlertSettingsProvider.notifier);
     final muted = ref.read(friendAlertSettingsProvider).isMuted(p.username);
+    final canReactNow = canReact(p, serverSupports: ref.read(peopleProvider).list?.reactionsSupported ?? false);
     showPlatformSheet(
       context: context,
       title: p.username,
@@ -197,6 +201,7 @@ class PersonRow extends ConsumerWidget {
         padding: const EdgeInsets.only(bottom: Space.md),
         child: SheetGroup(children: [
           if (canJoin(p)) SheetAction(label: 'Join ${p.room!.mode.label} room', onTap: () => joinFromPeople(context, ref, p)),
+          if (canReactNow) SheetAction(label: 'React to this song…', onTap: () => showReactionSheet(context, p)),
           SheetAction(
             label: muted ? 'Unmute alerts' : 'Mute alerts',
             detail: muted ? null : 'No notification when ${p.username} starts listening',
@@ -277,5 +282,40 @@ class _ListeningNowStripState extends ConsumerState<ListeningNowStrip> {
         ),
       ]),
     );
+  }
+}
+
+/// What friends sent about your songs (newest first, the latest few). Nothing
+/// when there are none or the server doesn't do reactions.
+class ReactionsReceived extends ConsumerWidget {
+  const ReactionsReceived({super.key});
+
+  static const shown = 5;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final all = ref.watch(peopleProvider.select((s) => s.list?.reactions ?? const <Reaction>[]));
+    if (all.isEmpty) return const SizedBox.shrink();
+    final t = ThemeTokens.of(context);
+    final items = all.reversed.take(shown).toList();
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      const SectionHeader(title: 'Reactions'),
+      for (final (i, r) in items.indexed)
+        Container(
+          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.sm),
+          decoration: i < items.length - 1 ? BoxDecoration(border: Border(bottom: BorderSide(color: t.outline, width: 0.5))) : null,
+          child: Row(children: [
+            PersonAvatar(r.from, size: 36),
+            const SizedBox(width: Space.md),
+            Expanded(
+              child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                Text(reactionText(r).$1, style: t.headline, maxLines: 1, overflow: TextOverflow.ellipsis),
+                if (reactionText(r).$2.isNotEmpty)
+                  Text(reactionText(r).$2, style: t.subheadline, maxLines: 2, overflow: TextOverflow.ellipsis),
+              ]),
+            ),
+          ]),
+        ),
+    ]);
   }
 }
