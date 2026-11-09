@@ -38,7 +38,7 @@ class EmptyIllustration extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final now = DateTime.now();
+    final now = microduckClock();
     if (kind == EmptyArtKind.offline || !showDuckInEmptyState(seed, now) || !_enabled()) {
       return EmptyArt(kind, width: width);
     }
