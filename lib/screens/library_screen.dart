@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/layout/window_size.dart';
 import '../core/theme.dart';
+import '../features/library_extras/logic/library_extras_providers.dart' show duplicateCountProvider, sharedInboxProvider;
+import '../features/library_extras/ui/duplicates_screen.dart';
+import '../features/library_extras/ui/shared_inbox_screen.dart';
 import '../features/local_library/logic/local_library_providers.dart';
 import '../features/local_library/ui/local_songs_page.dart';
 import '../utils/platform_utils.dart';
@@ -42,6 +45,8 @@ class LibraryScreen extends ConsumerWidget {
     final pins = ref.watch(pinsProvider);
     final svc = ref.read(subsonicServiceProvider);
 
+    final extrasShown = ref.watch(sharedInboxProvider.select((i) => i.entries.isNotEmpty)) ||
+        ref.watch(duplicateCountProvider) > 0;
     final hasLocal = ref.watch(localFoldersProvider.select((f) => f.isNotEmpty));
 
     // The desktop sidebar already lists Playlists, Albums, Songs and Downloaded;
@@ -78,10 +83,11 @@ class LibraryScreen extends ConsumerWidget {
               context: context,
               icon: icon,
               title: title,
-              showSeparator: i < destinations.length - 1,
+              showSeparator: extrasShown || i < destinations.length - 1,
               onTap: () => navigateInApp(context, page),
             ),
         ]),
+        const SliverToBoxAdapter(child: _LibraryExtrasRows()),
         if (pins.isNotEmpty) ...[
           const SliverToBoxAdapter(child: SectionHeader(title: 'Pinned')),
           PinsGrid(pins: pins),
@@ -138,6 +144,36 @@ class LibraryScreen extends ConsumerWidget {
         ],
       ],
     );
+  }
+}
+
+/// Library › "Shared with you" (a count of what's new) and "Merge Duplicates".
+class _LibraryExtrasRows extends ConsumerWidget {
+  const _LibraryExtrasRows();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final fresh = ref.watch(sharedInboxProvider.select((i) => i.newCount));
+    final total = ref.watch(sharedInboxProvider.select((i) => i.entries.length));
+    // Offered once the scan has found something.
+    final dupes = ref.watch(duplicateCountProvider) > 0;
+    Widget row(NaviGlyph icon, String title, Widget page, {String? count, bool last = false}) => CollectionRow(
+          title: title,
+          titleStyle: t.title3.copyWith(fontWeight: FontWeight.w400),
+          leading: SizedBox(width: 30, child: NaviIcon(icon, size: 24, color: t.accent)),
+          showSeparator: !last,
+          trailing: Row(mainAxisSize: MainAxisSize.min, children: [
+            if (count != null) Text(count, style: t.subheadline.copyWith(color: t.accent, fontWeight: FontWeight.w600)),
+            if (count != null) const SizedBox(width: Space.sm),
+            NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
+          ]),
+          onTap: () => navigateInApp(context, page),
+        );
+    return Column(children: [
+      if (total > 0) row(NaviGlyph.share, 'Shared with you', const SharedInboxScreen(), count: fresh > 0 ? '$fresh new' : null),
+      if (dupes) row(NaviGlyph.swap, 'Merge Duplicates', const DuplicatesScreen(), last: true),
+    ]);
   }
 }
 
