@@ -54,6 +54,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Public getter for player_provider to coordinate completion advancement
   static bool get isDesktopBridge => _isDesktopBridge;
 
+  /// Streams play straight from the URL: on the desktop bridge (no caching
+  /// source) and in a browser (LockCachingAudioSource needs a local proxy that
+  /// the web can't run; the browser's own HTTP cache does the job).
+  static bool get _plainUriSource => kIsWeb || _isDesktopBridge;
+
   // ── Desktop single-source bridge state ───────────────────────────────────────
   int _desktopIndex = 0;
   int _desktopTargetIndex = 0;
@@ -580,7 +585,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       extras: {'composer': song.composer, 'isLocal': localPath != null},
     );
 
-    if (localPath != null || !musicCacheEnabled || _isDesktopBridge) {
+    if (localPath != null || !musicCacheEnabled || _plainUriSource) {
       return AudioSource.uri(streamUri, tag: tag);
     }
 
@@ -615,7 +620,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       extras: {'composer': song.composer, 'isLocal': localPath != null},
     );
 
-    if (localPath != null || !musicCacheEnabled || _isDesktopBridge) {
+    if (localPath != null || !musicCacheEnabled || _plainUriSource) {
       return AudioSource.uri(streamUri, tag: tag);
     }
 

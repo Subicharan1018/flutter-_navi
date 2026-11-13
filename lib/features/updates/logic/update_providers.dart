@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -17,11 +18,12 @@ int installedBuildNumber(String packageBuild) {
   const baked = int.fromEnvironment('NAVI_BUILD');
   if (baked > 0) return baked;
   final n = int.tryParse(packageBuild) ?? 0;
-  return Platform.isAndroid ? n % 1000 : n;
+  return !kIsWeb && Platform.isAndroid ? n % 1000 : n;
 }
 
-/// Whether this build can update itself at all.
-bool get updatesSupported => Platform.isAndroid || Platform.isWindows;
+/// Whether this build can update itself at all. Never in a browser: the web
+/// app updates when the page reloads (the service worker fetches the new one).
+bool get updatesSupported => !kIsWeb && (Platform.isAndroid || Platform.isWindows);
 
 class UpdateSettings {
   final String source;

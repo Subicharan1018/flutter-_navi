@@ -17,6 +17,7 @@ import '../../../screens/library/library_entries.dart';
 import '../../../screens/library/songs_page.dart';
 import '../../../screens/playlist_editor.dart';
 import '../../../screens/settings_screen.dart';
+import '../../../utils/platform_utils.dart';
 import '../../art/navi_icons.dart';
 import '../../cover_art.dart';
 import '../../desktop_dialogs.dart';
@@ -465,14 +466,15 @@ class _LibraryListState extends ConsumerState<_LibraryList> {
           placeholder: NaviGlyph.note,
           onTap: () => navigateInApp(context, const SongsPage()),
         ),
-        _Item(
-          id: 'dl',
-          title: 'Downloaded',
-          subtitle: 'On this device',
-          artUrl: null,
-          placeholder: NaviGlyph.downloadCircle,
-          onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true), title: 'Downloaded'),
-        ),
+        if (PlatformUtils.supportsOfflineFiles) // the browser build streams only
+          _Item(
+            id: 'dl',
+            title: 'Downloaded',
+            subtitle: 'On this device',
+            artUrl: null,
+            placeholder: NaviGlyph.downloadCircle,
+            onTap: () => navigateInApp(context, const SongsPage(downloadedOnly: true), title: 'Downloaded'),
+          ),
       ],
     ];
 

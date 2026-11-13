@@ -6,6 +6,7 @@ import '../../models/download_state.dart';
 import '../../models/song.dart';
 import '../../providers/download_provider.dart';
 import '../../utils/format.dart';
+import '../../utils/platform_utils.dart';
 import '../art/navi_icons.dart';
 import 'media.dart';
 
@@ -62,6 +63,8 @@ class CollectionDownloadButton extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // The browser build streams only: no download folder to save into.
+    if (!PlatformUtils.supportsOfflineFiles) return const SizedBox.shrink();
     final t = ThemeTokens.of(context);
     final p = CollectionDownloadProgress.of(songs, ref.watch(downloadStateProvider));
     if (p.running) {

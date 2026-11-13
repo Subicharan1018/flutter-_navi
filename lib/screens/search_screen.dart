@@ -144,6 +144,8 @@ class _IdentifyButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    // Not in the browser build (see showRecognizeSheet).
+    if (!PlatformUtils.supportsSongRecognition) return const SizedBox.shrink();
     final t = ThemeTokens.of(context);
     return Semantics(
       button: true,

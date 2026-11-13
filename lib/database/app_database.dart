@@ -10,7 +10,17 @@ part 'app_database.g.dart';
 
 @DriftDatabase(tables: [PlayEvents, SongMetadata, PlaylistCache, LocalSongs])
 class AppDatabase extends _$AppDatabase {
-  AppDatabase() : super(driftDatabase(name: 'navivibe_drift'));
+  AppDatabase()
+      : super(driftDatabase(
+          name: 'navivibe_drift',
+          // Browser: sqlite compiled to wasm, run in a worker, stored in
+          // OPFS or IndexedDB (whichever the browser offers). Both files are
+          // served from web/ (see docs/web-deploy.md).
+          web: DriftWebOptions(
+            sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+            driftWorker: Uri.parse('drift_worker.js'),
+          ),
+        ));
 
   /// Named constructor for tests — accepts any [QueryExecutor],
   /// typically [NativeDatabase.memory()] for a fully in-memory DB.
