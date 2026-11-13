@@ -313,7 +313,7 @@ class _Bell extends ConsumerWidget {
     final t = ThemeTokens.of(context);
     final check = ref.watch(updateCheckProvider).asData?.value;
     final dismissed = ref.watch(dismissedUpdateProvider);
-    final update = check != null && check.available && check.manifest.build > dismissed;
+    final update = updatesSupported && check != null && check.available && check.manifest.build > dismissed;
     final invites = ref.watch(invitationCountProvider);
     final fetching = ref.watch(onlineFetchAvailableProvider) && !ref.watch(fetchJobsProvider.select((d) => d.isEmpty));
     final any = update || invites > 0 || fetching;

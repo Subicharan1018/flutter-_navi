@@ -6,6 +6,52 @@ resized). It installs as a PWA on Android Chrome. This page is the runbook for
 putting it live on subiserver. Every step here is yours to run: nothing was
 changed on the server or in Cloudflare while building this.
 
+## Hosting on the Windows laptop (current plan)
+
+The static app can live on your Windows laptop instead of subiserver. Navidrome,
+shuffle and session stay on subiserver. The web build has no self-updater: new
+versions reach people through the page itself (below).
+
+1. Install Caddy (`winget install CaddyServer.Caddy`) and make sure the laptop
+   is on Tailscale (Caddy reaches Navidrome at `100.99.105.51:4533`; set the
+   `NAVIDROME_UPSTREAM` environment variable to change that).
+2. Deploy: `powershell -ExecutionPolicy Bypass -File tool\web\deploy-web.ps1 -Start`
+   (the newest GitHub release's `navivibe-web-*.zip`; `-Build` builds locally,
+   `-Zip <file>` uses a zip, `-Rollback` goes back one release). It unpacks to
+   `%LOCALAPPDATA%\NaviVibeWeb\releases\<time>`, writes `active.caddy`, and runs
+   `caddy reload`, which swaps the config atomically. Caddy serves
+   `127.0.0.1:8090` (`tool/web/Caddyfile.windows`: same headers, CSP and log
+   redaction as the server Caddyfile in section 2).
+3. Start Caddy at logon: Task Scheduler > Create Task > trigger "At log on",
+   action `caddy.exe run --config "%LOCALAPPDATA%\NaviVibeWeb\Caddyfile" --adapter caddyfile`.
+4. Publish it, one of:
+   - **cloudflared on the laptop** (simplest): Zero Trust > Networks > Tunnels >
+     create a tunnel `navivibe-laptop`, install its connector
+     (`cloudflared service install <token>`, admin once), add the public hostname
+     `subimusic.me` -> `http://127.0.0.1:8090`. Remove `subimusic.me` from
+     subiserver's `/etc/cloudflared/config.yml` (keep `navidrome.`, `shuffle.`,
+     `session.` there). Do not add the laptop as a second connector of
+     subiserver's tunnel: connectors of one tunnel share its ingress, so half
+     the requests would look for `127.0.0.1:8090` on subiserver.
+   - **route from subiserver**: bind the laptop Caddy to its Tailscale IP
+     instead of 127.0.0.1 and point subiserver's `subimusic.me` ingress at
+     `http://<laptop-tailscale-ip>:8090`.
+   Either way the site is down while the laptop sleeps or is off.
+
+### How new versions reach people
+
+- `flutter_bootstrap.js` carries the build's hash. On load (after 15 s), on
+  focus and every 30 minutes the page re-fetches it past every cache; a
+  different hash shows a quiet "New version available · Reload" pill. A hidden
+  tab that is not playing reloads by itself; music is never cut off.
+- The service worker is registered as `sw.js?v=<hash>`: each build gets its own
+  cache, old caches are deleted, and app code is network-first, so it never
+  pins an old build.
+- `index.html`, `flutter_bootstrap.js`, `flutter_service_worker.js`, `sw.js`,
+  `version.json`, `manifest.json` and `main.dart.*` are `no-cache` (ETag
+  revalidation). Flutter's file names carry no content hash, so nothing is
+  cached for a year; engine, fonts and icons get a day.
+
 ## What you end up with
 
 | Hostname | Cloudflare Tunnel ingress | What it is |

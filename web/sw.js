@@ -1,15 +1,22 @@
-// NaviVibe service worker: caches the app shell so the PWA starts offline (to
-// its sign-in / "can't reach the server" screens) and is installable.
+// NaviVibe service worker: an app-shell cache so the PWA starts offline (to its
+// sign-in / "can't reach the server" screens) and is installable.
 //
-// * Same-origin app files only. API, stream and cover requests (/rest, /auth,
-//   /api, /share, and every other host) always go to the network, untouched.
-// * Page loads and the app code: network first, cache as fallback, so a new
-//   deploy shows up on the next load.
-// * Engine and fonts (canvaskit/, assets/): cache first, refreshed in the
-//   background.
+// It never pins an old build:
+// * It is registered as sw.js?v=<build id> (flutter_bootstrap.js), so every
+//   deploy installs a new worker with its own cache, and the old caches are
+//   deleted when it takes over.
+// * Page loads and app code are network first; the cache is only the offline
+//   fallback. A new deploy shows up on the next load, and an open page learns
+//   about it from flutter_bootstrap.js (the "New version · Reload" prompt).
+// * Engine and fonts (canvaskit/, assets/) are cache first per build, refreshed
+//   in the background.
+// * API, stream and cover requests (/rest, /auth, /api, /share, /ws, and
+//   every other host) are never touched.
 'use strict';
 
-const CACHE = 'navivibe-shell-v1';
+const BUILD = new URL(self.location.href).searchParams.get('v') || 'dev';
+const PREFIX = 'navivibe-shell-';
+const CACHE = PREFIX + BUILD;
 const SHELL = [
   './',
   'index.html',
@@ -31,9 +38,14 @@ const STATIC = [/\/canvaskit\//, /\/assets\//, /\/icons\//, /sqlite3\.wasm$/, /d
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    // One missing file (a JS-only build has no main.dart.wasm) must not stop
-    // the worker from installing.
-    await Promise.all(SHELL.map((url) => cache.add(url).catch(() => {})));
+    // Past the HTTP cache, so the shell is this build's. One missing file (a
+    // JS-only build has no main.dart.wasm) must not stop the install.
+    await Promise.all(SHELL.map((url) =>
+      fetch(url, { cache: 'reload' })
+        .then((res) => (res.ok ? cache.put(url, res) : undefined))
+        .catch(() => {})));
+    // Taking over at once is safe: app code is network first, so a page the
+    // old worker served keeps running and the next load gets the new build.
     await self.skipWaiting();
   })());
 });
@@ -41,7 +53,7 @@ self.addEventListener('install', (event) => {
 self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     for (const key of await caches.keys()) {
-      if (key !== CACHE) await caches.delete(key);
+      if (key.startsWith(PREFIX) && key !== CACHE) await caches.delete(key);
     }
     await self.clients.claim();
   })());
@@ -65,11 +77,15 @@ self.addEventListener('fetch', (event) => {
 async function networkFirst(req) {
   const cache = await caches.open(CACHE);
   try {
-    const res = await fetch(req);
+    // no-cache: always ask the server (a 304 is cheap), never a stale HTTP copy.
+    // A navigation Request can't be re-made with options, so go by its URL.
+    const res = await fetch(req.mode === 'navigate'
+      ? new Request(req.url, { cache: 'no-cache', credentials: 'same-origin' })
+      : new Request(req, { cache: 'no-cache' }));
     if (res.ok) cache.put(req, res.clone());
     return res;
   } catch (e) {
-    const hit = await cache.match(req) ||
+    const hit = await cache.match(req, { ignoreSearch: true }) ||
       (req.mode === 'navigate' ? await cache.match('index.html') : undefined);
     if (hit) return hit;
     throw e;

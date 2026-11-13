@@ -11,6 +11,7 @@ import 'core/hive_boxes.dart';
 import 'core/web_session.dart';
 import 'utils/web_form_factor.dart';
 import 'widgets/shell/web_form_factor_scope.dart';
+import 'widgets/shell/web_update_prompt.dart';
 import 'features/local_library/logic/local_library_providers.dart' show localLibraryBootstrapProvider;
 import 'core/motion.dart';
 import 'core/pointer_anchor.dart';
@@ -349,10 +350,13 @@ class MyMusicPlayerApp extends ConsumerWidget {
           // TV: overscan margin and larger type. Windows: our own title bar.
           child: PointerAnchor(
             child: TvFrame(
-              child: MiniPlayerHost(
-                child: NaviTitleBar.enabled
-                    ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
-                    : child!,
+              // Browser: "New version · Reload" when a newer build is live.
+              child: WebUpdatePrompt(
+                child: MiniPlayerHost(
+                  child: NaviTitleBar.enabled
+                      ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
+                      : child!,
+                ),
               ),
             ),
           ),
