@@ -163,3 +163,141 @@ flutter build web          # fails on smtc_windows
 flutter build web --wasm   # fails on smtc_windows
 ```
 Then stub `SmtcWindowsSink` (conditional import) and both pass. No spike was committed.
+
+---
+
+# Part 2: deployment at `subimusic.me`, and the Android browser / PWA question
+
+Planned shape: the web app is the frontend at `subimusic.me`; Navidrome and the other services sit on subdomains of `*.subimusic.me`. Research only; nothing here is implemented.
+
+## 9. DNS, TLS and how traffic gets in
+
+Current state (from `docs/backend/ARCHITECTURE.md` and `SETUP.md`): `subimusic.me` is already on Cloudflare, with a `cloudflared` tunnel to `127.0.0.1`, the shuffle server on `:5500`, session sync on `:5501`, tg-fetcher on loopback `:5510`. The hosts `shuffle.` and `session.` exist already.
+
+| Option | TLS | Fit | Verdict |
+|---|---|---|---|
+| **Cloudflare Tunnel (keep)** | Cloudflare terminates TLS with its own edge certificates; origin stays plain HTTP on loopback | No inbound ports, home IP hidden, WAF and rate limits in front, websockets work (idle drop about 100 s, handled by the 25 s ping). Free plan caps request bodies at 100 MB (only `/recognize` uploads come close) | **Recommended.** Zero new infrastructure |
+| Port-forward 80/443 + Caddy or nginx | Let's Encrypt. A wildcard needs **DNS-01**: Caddy with the Cloudflare DNS plugin, or `certbot --dns-cloudflare`, using an API token scoped to "Zone DNS edit" on this zone only | Exposes the home IP, needs static IP or DDNS, fails under CGNAT or ISP port blocks, you own patching and DDoS exposure | Only if you want to leave Cloudflare |
+| Tailscale Funnel | `*.ts.net` certificates only; custom domains are not supported | Public URL would be `<machine>.<tailnet>.ts.net`, not `subimusic.me`; few ports, bandwidth limits, no WAF | Not suitable for the planned domain. Keep Tailscale for private admin access |
+
+DNS provider: stay on Cloudflare. Records are proxied CNAMEs to the tunnel. List hostnames explicitly rather than a `*` wildcard, so an unused name never resolves to something.
+
+| Host | Backs | Public? |
+|---|---|---|
+| `subimusic.me` | static web build | yes |
+| `navidrome.subimusic.me` | Navidrome `:4533` | yes (see section 12) |
+| `shuffle.subimusic.me` (existing; an `api.` alias is fine) | shuffle, social, fetch `:5500` | yes, authenticated |
+| `session.subimusic.me` (existing) | session sync `:5501` | yes, authenticated |
+| tg-fetcher `:5510` | internal | **never**: loopback only, HMAC-signed |
+
+With the tunnel you do **not** need Let's Encrypt DNS-01 at all; it matters only if you stop proxying through Cloudflare.
+
+## 10. Reverse proxy: needed or not
+
+`cloudflared` already routes by hostname through its ingress rules, so a separate proxy is optional. Add one only for the same-origin layout (section 11) or to serve the static build with tuned headers.
+
+| Proxy | Pros | Cons |
+|---|---|---|
+| **Caddy** | Smallest config, automatic HTTPS and DNS-01 if you leave the tunnel, compression and websockets by default | One more service |
+| nginx | Already referenced in the repo's `deploy/nginx/`; mature | Manual certs and headers |
+| Traefik | Label-based routing | Heavier; no Docker in the stack today |
+
+The static build can also be served by Cloudflare (Pages or R2) so page loads never touch the home server. Cache hashed assets as immutable; `index.html` and the service worker are no-cache.
+
+## 11. Subdomains versus same origin: CORS, cookies, tokens
+
+| | Subdomains | Same origin (`subimusic.me/rest`, `/shuffle`, `/ws/session` behind one proxy) |
+|---|---|---|
+| CORS | Every API call is cross-origin. Shuffle: `NAVIVIBE_CORS_ORIGINS=https://subimusic.me`. Session: already `*`. **Navidrome has no CORS setting**: add the headers at the proxy or a Cloudflare Transform Rule, including the `OPTIONS` preflight (`Allow-Headers: Authorization, Content-Type`, `Max-Age: 86400`) | None |
+| Preflights | `Authorization` headers force a preflight per origin and path; Subsonic query-string auth does not | None |
+| Cookies | `Domain=subimusic.me` cookies reach every subdomain, including any future compromised one. Prefer host-only cookies or bearer tokens | Host-only `HttpOnly; Secure; SameSite=Lax` works |
+| SameSite | `subimusic.me` and `navidrome.subimusic.me` are the **same site**, so SameSite does not block these requests; CORS is the separate wall. Cookie-based `fetch` would need `credentials: include`, an exact `Allow-Origin` (not `*`) and `Allow-Credentials: true` | Not an issue |
+| Media URLs | `<audio>` and `<img>` load cross-origin without CORS, but carry `u/t/s` in the URL | Same |
+| Flexibility | Each service moves on its own; the app already has per-service base URLs | One proxy to maintain; the app needs relative base URLs |
+
+Recommendation: **start with subdomains**, add the Navidrome CORS rule at Cloudflare or Caddy, and use **bearer tokens, not cookies**. Move to same origin only if preflight latency or CORS upkeep becomes a burden.
+
+Token handling in the browser:
+- Do not keep the Navidrome password. The session server already accepts a Navidrome JWT (`Bearer` or `?token=`), and `SECURITY.md` says the shuffle server accepts one too. The Subsonic API needs `u`+`t`+`s`, which derive from the password, so the web client must use JWT-based Navidrome calls or a Subsonic API key if the installed version supports it. **Open item: confirm what Navidrome 0.64 offers and design the web token flow before building.**
+- Hold the token in memory plus `sessionStorage` or IndexedDB, with short expiry and refresh (the session service already signals refresh with close code 4001).
+- Strict CSP: `connect-src` limited to the three API hosts, `media-src` and `img-src` to the Navidrome host. This limits what an XSS can steal.
+- WebSocket `?token=` lands in access logs. Redact the query string for `/ws/` at the proxy or Cloudflare, or swap the token for a one-time ticket.
+
+## 12. Exposing the APIs publicly: what stays private
+
+From `docs/backend/SECURITY.md`: every route but `/health`, `/ready`, `/weather`, `/` needs a Navidrome login; per-IP and per-user rate-limit buckets; failed-login lockout; fail2ban bans land at Cloudflare; tg-fetcher requires an HMAC-signed call from the shuffle server; `/admin/*` is limited to named admins; `/fetch/*` writes need an explicit grant.
+
+| Surface | Public? | Notes |
+|---|---|---|
+| Static web build | Yes | contains no secrets |
+| Navidrome `/rest`, `/api`, `/auth` | Yes, hardened | It is the identity provider, so a flaw is total. Keep it patched, no default admin credentials, sharing and public links off if unused, Cloudflare rate rule on `/auth/login` and `/rest/ping` |
+| Navidrome admin UI | Prefer private | Reach it over Tailscale, or put Cloudflare Access (SSO) in front of the UI path while leaving `/rest` and `/auth` open for the web client |
+| Shuffle user routes | Yes, authenticated | already bucketed per route class |
+| `/admin/*` | Block at the edge, allow only Tailscale IPs | defence in depth |
+| `/fetch/*` | Public but grant-gated | keep `FETCH_DEFAULT_ACCESS=none`; show download UI only when `/me/capabilities` allows it |
+| `/recognize`, `/intent`, `/lyrics/translate` | Public, strict buckets | paid APIs; a web page is easier to script than an app, so consider lower bursts for browser clients |
+| `/social/jam/join` | Public, 6 per minute | the friend-invite flow |
+| Session sync | Public, authenticated | CORS `*` is acceptable with bearer tokens; replace it with the exact origin if cookies are ever used |
+| tg-fetcher `:5510`, Telegram session, `.env` | **Never** | stays on `127.0.0.1`, no tunnel ingress entry |
+
+Edge controls to add for a browser audience:
+- Cloudflare rate-limit rules on `/auth/login`, `/rest/ping` and `/social/jam/join`; Turnstile or Bot Fight Mode on the sign-in page (a browser form is far easier to credential-stuff than the app).
+- fail2ban: extend the filters to Navidrome failed-login lines and the web origin's 401s; real client IP keeps coming from `CF-Connecting-IP`, trusted only from loopback.
+- Optionally check `Origin` on state-changing shuffle routes (browsers always send it, native apps do not).
+- **Product decision needed:** friends joining a Jam from a link usually have no Navidrome account, but today a Jam needs a login plus the code. A guest role would need its own restricted-access design.
+- Security headers on the static host: CSP, `X-Content-Type-Options`, `Referrer-Policy`, HSTS.
+
+## 13. Android browsers: mobile web and PWA
+
+**Installability.** Needs `manifest.json` (Flutter generates one; set name, `display: standalone`, 192 and 512 icons including a maskable one, `theme_color`, `start_url`), HTTPS and a registered service worker. Chrome on Android then offers install and opens it in its own window. Flutter's generated service worker caches the shell; a small custom one (Workbox) gives control over cover-art caching.
+
+**Audio in the background and lock screen.**
+- Chrome on Android generally keeps a playing `<audio>` element alive with the screen off or the tab backgrounded, which is what `just_audio` web uses. A paused or idle page can be frozen or discarded, so queue advance should happen while the element is still playing (preload the next track, avoid silent gaps).
+- Media Session API (`navigator.mediaSession`) gives lock-screen and notification controls in Chrome, Edge, Firefox and Samsung Internet on Android: title, artist, artwork, play, pause, next, previous, seek. `audio_service` web wires the basics; verify the seek bar, artwork sizes (96-512 px) and action handlers on a real device.
+- An installed PWA behaves better than a tab, but Doze and OEM battery managers (OnePlus included) can still kill a backgrounded renderer. A native foreground service is immune.
+- Autoplay: the first play needs a tap, so session handover and resume-on-open cannot start sound alone.
+- No equivalents for Android Auto, home-screen widgets, TV, or the quick-settings tile.
+- Wake Lock API can keep the screen on for lyrics; it does not help background audio.
+
+**Offline.**
+- A service worker plus Cache Storage can hold the shell and cover art. Caching audio is possible (Range requests need custom handling) but quotas are a fraction of free disk, entries can be evicted unless `navigator.storage.persist()` is granted, and nothing is visible in the file system. Fine for a few playlists, not a multi-GB library.
+- No Storage Access Framework or folder scanning: Android Chrome lacks the directory picker, so Local Library stays native.
+- Background sync is limited; the native resumable download queue has no equal.
+
+**Performance.** 5.3 MB wasm plus fonts and CanvasKit on first load; heavier memory than native on mid-range phones; the custom fragment shader and long lists need profiling. Repeat opens are fast through the service worker.
+
+### Replace or complement the native Android app?
+
+**Complement.** The PWA suits Jam links, iPhone/Mac/Linux users, zero-install trials and desktop browsers. It cannot match native for background reliability, large offline libraries, local files, Android Auto, widgets, TV, or the self-updater.
+
+| Capability | Native Android | PWA on Android Chrome |
+|---|---|---|
+| Playback with screen off | Reliable (foreground service) | Works, can be killed by battery managers |
+| Lock-screen controls | Full | Good via Media Session |
+| Offline downloads | Full | Limited, evictable |
+| Local files | Yes | No |
+| Android Auto, widgets, TV | Yes | No |
+| Install | APK | Add to Home screen |
+| Updates | Self-updater | Automatic on load |
+| Start-up | Fast | Slower first load |
+
+Guide: ship web first for Jam links and non-Android devices; keep native as the primary Android client; revisit replacement only if native upkeep becomes a burden and offline and Auto stop mattering.
+
+## 14. Added effort and risks
+
+| Area | Size |
+|---|---|
+| Cloudflare hostnames and CORS rules (Navidrome rule, shuffle env) | S |
+| Static hosting, cache headers, CSP and security headers | S |
+| Web token and auth redesign (JWT or API key instead of stored password; guest Jam access) | M, the biggest open item |
+| PWA manifest, icons, custom service worker, Media Session checks on real devices | M |
+| Optional audio caching in the service worker | M-L |
+| Edge hardening for a public browser audience | S-M |
+
+New risks:
+- A public web sign-in page is a credential-stuffing target; the tunnel does not change that.
+- Navidrome CORS lives outside Navidrome, so the rule can silently break after infrastructure changes.
+- Guest Jam join conflicts with the "everyone has a Navidrome account" model.
+- Background audio on Android Chrome depends on the device maker; test on the OnePlus used for native work.
+
+Checks to run before committing to the build: (1) confirm Navidrome 0.64 token options for a browser; (2) test Navidrome behind a CORS rule with a real preflight; (3) boot the wasm build in desktop and Android Chrome and list runtime exceptions from the `dart:io` files; (4) play a 30-minute playlist on Android Chrome with the screen off and watch for dropped queue advances.
