@@ -1,3 +1,5 @@
+import 'package:flutter/foundation.dart';
+
 import 'local_models.dart';
 
 /// In-memory map from song id to the file on this device, read by playback
@@ -14,6 +16,10 @@ class LocalLibraryIndex {
   Map<String, String> _paths = const {};
   Map<String, String> _covers = const {};
 
+  /// Bumps whenever the index changes, so tiles drawn before it finished
+  /// loading repaint with the covers it holds.
+  final ValueNotifier<int> revision = ValueNotifier(0);
+
   /// File path or `content://` URI to play for [songId], if one is on the
   /// device.
   String? pathFor(String songId) => _paths[songId];
@@ -26,12 +32,14 @@ class LocalLibraryIndex {
   void replace({required Map<String, String> paths, required Map<String, String> covers}) {
     _paths = Map.unmodifiable(paths);
     _covers = Map.unmodifiable(covers);
+    revision.value++;
   }
 
   /// Adds one file (for example one opened from a file manager) without
   /// touching the scanned library.
   void register(String songId, String path) {
     _paths = Map.unmodifiable({..._paths, songId: path});
+    revision.value++;
   }
 
   void clear() => replace(paths: const {}, covers: const {});

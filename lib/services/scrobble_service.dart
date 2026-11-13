@@ -3,6 +3,7 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
+import '../features/play_outbox/logic/play_outbox_providers.dart' show PlayRecorder, playRecorderProvider;
 import '../models/song.dart';
 import '../providers/settings_provider.dart';
 import '../providers/download_provider.dart';
@@ -24,14 +25,16 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
   return ScrobbleService(
     ref.watch(subsonicServiceProvider),
     ref.watch(connectivityProvider),
+    recorder: ref.watch(playRecorderProvider),
   );
 });
 
 class ScrobbleService {
   final SubsonicService _api;
   final Connectivity _connectivity;
+  final PlayRecorder? _recorder;
 
-  ScrobbleService(this._api, this._connectivity);
+  ScrobbleService(this._api, this._connectivity, {PlayRecorder? recorder}) : _recorder = recorder;
 
   Future<bool> _isOffline() async {
     try {
@@ -56,7 +59,24 @@ class ScrobbleService {
   /// Fire-and-forget — swallows all errors and does nothing if offline.
   /// The [song] parameter is retained for API compatibility with existing
   /// call sites but is no longer used for listening-log submission.
-  void submit(String songId, {Song? song}) async {
+  ///
+  /// With a [playId] the play goes through the outbox: written now whether or
+  /// not the network is up, dated [startedAtMs], and delivered immediately
+  /// when online or on reconnect otherwise.
+  void submit(String songId, {Song? song, String? playId, int? startedAtMs}) async {
+    final recorder = playId == null ? null : _recorder;
+    if (recorder != null) {
+      try {
+        await recorder.scrobbleQualified(
+          playId: playId!,
+          songId: songId,
+          startedAtMs: startedAtMs ?? DateTime.now().millisecondsSinceEpoch,
+        );
+        return;
+      } catch (_) {
+        // Bookkeeping never breaks playback: fall through to the direct call.
+      }
+    }
     if (isLocalSongId(songId) || await _isOffline()) return;
 
     // ── Subsonic scrobble ────────────────────────────────────────────────────

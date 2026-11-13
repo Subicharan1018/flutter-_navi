@@ -14,6 +14,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
 import '../utils/platform_utils.dart';
+import '../features/local_library/logic/local_library_providers.dart' show localIndexRevisionProvider;
 import 'art/navi_icons.dart';
 import 'cover_art.dart';
 import 'now_playing_bars.dart';
@@ -97,6 +98,14 @@ class _SongTileState extends ConsumerState<SongTile> {
     );
     final isPlaying =
         isCurrent && ref.watch(playerProvider.select((s) => s.isPlaying));
+    // The cover resolves device-first (a saved download cover, a device-library
+    // cover, then the network). Watching these repaints the tile when one of
+    // those appears: a download finishing, the local index finishing its load.
+    ref.watch(
+      downloadStateProvider.select((m) => m[song.id]?.status == SongDownloadStatus.downloaded),
+    );
+    ref.watch(localIndexRevisionProvider);
+    ref.watch(savedCoversRevisionProvider);
     final textInset = widget.showArtwork
         ? Space.gutter + SongTile._art + Space.md
         : Space.gutter + 32;

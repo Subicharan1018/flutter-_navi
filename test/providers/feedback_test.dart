@@ -20,6 +20,7 @@ import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/services/playlist_cache_service.dart';
 import 'package:navivibe/features/ai_shuffle/data/repositories/shuffle_repository.dart';
 import 'package:navivibe/features/ai_shuffle/logic/shuffle_providers.dart';
+import 'package:navivibe/features/play_outbox/logic/play_outbox_providers.dart' show playRecorderProvider;
 import 'package:navivibe/features/ai_shuffle/data/models/feedback_request.dart';
 import 'package:audio_service/audio_service.dart';
 
@@ -44,7 +45,7 @@ class MockPlaylistCacheService extends Fake implements PlaylistCacheService {}
 class MockListeningEventCollector extends Mock implements ListeningEventCollector {}
 class MockSubsonicService extends Mock implements SubsonicService {
   @override
-  Future<void> scrobble(String songId, {required bool submission}) async {}
+  Future<void> scrobble(String songId, {required bool submission, int? timeMs, bool strict = false}) async {}
 }
 class MockShuffleRepository extends Mock implements ShuffleRepository {}
 
@@ -224,6 +225,8 @@ void main() {
         subsonicServiceProvider.overrideWithValue(MockSubsonicService()),
         audioHandlerProvider.overrideWithValue(handler),
         shuffleRepositoryProvider.overrideWithValue(mockShuffleRepo),
+        // These tests are about the direct post; the outbox route has its own tests.
+        playRecorderProvider.overrideWithValue(null),
       ],
     );
   });

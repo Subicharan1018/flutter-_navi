@@ -783,6 +783,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String? _currentScrobbleSongId;
   Duration _scrobbleListenDuration = Duration.zero;
   DateTime? _scrobblePlayStart;
+
+  /// Identity of the play in progress: one id (also the play-history row's)
+  /// and the moment it began, so both servers hear about it under the same
+  /// id and date however late the report is delivered.
+  String? _currentPlayId;
+  int _currentPlayStartMs = 0;
+
+  void _sendFeedback(FeedbackRequest request) => sendShuffleFeedback(
+    _ref,
+    request,
+    playId: _currentPlayId,
+    startedAtMs: _currentPlayStartMs,
+  );
   Duration _lastKnownPosition = Duration.zero;
   int _lastKnownIndex = 0;
   // Ordering-independent listen ratio snapshot.
@@ -902,7 +915,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               listenRatio: listenRatio,
               endReason: 'natural',
             );
-            sendShuffleFeedback(_ref, FeedbackRequest(
+            _sendFeedback(FeedbackRequest(
               title:        prevSong.title,
               filePath:     prevSong.id,
               genreBucket:  prevSong.genre.isNotEmpty ? prevSong.genre : 'unknown',
@@ -923,6 +936,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           final capturedPos = positionAtSwitch;
           final capturedIdx = index;
           final capturedShuffle = state.shuffleMode;
+          _currentPlayId = ListeningEventCollector.newPlayId();
+          _currentPlayStartMs = DateTime.now().millisecondsSinceEpoch;
+          final capturedPlayId = _currentPlayId;
 
           _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
             if (!mounted) return;
@@ -935,6 +951,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               positionAtSwitch: capturedPos,
               queuePosition: capturedIdx,
               shuffleActive: capturedShuffle,
+              playId: capturedPlayId,
             );
             // Refresh the home screen recently-played carousel.
             _ref.invalidate(recentlyPlayedSongsProvider);
@@ -1102,7 +1119,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
                 listenRatio: listenRatio,
                 endReason: 'natural',
               );
-              sendShuffleFeedback(_ref, FeedbackRequest(
+              _sendFeedback(FeedbackRequest(
                 title:        completedSong.title,
                 filePath:     completedSong.id,
                 genreBucket:  completedSong.genre.isNotEmpty ? completedSong.genre : 'unknown',
@@ -1184,7 +1201,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             _hasScrobbled = true;
             _ref
                 .read(scrobbleServiceProvider)
-                .submit(_currentScrobbleSongId!, song: currentSong);
+                .submit(
+                  _currentScrobbleSongId!,
+                  song: currentSong,
+                  playId: _currentPlayId,
+                  startedAtMs: _currentPlayStartMs,
+                );
           }
         }
       }),
@@ -1577,7 +1599,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         listenRatio: listenRatio,
         endReason: 'fwdbtn',
       );
-      sendShuffleFeedback(_ref, FeedbackRequest(
+      _sendFeedback(FeedbackRequest(
         title:        currentSong.title,
         filePath:     currentSong.id,
         genreBucket:  currentSong.genre.isNotEmpty ? currentSong.genre : 'unknown',
@@ -1620,6 +1642,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _stopPositionTick();
     _hasScrobbled = false;
     _currentScrobbleSongId = null;
+    _currentPlayId = null;
     _scrobbleListenDuration = Duration.zero;
     _scrobblePlayStart = null;
     await player.stop();

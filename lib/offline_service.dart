@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
@@ -52,13 +53,21 @@ class OfflineService {
 
   final Set<String> _downloadedFileNames = {};
 
+  /// Cover-art id → song whose saved `<id>.jpg` holds it. A song's cover id is
+  /// often not its own id (an album track shows the album's cover), but the
+  /// file is named after the song.
+  final Map<String, String> _coverOwner = {};
+
+  /// How network requests are made; tests replace it.
+  @visibleForTesting
+  Dio Function() dioFactory = Dio.new;
+
   final ValueNotifier<DownloadState> downloadState = ValueNotifier(
     DownloadState(),
   );
   bool _isBackgroundDownloadActive = false;
 
   static const String _keyDownloadedSongs = 'offline_downloaded_songs';
-  static const String _keyPendingScrobbles = 'pending_scrobbles';
 
   Future<void> initialize() async {
     _prefs ??= await SharedPreferences.getInstance();
@@ -88,6 +97,36 @@ class OfflineService {
       }
     } catch (e) {
       debugPrint('Error scanning offline directory: $e');
+    }
+    unawaited(_indexCoverOwners());
+  }
+
+  /// Reads the saved songs' metadata to learn which cover id each saved cover
+  /// file belongs to, so a tile that only knows the cover id still finds the
+  /// file. Runs in the background; covers resolve by song id meanwhile.
+  Future<void> _indexCoverOwners() async {
+    try {
+      final dir = _offlineDir;
+      if (dir == null) return;
+      final owners = <String, String>{};
+      for (final name in _downloadedFileNames.toList()) {
+        if (!name.endsWith('.jpg')) continue;
+        final songId = name.substring(0, name.length - 4);
+        try {
+          final meta = File('$dir/$songId.song.json');
+          if (!await meta.exists()) continue;
+          final data = jsonDecode(await meta.readAsString()) as Map<String, dynamic>;
+          final cover = data['coverArt']?.toString() ?? '';
+          if (cover.isNotEmpty && cover != songId) owners[cover] = songId;
+        } catch (_) {}
+      }
+      if (_offlineDir == dir) {
+        _coverOwner
+          ..clear()
+          ..addAll(owners);
+      }
+    } catch (e) {
+      debugPrint('Error indexing saved covers: $e');
     }
   }
 
@@ -155,6 +194,16 @@ class OfflineService {
       return '$_offlineDir/$filename';
     }
     return null;
+  }
+
+  /// The saved cover for a song's *cover-art id* (what `Song.coverArt` holds),
+  /// or null. Covers the common cases: the id is the song's own id, or it is
+  /// the album/other id the song was saved with. No disk access.
+  String? getLocalCoverForCoverId(String coverArtId) {
+    final direct = getLocalCoverArtPath(coverArtId);
+    if (direct != null) return direct;
+    final owner = _coverOwner[coverArtId];
+    return owner == null ? null : getLocalCoverArtPath(owner);
   }
 
   Future<void> saveLyrics(String songId, Map<String, dynamic> data) async {
@@ -256,7 +305,7 @@ class OfflineService {
       final ext = song.suffix.isNotEmpty ? song.suffix.toLowerCase() : 'mp3';
       final filePath = _getSongPath(song.id, suffix: ext);
 
-      final dio = Dio();
+      final dio = dioFactory();
       // BUG-2 FIX: Without timeouts, Dio hangs indefinitely on no-network,
       // leaving the download state stuck at "downloading" forever.
       dio.options.connectTimeout = const Duration(seconds: 15);
@@ -289,21 +338,7 @@ class OfflineService {
         debugPrint('Error saving song metadata: $e');
       }
 
-      try {
-        if (song.coverArt.isNotEmpty) {
-          final coverUrl = subsonicService.getCoverArtUrl(
-            song.coverArt,
-            size: 600,
-          );
-          if (coverUrl.isNotEmpty) {
-            final dioCover = Dio();
-            await dioCover.download(coverUrl, _getCoverArtPath(song.id));
-            _downloadedFileNames.add('${song.id}.jpg');
-          }
-        }
-      } catch (e) {
-        debugPrint('Error downloading cover art for ${song.title}: $e');
-      }
+      await _saveCover(song, subsonicService);
       try {
         final lyricsMap = <String, dynamic>{};
         final syncedLyrics = await subsonicService.getLyricsBySongId(song.id);
@@ -324,6 +359,77 @@ class OfflineService {
       return false;
     }
   }
+
+  /// Saves the 600 px cover as `<id>.jpg` beside the audio. Tries twice,
+  /// keeps the file only if the bytes are an image, and never fails the
+  /// download: a song without a cover is picked up by [backfillMissingCovers].
+  Future<bool> _saveCover(Song song, SubsonicService subsonicService) async {
+    final coverId = song.coverArt.isNotEmpty ? song.coverArt : song.id;
+    for (var attempt = 0; attempt < 2; attempt++) {
+      try {
+        final url = subsonicService.getRemoteCoverArtUrl(coverId, size: 600);
+        if (url.isEmpty) return false;
+        final dio = dioFactory();
+        dio.options.connectTimeout = const Duration(seconds: 10);
+        dio.options.receiveTimeout = const Duration(seconds: 30);
+        final res = await dio.get<List<int>>(
+          url,
+          options: Options(responseType: ResponseType.bytes),
+        );
+        final bytes = res.data;
+        final ok = (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300;
+        if (!ok || bytes == null || !_looksLikeImage(bytes)) continue;
+        final part = File('${_getCoverArtPath(song.id)}.part');
+        await part.writeAsBytes(bytes, flush: true);
+        await part.rename(_getCoverArtPath(song.id));
+        _downloadedFileNames.add('${song.id}.jpg');
+        if (coverId != song.id) _coverOwner[coverId] = song.id;
+        return true;
+      } catch (e) {
+        debugPrint('Cover art for ${song.title} (try ${attempt + 1}): $e');
+      }
+    }
+    return false;
+  }
+
+  static bool _looksLikeImage(List<int> b) {
+    if (b.length < 12) return false;
+    final jpeg = b[0] == 0xFF && b[1] == 0xD8;
+    final png = b[0] == 0x89 && b[1] == 0x50 && b[2] == 0x4E && b[3] == 0x47;
+    final gif = b[0] == 0x47 && b[1] == 0x49 && b[2] == 0x46;
+    final webp = b[0] == 0x52 && b[1] == 0x49 && b[2] == 0x46 && b[3] == 0x46 && b[8] == 0x57;
+    return jpeg || png || gif || webp;
+  }
+
+  /// Downloaded songs whose cover file is missing (a failed fetch, or a
+  /// download made before covers were saved reliably).
+  List<String> idsMissingCover() => [
+        for (final id in getDownloadedSongIds())
+          if (getLocalCoverArtPath(id) == null) id,
+      ];
+
+  /// Fetches the covers [idsMissingCover] lists, one at a time. Call when
+  /// online; returns how many were saved.
+  Future<int> backfillMissingCovers(SubsonicService subsonicService) async {
+    if (_offlineDir == null) await initialize();
+    var saved = 0;
+    for (final id in idsMissingCover()) {
+      try {
+        final meta = File(_getSongMetadataPath(id));
+        final Song song = await meta.exists()
+            ? Song.fromJson(jsonDecode(await meta.readAsString()) as Map<String, dynamic>)
+            : Song.fromJson({'id': id, 'title': id});
+        if (await _saveCover(song, subsonicService)) saved++;
+      } catch (e) {
+        debugPrint('Cover backfill for $id: $e');
+      }
+    }
+    if (saved > 0) coversChanged.value++;
+    return saved;
+  }
+
+  /// Bumps when covers appear on disk after the fact, so tiles can repaint.
+  final ValueNotifier<int> coversChanged = ValueNotifier(0);
 
   Future<void> downloadSongs(
     List<Song> songs,
@@ -461,6 +567,8 @@ class OfflineService {
       _downloadedFileNames.remove('$songId.song.json');
       _downloadedFileNames.remove('$songId.jpg');
       _downloadedFileNames.remove('$songId.lyrics.json');
+      _coverOwner.removeWhere((_, owner) => owner == songId);
+      coversChanged.value++;
       _downloadedFileNames.remove('$songId.flac');
       _downloadedFileNames.remove('$songId.m4a');
       _downloadedFileNames.remove('$songId.ogg');
@@ -487,6 +595,8 @@ class OfflineService {
 
       await _prefs?.setStringList(_keyDownloadedSongs, []);
       _downloadedFileNames.clear();
+      _coverOwner.clear();
+      coversChanged.value++;
     } catch (e) {
       debugPrint('Error deleting all downloads: $e');
     }
@@ -552,11 +662,11 @@ class OfflineService {
     _prefs = null;
     _offlineDir = null;
     _downloadedFileNames.clear();
+    _coverOwner.clear();
   }
 
   /// After a server upgrade changed song ids: move every downloaded file
-  /// (`<id>.<ext>`, `.song.json`, `.lyrics.json`, `.jpg`) and the download and
-  /// pending-scrobble lists to the new ids, so downloads stay downloaded.
+  /// (`<id>.<ext>`, `.song.json`, `.lyrics.json`, `.jpg`) and the download list to the new ids, so downloads stay downloaded.
   /// Two-phase rename: one song's old id can be another song's new id.
   /// Returns how many songs moved.
   Future<int> remapSongIds(Map<String, String> idMap) async {
@@ -595,67 +705,8 @@ class OfflineService {
     }
     final downloaded = getDownloadedSongIds().map((id) => idMap[id] ?? id).toList();
     await _prefs?.setStringList(_keyDownloadedSongs, downloaded);
-    final scrobbles = _getPendingScrobbles()
-        .map((s) => {...s, 'id': idMap[s['id']] ?? s['id'] ?? ''})
-        .toList();
-    await _prefs?.setString(_keyPendingScrobbles, json.encode(scrobbles));
     await initialize(); // rebuild the in-memory file index from disk
     return moved.length;
-  }
-
-  Future<void> queueScrobble(String songId, {bool submission = true}) async {
-    if (_prefs == null) await initialize();
-    final scrobbles = _getPendingScrobbles();
-    scrobbles.add({
-      'id': songId,
-      'submission': submission ? 'true' : 'false',
-      'time': DateTime.now().millisecondsSinceEpoch.toString(),
-    });
-    await _prefs!.setString(_keyPendingScrobbles, json.encode(scrobbles));
-    debugPrint(
-      'Scrobble queued for $songId (submission=$submission). Total pending: ${scrobbles.length}',
-    );
-  }
-
-  List<Map<String, String>> _getPendingScrobbles() {
-    final raw = _prefs?.getString(_keyPendingScrobbles);
-    if (raw == null) return [];
-    try {
-      final list = json.decode(raw) as List;
-      return list.map((e) => Map<String, String>.from(e as Map)).toList();
-    } catch (_) {
-      return [];
-    }
-  }
-
-  int getPendingScrobbleCount() => _getPendingScrobbles().length;
-
-  Future<void> flushPendingScrobbles(SubsonicService subsonicService) async {
-    if (_prefs == null) await initialize();
-    final pending = _getPendingScrobbles();
-    if (pending.isEmpty) return;
-
-    debugPrint('Flushing ${pending.length} pending scrobble(s)...');
-    final remaining = <Map<String, String>>[];
-    for (final scrobble in pending) {
-      try {
-        await subsonicService.scrobble(
-          scrobble['id']!,
-          submission: scrobble['submission'] == 'true',
-        );
-      } catch (e) {
-        debugPrint('Scrobble flush failed for ${scrobble['id']}: $e');
-        remaining.add(scrobble);
-      }
-    }
-
-    if (remaining.isEmpty) {
-      await _prefs!.remove(_keyPendingScrobbles);
-      debugPrint('All pending scrobbles flushed successfully.');
-    } else {
-      await _prefs!.setString(_keyPendingScrobbles, json.encode(remaining));
-      debugPrint('${remaining.length} scrobble(s) still pending after flush.');
-    }
   }
 
   String getPlayableUrl(Song song, SubsonicService subsonicService) {

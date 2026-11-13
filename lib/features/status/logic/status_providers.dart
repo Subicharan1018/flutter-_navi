@@ -13,6 +13,7 @@ import '../../../models/download_state.dart';
 import '../../../services/session_sync_service.dart';
 import '../../../providers/session_sync_provider.dart';
 import '../../ai_shuffle/logic/shuffle_providers.dart' show shuffleApiServiceProvider;
+import '../../play_outbox/logic/play_outbox_providers.dart' show playOutboxProvider;
 import '../../online_fetch/data/fetch_queue_models.dart';
 import '../../online_fetch/data/online_fetch_api.dart';
 import '../../online_fetch/logic/online_fetch_providers.dart';
@@ -31,6 +32,7 @@ class StatusIds {
   static const library = 'library';
   static const downloads = 'downloads';
   static const offline = 'offline';
+  static const plays = 'plays';
 
   static const titles = <String, String>{
     navidrome: 'Navidrome',
@@ -41,6 +43,7 @@ class StatusIds {
     library: 'Library sync',
     downloads: 'Downloads',
     offline: 'Offline mode',
+    plays: 'Plays waiting to sync',
   };
 }
 
@@ -126,6 +129,10 @@ final statusProbesProvider = Provider<Map<String, Probe>>((ref) {
           DownloadSpeedMeter.instance.bytesPerSecond(),
           bytesOnDisk: await _diskBytes(ref),
         ),
+    StatusIds.plays: () async => describePendingPlays(
+          ref.read(playOutboxProvider)?.pendingCount ?? 0,
+          networkOffline: ref.read(isOfflineProvider),
+        ),
     StatusIds.offline: () async => describeOffline(
           networkOffline: ref.read(isOfflineProvider),
           offlineMode: ref.read(offlineServiceProvider).isOfflineMode,
@@ -175,6 +182,16 @@ ProbeResult describeDownloads(List<SongDownloadState> all, double bytesPerSecond
     if (why.isNotEmpty) detail += '\nFailed: $why';
   }
   return ProbeResult(failed.isEmpty ? HealthLevel.ok : HealthLevel.slow, detail);
+}
+
+/// Plays heard but not yet delivered to the servers (pure).
+ProbeResult describePendingPlays(int count, {required bool networkOffline}) {
+  if (count == 0) return const ProbeResult(HealthLevel.ok, 'All plays are synced');
+  final plays = count == 1 ? '1 play' : '$count plays';
+  return ProbeResult(
+    HealthLevel.slow,
+    networkOffline ? '$plays waiting for a connection' : '$plays waiting to sync',
+  );
 }
 
 /// Offline row (pure).

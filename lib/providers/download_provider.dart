@@ -25,6 +25,16 @@ final offlineServiceProvider = Provider<OfflineService>((ref) {
   return OfflineService();
 });
 
+/// Changes when covers are saved to or removed from the downloads folder after
+/// the fact (a backfill, a delete), so tiles that show them repaint.
+final savedCoversRevisionProvider = Provider<int>((ref) {
+  final notifier = ref.watch(offlineServiceProvider).coversChanged;
+  void listener() => ref.invalidateSelf();
+  notifier.addListener(listener);
+  ref.onDispose(() => notifier.removeListener(listener));
+  return notifier.value;
+});
+
 /// Bytes used by downloads; recomputed whenever the set of downloads changes.
 final downloadedBytesProvider = FutureProvider.autoDispose<int>((ref) {
   ref.watch(downloadStateProvider.select((m) => m.length));

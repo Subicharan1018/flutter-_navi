@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/hive_boxes.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
+import '../features/play_outbox/logic/play_outbox_providers.dart' show playOutboxProvider;
 import 'download_provider.dart';
 import 'library_provider.dart';
 import 'settings_provider.dart';
@@ -48,6 +49,11 @@ class IdMigration {
       debugPrint('[IdMigration] $moved downloaded songs moved to new ids');
     } catch (e) {
       debugPrint('[IdMigration] downloads not remapped: $e');
+    }
+    try {
+      await ref.read(playOutboxProvider)?.remapSongIds(map);
+    } catch (e) {
+      debugPrint('[IdMigration] play outbox not remapped: $e');
     }
     await _remapBpmKeys(map);
     // Rebuild the library from the server now, pruning anything still stale.

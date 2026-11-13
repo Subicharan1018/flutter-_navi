@@ -47,7 +47,7 @@ class MockListeningEventCollector extends Mock
 class MockSubsonicService extends Mock implements SubsonicService {
   MockSubsonicService(PlaylistCacheService cache);
   @override
-  Future<void> scrobble(String songId, {required bool submission}) async {}
+  Future<void> scrobble(String songId, {required bool submission, int? timeMs, bool strict = false}) async {}
 }
 
 class ControlledAudioPlayer extends Fake implements AudioPlayer {

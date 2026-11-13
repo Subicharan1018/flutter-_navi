@@ -27,6 +27,9 @@ class HiveBoxes {
   static late Box audio;
   static late Box shuffleCache;
 
+  /// Plays waiting to reach the servers (see features/play_outbox).
+  static late Box playOutbox;
+
   /// Initialize Hive and open all boxes. Must be called before runApp().
   static Future<void> init() async {
     await Hive.initFlutter();
@@ -36,6 +39,7 @@ class HiveBoxes {
     prefs = await Hive.openBox(_prefsBox);
     audio = await Hive.openBox(_audioBox);
     shuffleCache = await Hive.openBox('shuffle_cache_v2');
+    playOutbox = await Hive.openBox('play_outbox_v1');
 
     // One-time migration from SharedPreferences → Hive
     await _migrateFromSharedPreferences();

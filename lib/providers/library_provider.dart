@@ -12,6 +12,7 @@ import '../models/song.dart';
 import 'settings_provider.dart';
 import '../features/library_extras/logic/library_extras_providers.dart' show hiddenSongsProvider;
 import 'download_provider.dart';
+import 'downloaded_songs.dart';
 import '../models/download_state.dart';
 import '../database/app_database.dart';
 import '../core/hive_boxes.dart';
@@ -832,6 +833,15 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
       final pref = sortPrefs[effectiveFilter] ?? const LibrarySortPreference();
 
       final currentOffset = isRefresh ? 0 : state.offset;
+
+      // Downloaded view: built from what is on the device (the metadata saved
+      // beside each audio file) merged with the library mirror, so a song
+      // missing from the mirror, or a mirror not yet synced, hides nothing.
+      if (arg.filter == LibraryFilter.downloaded) {
+        await _loadDownloaded(pref, currentOffset, isRefresh);
+        return;
+      }
+
       final query = db.select(db.songMetadata);
 
       if (arg.searchQuery.isNotEmpty) {
@@ -906,6 +916,56 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
       debugPrint('[PaginatedSongsNotifier] Error loading page: $e\n$stack');
       state = state.copyWith(isLoadingMore: false);
     }
+  }
+
+  List<Song>? _diskSongs;
+
+  Future<void> _loadDownloaded(LibrarySortPreference pref, int offset, bool isRefresh) async {
+    final ids = ref.read(downloadedSongIdsProvider);
+    final hidden = ref.read(hiddenSongsProvider);
+    if (isRefresh || _diskSongs == null) {
+      _diskSongs = await ref.read(offlineServiceProvider).getDownloadedSongsMetadata();
+    }
+    final db = ref.read(appDatabaseProvider);
+    final rows = ids.isEmpty
+        ? const <SongMetadataEntity>[]
+        : await (db.select(db.songMetadata)..where((t) => t.songId.isIn(ids.toList()))).get();
+    final mirror = [
+      for (final r in rows)
+        Song(
+          id: r.songId,
+          title: r.trackName,
+          artist: r.artistName,
+          album: r.albumName,
+          duration: r.durationSec,
+          genre: r.genre ?? '',
+          composer: r.composer ?? '',
+          coverArt: r.songId,
+          track: 0,
+          year: r.year ?? 0,
+          playCount: r.playCount,
+          rating: r.rating,
+          starred: r.starred,
+          created: r.createdAt != null ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!) : null,
+        ),
+    ];
+    final all = sortSongs(
+      mergeDownloadedSongs(
+        ids: {for (final id in ids) if (!hidden.contains(id)) id},
+        mirror: mirror,
+        disk: _diskSongs!,
+        query: arg.searchQuery,
+      ),
+      pref,
+    );
+    final end = math.min(offset + pageSize, all.length);
+    final page = offset >= all.length ? const <Song>[] : all.sublist(offset, end);
+    state = state.copyWith(
+      songs: isRefresh ? page : [...state.songs, ...page],
+      hasMore: end < all.length,
+      isLoadingMore: false,
+      offset: end,
+    );
   }
 
   Expression<Object> _getSortExpression(dynamic table, LibrarySortField field) {

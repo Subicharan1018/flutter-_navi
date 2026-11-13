@@ -206,7 +206,12 @@ class LocalLibraryService {
       final server = r.serverId;
       if (server != null) paths[server] = r.path;
       final cover = r.coverPath;
-      if (cover != null) covers[r.songId] = cover;
+      if (cover != null) {
+        covers[r.songId] = cover;
+        // A device file matched to a server song shows its own cover under
+        // the server id too, so the tile works with no connection.
+        if (server != null) covers[server] = cover;
+      }
     }
     LocalLibraryIndex.instance.replace(paths: paths, covers: covers);
   }

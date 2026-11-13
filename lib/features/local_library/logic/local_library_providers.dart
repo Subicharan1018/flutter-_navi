@@ -11,6 +11,7 @@ import '../../../models/song.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/settings_provider.dart';
 import 'file_source.dart';
+import 'local_index.dart';
 import 'local_library_service.dart';
 import 'local_models.dart';
 import 'scanner.dart';
@@ -153,6 +154,16 @@ final localCountsProvider = StreamProvider.autoDispose<(int, int)>(
 final localSearchProvider = FutureProvider.autoDispose.family<List<Song>, String>(
   (ref, query) => ref.watch(localLibraryServiceProvider).search(query),
 );
+
+/// Changes whenever the local-library index is rebuilt. Widgets that draw a
+/// cover from it *watch* this, so they repaint when it finishes loading.
+final localIndexRevisionProvider = Provider<int>((ref) {
+  final index = LocalLibraryIndex.instance;
+  void listener() => ref.invalidateSelf();
+  index.revision.addListener(listener);
+  ref.onDispose(() => index.revision.removeListener(listener));
+  return index.revision.value;
+});
 
 /// Loads the playback index at start-up, re-matches against the server
 /// whenever the library sync finishes, and rescans quietly on launch.

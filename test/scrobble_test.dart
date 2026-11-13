@@ -306,7 +306,7 @@ void main() {
       mockPlayer.setMockPosition(const Duration(seconds: 61));
       await Future.delayed(Duration.zero);
       verify(
-        () => mockScrobble.submit('s1', song: any(named: 'song')),
+        () => mockScrobble.submit('s1', song: any(named: 'song'), playId: any(named: 'playId'), startedAtMs: any(named: 'startedAtMs')),
       ).called(1);
 
       // Ensure it doesn't submit twice
@@ -342,7 +342,7 @@ void main() {
         mockPlayer.setMockPosition(const Duration(seconds: 241));
         await Future.delayed(Duration.zero);
         verify(
-          () => mockScrobble.submit('long', song: any(named: 'song')),
+          () => mockScrobble.submit('long', song: any(named: 'song'), playId: any(named: 'playId'), startedAtMs: any(named: 'startedAtMs')),
         ).called(1);
       },
     );

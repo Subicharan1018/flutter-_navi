@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../providers/settings_provider.dart';
+import '../../play_outbox/logic/play_outbox_providers.dart';
 import '../data/services/shuffle_api_service.dart';
 import '../data/repositories/shuffle_repository.dart';
 import '../data/models/health_response.dart';
@@ -361,7 +362,11 @@ final shuffleQueueProvider =
 /// Call this to send feedback without waiting for a result.
 /// No-ops if initSession() was never called (cold-start edge case before
 /// any song plays). All normal playback paths call initSession() first.
-void sendShuffleFeedback(Ref ref, FeedbackRequest request) {
+///
+/// With a [playId] the request goes through the play outbox: written first,
+/// dated with [startedAtMs], delivered now when online and later when not.
+/// Without one (or without an outbox) it is posted directly, best-effort.
+void sendShuffleFeedback(Ref ref, FeedbackRequest request, {String? playId, int? startedAtMs}) {
   final notifier = ref.read(shuffleQueueProvider.notifier);
   if (!notifier.hasActiveSession) {
     debugPrint(
@@ -370,7 +375,22 @@ void sendShuffleFeedback(Ref ref, FeedbackRequest request) {
     );
     return;
   }
-  ref.read(shuffleRepositoryProvider).postFeedback(request);
+  final recorder = playId == null ? null : ref.read(playRecorderProvider);
+  if (recorder == null) {
+    ref.read(shuffleRepositoryProvider).postFeedback(request);
+    return;
+  }
+  recorder
+      .feedbackReady(
+        playId: playId!,
+        songId: request.filePath,
+        startedAtMs: startedAtMs ?? DateTime.now().millisecondsSinceEpoch,
+        request: request,
+      )
+      .catchError((Object e) {
+        debugPrint('[ShuffleFeedback] outbox failed ($e); posting directly');
+        ref.read(shuffleRepositoryProvider).postFeedback(request);
+      });
 }
 
 // ---------------------------------------------------------------------------

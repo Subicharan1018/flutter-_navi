@@ -73,7 +73,7 @@ void main() {
     });
 
     testWidgets('$name: Copy diagnostics puts a redacted report on the clipboard', (tester) async {
-      await pumpScreen(tester, desktop: desktop, size: desktop ? const Size(1100, 900) : const Size(420, 3000));
+      await pumpScreen(tester, desktop: desktop, size: desktop ? const Size(1100, 1000) : const Size(420, 3000));
       await tester.ensureVisible(find.byKey(const ValueKey('copy-diagnostics')));
       await tester.tap(find.byKey(const ValueKey('copy-diagnostics')));
       await tester.pumpAndSettle();

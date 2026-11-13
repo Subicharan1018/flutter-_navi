@@ -18,6 +18,7 @@ import '../models/search_results.dart';
 import '../features/local_library/logic/local_index.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../features/share/share_api.dart';
+import '../offline_service.dart';
 import 'playlist_cache_service.dart';
 
 class SubsonicService {
@@ -215,6 +216,21 @@ class SubsonicService {
       final file = LocalLibraryIndex.instance.coverFor(coverArtId);
       return file == null ? '' : Uri.file(file).toString();
     }
+    // Offline-first: a cover saved with a download (600 px) or found in the
+    // device library beats the network, so lists look the same with no
+    // connection. Bigger sizes (share cards) still ask the server.
+    if (size == null || size <= 640) {
+      final saved = OfflineService().getLocalCoverForCoverId(coverArtId) ??
+          LocalLibraryIndex.instance.coverFor(coverArtId);
+      if (saved != null) return Uri.file(saved).toString();
+    }
+    return getRemoteCoverArtUrl(coverArtId, size: size);
+  }
+
+  /// The server's link for a cover, ignoring anything saved on the device
+  /// (what a download fetches its own copy from).
+  String getRemoteCoverArtUrl(String? coverArtId, {int? size}) {
+    if (coverArtId == null || coverArtId.isEmpty) return '';
     final params = {'id': coverArtId, 'f': ''};
     if (size != null) params['size'] = size.toString();
     return _buildStableUrl('getCoverArt.view', params);
@@ -779,15 +795,28 @@ class SubsonicService {
       ShareApi(client: _client, serverUrl: serverUrl, buildUrl: _buildUrl)
           .createShare(id, description: description, expiry: expiry);
 
-  Future<void> scrobble(String songId, {required bool submission}) async {
+  /// Tells Navidrome a song played. [timeMs] is when the play started (epoch
+  /// ms; now by default), so a play delivered late is dated correctly.
+  /// Errors are swallowed unless [strict]: the play outbox needs to know the
+  /// server really answered 2xx before it forgets a play.
+  Future<void> scrobble(
+    String songId, {
+    required bool submission,
+    int? timeMs,
+    bool strict = false,
+  }) async {
     try {
       final url = _buildUrl('scrobble.view', {
         'id': songId,
         'submission': submission.toString(),
-        'time': DateTime.now().millisecondsSinceEpoch.toString(),
+        'time': (timeMs ?? DateTime.now().millisecondsSinceEpoch).toString(),
       });
-      await _client.get(Uri.parse(url));
-    } catch (_) {
+      final response = await _client.get(Uri.parse(url)).timeout(const Duration(seconds: 20));
+      if (strict && (response.statusCode < 200 || response.statusCode >= 300)) {
+        throw NetworkException('Scrobble refused (${response.statusCode})');
+      }
+    } catch (e) {
+      if (strict) rethrow;
       // fire-and-forget: swallow all errors silently
     }
   }

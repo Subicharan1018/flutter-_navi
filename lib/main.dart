@@ -9,6 +9,7 @@ import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/hive_boxes.dart';
 import 'features/local_library/logic/local_library_providers.dart' show localLibraryBootstrapProvider;
+import 'features/play_outbox/logic/play_outbox_providers.dart' show offlineSyncBootstrapProvider;
 import 'core/motion.dart';
 import 'core/pointer_anchor.dart';
 import 'core/smooth_wheel.dart';
@@ -169,6 +170,10 @@ Future<void> main(List<String> args) async {
   // Songs from Settings > Local music: load the file index, match them to the
   // server library, and rescan quietly a few seconds after launch.
   container.read(localLibraryBootstrapProvider);
+
+  // Plays heard offline reach the servers once they can; covers missing from
+  // downloads are fetched again.
+  container.read(offlineSyncBootstrapProvider);
 
   // Compile the Now Playing artwork-field shader before it's first shown.
   unawaited(ArtworkField.precache());

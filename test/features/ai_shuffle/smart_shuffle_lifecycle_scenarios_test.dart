@@ -127,7 +127,7 @@ class MockScrobbleService extends Fake implements ScrobbleService {
   Future<void> nowPlaying(String id) async {}
 
   @override
-  void submit(String songId, {Song? song}) async {}
+  void submit(String songId, {Song? song, String? playId, int? startedAtMs}) async {}
 }
 
 class ControlledAudioPlayer extends Fake implements AudioPlayer {
@@ -304,6 +304,7 @@ class MockListeningEventCollector extends Fake implements ListeningEventCollecto
     Duration positionAtSwitch = Duration.zero,
     int queuePosition = 0,
     bool shuffleActive = false,
+    String? playId,
   }) {
     startedSongTitles.add(song.title);
   }

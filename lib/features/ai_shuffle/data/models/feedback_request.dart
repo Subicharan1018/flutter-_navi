@@ -21,6 +21,14 @@ class FeedbackRequest {
   final double temperatureC;
   final double volume;
 
+  /// Identifies this play so a retried delivery is counted once. Servers that
+  /// predate the field ignore it.
+  final String? playId;
+
+  /// When the play started (epoch ms), for a play delivered late. Servers
+  /// that predate the field stamp it on receipt instead.
+  final int? playedAtMs;
+
   const FeedbackRequest({
     required this.title,
     required this.listenRatio,
@@ -36,6 +44,8 @@ class FeedbackRequest {
     this.weatherCode = 800,
     this.temperatureC = 25.0,
     this.volume = 1.0,
+    this.playId,
+    this.playedAtMs,
   }) : assert(title.length > 0, 'FeedbackRequest.title must not be empty'),
        assert(
          listenRatio >= 0.0 && listenRatio <= 1.01,
@@ -65,5 +75,48 @@ class FeedbackRequest {
     'weather_code': weatherCode,
     'temperature_c': temperatureC,
     'volume': volume,
+    if (playId != null) 'play_id': playId,
+    if (playedAtMs != null) 'played_at': playedAtMs,
   };
+
+  /// This request stamped with the play it belongs to.
+  FeedbackRequest withPlay({required String playId, required int playedAtMs}) =>
+      FeedbackRequest(
+        title: title,
+        filePath: filePath,
+        genreBucket: genreBucket,
+        composer: composer,
+        listenRatio: listenRatio,
+        endReason: endReason,
+        durationS: durationS,
+        sessionId: sessionId,
+        sessionDepth: sessionDepth,
+        genreStreakType: genreStreakType,
+        genreStreakCount: genreStreakCount,
+        weatherCode: weatherCode,
+        temperatureC: temperatureC,
+        volume: volume,
+        playId: playId,
+        playedAtMs: playedAtMs,
+      );
+
+  /// Reads back what [toJson] wrote (the outbox stores requests as JSON).
+  factory FeedbackRequest.fromJson(Map<String, dynamic> j) => FeedbackRequest(
+        title: j['title'] as String,
+        filePath: (j['file_path'] as String?) ?? '',
+        genreBucket: (j['genre_bucket'] as String?) ?? 'unknown',
+        composer: (j['composer'] as String?) ?? 'unknown',
+        listenRatio: ((j['listen_ratio'] as num?) ?? 0).toDouble().clamp(0.0, 1.0),
+        endReason: (j['end_reason'] as String?) ?? 'natural',
+        durationS: (j['duration_s'] as num?)?.toInt() ?? 0,
+        sessionId: (j['session_id'] as String?) ?? '',
+        sessionDepth: (j['session_depth'] as num?)?.toInt() ?? 0,
+        genreStreakType: (j['genre_streak_type'] as String?) ?? '',
+        genreStreakCount: (j['genre_streak_count'] as num?)?.toInt() ?? 0,
+        weatherCode: (j['weather_code'] as num?)?.toInt() ?? 800,
+        temperatureC: ((j['temperature_c'] as num?) ?? 25).toDouble(),
+        volume: ((j['volume'] as num?) ?? 1).toDouble(),
+        playId: j['play_id'] as String?,
+        playedAtMs: (j['played_at'] as num?)?.toInt(),
+      );
 }

@@ -86,6 +86,7 @@ class ListeningEventCollector {
     Duration positionAtSwitch = Duration.zero,
     int queuePosition = 0,
     bool shuffleActive = false,
+    String? playId,
   }) {
     final mySeq = ++_processingSeq;
 
@@ -145,7 +146,7 @@ class ListeningEventCollector {
     }
 
     _openEvent = PlayEvent.open(
-      playId: _generateUuid(),
+      playId: playId ?? _generateUuid(),
       songId: song.id,
       sessionId: _sessionId,
       sourceContext: sourceContext,
@@ -497,6 +498,9 @@ class ListeningEventCollector {
   // ──────────────────────────────────────────────────────────────────────────
 
   static final Random _random = Random.secure();
+  /// A fresh id for one play (also the key the play outbox dedupes on).
+  static String newPlayId() => _generateUuid();
+
   static String _generateUuid() {
     final b = List<int>.generate(16, (_) => _random.nextInt(256));
     b[6] = (b[6] & 0x0f) | 0x40;
