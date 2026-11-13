@@ -16,3 +16,7 @@ BrowserInfo? readBrowserInfo() {
     return const BrowserInfo();
   }
 }
+
+/// Reloads the page: the cleanest reset after signing out (every provider,
+/// poll and socket of the old session goes with it).
+void reloadPage() => web.window.location.reload();

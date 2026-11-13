@@ -93,7 +93,10 @@ class SubsonicService {
 
     final uri = Uri.parse(url);
 
-    if (uri.scheme == 'http') {
+    // Browsers treat localhost as a secure origin; the web build allows a
+    // plain-http server there (local development) without the toggle.
+    final webLocalhost = kIsWeb && (uri.host == 'localhost' || uri.host == '127.0.0.1');
+    if (uri.scheme == 'http' && !webLocalhost) {
       final allowHttp = HiveBoxes.prefs.get(HiveBoxes.kAllowHttp) == true;
       if (!allowHttp) {
         throw const NetworkException(

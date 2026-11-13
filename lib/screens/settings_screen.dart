@@ -28,7 +28,7 @@ import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../features/pairing/ui/sign_in_another_device_screen.dart';
-import 'login_screen.dart';
+import '../utils/web_env.dart' show reloadPage;
 import '../widgets/mascot/microduck_mesh.dart' show MicroduckSkin;
 import '../widgets/mascot/microduck_pose.dart' show defaultMicroduckName;
 import '../services/playback_tuning.dart';
@@ -248,12 +248,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 GroupedRow(
                   title: 'Sign Out',
                   destructive: true,
-                  onTap: () {
+                  onTap: () async {
+                    await ref.read(playerProvider.notifier).stop();
                     notifier.signOutWeb();
-                    Navigator.of(context, rootNavigator: true).pushAndRemoveUntil(
-                      PageRouteBuilder(pageBuilder: (_, _, _) => const LoginScreen()),
-                      (_) => false,
-                    );
+                    // A fresh page: Jam polling, the session socket and every
+                    // cached provider of the old account go with it.
+                    reloadPage();
                   },
                 ),
               ],

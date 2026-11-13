@@ -343,7 +343,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 PlatformUtils.isTv
                     ? 'Typing is easier from your phone: open the Google TV app, tap Remote, '
                         'then the keyboard icon. Or go back and pair with your phone instead.'
-                    : 'Your password is stored encrypted on this device.',
+                    : kIsWeb
+                        ? 'Your password is used once to sign in and never stored in this browser.'
+                        : 'Your password is stored encrypted on this device.',
                 textAlign: TextAlign.center,
                 style: t.footnote,
               ),

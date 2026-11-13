@@ -632,6 +632,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_offlinePathsCache != null && _offlinePathsQueueLength == songs.length) {
       return _offlinePathsCache!;
     }
+    // Browser: no downloads, and initialize() would throw (no app folder),
+    // which used to abort setQueue before anything played.
+    if (kIsWeb) return {for (final s in songs) s.id: null};
     final offline = OfflineService();
     await offline.initialize(); // Ensure directory is resolved
     // Resolve all paths asynchronously (File.exists) instead of blocking the
