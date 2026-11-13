@@ -33,6 +33,18 @@ class CacheSettingsService {
     return val is bool ? val : true;
   }
 
+  /// How much disk the played-songs cache may use, in MB (default 500).
+  static const musicCacheSizeChoicesMb = [200, 500, 1000, 2000, 5000];
+
+  Future<void> setMusicCacheMaxMb(int mb) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kMusicCacheMaxMb, mb);
+  }
+
+  int getMusicCacheMaxMb() {
+    final val = HiveBoxes.prefs.get(HiveBoxes.kMusicCacheMaxMb, defaultValue: 500);
+    return val is int && val > 0 ? val : 500;
+  }
+
   Future<void> setBpmCacheEnabled(bool enabled) async {
     await HiveBoxes.prefs.put(HiveBoxes.kBpmCacheEnabled, enabled);
   }

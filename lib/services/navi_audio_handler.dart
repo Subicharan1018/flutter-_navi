@@ -11,6 +11,8 @@ import 'subsonic_service.dart';
 
 import 'transcoding_service.dart';
 import 'cache_settings_service.dart';
+import 'play_cache.dart';
+import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../providers/settings_provider.dart';
 import '../features/local_library/logic/local_index.dart';
 import '../offline_service.dart';
@@ -142,6 +144,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         final globalIndex = _playlistOffset + index;
         if (globalIndex < _currentQueue.length) {
           _trackRecentlyPlayed(_currentQueue[globalIndex].id);
+          _warmPlayCache(globalIndex);
         }
         // A gapless advance changes the position without changing
         // playerState, and the notification interpolates elapsed time from
@@ -552,45 +555,33 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   AudioSource _toSource(Song song) {
     final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
-    // A copy on this device (Settings > Local music) always wins: no data
-    // used, and it plays offline. Then the offline download, then the stream.
-    final deviceFile = LocalLibraryIndex.instance.pathFor(song.id);
-    final localPath = deviceFile ?? (musicCacheEnabled ? OfflineService().getLocalPath(song.id) : null);
-    final streamUri = localPath != null
-        ? LocalLibraryIndex.uriFor(localPath)
-        : Uri.parse(subsonicService.getStreamUrl(
-            song.id,
-            maxBitRate: _transcodingService.getCurrentBitrate(),
-            format: _transcodingService.getCurrentFormat(),
-          ));
-
-    final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
-    final artUri = localCoverPath != null
-        ? Uri.file(localCoverPath)
-        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt, size: 600));
-
-    final tag = MediaItem(
-      id: song.id,
-      title: song.title,
-      artist: song.artist,
-      album: song.album,
-      genre: song.genre,
-      artUri: artUri,
-      duration: Duration(seconds: song.duration),
-      extras: {'composer': song.composer, 'isLocal': localPath != null},
+    return _buildSource(
+      song,
+      LocalLibraryIndex.instance.pathFor(song.id) ??
+          (musicCacheEnabled ? OfflineService().getLocalPath(song.id) : null),
     );
-
-    if (localPath != null || !musicCacheEnabled || _isDesktopBridge) {
-      return AudioSource.uri(streamUri, tag: tag);
-    }
-
-    return LockCachingAudioSource(streamUri, tag: tag);
   }
 
   AudioSource _toSourceWithPaths(Song song, Map<String, String?> offlinePaths) {
     final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
-    final deviceFile = LocalLibraryIndex.instance.pathFor(song.id);
-    final localPath = deviceFile ?? (musicCacheEnabled ? offlinePaths[song.id] : null);
+    return _buildSource(
+      song,
+      LocalLibraryIndex.instance.pathFor(song.id) ??
+          (musicCacheEnabled ? offlinePaths[song.id] : null),
+    );
+  }
+
+  /// Transcoding settings as the cache key's quality part (see [PlayCache]).
+  String get _cacheQuality => PlayCache.qualityKey(
+        bitrate: _transcodingService.getCurrentBitrate(),
+        format: _transcodingService.getCurrentFormat(),
+      );
+
+  /// One source for [song]: a file on this device ([localPath]: device-library
+  /// copy first, then the download) always wins; else the stream, which on
+  /// Android is written through to the play cache as it plays.
+  AudioSource _buildSource(Song song, String? localPath) {
+    final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
     final streamUri = localPath != null
         ? LocalLibraryIndex.uriFor(localPath)
         : Uri.parse(subsonicService.getStreamUrl(
@@ -599,12 +590,28 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             format: _transcodingService.getCurrentFormat(),
           ));
 
+    final tag = _mediaTag(song, isLocal: localPath != null);
+
+    if (localPath != null || !musicCacheEnabled || _isDesktopBridge) {
+      return AudioSource.uri(streamUri, tag: tag);
+    }
+
+    // Keyed by song + quality, not by URL: a new login token or a changed
+    // salt used to make a cached song look new. A finished file is played
+    // straight from disk with no request.
+    return LockCachingAudioSource(
+      streamUri,
+      cacheFile: PlayCache.instance.fileFor(song.id, _cacheQuality),
+      tag: tag,
+    );
+  }
+
+  MediaItem _mediaTag(Song song, {required bool isLocal}) {
     final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
     final artUri = localCoverPath != null
         ? Uri.file(localCoverPath)
         : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt, size: 600));
-
-    final tag = MediaItem(
+    return MediaItem(
       id: song.id,
       title: song.title,
       artist: song.artist,
@@ -612,14 +619,42 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       genre: song.genre,
       artUri: artUri,
       duration: Duration(seconds: song.duration),
-      extras: {'composer': song.composer, 'isLocal': localPath != null},
+      extras: {'composer': song.composer, 'isLocal': isLocal},
     );
+  }
 
-    if (localPath != null || !musicCacheEnabled || _isDesktopBridge) {
-      return AudioSource.uri(streamUri, tag: tag);
+  /// Songs the play cache must not evict: the last 20 played and the next two.
+  Set<String> _cacheKeepIds(int index) => {
+        for (var i = index - 20; i <= index + 2; i++)
+          if (i >= 0 && i < _currentQueue.length) _currentQueue[i].id,
+      };
+
+  /// Downloads the next two songs ahead of time (and, on desktop where the
+  /// stream is not written through, the current one), then trims the cache.
+  void _warmPlayCache(int index) {
+    if (!CacheSettingsService().getMusicCacheEnabled()) return;
+    final keep = _cacheKeepIds(index);
+    final quality = _cacheQuality;
+    for (var i = _isDesktopBridge ? index : index + 1; i <= index + 2; i++) {
+      if (i < 0 || i >= _currentQueue.length) continue;
+      final song = _currentQueue[i];
+      if (isLocalSongId(song.id) ||
+          LocalLibraryIndex.instance.pathFor(song.id) != null ||
+          OfflineService().getLocalPath(song.id) != null) {
+        continue; // already a file on this device
+      }
+      unawaited(PlayCache.instance.prefetch(
+        song.id,
+        quality,
+        Uri.parse(subsonicService.getStreamUrl(
+          song.id,
+          maxBitRate: _transcodingService.getCurrentBitrate(),
+          format: _transcodingService.getCurrentFormat(),
+        )),
+        keep: keep,
+      ));
     }
-
-    return LockCachingAudioSource(streamUri, tag: tag);
+    unawaited(PlayCache.instance.evict(keep: keep));
   }
 
   Future<Map<String, String?>> _precomputeOfflinePaths(List<Song> songs) async {
@@ -960,7 +995,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final generation = ++_desktopLoadGeneration;
     _desktopLoading = true;
     try {
-      final source = _toSourceWithPaths(_currentQueue[index], offlinePaths);
+      final song = _currentQueue[index];
+      // Heard before in this session: play the cached copy, no request.
+      final cached = CacheSettingsService().getMusicCacheEnabled() &&
+              offlinePaths[song.id] == null &&
+              LocalLibraryIndex.instance.pathFor(song.id) == null
+          ? await PlayCache.instance.completeFile(song.id, _cacheQuality)
+          : null;
+      final source = cached != null
+          ? AudioSource.uri(Uri.file(cached.path), tag: _mediaTag(song, isLocal: false))
+          : _toSourceWithPaths(song, offlinePaths);
       await player
           .setAudioSource(source, initialPosition: initialPosition)
           .timeout(
@@ -975,6 +1019,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _desktopIndex = index;
       _emitDesktopMediaItem(index);
       _trackRecentlyPlayed(_currentQueue[index].id);
+      _warmPlayCache(index);
       debugPrint(
         '🎵 [Desktop] Loaded track $index: ${_currentQueue[index].title}',
       );

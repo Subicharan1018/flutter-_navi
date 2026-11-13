@@ -119,6 +119,7 @@ class HiveBoxes {
   static const kMeshGradientEnabled = 'mesh_gradient_enabled';
   static const kImageCacheEnabled = 'cache_images_enabled';
   static const kMusicCacheEnabled = 'cache_music_enabled';
+  static const kMusicCacheMaxMb = 'cache_music_max_mb';
   static const kBpmCacheEnabled = 'cache_bpm_enabled';
   static const kSearchHistory = 'search_history';
   static const kLocalFolders = 'local_music_folders';

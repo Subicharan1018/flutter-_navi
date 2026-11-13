@@ -19,6 +19,8 @@ import '../../online_fetch/data/online_fetch_api.dart';
 import '../../online_fetch/logic/online_fetch_providers.dart';
 import '../../social/data/social_models.dart' show SocialSettings;
 import '../../social/logic/social_providers.dart';
+import '../../../services/cache_settings_service.dart';
+import '../../../services/play_cache.dart';
 import 'download_speed.dart';
 import 'status_model.dart';
 
@@ -33,6 +35,7 @@ class StatusIds {
   static const downloads = 'downloads';
   static const offline = 'offline';
   static const plays = 'plays';
+  static const cache = 'cache';
 
   static const titles = <String, String>{
     navidrome: 'Navidrome',
@@ -44,6 +47,7 @@ class StatusIds {
     downloads: 'Downloads',
     offline: 'Offline mode',
     plays: 'Plays waiting to sync',
+    cache: 'Cached songs',
   };
 }
 
@@ -129,6 +133,10 @@ final statusProbesProvider = Provider<Map<String, Probe>>((ref) {
           DownloadSpeedMeter.instance.bytesPerSecond(),
           bytesOnDisk: await _diskBytes(ref),
         ),
+    StatusIds.cache: () async => describePlayCache(
+          await PlayCache.instance.sizeBytes(),
+          limitBytes: CacheSettingsService().getMusicCacheMaxMb() * 1024 * 1024,
+        ),
     StatusIds.plays: () async => describePendingPlays(
           ref.read(playOutboxProvider)?.pendingCount ?? 0,
           networkOffline: ref.read(isOfflineProvider),
@@ -182,6 +190,15 @@ ProbeResult describeDownloads(List<SongDownloadState> all, double bytesPerSecond
     if (why.isNotEmpty) detail += '\nFailed: $why';
   }
   return ProbeResult(failed.isEmpty ? HealthLevel.ok : HealthLevel.slow, detail);
+}
+
+/// Played-songs cache row (pure).
+ProbeResult describePlayCache(int bytes, {required int limitBytes}) {
+  String mb(int b) => b >= 1024 * 1024 * 1024
+      ? '${(b / (1024 * 1024 * 1024)).toStringAsFixed(1)} GB'
+      : '${(b / (1024 * 1024)).round()} MB';
+  if (bytes == 0) return const ProbeResult(HealthLevel.ok, 'Empty');
+  return ProbeResult(HealthLevel.ok, '${mb(bytes)} of ${mb(limitBytes)}');
 }
 
 /// Plays heard but not yet delivered to the servers (pure).

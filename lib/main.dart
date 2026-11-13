@@ -1,6 +1,6 @@
 import 'dart:io' show Platform;
 import 'utils/user_activity.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:audio_service/audio_service.dart';
@@ -32,6 +32,8 @@ import 'screens/login_screen.dart';
 import 'player/artwork.dart';
 import 'player/artwork_field.dart';
 import 'dart:async';
+import 'services/cache_settings_service.dart';
+import 'services/play_cache.dart';
 import 'providers/settings_provider.dart';
 import 'offline_service.dart';
 import 'services/navi_audio_handler.dart';
@@ -131,6 +133,16 @@ Future<void> main(List<String> args) async {
   // ── MPRIS registration (Linux only) ──────────────────────────────────────
   if (PlatformUtils.isLinux) {
     AudioServiceMpris.registerWith();
+  }
+
+  // Songs heard this session stay on disk (least recently used go first once
+  // the size limit in Settings is reached). Ready before the first queue is
+  // built, so cached files are named from the start.
+  PlayCache.instance.configure(maxBytes: () => CacheSettingsService().getMusicCacheMaxMb() * 1024 * 1024);
+  try {
+    await PlayCache.instance.initialize();
+  } catch (e) {
+    debugPrint('PlayCache: $e');
   }
 
   // ── AudioService init ──────────────────────────────────────────────────────
