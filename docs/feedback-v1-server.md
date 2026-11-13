@@ -1,9 +1,6 @@
 # `/feedback` v1: what the app now sends, and what the server must do
 
-Status: **server package not built yet.** Reading the live server over SSH was
-refused by the permission classifier in the session that wrote this, and the
-`/feedback` handler (`navivibe/feedback.py`, `record_play`) is not in this repo.
-Nothing here was guessed against code that was not seen.
+Status: the server package is built in `export/feedback-v1/` (git-ignored; a copy is in the shared notes folder as `feedback-v1-server`). Install with `bash install.sh`, then `sudo systemctl restart navivibe`. It was written against the live `feedback.py` (md5 a4f16518...) and `server.py` read over SSH.
 
 ## What the app sends (already shipped in this branch)
 
