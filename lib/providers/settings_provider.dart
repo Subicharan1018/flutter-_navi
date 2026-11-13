@@ -1,7 +1,9 @@
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
 import '../core/constants.dart';
 import '../core/hive_boxes.dart';
+import '../core/web_session.dart';
 import '../core/motion.dart' show MotionLevel;
 import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
@@ -226,7 +228,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
         Constants.defaultServerUrl,
       ),
       username: getString(auth, HiveBoxes.kUsername, Constants.defaultUsername),
-      password: auth.get(HiveBoxes.kPassword)?.toString() ?? '',
+      // Browser: no password is stored; a live web session stands in for it.
+      password: kIsWeb
+          ? (WebSession.isActive ? WebSession.passwordPlaceholder : '')
+          : auth.get(HiveBoxes.kPassword)?.toString() ?? '',
       shuffleAlgorithm: ShuffleAlgorithm.values.firstWhere(
         (e) => e.name == algoName,
         orElse: () => ShuffleAlgorithm.standard,
@@ -280,9 +285,18 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
 
     await auth.put(HiveBoxes.kServerUrl, url);
     await auth.put(HiveBoxes.kUsername, user);
-    await auth.put(HiveBoxes.kPassword, pass);
+    // The browser build never writes a password (only the web-session
+    // stand-in passes through here); see WebSession.
+    if (!kIsWeb) await auth.put(HiveBoxes.kPassword, pass);
 
     state = state.copyWith(serverUrl: url, username: user, password: pass);
+  }
+
+  /// Browser only: ends the web session. The JWT is forgotten in memory and in
+  /// browser storage; there is no stored password to delete.
+  void signOutWeb() {
+    WebSession.signOut();
+    state = state.copyWith(password: '');
   }
 
   // State first, then persist: callers reshuffle straight after choosing a
