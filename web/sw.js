@@ -16,6 +16,8 @@ const SHELL = [
   'flutter_bootstrap.js',
   'flutter.js',
   'main.dart.js',
+  'main.dart.mjs',
+  'main.dart.wasm',
   'manifest.json',
   'favicon.png',
   'icons/Icon-192.png',
@@ -29,7 +31,7 @@ const STATIC = [/\/canvaskit\//, /\/assets\//, /\/icons\//, /sqlite3\.wasm$/, /d
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE);
-    // One missing file (a wasm-only build has no main.dart.js) must not stop
+    // One missing file (a JS-only build has no main.dart.wasm) must not stop
     // the worker from installing.
     await Promise.all(SHELL.map((url) => cache.add(url).catch(() => {})));
     await self.skipWaiting();

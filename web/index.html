@@ -34,16 +34,7 @@
 </head>
 <body>
   <div id="nv-splash" aria-hidden="true"><img src="icons/Icon-192.png" alt=""></div>
+  <!-- No inline scripts: the deployed CSP allows only same-origin script files. -->
   <script src="flutter_bootstrap.js" async></script>
-  <script>
-    // App-shell cache for offline start and Android "Install app" (see sw.js).
-    if ('serviceWorker' in navigator) {
-      window.addEventListener('load', function () {
-        navigator.serviceWorker.register('sw.js').catch(function (e) {
-          console.warn('NaviVibe service worker not registered', e);
-        });
-      });
-    }
-  </script>
 </body>
 </html>

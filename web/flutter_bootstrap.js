@@ -1,6 +1,15 @@
 {{flutter_js}}
 {{flutter_build_config}}
 
+// App-shell cache for offline start and Android "Install app" (see sw.js).
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', function () {
+    navigator.serviceWorker.register('sw.js').catch(function (e) {
+      console.warn('NaviVibe service worker not registered', e);
+    });
+  });
+}
+
 // NaviVibe registers its own service worker (sw.js, from index.html), so
 // Flutter's deprecated one is not passed here: two workers on one scope would
 // replace each other on every load.
