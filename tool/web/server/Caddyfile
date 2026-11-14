@@ -1,13 +1,11 @@
-# NaviVibe web app on this Windows machine: Caddy on 127.0.0.1:8090, published
-# as https://subimusic.me by a Cloudflare Tunnel (docs/web-deploy.md).
-# deploy-web.ps1 copies this to %LOCALAPPDATA%\NaviVibeWeb\Caddyfile and writes
-# active.caddy next to it (the live release folder), then reloads Caddy; a
-# reload swaps the config atomically, so a deploy never serves half a build.
+# NaviVibe web app on subiserver: Caddy (Docker) on 127.0.0.1:8090 only; the
+# Cloudflare Tunnel publishes it as https://subimusic.me and does the TLS.
+# Installed to /opt/navivibe-web/Caddyfile by tool/web/server/deploy-web.sh.
 {
-	# Loopback admin API: only deploy-web.ps1's `caddy reload` uses it.
-	admin localhost:2019
+	admin off
 	auto_https off
 	servers {
+		# cloudflared is the only client.
 		trusted_proxies static 127.0.0.1/32 ::1
 	}
 }
@@ -15,17 +13,18 @@
 http://127.0.0.1:8090 {
 	bind 127.0.0.1
 
-	# Navidrome on the same origin, so the web app needs no CORS for it and the
-	# apps that use https://subimusic.me as their server keep working. Over
-	# Tailscale to subiserver by default; set NAVIDROME_UPSTREAM to change it.
+	# Navidrome on the same origin: no CORS for the web app, and the Android and
+	# Windows apps that use https://subimusic.me as their server keep working.
+	# The Navidrome admin UI (/app) is not here; it is on navidrome.subimusic.me.
 	@navidrome path /rest/* /auth/* /api/* /share/*
 	handle @navidrome {
-		reverse_proxy {$NAVIDROME_UPSTREAM:100.99.105.51:4533}
+		reverse_proxy 127.0.0.1:4533
 	}
 
 	handle {
-		# root * "<live release>", written by deploy-web.ps1
-		import active.caddy
+		# "current" is a symlink to releases/<build>; deploy-web.sh flips it with
+		# an atomic rename, and Caddy follows it per request.
+		root * /srv/navivibe-web/current
 		encode zstd gzip
 		try_files {path} /index.html
 		file_server
@@ -39,13 +38,13 @@ http://127.0.0.1:8090 {
 			Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://navidrome.subimusic.me; media-src 'self' blob: https://navidrome.subimusic.me; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://navidrome.subimusic.me https://shuffle.subimusic.me https://session.subimusic.me wss://session.subimusic.me https://fonts.gstatic.com; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
 		}
 
-		# What decides which build a visitor runs: always revalidated (ETag, so an
-		# unchanged file is a cheap 304). Flutter's file names carry no content
-		# hash, so the app code is revalidated too rather than cached for long.
+		# What decides which build a visitor runs: always revalidated (ETag makes an
+		# unchanged file a cheap 304).
 		@revalidate path / /index.html /flutter_bootstrap.js /flutter.js /flutter_service_worker.js /sw.js /version.json /manifest.json /main.dart.js /main.dart.mjs /main.dart.wasm
 		header @revalidate Cache-Control "no-cache"
-		# Engine, fonts, icons, sqlite: same name across builds, so a day, not a
-		# year; the service worker re-fetches them for each new build anyway.
+		# Flutter's output has no content-hashed file names (the engine, fonts and
+		# icons keep the same URL across builds), so nothing can be "immutable"
+		# safely; a day, and the service worker re-fetches them per build.
 		@daily path /canvaskit/* /assets/* /icons/* /favicon.png /sqlite3.wasm /drift_worker.js
 		header @daily Cache-Control "public, max-age=86400"
 		@sw path /sw.js
@@ -53,10 +52,7 @@ http://127.0.0.1:8090 {
 	}
 
 	log {
-		output file {$LOCALAPPDATA}/NaviVibeWeb/access.log {
-			roll_size 10MiB
-			roll_keep 3
-		}
+		output stdout
 		# Subsonic URLs carry t/s/p or jwt in the query string: never log them.
 		format filter {
 			wrap console

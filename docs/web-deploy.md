@@ -2,71 +2,29 @@
 
 The Flutter app also builds for the browser. Phones and narrow windows get the
 phone UI, desktop browsers the desktop UI (it switches live when the window is
-resized). It installs as a PWA on Android Chrome. This page is the runbook for
-putting it live on subiserver. Every step here is yours to run: nothing was
-changed on the server or in Cloudflare while building this.
+resized). It installs as a PWA on Android Chrome. It is hosted on subiserver,
+next to Navidrome and the NaviVibe services, behind the Cloudflare Tunnel that
+already runs there.
 
-## Hosting on the Windows laptop (current plan)
-
-The static app can live on your Windows laptop instead of subiserver. Navidrome,
-shuffle and session stay on subiserver. The web build has no self-updater: new
-versions reach people through the page itself (below).
-
-1. Install Caddy (`winget install CaddyServer.Caddy`) and make sure the laptop
-   is on Tailscale (Caddy reaches Navidrome at `100.99.105.51:4533`; set the
-   `NAVIDROME_UPSTREAM` environment variable to change that).
-2. Deploy: `powershell -ExecutionPolicy Bypass -File tool\web\deploy-web.ps1 -Start`
-   (the newest GitHub release's `navivibe-web-*.zip`; `-Build` builds locally,
-   `-Zip <file>` uses a zip, `-Rollback` goes back one release). It unpacks to
-   `%LOCALAPPDATA%\NaviVibeWeb\releases\<time>`, writes `active.caddy`, and runs
-   `caddy reload`, which swaps the config atomically. Caddy serves
-   `127.0.0.1:8090` (`tool/web/Caddyfile.windows`: same headers, CSP and log
-   redaction as the server Caddyfile in section 2).
-3. Start Caddy at logon: Task Scheduler > Create Task > trigger "At log on",
-   action `caddy.exe run --config "%LOCALAPPDATA%\NaviVibeWeb\Caddyfile" --adapter caddyfile`.
-4. Publish it, one of:
-   - **cloudflared on the laptop** (simplest): Zero Trust > Networks > Tunnels >
-     create a tunnel `navivibe-laptop`, install its connector
-     (`cloudflared service install <token>`, admin once), add the public hostname
-     `subimusic.me` -> `http://127.0.0.1:8090`. Remove `subimusic.me` from
-     subiserver's `/etc/cloudflared/config.yml` (keep `navidrome.`, `shuffle.`,
-     `session.` there). Do not add the laptop as a second connector of
-     subiserver's tunnel: connectors of one tunnel share its ingress, so half
-     the requests would look for `127.0.0.1:8090` on subiserver.
-   - **route from subiserver**: bind the laptop Caddy to its Tailscale IP
-     instead of 127.0.0.1 and point subiserver's `subimusic.me` ingress at
-     `http://<laptop-tailscale-ip>:8090`.
-   Either way the site is down while the laptop sleeps or is off.
-
-### How new versions reach people
-
-- `flutter_bootstrap.js` carries the build's hash. On load (after 15 s), on
-  focus and every 30 minutes the page re-fetches it past every cache; a
-  different hash shows a quiet "New version available · Reload" pill. A hidden
-  tab that is not playing reloads by itself; music is never cut off.
-- The service worker is registered as `sw.js?v=<hash>`: each build gets its own
-  cache, old caches are deleted, and app code is network-first, so it never
-  pins an old build.
-- `index.html`, `flutter_bootstrap.js`, `flutter_service_worker.js`, `sw.js`,
-  `version.json`, `manifest.json` and `main.dart.*` are `no-cache` (ETag
-  revalidation). Flutter's file names carry no content hash, so nothing is
-  cached for a year; engine, fonts and icons get a day.
+Every step on this page is yours to run. Nothing was changed on the server or in
+Cloudflare while building this; the server was only read (over Tailscale SSH).
 
 ## What you end up with
 
-| Hostname | Cloudflare Tunnel ingress | What it is |
+| Hostname | Tunnel ingress (`/etc/cloudflared/config.yml`) | What it is |
 |---|---|---|
-| `subimusic.me` | `http://127.0.0.1:8090` (new: Caddy) | The web app. Caddy also passes `/rest/*`, `/auth/*`, `/api/*`, `/share/*` to Navidrome, so the Android/Windows apps that use `https://subimusic.me` as their server keep working |
-| `navidrome.subimusic.me` | `http://localhost:4533` (new) | Navidrome itself, including its admin UI (keep that private, see below) |
+| `subimusic.me` | `http://127.0.0.1:8090` (**changed**: was Navidrome) | The web app, served by Caddy in Docker on loopback. Caddy also passes `/rest/*`, `/auth/*`, `/api/*`, `/share/*` to Navidrome, so the Android/Windows apps that use `https://subimusic.me` keep working |
+| `navidrome.subimusic.me` | `http://localhost:4533` (**new**) | Navidrome itself, including its admin UI (keep that private, below) |
 | `shuffle.subimusic.me` | `http://localhost:5500` (unchanged) | Shuffle server: Flow, Smart Shuffle, `/social` (Jam, Collab, People), `/fetch` |
 | `session.subimusic.me` | `http://localhost:5501` (unchanged) | Session sync (websocket) |
 | tg-fetcher `:5510` | none | Never published |
 
-Today `subimusic.me` points straight at Navidrome (`/etc/cloudflared/config.yml`).
-After the switch Navidrome's own web player moves to `navidrome.subimusic.me`;
-the Subsonic API stays on both hosts.
+What the server has today (checked read-only): no nginx and no Caddy binary;
+Docker with the `caddy:latest` image already pulled (the `~/subimusic-proxy`
+Caddy is not running); port 8090 free; `subi` in the `docker` group; `/opt`
+owned by root.
 
-## How the web app signs in (why no password is stored)
+## How the web app signs in (no password stored)
 
 - Sign-in posts the username and password once to Navidrome's `POST /auth/login`
   and drops the password. Navidrome answers with a JWT plus its own Subsonic
@@ -78,17 +36,34 @@ the Subsonic API stays on both hosts.
   sessionStorage by default (gone when the tab closes), localStorage when
   "Stay signed in" is ticked. The JWT is renewed every 20 minutes through
   Navidrome's `/api/keepalive` and expires after `ND_SESSIONTIMEOUT` (24 h on
-  your server) without use.
-- Sign out (Settings > Account) forgets the token and reloads the page.
+  your server) without use. Sign out forgets it and reloads the page.
 
-The one server change this needs is in the shuffle server: it passed the JWT to
-Navidrome as `t=`, which Navidrome rejects, so People / friend activity and
-Smart Shuffle of a playlist failed for Bearer users. `export/web-server-v1/`
-fixes that (it sends `jwt=`).
+## How new versions reach people (no self-updater on the web)
 
-## 1. Shuffle server patch (`export/web-server-v1`)
+The web build has no updater and no update banner: the page is the app.
 
-Copy the folder to the server and run the installer as `subi` (no sudo):
+- Every build's `flutter_bootstrap.js` carries the build's hash. On load (after
+  15 s), on focus and every 30 minutes the page re-fetches it past every cache.
+  A different hash shows a quiet "New version available · Reload" pill (with
+  "Later"). A tab that is hidden and not playing reloads by itself; music is
+  never cut off for an update.
+- The service worker is registered as `sw.js?v=<hash>`: each build gets its own
+  cache and the old caches are deleted, and app code is network first, so it
+  never pins an old build.
+- Caddy serves `index.html`, `flutter_bootstrap.js`, `flutter.js`,
+  `flutter_service_worker.js`, `sw.js`, `version.json`, `manifest.json` and
+  `main.dart.js|mjs|wasm` with `Cache-Control: no-cache` (revalidated with ETag,
+  a 304 when unchanged). Flutter's output has no content-hashed file names (the
+  engine, fonts and icons keep the same URL across builds), so nothing is
+  marked immutable: `canvaskit/`, `assets/`, `icons/`, `sqlite3.wasm`,
+  `drift_worker.js` get one day, and the service worker re-fetches them for
+  each new build.
+
+## Step 1: shuffle server patch (`export/web-server-v1`)
+
+The shuffle server passed the JWT to Navidrome as `t=`, which Navidrome rejects,
+so People / friend activity and Smart Shuffle of a playlist failed for web
+users. The package sends `jwt=` instead. From the repo checkout on your PC:
 
 ```bash
 scp -r export/web-server-v1 subi@100.99.105.51:~/web-server-v1
@@ -98,69 +73,75 @@ scp -r export/web-server-v1 subi@100.99.105.51:~/web-server-v1
 ssh subi@100.99.105.51 'bash ~/web-server-v1/install.sh'
 ```
 
-It tests the patch on a scratch copy, backs up `navivibe/navidrome.py` to
+It tests on a scratch copy, backs up `navivibe/navidrome.py` to
 `/opt/shuffle-server/backups/web-server-v1-<time>/`, patches, runs the new
 `test_web_auth.py` plus the security and social suites on the live tree (and
-puts the old file back if anything fails), then checks the CORS list. Then:
+puts the old file back if anything fails), and checks the CORS list. Then on the
+server:
 
 ```bash
 sudo systemctl restart navivibe
 ```
 
-The session service is unchanged and needs no restart.
+CORS: both servers read `NAVIVIBE_CORS_ORIGINS`. Unset, the default already
+includes `https://subimusic.me`, and your `.env` does not set it, so nothing to
+do. If you ever set it, keep `https://subimusic.me` in the list.
 
-### CORS on the shuffle and session servers
+## Step 2: the static server (Caddy in Docker, loopback only)
 
-Both read `NAVIVIBE_CORS_ORIGINS` (comma-separated). Unset, the default is
-`https://subimusic.me,https://music.subimusic.me,https://shuffle.subimusic.me`,
-which already includes the web app. Your `/opt/shuffle-server/.env` does not
-set it today, so nothing to do. If you ever set it, keep `https://subimusic.me`
-in the list (the installer warns you). The shuffle server allows the
-`Authorization`, `Content-Type` and `If-None-Match` headers; the session server
-allows `GET` with `Authorization`, which is all the web app sends. Websockets
-are not subject to CORS.
+Files: `tool/web/server/` in the repo (`deploy-web.sh`, `Caddyfile`,
+`compose.yaml`). Copy them to the server once:
 
-## 2. The static server (Caddy on loopback)
+```bash
+scp -r tool/web/server subi@100.99.105.51:~/navivibe-web-deploy
+```
 
-The web app is served by its own small Caddy container on `127.0.0.1:8090`,
-next to (not inside) the existing `~/subimusic-proxy` Caddy, which you leave
-alone. No sudo is needed: it lives in `~/navivibe-web`.
+On the server, create the folder once (the only sudo in this step):
 
-1. Get a build: the GitHub release from `main` carries
-   `navivibe-web-<version>+<build>.zip`. Or build locally with
-   `flutter build web --release --wasm --no-web-resources-cdn` and use `build/web`.
-2. Deploy it (the first run also copies `Caddyfile` and `compose.yaml`):
-   ```bash
-   bash ~/web-server-v1/deploy-web.sh ~/navivibe-web-1.0.0+123.zip
-   ```
-3. Check and start Caddy once:
-   ```bash
-   cd ~/navivibe-web && docker compose run --rm navivibe-web caddy validate --config /etc/caddy/Caddyfile
-   ```
-   ```bash
-   cd ~/navivibe-web && docker compose up -d
-   ```
-   ```bash
-   curl -sI http://127.0.0.1:8090/ | head -5; curl -s 'http://127.0.0.1:8090/rest/ping.view?f=json' | head -c 200; echo
-   ```
-   The second line should show Navidrome's "missing parameter" JSON: the proxy works.
+```bash
+sudo install -d -o subi -g subi /opt/navivibe-web
+```
 
-Later deploys are step 2 only: it switches the `current` symlink and keeps the
-last five releases; roll back with `ln -sfn releases/<older> ~/navivibe-web/current`.
+Deploy the newest release's web zip (GitHub releases from `main` carry
+`navivibe-web-<version>+<build>.zip`). The first run also installs the
+Caddyfile and compose file into `/opt/navivibe-web`:
 
-What the Caddyfile does (`export/web-server-v1/caddy/Caddyfile`):
+```bash
+bash ~/navivibe-web-deploy/deploy-web.sh
+```
 
-- Binds `127.0.0.1` only; TLS is Cloudflare's.
-- Same-origin Navidrome for `/rest`, `/auth`, `/api`, `/share` (no CORS needed
-  for the web app, and existing app installs keep working).
+Other forms: `--tag v1.0.0+130`, a zip path, or a `build/web` folder copied from
+your PC (`flutter build web --release --wasm --no-web-resources-cdn`), and
+`--rollback`. Releases live in `/opt/navivibe-web/releases/<time>_<version>`;
+`current` is a symlink replaced with an atomic rename, and the newest 3 are kept.
+
+Check the config and start Caddy once:
+
+```bash
+cd /opt/navivibe-web && docker compose run --rm navivibe-web caddy validate --config /etc/caddy/Caddyfile
+```
+
+```bash
+cd /opt/navivibe-web && docker compose up -d
+```
+
+```bash
+curl -sI http://127.0.0.1:8090/ | head -5; curl -s 'http://127.0.0.1:8090/rest/ping.view?f=json' | head -c 160; echo
+```
+
+The second command should print Navidrome's "missing parameter" JSON (the API
+proxy works). Later deploys are just `deploy-web.sh`; no restart. If a deploy
+says the Caddy config changed, run `cd /opt/navivibe-web && docker compose up -d --force-recreate`.
+
+What the Caddyfile does:
+
+- Binds `127.0.0.1:8090` only; TLS is Cloudflare's. `admin off`.
+- Same-origin Navidrome for `/rest`, `/auth`, `/api`, `/share`. The Navidrome
+  admin UI (`/app`) is not proxied here.
 - Unknown paths fall back to `index.html` (single-page app).
-- **Cache headers.** Flutter's output is not content-hashed, so the app code
-  (`index.html`, `flutter_bootstrap.js`, `main.dart.js|mjs|wasm`, `sw.js`,
-  `manifest.json`, `version.json`) is `Cache-Control: no-cache` (revalidated with
-  ETag, a 304 when unchanged). `canvaskit/`, `assets/`, `icons/`, `sqlite3.wasm`,
-  `drift_worker.js` are cached for a day.
-- **Security headers.** `X-Content-Type-Options`, `Referrer-Policy: same-origin`,
-  `X-Frame-Options: DENY`, HSTS, a `Permissions-Policy`, and this CSP:
+- Cache headers as described above.
+- `X-Content-Type-Options`, `Referrer-Policy: same-origin`, `X-Frame-Options: DENY`,
+  HSTS, a `Permissions-Policy`, and this CSP:
   ```
   default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline';
   img-src 'self' data: blob: https://navidrome.subimusic.me;
@@ -173,30 +154,40 @@ What the Caddyfile does (`export/web-server-v1/caddy/Caddyfile`):
   ```
   `'wasm-unsafe-eval'` is needed for Flutter's wasm and CanvasKit;
   `fonts.gstatic.com` is Flutter's fallback for emoji and scripts Inter lacks.
-  The build is made with `--no-web-resources-cdn`, so CanvasKit comes from your
-  host, not gstatic. A server address other than these hosts typed into the
-  sign-in screen is blocked by this CSP, by design.
+  Builds use `--no-web-resources-cdn`, so CanvasKit comes from your host. The
+  index.html has no inline script, so `script-src` needs no hashes. A server
+  address other than these hosts typed into the sign-in screen is blocked, by
+  design.
 - Access logs replace `t`, `s`, `p`, `jwt` and `token` in query strings with
   `REDACTED`.
-- No COOP/COEP: the wasm renderer runs single-threaded without them, and
-  `require-corp` would block cross-origin covers. Add them only if you want
-  multi-threaded rendering and everything is same-origin.
+- No COOP/COEP: the wasm renderer runs single-threaded without them.
 
-## 3. Cloudflare (dashboard; you do these)
+## Step 3: the tunnel (on the server)
 
-### Tunnel ingress
+Back up the config the service uses, then edit it:
 
-In `/etc/cloudflared/config.yml` (it is the file the service uses; back it up
-first), change the `subimusic.me` entry and add `navidrome.subimusic.me`, above
-the final `http_status:404`:
+```bash
+sudo cp -a /etc/cloudflared/config.yml /etc/cloudflared/config.yml.bak-$(date +%Y%m%d-%H%M%S)
+```
+
+```bash
+sudoedit /etc/cloudflared/config.yml
+```
+
+Change the existing `subimusic.me` entry's `service` and add `navidrome.subimusic.me`
+directly below it (keep `session.`, `shuffle.`, `music.`, `api.` and the final
+`http_status:404` as they are):
 
 ```yaml
   - hostname: subimusic.me
     service: http://127.0.0.1:8090
     originRequest:
       connectTimeout: 60s
+      tcpKeepAlive: 30s
+      keepAliveConnections: 100
       keepAliveTimeout: 120s
       http2Origin: false
+      disableChunkedEncoding: false
   - hostname: navidrome.subimusic.me
     service: http://localhost:4533
     originRequest:
@@ -204,27 +195,41 @@ the final `http_status:404`:
       keepAliveTimeout: 120s
 ```
 
-Keep `shuffle.`, `session.`, `music.` and `api.` as they are. Then add the DNS
-record (once) and restart the tunnel:
+Check, add the DNS record for the new name, and restart:
 
 ```bash
-cloudflared tunnel route dns 18d9f431-8f29-4797-8dc9-1ca777e0b137 navidrome.subimusic.me
+sudo cloudflared --config /etc/cloudflared/config.yml tunnel ingress validate
+```
+
+```bash
+sudo cloudflared --config /etc/cloudflared/config.yml tunnel ingress rule https://subimusic.me/
+```
+
+```bash
+sudo cloudflared tunnel route dns 18d9f431-8f29-4797-8dc9-1ca777e0b137 navidrome.subimusic.me
 ```
 
 ```bash
 sudo systemctl restart cloudflared
 ```
 
-(Or add `navidrome` as a proxied CNAME to `<tunnel-id>.cfargotunnel.com` in the
-DNS tab.)
+(The second command should print the 127.0.0.1:8090 rule. If `route dns` asks
+for a login, add `navidrome` as a proxied CNAME to
+`18d9f431-8f29-4797-8dc9-1ca777e0b137.cfargotunnel.com` in the Cloudflare DNS
+tab instead.) `~/.cloudflared/config.yml` is an older copy the service does not
+use; leave it.
+
+Rollback: restore the `.bak` file and restart `cloudflared`.
+
+## Step 4: Cloudflare dashboard
 
 ### Navidrome CORS Transform Rule (navidrome.subimusic.me)
 
 The web app talks to Navidrome on its own origin (`subimusic.me/rest`), so it
-needs no CORS. Navidrome 0.64 also already answers cross-origin requests itself
+needs no CORS. Navidrome 0.64 also already answers cross-origin requests
 (`Access-Control-Allow-Origin: *` on `/rest` and `/auth/login`, preflights
-included; checked on the server). Add this rule only if you want to pin the
-origin instead of `*`, or if a future Navidrome stops sending the headers:
+included; checked on the server). Add this rule to pin the origin instead of
+`*`, or if a future Navidrome stops sending the headers:
 
 Rules > Transform Rules > Modify Response Header > Create rule
 
@@ -238,16 +243,11 @@ Rules > Transform Rules > Modify Response Header > Create rule
   - `Access-Control-Max-Age` = `86400`
   - `Vary` = `Origin`
 
-(Navidrome answers `OPTIONS` preflights with 200 itself, so the rule only has to
-rewrite headers.)
-
 ### Keep admin paths private
 
 - **Navidrome admin UI**: Zero Trust > Access > Applications > Self-hosted,
-  domain `navidrome.subimusic.me`, path `app` (and `app/*`), policy "Allow:
-  your email". Leave `/rest`, `/auth`, `/api`, `/share` open: the apps and the
-  web app need them. The admin UI is not reachable through `subimusic.me` (Caddy
-  only passes the API paths).
+  domain `navidrome.subimusic.me`, path `app` (and `app/*`), policy "Allow: your
+  email". Leave `/rest`, `/auth`, `/api`, `/share` open.
 - **Shuffle server `/admin/*`, `/metrics`**: Security > WAF > Custom rules, Block
   when `http.host eq "shuffle.subimusic.me" and (starts_with(http.request.uri.path, "/admin") or http.request.uri.path eq "/metrics")`.
   Use Tailscale (`100.99.105.51:5500`) for admin work.
@@ -255,42 +255,48 @@ rewrite headers.)
 
 ### Rate limits for a public sign-in page (recommended)
 
-Security > WAF > Rate limiting rules:
+Security > WAF > Rate limiting rules: `/auth/login` POST on `subimusic.me` and
+`navidrome.subimusic.me`, 10 per minute per IP, block 10 minutes;
+`shuffle.subimusic.me` `/social/jam/join`, 6 per minute per IP.
 
-- `subimusic.me` and `navidrome.subimusic.me`, path `/auth/login`, POST: 10 per
-  minute per IP, block 10 minutes.
-- `shuffle.subimusic.me`, path `/social/jam/join`: 6 per minute per IP (the server
-  has its own bucket too).
-
-### Caching at the edge
+### Edge caching
 
 The Caddy headers decide. If you add a Cache Rule, bypass cache for `/rest/*`,
-`/auth/*`, `/api/*`, `/share/*` and for `index.html`/`sw.js`; never cache
-responses with `Authorization`.
+`/auth/*`, `/api/*`, `/share/*`, `index.html`, `flutter_bootstrap.js` and `sw.js`.
 
-## 4. Check it
+## Step 5: check it
 
 1. `https://subimusic.me` on a computer: the desktop UI. Narrow the window below
    ~760 px: the phone UI. On an Android phone: the phone UI.
 2. Sign in, play a song, lock the phone: the lock screen shows title, artist,
-   cover and play/pause/next (Media Session). On a computer, the keyboard media
-   keys work while the tab is open.
+   cover and play/pause/next (Media Session). Keyboard media keys work on a
+   computer.
 3. Jam: start one in the browser, join it from the Android app with the code.
-4. Settings > Connection & status: shuffle and session servers reachable.
-5. Android Chrome menu > Install app (or "Add to Home screen"): it opens in its
-   own black window with the NaviVibe icon.
+4. Deploy a newer build while a tab is open, then focus the tab: "New version
+   available · Reload" appears.
+5. Android Chrome menu > Install app: it opens in its own black window.
 6. An existing Android/Windows install still signs in with `https://subimusic.me`.
+
+## Updating later
+
+On `main`, CI attaches `navivibe-web-<version>+<build>.zip` to the release.
+Then on the server:
+
+```bash
+bash ~/navivibe-web-deploy/deploy-web.sh
+```
+
+Open tabs pick it up through the Reload prompt; idle ones reload by themselves.
 
 ## What the web app does not do
 
 Hidden in the browser build: downloads and the Downloaded list, local music
-folders, the download location, CSV export, song recognition ("Identify a
-song"), self-update (the page updates on reload), "Sign in another device",
-tray, global hotkey, mini-player window, window controls, Windows SMTC (Media
-Session replaces it). Sharing shares the link and caption; the PNG card is
-app-only. Changing the account is "Sign out" then sign in again.
+folders, the download location, CSV export, song recognition, the self-updater
+and its banner, "Sign in another device", tray, global hotkey, mini-player
+window, window controls, Windows SMTC (Media Session replaces it). Sharing
+shares the link and caption; the PNG card is app-only.
 
 Background audio on Android Chrome works while the page plays, but a battery
 manager can still stop a backgrounded tab; the native app remains the better
 Android client. The first play after opening the page needs a tap (browser
-autoplay rules), so a session handed over from another device waits for one.
+autoplay rules).

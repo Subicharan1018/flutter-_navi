@@ -1,0 +1,23 @@
+# NaviVibe web app static server on subiserver: Caddy on 127.0.0.1:8090.
+# Installed to /opt/navivibe-web/compose.yaml by deploy-web.sh.
+#   cd /opt/navivibe-web && docker compose up -d
+services:
+  navivibe-web:
+    image: caddy:2
+    container_name: navivibe-web
+    restart: unless-stopped
+    network_mode: host        # reaches Navidrome on 127.0.0.1:4533; binds 127.0.0.1 only (Caddyfile)
+    read_only: true
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # The whole folder, not ./current: Docker resolves a mounted symlink once
+      # at start, and deploy-web.sh flips "current" without a restart.
+      - .:/srv/navivibe-web:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    tmpfs:
+      - /tmp
+
+volumes:
+  caddy_data:
+  caddy_config:
