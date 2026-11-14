@@ -17,6 +17,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/album_details_screen.dart';
 import '../screens/artist_screen.dart';
+import '../utils/platform_utils.dart';
 import 'add_to_playlist_dialog.dart';
 import 'app_scaffold.dart' show navigateInApp;
 import 'desktop_dialogs.dart';
@@ -126,7 +127,8 @@ class OptionsMenu extends ConsumerWidget {
               showToast(page, starred ? 'Removed from Favorites' : 'Added to Favorites');
             },
           ),
-          _DownloadAction(song: song, toastContext: page),
+          // The browser build streams only: no download folder to save into.
+          if (PlatformUtils.supportsOfflineFiles) _DownloadAction(song: song, toastContext: page),
           SheetAction(
             label: 'Share…',
             icon: NaviGlyph.share,

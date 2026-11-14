@@ -217,10 +217,55 @@ jobs:
           retention-days: ${{ needs.version.outputs.publish == 'true' && 90 || 1 }}
           if-no-files-found: error
 
+  web:
+    # The browser app (https://subimusic.me). Built on main only; the zip is
+    # attached to the release and deployed with export/web-server-v1/deploy-web.sh.
+    needs: version
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-24.04
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v6.1.0
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          channel: stable
+          cache: true
+      - run: flutter pub get
+      - name: Build web (wasm with JS fallback, engine served from our own host)
+        env:
+          NAME: ${{ needs.version.outputs.name }}
+          BUILD: ${{ needs.version.outputs.build }}
+          PUBLIC: ${{ needs.version.outputs.public }}
+        run: |
+          set -euo pipefail
+          flags="--release --wasm --no-web-resources-cdn --build-name=$NAME --build-number=$BUILD --dart-define=NAVI_BUILD=$BUILD"
+          if [ "$PUBLIC" = "true" ]; then flags="$flags --dart-define=PUBLIC_BUILD=true"; fi
+          flutter build web $flags
+          for f in index.html flutter_bootstrap.js main.dart.js main.dart.wasm sw.js manifest.json sqlite3.wasm drift_worker.js; do
+            test -f "build/web/$f" || { echo "::error::build/web/$f missing"; exit 1; }
+          done
+      - name: Zip
+        run: |
+          set -euo pipefail
+          mkdir -p webdist
+          # Debug symbols are only for crash decoding; they are not served.
+          (cd build && zip -qr ../webdist/navivibe-web.zip web -x '*.symbols')
+          ls -l webdist
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: web
+          path: webdist/navivibe-web.zip
+          retention-days: ${{ needs.version.outputs.publish == 'true' && 90 || 1 }}
+          if-no-files-found: error
+
   publish:
     # A manual 'personal_build' run stops at the (1-day) workflow artifacts; every other run is released.
-    if: needs.version.outputs.publish == 'true'
-    needs: [version, android, windows]
+    # The web job runs on main only: elsewhere it is skipped, which must not block the release.
+    if: >-
+      !cancelled() && needs.version.outputs.publish == 'true' &&
+      needs.android.result == 'success' && needs.windows.result == 'success' &&
+      (needs.web.result == 'success' || needs.web.result == 'skipped')
+    needs: [version, android, windows, web]
     runs-on: ubuntu-24.04
     permissions:
       contents: write # only this job may create the release and tag
@@ -237,6 +282,9 @@ jobs:
         with: { name: android, path: dist }
       - uses: actions/download-artifact@v8.0.2
         with: { name: windows, path: windist }
+      - uses: actions/download-artifact@v8.0.2
+        if: needs.web.result == 'success'
+        with: { name: web, path: webdist }
 
       - name: Fetch earlier builds for patches
         env:
@@ -294,6 +342,8 @@ jobs:
             --asset-base "https://github.com/$REPO/releases/download/$tagurl/" \
             --notes-file notes.md --windows-dir windist --max-patches 5             --channel "$CHANNEL"
           cp dist/*.apk windist/* out/
+          # Web build (main only): navivibe-web-<version>+<build>.zip
+          if [ -f webdist/navivibe-web.zip ]; then cp webdist/navivibe-web.zip "out/navivibe-web-$NAME+$BUILD.zip"; fi
           ls -l out
 
       - name: Publish GitHub Release

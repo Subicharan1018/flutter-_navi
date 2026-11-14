@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -30,7 +31,8 @@ class SmartShuffleStatusButton extends ConsumerWidget {
     return CupertinoButton(
       padding: EdgeInsets.zero,
       minimumSize: const Size(44, 44),
-      onPressed: () => health.hasError
+      // The browser signs in once with a token; there is no password to retype.
+      onPressed: () => health.hasError && !kIsWeb
           ? Navigator.of(context).push(MaterialPageRoute<void>(builder: (_) => const SmartShuffleLoginScreen()))
           : showPlatformSheet<void>(context: context, title: 'Smart Shuffle', builder: (_) => const _StatusSheet()),
       child: Stack(

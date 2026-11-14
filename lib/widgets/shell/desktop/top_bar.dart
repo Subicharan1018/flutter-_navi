@@ -313,7 +313,7 @@ class _Bell extends ConsumerWidget {
     final t = ThemeTokens.of(context);
     final check = ref.watch(updateCheckProvider).asData?.value;
     final dismissed = ref.watch(dismissedUpdateProvider);
-    final update = check != null && check.available && check.manifest.build > dismissed;
+    final update = updatesSupported && check != null && check.available && check.manifest.build > dismissed;
     final invites = ref.watch(invitationCountProvider);
     final fetching = ref.watch(onlineFetchAvailableProvider) && !ref.watch(fetchJobsProvider.select((d) => d.isEmpty));
     final any = update || invites > 0 || fetching;
@@ -403,16 +403,20 @@ class _Profile extends ConsumerWidget {
                 detail: 'Ctrl+,',
                 onTap: () => navigateInApp(context, const SettingsScreen()),
               ),
-              SheetAction(
-                label: 'Sign in another device',
-                icon: NaviGlyph.person,
-                onTap: () => navigateInApp(context, const SignInAnotherDeviceScreen()),
-              ),
-              SheetAction(
-                label: 'Updates',
-                icon: NaviGlyph.download,
-                onTap: () => navigateInApp(context, const UpdatesScreen()),
-              ),
+              // Neither exists in a browser: it holds no password to hand
+              // over, and it updates on reload.
+              if (!PlatformUtils.isWeb)
+                SheetAction(
+                  label: 'Sign in another device',
+                  icon: NaviGlyph.person,
+                  onTap: () => navigateInApp(context, const SignInAnotherDeviceScreen()),
+                ),
+              if (updatesSupported)
+                SheetAction(
+                  label: 'Updates',
+                  icon: NaviGlyph.download,
+                  onTap: () => navigateInApp(context, const UpdatesScreen()),
+                ),
             ]),
           ),
           child: Semantics(

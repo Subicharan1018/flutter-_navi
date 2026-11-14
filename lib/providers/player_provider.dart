@@ -942,8 +942,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
           _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
             if (!mounted) return;
-            final rssMb = ProcessInfo.currentRss / (1024 * 1024);
-            debugPrint('⚡ [Memory] RSS: ${rssMb.toStringAsFixed(2)} MB (Song: ${capturedNew.title})');
+            // No process info in a browser (it throws there).
+            if (!kIsWeb) {
+              final rssMb = ProcessInfo.currentRss / (1024 * 1024);
+              debugPrint('⚡ [Memory] RSS: ${rssMb.toStringAsFixed(2)} MB (Song: ${capturedNew.title})');
+            }
             _collector.onSongStarted(
               song: capturedNew,
               sourceContext: sourceCtx,

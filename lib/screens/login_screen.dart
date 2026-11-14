@@ -9,6 +9,7 @@
 // =============================================================================
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -17,6 +18,7 @@ import '../core/app_exception.dart';
 import '../core/constants.dart';
 import '../core/hive_boxes.dart';
 import '../core/theme.dart';
+import '../core/web_session.dart';
 import '../providers/settings_provider.dart';
 import '../services/subsonic_service.dart';
 import '../utils/platform_utils.dart';
@@ -31,7 +33,25 @@ Future<void> verifyAndSaveCredentials(
   required String server,
   required String user,
   required String pass,
+  bool staySignedIn = false,
 }) async {
+  if (kIsWeb) {
+    // Browser: Navidrome's login gives a session token; the password is used
+    // for that one request and never stored (see WebSession).
+    final session = await WebSession.signIn(
+      serverUrl: server,
+      username: user,
+      password: pass,
+      staySignedIn: staySignedIn,
+    );
+    await ref
+        .read(settingsProvider.notifier)
+        .saveSettings(session.serverUrl, session.username, WebSession.passwordPlaceholder);
+    try {
+      await HiveBoxes.prefs.put(HiveBoxes.kLastServerUrl, server);
+    } catch (_) {}
+    return;
+  }
   // Check before saving, so a typo doesn't land the person in an app
   // that fails everywhere.
   await SubsonicService(
@@ -91,6 +111,10 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   bool _busy = false;
   String? _error;
 
+  /// Browser only: keep the session token across browser restarts
+  /// (localStorage) instead of just this tab (sessionStorage).
+  bool _staySignedIn = false;
+
   @override
   void initState() {
     super.initState();
@@ -128,7 +152,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
         server: _server.text.trim(),
         user: _user.text.trim(),
         pass: _pass.text,
+        staySignedIn: _staySignedIn,
       );
+      _pass.clear(); // nothing keeps the password once it has been used
       if (!mounted) return;
       HapticFeedback.mediumImpact();
       openApp(context);
@@ -242,6 +268,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   onSubmitted: (_) => _signIn(),
                 ),
               ),
+              if (kIsWeb)
+                GroupedSwitchRow(
+                  title: 'Stay signed in',
+                  subtitle: 'Keeps a sign-in token in this browser for up to a day after you last used it. '
+                      'Your password is never stored.',
+                  value: _staySignedIn,
+                  onChanged: (v) => setState(() => _staySignedIn = v),
+                ),
             ],
           ),
           FocusTraversalOrder(
@@ -309,7 +343,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                 PlatformUtils.isTv
                     ? 'Typing is easier from your phone: open the Google TV app, tap Remote, '
                         'then the keyboard icon. Or go back and pair with your phone instead.'
-                    : 'Your password is stored encrypted on this device.',
+                    : kIsWeb
+                        ? 'Your password is used once to sign in and never stored in this browser.'
+                        : 'Your password is stored encrypted on this device.',
                 textAlign: TextAlign.center,
                 style: t.footnote,
               ),
@@ -395,7 +431,10 @@ class _Chip extends StatelessWidget {
 }
 
 /// True when a username and password are saved (the app opens straight in).
+/// Browser: when a web session is live (restored from this tab, or kept with
+/// "Stay signed in").
 bool isLoggedIn() {
+  if (kIsWeb) return WebSession.isActive;
   final auth = HiveBoxes.auth;
   final username = auth.get(HiveBoxes.kUsername)?.toString() ?? '';
   final password = auth.get(HiveBoxes.kPassword)?.toString() ?? '';

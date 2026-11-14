@@ -58,7 +58,8 @@ class LibraryScreen extends ConsumerWidget {
       if (!inSidebar) (NaviGlyph.stack, 'Albums', const AlbumsPage()),
       if (!inSidebar) (NaviGlyph.note, 'Songs', const SongsPage()),
       (NaviGlyph.star, 'Favorites', const FavoritesScreen()),
-      if (!inSidebar) (NaviGlyph.downloadCircle, 'Downloaded', const SongsPage(downloadedOnly: true)),
+      if (!inSidebar && PlatformUtils.supportsOfflineFiles)
+        (NaviGlyph.downloadCircle, 'Downloaded', const SongsPage(downloadedOnly: true)),
       if (hasLocal) (NaviGlyph.folder, 'On This Device', const LocalSongsPage()),
     ];
 

@@ -1,0 +1,2 @@
+# Files that run on the Linux server must keep LF line endings on any checkout.
+tool/web/server/** text eol=lf

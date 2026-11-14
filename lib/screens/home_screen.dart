@@ -13,6 +13,7 @@ import '../features/social/ui/jam/jam_hero.dart';
 import '../features/social/ui/people.dart' show ListeningNowStrip;
 import '../features/social/logic/social_providers.dart' show recapProvider;
 import '../features/social/ui/recap_screens.dart' show HomeRecapSection;
+import '../features/updates/logic/update_providers.dart' show updatesSupported;
 import '../features/updates/ui/update_banner.dart';
 import '../features/flow/logic/flow_controller.dart' show flowMoodsProvider, flowProvider;
 import '../features/flow/ui/flow_section.dart';
@@ -85,7 +86,8 @@ class HomeScreen extends ConsumerWidget {
       },
       slivers: [
         // Desktop: updates are the bell in the top bar and Jam is in the rail.
-        if (!PlatformUtils.isDesktop) const SliverToBoxAdapter(child: UpdateBanner()),
+        // No self-updater in a browser: the page itself updates (WebUpdatePrompt).
+        if (!PlatformUtils.isDesktop && updatesSupported) const SliverToBoxAdapter(child: UpdateBanner()),
         if (!PlatformUtils.isDesktop) const SliverToBoxAdapter(child: JamHero()),
         // Windows: who is listening now, with Join for open rooms.
         if (PlatformUtils.isDesktop) const SliverToBoxAdapter(child: ListeningNowStrip()),

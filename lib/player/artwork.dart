@@ -8,6 +8,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../core/album_palette.dart';
@@ -165,6 +166,11 @@ class ArtworkRepository {
     final Uint8List encoded;
     if (url.startsWith('file:')) {
       encoded = await File.fromUri(Uri.parse(url)).readAsBytes();
+    } else if (kIsWeb) {
+      // No disk cache in a browser; the HTTP cache keeps the small thumb.
+      final res = await http.get(Uri.parse(_thumbUrl(url))).timeout(_stepTimeout);
+      if (res.statusCode != 200) throw StateError('cover HTTP ${res.statusCode}');
+      encoded = res.bodyBytes;
     } else {
       final file = await DefaultCacheManager()
           .getSingleFile(_thumbUrl(url), key: '${key}_$_texSize')

@@ -433,9 +433,12 @@ typedef JwtSupplier = FutureOr<String?> Function({bool forceRefresh});
 // ---------------------------------------------------------------------------
 
 class SessionSyncService {
-  static const String defaultWsBaseUrl =
-      'wss://session.subimusic.me/ws/session';
-  static const String defaultHttpBaseUrl = 'https://session.subimusic.me';
+  // `--dart-define=NAVIVIBE_SESSION_URL=https://...` points a test build at
+  // another session server; the websocket URL follows it.
+  static const String defaultHttpBaseUrl =
+      String.fromEnvironment('NAVIVIBE_SESSION_URL', defaultValue: 'https://session.subimusic.me');
+  static final String defaultWsBaseUrl =
+      '${defaultHttpBaseUrl.replaceFirst(RegExp('^http'), 'ws')}/ws/session';
 
   final _stateController = StreamController<PlaybackState>.broadcast();
   Stream<PlaybackState> get stateStream => _stateController.stream;

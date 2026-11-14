@@ -2,6 +2,8 @@ import 'dart:io' show Platform;
 import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/services.dart' show MethodChannel;
 
+import 'web_form_factor.dart';
+
 // =============================================================================
 // platform_utils.dart — Centralised platform detection
 //
@@ -46,9 +48,19 @@ abstract final class PlatformUtils {
   /// so focus rings and focus-friendly layouts matter most.
   static bool get isFocusFirst => isTv || isDesktop;
 
-  /// True on Linux, Windows, and macOS — i.e. any desktop OS.
+  /// True when the desktop UI is shown: on Linux, Windows and macOS, and in a
+  /// desktop browser whose window is wide enough ([WebFormFactor]). This is a
+  /// layout flag; for OS shell features (window, tray, hotkeys) use
+  /// [isNativeDesktop].
   static bool get isDesktop =>
-      debugDesktopOverride ?? (!kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS));
+      debugDesktopOverride ?? (kIsWeb ? WebFormFactor.current.value == FormFactor.desktop : isNativeDesktop);
+
+  /// True on a desktop OS build (not a browser): window manager, tray, global
+  /// hotkeys, mini-player window and the like exist only here.
+  static bool get isNativeDesktop => !kIsWeb && (Platform.isLinux || Platform.isWindows || Platform.isMacOS);
+
+  /// True in a browser whose primary pointer is touch (no hover).
+  static bool get isTouchWeb => kIsWeb && WebFormFactor.touchPrimary;
 
   /// True only on Linux.
   static bool get isLinux =>
@@ -84,8 +96,19 @@ abstract final class PlatformUtils {
   static bool get supportsMpris => isLinux;
 
   /// True when the OS supports window management APIs (size, position, title).
-  /// Available on all desktop platforms via the `window_manager` package.
-  static bool get supportsWindowManager => isDesktop;
+  /// Available on native desktop platforms via the `window_manager` package;
+  /// never in a browser, even when it shows the desktop UI.
+  static bool get supportsWindowManager => isNativeDesktop;
+
+  /// True when downloads, offline files and the local music library exist.
+  /// The browser build streams only.
+  static bool get supportsOfflineFiles => !kIsWeb;
+
+  /// True when "Identify a song" can record (it records to a temp file).
+  static bool get supportsSongRecognition => !kIsWeb;
+
+  /// True when the app can update itself (Android APK, Windows installer).
+  static bool get supportsSelfUpdate => isAndroid || isWindows;
 
   /// True when the options menu should render as a popup rather than a
   /// bottom sheet. Bottom sheets feel unnatural with a mouse cursor.

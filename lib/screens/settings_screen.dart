@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart' show CircularProgressIndicator, Colors, Scaffold;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -28,6 +29,7 @@ import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../features/pairing/ui/sign_in_another_device_screen.dart';
+import '../utils/web_env.dart' show reloadPage;
 import '../widgets/mascot/microduck_mesh.dart' show MicroduckSkin;
 import '../widgets/mascot/microduck_pose.dart' show defaultMicroduckName;
 import '../services/playback_tuning.dart';
@@ -87,7 +89,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       () => ref.read(settingsProvider.notifier).setMicroduckName(_duckName.text),
     );
     _loadServicePrefs();
-    if (PlatformUtils.isDesktop) {
+    if (PlatformUtils.isDesktop && !kIsWeb) {
       _user.addListener(_scheduleAutoSave);
       _pass.addListener(_scheduleAutoSave);
     }
@@ -152,8 +154,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _save() async {
     final settings = ref.read(settingsProvider);
-    await ref.read(settingsProvider.notifier).saveSettings(settings.serverUrl, _user.text.trim(), _pass.text);
-    ref.read(playerProvider.notifier).refreshShuffleUrl();
+    // Browser: the account isn't editable here (sign out and in instead).
+    if (!kIsWeb) {
+      await ref.read(settingsProvider.notifier).saveSettings(settings.serverUrl, _user.text.trim(), _pass.text);
+      ref.read(playerProvider.notifier).refreshShuffleUrl();
+    }
     HapticFeedback.mediumImpact();
     if (!mounted) return;
     showToast(context, 'Settings saved');
@@ -228,6 +233,33 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final items = <Widget>[
           const SizedBox(height: Space.sm),
           const SettingsCategory('Account'),
+          if (kIsWeb)
+            // Browser: no password is kept, so there is nothing to edit here;
+            // signing out forgets the session token.
+            GroupedSection(
+              header: 'Account',
+              footer: 'This browser keeps a sign-in token, never your password.',
+              children: [
+                GroupedRow(
+                  title: 'Server',
+                  icon: NaviGlyph.cloud,
+                  value: host.isEmpty ? 'Not connected' : host,
+                ),
+                GroupedRow(title: 'Username', icon: NaviGlyph.person, value: s.username),
+                GroupedRow(
+                  title: 'Sign Out',
+                  destructive: true,
+                  onTap: () async {
+                    await ref.read(playerProvider.notifier).stop();
+                    notifier.signOutWeb();
+                    // A fresh page: Jam polling, the session socket and every
+                    // cached provider of the old account go with it.
+                    reloadPage();
+                  },
+                ),
+              ],
+            )
+          else
           GroupedSection(
             header: 'Account',
             footer: PlatformUtils.isDesktop ? 'Changes are saved as you type.' : 'Changes to your account apply when you tap Save.',
@@ -460,13 +492,14 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const SettingsCategory('Downloads & storage'),
           GroupedSection(
-            header: 'Downloads & Storage',
+            header: PlatformUtils.supportsOfflineFiles ? 'Downloads & Storage' : 'Storage',
             children: [
-              GroupedRow(
-                title: 'Downloaded Songs',
-                icon: NaviGlyph.downloadCircle,
-                value: downloads == 0 ? 'None' : '$downloads · $size',
-              ),
+              if (PlatformUtils.supportsOfflineFiles)
+                GroupedRow(
+                  title: 'Downloaded Songs',
+                  icon: NaviGlyph.downloadCircle,
+                  value: downloads == 0 ? 'None' : '$downloads · $size',
+                ),
               GroupedSwitchRow(
                 title: 'Cache Artwork',
                 icon: NaviGlyph.photo,
@@ -476,16 +509,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   ref.read(cacheSettingsNotifierProvider.notifier).setImageCacheEnabled(v);
                 },
               ),
-              GroupedSwitchRow(
-                title: 'Cache Music',
-                subtitle: 'Keeps recently played songs for instant replay.',
-                icon: NaviGlyph.note,
-                value: _musicCache,
-                onChanged: (v) {
-                  setState(() => _musicCache = v);
-                  ref.read(cacheSettingsNotifierProvider.notifier).setMusicCacheEnabled(v);
-                },
-              ),
+              if (PlatformUtils.supportsOfflineFiles) // the browser caches streams itself
+                GroupedSwitchRow(
+                  title: 'Cache Music',
+                  subtitle: 'Keeps recently played songs for instant replay.',
+                  icon: NaviGlyph.note,
+                  value: _musicCache,
+                  onChanged: (v) {
+                    setState(() => _musicCache = v);
+                    ref.read(cacheSettingsNotifierProvider.notifier).setMusicCacheEnabled(v);
+                  },
+                ),
               GroupedSwitchRow(
                 title: 'Cache Tempo',
                 subtitle: 'Measures song tempo ahead of time so Smart Shuffle starts faster.',
@@ -498,10 +532,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          const PlayCacheSection(),
-          const DownloadLocationSection(),
-          const LocalMusicSection(),
-          if (downloads > 0)
+          if (PlatformUtils.supportsOfflineFiles) const PlayCacheSection(),
+          if (PlatformUtils.supportsOfflineFiles) const DownloadLocationSection(),
+          if (PlatformUtils.supportsOfflineFiles) const LocalMusicSection(),
+          if (downloads > 0 && PlatformUtils.supportsOfflineFiles)
             GroupedSection(children: [
               GroupedRow(
                 title: 'Delete All Downloads',
@@ -558,6 +592,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           GroupedSection(
             header: 'Your Listening Data',
             children: [
+              if (PlatformUtils.supportsOfflineFiles) // writes files to Downloads
               GroupedRow(
                 title: 'Export as CSV',
                 subtitle: 'Saves your play history and song data to Downloads.',

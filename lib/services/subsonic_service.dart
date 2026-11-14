@@ -9,6 +9,7 @@ import 'package:http/http.dart' as http;
 import '../core/constants.dart';
 import '../core/app_exception.dart';
 import '../core/hive_boxes.dart';
+import '../core/web_session.dart';
 import '../models/song.dart';
 import '../models/album.dart';
 import '../models/artist.dart';
@@ -93,7 +94,10 @@ class SubsonicService {
 
     final uri = Uri.parse(url);
 
-    if (uri.scheme == 'http') {
+    // Browsers treat localhost as a secure origin; the web build allows a
+    // plain-http server there (local development) without the toggle.
+    final webLocalhost = kIsWeb && (uri.host == 'localhost' || uri.host == '127.0.0.1');
+    if (uri.scheme == 'http' && !webLocalhost) {
       final allowHttp = HiveBoxes.prefs.get(HiveBoxes.kAllowHttp) == true;
       if (!allowHttp) {
         throw const NetworkException(
@@ -129,16 +133,22 @@ class SubsonicService {
     return digest.toString();
   }
 
+  /// Subsonic credentials for one request. Native: a fresh salt per call, or
+  /// the stable cover-art pair. Web: the browser session's token pair or JWT
+  /// (the browser never holds the password; see WebSession).
+  Map<String, String> _authParams({required bool stable}) {
+    if (WebSession.isPlaceholder(password)) return WebSession.subsonicAuthParams();
+    if (stable) return {'t': _coverArtToken, 's': _coverArtSalt};
+    final salt = _generateSalt();
+    return {'t': _generateToken(salt), 's': salt};
+  }
+
   /// Builds a URL with a **fresh** random salt — used for every API call
   /// except cover-art image URLs (see [getCoverArtUrl]).
   String _buildUrl(String endpoint, [Map<String, String>? params]) {
-    final salt = _generateSalt();
-    final token = _generateToken(salt);
-
     final queryParams = <String, String>{
       'u': username,
-      't': token,
-      's': salt,
+      ..._authParams(stable: false),
       'v': Constants.apiVersion,
       'c': Constants.defaultClient,
       'f': 'json',
@@ -160,8 +170,7 @@ class SubsonicService {
   String _buildStableUrl(String endpoint, [Map<String, String>? params]) {
     final queryParams = <String, String>{
       'u': username,
-      't': _coverArtToken,
-      's': _coverArtSalt,
+      ..._authParams(stable: true),
       'v': Constants.apiVersion,
       'c': Constants.defaultClient,
       'f': 'json',
@@ -681,14 +690,10 @@ class SubsonicService {
   /// manually using [Uri.queryParametersAll] which accepts `Map<String, List<String>>`.
   Future<void> setPlaylistSongs(String playlistId, List<String> songIds) async {
     playlistAccess.requireEditable(playlistId);
-    final salt = _generateSalt();
-    final token = _generateToken(salt);
-
     final uri = Uri.parse('$serverUrl/createPlaylist.view').replace(
       queryParameters: {
         'u': [username],
-        't': [token],
-        's': [salt],
+        for (final e in _authParams(stable: false).entries) e.key: [e.value],
         'v': [Constants.apiVersion],
         'c': [Constants.defaultClient],
         'f': ['json'],
@@ -707,16 +712,12 @@ class SubsonicService {
 
   Future<void> setPlaylistImage(String playlistId, File imageFile) async {
     playlistAccess.requireEditable(playlistId);
-    final salt = _generateSalt();
-    final token = _generateToken(salt);
-
     final uri = Uri.parse('$serverUrl/setPlaylistImage.view');
     final request = http.MultipartRequest('POST', uri);
 
     request.fields.addAll({
       'u': username,
-      't': token,
-      's': salt,
+      ..._authParams(stable: false),
       'v': Constants.apiVersion,
       'c': Constants.defaultClient,
       'f': 'json',

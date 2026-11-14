@@ -5,6 +5,7 @@ import '../../../core/theme.dart';
 import '../../../models/song.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../utils/platform_utils.dart';
 import '../../../utils/queue_actions.dart';
 import '../../../widgets/add_to_playlist_dialog.dart';
 import '../../../widgets/art/navi_icons.dart';
@@ -25,12 +26,18 @@ const _pad = EdgeInsets.symmetric(horizontal: Space.gutter);
 ///
 /// Actions run on [hostContext] (the screen that opened the sheet), because
 /// the sheet itself is gone by the time they do.
-Future<void> showRecognizeSheet(BuildContext hostContext) =>
-    showPlatformSheet<void>(
-      context: hostContext,
-      maxHeight: 640,
-      builder: (_) => RecognizeSheet(hostContext: hostContext),
-    );
+Future<void> showRecognizeSheet(BuildContext hostContext) async {
+  // The recorder writes a temp file; the browser build has none (yet).
+  if (!PlatformUtils.supportsSongRecognition) {
+    showToast(hostContext, 'Song recognition is in the Android and Windows apps');
+    return;
+  }
+  await showPlatformSheet<void>(
+    context: hostContext,
+    maxHeight: 640,
+    builder: (_) => RecognizeSheet(hostContext: hostContext),
+  );
+}
 
 class RecognizeSheet extends ConsumerStatefulWidget {
   final BuildContext hostContext;

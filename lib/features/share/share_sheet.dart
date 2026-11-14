@@ -1,9 +1,11 @@
 import 'dart:io';
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:http/http.dart' as http;
 import 'package:share_plus/share_plus.dart';
 
 import '../../core/theme.dart';
@@ -101,8 +103,11 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
     }
     try {
       final url = ref.read(subsonicServiceProvider).getCoverArtUrl(art, size: 900);
-      final file = await DefaultCacheManager().getSingleFile(url);
-      final provider = MemoryImage(await file.readAsBytes());
+      // A browser has no disk cache to read from; fetch the bytes directly.
+      final bytes = kIsWeb
+          ? (await http.get(Uri.parse(url))).bodyBytes
+          : await (await DefaultCacheManager().getSingleFile(url)).readAsBytes();
+      final provider = MemoryImage(bytes);
       if (!mounted) return;
       await precacheImage(provider, context);
       if (mounted) setState(() => _cover = provider);

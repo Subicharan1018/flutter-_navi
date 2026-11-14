@@ -56,6 +56,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Public getter for player_provider to coordinate completion advancement
   static bool get isDesktopBridge => _isDesktopBridge;
 
+  /// Streams play straight from the URL: on the desktop bridge (no caching
+  /// source) and in a browser (LockCachingAudioSource needs a local proxy that
+  /// the web can't run; the browser's own HTTP cache does the job).
+  static bool get _plainUriSource => kIsWeb || _isDesktopBridge;
+
   // ── Desktop single-source bridge state ───────────────────────────────────────
   int _desktopIndex = 0;
   int _desktopTargetIndex = 0;
@@ -592,7 +597,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     final tag = _mediaTag(song, isLocal: localPath != null);
 
-    if (localPath != null || !musicCacheEnabled || _isDesktopBridge) {
+    // Desktop plays a plain URI (the cache is filled by prefetch); the web has
+    // no file system, so it streams and leaves caching to the browser.
+    if (localPath != null || !musicCacheEnabled || _plainUriSource) {
       return AudioSource.uri(streamUri, tag: tag);
     }
 
@@ -632,7 +639,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Downloads the next two songs ahead of time (and, on desktop where the
   /// stream is not written through, the current one), then trims the cache.
   void _warmPlayCache(int index) {
-    if (!CacheSettingsService().getMusicCacheEnabled()) return;
+    if (kIsWeb || !CacheSettingsService().getMusicCacheEnabled()) return;
     final keep = _cacheKeepIds(index);
     final quality = _cacheQuality;
     for (var i = _isDesktopBridge ? index : index + 1; i <= index + 2; i++) {
@@ -662,6 +669,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_offlinePathsCache != null && _offlinePathsQueueLength == songs.length) {
       return _offlinePathsCache!;
     }
+    // Browser: no downloads, and initialize() would throw (no app folder),
+    // which used to abort setQueue before anything played.
+    if (kIsWeb) return {for (final s in songs) s.id: null};
     final offline = OfflineService();
     await offline.initialize(); // Ensure directory is resolved
     // Resolve all paths asynchronously (File.exists) instead of blocking the

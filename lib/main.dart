@@ -8,6 +8,10 @@ import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/hive_boxes.dart';
+import 'core/web_session.dart';
+import 'utils/web_form_factor.dart';
+import 'widgets/shell/web_form_factor_scope.dart';
+import 'widgets/shell/web_update_prompt.dart';
 import 'features/local_library/logic/local_library_providers.dart' show localLibraryBootstrapProvider;
 import 'features/play_outbox/logic/play_outbox_providers.dart' show offlineSyncBootstrapProvider;
 import 'core/motion.dart';
@@ -69,14 +73,24 @@ Future<void> main(List<String> args) async {
     PaintingBinding.instance.imageCache
       ..maximumSizeBytes = 160 * 1024 * 1024
       ..maximumSize = 400;
-    // Eased mouse-wheel scrolling instead of a jump per notch.
-    SmoothWheel.install();
+    // Eased mouse-wheel scrolling instead of a jump per notch (browsers
+    // already smooth the wheel themselves).
+    if (PlatformUtils.isNativeDesktop) SmoothWheel.install();
   }
 
   // MEM-OPT: Configure CachedNetworkImage's separate cache manager.
   // Without this, it uses DefaultCacheManager which has no object count limit
   // and can accumulate hundreds of decoded images during a long listening session.
   // Note: flutter_cache_manager's DefaultCacheManager is already transitive.
+
+  if (kIsWeb) {
+    // Phone or desktop UI, from the user agent and the window width. Decided
+    // before the first frame; WebFormFactorScope keeps it current on resize.
+    final view = WidgetsBinding.instance.platformDispatcher.views.first;
+    WebFormFactor.refresh(view.physicalSize.width / view.devicePixelRatio);
+    // A sign-in from earlier in this tab (or "Stay signed in"): JWT only.
+    WebSession.restore();
+  }
 
   await HiveBoxes.init();
   await PlatformUtils.detectTelevision();
@@ -94,8 +108,10 @@ Future<void> main(List<String> args) async {
     await OfflineService().initialize();
   } catch (e, st) {
     // Offline songs just won't show as downloaded; the app must still open.
+    // In a browser this is expected: there is no download folder (the
+    // pending-scrobble outbox still works, it only needs preferences).
     debugPrint('⚠️  OfflineService.initialize failed ($e)\n$st');
-    CrashLog.record(e, st);
+    if (!kIsWeb) CrashLog.record(e, st);
   }
 
   // ── Media kit: required on Linux / Windows for just_audio playback ─────────
@@ -181,7 +197,7 @@ Future<void> main(List<String> args) async {
 
   // Songs from Settings > Local music: load the file index, match them to the
   // server library, and rescan quietly a few seconds after launch.
-  container.read(localLibraryBootstrapProvider);
+  if (PlatformUtils.supportsOfflineFiles) container.read(localLibraryBootstrapProvider);
 
   // Plays heard offline reach the servers once they can; covers missing from
   // downloads are fetched again.
@@ -226,7 +242,9 @@ Future<void> main(List<String> args) async {
   runApp(
     UncontrolledProviderScope(
       container: container,
-      child: const MyMusicPlayerApp(),
+      // Browser: phone UI on phones and narrow windows, desktop UI otherwise,
+      // switching live on resize. A pass-through on native builds.
+      child: const WebFormFactorScope(child: MyMusicPlayerApp()),
     ),
   );
 }
@@ -349,10 +367,13 @@ class MyMusicPlayerApp extends ConsumerWidget {
           // TV: overscan margin and larger type. Windows: our own title bar.
           child: PointerAnchor(
             child: TvFrame(
-              child: MiniPlayerHost(
-                child: NaviTitleBar.enabled
-                    ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
-                    : child!,
+              // Browser: "New version · Reload" when a newer build is live.
+              child: WebUpdatePrompt(
+                child: MiniPlayerHost(
+                  child: NaviTitleBar.enabled
+                      ? Column(children: [const NaviTitleBar(), Expanded(child: child!)])
+                      : child!,
+                ),
               ),
             ),
           ),

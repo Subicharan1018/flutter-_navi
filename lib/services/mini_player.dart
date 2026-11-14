@@ -74,7 +74,8 @@ class MiniPlayer {
   /// The mini window: a cover, the song, transport and a seek bar.
   static const Size size = Size(380, 168);
 
-  static bool get supported => PlatformUtils.isDesktop;
+  /// A separate small OS window: native desktop only, never in a browser.
+  static bool get supported => PlatformUtils.isNativeDesktop;
 
   final MiniWindow _window;
   final Size _fullMinimum;

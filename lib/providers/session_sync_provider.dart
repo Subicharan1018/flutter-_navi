@@ -16,6 +16,7 @@ import 'package:flutter/widgets.dart' show AppLifecycleListener;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/hive_boxes.dart';
+import '../core/web_session.dart';
 import 'package:device_info_plus/device_info_plus.dart';
 import '../services/session_sync_service.dart';
 import '../utils/platform_utils.dart';
@@ -28,6 +29,7 @@ String defaultSyncDeviceName() {
     final custom = HiveBoxes.prefs.get('sync_device_name')?.toString().trim() ?? '';
     if (custom.isNotEmpty) return custom;
   } catch (_) {}
+  if (PlatformUtils.isWeb) return 'Web browser';
   if (PlatformUtils.isTv) return 'Android TV';
   if (PlatformUtils.isAndroid) return 'Android phone';
   if (PlatformUtils.isMobile) return 'iPhone';
@@ -47,6 +49,11 @@ Future<String> loadSyncDeviceName() async {
   } catch (_) {}
   try {
     final info = DeviceInfoPlugin();
+    if (PlatformUtils.isWeb) {
+      final b = (await info.webBrowserInfo).browserName.name;
+      final browser = b == 'unknown' ? 'Web browser' : '${b[0].toUpperCase()}${b.substring(1)}';
+      return '$browser (web)';
+    }
     if (PlatformUtils.isAndroid) {
       final a = await info.androidInfo;
       final maker = a.manufacturer.trim();
@@ -64,6 +71,7 @@ Future<String> loadSyncDeviceName() async {
 }
 
 SyncDeviceType defaultSyncDeviceType() {
+  if (PlatformUtils.isWeb) return SyncDeviceType.web;
   if (PlatformUtils.isTv) return SyncDeviceType.tv;
   if (PlatformUtils.isMobile) return SyncDeviceType.phone;
   if (PlatformUtils.isDesktop) return SyncDeviceType.desktop;
@@ -80,6 +88,10 @@ final sessionSyncServiceProvider = Provider<SessionSyncService>((ref) {
     deviceType: defaultSyncDeviceType(),
     jwtSupplier: ({bool forceRefresh = false}) {
       final settings = ref.read(settingsProvider);
+      // Browser: the Navidrome JWT (the session server validates it).
+      if (WebSession.isPlaceholder(settings.password)) {
+        return forceRefresh ? WebSession.refresh() : WebSession.jwt;
+      }
       if (settings.username.isNotEmpty && settings.password.isNotEmpty) {
         return base64Encode(
           utf8.encode('${settings.username}:${settings.password}'),
