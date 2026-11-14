@@ -3,7 +3,9 @@
 
 // This build's id: a hash of the build output that `flutter build web` fills in.
 // A new deploy has a new id, which is how the page notices it is out of date.
-var NAVIVIBE_BUILD = '{{flutter_service_worker_version}}';
+// Flutter fills the token with a quoted string plus a comment, so it is not
+// wrapped in quotes here.
+var NAVIVIBE_BUILD = String({{flutter_service_worker_version}});
 
 // The app (lib/widgets/shell/web_update_prompt.dart) listens for the
 // 'navivibe-update' event and shows "New version · Reload"; it calls apply().
@@ -42,7 +44,7 @@ window.navivibeUpdate = { ready: false, apply: function () { window.location.rel
     fetch('flutter_bootstrap.js', { cache: 'no-store' }).then(function (res) {
       return res.ok ? res.text() : '';
     }).then(function (text) {
-      var m = text.match(/NAVIVIBE_BUILD = '([^']*)'/);
+      var m = text.match(/NAVIVIBE_BUILD = String\("([^"]*)"/);
       if (m && m[1] && m[1] !== NAVIVIBE_BUILD) announce();
     }).catch(function () {});
   }

@@ -93,41 +93,49 @@ class _UpdatePill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    return Semantics(
-      liveRegion: true,
-      container: true,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(Space.lg, Space.xs, Space.xs, Space.xs),
-        decoration: BoxDecoration(
-          color: t.bgSurfaceOpaque,
-          borderRadius: BorderRadius.circular(Radii.capsule),
-          border: Border.all(color: t.outline, width: 0.5),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text('New version available', style: t.footnote.copyWith(color: t.textPrimary)),
-            const SizedBox(width: Space.sm),
-            CupertinoClickable(
-              onTap: onReload,
-              focusRadius: Radii.capsule,
-              semanticLabel: 'Reload to update',
-              child: Container(
-                padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
-                decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(Radii.capsule)),
-                child: Text('Reload', style: t.footnote.copyWith(color: t.onAccent, fontWeight: FontWeight.w600)),
+    // Above the Navigator, so no Material gives it a text style: set one, or
+    // Flutter's debug fallback (yellow double underline) shows.
+    return DefaultTextStyle(
+      style: t.footnote,
+      child: Semantics(
+        liveRegion: true,
+        container: true,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(Space.lg, Space.xs, Space.xs, Space.xs),
+          decoration: BoxDecoration(
+            color: t.bgSurfaceOpaque,
+            borderRadius: BorderRadius.circular(Radii.capsule),
+            border: Border.all(color: t.outline, width: 0.5),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text('New version available', style: t.footnote.copyWith(color: t.textPrimary)),
+              const SizedBox(width: Space.sm),
+              CupertinoClickable(
+                onTap: onReload,
+                focusRadius: Radii.capsule,
+                semanticLabel: 'Reload to update',
+                child: Container(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
+                  decoration: BoxDecoration(color: t.accent, borderRadius: BorderRadius.circular(Radii.capsule)),
+                  child: Text(
+                    'Reload',
+                    style: t.footnote.copyWith(color: t.onAccent, fontWeight: FontWeight.w600),
+                  ),
+                ),
               ),
-            ),
-            CupertinoClickable(
-              onTap: onDismiss,
-              focusRadius: Radii.capsule,
-              semanticLabel: 'Not now',
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
-                child: Text('Later', style: t.footnote),
+              CupertinoClickable(
+                onTap: onDismiss,
+                focusRadius: Radii.capsule,
+                semanticLabel: 'Not now',
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.sm),
+                  child: Text('Later', style: t.footnote),
+                ),
               ),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
