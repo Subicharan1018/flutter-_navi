@@ -10,7 +10,10 @@
 	}
 }
 
-http://127.0.0.1:8090 {
+# Any Host: cloudflared forwards the visitor's Host (subimusic.me), and a site
+# address of 127.0.0.1 would match none of them (Caddy answers an empty 200).
+# `bind` still keeps it on loopback only.
+http://:8090 {
 	bind 127.0.0.1
 
 	# Navidrome on the same origin: no CORS for the web app, and the Android and
