@@ -9,6 +9,7 @@ import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../widgets/ui/controls.dart' show FilterPills;
 import '../../../widgets/ui/media.dart';
 import '../../listen/data/listen_models.dart';
+import '../../moods/ui/flow_mood_buttons.dart';
 import '../logic/flow_controller.dart';
 
 /// "Any mood" in the chips, which key the moods by their server name.
@@ -127,6 +128,7 @@ class FlowSection extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               if (!desktop) action,
+              if (flow.active && flow.mood != null) const FlowMoodButtons(),
               if (flow.active && flow.blend.total > 0) ...[
                 const SizedBox(height: Space.md),
                 FlowBlendStrip(blend: flow.blend),

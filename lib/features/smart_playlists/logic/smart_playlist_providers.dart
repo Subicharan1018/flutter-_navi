@@ -8,6 +8,7 @@ import '../../../providers/catalog_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../moods/data/mood_labels.dart';
+import '../../moods/logic/flow_mood_actions.dart' show songMoodEditsProvider;
 import '../../moods/logic/mood_overrides_provider.dart';
 import '../data/playlist_folders.dart';
 import '../data/smart_evaluator.dart';
@@ -97,6 +98,7 @@ final smartFactsProvider = FutureProvider.autoDispose<List<SongFacts>>((ref) asy
   final songs = await ref.watch(allSongsProvider.future);
   final catalog = ref.watch(catalogProvider).asData?.value.songs ?? const {};
   final notThese = ref.watch(moodOverridesProvider);
+  final edits = ref.watch(songMoodEditsProvider);
   final db = ref.read(appDatabaseProvider);
   final since = DateTime.now().subtract(const Duration(days: _playHistoryDays)).millisecondsSinceEpoch;
   final rows = await (db.selectOnly(db.playEvents)
@@ -113,7 +115,7 @@ final smartFactsProvider = FutureProvider.autoDispose<List<SongFacts>>((ref) asy
       SongFacts(
         song: s,
         languages: catalog[s.id]?.languages ?? const [],
-        moods: effectiveMoods(catalog[s.id]?.moods ?? const [], notThese[s.id]),
+        moods: effectiveMoods(edits[s.id] ?? catalog[s.id]?.moods ?? const [], notThese[s.id]),
         playTimes: plays[s.id] ?? const [],
       ),
   ];

@@ -2,7 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart' show PointerDeviceKind;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
+import 'package:just_audio/just_audio.dart' show LoopMode;
+import 'package:navivibe/providers/player_provider.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/flow/logic/flow_controller.dart';
@@ -40,6 +43,23 @@ class FakeFlow extends FlowController {
   }
 }
 
+/// No song playing: Flow's mood buttons (moods-v2) stay hidden in these tests.
+class IdlePlayer extends StateNotifier<PlayerState> implements PlayerNotifier {
+  IdlePlayer()
+      : super(const PlayerState(
+          queue: [],
+          currentIndex: 0,
+          isPlaying: false,
+          shuffleMode: false,
+          autoplayMode: false,
+          repeatMode: LoopMode.off,
+          starredIds: [],
+          syncMode: SyncMode.activeHere,
+        ));
+  @override
+  dynamic noSuchMethod(Invocation i) => i.isMethod ? Future<void>.value() : null;
+}
+
 const moods = [FlowMood('chill', 40), FlowMood('happy', 30)];
 
 Widget flowApp(Widget child, FlowState state, List<String> calls, {Future<List<FlowMood>> Function()? moodsLoader}) {
@@ -48,6 +68,7 @@ Widget flowApp(Widget child, FlowState state, List<String> calls, {Future<List<F
     overrides: <Override>[
       flowProvider.overrideWith(() => FakeFlow(state, calls)),
       flowMoodsProvider.overrideWith((ref) => (moodsLoader ?? () async => moods)()),
+      playerProvider.overrideWith((ref) => IdlePlayer()),
     ],
     child: ThemeTokens(
       tokens: tokens,
