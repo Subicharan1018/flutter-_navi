@@ -7,6 +7,8 @@ import '../../../models/song.dart';
 import '../../../providers/catalog_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../moods/data/mood_labels.dart';
+import '../../moods/logic/mood_overrides_provider.dart';
 import '../data/playlist_folders.dart';
 import '../data/smart_evaluator.dart';
 import '../data/smart_rules.dart';
@@ -88,11 +90,13 @@ final playlistFoldersProvider =
 const _playHistoryDays = 400;
 
 /// Per-song facts for rule evaluation: the Drift mirror, the shuffle server's
-/// catalog (language, mood) and the local play log. Rebuilt each time a
+/// catalog (language, mood labels minus your "Not this mood" marks) and the
+/// local play log. Rebuilt each time a
 /// smart playlist is opened, so new plays count.
 final smartFactsProvider = FutureProvider.autoDispose<List<SongFacts>>((ref) async {
   final songs = await ref.watch(allSongsProvider.future);
   final catalog = ref.watch(catalogProvider).asData?.value.songs ?? const {};
+  final notThese = ref.watch(moodOverridesProvider);
   final db = ref.read(appDatabaseProvider);
   final since = DateTime.now().subtract(const Duration(days: _playHistoryDays)).millisecondsSinceEpoch;
   final rows = await (db.selectOnly(db.playEvents)
@@ -109,7 +113,7 @@ final smartFactsProvider = FutureProvider.autoDispose<List<SongFacts>>((ref) asy
       SongFacts(
         song: s,
         languages: catalog[s.id]?.languages ?? const [],
-        mood: moodFromCatalog(catalog[s.id]),
+        moods: effectiveMoods(catalog[s.id]?.moods ?? const [], notThese[s.id]),
         playTimes: plays[s.id] ?? const [],
       ),
   ];

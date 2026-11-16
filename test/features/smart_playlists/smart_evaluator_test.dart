@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navivibe/features/moods/data/mood_labels.dart';
 import 'package:navivibe/features/smart_playlists/data/smart_evaluator.dart';
 import 'package:navivibe/features/smart_playlists/data/smart_rules.dart';
 import 'package:navivibe/models/catalog.dart';
@@ -21,7 +22,7 @@ SongFacts facts(
   int? addedDaysAgo,
   List<int> playedDaysAgo = const [],
   List<String> languages = const ['ta'],
-  String? mood,
+  List<String> moods = const [],
 }) =>
     SongFacts(
       song: Song(
@@ -41,7 +42,7 @@ SongFacts facts(
         created: addedDaysAgo == null ? null : now.subtract(Duration(days: addedDaysAgo)),
       ),
       languages: languages,
-      mood: mood,
+      moods: moods,
       playTimes: [for (final d in playedDaysAgo) now.subtract(Duration(days: d)).millisecondsSinceEpoch],
     );
 
@@ -116,8 +117,8 @@ void main() {
 
   test('mood, starred, genre, composer, artist rules', () {
     final lib = [
-      facts('s', mood: 'sad', starred: true, genre: 'Melody', composer: 'Rahman', artist: 'Sid Sriram'),
-      facts('h', mood: 'happy', genre: 'Kuthu'),
+      facts('s', moods: ['sad'], starred: true, genre: 'Melody', composer: 'Rahman', artist: 'Sid Sriram'),
+      facts('h', moods: ['happy'], genre: 'Kuthu'),
     ];
     expect(ids(smart([rule(SmartField.mood, SmartOp.isOp, 'sad')]), lib), ['s']);
     expect(ids(smart([rule(SmartField.starred, SmartOp.isOp, 'true')]), lib), ['s']);
@@ -138,7 +139,7 @@ void main() {
   test('OR groups and nested groups', () {
     final lib = [
       facts('a', year: 2010, starred: true),
-      facts('b', year: 2022, mood: 'sad'),
+      facts('b', year: 2022, moods: ['sad']),
       facts('c', year: 2022),
     ];
     final any = smart([
@@ -211,12 +212,54 @@ void main() {
     expect(p.rules.ruleCount, 1);
   });
 
-  test('moodFromCatalog reads words in bucket and genre', () {
-    CatalogSong s({String? bucket, String? genre}) => CatalogSong(id: '1', bucket: bucket, genre: genre);
-    expect(moodFromCatalog(s(bucket: 'tamil__sad__melody')), 'sad');
-    expect(moodFromCatalog(s(genre: 'Kuthu / Dance')), 'energetic');
-    expect(moodFromCatalog(s(genre: 'Melody')), 'calm');
-    expect(moodFromCatalog(s(genre: 'Film Soundtrack')), isNull);
-    expect(moodFromCatalog(null), isNull);
+  group('mood rule reads the server labels (bug #4)', () {
+    // Facts as smartFactsProvider builds them: the catalog's labels minus "Not this mood".
+    SongFacts fromCatalog(String id, Map<String, dynamic> json, {Set<String>? notThese}) =>
+        facts(id, moods: effectiveMoods(CatalogSong.fromJson({'id': id, ...json}).moods, notThese));
+
+    test('matches any of the labels the server sent', () {
+      final lib = [
+        fromCatalog('sad-love', {'moods': ['sad', 'romantic']}),
+        fromCatalog('love', {'moods': ['romantic']}),
+        fromCatalog('calm', {'moods': ['Calm']}),
+      ];
+      expect(ids(smart([rule(SmartField.mood, SmartOp.isOp, 'sad')]), lib), ['sad-love']);
+      expect(ids(smart([rule(SmartField.mood, SmartOp.isOp, 'romantic')]), lib), ['love', 'sad-love']);
+      expect(ids(smart([rule(SmartField.mood, SmartOp.isOp, 'Calm')]), lib), ['calm']);
+    });
+
+    test('an unlabelled song matches no mood, whatever its genre says', () {
+      final lib = [
+        fromCatalog('melody', {'genre': 'Melody', 'bucket': 'tamil__melody__calm'}),
+        fromCatalog('love-song', {'genre': 'Love Songs', 'bucket': 'Melody / Romance'}),
+        fromCatalog('kuthu', {'genre': 'Kuthu / Dance', 'moods': <String>[]}),
+      ];
+      for (final m in moodLabels) {
+        expect(ids(smart([rule(SmartField.mood, SmartOp.isOp, m)]), lib), isEmpty, reason: m);
+        expect(ids(smart([rule(SmartField.mood, SmartOp.contains, m)]), lib), isEmpty, reason: m);
+      }
+    });
+
+    test('a "Not this mood" mark beats the label', () {
+      final lib = [
+        fromCatalog('a', {'moods': ['sad', 'romantic']}, notThese: {'sad'}),
+        fromCatalog('b', {'moods': ['sad']}),
+      ];
+      expect(ids(smart([rule(SmartField.mood, SmartOp.isOp, 'sad')]), lib), ['b']);
+      expect(ids(smart([rule(SmartField.mood, SmartOp.isOp, 'romantic')]), lib), ['a']);
+    });
+
+    test('the playlist names the mood its song menu offers', () {
+      expect(smart([rule(SmartField.mood, SmartOp.isOp, 'Sad')]).rules.askedMood, 'sad');
+      expect(
+        smart([
+          rule(SmartField.year, SmartOp.gte, '2020'),
+          SmartGroup(children: [rule(SmartField.mood, SmartOp.contains, 'calm')]),
+        ]).rules.askedMood,
+        'calm',
+      );
+      expect(smart([rule(SmartField.mood, SmartOp.isNot, 'sad')]).rules.askedMood, isNull);
+      expect(smart([rule(SmartField.year, SmartOp.gte, '2020')]).rules.askedMood, isNull);
+    });
   });
 }

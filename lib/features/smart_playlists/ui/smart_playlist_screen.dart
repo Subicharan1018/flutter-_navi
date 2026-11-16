@@ -124,6 +124,7 @@ class SmartPlaylistScreen extends ConsumerWidget {
                   onPlayLast: () => queueSongs(context, ref, [song], next: false),
                   child: SongTile(
                     song: song,
+                    mood: playlist.rules.askedMood,
                     showDuration: PlatformUtils.isDesktop,
                     onTap: () => _play(context, ref, playlist, songs, from: song),
                   ),

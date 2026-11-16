@@ -2,6 +2,8 @@
 /// batches, "never recommend" entries and a month of listening.
 library;
 
+import '../../moods/data/mood_labels.dart';
+
 int _int(Object? v) => v is num ? v.toInt() : int.tryParse('${v ?? ''}') ?? 0;
 double _double(Object? v) => v is num ? v.toDouble() : double.tryParse('${v ?? ''}') ?? 0;
 String _str(Object? v) => v is String ? v.trim() : '';
@@ -157,13 +159,24 @@ class FlowMood {
   const FlowMood(this.mood, this.songs);
 
   /// "Calm", "Energetic": how the chip reads.
-  String get label => mood.isEmpty ? mood : mood[0].toUpperCase() + mood.substring(1);
+  String get label => moodTitle(mood);
 }
 
 List<FlowMood> parseFlowMoods(Map<String, dynamic> j) => [
       for (final m in _maps(j['moods']))
         if (_str(m['mood']).isNotEmpty) FlowMood(_str(m['mood']), _int(m['songs'])),
     ];
+
+/// `GET /moods/overrides`: `{"overrides": {song_id: ["sad", …]}}`.
+Map<String, Set<String>> parseMoodOverrides(Map<String, dynamic> j) {
+  final raw = j['overrides'];
+  if (raw is! Map) return const {};
+  return {
+    for (final e in raw.entries)
+      if (e.value is List && (e.value as List).isNotEmpty)
+        e.key.toString(): {for (final m in e.value as List) m.toString().toLowerCase()},
+  };
+}
 
 /// A language the library has songs in.
 class FlowLanguage {

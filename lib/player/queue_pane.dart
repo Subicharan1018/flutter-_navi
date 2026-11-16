@@ -13,6 +13,7 @@ import '../utils/queue_actions.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/table/song_table.dart' show SongDrag;
 import '../widgets/desktop_dialogs.dart';
+import '../widgets/options_menu.dart' show showSongActions;
 import '../widgets/ui/action_sheet.dart';
 import 'artwork.dart';
 import 'edge_fade.dart';
@@ -109,6 +110,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                       song: song,
                       url: service.getCoverArtUrl(song.coverArt),
                       style: st,
+                      songMenu: false,
                       onTap: () {
                         final idx =
                             queue.lastIndexWhere((s) => s.id == song.id);
@@ -733,6 +735,10 @@ class _QueueRow extends StatelessWidget {
   final Widget? trailing;
   final bool isCurrent;
 
+  /// Long-press (touch) or right-click opens the song menu (with "Not this mood"
+  /// while Flow plays a mood). Off for History rows, where a long-press drags.
+  final bool songMenu;
+
   const _QueueRow({
     required this.song,
     required this.url,
@@ -740,12 +746,20 @@ class _QueueRow extends StatelessWidget {
     this.onTap,
     this.trailing,
     this.isCurrent = false,
+    this.songMenu = true,
   });
+
+  void _openMenu(BuildContext context) {
+    HapticFeedback.mediumImpact();
+    showSongActions(context, song);
+  }
 
   @override
   Widget build(BuildContext context) {
     return InkWell(
       onTap: onTap,
+      onLongPress: songMenu ? () => _openMenu(context) : null,
+      onSecondaryTap: songMenu ? () => _openMenu(context) : null,
       child: Padding(
         padding: EdgeInsets.fromLTRB(16, 6, trailing == null ? 16 : 4, 6),
         child: Row(
