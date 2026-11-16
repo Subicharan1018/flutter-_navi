@@ -10,6 +10,9 @@ import 'package:navivibe/features/online_fetch/data/fetch_models.dart';
 import 'package:navivibe/features/online_fetch/data/online_fetch_api.dart';
 import 'package:navivibe/features/online_fetch/logic/fetch_playlists.dart';
 import 'package:navivibe/models/playlist.dart';
+import 'package:navivibe/providers/settings_provider.dart';
+import 'package:navivibe/services/subsonic_service.dart';
+import 'package:navivibe/features/online_fetch/ui/online_search_sheet.dart';
 import 'package:navivibe/widgets/art/navi_icons.dart';
 import 'package:navivibe/features/online_fetch/logic/online_fetch_providers.dart';
 import 'package:navivibe/features/online_fetch/ui/fetch_activity.dart';
@@ -70,6 +73,8 @@ ResponseBody _json(int status, Object body) => ResponseBody.fromString(
 
 OnlineFetchApi _api(ResponseBody Function(RequestOptions o) handler) =>
     OnlineFetchApi(Dio(BaseOptions(baseUrl: 'https://x.test'))..httpClientAdapter = _FakeAdapter(handler));
+
+class _FakeSvc extends Fake implements SubsonicService {}
 
 Finder _glyph(NaviGlyph g) => find.byWidgetPredicate((w) => w is NaviIcon && w.glyph == g);
 
@@ -523,11 +528,43 @@ void main() {
       expect(playlistLinkProblem('https://www.deezer.com/en/playlist/1032500191?utm=x'), isNull);
       expect(playlistLinkProblem(' https://open.spotify.com/playlist/37i9dQZF1DXcBWIGoYBM5M?si=1 '), isNull);
       expect(playlistLinkProblem('tamil hits'), contains('Paste a playlist link'));
-      expect(playlistLinkProblem('https://www.youtube.com/playlist?list=PLx'), contains('doesn’t take this site'));
       expect(playlistLinkProblem('https://www.deezer.com/album/81950092'), contains('isn’t a playlist'));
-      expect(playlistLinkProblem('https://example.com/x'), 'Only Deezer and Spotify playlist links work.');
+      expect(playlistLinkProblem('https://example.com/x'), 'Only Deezer, Spotify and YouTube playlist links work.');
       expect(looksLikeLink('https://x'), isTrue);
       expect(looksLikeLink('maari 2'), isFalse);
+    });
+
+    test('YouTube playlist links: accepted', () {
+      const id = 'PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf';
+      for (final host in ['www.youtube.com', 'youtube.com', 'music.youtube.com', 'm.youtube.com']) {
+        expect(playlistLinkProblem('https://$host/playlist?list=$id'), isNull, reason: host);
+      }
+      expect(playlistLinkProblem('https://music.youtube.com/playlist?list=OLAK5uy_kXxXxXxXxXxXxXxXxXxXxXxXxXxXxXxXx'), isNull);
+      expect(playlistLinkProblem('https://music.youtube.com/playlist?list=$id&si=abc'), isNull);
+    });
+
+    test('YouTube playlist links: rejected, with the exact words', () {
+      const notPlaylist = 'That YouTube link isn’t a playlist. Open the playlist and copy its link.';
+      const invalid = 'That YouTube playlist link isn’t valid. Open the playlist and copy its link.';
+      // A watch link without list=, and a channel page.
+      expect(playlistLinkProblem('https://www.youtube.com/watch?v=dQw4w9WgXcQ'), notPlaylist);
+      expect(playlistLinkProblem('https://www.youtube.com/@someone'), notPlaylist);
+      expect(playlistLinkProblem('https://www.youtube.com/playlist'), notPlaylist);
+      // Private lists.
+      expect(playlistLinkProblem('https://www.youtube.com/playlist?list=LL'), 'This playlist is private');
+      expect(playlistLinkProblem('https://music.youtube.com/playlist?list=LM'), 'This playlist is private');
+      expect(playlistLinkProblem('https://www.youtube.com/playlist?list=WL'), 'This playlist is private');
+      // Not a playlist id.
+      expect(playlistLinkProblem('https://www.youtube.com/playlist?list=PLshort'), invalid);
+      expect(playlistLinkProblem('https://www.youtube.com/playlist?list=XXabcdefghijklmnop'), invalid);
+      expect(playlistLinkProblem('https://www.youtube.com/playlist?list=PLabcdefghijklmnop&list=PLqrstuvwxyz0123'), invalid);
+      // Other hosts.
+      expect(playlistLinkProblem('https://youtu.be/dQw4w9WgXcQ?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf'),
+          'Paste the playlist’s youtube.com link, not a short link.');
+      expect(playlistLinkProblem('https://evil.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf'),
+          'Only Deezer, Spotify and YouTube playlist links work.');
+      expect(playlistLinkProblem('https://notyoutube.com/playlist?list=PLrAXtmErZgOeiKm4sgNOknGvNjby9efdf'),
+          'Only Deezer, Spotify and YouTube playlist links work.');
     });
 
     test('a bad link fails at once, without asking the server', () async {
@@ -540,9 +577,9 @@ void main() {
       addTearDown(c.dispose);
       final sub = c.listen(sendPlaylistProvider, (_, _) {});
       addTearDown(sub.close);
-      await c.read(sendPlaylistProvider.notifier).startLink('https://youtu.be/abc');
+      await c.read(sendPlaylistProvider.notifier).startLink('https://example.com/abc');
       expect(calls, 0);
-      expect(c.read(sendPlaylistProvider).error, contains('Only Deezer and Spotify'));
+      expect(c.read(sendPlaylistProvider).error, contains('Only Deezer, Spotify and YouTube'));
     });
 
     test('a good link lists its songs, owned or new, under the playlist’s name', () async {
@@ -623,6 +660,136 @@ void main() {
       expect(find.text('Download 1 New Song'), findsOneWidget);
       expect(find.text('In your library'), findsNWidgets(2));
       expect(_glyph(NaviGlyph.downloadCircle), findsNothing);   // rows don't download one by one
+    });
+  });
+
+  group('switching the kind of search', () {
+    setUp(() => OnlineSearchController.pollEvery = Duration.zero);
+
+    test('each switch starts a fresh search of that kind and drops the old results', () async {
+      final sent = <Object?>[];
+      final api = _api((o) {
+        if (o.method == 'POST') {
+          sent.add(o.data);
+          return _json(202, {'search_id': 10});
+        }
+        return _json(200, {..._results(), 'candidates': [_album]});
+      });
+      final c = ProviderContainer(overrides: [onlineFetchApiProvider.overrideWithValue(api)]);
+      addTearDown(c.dispose);
+      final sub = c.listen(onlineSearchProvider, (_, _) {});
+      addTearDown(sub.close);
+      final ctrl = c.read(onlineSearchProvider.notifier);
+
+      await ctrl.start('maari 2', type: FetchSearchType.artist);
+      await ctrl.openCollection(c.read(onlineSearchProvider).search!.candidates.first);
+      expect(c.read(onlineSearchProvider).artist, isNotNull);
+
+      final seen = <OnlineSearchState>[];
+      c.listen(onlineSearchProvider, (_, n) => seen.add(n));
+      await ctrl.start('maari 2', type: FetchSearchType.album);
+      expect(sent.last, {'query': 'maari 2', 'kind': 'album'});
+      // First thing the user sees after the switch: that kind, loading, nothing old.
+      expect(seen.first.type, FetchSearchType.album);
+      expect(seen.first.search, isNull);
+      expect(seen.first.isLoading, isTrue);
+      expect(seen.first.artist, isNull);
+      expect(seen.first.parent, isNull);
+
+      await ctrl.start('maari 2');
+      expect(sent.last, {'query': 'maari 2'});
+      expect(c.read(onlineSearchProvider).type, FetchSearchType.song);
+    });
+
+    test('“Search online anyway” sends force=1', () async {
+      final queries = <Map<String, dynamic>>[];
+      final api = _api((o) {
+        queries.add(o.queryParameters);
+        return _json(202, {'search_id': 3});
+      });
+      await api.startSearch('daavudi');
+      await api.startSearch('daavudi', force: true);
+      expect(queries, [<String, dynamic>{}, {'force': 1}]);
+    });
+
+    test('the owned match is a hint that can sit beside results', () {
+      final s = FetchSearch.fromJson({
+        ..._results(),
+        'library': jsonDecode(_inLibraryJson)['library'],
+      });
+      expect(s.status, FetchSearchStatus.done);
+      expect(s.candidates, isNotEmpty);
+      expect(s.ownedHint!.songId, 'BVLDhaybfNoZVSx3g1kBTF');
+      expect(FetchSearch.fromJson(_results()).ownedHint, isNull);
+    });
+
+    Future<void> pumpBody(WidgetTester tester, OnlineSearchState state, {
+      void Function(String)? anyway,
+      void Function(FetchSearchType)? onType,
+    }) =>
+        tester.pumpWidget(ProviderScope(
+          key: UniqueKey(),
+          overrides: [subsonicServiceProvider.overrideWithValue(_FakeSvc())],
+          child: MaterialApp(
+            home: Scaffold(
+              body: ThemeTokens(
+                tokens: AppThemeTokens.fallback,
+                child: SingleChildScrollView(
+                  child: OnlineSearchBody(
+                    state: state,
+                    onSearch: (_) {},
+                    onPlay: (_) async {},
+                    onSearchAnyway: anyway,
+                    onType: onType,
+                  ),
+                ),
+              ),
+            ),
+          ),
+        ));
+
+    testWidgets('an in_library answer shows the hint and “Search online anyway”', (tester) async {
+      String? forced;
+      await pumpBody(
+        tester,
+        OnlineSearchState(
+          query: 'rowdy baby',
+          search: FetchSearch.fromJson(jsonDecode(_inLibraryJson) as Map<String, dynamic>),
+        ),
+        anyway: (q) => forced = q,
+      );
+      expect(find.textContaining('You may already have: '), findsOneWidget);
+      expect(find.textContaining('Rowdy Baby (From "Maari 2")'), findsOneWidget);
+      expect(find.text('Play'), findsOneWidget);
+      expect(find.text('Already in your library'), findsNothing);
+      await tester.tap(find.text('Search online anyway'));
+      expect(forced, 'rowdy baby');
+    });
+
+    testWidgets('an empty Albums search says so and offers the other kinds', (tester) async {
+      FetchSearchType? picked;
+      await pumpBody(
+        tester,
+        OnlineSearchState(
+          query: 'daavudi',
+          type: FetchSearchType.album,
+          search: FetchSearch.fromJson({..._results(status: 'no_results'), 'query': 'daavudi', 'candidates': []}),
+        ),
+        onType: (t) => picked = t,
+      );
+      expect(find.text('No albums found for ‘daavudi’'), findsOneWidget);
+      expect(find.text('Check the spelling, or try Songs.'), findsNothing);
+      for (final label in ['Songs', 'Artists', 'Playlists', 'Labels']) {
+        expect(find.text(label), findsOneWidget);
+      }
+      expect(find.text('Albums'), findsNothing);
+      await tester.tap(find.text('Songs'));
+      expect(picked, FetchSearchType.song);
+    });
+
+    testWidgets('while another kind loads, its own loading text shows', (tester) async {
+      await pumpBody(tester, const OnlineSearchState(query: 'daavudi', type: FetchSearchType.album));
+      expect(find.text('Searching albums…'), findsOneWidget);
     });
   });
 

@@ -54,6 +54,13 @@ class _OnlineSearchPageState extends ConsumerState<OnlineSearchPage> {
     unawaited(ref.read(onlineSearchProvider.notifier).start(q, type: _type));
   }
 
+  void _searchAnyway(String query) {
+    final q = query.trim();
+    if (q.length < 2) return;
+    unawaited(ref.read(onlineSearchProvider.notifier).start(q, type: _type, force: true));
+  }
+
+  /// Every switch is a fresh search for that kind (old results are dropped).
   void _setType(FetchSearchType type) {
     setState(() => _type = type);
     _search(_field.text);
@@ -141,7 +148,13 @@ class _OnlineSearchPageState extends ConsumerState<OnlineSearchPage> {
                       OnlineArtistHeader(state: s),
                     const SizedBox(height: Space.md),
                     const ActiveFetchDownloads(),
-                    OnlineSearchBody(state: s, onSearch: _search, onPlay: _play),
+                    OnlineSearchBody(
+                      state: s,
+                      onSearch: _search,
+                      onPlay: _play,
+                      onSearchAnyway: _searchAnyway,
+                      onType: _setType,
+                    ),
                     const SizedBox(height: Space.xl),
                   ],
                 ),

@@ -15,7 +15,7 @@ import '../logic/online_fetch_providers.dart';
 import 'online_search_sheet.dart' show confirmFetchDownload;
 import 'widgets/fetch_candidate_row.dart';
 
-/// "Send a Playlist": paste a Deezer or Spotify playlist link, see its songs
+/// "Send a Playlist": paste a Deezer, Spotify or YouTube playlist link, see its songs
 /// (which you already have, which are new), and add the new ones in lossless
 /// quality. The playlist then appears in your library under its own name,
 /// owned and new songs together, in the playlist's order. Sending the same
@@ -111,7 +111,7 @@ class _SendPlaylistSheetState extends ConsumerState<SendPlaylistSheet> {
         Padding(
           padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, 0),
           child: Text(
-            'Paste a Deezer or Spotify playlist link. Songs you already have are kept; '
+            'Paste a Deezer, Spotify or YouTube playlist link. Songs you already have are kept; '
             'the rest are added in lossless quality, and it becomes a playlist in your library.',
             style: t.footnote,
           ),

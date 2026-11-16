@@ -67,11 +67,19 @@ class OnlineFetchApi {
     }
   }
 
-  Future<int> startSearch(String query, {FetchSearchType type = FetchSearchType.song}) => _wrap(() async {
-        final r = await _dio.post<Map<String, dynamic>>('/fetch/searches', data: {
-          'query': query,
-          if (type != FetchSearchType.song) 'kind': type.name,
-        });
+  /// [force] asks the server to search the bot even though the library seems to
+  /// have the song (query parameter `force=1`; a server that doesn't know it
+  /// ignores it).
+  Future<int> startSearch(String query, {FetchSearchType type = FetchSearchType.song, bool force = false}) =>
+      _wrap(() async {
+        final r = await _dio.post<Map<String, dynamic>>(
+          '/fetch/searches',
+          queryParameters: force ? {'force': 1} : null,
+          data: {
+            'query': query,
+            if (type != FetchSearchType.song) 'kind': type.name,
+          },
+        );
         return (r.data!['search_id'] as num).toInt();
       });
 

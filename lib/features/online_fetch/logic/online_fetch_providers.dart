@@ -127,11 +127,14 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
     return const OnlineSearchState();
   }
 
-  Future<void> start(String query, {FetchSearchType type = FetchSearchType.song}) async {
+  /// Always a fresh search for [type]: the old results, artist drill-down and
+  /// parent are dropped. [force] searches the bot even if the library seems to
+  /// have the song.
+  Future<void> start(String query, {FetchSearchType type = FetchSearchType.song, bool force = false}) async {
     final q = query.trim();
     if (q.length < 2) return;
     final api = ref.read(onlineFetchApiProvider);
-    await _run(OnlineSearchState(query: q, type: type), () => api.startSearch(q, type: type));
+    await _run(OnlineSearchState(query: q, type: type), () => api.startSearch(q, type: type, force: force));
   }
 
   /// Lists a pasted playlist link's songs, owned or new. A link the app can

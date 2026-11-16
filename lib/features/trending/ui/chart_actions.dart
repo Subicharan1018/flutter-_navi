@@ -21,12 +21,18 @@ Future<void> playChart(BuildContext context, WidgetRef ref, TrendingChart chart,
 
 Future<void> _play(BuildContext context, WidgetRef ref, TrendingChart chart,
     {ChartEntry? from, bool shuffle = false}) async {
-  var ok = false;
+  var result = ChartPlayResult.noSongs;
   try {
-    ok = await ref.read(chartPlayerProvider).play(chart, from: from, shuffle: shuffle);
+    result = await ref.read(chartPlayerProvider).play(chart, from: from, shuffle: shuffle);
   } catch (_) {}
-  if (!ok && context.mounted) {
-    showToast(context, 'Couldn’t load the chart’s songs. Check your connection and try again.');
+  if (!context.mounted) return;
+  switch (result) {
+    case ChartPlayResult.played:
+      break;
+    case ChartPlayResult.entryMissing:
+      showToast(context, '${from?.title ?? 'This song'}: Not in your library');
+    case ChartPlayResult.noSongs:
+      showToast(context, 'Couldn’t load the chart’s songs. Check your connection and try again.');
   }
 }
 

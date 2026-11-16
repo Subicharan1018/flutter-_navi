@@ -18,6 +18,10 @@ enum ChartSongStatus {
   /// Still being downloaded (or waiting its turn).
   pending,
 
+  /// Not in the library, and nothing is fetching it (the server dropped a dead
+  /// library id). Distinct from [pending], which will arrive on its own.
+  notInLibrary,
+
   /// The download source only has it in lossy quality.
   lossy,
 
@@ -32,6 +36,7 @@ enum ChartSongStatus {
         'lossy' => lossy,
         'not_found' => notFound,
         'failed' => failed,
+        'not_in_library' => notInLibrary,
         _ => pending,
       };
 }
@@ -197,6 +202,8 @@ class ChartEntry {
   String? get unavailableLine {
     if (playable) return null;
     if (status == ChartSongStatus.pending) return 'Downloading soon';
+    // "Available" with no usable id means the library no longer has it.
+    if (status == ChartSongStatus.notInLibrary || status == ChartSongStatus.available) return 'Not in your library';
     return reason ?? switch (status) {
       ChartSongStatus.lossy => 'Only available in lossy quality',
       ChartSongStatus.notFound => 'Not found on the download source',

@@ -55,7 +55,8 @@ enum FetchSearchType {
 
 /// Why [text] can't be sent as a playlist link, or null when it can — the
 /// same rules (and words) as the server, so a bad paste is caught at once.
-/// The music bot takes Deezer and Spotify playlist links; it ignores YouTube.
+/// Deezer, Spotify and YouTube / YouTube Music playlist links work. A YouTube
+/// link is only read as a list of names; the songs come through the bot.
 String? playlistLinkProblem(String text) {
   final uri = Uri.tryParse(text.trim());
   if (uri == null || !(uri.scheme == 'https' || uri.scheme == 'http') || uri.host.isEmpty) {
@@ -73,10 +74,34 @@ String? playlistLinkProblem(String text) {
         ? null
         : 'That Spotify link isn’t a playlist. Open the playlist and copy its link.';
   }
-  if (host.endsWith('youtube.com') || host == 'youtu.be' || host.endsWith('music.apple.com')) {
-    return 'Only Deezer and Spotify playlist links work. The music bot doesn’t take this site.';
+  if (_youtubeHosts.contains(host)) return _youtubeProblem(uri);
+  if (host == 'youtu.be') return 'Paste the playlist’s youtube.com link, not a short link.';
+  if (host.endsWith('music.apple.com')) {
+    return 'Only Deezer, Spotify and YouTube playlist links work. The music bot doesn’t take this site.';
   }
-  return 'Only Deezer and Spotify playlist links work.';
+  return 'Only Deezer, Spotify and YouTube playlist links work.';
+}
+
+const _youtubeHosts = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'};
+
+/// Playlist ids the server can read: ordinary (PL), album (OLAK5uy_), mix (RD),
+/// uploads (UU), favourites (FL).
+final _youtubeListId = RegExp(r'^(PL|OLAK5uy_|RD|UU|LL|FL)[A-Za-z0-9_-]{10,64}$');
+
+/// Private lists (Liked videos, Watch later, Liked music): nobody else can read them.
+const _youtubePrivateLists = {'LL', 'WL', 'LM'};
+
+String? _youtubeProblem(Uri uri) {
+  const notPlaylist = 'That YouTube link isn’t a playlist. Open the playlist and copy its link.';
+  if (uri.path != '/playlist' && uri.path != '/playlist/') return notPlaylist;
+  final lists = uri.queryParametersAll['list'] ?? const <String>[];
+  if (lists.isEmpty || lists.first.isEmpty) return notPlaylist;
+  final id = lists.first;
+  if (_youtubePrivateLists.contains(id)) return 'This playlist is private';
+  if (lists.length > 1 || !_youtubeListId.hasMatch(id)) {
+    return 'That YouTube playlist link isn’t valid. Open the playlist and copy its link.';
+  }
+  return null;
 }
 
 /// Looks like a link the user meant to send (anything starting with http).
@@ -187,6 +212,11 @@ class FetchSearch {
   final List<LibraryMatch> libraryMatches;
   final List<FetchCandidate> candidates;
 
+  /// The song the library may already have for this query. Shown above the
+  /// results, never instead of them (unless an older server ended the search
+  /// as [FetchSearchStatus.inLibrary] with no results at all).
+  LibraryMatch? get ownedHint => libraryMatches.firstOrNull;
+
   const FetchSearch({
     required this.id,
     required this.query,
@@ -217,6 +247,7 @@ class FetchSearch {
 
   factory FetchSearch.fromJson(Map<String, dynamic> j) {
     final library = j['library'];
+    // Read for any status: the server may now send results AND a match.
     final matches = library is Map && library['verdict'] == 'in_library'
         ? [for (final m in (library['matches'] as List? ?? const [])) LibraryMatch.fromJson(m as Map<String, dynamic>)]
         : const <LibraryMatch>[];
