@@ -2275,6 +2275,18 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     };
     if (candidates.isEmpty) return ReshuffleOutcome.nothingToShuffle;
 
+    // Ban what is already coming up next, not just the song playing: the
+    // server's picks lean on the same few top songs, so with only the current
+    // one banned a reshuffle came back with the same queue. Keep at least a
+    // full batch to choose from (a short playlist still reshuffles).
+    const batch = 16;
+    final upcomingTitles = <String>[
+      for (final s in state.queue.skip(state.currentIndex + 1).take(batch))
+        if (s.id != current.id && candidates.containsKey(s.id)) s.title,
+    ];
+    final banRoom = (candidates.length - batch).clamp(0, upcomingTitles.length);
+    final excluded = [current.title, ...upcomingTitles.take(banRoom)];
+
     List<Song>? picks;
     try {
       final recs = await _ref.read(shuffleQueueProvider.notifier).reshuffle(
@@ -2283,7 +2295,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             // A library-wide reshuffle needs no list: the server's catalog
             // is this library. A playlist/album is sent so picks stay in it.
             candidates: fromLibrary ? const [] : [for (final s in candidates.values) s.title],
-            excludedTitlesOverride: [current.title],
+            excludedTitlesOverride: excluded,
           );
       picks = _resolveRecommendations(recs, candidates);
       if (picks.isEmpty) picks = null;

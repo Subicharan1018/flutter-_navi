@@ -766,6 +766,38 @@ void main() {
       expect(lastCall['excludedTitles'].contains(playingBeforeReshuffle.title), isTrue);
     });
 
+    test('Smart Reshuffle also bans the songs already up next, so the queue changes', () async {
+      final playlist = generatePlaylist(40);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+
+      await notifier.playPlaylist(playlist, shuffle: true);
+      final before = container.read(playerProvider);
+      final upNext = [for (final s in before.queue.skip(before.currentIndex + 1).take(16)) s.title];
+
+      await notifier.smartReshuffle(library: playlist);
+      final banned = List<String>.from(mockRepo.getNextCalls.last['excludedTitles'] as List);
+      expect(banned, containsAll(upNext), reason: '40 songs leave room to ban all 16 coming up');
+
+      // A second reshuffle bans what the first one put up next.
+      final mid = container.read(playerProvider);
+      final upNext2 = [for (final s in mid.queue.skip(mid.currentIndex + 1).take(16)) s.title];
+      await notifier.smartReshuffle(library: playlist);
+      expect(List<String>.from(mockRepo.getNextCalls.last['excludedTitles'] as List), containsAll(upNext2));
+    });
+
+    test('A short playlist bans only what still leaves a full batch to pick from', () async {
+      final playlist = generatePlaylist(20);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+
+      await notifier.playPlaylist(playlist, shuffle: true);
+      await notifier.smartReshuffle(library: playlist);
+      final banned = mockRepo.getNextCalls.last['excludedTitles'] as List;
+      // 19 candidates besides the song playing: room to ban 3, plus the current song.
+      expect(banned.length, 4);
+    });
+
     test('Scenario 9: Reordering and Removal in Up Next during Smart Shuffle', () async {
       final playlist = generatePlaylist(25);
       setupContainer(librarySongs: playlist);
