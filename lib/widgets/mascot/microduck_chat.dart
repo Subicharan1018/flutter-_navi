@@ -7,6 +7,7 @@ import '../../features/recognize/ui/recognize_sheet.dart';
 import '../../models/song.dart';
 import '../../player/artwork.dart';
 import '../../providers/player_provider.dart';
+import '../../utils/queue_actions.dart' show addToUpNext;
 import '../../providers/settings_provider.dart';
 import '../add_to_playlist_dialog.dart';
 import '../art/navi_icons.dart';
@@ -491,7 +492,7 @@ class _SongRow extends ConsumerWidget {
             glyph: NaviGlyph.playLast,
             label: 'Add ${song.title} to the queue',
             onTap: () async {
-              await player.addToQueue(song);
+              await addToUpNext(ref, [song], next: false);
               if (context.mounted) showToast(context, 'Added to queue');
             },
           ),

@@ -7,6 +7,7 @@ import '../core/theme.dart';
 import '../models/composer.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
+import '../providers/remote_queue_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/platform_utils.dart';
 import '../utils/queue_actions.dart';
@@ -52,14 +53,29 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
   /// itself is untouched.
   void _insertDropped(List<Song> songs, int at) {
     HapticFeedback.mediumImpact();
-    ref.read(playerProvider.notifier).insertAllNext(songs, atIndex: at);
+    queueInsertAt(ref, songs, at);
+  }
+
+  void _jump(int index) {
+    queueJumpTo(ref, index);
+    widget.onJumped?.call();
   }
 
   @override
   Widget build(BuildContext context) {
     final st = widget.style;
-    final queue = ref.watch(playerProvider.select((s) => s.queue));
-    final current = ref.watch(playerProvider.select((s) => s.currentIndex));
+    // While another of your devices plays, this pane shows and edits ITS queue
+    // (sent through the session link); otherwise this device's own.
+    final remote = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive));
+    final queue = remote
+        ? ref.watch(remoteQueueProvider.select((s) => s.songs))
+        : ref.watch(playerProvider.select((s) => s.queue));
+    final current = remote
+        ? ref.watch(remoteQueueProvider.select((s) => s.index))
+        : ref.watch(playerProvider.select((s) => s.currentIndex));
+    // A queue that follows a Jam is changed from the Jam, not from here.
+    // (A refused edit is explained by RemoteQueueNotices on the remote mini player.)
+    final editable = !remote || ref.watch(remoteQueueProvider.select((s) => s.editable));
     final history = ref.watch(playerProvider.select((s) => s.history));
     final notifier = ref.read(playerProvider.notifier);
     final service = ref.read(subsonicServiceProvider);
@@ -114,10 +130,15 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                       onTap: () {
                         final idx =
                             queue.lastIndexWhere((s) => s.id == song.id);
-                        idx >= 0
-                            ? notifier.jumpTo(idx)
-                            : notifier.setQueue([song], 0);
-                        widget.onJumped?.call();
+                        if (idx >= 0) {
+                          _jump(idx);
+                        } else if (remote) {
+                          // Not in the other device's queue: it plays next there.
+                          addToUpNext(ref, [song], next: true);
+                        } else {
+                          notifier.setQueue([song], 0);
+                          widget.onJumped?.call();
+                        }
                       },
                       trailing: IconButton(
                         tooltip: 'More',
@@ -153,11 +174,24 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                 _SectionHeader(
                   title: 'Playing Next',
                   style: st,
-                  subtitle: upNext.isEmpty
-                      ? null
-                      : '${upNext.length} ${upNext.length == 1 ? 'song' : 'songs'}',
+                  subtitle: !editable
+                      ? 'Follows the Jam'
+                      : upNext.isEmpty
+                          ? null
+                          : '${upNext.length} ${upNext.length == 1 ? 'song' : 'songs'}',
+                  trailing: editable && upNext.isNotEmpty
+                      ? _TextAction(
+                          label: 'Clear',
+                          style: st,
+                          onTap: () {
+                            HapticFeedback.mediumImpact();
+                            queueClearUpcoming(ref);
+                          },
+                        )
+                      : null,
                 ),
-                const _ModePills(),
+                // Shuffle, repeat and autoplay act on this device's player.
+                if (!remote) const _ModePills(),
                 const SizedBox(height: 6),
               ],
             ),
@@ -173,6 +207,16 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                 alwaysAbove: true,
                 onDrop: _insertDropped,
                 child: _EmptyNext(style: st),
+              ),
+            )
+          else if (!editable)
+            SliverList.builder(
+              itemCount: upNext.length,
+              itemBuilder: (context, i) => _QueueRow(
+                key: ValueKey('q_${upNext[i].id}_${current + 1 + i}'),
+                song: upNext[i],
+                url: service.getCoverArtUrl(upNext[i].coverArt),
+                style: st,
               ),
             )
           else
@@ -207,10 +251,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
               onReorderItem: (oldIdx, newIdx) {
                 if (newIdx == oldIdx) return;
                 HapticFeedback.selectionClick();
-                notifier.reorderQueue(
-                  current + 1 + oldIdx,
-                  current + 1 + newIdx,
-                );
+                queueMove(ref, current + 1 + oldIdx, current + 1 + newIdx);
               },
               itemBuilder: (context, i) {
                 final song = upNext[i];
@@ -229,17 +270,14 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                         song: song,
                         url: service.getCoverArtUrl(song.coverArt),
                         style: st,
-                        onTap: () {
-                          notifier.jumpTo(qIdx);
-                          widget.onJumped?.call();
-                        },
+                        onTap: () => _jump(qIdx),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               tooltip: 'Remove from queue',
                               visualDensity: VisualDensity.compact,
-                              onPressed: () => notifier.removeFromQueue(qIdx),
+                              onPressed: () => queueRemoveAt(ref, qIdx),
                               icon: NaviIcon(NaviGlyph.close, size: 14, color: st.textMuted),
                             ),
                             NaviIcon(NaviGlyph.grip, color: st.textMuted, size: 18),
@@ -254,7 +292,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                   // Absolute index keeps keys unique when a song repeats.
                   key: ValueKey('q_${song.id}_$qIdx'),
                   style: st,
-                  onRemove: () => notifier.removeFromQueue(qIdx),
+                  onRemove: () => queueRemoveAt(ref, qIdx),
                   child: _DropSlot(
                     queueIndex: qIdx,
                     style: st,
@@ -263,10 +301,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                       song: song,
                       url: service.getCoverArtUrl(song.coverArt),
                       style: st,
-                      onTap: () {
-                        notifier.jumpTo(qIdx);
-                        widget.onJumped?.call();
-                      },
+                      onTap: () => _jump(qIdx),
                       trailing: ReorderableDragStartListener(
                         index: i,
                         child: Semantics(
@@ -740,6 +775,7 @@ class _QueueRow extends StatelessWidget {
   final bool songMenu;
 
   const _QueueRow({
+    super.key,
     required this.song,
     required this.url,
     required this.style,

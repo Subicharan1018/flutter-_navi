@@ -123,7 +123,7 @@ void main() {
   test('connecting says who this device is and asks for the new protocol, with a safe query', () async {
     final (service, _, uris) = await _connected(name: 'Pixel 8', type: SyncDeviceType.phone);
     final q = uris.single.queryParameters;
-    expect(q['proto'], '3');
+    expect(q['proto'], '4'); // 4: takes queue edits from the other devices
     expect(q['device_name'], 'Pixel 8');
     expect(q['device_type'], 'phone');
     expect(q['token'], 'tok en/+=');               // survives encoding
@@ -446,6 +446,99 @@ void main() {
       expect(syncDeviceGlyph(SyncDeviceType.phone), syncDeviceGlyph(SyncDeviceType.tablet));
       expect(syncDeviceGlyph(SyncDeviceType.desktop), syncDeviceGlyph(SyncDeviceType.tv));
       expect(syncDeviceGlyph(SyncDeviceType.phone) == syncDeviceGlyph(SyncDeviceType.desktop), isFalse);
+    });
+  });
+
+  group('queue edits (protocol 4)', () {
+    /// Connected, with a protocol-3+ state seen (epoch 2, version 41).
+    Future<(SessionSyncService, _Channel)> v3() async {
+      final (service, ch, _) = await _connected();
+      ch.serverSends({'type': 'state', 'payload': {'active_device': 'pc', 'queue': ['a', 'b'], 'epoch': 2, 'version': 41}});
+      await _pump();
+      return (service, ch);
+    }
+
+    test('each edit is a cmd frame with its type, args and the version this device saw', () async {
+      final (service, ch) = await v3();
+      final ids = [
+        service.sendQueueEdit(QueueEditType.insert, {'track_ids': ['x'], 'position': 'next'}),
+        service.sendQueueEdit(QueueEditType.insert, {'track_ids': ['y'], 'position': 2, 'after_id': 'b'}),
+        service.sendQueueEdit(QueueEditType.remove, {'index': 1, 'track_id': 'b'}),
+        service.sendQueueEdit(QueueEditType.move, {'from': 1, 'to': 0, 'track_id': 'b'}),
+        service.sendQueueEdit(QueueEditType.clearUpcoming, const {}),
+      ];
+      final frames = ch.out.sent.where((f) => f['type'] == 'cmd').toList();
+      expect([for (final f in frames) f['cmdType']],
+          ['queue_insert', 'queue_insert', 'queue_remove', 'queue_move', 'queue_clear_upcoming']);
+      expect([for (final f in frames) f['cmdId']], ids);
+      expect(ids.toSet().length, 5);
+      for (final f in frames) {
+        expect(f['baseVersion'], 41);
+      }
+      expect(frames[0]['args'], {'track_ids': ['x'], 'position': 'next'});
+      expect(frames[1]['args'], {'track_ids': ['y'], 'position': 2, 'after_id': 'b'});
+      expect(frames[2]['args'], {'index': 1, 'track_id': 'b'});
+      expect(frames[3]['args'], {'from': 1, 'to': 0, 'track_id': 'b'});
+      expect(frames[4]['args'], <String, dynamic>{});
+      service.dispose();
+    });
+
+    test('nothing is sent to a server older than protocol 3 (no epoch seen)', () async {
+      final (service, ch, _) = await _connected();
+      expect(service.sendQueueEdit(QueueEditType.clearUpcoming, const {}), isNull);
+      expect(ch.out.sent.where((f) => f['type'] == 'cmd'), isEmpty);
+      service.dispose();
+    });
+
+    test('the answer carries the cmdId; the confirming state names it; queue_locked is read', () async {
+      final (service, ch) = await v3();
+      final results = <CommandResult>[];
+      service.resultStream.listen(results.add);
+      final id = service.sendQueueEdit(QueueEditType.remove, {'index': 1, 'track_id': 'b'})!;
+      ch.serverSends({
+        'type': 'state',
+        'caused_by': {'deviceId': 'dev-1', 'cmdId': id},
+        'payload': {'active_device': 'pc', 'queue': ['a'], 'epoch': 2, 'version': 42, 'queue_locked': 'jam'},
+      });
+      ch.serverSends({'type': 'ack', 'cmdId': id, 'status': 'stale', 'reason': 'queue_changed'});
+      await _pump();
+      expect(service.currentState.causedByCmdId, id);
+      expect(service.currentState.queueLocked, 'jam');
+      expect(results.single.cmdId, id);
+      expect(results.single.ok, isFalse);
+      expect(results.single.action, 'queue_remove');
+      expect(results.single.message, contains('queue changed'));
+      ch.serverSends({'type': 'state', 'payload': {'active_device': 'pc', 'queue': ['a'], 'epoch': 2, 'version': 43, 'queue_locked': null}});
+      await _pump();
+      expect(service.currentState.queueLocked, isNull);
+      expect(service.currentState.causedByCmdId, isNull);
+      service.dispose();
+    });
+
+    test('the host receives a queue edit as a command with ids and indices', () async {
+      final (service, ch) = await v3();
+      final got = <RemoteCommand>[];
+      service.commandStream.listen(got.add);
+      ch.serverSends({'type': 'command', 'action': 'queue_insert', 'track_ids': ['x', 'y'], 'index': 3, 'from_name': 'Pixel'});
+      ch.serverSends({'type': 'command', 'action': 'queue_move', 'from': 4, 'to': 2, 'track_id': 'b'});
+      await _pump();
+      expect(got[0].trackIds, ['x', 'y']);
+      expect(got[0].index, 3);
+      expect((got[1].from, got[1].to, got[1].trackId), (4, 2, 'b'));
+      service.dispose();
+    });
+
+    test('the host says when its queue follows a Jam', () async {
+      final (service, ch) = await v3();
+      service.pushStateUpdate(trackId: 'a', queueLocked: true);
+      service.pushStateUpdate(trackId: 'a', queueLocked: false);
+      service.pushStateUpdate(trackId: 'a');
+      final updates = ch.out.sent.where((f) => f['type'] == 'state_update').toList();
+      expect(updates[0]['queue_locked'], 'jam');
+      expect(updates[1].containsKey('queue_locked'), isTrue);
+      expect(updates[1]['queue_locked'], isNull);
+      expect(updates[2].containsKey('queue_locked'), isFalse);
+      service.dispose();
     });
   });
 

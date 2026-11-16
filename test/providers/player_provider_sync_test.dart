@@ -238,6 +238,7 @@ class FakeSessionSyncService implements SessionSyncService {
     String? coverArtId,
     double? durationS,
     int? queueIndex,
+    bool? queueLocked,
   }) {
     pushedUpdates.add({
       'track_id': trackId,
@@ -246,7 +247,16 @@ class FakeSessionSyncService implements SessionSyncService {
       'queue': queue,
       'track_title': trackTitle,
       'queue_index': queueIndex,
+      'queue_locked': queueLocked,
     });
+  }
+
+  final queueEdits = <(QueueEditType, Map<String, dynamic>)>[];
+
+  @override
+  String? sendQueueEdit(QueueEditType type, Map<String, dynamic> args) {
+    queueEdits.add((type, args));
+    return 'cmd-${queueEdits.length}';
   }
 
   @override
@@ -1054,4 +1064,150 @@ void main() {
       notifier.dispose();
     });
   });
+
+  // ── Protocol 4: the host applies queue edits other devices sent ────────────
+  group('host applies remote queue edits', () {
+    late QueueKeepingHandler handler;
+    final songs = [for (final id in ['a', 'b', 'c', 'd', 'e']) _createSong(id, 'Song $id')];
+
+    setUpAll(() => registerFallbackValue(<String>[]));
+
+    Future<PlayerNotifier> host({int index = 1}) async {
+      handler = QueueKeepingHandler();
+      final container = createContainer();
+      final ref = container.read(Provider((ref) => ref));
+      final notifier = PlayerNotifier(ref, handler, mockSubsonicService, mockCollector,
+          deviceIdProvider: () async => 'device-me');
+      await Future.delayed(Duration.zero);
+      fakeSyncService.emitSyncState(const PlaybackState(activeDevice: 'device-me', trackId: 'b', isPlaying: true));
+      await Future.delayed(Duration.zero);
+      handler.currentQueue = [...songs];
+      notifier.state = notifier.state.copyWith(queue: [...songs], currentIndex: index);
+      await Future.delayed(Duration.zero);
+      fakeSyncService.pushedUpdates.clear();
+      addTearDown(() async {
+        notifier.dispose();
+        await handler.dispose();
+      });
+      return notifier;
+    }
+
+    List<String> ids(List<Song> q) => [for (final s in q) s.id];
+
+    Future<void> send(RemoteCommand c) async {
+      fakeSyncService.emitCommand(c);
+      await Future.delayed(const Duration(milliseconds: 20));
+    }
+
+    /// The player's queue, the audio handler's and what the other devices were told all agree.
+    void expectInSync(PlayerNotifier n, List<String> want, int index) {
+      expect(ids(n.state.queue), want);
+      expect(ids(handler.currentQueue), want);
+      expect(n.state.currentIndex, index);
+      expect(fakeSyncService.pushedUpdates.last['queue'], want);
+    }
+
+    test('insert: songs land at the index the server resolved, fetched once', () async {
+      when(() => mockSubsonicService.getSongs(any())).thenAnswer((i) async =>
+          [for (final id in i.positionalArguments.first as List<String>) _createSong(id, 'New $id')]);
+      final n = await host();
+      await send(const RemoteCommand(action: 'queue_insert', trackIds: ['x', 'y'], index: 2));
+      expectInSync(n, ['a', 'b', 'x', 'y', 'c', 'd', 'e'], 1);
+      expect(n.state.queue[2].title, 'New x');
+      // A song already in the queue needs no lookup.
+      await send(const RemoteCommand(action: 'queue_insert', trackIds: ['e'], index: 0));
+      expectInSync(n, ['e', 'a', 'b', 'x', 'y', 'c', 'd', 'e'], 2);
+      verify(() => mockSubsonicService.getSongs(any())).called(1);
+    });
+
+    test('remove: by index, checked against the song id', () async {
+      final n = await host();
+      await send(const RemoteCommand(action: 'queue_remove', index: 3, trackId: 'd'));
+      expectInSync(n, ['a', 'b', 'c', 'e'], 1);
+      // The queue moved under the edit: the id finds the song.
+      await send(const RemoteCommand(action: 'queue_remove', index: 0, trackId: 'e'));
+      expectInSync(n, ['a', 'b', 'c'], 1);
+      await send(const RemoteCommand(action: 'queue_remove', index: 0, trackId: 'a'));
+      expectInSync(n, ['b', 'c'], 0);
+    });
+
+    test('remove of a song that is gone, or the one playing, changes nothing and reports the truth', () async {
+      final n = await host();
+      await send(const RemoteCommand(action: 'queue_remove', index: 2, trackId: 'zzz'));
+      expectInSync(n, ['a', 'b', 'c', 'd', 'e'], 1);
+      await send(const RemoteCommand(action: 'queue_remove', index: 1, trackId: 'b'));
+      expectInSync(n, ['a', 'b', 'c', 'd', 'e'], 1);
+    });
+
+    test('move: reorders the player and the handler, the playing song keeps playing', () async {
+      final n = await host();
+      await send(const RemoteCommand(action: 'queue_move', from: 4, to: 2, trackId: 'e'));
+      expectInSync(n, ['a', 'b', 'e', 'c', 'd'], 1);
+      await send(const RemoteCommand(action: 'queue_move', from: 0, to: 3, trackId: 'a'));
+      expectInSync(n, ['b', 'e', 'c', 'a', 'd'], 0);
+      await send(const RemoteCommand(action: 'queue_move', from: 0, to: 2, trackId: 'b'));   // the playing song itself
+      expectInSync(n, ['e', 'c', 'b', 'a', 'd'], 2);
+    });
+
+    test('clear upcoming: everything after the playing song goes, History stays', () async {
+      final n = await host(index: 2);
+      await send(const RemoteCommand(action: 'queue_clear_upcoming', index: 2, trackId: 'c'));
+      expectInSync(n, ['a', 'b', 'c'], 2);
+      expect(handler.removed, [4, 3]);                    // from the end: the playing song never moves
+    });
+
+    test('a queue that follows a Jam takes no edits from other devices, and says so', () async {
+      final n = await host();
+      n.setQueueFollowsJam(true);
+      expect(fakeSyncService.pushedUpdates.last['queue_locked'], isTrue);
+      await send(const RemoteCommand(action: 'queue_remove', index: 3, trackId: 'd'));
+      expectInSync(n, ['a', 'b', 'c', 'd', 'e'], 1);
+      n.setQueueFollowsJam(false);
+      expect(fakeSyncService.pushedUpdates.last['queue_locked'], isFalse);
+      await send(const RemoteCommand(action: 'queue_remove', index: 3, trackId: 'd'));
+      expectInSync(n, ['a', 'b', 'c', 'e'], 1);
+    });
+
+    test("the host's own edits are mirrored to the other devices", () async {
+      final n = await host();
+      await n.removeFromQueue(4);
+      await Future.delayed(Duration.zero);
+      expectInSync(n, ['a', 'b', 'c', 'd'], 1);
+      await n.clearUpcoming();
+      await Future.delayed(Duration.zero);
+      expectInSync(n, ['a', 'b'], 1);
+    });
+
+    test('a passive device ignores queue edits (only the host applies them)', () async {
+      final n = await host();
+      fakeSyncService.emitSyncState(const PlaybackState(activeDevice: 'device-other', trackId: 'b'));
+      await Future.delayed(Duration.zero);
+      await send(const RemoteCommand(action: 'queue_remove', index: 3, trackId: 'd'));
+      expect(ids(n.state.queue), ['a', 'b', 'c', 'd', 'e']);
+    });
+  });
+}
+
+/// Keeps a real queue, so a test can check the player and its handler agree.
+class QueueKeepingHandler extends ControlledNaviAudioHandler {
+  final removed = <int>[];
+
+  @override
+  Future<void> insertAllNext(List<Song> songs, {int? atIndex}) async {
+    currentQueue.insertAll((atIndex ?? currentIndex + 1).clamp(0, currentQueue.length), songs);
+  }
+
+  @override
+  Future<void> addAllToQueue(List<Song> songs) async => currentQueue.addAll(songs);
+
+  @override
+  Future<void> removeFromQueue(int index) async {
+    removed.add(index);
+    currentQueue.removeAt(index);
+  }
+
+  @override
+  Future<void> reorderQueue(int oldIndex, int newIndex, {bool isShuffleMode = false}) async {
+    currentQueue.insert(newIndex, currentQueue.removeAt(oldIndex));
+  }
 }

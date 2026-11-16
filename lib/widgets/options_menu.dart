@@ -16,6 +16,7 @@ import '../models/song.dart';
 import '../providers/catalog_provider.dart';
 import '../providers/download_provider.dart';
 import '../providers/player_provider.dart';
+import '../utils/queue_actions.dart' show addToUpNext;
 import '../providers/settings_provider.dart';
 import '../screens/album_details_screen.dart';
 import '../screens/artist_screen.dart';
@@ -91,7 +92,7 @@ class OptionsMenu extends ConsumerWidget {
             label: 'Play Next',
             icon: NaviGlyph.playNext,
             onTap: () {
-              player.insertNext(song);
+              addToUpNext(ref, [song], next: true);
               showToast(page, 'Playing next');
             },
           ),
@@ -99,7 +100,7 @@ class OptionsMenu extends ConsumerWidget {
             label: 'Play Last',
             icon: NaviGlyph.playLast,
             onTap: () {
-              player.addToQueue(song);
+              addToUpNext(ref, [song], next: false);
               showToast(page, 'Added to the end of the queue');
             },
           ),

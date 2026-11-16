@@ -49,6 +49,14 @@ class PlaybackState {
   /// Server clock (ms since epoch) at which [positionMs] was true.
   final int? positionAtServerMs;
 
+  /// Why the host's queue can't be edited from other devices right now (`jam`:
+  /// it follows a Jam), or null when it can. Protocol 4.
+  final String? queueLocked;
+
+  /// The queue edit (its cmdId) that produced this state, when one did. Lets the
+  /// device that sent it drop its optimistic copy exactly here. Protocol 4.
+  final String? causedByCmdId;
+
   /// True when connection is offline / disconnected and passive devices
   /// should cease enforcing active device restrictions.
   final bool syncUnknown;
@@ -71,6 +79,8 @@ class PlaybackState {
     this.epoch,
     this.version,
     this.positionAtServerMs,
+    this.queueLocked,
+    this.causedByCmdId,
   });
 
   /// Default initial state before any server synchronization has occurred.
@@ -91,7 +101,9 @@ class PlaybackState {
         syncUnknown = false,
         epoch = null,
         version = null,
-        positionAtServerMs = null;
+        positionAtServerMs = null,
+        queueLocked = null,
+        causedByCmdId = null;
 
   factory PlaybackState.fromJson(Map<String, dynamic> json) {
     DateTime? parseDate(dynamic val) {
@@ -135,6 +147,8 @@ class PlaybackState {
       epoch: (json['epoch'] as num?)?.toInt(),
       version: (json['version'] as num?)?.toInt(),
       positionAtServerMs: (json['position_at_server_ms'] as num?)?.toInt(),
+      queueLocked: switch (json['queue_locked']) { null || false => null, final v => v.toString() },
+      causedByCmdId: json['caused_by'] is Map ? (json['caused_by'] as Map)['cmdId']?.toString() : null,
       syncUnknown: json['sync_unknown'] as bool? ??
           json['syncUnknown'] as bool? ??
           false,
@@ -195,6 +209,8 @@ class PlaybackState {
       epoch: epoch ?? this.epoch,
       version: version ?? this.version,
       positionAtServerMs: positionAtServerMs ?? this.positionAtServerMs,
+      queueLocked: queueLocked,
+      causedByCmdId: causedByCmdId,
     );
   }
 
@@ -219,6 +235,8 @@ class PlaybackState {
           epoch == other.epoch &&
           version == other.version &&
           positionAtServerMs == other.positionAtServerMs &&
+          queueLocked == other.queueLocked &&
+          causedByCmdId == other.causedByCmdId &&
           syncUnknown == other.syncUnknown;
 
   @override
@@ -240,6 +258,8 @@ class PlaybackState {
         epoch,
         version,
         positionAtServerMs,
+        queueLocked,
+        causedByCmdId,
       );
 
   @override
@@ -317,6 +337,12 @@ class RemoteCommand {
   final String fromDevice;
   final String fromName;
 
+  /// Queue edits (protocol 4): the songs a `queue_insert` adds, and the
+  /// from → to of a `queue_move`. [index] / [trackId] carry the rest.
+  final List<String> trackIds;
+  final int? from;
+  final int? to;
+
   const RemoteCommand({
     required this.action,
     this.positionMs,
@@ -326,6 +352,9 @@ class RemoteCommand {
     this.queue = const [],
     this.fromDevice = '',
     this.fromName = '',
+    this.trackIds = const [],
+    this.from,
+    this.to,
   });
 
   factory RemoteCommand.fromJson(Map<String, dynamic> j) => RemoteCommand(
@@ -337,7 +366,22 @@ class RemoteCommand {
         queue: [for (final q in (j['queue'] as List? ?? const [])) q.toString()],
         fromDevice: j['from_device']?.toString() ?? '',
         fromName: j['from_name']?.toString() ?? '',
+        trackIds: [for (final q in (j['track_ids'] as List? ?? const [])) q.toString()],
+        from: (j['from'] as num?)?.toInt(),
+        to: (j['to'] as num?)?.toInt(),
       );
+}
+
+/// The four small queue edits any device may send (protocol 4). [wire] is the
+/// `cmdType` on the socket and the `action` the host receives.
+enum QueueEditType {
+  insert('queue_insert'),
+  remove('queue_remove'),
+  move('queue_move'),
+  clearUpcoming('queue_clear_upcoming');
+
+  final String wire;
+  const QueueEditType(this.wire);
 }
 
 /// The server's answer to a command or transfer this device sent.
@@ -346,7 +390,10 @@ class CommandResult {
   final bool ok;
   final String action;
   final String? reason;
-  const CommandResult({required this.ok, required this.action, this.reason});
+
+  /// The command's id, for protocol-3 commands (null for older frames).
+  final String? cmdId;
+  const CommandResult({required this.ok, required this.action, this.reason, this.cmdId});
 
   /// A line for the person: what went wrong and what to do.
   String get message => switch (reason) {
@@ -354,6 +401,12 @@ class CommandResult {
         'claim_cooldown' => 'Another device just took over. Try again in a moment.',
         'device_offline' => 'That device went offline.',
         'device_too_old' => 'That device needs the latest NaviVibe to be controlled.',
+        'queue_locked' => 'That queue follows a Jam. Change it from the Jam.',
+        'queue_changed' || 'stale' => 'The queue changed on the other device. Try again.',
+        'is_current' => 'That song is playing. Skip it instead.',
+        'queue_full' => 'The queue is full.',
+        'unknown_type' => 'Your session server can’t edit the queue yet. Update it, then try again.',
+        'offline' => 'Can’t reach your other devices. Check your connection.',
         _ => 'That didn’t work. Try again.',
       };
 }
@@ -595,7 +648,8 @@ class SessionSyncService {
         'device_id': _deviceId!,
         if (_deviceName != null && _deviceName!.isNotEmpty) 'device_name': _deviceName!,
         if (_deviceType != SyncDeviceType.unknown) 'device_type': _deviceType.name,
-        'proto': '3',
+        // 4: also takes queue edits from the other devices (an older server clamps it to 3).
+        'proto': '4',
       });
 
       final generation = _generation;
@@ -700,7 +754,8 @@ class SessionSyncService {
           if (status != 'ok' || json['pending'] != true) _unacked.remove(id);
           if (!_resultController.isClosed && entry != null) {
             final good = status == 'ok' || status == 'duplicate';
-            _resultController.add(CommandResult(ok: good, action: entry.action, reason: good ? null : (json['reason']?.toString() ?? status)));
+            _resultController.add(CommandResult(
+                ok: good, action: entry.action, reason: good ? null : (json['reason']?.toString() ?? status), cmdId: id));
           }
           return;
         case 'exec':
@@ -732,6 +787,8 @@ class SessionSyncService {
       // `state` carries its fields flat and again under "payload"; read the
       // payload when there is one.
       final body = json['payload'] is Map ? Map<String, dynamic>.from(json['payload'] as Map) : json;
+      // caused_by rides at the top level only.
+      if (json['caused_by'] != null) body['caused_by'] ??= json['caused_by'];
       final incoming = PlaybackState.fromJson(body);
       if (incoming.epoch != null) {
         _server3 = true;
@@ -927,9 +984,12 @@ class SessionSyncService {
     String? coverArtId,
     double? durationS,
     int? queueIndex,
+    bool? queueLocked,
   }) {
     _send({
       'type': 'state_update',
+      // Sent as "jam" or null (unlocked); left out when not given.
+      if (queueLocked != null) 'queue_locked': queueLocked ? 'jam' : null,
       'track_id': ?trackId,
       'position_ms': ?positionMs,
       'is_playing': ?isPlaying,
@@ -1005,17 +1065,30 @@ class SessionSyncService {
     });
   }
 
+  /// Edits the host's queue from this device (protocol 4): `queue_insert`
+  /// {track_ids, position: "next" | "end" | index, after_id?}, `queue_remove`
+  /// {index, track_id}, `queue_move` {from, to, track_id}, `queue_clear_upcoming`.
+  /// Carries the last state version seen, so the server can rebase or refuse an
+  /// edit made on an older queue. Returns the command id the answer on
+  /// [resultStream] (and the confirming state's `causedByCmdId`) will carry, or
+  /// null when it could not be sent (no link, or a server older than protocol 3).
+  String? sendQueueEdit(QueueEditType type, Map<String, dynamic> args) {
+    if (!_server3 || _channel == null) return null;
+    return _cmd(type.wire, args, action: type.wire);
+  }
+
   /// A protocol-3 command: carries an id, is acknowledged, and is resent after a
   /// reconnect (once, thanks to the id) if the answer never came.
-  void _cmd(String type, Map<String, dynamic> args, {required String action}) {
+  String _cmd(String type, Map<String, dynamic> args, {required String action}) {
     final id = generateUuid();
     final frame = {'type': 'cmd', 'cmdId': id, 'cmdType': type, 'args': args, if (_seenVersion != null) 'baseVersion': _seenVersion};
     _unacked[id] = (frame: frame, at: DateTime.now(), action: action);
     if (_channel == null && action != 'transfer') {
       _unacked.remove(id); // "now" commands are not "later" commands
-      return;
+      return id;
     }
     _send(frame);
+    return id;
   }
 
   void _resendUnacked() {
