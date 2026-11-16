@@ -210,7 +210,7 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
         last = s;
         if (!ref.mounted || gen != _generation) return;
         if (s.status == FetchSearchStatus.superseded) {
-          if (!retried) return _run(base, create, retried: true);
+          if (!retried) return await _run(base, create, retried: true);
           state = base.withResult(search: s);   // the body shows nothing for it
           return;
         }
