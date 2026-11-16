@@ -1,0 +1,10 @@
+[Unit]
+Description=Auto-import safety net and later steps (index, doctor, moods) every 10 min (server-fixes-v1)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+Unit=tg-fetcher-autoimport.service
+
+[Install]
+WantedBy=timers.target
