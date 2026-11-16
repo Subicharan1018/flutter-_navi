@@ -16,6 +16,7 @@ import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/widgets/song_tile.dart';
 import 'package:navivibe/models/catalog.dart';
 import 'package:navivibe/widgets/ui/action_sheet.dart';
+import 'package:navivibe/widgets/art/navi_icons.dart';
 
 import '../helpers/test_utils.dart';
 
@@ -94,7 +95,8 @@ void main() {
     )));
     expect(find.text('Composer'), findsOneWidget);
     expect(find.text('Anirudh Ravichander'), findsOneWidget);
-    expect(find.byIcon(Icons.chevron_right_rounded), findsOneWidget); // only the tappable one
+    expect(find.byWidgetPredicate((w) => w is NaviIcon && w.glyph == NaviGlyph.chevron),
+        findsOneWidget); // only the tappable one
     await tester.tap(find.text('Anirudh Ravichander'));
     expect(tapped, isTrue);
   });

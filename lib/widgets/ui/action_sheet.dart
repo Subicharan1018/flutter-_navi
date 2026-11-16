@@ -249,7 +249,7 @@ class SheetInfoRow extends StatelessWidget {
                     ],
                   ),
                 ),
-                if (onTap != null) Icon(Icons.chevron_right_rounded, size: 22, color: t.textMuted),
+                if (onTap != null) NaviIcon(NaviGlyph.chevron, size: 22, color: t.textMuted),
               ],
             ),
           ),

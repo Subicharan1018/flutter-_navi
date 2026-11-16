@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/composer.dart';
 import '../models/song.dart';
 import '../providers/composer_provider.dart';
+import '../widgets/art/navi_icons.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
@@ -47,7 +48,7 @@ class ComposerScreen extends ConsumerWidget {
         url: cover == null ? null : svc.getCoverArtUrl(cover),
         size: size,
         radius: 0,
-        placeholderIcon: CupertinoIcons.music_mic,
+        placeholderIcon: NaviGlyph.mic,
       ),
       title: composer?.name ?? name,
       subtitle: 'Composer',
@@ -64,9 +65,8 @@ class ComposerScreen extends ConsumerWidget {
                 const SliverToBoxAdapter(child: TrackListSkeleton(rows: 5))
               else
                 const SliverFillRemaining(
-                  hasScrollBody: false,
                   child: MessageState(
-                    icon: CupertinoIcons.music_mic,
+                    icon: NaviGlyph.mic,
                     title: 'No songs by this composer',
                     message: 'Songs credited to them appear here once the library syncs.',
                   ),

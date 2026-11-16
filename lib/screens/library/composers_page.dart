@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../models/composer.dart';
 import '../../providers/composer_provider.dart';
+import '../../widgets/art/navi_icons.dart';
 import '../../utils/format.dart';
 import '../../widgets/app_scaffold.dart' show navigateInApp;
 import '../../widgets/ui/large_title_page.dart';
@@ -23,7 +24,7 @@ class ComposerGlyph extends StatelessWidget {
       width: size,
       height: size,
       decoration: BoxDecoration(color: t.bgElevated, shape: BoxShape.circle),
-      child: Icon(CupertinoIcons.music_mic, size: size * 0.4, color: t.textMuted),
+      child: NaviIcon(NaviGlyph.mic, size: size * 0.4, color: t.textMuted),
     );
   }
 }
@@ -63,7 +64,7 @@ class ComposersPage extends ConsumerWidget {
         loading: () => const [SliverFillRemaining(hasScrollBody: false, child: LoadingState())],
         error: (_, _) => [
           SliverFillRemaining(
-            hasScrollBody: false,
+            // MessageState scrolls itself and can't report an intrinsic height.
             child: MessageState.error(
               title: 'Couldn’t load composers',
               onRetry: () => ref.invalidate(composersProvider),
@@ -73,9 +74,8 @@ class ComposersPage extends ConsumerWidget {
         data: (list) => list.isEmpty
             ? const [
                 SliverFillRemaining(
-                  hasScrollBody: false,
                   child: MessageState(
-                    icon: CupertinoIcons.music_mic,
+                    icon: NaviGlyph.mic,
                     title: 'No composers yet',
                     message: 'Songs with a composer tag appear here by music director.',
                   ),
