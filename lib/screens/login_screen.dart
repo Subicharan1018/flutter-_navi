@@ -121,6 +121,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     for (final c in [_server, _user, _pass]) {
       c.addListener(() => setState(() => _error = null));
     }
+    // Browser: the saved session ran out (a closed laptop, a long weekend).
+    if (kIsWeb && WebSession.wasExpired) _error = 'Your session expired. Sign in again.';
   }
 
   @override

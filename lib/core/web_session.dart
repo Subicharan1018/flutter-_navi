@@ -77,8 +77,19 @@ abstract final class WebSession {
   /// fresh one on each authenticated /api call; it lasts ND_SESSIONTIMEOUT).
   static const refreshEvery = Duration(minutes: 20);
 
+  /// How often the wall clock is checked against [refreshEvery] and the
+  /// token's expiry. A periodic timer alone misses a laptop that slept.
+  static const _checkEvery = Duration(minutes: 1);
+
+  /// Called when Navidrome no longer accepts the session (it expired while the
+  /// tab was asleep, or the account was changed). The settings layer sets this
+  /// to show the sign-in screen.
+  static void Function()? onExpired;
+
   static WebSessionData? _current;
   static Timer? _refreshTimer;
+  static DateTime _lastRefresh = DateTime.fromMillisecondsSinceEpoch(0);
+  static DateTime Function() _now = DateTime.now;
   static WebStorage _tab = const WebStorage();
   static WebStorage _profile = const WebStorage(persistent: true);
   static http.Client Function() _client = http.Client.new;
@@ -166,31 +177,70 @@ abstract final class WebSession {
   }
 
   /// Picks the session back up after a page reload (JWT only; the Subsonic
-  /// pair is gone with the old page). Returns null when there is none.
+  /// pair is gone with the old page). Returns null when there is none, or when
+  /// the saved token has already expired (the person signs in again instead of
+  /// the app sending a dead token to every server). [wasExpired] tells which.
   static WebSessionData? restore() {
+    wasExpired = false;
     for (final store in [_tab, _profile]) {
       final server = store.read(_kServer), user = store.read(_kUser), token = store.read(_kJwt);
       if (server != null && server.isNotEmpty && user != null && user.isNotEmpty && token != null && token.isNotEmpty) {
+        if (_isExpired(token)) {
+          wasExpired = true;
+          signOut();
+          return null;
+        }
         _current = WebSessionData(serverUrl: server, username: user, jwt: token);
         _startRefresh();
+        if (kIsWeb) unawaited(refresh()); // renew now: the saved one may be close to its end
         return _current;
       }
     }
     return null;
   }
 
+  /// True after [restore] found a saved session whose token had expired: the
+  /// sign-in screen says so instead of starting blank.
+  static bool wasExpired = false;
+
+  /// The `exp` claim of a JWT, or null when it can't be read (then the server
+  /// decides; tokens in tests are not real JWTs).
+  @visibleForTesting
+  static DateTime? expiryOf(String jwt) {
+    try {
+      final parts = jwt.split('.');
+      if (parts.length != 3) return null;
+      final payload = jsonDecode(utf8.decode(base64Url.decode(base64Url.normalize(parts[1]))));
+      final exp = payload is Map ? payload['exp'] : null;
+      return exp is num ? DateTime.fromMillisecondsSinceEpoch(exp.toInt() * 1000) : null;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Expired, with a minute's margin for clock drift between browser and server.
+  static bool _isExpired(String jwt) {
+    final exp = expiryOf(jwt);
+    return exp != null && !_now().isBefore(exp.subtract(const Duration(minutes: 1)));
+  }
+
   /// Asks Navidrome for a fresh JWT. Returns it, or null when the session has
-  /// expired (the person must sign in again).
+  /// expired: then the session is dropped and [onExpired] is called, so the
+  /// app goes back to the sign-in screen.
   static Future<String?> refresh() async {
     final s = _current;
     if (s == null) return null;
+    _lastRefresh = _now();
     final client = _client();
     try {
       final res = await client.get(
         Uri.parse('${navidromeBase(s.serverUrl)}/api/keepalive/keepalive'),
         headers: {'X-ND-Authorization': 'Bearer ${s.jwt}'},
       ).timeout(const Duration(seconds: 15));
-      if (res.statusCode == 401) return null;
+      if (res.statusCode == 401) {
+        if (identical(_current, s)) _expire();
+        return null;
+      }
       var next = res.headers['x-nd-authorization'] ?? '';
       if (next.startsWith('Bearer ')) next = next.substring(7);
       if (next.isNotEmpty && _current != null) {
@@ -231,19 +281,46 @@ abstract final class WebSession {
     drop.remove(_kJwt);
   }
 
+  static void _expire() {
+    wasExpired = true;
+    signOut();
+    onExpired?.call();
+  }
+
+  /// One wall-clock check: renew when [refreshEvery] has passed since the last
+  /// renewal, or the token is near its end (a laptop that slept through the
+  /// timer). Navidrome answers 401 for an expired one, which ends the session.
+  @visibleForTesting
+  static Future<void> tick() async {
+    final s = _current;
+    if (s == null) return;
+    final exp = expiryOf(s.jwt);
+    final nearEnd = exp != null && !_now().isBefore(exp.subtract(refreshEvery));
+    if (nearEnd || _now().difference(_lastRefresh) >= refreshEvery) await refresh();
+  }
+
   static void _startRefresh() {
     _refreshTimer?.cancel();
-    if (!kIsWeb) return; // tests drive refresh() directly
-    _refreshTimer = Timer.periodic(refreshEvery, (_) => refresh());
+    _lastRefresh = _now();
+    if (!kIsWeb) return; // tests drive tick()/refresh() directly
+    _refreshTimer = Timer.periodic(_checkEvery, (_) => tick());
   }
 
   @visibleForTesting
-  static void debugConfigure({WebStorage? tab, WebStorage? profile, http.Client Function()? client}) {
+  static void debugConfigure({
+    WebStorage? tab,
+    WebStorage? profile,
+    http.Client Function()? client,
+    DateTime Function()? now,
+  }) {
     _tab = tab ?? const WebStorage();
     _profile = profile ?? const WebStorage(persistent: true);
     _client = client ?? http.Client.new;
+    _now = now ?? DateTime.now;
     _refreshTimer?.cancel();
     _refreshTimer = null;
     _current = null;
+    onExpired = null;
+    wasExpired = false;
   }
 }

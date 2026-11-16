@@ -199,6 +199,13 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   SettingsNotifier()
     : super(const SettingsState(serverUrl: '', username: '', password: '')) {
     _loadFromHive();
+    // Browser: Navidrome stopped accepting the session (it expired while the
+    // tab slept). Dropping the stand-in password shows the sign-in screen.
+    if (kIsWeb) {
+      WebSession.onExpired = () {
+        if (mounted) state = state.copyWith(password: '');
+      };
+    }
   }
 
   void _loadFromHive() {

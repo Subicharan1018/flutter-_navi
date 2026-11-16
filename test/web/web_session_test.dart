@@ -165,6 +165,78 @@ void main() {
       expect(await WebSession.refresh(), isNull);
     });
 
+    String jwtExpiring(DateTime at) {
+      String enc(Object o) => base64Url.encode(utf8.encode(jsonEncode(o))).replaceAll('=', '');
+      return '${enc({'alg': 'HS256'})}.${enc({'sub': 'subi', 'exp': at.millisecondsSinceEpoch ~/ 1000})}.sig';
+    }
+
+    test('restore drops a saved token that already expired, and says so', () {
+      final now = DateTime.utc(2026, 11, 16, 6);
+      WebSession.debugConfigure(tab: tab, profile: profile, now: () => now);
+      profile.values.addAll({
+        'nv_server': 'https://music.example',
+        'nv_user': 'subi',
+        'nv_jwt': jwtExpiring(now.subtract(const Duration(hours: 13))),
+      });
+      expect(WebSession.restore(), isNull);
+      expect(WebSession.wasExpired, isTrue);
+      expect(WebSession.isActive, isFalse);
+      expect(profile.values, isEmpty); // the dead token is not kept
+    });
+
+    test('restore keeps a token that is still valid', () {
+      final now = DateTime.utc(2026, 11, 16, 6);
+      WebSession.debugConfigure(tab: tab, profile: profile, now: () => now);
+      tab.values.addAll({
+        'nv_server': 'https://music.example',
+        'nv_user': 'subi',
+        'nv_jwt': jwtExpiring(now.add(const Duration(hours: 5))),
+      });
+      expect(WebSession.restore(), isNotNull);
+      expect(WebSession.wasExpired, isFalse);
+    });
+
+    test('a rejected renewal ends the session and calls onExpired', () async {
+      configure((r) async =>
+          r.url.path == '/auth/login' ? http.Response(jsonEncode(_loginBody()), 200) : http.Response('', 401));
+      var expired = 0;
+      WebSession.onExpired = () => expired++;
+      await WebSession.signIn(serverUrl: 'https://music.example', username: 'subi', password: _password);
+      expect(await WebSession.refresh(), isNull);
+      expect(expired, 1);
+      expect(WebSession.isActive, isFalse);
+      expect(WebSession.wasExpired, isTrue);
+    });
+
+    test('tick renews by the wall clock, so a laptop that slept still renews', () async {
+      var now = DateTime.utc(2026, 11, 16, 6);
+      requests = [];
+      WebSession.debugConfigure(
+        tab: tab,
+        profile: profile,
+        now: () => now,
+        client: () => MockClient((r) async {
+          requests.add(r);
+          return r.url.path == '/auth/login'
+              ? http.Response(jsonEncode(_loginBody()), 200)
+              : http.Response('{}', 200, headers: {'x-nd-authorization': 'jwt-2'});
+        }),
+      );
+      await WebSession.signIn(serverUrl: 'https://music.example', username: 'subi', password: _password);
+      await WebSession.tick(); // just signed in: nothing to do
+      expect(requests.where((r) => r.url.path.contains('keepalive')), isEmpty);
+      now = now.add(const Duration(hours: 9)); // the lid was closed
+      await WebSession.tick();
+      expect(requests.last.url.path, '/api/keepalive/keepalive');
+      expect(WebSession.jwt, 'jwt-2');
+    });
+
+    test('expiryOf reads exp, and is null for a token it cannot read', () {
+      final at = DateTime.utc(2026, 11, 15, 17, 5, 47);
+      expect(WebSession.expiryOf(jwtExpiring(at))?.toUtc(), at);
+      expect(WebSession.expiryOf('jwt-1'), isNull);
+    });
+
     test('sign-out forgets everything', () async {
       await WebSession.signIn(serverUrl: 'https://music.example', username: 'subi', password: _password, staySignedIn: true);
       WebSession.signOut();
