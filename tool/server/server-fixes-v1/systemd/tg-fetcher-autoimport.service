@@ -1,0 +1,26 @@
+[Unit]
+Description=tg-fetcher auto-import: songs dropped into /DATA/Media/Music get the bot pipeline (server-fixes-v1)
+After=network-online.target docker.service
+
+[Service]
+Type=oneshot
+User=subi
+WorkingDirectory=/opt/tg-fetcher
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/opt/tg-fetcher/.env
+ExecStart=/opt/tg-fetcher/venv/bin/python -m tgfetch.autoimport run
+# One pass waits for copies to settle (at most 15 min), then exits; the path
+# unit and the timer start the next one.
+TimeoutStartSec=30min
+Nice=10
+IOSchedulingClass=idle
+MemoryHigh=384M
+MemoryMax=512M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+StandardOutput=journal
+StandardError=journal

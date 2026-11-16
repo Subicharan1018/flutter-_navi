@@ -63,7 +63,24 @@ integers; at most 100 picks per batch; playlist ids match `[A-Za-z0-9_-]{1,64}`;
 ever connects to fixed hosts (Navidrome, tg-fetcher, the LLM and AcoustID endpoints from `.env`); a
 pasted playlist link is parsed in tg-fetcher (`links.py`) and only `deezer.com` / `open.spotify.com`
 playlist URLs with numeric/alphanumeric ids are fetched — the user never supplies a URL that is
-requested directly. **Path traversal:** no route takes a file path; files are chosen by the server
+requested directly.
+
+**YouTube playlist links (server-fixes-v1).** `youtube.com`, `www.`/`m.youtube.com`,
+`music.youtube.com` and `youtu.be` links are accepted only over `https`, only on `/playlist` or
+`/watch` (any `/<video>` on `youtu.be`), and only with exactly one `list` parameter matching
+`^[A-Za-z0-9_-]{13,64}$` (`tgfetch/youtube_list.py`). Mixes (`RD…`), `LL`/`LM`/`WL` and channel
+uploads (`UU…`) are refused with a reason. Every other parameter, the fragment and any
+`user:password@` part are dropped, and the link is stored as
+`https://music.youtube.com/playlist?list=<id>`. The user's URL is never fetched: the id goes to
+`ytmusicapi` (pinned, no sign-in, no cookies, no API key) for the playlist's **names only**. No
+audio, video, stream URL or thumbnail is ever requested from YouTube, and the link is never sent to
+the music bot. Each song is searched on the bot by its cleaned name. Titles are untrusted text:
+control and bidi characters are stripped, they are capped at 300 characters, stored only through
+SQL parameters, and never passed to a shell or an LLM prompt. The 300-song cap, the
+500-character link cap and the per-user queue cap apply as for Deezer and Spotify. Legal: this
+reads public metadata only, which is what the Deezer and Spotify readers do too.
+
+**Path traversal:** no route takes a file path; files are chosen by the server
 from the validated user name.
 
 **CORS.** Only the origins in `NAVIVIBE_CORS_ORIGINS` (default: the author's own web player),

@@ -1,0 +1,11 @@
+[Unit]
+Description=Watch /DATA/Media/Music for dropped songs (server-fixes-v1)
+
+[Path]
+# inotify on the music folder: a file or folder created, moved in or written.
+# Files inside new sub-folders are also caught by the 10-minute timer.
+PathChanged=/DATA/Media/Music
+Unit=tg-fetcher-autoimport.service
+
+[Install]
+WantedBy=multi-user.target
