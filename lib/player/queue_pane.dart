@@ -8,7 +8,9 @@ import '../models/song.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/platform_utils.dart';
+import '../utils/queue_actions.dart';
 import '../widgets/art/navi_icons.dart';
+import '../widgets/table/song_table.dart' show SongDrag;
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/ui/action_sheet.dart';
 import 'artwork.dart';
@@ -43,6 +45,13 @@ class QueuePane extends ConsumerStatefulWidget {
 
 class _QueuePaneState extends ConsumerState<QueuePane> {
   final _anchor = GlobalKey();
+
+  /// A History row dropped into the queue: a copy goes in at [at]; History
+  /// itself is untouched.
+  void _insertDropped(List<Song> songs, int at) {
+    HapticFeedback.mediumImpact();
+    ref.read(playerProvider.notifier).insertAllNext(songs, atIndex: at);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -90,19 +99,34 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
               itemBuilder: (context, i) {
                 // i == 0 is directly above the anchor → most recent first.
                 final song = history[history.length - 1 - i];
-                return Opacity(
-                  opacity: 0.62,
-                  child: _QueueRow(
-                    song: song,
-                    url: service.getCoverArtUrl(song.coverArt),
-                    style: st,
-                    onTap: () {
-                      final idx = queue.lastIndexWhere((s) => s.id == song.id);
-                      idx >= 0
-                          ? notifier.jumpTo(idx)
-                          : notifier.setQueue([song], 0);
-                      widget.onJumped?.call();
-                    },
+                return _HistoryDraggable(
+                  song: song,
+                  style: st,
+                  child: Opacity(
+                    opacity: 0.62,
+                    child: _QueueRow(
+                      song: song,
+                      url: service.getCoverArtUrl(song.coverArt),
+                      style: st,
+                      onTap: () {
+                        final idx =
+                            queue.lastIndexWhere((s) => s.id == song.id);
+                        idx >= 0
+                            ? notifier.jumpTo(idx)
+                            : notifier.setQueue([song], 0);
+                        widget.onJumped?.call();
+                      },
+                      trailing: IconButton(
+                        tooltip: 'More',
+                        visualDensity: VisualDensity.compact,
+                        onPressed: () => _showHistoryMenu(context, ref, song),
+                        icon: NaviIcon(
+                          NaviGlyph.more,
+                          size: 18,
+                          color: st.textMuted,
+                        ),
+                      ),
+                    ),
                   ),
                 );
               },
@@ -138,7 +162,16 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
 
           // ── Up next ────────────────────────────────────────────────────────
           if (upNext.isEmpty)
-            SliverToBoxAdapter(child: _EmptyNext(style: st))
+            SliverToBoxAdapter(
+              child: _DropSlot(
+                queueIndex: queue.isEmpty ? 0 : current + 1,
+                style: st,
+                // Nothing below to drop beside: always land at the end.
+                alwaysAbove: true,
+                onDrop: _insertDropped,
+                child: _EmptyNext(style: st),
+              ),
+            )
           else
             SliverReorderableList(
               itemCount: upNext.length,
@@ -185,26 +218,31 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                   return ReorderableDragStartListener(
                     key: ValueKey('q_${song.id}_$qIdx'),
                     index: i,
-                    child: _QueueRow(
-                      song: song,
-                      url: service.getCoverArtUrl(song.coverArt),
+                    child: _DropSlot(
+                      queueIndex: qIdx,
                       style: st,
-                      onTap: () {
-                        notifier.jumpTo(qIdx);
-                        widget.onJumped?.call();
-                      },
-                      trailing: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          IconButton(
-                            tooltip: 'Remove from queue',
-                            visualDensity: VisualDensity.compact,
-                            onPressed: () => notifier.removeFromQueue(qIdx),
-                            icon: NaviIcon(NaviGlyph.close, size: 14, color: st.textMuted),
-                          ),
-                          NaviIcon(NaviGlyph.grip, color: st.textMuted, size: 18),
-                          const SizedBox(width: Space.sm),
-                        ],
+                      onDrop: _insertDropped,
+                      child: _QueueRow(
+                        song: song,
+                        url: service.getCoverArtUrl(song.coverArt),
+                        style: st,
+                        onTap: () {
+                          notifier.jumpTo(qIdx);
+                          widget.onJumped?.call();
+                        },
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              tooltip: 'Remove from queue',
+                              visualDensity: VisualDensity.compact,
+                              onPressed: () => notifier.removeFromQueue(qIdx),
+                              icon: NaviIcon(NaviGlyph.close, size: 14, color: st.textMuted),
+                            ),
+                            NaviIcon(NaviGlyph.grip, color: st.textMuted, size: 18),
+                            const SizedBox(width: Space.sm),
+                          ],
+                        ),
                       ),
                     ),
                   );
@@ -214,25 +252,30 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                   key: ValueKey('q_${song.id}_$qIdx'),
                   style: st,
                   onRemove: () => notifier.removeFromQueue(qIdx),
-                  child: _QueueRow(
-                    song: song,
-                    url: service.getCoverArtUrl(song.coverArt),
+                  child: _DropSlot(
+                    queueIndex: qIdx,
                     style: st,
-                    onTap: () {
-                      notifier.jumpTo(qIdx);
-                      widget.onJumped?.call();
-                    },
-                    trailing: ReorderableDragStartListener(
-                      index: i,
-                      child: Semantics(
-                        label: 'Reorder ${song.title}',
-                        child: SizedBox(
-                          width: 48,
-                          height: 48,
-                          child: NaviIcon(
-                            NaviGlyph.grip,
-                            color: st.textMuted,
-                            size: 18,
+                    onDrop: _insertDropped,
+                    child: _QueueRow(
+                      song: song,
+                      url: service.getCoverArtUrl(song.coverArt),
+                      style: st,
+                      onTap: () {
+                        notifier.jumpTo(qIdx);
+                        widget.onJumped?.call();
+                      },
+                      trailing: ReorderableDragStartListener(
+                        index: i,
+                        child: Semantics(
+                          label: 'Reorder ${song.title}',
+                          child: SizedBox(
+                            width: 48,
+                            height: 48,
+                            child: NaviIcon(
+                              NaviGlyph.grip,
+                              color: st.textMuted,
+                              size: 18,
+                            ),
                           ),
                         ),
                       ),
@@ -519,6 +562,163 @@ Future<void> runSmartReshuffle(BuildContext context, WidgetRef ref) async {
     case ReshuffleOutcome.smart:
     case ReshuffleOutcome.superseded:
       break;
+  }
+}
+
+// ── History → queue drag ──────────────────────────────────────────────────────
+
+void _showHistoryMenu(BuildContext context, WidgetRef ref, Song song) {
+  showPlatformSheet(
+    context: context,
+    title: song.title,
+    menu: true,
+    builder: (_) => SheetGroup(
+      children: [
+        SheetAction(
+          label: 'Play Next',
+          icon: NaviGlyph.playNext,
+          onTap: () => queueSongs(context, ref, [song], next: true),
+        ),
+        SheetAction(
+          label: 'Add to Queue',
+          icon: NaviGlyph.queue,
+          onTap: () => queueSongs(context, ref, [song], next: false),
+        ),
+      ],
+    ),
+  );
+}
+
+/// Makes a History row draggable into the queue: a mouse drag on desktop and
+/// web, a long-press on touch (a plain drag there scrolls the list).
+class _HistoryDraggable extends StatelessWidget {
+  final Song song;
+  final NowPlayingStyle style;
+  final Widget child;
+  const _HistoryDraggable({
+    required this.song,
+    required this.style,
+    required this.child,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final data = SongDrag([song], const [], null);
+    final feedback = Material(
+      color: Colors.transparent,
+      child: Container(
+        margin: const EdgeInsets.only(left: 12, top: 12),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        constraints: const BoxConstraints(maxWidth: 260),
+        decoration: BoxDecoration(
+          color: style.rowLifted,
+          borderRadius: BorderRadius.circular(8),
+        ),
+        child: Text(
+          song.title,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          style: naviText(14, FontWeight.w600, style.textPrimary),
+        ),
+      ),
+    );
+    final dragging = Opacity(opacity: 0.4, child: child);
+    if (PlatformUtils.isDesktop) {
+      return Draggable<SongDrag>(
+        data: data,
+        dragAnchorStrategy: pointerDragAnchorStrategy,
+        maxSimultaneousDrags: 1,
+        feedback: feedback,
+        childWhenDragging: dragging,
+        child: child,
+      );
+    }
+    return LongPressDraggable<SongDrag>(
+      data: data,
+      dragAnchorStrategy: pointerDragAnchorStrategy,
+      maxSimultaneousDrags: 1,
+      onDragStarted: HapticFeedback.mediumImpact,
+      feedback: feedback,
+      childWhenDragging: dragging,
+      child: child,
+    );
+  }
+}
+
+/// Drop target around one Up Next row. Shows a line above or below the row
+/// (by which half the pointer is over) and reports where the songs land.
+class _DropSlot extends StatefulWidget {
+  /// Absolute queue index of the row this wraps.
+  final int queueIndex;
+  final NowPlayingStyle style;
+  final Widget child;
+  final void Function(List<Song> songs, int at) onDrop;
+
+  /// Always land before [queueIndex], with the line on top.
+  final bool alwaysAbove;
+
+  const _DropSlot({
+    required this.queueIndex,
+    required this.style,
+    required this.child,
+    required this.onDrop,
+    this.alwaysAbove = false,
+  });
+
+  @override
+  State<_DropSlot> createState() => _DropSlotState();
+}
+
+class _DropSlotState extends State<_DropSlot> {
+  /// null: nothing hovering. true: line under the row. false: line above.
+  bool? _below;
+
+  @override
+  Widget build(BuildContext context) {
+    return DragTarget<SongDrag>(
+      onWillAcceptWithDetails: (_) => true,
+      onMove: (d) {
+        if (widget.alwaysAbove) {
+          if (_below != false) setState(() => _below = false);
+          return;
+        }
+        final box = context.findRenderObject() as RenderBox?;
+        if (box == null) return;
+        final below = box.globalToLocal(d.offset).dy > box.size.height / 2;
+        if (_below != below) {
+          if (_below != null) HapticFeedback.selectionClick();
+          setState(() => _below = below);
+        }
+      },
+      onLeave: (_) => setState(() => _below = null),
+      onAcceptWithDetails: (d) {
+        final below = _below ?? false;
+        setState(() => _below = null);
+        widget.onDrop(d.data.songs, widget.queueIndex + (below ? 1 : 0));
+      },
+      builder: (context, _, _) {
+        final below = _below;
+        if (below == null) return widget.child;
+        return Stack(
+          children: [
+            widget.child,
+            Positioned(
+              left: 16,
+              right: 16,
+              top: below ? null : 0,
+              bottom: below ? 0 : null,
+              child: IgnorePointer(
+                child: Container(
+                  key: const ValueKey('queue_drop_line'),
+                  height: 2,
+                  color: widget.style.accent,
+                ),
+              ),
+            ),
+          ],
+        );
+      },
+    );
   }
 }
 

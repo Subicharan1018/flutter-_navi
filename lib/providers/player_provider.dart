@@ -301,7 +301,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             currentIndex: 0,
             isPlaying: false,
             shuffleMode: false,
-            autoplayMode: false,
+            // On until the saved choice loads, so a song that ends right
+            // after launch still continues (Spotify's default).
+            autoplayMode: true,
             repeatMode: LoopMode.off,
             starredIds: [],
             history: [],
@@ -750,7 +752,14 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final repeatIdx = p.get('repeatMode', defaultValue: 0) as int;
       final loopMode =
           LoopMode.values[repeatIdx.clamp(0, LoopMode.values.length - 1)];
-      state = state.copyWith(shuffleMode: shuffle, repeatMode: loopMode);
+      // Autoplay defaults to on when the listener never chose.
+      final autoplay =
+          p.get(HiveBoxes.kAutoplayPreference, defaultValue: true) as bool;
+      state = state.copyWith(
+        shuffleMode: shuffle,
+        repeatMode: loopMode,
+        autoplayMode: autoplay,
+      );
       // Apply to the just_audio player so audio behavior matches persisted UI
       // state. Without this, the player stays on LoopMode.off after a restart
       // even though the notification + UI correctly show repeat-one/all.
@@ -2242,6 +2251,38 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _fetchAndAppendSimilar(currentSong);
   }
 
+  /// Songs to keep the music going after [seed], none already queued.
+  /// Similar songs first (Last.fm-backed, often empty for regional music),
+  /// then the artist's top songs, the same album, and finally random songs.
+  Future<List<Song>> _autoplayCandidates(Song seed) async {
+    final sources = <Future<List<Song>> Function()>[
+      () => _subsonicService.getSimilarSongs(seed.id, count: 10),
+      () => seed.artist.isEmpty
+          ? Future.value(const <Song>[])
+          : _subsonicService.getTopSongs(seed.artist, count: 10),
+      () => seed.albumId.isEmpty
+          ? Future.value(const <Song>[])
+          : _subsonicService.getAlbum(seed.albumId),
+      () => _subsonicService.getRandomSongs(size: 10),
+    ];
+    for (final source in sources) {
+      try {
+        final found = await source();
+        // Re-read the queue each time: it may change while we wait.
+        final existing = state.queue.map((s) => s.id).toSet();
+        final seen = <String>{};
+        final fresh = found
+            .where((s) => !existing.contains(s.id) && seen.add(s.id))
+            .take(10)
+            .toList();
+        if (fresh.isNotEmpty) return fresh;
+      } catch (e) {
+        debugPrint('[AUTOPLAY] Source failed: $e');
+      }
+    }
+    return const [];
+  }
+
   Future<void> _fetchAndAppendSimilar(Song seedSong) async {
     _isFetchingSimilar = true;
     try {
@@ -2249,19 +2290,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
       final indexBeforeFetch = state.currentIndex;
 
-      final similar = await _subsonicService.getSimilarSongs(
-        seedSong.id,
-        count: 10,
-      );
-      if (similar.isEmpty) {
-        debugPrint('[AUTOPLAY] No similar songs found');
-        return;
-      }
-
-      final existingIds = state.queue.map((s) => s.id).toSet();
-      final fresh = similar.where((s) => !existingIds.contains(s.id)).toList();
+      final fresh = await _autoplayCandidates(seedSong);
       if (fresh.isEmpty) {
-        debugPrint('[AUTOPLAY] All similar songs already in queue');
+        debugPrint('[AUTOPLAY] Nothing new to add');
         _lastFetchedForSongId = null; // ← Allow retry with different seed
         return;
       }

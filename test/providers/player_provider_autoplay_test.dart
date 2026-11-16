@@ -337,12 +337,99 @@ void main() {
       );
 
       // Wait for async fetch to finish
-      await Future.delayed(const Duration(milliseconds: 100));
+      await Future.delayed(const Duration(milliseconds: 300));
 
       state = container.read(playerProvider);
       expect(state.queue.length, 2);
       expect(state.queue[1].id, '2');
       expect(state.currentIndex, 1);
+    },
+  );
+
+  ProviderContainer freshContainer() => ProviderContainer(
+    overrides: [
+      subsonicServiceProvider.overrideWithValue(subsonic),
+      audioHandlerProvider.overrideWithValue(MockAudioHandler()),
+    ],
+  );
+
+  test('Autoplay defaults to on when the preference was never set', () async {
+    await HiveBoxes.prefs.delete(HiveBoxes.kAutoplayPreference);
+    final c = freshContainer();
+    addTearDown(c.dispose);
+    c.read(playerProvider.notifier);
+    await Future.delayed(const Duration(milliseconds: 50));
+    expect(c.read(playerProvider).autoplayMode, isTrue);
+  });
+
+  test('Autoplay restores the saved preference on startup', () async {
+    await HiveBoxes.prefs.put(HiveBoxes.kAutoplayPreference, false);
+    final off = freshContainer();
+    addTearDown(off.dispose);
+    off.read(playerProvider.notifier);
+    await Future.delayed(const Duration(milliseconds: 50));
+    expect(off.read(playerProvider).autoplayMode, isFalse);
+
+    await HiveBoxes.prefs.put(HiveBoxes.kAutoplayPreference, true);
+    final on = freshContainer();
+    addTearDown(on.dispose);
+    on.read(playerProvider.notifier);
+    await Future.delayed(const Duration(milliseconds: 50));
+    expect(on.read(playerProvider).autoplayMode, isTrue);
+  });
+
+  test('Empty similar list falls back to the artist top songs', () async {
+    await HiveBoxes.prefs.put(HiveBoxes.kAutoplayPreference, true);
+    final notifier = container.read(playerProvider.notifier);
+    final s1 = _song(id: '1');
+    final s2 = _song(id: '2');
+    when(
+      () => subsonic.getSimilarSongs(any(), count: any(named: 'count')),
+    ).thenAnswer((_) async => []);
+    when(
+      () => subsonic.getTopSongs(any(), count: any(named: 'count')),
+    ).thenAnswer((_) async => [s1, s2]); // s1 is already queued
+
+    await notifier.setQueue([s1], 0);
+    (handler.player as ControlledAudioPlayer).simulateProcessingState(
+      ProcessingState.completed,
+    );
+    await Future.delayed(const Duration(milliseconds: 300));
+
+    final state = container.read(playerProvider);
+    expect(state.queue.map((s) => s.id), ['1', '2']);
+    expect(state.currentIndex, 1);
+  });
+
+  test(
+    'A single song started from search keeps going: falls through to random',
+    () async {
+      await HiveBoxes.prefs.put(HiveBoxes.kAutoplayPreference, true);
+      final notifier = container.read(playerProvider.notifier);
+      final s1 = _song(id: '1');
+      final r1 = _song(id: '7');
+      when(
+        () => subsonic.getSimilarSongs(any(), count: any(named: 'count')),
+      ).thenAnswer((_) async => []);
+      when(
+        () => subsonic.getTopSongs(any(), count: any(named: 'count')),
+      ).thenAnswer((_) async => []);
+      when(() => subsonic.getAlbum(any())).thenAnswer((_) async => [s1]);
+      when(
+        () => subsonic.getRandomSongs(size: any(named: 'size')),
+      ).thenAnswer((_) async => [r1]);
+
+      await notifier.setQueue([s1], 0);
+      (handler.player as ControlledAudioPlayer).simulateProcessingState(
+        ProcessingState.completed,
+      );
+      await Future.delayed(const Duration(milliseconds: 300));
+
+      final state = container.read(playerProvider);
+      expect(state.queue.length, 2);
+      expect(state.queue[1].id, '7');
+      expect(state.currentIndex, 1);
+      expect(handler.player.playing, isTrue);
     },
   );
 
