@@ -66,6 +66,42 @@ def test_title_and_artist_search_ends_owned_without_the_bot(conn, wcfg):
     assert s["library"]["verdict"] == "in_library" and s["library"]["matches"][0]["id"] == "p1"
 
 
+def _forced(conn, sid):
+    return conn.execute("SELECT forced FROM searches WHERE id=?", (sid,)).fetchone()[0]
+
+
+def test_force_from_body_or_query(conn, cfg):
+    client = TestClient(create_app(replace(cfg, searches_per_day=0), conn,
+                                   {"telegram": lambda: True, "worker": lambda: True}))
+    a = client.post("/searches", json={"query": "pondatti", "force": True}, headers=h()).json()["search_id"]
+    b = client.post("/searches?force=1", json={"query": "pondatti"}, headers=h()).json()["search_id"]
+    c = client.post("/searches?force=true", json={"query": "pondatti"}, headers=h()).json()["search_id"]
+    d = client.post("/searches", json={"query": "pondatti"}, headers=h()).json()["search_id"]
+    e = client.post("/searches?force=0", json={"query": "pondatti", "force": False}, headers=h()).json()["search_id"]
+    f = client.post("/searches?force=1", json={"query": "pondatti", "kind": "album"}, headers=h()).json()["search_id"]
+    assert [_forced(conn, x) for x in (a, b, c, d, e, f)] == [1, 1, 1, 0, 0, 0]   # albums never check the library
+
+
+def test_forced_search_asks_the_bot_even_when_title_and_artist_are_owned(conn, wcfg):
+    src = FakeSource(ROWDY)
+    w = Worker(src, conn, wcfg, library_loader=lambda: [dict(r) for r in LIB], verify=_no_llm)
+    sid = db.create_search(conn, "admin", "pondatti anirudh")
+    search_owned.mark_forced(conn, sid)
+    asyncio.run(w.run_search(db.claim_search(conn)))
+    s = db.get_search(conn, sid)
+    assert s["status"] != "in_library" and src.searches > 0
+    sid2 = db.create_search(conn, "admin", "pondatti")
+    search_owned.mark_forced(conn, sid2)
+    asyncio.run(w.run_search(db.claim_search(conn)))
+    assert db.get_search(conn, sid2)["library"]["hint"]["song_id"] == "p1"    # the hint is still there
+
+
+def test_wants_force_values():
+    assert search_owned.wants_force(True, "") and search_owned.wants_force(False, "1")
+    assert search_owned.wants_force(False, "TRUE") and not search_owned.wants_force(False, "0")
+    assert not search_owned.wants_force(False, "") and not search_owned.wants_force("yes", None)
+
+
 def test_api_sends_owned_hint(conn, cfg):
     client = TestClient(create_app(cfg, conn, {"telegram": lambda: True, "worker": lambda: True}))
     sid = client.post("/searches", json={"query": "pondatti"}, headers=h()).json()["search_id"]

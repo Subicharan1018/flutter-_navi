@@ -15,6 +15,10 @@ usual, and the owned song comes back beside the results as a hint:
 
     "owned_hint": {"song_id": "…", "title": "…", "artist": "…", "album": "…"}
 
+Force ("Search online anyway"): `POST /searches` with `"force": true` or
+`?force=1` marks a song search `forced`. It never ends as `in_library`; the
+bot is always asked, and owned_hint is still set when the library has the title.
+
 Superseding: a user's newer search replaces their older one that is still
 queued or running (switching Songs → Albums no longer waits behind a slow
 song search). The older one gets status `superseded`; a running one stops
@@ -106,6 +110,18 @@ def hint_of(library_payload) -> dict | None:
         h = library_payload.get("hint")
         return h if isinstance(h, dict) else None
     return None
+
+
+# ── "Search online anyway" ───────────────────────────────────────────────────
+
+def wants_force(body_flag, query_value) -> bool:
+    """`"force": true` in the body or `?force=1` (also true/yes) on the URL."""
+    return body_flag is True or str(query_value or "").strip().lower() in ("1", "true", "yes")
+
+
+def mark_forced(conn, search_id: int) -> None:
+    """A forced song search never ends as in_library; the bot is always asked."""
+    conn.execute("UPDATE searches SET forced=1 WHERE id=?", (search_id,))
 
 
 # ── one search at a time per user ────────────────────────────────────────────

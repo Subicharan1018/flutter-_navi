@@ -80,7 +80,8 @@ P.append(("tgfetch/worker.py",
 '''            owned = await asyncio.to_thread(lambda: check(query, library=library))
             # server-fixes-v1: only a query naming the song AND its artist ends here; a title
             # alone is searched on the bot, and the owned song comes back as owned_hint.
-            named = await asyncio.to_thread(search_owned.clearly_named, query, library)
+            # "Search online anyway" (forced): never in_library, the hint is still set.
+            named = None if row.get("forced") else await asyncio.to_thread(search_owned.clearly_named, query, library)
             if named is not None:
                 db.finish_search(self.conn, sid, "in_library", library=search_owned.verdict_for(named, query))
                 return
@@ -148,8 +149,21 @@ P.append(("tgfetch/api.py",
 '''        return {"search_id": db.create_search(conn, who, query, kind=body.kind)}
 ''',
 '''        sid = db.create_search(conn, who, query, kind=body.kind)
+        if body.kind == "song" and search_owned.wants_force(body.force, force):
+            search_owned.mark_forced(conn, sid)           # server-fixes-v1: "Search online anyway"
         search_owned.supersede_older(conn, who, sid)      # server-fixes-v1: the newer search replaces the older
         return {"search_id": sid}
+'''))
+P.append(("tgfetch/api.py",
+'''    async def create_search(body: SearchIn, who: str = Depends(user)):
+''',
+'''    async def create_search(body: SearchIn, who: str = Depends(user), force: str = ""):
+'''))
+P.append(("tgfetch/api.py",
+'''    link: str | None = Field(None, max_length=500)   # a pasted playlist link → its songs
+''',
+'''    link: str | None = Field(None, max_length=500)   # a pasted playlist link → its songs
+    force: bool = False                 # server-fixes-v1: song search even when the library has it (or ?force=1)
 '''))
 P.append(("tgfetch/api.py",
 '''        out["library"] = s["library"]
@@ -183,6 +197,14 @@ CREATE TABLE IF NOT EXISTS resolved_failures (
     resolved_at REAL NOT NULL
 );
 """
+'''))
+P.append(("tgfetch/db.py",
+'''        conn.execute("ALTER TABLE candidates ADD COLUMN source_query TEXT")
+''',
+'''        conn.execute("ALTER TABLE candidates ADD COLUMN source_query TEXT")
+    cols = {r["name"] for r in conn.execute("PRAGMA table_info(searches)")}
+    if "forced" not in cols:        # server-fixes-v1: "Search online anyway" (never ends as in_library)
+        conn.execute("ALTER TABLE searches ADD COLUMN forced INTEGER NOT NULL DEFAULT 0")
 '''))
 P.append(("tgfetch/db.py",
 '''    where, args = (f"j.status IN ({marks}) AND COALESCE(j.error, '') != 'cancelled'", list(FAILED_JOB))

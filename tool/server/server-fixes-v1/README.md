@@ -1,8 +1,10 @@
 # server-fixes-v1: tg-fetcher fixes
 
-For `/opt/tg-fetcher` on subiserver. Built on the live code read on 16 Nov 2026 (baseline: 397 tests
-passed). The shuffle server needs no change: its proxy (`fetch_proxy.py`) passes `/fetch/searches`
-answers through as they are and does not check links.
+For `/opt/tg-fetcher` on subiserver, plus one small patch to the shuffle server's `/fetch` proxy.
+Built on the live code read on 16 Nov 2026 (baseline: 397 tg-fetcher tests and 22 proxy tests
+passed). The proxy passes `/fetch/searches` answers through as they are and does not check links.
+Its only change is forwarding `force` ("Search online anyway"), which it used to drop
+(`patch_proxy.py`).
 
 ## What it fixes
 
@@ -35,6 +37,16 @@ answers through as they are and does not check links.
   `status == "in_library"` only.
 * New per-candidate fields (all searches): `source_title` (string or null) and `unreadable` (bool).
   See below.
+
+### "Search online anyway": `POST /fetch/searches` with `force`
+
+* Send either `{"query": "…", "force": true}` in the body, or `?force=1` (also `true` / `yes`) on
+  the URL. The shuffle server's proxy forwards either one to tg-fetcher as `"force": true`.
+* It only applies to `kind: "song"` (other kinds never check the library). A forced search never
+  ends as `in_library`: the bot is always asked. `owned_hint` is still set when the library has a
+  song with that title, so the banner can stay.
+* Use it for the button shown on an `in_library` result. A forced search supersedes the user's
+  older one like any other search.
 
 ### Playlist links: `POST /fetch/searches {"link": …}`
 
@@ -83,10 +95,11 @@ ssh subi@100.99.105.51 bash /tmp/server-fixes-v1/install.sh
 ```
 
 `install.sh` copies tg-fetcher to a scratch folder, patches it, adds the new files and runs the
-full suite (482 tests). Only if that passes does it back up the 9 files it patches (and
-`pip freeze`) to `/opt/tg-fetcher/backups/server-fixes-v1-<time>/`. Then it patches the live
-tree, adds the new files, `pip install ytmusicapi==1.12.3` into tg-fetcher's venv, and runs the
-suite on the live tree. If anything fails, it puts the old files back. Finally it records the files
+full suite (485 tests). It does the same for the shuffle server's `navivibe/` and its proxy tests
+(29). Only if both pass does it back up the 9 tg-fetcher files it patches, `fetch_proxy.py` and
+`pip freeze` to `/opt/tg-fetcher/backups/server-fixes-v1-<time>/`. Then it patches the live trees,
+adds the new files, `pip install ytmusicapi==1.12.3` into tg-fetcher's venv, and runs both suites
+on the live trees. If anything fails, it puts the old files back. Finally it records the files
 already in the music folder for the auto-import. Re-running it is safe; patches are exact-match and
 idempotent, and a file that differs from what this package was built on stops it with exit 2 before
 anything is written. For a rollback, use the **first** backup folder: a re-run backs up files that
@@ -95,7 +108,7 @@ are already patched.
 Then the sudo lines it prints:
 
 ```bash
-sudo systemctl restart tg-fetcher
+sudo systemctl restart tg-fetcher navivibe
 ```
 
 ```bash
@@ -121,5 +134,5 @@ minutes of the restart. `journalctl -u tg-fetcher-autoimport -f` and
   and the sweep re-points anything that referred to it.
 * Mood labels for dropped songs are written to the shuffle server's `mood_tags.json` by its own
   labeller (its venv and `.env`), like the nightly run does.
-* Not changed: `fetch_proxy.py` (it forwards links and search answers untouched). There is no
-  Data API fallback for YouTube (no key needed so far).
+* `fetch_proxy.py` changes only to forward `force`; links and search answers pass through
+  untouched as before. There is no Data API fallback for YouTube (no key needed so far).
