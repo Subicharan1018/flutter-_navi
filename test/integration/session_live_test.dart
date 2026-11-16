@@ -134,6 +134,69 @@ void main() {
     expect(other.state.activeDevice, isNull);
   });
 
+  test('Q1 a controller edits the host queue (protocol 4): every device sees it, the host gets real indices', () async {
+    final host = dev('q1', 'host', 'Living room PC', type: SyncDeviceType.desktop);
+    final ctl = dev('q1', 'ctl', 'Phone');
+    final tv = dev('q1', 'tv', 'Android TV', type: SyncDeviceType.tv);
+    await Future.wait([host.connect(), ctl.connect(), tv.connect()]);
+    host.service.transferPlayback(host.id, force: true);
+    await until(() => ctl.state.activeDevice == host.id, what: 'host is host');
+    host.service.pushStateUpdate(trackId: 'b', isPlaying: true, queue: ['a', 'b', 'c', 'd'], queueIndex: 1);
+    await until(() => ctl.state.queue.length == 4, what: 'controller sees the queue');
+
+    CommandResult answer(String id) => ctl.results.lastWhere((r) => r.cmdId == id);
+    Future<RemoteCommand> hostGets(String action) async {
+      await until(() => host.commands.any((c) => c.$1.action == action), what: 'host receives $action');
+      return host.commands.lastWhere((c) => c.$1.action == action).$1;
+    }
+
+    // Play next from the phone.
+    final i1 = ctl.service.sendQueueEdit(QueueEditType.insert, {'track_ids': ['x'], 'position': 'next'})!;
+    final ins = await hostGets('queue_insert');
+    expect(ins.trackIds, ['x']);
+    expect((ins.index, ins.fromName), (2, 'Phone'));
+    await until(() => ctl.results.any((r) => r.cmdId == i1), what: 'insert answered');
+    expect(answer(i1).ok, isTrue);
+    expect(ctl.state.queue, ['a', 'b', 'x', 'c', 'd']);
+    expect(ctl.state.causedByCmdId, i1);
+    await until(() => tv.state.queue.length == 5, what: 'the TV sees it too');
+
+    // The host's queue moves on (a song ended, the host added one); a remove made on the older view is rebased by id.
+    host.service.pushStateUpdate(trackId: 'x', queue: ['new', 'a', 'b', 'x', 'c', 'd'], queueIndex: 3);
+    await until(() => ctl.state.queue.first == 'new', what: 'controller sees the moved queue');
+    final r1 = ctl.service.sendQueueEdit(QueueEditType.remove, {'index': 4, 'track_id': 'd'})!;
+    final rem = await hostGets('queue_remove');
+    expect((rem.index, rem.trackId), (5, 'd'));
+    await until(() => ctl.results.any((r) => r.cmdId == r1), what: 'remove answered');
+    expect(ctl.state.queue, ['new', 'a', 'b', 'x', 'c']);
+
+    // Move, then a refused remove (the playing song) and a stale one (gone).
+    final m1 = ctl.service.sendQueueEdit(QueueEditType.move, {'from': 4, 'to': 0, 'track_id': 'c'})!;
+    final mv = await hostGets('queue_move');
+    expect((mv.from, mv.to), (4, 0));
+    await until(() => ctl.results.any((r) => r.cmdId == m1), what: 'move answered');
+    expect(ctl.state.queue, ['c', 'new', 'a', 'b', 'x']);
+    expect(ctl.state.queueIndex, 4);
+    final bad = ctl.service.sendQueueEdit(QueueEditType.remove, {'index': 4, 'track_id': 'x'})!;
+    final gone = ctl.service.sendQueueEdit(QueueEditType.remove, {'index': 1, 'track_id': 'zzz'})!;
+    await until(() => ctl.results.any((r) => r.cmdId == gone), what: 'refusals answered');
+    expect(answer(bad).reason, 'is_current');
+    expect(answer(gone).reason, 'queue_changed');
+
+    // Clear what's after the playing song; then a Jam lock refuses edits.
+    host.service.pushStateUpdate(queue: ['c', 'new', 'a', 'b', 'x', 'y', 'z'], queueIndex: 4);
+    await until(() => ctl.state.queue.length == 7, what: 'two more upcoming');
+    final c1 = ctl.service.sendQueueEdit(QueueEditType.clearUpcoming, const {})!;
+    await hostGets('queue_clear_upcoming');
+    await until(() => ctl.results.any((r) => r.cmdId == c1), what: 'clear answered');
+    expect(ctl.state.queue, ['c', 'new', 'a', 'b', 'x']);
+    host.service.pushStateUpdate(queueLocked: true);
+    await until(() => ctl.state.queueLocked == 'jam', what: 'lock reaches the controller');
+    final l1 = ctl.service.sendQueueEdit(QueueEditType.insert, {'track_ids': ['q'], 'position': 'end'})!;
+    await until(() => ctl.results.any((r) => r.cmdId == l1), what: 'locked answer');
+    expect(answer(l1).reason, 'queue_locked');
+  });
+
   test('S2 play on A: B sees it and controls it, under a second', () async {
     final a = dev('s2', 'a', 'Phone');
     final b = dev('s2', 'b', 'Laptop', type: SyncDeviceType.desktop);

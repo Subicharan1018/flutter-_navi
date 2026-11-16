@@ -9,11 +9,13 @@ import '../providers/session_sync_provider.dart';
 import '../providers/settings_provider.dart';
 import '../screens/now_playing_screen.dart' show openNowPlaying;
 import '../services/session_sync_service.dart';
+import '../utils/platform_utils.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
 import '../widgets/mini_player.dart';
 import 'devices_sheet.dart';
 import 'player_controls.dart' show GlyphButton;
+import 'remote_queue_sheet.dart';
 
 /// Who is playing, at a glance: "This device" on the host, "Playing on NAME"
 /// on every other device. Tap for the full list. It stays out of the way when
@@ -97,7 +99,8 @@ class RemoteMiniPlayer extends ConsumerWidget {
     final svc = ref.read(subsonicServiceProvider);
     final player = ref.read(playerProvider.notifier);
     final host = s.activeDeviceName ?? 'another device';
-    return Padding(
+    return RemoteQueueNotices(
+      child: Padding(
       padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.sm),
       child: Semantics(
         label: '${s.trackTitle ?? 'Nothing playing'}, playing on $host. Open controls.',
@@ -144,10 +147,19 @@ class RemoteMiniPlayer extends ConsumerWidget {
                 onTap: () => player.remoteControl('next'),
                 child: NaviIcon(NaviGlyph.next, color: t.textPrimary, size: 24),
               ),
+              // Desktop and TV have no remote Now Playing screen to reach the queue from.
+              if (PlatformUtils.isFocusFirst)
+                GlyphButton(
+                  size: 44,
+                  semanticLabel: 'Queue on $host',
+                  onTap: () => showRemoteQueue(context, hostName: s.activeDeviceName),
+                  child: NaviIcon(NaviGlyph.queue, color: t.textPrimary, size: 22),
+                ),
             ]),
           ),
         ),
       ),
+    ),
     );
   }
 }

@@ -242,6 +242,7 @@ class JamController extends Notifier<JamUiState> {
     _version = 0;
     _lastOkMs = _nowMs;
     state = JamUiState(jam: jam);
+    _lockQueue(true);
     _timer ??= Timer.periodic(_pollEvery, (_) => _tick());
     unawaited(_apply(jam));
   }
@@ -253,6 +254,18 @@ class JamController extends Notifier<JamUiState> {
     _appliedIndex = -1;
     _pending = null;
     state = JamUiState(notice: notice);
+    _lockQueue(false);
+  }
+
+  /// While in a Jam the player's queue follows the Jam, whose own rules say who
+  /// changes it; this account's other devices may not edit it through the
+  /// session link meanwhile.
+  void _lockQueue(bool on) {
+    try {
+      _player.setQueueFollowsJam(on);
+    } catch (e) {
+      debugPrint('[Jam] queue lock not set: $e');
+    }
   }
 
   void _stopTimer() {

@@ -311,6 +311,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           ),
         ) {
     _init();
+    addListener(_onOwnStateForQueueMirror, fireImmediately: false);
     unawaited(_initSync());
     unawaited(_loadPersistedState());
   }
@@ -387,10 +388,119 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           if (c.queue.isEmpty) return;
           final songs = await _subsonicService.getSongs(c.queue);
           if (songs.isNotEmpty) await setQueue(songs, (c.index ?? 0).clamp(0, songs.length - 1));
+        case 'queue_insert' || 'queue_remove' || 'queue_move' || 'queue_clear_upcoming':
+          await _applyRemoteQueueEdit(c);
       }
     } catch (e) {
       debugPrint('[PlayerNotifier] ⚠️ Remote command ${c.action} failed: $e');
     }
+  }
+
+  /// A queue edit another of this account's devices made (protocol 4). The
+  /// server already checked it against the queue this device last reported and
+  /// resolved its indices; the song id is checked again here, because this
+  /// player may have moved on since (a song ended, a local edit). An edit that
+  /// no longer fits is dropped, and the real queue is pushed so every device
+  /// shows the truth instead.
+  Future<void> _applyRemoteQueueEdit(RemoteCommand c) async {
+    if (_queueFollowsJam) {
+      _pushQueueNow(); // the Jam owns this queue; show the others what it really is
+      return;
+    }
+    int? locate(int? index, String? id) {
+      final q = state.queue;
+      if (id == null) return null;
+      if (index != null && index >= 0 && index < q.length && q[index].id == id) return index;
+      final at = [for (var i = 0; i < q.length; i++) if (q[i].id == id) i];
+      return at.length == 1 ? at.first : null;
+    }
+
+    var applied = false;
+    switch (c.action) {
+      case 'queue_insert':
+        if (c.trackIds.isEmpty) break;
+        final songs = await _resolveSongs(c.trackIds);
+        if (songs.isEmpty) break;
+        final at = (c.index ?? state.currentIndex + 1).clamp(0, state.queue.length);
+        await insertAllNext(songs, atIndex: at);
+        applied = true;
+      case 'queue_remove':
+        final i = locate(c.index, c.trackId);
+        if (i != null && i != state.currentIndex) {
+          await removeFromQueue(i);
+          applied = true;
+        }
+      case 'queue_move':
+        final i = locate(c.from, c.trackId);
+        final to = c.to;
+        if (i != null && to != null && to >= 0 && to < state.queue.length) {
+          await reorderQueue(i, to);
+          applied = true;
+        }
+      case 'queue_clear_upcoming':
+        await clearUpcoming();
+        applied = true;
+    }
+    if (!applied) _pushQueueNow();
+  }
+
+  /// Songs for [ids], in order: the ones already in this queue first (no
+  /// network), the rest from the server.
+  Future<List<Song>> _resolveSongs(List<String> ids) async {
+    final known = {for (final s in state.queue) s.id: s};
+    final missing = [for (final id in ids) if (!known.containsKey(id)) id];
+    if (missing.isNotEmpty) {
+      for (final s in await _subsonicService.getSongs(missing)) {
+        known[s.id] = s;
+      }
+    }
+    return [for (final id in ids) ?known[id]];
+  }
+
+  // ── Queue mirror: the other devices see this queue (protocol 4) ──────────
+
+  /// True while this device's queue follows a Jam: other devices may not edit
+  /// it (the Jam's own rules decide who changes a Jam's queue).
+  bool _queueFollowsJam = false;
+
+  /// Set by the Jam controller when this device joins or leaves a Jam.
+  void setQueueFollowsJam(bool on) {
+    if (_queueFollowsJam == on) return;
+    _queueFollowsJam = on;
+    _pushQueueNow();
+  }
+
+  List<String> _lastPushedQueue = const [];
+  bool _queuePushScheduled = false;
+
+  /// Every change of the queue while this device plays is reported, so a
+  /// controller's queue view (and its edits' base) stay current. Several
+  /// changes in one turn of the event loop are sent once.
+  void _onOwnStateForQueueMirror(PlayerState s) {
+    if (s.syncMode != SyncMode.activeHere || _queuePushScheduled) return;
+    final ids = s.queue;
+    if (ids.length == _lastPushedQueue.length) {
+      var same = true;
+      for (var i = 0; i < ids.length; i++) {
+        if (ids[i].id != _lastPushedQueue[i]) {
+          same = false;
+          break;
+        }
+      }
+      if (same) return;
+    }
+    _queuePushScheduled = true;
+    scheduleMicrotask(() {
+      _queuePushScheduled = false;
+      if (mounted) _pushQueueNow();
+    });
+  }
+
+  void _pushQueueNow() {
+    if (state.syncMode != SyncMode.activeHere) return;
+    _lastPushedQueue = [for (final s in state.queue) s.id];
+    // The queue and its index only: the song itself is reported where it changes.
+    _pushUpdate(queue: _lastPushedQueue);
   }
 
   /// Controls the device that holds playback (this one is only a remote).
@@ -637,6 +747,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         coverArtId: describes && song.coverArt.isNotEmpty ? song.coverArt : null,
         durationS: describes ? song.duration.toDouble() : null,
         queueIndex: state.currentIndex,
+        queueLocked: _queueFollowsJam,
       );
     } catch (e) {
       debugPrint('[PlayerNotifier] ⚠️ Failed to push sync update: $e');
@@ -1829,6 +1940,26 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     } finally {
       _suppressDepth--;
     }
+    });
+  }
+
+  /// Removes every song after the one playing (History and the current song
+  /// stay). Removed from the end so the playing song is never disturbed.
+  Future<void> clearUpcoming() async {
+    await _queueLock.run(() async {
+      final keep = state.currentIndex + 1;
+      if (keep >= state.queue.length) return;
+      _queueEpoch++;
+      _suppressDepth++;
+      try {
+        final last = state.queue.length - 1;
+        state = state.copyWith(queue: state.queue.sublist(0, keep));
+        for (var i = last; i >= keep; i--) {
+          await _audioHandler.removeFromQueue(i);
+        }
+      } finally {
+        _suppressDepth--;
+      }
     });
   }
 

@@ -14,6 +14,7 @@ import '../widgets/cover_art.dart';
 import '../widgets/ui/action_sheet.dart' show showToast;
 import 'devices_sheet.dart';
 import 'player_controls.dart';
+import 'remote_queue_sheet.dart';
 
 /// Where the playhead of [s] is now, projected from when the server stamped it.
 ///
@@ -55,7 +56,8 @@ class _RemoteControlViewState extends ConsumerState<RemoteControlView> {
       if (mounted && _dragging == null) setState(() {});
     });
     _results = ref.read(sessionSyncServiceProvider).resultStream.listen((r) {
-      if (!r.ok && mounted) showToast(context, r.message);
+      // Queue edits are explained by RemoteQueueNotices (with the edit undone).
+      if (!r.ok && mounted && !r.action.startsWith('queue_')) showToast(context, r.message);
     });
   }
 
@@ -181,9 +183,16 @@ class _RemoteControlViewState extends ConsumerState<RemoteControlView> {
               NaviIcon(NaviGlyph.speaker, size: 18, color: dim),
             ]),
             const SizedBox(height: 14),
-            Row(mainAxisAlignment: MainAxisAlignment.spaceBetween, children: [
-              _Pill(label: 'Play here', glyph: NaviGlyph.play, onTap: () => _player.claimActiveDevice()),
-              _Pill(label: 'Devices', glyph: NaviGlyph.headphones, onTap: () => showDevicesSheet(context)),
+            // Three equal pills: they share the width, so a 320-wide phone fits them too.
+            Row(children: [
+              Expanded(child: _Pill(label: 'Play here', glyph: NaviGlyph.play, onTap: () => _player.claimActiveDevice())),
+              const SizedBox(width: 8),
+              Expanded(
+                child: _Pill(
+                    label: 'Queue', glyph: NaviGlyph.queue, onTap: () => showRemoteQueue(context, hostName: s.activeDeviceName)),
+              ),
+              const SizedBox(width: 8),
+              Expanded(child: _Pill(label: 'Devices', glyph: NaviGlyph.headphones, onTap: () => showDevicesSheet(context))),
             ]),
             const SizedBox(height: 14),
           ]),
@@ -212,13 +221,18 @@ class _Pill extends StatelessWidget {
           behavior: HitTestBehavior.opaque,
           child: Container(
             constraints: const BoxConstraints(minHeight: 44),
-            padding: const EdgeInsets.symmetric(horizontal: 18),
+            padding: const EdgeInsets.symmetric(horizontal: 12),
             decoration: BoxDecoration(color: Colors.white.withValues(alpha: 0.16), borderRadius: BorderRadius.circular(Radii.capsule)),
-            child: Row(mainAxisSize: MainAxisSize.min, children: [
-              NaviIcon(glyph, size: 18, color: Colors.white),
-              const SizedBox(width: 8),
-              Text(label, style: naviText(14, FontWeight.w600, Colors.white)),
-            ]),
+            child: Center(
+              child: FittedBox(
+                fit: BoxFit.scaleDown,
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  NaviIcon(glyph, size: 18, color: Colors.white),
+                  const SizedBox(width: 8),
+                  Text(label, style: naviText(14, FontWeight.w600, Colors.white)),
+                ]),
+              ),
+            ),
           ),
         ),
       );
