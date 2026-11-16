@@ -116,7 +116,10 @@ class AppNotifier {
   @visibleForTesting
   static String windowsIconPath({String? exe, bool Function(String)? exists}) {
     final exePath = exe ?? Platform.resolvedExecutable;
-    final dir = File(exePath).parent.path;
+    // A Windows path: split it ourselves (File.parent follows the host's
+    // separators, which broke this on the Linux CI runner).
+    final cut = exePath.lastIndexOf(RegExp(r'[\\/]'));
+    final dir = cut < 0 ? '.' : exePath.substring(0, cut);
     final ico = '$dir\\data\\flutter_assets\\assets\\tray\\tray.ico';
     return (exists ?? (p) => File(p).existsSync())(ico) ? ico : exePath;
   }

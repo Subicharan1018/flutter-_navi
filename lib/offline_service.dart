@@ -667,6 +667,20 @@ class OfflineService {
 
   /// After a server upgrade changed song ids: move every downloaded file
   /// (`<id>.<ext>`, `.song.json`, `.lyrics.json`, `.jpg`) and the download list to the new ids, so downloads stay downloaded.
+  /// Windows briefly locks a file that was just written (antivirus scanning,
+  /// the indexer): a rename then fails with "being used by another process".
+  /// Wait a moment and try again; give up after about a second.
+  static Future<File> _renameRetrying(File f, String to) async {
+    for (var attempt = 0;; attempt++) {
+      try {
+        return await f.rename(to);
+      } on FileSystemException {
+        if (attempt >= 5) rethrow;
+        await Future<void>.delayed(Duration(milliseconds: 50 * (attempt + 1)));
+      }
+    }
+  }
+
   /// Two-phase rename: one song's old id can be another song's new id.
   /// Returns how many songs moved.
   Future<int> remapSongIds(Map<String, String> idMap) async {
@@ -683,12 +697,12 @@ class OfflineService {
       if (dot <= 0) continue;
       final newId = idMap[name.substring(0, dot)];
       if (newId == null) continue;
-      staged.add(await entity.rename('$_offlineDir/$tmp$newId${name.substring(dot)}'));
+      staged.add(await _renameRetrying(entity, '$_offlineDir/$tmp$newId${name.substring(dot)}'));
       moved.add(newId);
     }
     for (final f in staged) {
       final name = f.uri.pathSegments.last.substring(tmp.length);
-      final out = await f.rename('$_offlineDir/$name');
+      final out = await _renameRetrying(f, '$_offlineDir/$name');
       if (name.endsWith('.song.json')) {
         // The saved song carries its id too; offline playback reads it.
         try {
