@@ -74,33 +74,36 @@ String? playlistLinkProblem(String text) {
         ? null
         : 'That Spotify link isn’t a playlist. Open the playlist and copy its link.';
   }
-  if (_youtubeHosts.contains(host)) return _youtubeProblem(uri);
-  if (host == 'youtu.be') return 'Paste the playlist’s youtube.com link, not a short link.';
+  if (_youtubeHosts.contains(host) || host == 'youtu.be') return _youtubeProblem(uri, host);
   if (host.endsWith('music.apple.com')) {
-    return 'Only Deezer, Spotify and YouTube playlist links work. The music bot doesn’t take this site.';
+    return "Only Deezer, Spotify and YouTube playlist links work. The music bot doesn't take this site.";
   }
   return 'Only Deezer, Spotify and YouTube playlist links work.';
 }
 
 const _youtubeHosts = {'youtube.com', 'www.youtube.com', 'm.youtube.com', 'music.youtube.com'};
 
-/// Playlist ids the server can read: ordinary (PL), album (OLAK5uy_), mix (RD),
-/// uploads (UU), favourites (FL).
-final _youtubeListId = RegExp(r'^(PL|OLAK5uy_|RD|UU|LL|FL)[A-Za-z0-9_-]{10,64}$');
+/// The server's list id rule; the prefixes below are refused with their own words first.
+final _youtubeListId = RegExp(r'^[A-Za-z0-9_-]{13,64}$');
 
-/// Private lists (Liked videos, Watch later, Liked music): nobody else can read them.
-const _youtubePrivateLists = {'LL', 'WL', 'LM'};
-
-String? _youtubeProblem(Uri uri) {
-  const notPlaylist = 'That YouTube link isn’t a playlist. Open the playlist and copy its link.';
-  if (uri.path != '/playlist' && uri.path != '/playlist/') return notPlaylist;
+/// The server's YouTube rules and refusals, word for word: https only, the
+/// `/playlist` or `/watch` path (or `youtu.be/<video id>`), exactly one `list`
+/// parameter. Other parameters, a fragment and `user:pw@` are ignored.
+String? _youtubeProblem(Uri uri, String host) {
+  if (uri.scheme != 'https') return "Paste the playlist's https:// link.";
+  const notPlaylist = "That YouTube link isn't a playlist. Open the playlist and copy its link.";
+  final pathOk = host == 'youtu.be'
+      ? RegExp(r'^/[A-Za-z0-9_-]+/?$').hasMatch(uri.path)
+      : RegExp(r'^/(?:playlist|watch)/?$').hasMatch(uri.path);
   final lists = uri.queryParametersAll['list'] ?? const <String>[];
-  if (lists.isEmpty || lists.first.isEmpty) return notPlaylist;
-  final id = lists.first;
-  if (_youtubePrivateLists.contains(id)) return 'This playlist is private';
-  if (lists.length > 1 || !_youtubeListId.hasMatch(id)) {
-    return 'That YouTube playlist link isn’t valid. Open the playlist and copy its link.';
+  if (!pathOk || lists.length != 1) return notPlaylist;
+  final id = lists.single;
+  if (id.startsWith('RD')) return "YouTube mixes made for you can't be read. Save it as a playlist first and share that link.";
+  if (id == 'LL' || id == 'LM' || id == 'WL') {
+    return 'Liked songs and Watch later are private. Copy them into a public playlist and share that link.';
   }
+  if (id.startsWith('UU')) return "That's a channel's uploads, not a playlist. Open a playlist and copy its link.";
+  if (!_youtubeListId.hasMatch(id)) return "That YouTube playlist link doesn't look right. Copy it again from Share.";
   return null;
 }
 
@@ -140,6 +143,13 @@ class FetchCandidate {
   /// it again can't work.
   final bool blocked;
 
+  /// A pasted YouTube list's original video title, when the cleaned [title]
+  /// is a reading of it (shown muted so a wrong reading can be spotted).
+  final String? sourceTitle;
+
+  /// The title could not be read: it is not searched and can't be picked.
+  final bool unreadable;
+
   const FetchCandidate({
     required this.id,
     required this.title,
@@ -154,6 +164,8 @@ class FetchCandidate {
     this.trackCount,
     this.otherVersion = false,
     this.blocked = false,
+    this.sourceTitle,
+    this.unreadable = false,
   });
 
   bool get isSong => type == FetchSearchType.song;
@@ -172,6 +184,8 @@ class FetchCandidate {
         type: FetchSearchType.parse(j['type']),
         trackCount: (j['track_count'] as num?)?.toInt(),
         blocked: j['blocked'] == true,
+        sourceTitle: j['source_title'] as String?,
+        unreadable: j['unreadable'] == true,
       );
 }
 
@@ -187,9 +201,18 @@ class LibraryMatch {
         title: j['title'] as String? ?? '',
         artist: j['artist'] as String? ?? '',
       );
+
+  /// The `owned_hint` shape: `{song_id, title, artist, album}`.
+  factory LibraryMatch.fromHint(Map<String, dynamic> j) => LibraryMatch(
+        songId: j['song_id'] as String? ?? '',
+        title: j['title'] as String? ?? '',
+        artist: j['artist'] as String? ?? '',
+      );
 }
 
-enum FetchSearchStatus { queued, searching, done, noResults, inLibrary, failed }
+/// [superseded]: the same user started a newer search, so this one was dropped
+/// by the server. Not an error.
+enum FetchSearchStatus { queued, searching, done, noResults, inLibrary, superseded, failed }
 
 class FetchSearch {
   final int id;
@@ -212,10 +235,9 @@ class FetchSearch {
   final List<LibraryMatch> libraryMatches;
   final List<FetchCandidate> candidates;
 
-  /// The song the library may already have for this query. Shown above the
-  /// results, never instead of them (unless an older server ended the search
-  /// as [FetchSearchStatus.inLibrary] with no results at all).
-  LibraryMatch? get ownedHint => libraryMatches.firstOrNull;
+  /// The server's `owned_hint`: a library song with this exact title (or the
+  /// title in another spelling). Shown above the results, never instead of them.
+  final LibraryMatch? ownedHint;
 
   const FetchSearch({
     required this.id,
@@ -227,6 +249,7 @@ class FetchSearch {
     this.error,
     this.note,
     this.libraryMatches = const [],
+    this.ownedHint,
     this.candidates = const [],
   });
 
@@ -242,12 +265,14 @@ class FetchSearch {
         'done' => FetchSearchStatus.done,
         'no_results' => FetchSearchStatus.noResults,
         'in_library' => FetchSearchStatus.inLibrary,
+        'superseded' => FetchSearchStatus.superseded,
         _ => FetchSearchStatus.failed,
       };
 
   factory FetchSearch.fromJson(Map<String, dynamic> j) {
     final library = j['library'];
-    // Read for any status: the server may now send results AND a match.
+    // `library.verdict` can be in_library on a `done` search too; only
+    // `status == in_library` is the full-screen "already have it" state.
     final matches = library is Map && library['verdict'] == 'in_library'
         ? [for (final m in (library['matches'] as List? ?? const [])) LibraryMatch.fromJson(m as Map<String, dynamic>)]
         : const <LibraryMatch>[];
@@ -261,6 +286,7 @@ class FetchSearch {
       error: j['error'] as String?,
       note: j['note'] as String?,
       libraryMatches: matches,
+      ownedHint: j['owned_hint'] is Map ? LibraryMatch.fromHint(Map<String, dynamic>.from(j['owned_hint'] as Map)) : null,
       candidates: [
         for (final c in (j['candidates'] as List? ?? const [])) FetchCandidate.fromJson(c as Map<String, dynamic>),
       ],

@@ -112,7 +112,8 @@ class _SendPlaylistSheetState extends ConsumerState<SendPlaylistSheet> {
           padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xs, Space.gutter, 0),
           child: Text(
             'Paste a Deezer, Spotify or YouTube playlist link. Songs you already have are kept; '
-            'the rest are added in lossless quality, and it becomes a playlist in your library.',
+            'the rest are added in lossless quality, and it becomes a playlist in your library. '
+            'A YouTube list takes about 20 s per song.',
             style: t.footnote,
           ),
         ),

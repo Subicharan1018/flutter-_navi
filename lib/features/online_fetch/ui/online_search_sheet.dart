@@ -325,11 +325,21 @@ class OnlineSearchBody extends ConsumerWidget {
       final why = s.stillLooking;
       return LoadingState(label: why == null ? what : '$what\n$why');
     }
+    // The server's owned_hint, above the results and never instead of them.
+    Widget? hintRow() {
+      final hint = search.ownedHint;
+      if (hint == null || s.isLink || s.artist != null) return null;
+      return OwnedHintRow(match: hint, onPlay: () => onPlay(() => svc.getSong(hint.songId)));
+    }
+
     switch (search.status) {
-      case FetchSearchStatus.inLibrary when search.ownedHint != null && search.candidates.isEmpty:
-        // An older server ended the search here. Keep the hint, but let the
-        // user go on to the bot.
-        final m = search.ownedHint!;
+      case FetchSearchStatus.superseded:
+        // The same user started a newer search: not an error, nothing to show.
+        return const SizedBox.shrink();
+      case FetchSearchStatus.inLibrary when search.libraryMatches.isNotEmpty:
+        // The query named both title and artist and the library has it. Offer
+        // the song, but let the user go on to the bot.
+        final m = search.libraryMatches.first;
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -359,24 +369,23 @@ class OnlineSearchBody extends ConsumerWidget {
           onRetry: () => onSearch(s.query),
         );
       case FetchSearchStatus.noResults when search.candidates.isEmpty:
-        if (s.type == FetchSearchType.song || s.isLink || s.artist != null) {
-          return MessageState(
-            icon: NaviGlyph.search,
-            title: 'No match for “${search.query}”',
-            message: 'Check the spelling, or add the film or artist name.',
-          );
-        }
-        return _NoTypeResults(state: s, onType: onType);
-      default:
-        final hint = search.ownedHint;
+        final Widget empty = (s.type == FetchSearchType.song || s.isLink || s.artist != null)
+            ? MessageState(
+                icon: NaviGlyph.search,
+                title: 'No match for “${search.query}”',
+                message: 'Check the spelling, or add the film or artist name.',
+              )
+            : _NoTypeResults(state: s, onType: onType);
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            if (hint != null && s.type == FetchSearchType.song && s.artist == null && !s.isLink)
-              OwnedHintRow(match: hint, onPlay: () => onPlay(() => svc.getSong(hint.songId))),
-            _Results(state: s, onSearch: onSearch, onPlay: onPlay),
-          ],
+          children: [?hintRow(), empty],
+        );
+      default:
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [?hintRow(), _Results(state: s, onSearch: onSearch, onPlay: onPlay)],
         );
     }
   }
@@ -518,7 +527,7 @@ class _ResultsState extends ConsumerState<_Results> {
     final downloads = ref.watch(fetchJobsProvider);
     final pickable = [
       for (final c in search.candidates)
-        if (c.isSong && !c.inLibrary && !c.blocked && (downloads.jobFor(c.id)?.phase ?? FetchJobPhase.failed) == FetchJobPhase.failed) c.id,
+        if (c.isSong && !c.inLibrary && !c.blocked && !c.unreadable && (downloads.jobFor(c.id)?.phase ?? FetchJobPhase.failed) == FetchJobPhase.failed) c.id,
     ];
     // The bot refused some of these (blocked by the author): no Retry on them, but the
     // user may search again by hand (the song might be offered in another form).
