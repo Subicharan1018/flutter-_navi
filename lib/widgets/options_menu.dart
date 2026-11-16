@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/moods/ui/not_this_mood_action.dart';
 import '../features/share/share_sheet.dart';
 import '../features/social/logic/jam_controller.dart';
 import '../features/social/ui/collab_screens.dart' show showAddToCollab;
@@ -27,12 +28,14 @@ import 'art/navi_icons.dart';
 import 'ui/action_sheet.dart';
 
 /// Opens the song context menu. Pass [playlistId] + [onRemoveFromPlaylist]
-/// when the song is shown inside a playlist.
+/// when the song is shown inside a playlist, and [mood] when the list is a
+/// mood list (it adds "Not this mood").
 Future<void> showSongActions(
   BuildContext context,
   Song song, {
   String? playlistId,
   VoidCallback? onRemoveFromPlaylist,
+  String? mood,
 }) =>
     showPlatformSheet(
       context: context,
@@ -41,6 +44,7 @@ Future<void> showSongActions(
         song: song,
         playlistId: playlistId,
         onRemoveFromPlaylist: onRemoveFromPlaylist,
+        mood: mood,
       ),
     );
 
@@ -51,11 +55,15 @@ class OptionsMenu extends ConsumerWidget {
   final String? playlistId;
   final VoidCallback? onRemoveFromPlaylist;
 
+  /// The mood of the list the menu was opened from (see [NotThisMoodAction]).
+  final String? mood;
+
   const OptionsMenu({
     super.key,
     required this.song,
     this.playlistId,
     this.onRemoveFromPlaylist,
+    this.mood,
   });
 
   @override
@@ -184,6 +192,7 @@ class OptionsMenu extends ConsumerWidget {
             },
           ),
         ]),
+        NotThisMoodAction(song: song, mood: mood, page: page),
         SheetGroup(children: [
           SheetAction(
             label: 'Never Recommend…',

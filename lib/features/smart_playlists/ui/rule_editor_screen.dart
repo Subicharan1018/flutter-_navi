@@ -9,6 +9,7 @@ import '../../../providers/catalog_provider.dart';
 import '../../../utils/format.dart';
 import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/action_sheet.dart';
+import '../../moods/data/mood_labels.dart';
 import '../data/smart_evaluator.dart';
 import '../data/smart_rules.dart';
 import '../logic/smart_playlist_providers.dart';
@@ -475,7 +476,7 @@ class _RuleRowState extends ConsumerState<_RuleRow> {
             if (doc != null) for (final c in doc.languages) c.key: c.name,
             for (final e in languageNames.entries) e.key: e.value,
           }
-        : {for (final m in moodLabels) m: '${m[0].toUpperCase()}${m.substring(1)}'};
+        : {for (final m in moodLabels) m: moodTitle(m)};
     final key = await showChoiceSheet<String>(
       context,
       title: _rule.field.label,

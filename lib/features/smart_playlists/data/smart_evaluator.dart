@@ -1,6 +1,5 @@
 import 'dart:math';
 
-import '../../../models/catalog.dart';
 import '../../../models/song.dart';
 import 'smart_rules.dart';
 
@@ -11,12 +10,15 @@ class SongFacts {
 
   /// ISO 639-1 codes, primary first (2+ means multilingual). Empty = unknown.
   final List<String> languages;
-  final String? mood;
+
+  /// The shuffle server's mood labels, most fitting first, without the ones
+  /// you marked "Not this mood". Empty: the song fits no mood.
+  final List<String> moods;
 
   /// Epoch milliseconds of each finished play (skips before halfway left out).
   final List<int> playTimes;
 
-  const SongFacts({required this.song, this.languages = const [], this.mood, this.playTimes = const []});
+  const SongFacts({required this.song, this.languages = const [], this.moods = const [], this.playTimes = const []});
 
   DateTime? get lastPlayed {
     if (playTimes.isEmpty) return null;
@@ -32,29 +34,6 @@ class SongFacts {
     return n;
   }
 }
-
-/// A mood label for a song, read from the words in the catalog's genre and
-/// genre bucket ("tamil__melody__calm", "Kuthu / Dance"). Null when nothing
-/// there suggests one — the server doesn't tag mood directly.
-String? moodFromCatalog(CatalogSong? meta) {
-  if (meta == null) return null;
-  final text = '${meta.bucket ?? ''} ${meta.genre ?? ''}'.toLowerCase();
-  for (final (mood, words) in _moodWords) {
-    if (words.any(text.contains)) return mood;
-  }
-  return null;
-}
-
-/// Order matters: the first mood with a matching word wins.
-const _moodWords = <(String, List<String>)>[
-  ('sad', ['sad', 'melanchol', 'sorrow', 'heartbreak', 'pathos', 'lonely']),
-  ('romantic', ['romantic', 'romance', 'love']),
-  ('energetic', ['kuthu', 'dance', 'party', 'mass', 'energ', 'rock', 'hip hop', 'edm']),
-  ('happy', ['happy', 'upbeat', 'feel good', 'feel-good', 'joy']),
-  ('calm', ['calm', 'chill', 'soothing', 'peaceful', 'melody', 'ambient', 'lofi', 'lo-fi']),
-];
-
-const moodLabels = ['sad', 'calm', 'romantic', 'happy', 'energetic'];
 
 /// Runs smart-playlist rules over a library. Pure: [now] and [random] are
 /// passed in, so results are repeatable in tests.
@@ -103,7 +82,8 @@ class SmartEvaluator {
       SmartField.genre => [s.genre],
       SmartField.composer => [s.composer],
       SmartField.language => f.languages,
-      SmartField.mood => [f.mood ?? ''],
+      // Any of the song's labels: "Mood is calm" also finds a "romantic, calm" song.
+      SmartField.mood => f.moods,
       _ => const <String>[],
     };
     return [for (final t in raw) if (t.trim().isNotEmpty) t.trim().toLowerCase()];

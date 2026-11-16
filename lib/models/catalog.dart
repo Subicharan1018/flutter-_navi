@@ -20,6 +20,10 @@ class CatalogSong {
   final double? bpm;
   final double? beatOffset;
 
+  /// The server's mood labels (`sad`, `romantic`, …), most fitting first.
+  /// Empty: the song has no label, so it fits no mood.
+  final List<String> moods;
+
   const CatalogSong({
     required this.id,
     this.language,
@@ -33,6 +37,7 @@ class CatalogSong {
     this.titleNative,
     this.bpm,
     this.beatOffset,
+    this.moods = const [],
   });
 
   bool get isMultilingual => languages.length > 1;
@@ -50,6 +55,10 @@ class CatalogSong {
         titleNative: j['title_native'] as String?,
         bpm: (j['bpm'] as num?)?.toDouble(),
         beatOffset: (j['beat_offset'] as num?)?.toDouble(),
+        moods: [
+          for (final m in (j['moods'] as List? ?? const []))
+            if (m is String && m.trim().isNotEmpty) m.trim().toLowerCase(),
+        ],
       );
 }
 

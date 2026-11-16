@@ -47,11 +47,16 @@ class SongTile extends ConsumerStatefulWidget {
   /// Kept for call sites that open a custom menu; defaults to the song menu.
   final VoidCallback? onLongPress;
 
+  /// The mood this list is about (a mood Smart Playlist): the song menu then
+  /// offers "Not this mood".
+  final String? mood;
+
   const SongTile({
     super.key,
     required this.song,
     required this.onTap,
     this.onLongPress,
+    this.mood,
     this.playlistId,
     this.onRemoveFromPlaylist,
     this.showArtwork = true,
@@ -83,6 +88,7 @@ class _SongTileState extends ConsumerState<SongTile> {
       widget.song,
       playlistId: widget.playlistId,
       onRemoveFromPlaylist: widget.onRemoveFromPlaylist,
+      mood: widget.mood,
     );
   }
 

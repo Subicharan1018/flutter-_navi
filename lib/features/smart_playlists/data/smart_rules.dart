@@ -142,6 +142,22 @@ class SmartGroup extends SmartNode {
   /// Rules in this group and its subgroups.
   int get ruleCount => children.fold(0, (n, c) => n + (c is SmartGroup ? c.ruleCount : 1));
 
+  /// The mood the first "Mood is / contains …" rule asks for (here or in a
+  /// subgroup), lower-cased; null when no rule asks for one. The song menu
+  /// offers "Not this mood" for it.
+  String? get askedMood {
+    for (final c in children) {
+      final m = switch (c) {
+        SmartGroup g => g.askedMood,
+        SmartRule r when r.field == SmartField.mood && (r.op == SmartOp.isOp || r.op == SmartOp.contains) =>
+          r.value.trim().isEmpty ? null : r.value.trim().toLowerCase(),
+        _ => null,
+      };
+      if (m != null) return m;
+    }
+    return null;
+  }
+
   @override
   Map<String, dynamic> toJson() => {'all': matchAll, 'children': [for (final c in children) c.toJson()]};
 

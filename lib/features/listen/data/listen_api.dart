@@ -12,7 +12,7 @@ class ListenException implements Exception {
 }
 
 /// Client for the shuffle server's personal routes: `/mix/weekly`,
-/// `/flow/next`, `/flow/moods`, `/flow/prefs`, `/taste/exclusions` and `/stats/month`. Build
+/// `/flow/next`, `/flow/moods`, `/flow/prefs`, `/moods/…`, `/taste/exclusions` and `/stats/month`. Build
 /// it with `createShuffleDio` so it shares the shuffle client's auth and retries.
 class ListenApi {
   final Dio _dio;
@@ -50,6 +50,24 @@ class ListenApi {
   Future<List<FlowMood>> flowMoods() => _wrap(() async {
         final r = await _dio.get<Map<String, dynamic>>('/flow/moods');
         return parseFlowMoods(r.data ?? const {});
+      });
+
+  /// Your "Not this mood" marks: song id → the moods you said it is not.
+  Future<Map<String, Set<String>>> moodOverrides() => _wrap(() async {
+        final r = await _dio.get<Map<String, dynamic>>('/moods/overrides');
+        return parseMoodOverrides(r.data ?? const {});
+      });
+
+  /// Marks [songId] as not [mood] for you; it beats the server's label in
+  /// Flow and Smart Playlists. [undo] takes the mark back.
+  Future<void> setNotThisMood(String songId, String mood, {bool undo = false}) => _wrap(() async {
+        final body = {'song_id': songId, 'mood': mood};
+        final options = Options(contentType: 'application/json');
+        if (undo) {
+          await _dio.delete<Map<String, dynamic>>('/moods/not-this', data: body, options: options);
+        } else {
+          await _dio.post<Map<String, dynamic>>('/moods/not-this', data: body, options: options);
+        }
       });
 
   /// The Flow language setting, with the languages the library has.
