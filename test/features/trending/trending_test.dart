@@ -3,7 +3,10 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:drift/native.dart';
 import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/database/app_database.dart';
+import 'package:navivibe/models/song.dart';
 import 'package:navivibe/features/trending/data/trending_api.dart';
 import 'package:navivibe/features/trending/data/trending_models.dart';
 import 'package:navivibe/features/trending/logic/trending_providers.dart';
@@ -122,6 +125,14 @@ Map<String, dynamic> _billboardPayload() => {
       ],
     };
 
+class _SongsSubsonic extends Fake implements SubsonicService {
+  final Map<String, Song> songs;
+  _SongsSubsonic(this.songs);
+
+  @override
+  Future<List<Song>> getSongs(List<String> ids) async => [for (final id in ids) if (songs[id] != null) songs[id]!];
+}
+
 class _FakeSubsonic extends Fake implements SubsonicService {
   @override
   String getCoverArtUrl(String? id, {int? size}) => '';
@@ -161,6 +172,29 @@ void main() {
       expect(e[2].unavailableLine, 'Only available in lossy quality');
       expect(e[3].unavailableLine, 'Downloading soon');
       expect(e[4].unavailableLine, 'Not found on the download source');
+    });
+
+    test('“Not in your library” is told apart from “Downloading soon”', () {
+      ChartEntry e(String status, {String? songId}) =>
+          ChartEntry.fromJson({'rank': 1, 'title': 't', 'artist': 'a', 'song_id': songId, 'status': status});
+      expect(e('not_in_library').unavailableLine, 'Not in your library');
+      expect(e('available').unavailableLine, 'Not in your library');   // its id was dropped
+      expect(e('pending').unavailableLine, 'Downloading soon');
+      expect(e('failed').unavailableLine, 'Download failed');
+    });
+
+    test('a tapped song missing from the queue plays nothing, not the chart’s #1', () async {
+      final db = AppDatabase.forTesting(NativeDatabase.memory());
+      addTearDown(db.close);
+      // The library only knows nd1; nd2's id is dead.
+      final c = ProviderContainer(overrides: [
+        appDatabaseProvider.overrideWithValue(db),
+        subsonicServiceProvider.overrideWithValue(_SongsSubsonic({'nd1': makeSong(id: 'nd1')})),
+      ]);
+      addTearDown(c.dispose);
+      final tamil = TrendingCharts.fromJson(_payload()).charts.first;
+      final dead = tamil.entries.firstWhere((x) => x.songId == 'nd2');
+      expect(await c.read(chartPlayerProvider).play(tamil, from: dead), ChartPlayResult.entryMissing);
     });
 
     test('an empty song id is not playable; unknown status is pending', () {

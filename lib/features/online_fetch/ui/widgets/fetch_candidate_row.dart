@@ -107,6 +107,11 @@ class FetchCandidateRow extends ConsumerWidget {
                         Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
                         const SizedBox(height: 2),
                         Text(_subtitle(c), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
+                        // A pasted YouTube list: the original title, so a wrong reading shows.
+                        if (c.sourceTitle != null && c.sourceTitle!.isNotEmpty && c.sourceTitle != c.title) ...[
+                          const SizedBox(height: 2),
+                          Text(c.sourceTitle!, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote.copyWith(color: t.textMuted)),
+                        ],
                         if (status != null || (song && c.kind.label != null)) ...[
                           const SizedBox(height: 2),
                           Text(
@@ -171,6 +176,7 @@ class FetchCandidateRow extends ConsumerWidget {
   }
 
   static String? _songStatus(FetchJob? job, FetchCandidate c) {
+    if (c.unreadable) return 'Couldn’t read this title';
     if (job == null) {
       if (c.inLibrary) return 'In your library';
       if (c.blocked) return kBlockedByAuthor;
@@ -210,7 +216,7 @@ bool fetchCandidateTappable(
   bool interactive = true,
 }) =>
     switch (c.type) {
-      _ when !interactive => false,
+      _ when !interactive || c.unreadable => false,
       // A blocked song has no Retry: the bot can't send it. (Search again is offered by the results.)
       FetchSearchType.song when !c.inLibrary && (c.blocked || job?.phase == FetchJobPhase.blocked) => false,
       _ when selecting => !c.inLibrary && (job == null || job.phase == FetchJobPhase.failed),

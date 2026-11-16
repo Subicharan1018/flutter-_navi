@@ -159,7 +159,7 @@ class _FakeSearch extends OnlineSearchController {
   @override
   OnlineSearchState build() => fixed;
   @override
-  Future<void> start(String query, {FetchSearchType type = FetchSearchType.song}) async {}
+  Future<void> start(String query, {FetchSearchType type = FetchSearchType.song, bool force = false}) async {}
 }
 
 /// What the fake server answers for a playlist: its songs, none, or an error.

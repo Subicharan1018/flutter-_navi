@@ -127,11 +127,14 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
     return const OnlineSearchState();
   }
 
-  Future<void> start(String query, {FetchSearchType type = FetchSearchType.song}) async {
+  /// Always a fresh search for [type]: the old results, artist drill-down and
+  /// parent are dropped. [force] searches the bot even if the library seems to
+  /// have the song.
+  Future<void> start(String query, {FetchSearchType type = FetchSearchType.song, bool force = false}) async {
     final q = query.trim();
     if (q.length < 2) return;
     final api = ref.read(onlineFetchApiProvider);
-    await _run(OnlineSearchState(query: q, type: type), () => api.startSearch(q, type: type));
+    await _run(OnlineSearchState(query: q, type: type), () => api.startSearch(q, type: type, force: force));
   }
 
   /// Lists a pasted playlist link's songs, owned or new. A link the app can
@@ -164,7 +167,10 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
     state = parent;
   }
 
-  Future<void> _run(OnlineSearchState base, Future<int> Function() create) async {
+  /// [retried]: this run replaces a search the server marked `superseded`
+  /// (not an error: the same user started a newer one). It is dropped silently
+  /// and asked again once; a second one is left as nothing.
+  Future<void> _run(OnlineSearchState base, Future<int> Function() create, {bool retried = false}) async {
     final gen = ++_generation;
     state = base;
     final api = ref.read(onlineFetchApiProvider);
@@ -203,6 +209,11 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
         hardErrors = 0;
         last = s;
         if (!ref.mounted || gen != _generation) return;
+        if (s.status == FetchSearchStatus.superseded) {
+          if (!retried) return _run(base, create, retried: true);
+          state = base.withResult(search: s);   // the body shows nothing for it
+          return;
+        }
         state = base.withResult(search: s);
         if (s.isSettled) return;
         if (DateTime.now().isAfter(deadline)) {

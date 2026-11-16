@@ -74,27 +74,39 @@ Future<Map<String, Song>> loadChartSongs(Ref ref, List<String> ids) async {
   return found;
 }
 
-/// Plays a chart in rank order, starting at [from] (or the top). Returns
-/// false when none of its songs could be loaded.
+/// What [ChartPlayer.play] did.
+enum ChartPlayResult {
+  played,
+
+  /// None of the chart's songs could be loaded.
+  noSongs,
+
+  /// The tapped song isn't in the loaded queue (its library id is dead).
+  /// Nothing was played: the chart's #1 must never play in its place.
+  entryMissing,
+}
+
+/// Plays a chart in rank order, starting at [from] (or the top).
 final chartPlayerProvider = Provider<ChartPlayer>(ChartPlayer.new);
 
 class ChartPlayer {
   final Ref _ref;
   ChartPlayer(this._ref);
 
-  Future<bool> play(TrendingChart chart, {ChartEntry? from, bool shuffle = false}) async {
+  Future<ChartPlayResult> play(TrendingChart chart, {ChartEntry? from, bool shuffle = false}) async {
     final ids = [for (final e in chart.entries) if (e.playable) e.songId!];
-    if (ids.isEmpty) return false;
+    if (ids.isEmpty) return ChartPlayResult.noSongs;
     final queue = chartQueue(chart, await loadChartSongs(_ref, ids));
-    if (queue.isEmpty) return false;
+    if (queue.isEmpty) return ChartPlayResult.noSongs;
     final name = 'Trending: ${chart.title}';
+    final start = from == null || shuffle ? 0 : queue.indexWhere((s) => s.id == from.songId);
+    if (start < 0) return ChartPlayResult.entryMissing;
     final player = _ref.read(playerProvider.notifier);
     if (shuffle) {
       await player.playPlaylist(queue, shuffle: true, playlistName: name);
-      return true;
+      return ChartPlayResult.played;
     }
-    final start = from == null ? 0 : queue.indexWhere((s) => s.id == from.songId);
-    await player.setQueue(queue, start < 0 ? 0 : start, playlistName: name);
-    return true;
+    await player.setQueue(queue, start, playlistName: name);
+    return ChartPlayResult.played;
   }
 }

@@ -62,7 +62,7 @@ class SearchOnlineRow extends ConsumerWidget {
             ),
           CollectionRow(
             title: isLink ? 'Send this playlist link' : 'Send a playlist link',
-            subtitle: 'Deezer or Spotify: add its songs as a playlist',
+            subtitle: 'Deezer, Spotify or YouTube: add its songs as a playlist',
             leading: NaviIcon(NaviGlyph.link, size: 22, color: t.accent),
             titleColor: t.accent,
             showSeparator: false,

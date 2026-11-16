@@ -25,6 +25,7 @@ import 'online_search_page.dart';
 import 'send_playlist_sheet.dart';
 import 'widgets/fetch_candidate_row.dart';
 import 'widgets/fetch_results_table.dart';
+import 'widgets/owned_hint_row.dart';
 
 /// "Search online": find songs, albums, artists or playlists that aren't in
 /// the library, confirm it's the right one, and add it (lossless only).
@@ -75,6 +76,13 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
     unawaited(ref.read(onlineSearchProvider.notifier).start(q, type: _type));
   }
 
+  void _searchAnyway(String query) {
+    final q = query.trim();
+    if (q.length < 2) return;
+    unawaited(ref.read(onlineSearchProvider.notifier).start(q, type: _type, force: true));
+  }
+
+  /// Every switch is a fresh search for that kind (old results are dropped).
   void _setType(FetchSearchType type) {
     setState(() => _type = type);
     _search(_field.text);
@@ -157,7 +165,7 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
         ] else
           OnlineArtistHeader(state: s),
         const ActiveFetchDownloads(),
-        OnlineSearchBody(state: s, onSearch: _search, onPlay: _play),
+        OnlineSearchBody(state: s, onSearch: _search, onPlay: _play, onSearchAnyway: _searchAnyway, onType: _setType),
         const SizedBox(height: Space.lg),
       ],
     );
@@ -282,7 +290,20 @@ class OnlineSearchBody extends ConsumerWidget {
   final ValueChanged<String> onSearch;
   final Future<void> Function(Future<Song> Function() load) onPlay;
 
-  const OnlineSearchBody({super.key, required this.state, required this.onSearch, required this.onPlay});
+  /// Searches the bot although the library seems to have the song.
+  final ValueChanged<String>? onSearchAnyway;
+
+  /// Switches to another kind of result (the empty state's buttons).
+  final ValueChanged<FetchSearchType>? onType;
+
+  const OnlineSearchBody({
+    super.key,
+    required this.state,
+    required this.onSearch,
+    required this.onPlay,
+    this.onSearchAnyway,
+    this.onType,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -295,7 +316,8 @@ class OnlineSearchBody extends ConsumerWidget {
     }
     if (s.isLoading || search == null) {
       final what = switch (s.artist) {
-        null => 'Searching online…',
+        null when s.isLink => 'Searching online…',
+        null => 'Searching ${s.type.title.toLowerCase()}…',
         final a when a.type == FetchSearchType.label => 'Getting ${a.title}’s tracks…',
         final a => 'Getting ${a.title}’s songs…',
       };
@@ -303,15 +325,42 @@ class OnlineSearchBody extends ConsumerWidget {
       final why = s.stillLooking;
       return LoadingState(label: why == null ? what : '$what\n$why');
     }
+    // The server's owned_hint, above the results and never instead of them.
+    Widget? hintRow() {
+      final hint = search.ownedHint;
+      if (hint == null || s.isLink || s.artist != null) return null;
+      return OwnedHintRow(match: hint, onPlay: () => onPlay(() => svc.getSong(hint.songId)));
+    }
+
     switch (search.status) {
-      case FetchSearchStatus.inLibrary:
+      case FetchSearchStatus.superseded:
+        // The same user started a newer search: not an error, nothing to show.
+        return const SizedBox.shrink();
+      case FetchSearchStatus.inLibrary when search.libraryMatches.isNotEmpty:
+        // The query named both title and artist and the library has it. Offer
+        // the song, but let the user go on to the bot.
         final m = search.libraryMatches.first;
-        return MessageState(
-          icon: NaviGlyph.checkCircle,
-          title: 'Already in your library',
-          message: '${m.title} — ${m.artist}',
-          actionLabel: 'Play',
-          onAction: () => onPlay(() => svc.getSong(m.songId)),
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            OwnedHintRow(match: m, onPlay: () => onPlay(() => svc.getSong(m.songId))),
+            if (onSearchAnyway != null)
+              Padding(
+                padding: EdgeInsets.fromLTRB(
+                    PlatformUtils.isDesktop ? 0 : Space.gutter, Space.sm, PlatformUtils.isDesktop ? 0 : Space.gutter, 0),
+                child: Align(
+                  alignment: PlatformUtils.isDesktop ? Alignment.centerLeft : Alignment.center,
+                  child: TintedButton(
+                    glyph: NaviGlyph.globe,
+                    label: 'Search online anyway',
+                    filled: true,
+                    height: PlatformUtils.isDesktop ? 36 : 44,
+                    onTap: () => onSearchAnyway!(s.query),
+                  ),
+                ),
+              ),
+          ],
         );
       case FetchSearchStatus.failed:
         return MessageState.error(
@@ -320,16 +369,66 @@ class OnlineSearchBody extends ConsumerWidget {
           onRetry: () => onSearch(s.query),
         );
       case FetchSearchStatus.noResults when search.candidates.isEmpty:
-        return MessageState(
-          icon: NaviGlyph.search,
-          title: 'No match for “${search.query}”',
-          message: s.type == FetchSearchType.song
-              ? 'Check the spelling, or add the film or artist name.'
-              : 'Check the spelling, or try Songs.',
+        final Widget empty = (s.type == FetchSearchType.song || s.isLink || s.artist != null)
+            ? MessageState(
+                icon: NaviGlyph.search,
+                title: 'No match for “${search.query}”',
+                message: 'Check the spelling, or add the film or artist name.',
+              )
+            : _NoTypeResults(state: s, onType: onType);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [?hintRow(), empty],
         );
       default:
-        return _Results(state: s, onSearch: onSearch, onPlay: onPlay);
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [?hintRow(), _Results(state: s, onSearch: onSearch, onPlay: onPlay)],
+        );
     }
+  }
+}
+
+/// "No albums found for ‘x’" with a button for each of the other kinds, so an
+/// empty tab reads as "searched, nothing there" and the next step is one tap.
+class _NoTypeResults extends StatelessWidget {
+  final OnlineSearchState state;
+  final ValueChanged<FetchSearchType>? onType;
+  const _NoTypeResults({required this.state, required this.onType});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final kind = state.type.title.toLowerCase();
+    final query = state.search?.query ?? state.query;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Space.gutter, vertical: Space.xl),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          NaviIcon(NaviGlyph.search, size: 32, color: t.textMuted),
+          const SizedBox(height: Space.md),
+          Text('No $kind found for ‘$query’', style: t.headline, textAlign: TextAlign.center),
+          const SizedBox(height: Space.xs),
+          Text('Try another kind of result.', style: t.footnote, textAlign: TextAlign.center),
+          if (onType != null) ...[
+            const SizedBox(height: Space.md),
+            Wrap(
+              alignment: WrapAlignment.center,
+              spacing: Space.sm,
+              runSpacing: Space.sm,
+              children: [
+                for (final other in FetchSearchType.values)
+                  if (other != state.type)
+                    TintedButton(label: other.title, height: 36, onTap: () => onType!(other)),
+              ],
+            ),
+          ],
+        ],
+      ),
+    );
   }
 }
 
@@ -428,7 +527,7 @@ class _ResultsState extends ConsumerState<_Results> {
     final downloads = ref.watch(fetchJobsProvider);
     final pickable = [
       for (final c in search.candidates)
-        if (c.isSong && !c.inLibrary && !c.blocked && (downloads.jobFor(c.id)?.phase ?? FetchJobPhase.failed) == FetchJobPhase.failed) c.id,
+        if (c.isSong && !c.inLibrary && !c.blocked && !c.unreadable && (downloads.jobFor(c.id)?.phase ?? FetchJobPhase.failed) == FetchJobPhase.failed) c.id,
     ];
     // The bot refused some of these (blocked by the author): no Retry on them, but the
     // user may search again by hand (the song might be offered in another form).
