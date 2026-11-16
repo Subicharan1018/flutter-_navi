@@ -70,6 +70,24 @@ class ListenApi {
         }
       });
 
+  /// Whether you may change songs' moods for everyone (`GET /moods/me`).
+  Future<bool> moodsIsAdmin() => _wrap(() async {
+        final r = await _dio.get<Map<String, dynamic>>('/moods/me');
+        return r.data?['is_admin'] == true;
+      });
+
+  /// Admins only: [moods] (at most 2, most fitting first; empty = no mood)
+  /// become the song's moods for everyone. Returns the moods the server kept.
+  Future<List<String>> setSongMoods(String songId, List<String> moods) => _wrap(() async {
+        final r = await _dio.put<Map<String, dynamic>>(
+          '/moods/songs/${Uri.encodeComponent(songId)}',
+          data: {'moods': moods},
+          options: Options(contentType: 'application/json'),
+        );
+        final song = r.data?['song'];
+        return song is Map && song['moods'] is List ? [for (final m in song['moods'] as List) m.toString()] : moods;
+      });
+
   /// The Flow language setting, with the languages the library has.
   Future<FlowPrefs> flowPrefs() => _wrap(() async {
         final r = await _dio.get<Map<String, dynamic>>('/flow/prefs');
@@ -126,6 +144,7 @@ class ListenApi {
       throw ListenException(switch (e.response?.statusCode) {
         null => 'Can’t reach the server. Check your connection.',
         401 => 'Sign in again to continue.',
+        403 => 'Only an admin can change that for everyone.',
         503 => 'The server is still starting up. Try again in a minute.',
         _ => 'The server couldn’t answer that right now.',
       });

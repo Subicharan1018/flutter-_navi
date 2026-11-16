@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="color-scheme" content="dark">
+<meta name="referrer" content="no-referrer">
+<title>Song Moods</title>
+<link rel="stylesheet" href="/moods/editor/app.css">
+<script src="/moods/editor/app.js" defer></script>
+</head>
+<body>
+<main id="signin" class="signin" hidden>
+  <h1>Song Moods</h1>
+  <p class="muted">Sign in with your NaviVibe account.</p>
+  <form id="signin-form" autocomplete="on">
+    <label>User name<input id="user" name="username" autocomplete="username" autocapitalize="none" spellcheck="false" required></label>
+    <label>Password<input id="pass" name="password" type="password" autocomplete="current-password" required></label>
+    <button type="submit" class="primary" id="signin-btn">Sign In</button>
+    <p id="signin-error" class="error" role="alert" hidden></p>
+  </form>
+</main>
+
+<div id="app" hidden>
+  <header class="bar">
+    <div class="bar-row">
+      <h1>Song Moods</h1>
+      <span id="who" class="muted small"></span>
+      <button id="signout" class="link">Sign Out</button>
+    </div>
+    <input id="search" type="search" placeholder="Search songs, artists, films" autocomplete="off" aria-label="Search">
+    <nav id="filters" class="filters" aria-label="Filter"></nav>
+    <p id="role-note" class="muted small"></p>
+  </header>
+  <p id="count" class="muted small count" aria-live="polite"></p>
+  <ul id="list" class="list"></ul>
+  <p id="list-state" class="muted center"></p>
+  <div id="sentinel" aria-hidden="true"></div>
+</div>
+
+<div id="sheet" class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-title" hidden>
+  <div class="sheet-body">
+    <h2 id="sheet-title"></h2>
+    <p id="sheet-sub" class="muted"></p>
+    <p id="sheet-hint" class="muted small"></p>
+    <div id="chips" class="chips"></div>
+    <p id="sheet-error" class="error" role="alert" hidden></p>
+    <p id="sheet-llm" class="muted small"></p>
+    <div class="sheet-actions">
+      <button id="sheet-save" class="primary">Save for Everyone</button>
+      <button id="sheet-reset" class="link">Use the Labeller's Moods</button>
+      <button id="sheet-close" class="link">Close</button>
+    </div>
+  </div>
+</div>
+
+<div id="toast" class="toast" role="status" aria-live="polite" hidden>
+  <span id="toast-text"></span><button id="toast-undo" class="link" hidden>Undo</button>
+</div>
+</body>
+</html>

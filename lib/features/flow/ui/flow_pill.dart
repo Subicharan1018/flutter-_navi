@@ -3,6 +3,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
 import '../../../widgets/art/navi_icons.dart';
+import '../../moods/data/mood_labels.dart';
+import '../../moods/ui/flow_mood_buttons.dart';
 import '../logic/flow_controller.dart';
 import 'flow_section.dart' show flowLabel, showFlowMoodSheet;
 
@@ -20,6 +22,7 @@ class FlowPill extends ConsumerWidget {
     final mood = ref.watch(flowProvider.select((s) => s.mood));
     final t = ThemeTokens.of(context);
     final label = flowLabel(mood);
+    final now = flowMoodNow(ref);
     return Row(
       mainAxisAlignment: MainAxisAlignment.center,
       children: [
@@ -46,6 +49,29 @@ class FlowPill extends ConsumerWidget {
             ),
           ),
         ),
+        if (now != null) ...[
+          const SizedBox(width: Space.xs),
+          // "Not this mood": records it for you and skips to the next song.
+          _Target(
+            key: const ValueKey('flow-pill-not-this-mood'),
+            onTap: () => runNotThisMood(context, now.$1, now.$2),
+            semanticLabel: 'Not ${moodTitle(now.$2)}. Skips this song',
+            child: _Capsule(
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  NaviIcon(NaviGlyph.thumbDown, size: 14, color: AppThemeTokens.onArtwork),
+                  const SizedBox(width: Space.xs),
+                  Text(
+                    'Not ${moodTitle(now.$2)}',
+                    maxLines: 1,
+                    style: t.footnote.copyWith(color: AppThemeTokens.onArtwork, fontWeight: FontWeight.w600),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
         const SizedBox(width: Space.xs),
         _Target(
           onTap: ref.read(flowProvider.notifier).stop,
@@ -64,7 +90,7 @@ class _Target extends StatelessWidget {
   final VoidCallback onTap;
   final String semanticLabel;
   final Widget child;
-  const _Target({required this.onTap, required this.semanticLabel, required this.child});
+  const _Target({super.key, required this.onTap, required this.semanticLabel, required this.child});
 
   @override
   Widget build(BuildContext context) => ConstrainedBox(

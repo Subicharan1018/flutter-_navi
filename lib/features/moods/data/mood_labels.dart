@@ -6,6 +6,12 @@
 /// The labels the server gives, in the order the mood pickers list them.
 const moodLabels = ['sad', 'romantic', 'happy', 'energetic', 'calm', 'devotional', 'angry'];
 
+/// What the mood picker offers: the labels plus Flow's sound-based "gym".
+const pickableMoods = [...moodLabels, 'gym'];
+
+/// The most moods a song carries.
+const maxSongMoods = 2;
+
 /// "Sad", "Gym": how a mood reads on screen.
 String moodTitle(String mood) => mood.isEmpty ? mood : mood[0].toUpperCase() + mood.substring(1);
 
