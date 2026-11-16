@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import '../../../player/audio_quality_provider.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -47,6 +48,7 @@ class DesktopPlayerBar extends ConsumerWidget {
     final starred = ref.watch(playerProvider.select((s) => s.starredIds.contains(song.id)));
     final shuffle = ref.watch(playerProvider.select((s) => s.shuffleMode));
     final repeat = ref.watch(playerProvider.select((s) => s.repeatMode));
+    final quality = ref.watch(currentAudioQualityProvider);
     final n = ref.read(playerProvider.notifier);
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
 
@@ -84,18 +86,21 @@ class DesktopPlayerBar extends ConsumerWidget {
                 ),
                 const SizedBox(width: Space.md),
                 Flexible(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(
-                        song.title,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600),
-                      ),
-                      Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
-                    ],
+                  child: _QualityTip(
+                    message: quality,
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          song.title,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600),
+                        ),
+                        Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.caption1),
+                      ],
+                    ),
                   ),
                 ),
                 BarIconButton(
@@ -598,4 +603,17 @@ class _GroupGap extends StatelessWidget {
         padding: const EdgeInsets.symmetric(horizontal: Space.sm),
         child: Container(width: 1, height: 18, color: ThemeTokens.of(context).separatorOpaque),
       );
+}
+
+/// Hover text with what is playing: format, depth and rate (or bitrate).
+/// Without a known quality the child is returned as it is, with no tooltip.
+class _QualityTip extends StatelessWidget {
+  final String? message;
+  final Widget child;
+  const _QualityTip({required this.message, required this.child});
+
+  @override
+  Widget build(BuildContext context) => message == null
+      ? child
+      : Tooltip(message: message!, excludeFromSemantics: true, waitDuration: const Duration(milliseconds: 500), child: child);
 }

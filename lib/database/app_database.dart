@@ -28,7 +28,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 6;
+  int get schemaVersion => 7;
 
   /// Tables from schema 3 that were written but never read (co-play pairs,
   /// suggest feedback, song weights) or never used at all (recommendation
@@ -78,6 +78,23 @@ class AppDatabase extends _$AppDatabase {
         }
         if (from < 6) {
           await m.createTable(localSongs);
+        }
+        if (from < 7) {
+          // Audio format of mirrored songs. Each column on its own: a retry
+          // after a half-finished upgrade must not stop at one that exists.
+          for (final column in [
+            songMetadata.suffix,
+            songMetadata.bitRate,
+            songMetadata.bitDepth,
+            songMetadata.samplingRate,
+            songMetadata.channelCount,
+          ]) {
+            try {
+              await m.addColumn(songMetadata, column);
+            } catch (_) {
+              // Already there.
+            }
+          }
         }
       },
       // Idempotent: covers fresh installs and existing DBs without a bump.

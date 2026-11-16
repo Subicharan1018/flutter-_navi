@@ -3,7 +3,11 @@ import 'dart:io' show File;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/material.dart';
 
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../core/theme.dart';
+import '../features/local_library/logic/local_index.dart';
+import '../features/local_library/logic/local_library_providers.dart' show localIndexRevisionProvider;
 import '../player/artwork.dart' show testCoverOverride;
 import 'art/navi_icons.dart';
 
@@ -51,6 +55,17 @@ class CoverArt extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final pendingId = url == null ? null : pendingLocalCoverId(url!);
+    if (pendingId != null) {
+      return _LocalCover(
+        songId: pendingId,
+        size: size,
+        radius: radius,
+        placeholderIcon: placeholderIcon,
+        circular: circular,
+        fallbackUrl: fallbackUrl,
+      );
+    }
     final t = ThemeTokens.of(context);
     final px = (size * MediaQuery.devicePixelRatioOf(context)).round();
     // The note is for "this has no cover". While a cover loads, a plain panel:
@@ -108,6 +123,40 @@ class CoverArt extends StatelessWidget {
           child: image,
         ),
       ),
+    );
+  }
+}
+
+/// A cover of a song on this device that was not in the local index when the
+/// url was made. Watches the index once for this one song (`select`), so only
+/// the covers whose file just appeared repaint, wherever they are drawn.
+class _LocalCover extends ConsumerWidget {
+  final String songId;
+  final double size;
+  final double radius;
+  final NaviGlyph placeholderIcon;
+  final bool circular;
+  final String? fallbackUrl;
+
+  const _LocalCover({
+    required this.songId,
+    required this.size,
+    required this.radius,
+    required this.placeholderIcon,
+    required this.circular,
+    required this.fallbackUrl,
+  });
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final file = ref.watch(localIndexRevisionProvider.select((_) => LocalLibraryIndex.instance.coverFor(songId)));
+    return CoverArt(
+      url: file == null ? null : Uri.file(file).toString(),
+      size: size,
+      radius: radius,
+      placeholderIcon: placeholderIcon,
+      circular: circular,
+      fallbackUrl: fallbackUrl,
     );
   }
 }

@@ -26,6 +26,12 @@ class Song {
   final String contentType; // e.g. 'audio/flac', 'audio/mpeg'
   final String suffix; // e.g. 'flac', 'mp3', 'opus'
 
+  // OpenSubsonic `bitDepth` (bits), `samplingRate` (Hz), `channelCount`.
+  // 0 = unknown (older servers, files the parser could not read).
+  final int bitDepth;
+  final int samplingRate;
+  final int channelCount;
+
   // ReplayGain (Subsonic `replayGain` object): gains in dB, peaks as linear
   // sample values (1.0 = full scale). Null when the file carries no tag.
   final double? trackGain;
@@ -56,12 +62,17 @@ class Song {
     this.bitRate = 0,
     this.contentType = '',
     this.suffix = '',
+    this.bitDepth = 0,
+    this.samplingRate = 0,
+    this.channelCount = 0,
     this.trackGain,
     this.albumGain,
     this.trackPeak,
     this.albumPeak,
     this.dynamicWeight = 1.0,
   });
+
+  static int _asInt(Object? v) => v is num ? v.toInt() : int.tryParse(v?.toString() ?? '') ?? 0;
 
   static double? _asDouble(Object? v) =>
       v is num ? v.toDouble() : double.tryParse(v?.toString() ?? '');
@@ -112,6 +123,9 @@ class Song {
           : int.tryParse(json['bitRate']?.toString() ?? '') ?? 0,
       contentType: json['contentType']?.toString() ?? '',
       suffix: json['suffix']?.toString() ?? '',
+      bitDepth: _asInt(json['bitDepth']),
+      samplingRate: _asInt(json['samplingRate']),
+      channelCount: _asInt(json['channelCount']),
       trackGain: _asDouble(rg['trackGain']),
       albumGain: _asDouble(rg['albumGain']),
       trackPeak: _asDouble(rg['trackPeak']),
@@ -142,6 +156,9 @@ class Song {
       'bitRate': bitRate,
       'contentType': contentType,
       'suffix': suffix,
+      if (bitDepth > 0) 'bitDepth': bitDepth,
+      if (samplingRate > 0) 'samplingRate': samplingRate,
+      if (channelCount > 0) 'channelCount': channelCount,
       if (trackGain != null ||
           albumGain != null ||
           trackPeak != null ||
@@ -187,6 +204,9 @@ class Song {
       bitRate: bitRate ?? this.bitRate,
       contentType: contentType ?? this.contentType,
       suffix: suffix ?? this.suffix,
+      bitDepth: bitDepth,
+      samplingRate: samplingRate,
+      channelCount: channelCount,
       trackGain: trackGain,
       albumGain: albumGain,
       trackPeak: trackPeak,
@@ -226,6 +246,9 @@ class Song {
           bitRate == other.bitRate &&
           contentType == other.contentType &&
           suffix == other.suffix &&
+          bitDepth == other.bitDepth &&
+          samplingRate == other.samplingRate &&
+          channelCount == other.channelCount &&
           trackGain == other.trackGain &&
           albumGain == other.albumGain;
 
@@ -250,6 +273,9 @@ class Song {
     bitRate,
     contentType,
     suffix,
+    bitDepth,
+    samplingRate,
+    channelCount,
     trackGain,
     albumGain,
   ]);

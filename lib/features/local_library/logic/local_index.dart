@@ -50,3 +50,59 @@ class LocalLibraryIndex {
   /// Ids whose cover is a device file (see [coverFor]).
   static bool hasLocalCover(String coverArtId) => isLocalSongId(coverArtId);
 }
+
+const _pendingCover = 'local-cover:';
+
+/// What `getCoverArtUrl` returns for a device song whose cover is not in the
+/// index yet (the index loads after the first screens draw). `CoverArt` turns
+/// it into the file once the index has it, so no screen has to watch.
+String pendingLocalCoverUrl(String songId) => '$_pendingCover$songId';
+
+/// The song id inside [pendingLocalCoverUrl], or null for any other url.
+String? pendingLocalCoverId(String url) => url.startsWith(_pendingCover) ? url.substring(_pendingCover.length) : null;
+
+/// The folder a scanned path sits in. Works for file paths and for SAF
+/// document URIs, whose separators are `%2F`.
+String parentOf(String path) {
+  final slash = path.lastIndexOf('/');
+  final enc = path.toLowerCase().lastIndexOf('%2f');
+  final cut = slash > enc ? slash : enc;
+  return cut <= 0 ? '' : path.substring(0, cut);
+}
+
+/// Gives songs without art the art of a sibling: another track in the same
+/// folder first, then another track of the same album and album artist.
+/// "Unknown Album" never groups songs by album, only by folder.
+class AlbumCoverFallback {
+  final Map<String, String> _byDir = {};
+  final Map<String, String> _byAlbum = {};
+  // Albums that have art inside each folder: a flat folder holding several
+  // albums must not lend one album's cover to the others.
+  final Map<String, Set<String>> _dirAlbums = {};
+
+  AlbumCoverFallback(Iterable<({String path, String album, String albumArtist, String? cover})> rows) {
+    for (final r in rows) {
+      final cover = r.cover;
+      if (cover == null) continue;
+      final dir = parentOf(r.path);
+      _byDir.putIfAbsent(dir, () => cover);
+      _dirAlbums.putIfAbsent(dir, () => {}).add(r.album.trim().toLowerCase());
+      final key = _albumKey(r.album, r.albumArtist);
+      if (key != null) _byAlbum.putIfAbsent(key, () => cover);
+    }
+  }
+
+  static String? _albumKey(String album, String artist) {
+    final a = album.trim().toLowerCase();
+    if (a.isEmpty || a == 'unknown album') return null;
+    return '$a|${artist.trim().toLowerCase()}';
+  }
+
+  String? coverFor({required String path, required String album, required String albumArtist}) {
+    final dir = parentOf(path);
+    final key = _albumKey(album, albumArtist);
+    final albums = _dirAlbums[dir];
+    final sameFolder = dir.isNotEmpty && albums != null && albums.length == 1 && albums.first == album.trim().toLowerCase();
+    return (sameFolder ? _byDir[dir] : null) ?? (key == null ? null : _byAlbum[key]);
+  }
+}

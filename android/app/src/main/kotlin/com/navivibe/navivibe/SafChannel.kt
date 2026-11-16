@@ -2,11 +2,15 @@ package com.navivibe.navivibe
 
 import android.app.Activity
 import android.content.Intent
+import android.graphics.Bitmap
 import android.net.Uri
+import android.os.Build
 import android.os.ParcelFileDescriptor
 import android.provider.DocumentsContract
 import io.flutter.plugin.common.BinaryMessenger
 import io.flutter.plugin.common.MethodChannel
+import android.util.Size
+import java.io.ByteArrayOutputStream
 import java.util.concurrent.ConcurrentHashMap
 import java.util.concurrent.Executors
 import java.util.concurrent.atomic.AtomicInteger
@@ -26,7 +30,17 @@ class SafChannel(private val activity: Activity, messenger: BinaryMessenger) {
         private val AUDIO_EXT = setOf(
             "mp3", "flac", "m4a", "aac", "ogg", "oga", "opus", "wav", "aiff", "aif", "wma", "ape", "mka", "webm",
         )
-        private val ART_NAMES = setOf("cover", "folder", "front", "album", "albumart")
+        private val ART_NAMES = setOf(
+            "cover", "folder", "front", "album", "albumart", "albumartsmall", "albumartlarge", "albumartwork",
+            "coverart", "art", "artwork", "thumb", "thumbnail", "poster", "frontcover", "cd",
+        )
+        private val ART_SEPARATORS = Regex("[\\s_\\-]+")
+
+        /** Mirrors `isArtName` in file_source.dart. */
+        private fun isArtName(base: String): Boolean {
+            val n = base.lowercase().replace(ART_SEPARATORS, "")
+            return n in ART_NAMES || n.startsWith("albumart")
+        }
         private val ART_EXT = setOf("jpg", "jpeg", "png", "webp")
     }
 
@@ -82,6 +96,13 @@ class SafChannel(private val activity: Activity, messenger: BinaryMessenger) {
                         result.error("open_failed", e.message, null)
                     }
                 }
+                "thumbnail" -> {
+                    val uri = Uri.parse(call.argument<String>("uri"))
+                    io.execute {
+                        val bytes = thumbnailBytes(uri)
+                        activity.runOnUiThread { result.success(bytes) }
+                    }
+                }
                 "closeFd" -> {
                     val token = call.argument<Int>("token")
                     if (token != null) {
@@ -94,6 +115,24 @@ class SafChannel(private val activity: Activity, messenger: BinaryMessenger) {
                 }
                 else -> result.notImplemented()
             }
+        }
+    }
+
+    /**
+     * The system's own thumbnail for a document (Android 10+), as JPEG. Used
+     * only when a song has no embedded art and no cover file beside it. Any
+     * failure is "no thumbnail", never an error.
+     */
+    private fun thumbnailBytes(uri: Uri): ByteArray? {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return null
+        return try {
+            val bmp = activity.contentResolver.loadThumbnail(uri, Size(512, 512), null)
+            val out = ByteArrayOutputStream()
+            bmp.compress(Bitmap.CompressFormat.JPEG, 90, out)
+            bmp.recycle()
+            out.toByteArray()
+        } catch (_: Exception) {
+            null
         }
     }
 
@@ -154,8 +193,8 @@ class SafChannel(private val activity: Activity, messenger: BinaryMessenger) {
                     continue
                 }
                 val ext = name.substringAfterLast('.', "").lowercase()
-                val base = name.substringBeforeLast('.').lowercase()
-                val wanted = ext in AUDIO_EXT || ext == "lrc" || (ext in ART_EXT && base in ART_NAMES)
+                val base = name.substringBeforeLast('.')
+                val wanted = ext in AUDIO_EXT || ext == "lrc" || (ext in ART_EXT && isArtName(base))
                 if (!wanted) continue
                 out.add(
                     mapOf(

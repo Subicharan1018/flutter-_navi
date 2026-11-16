@@ -223,7 +223,7 @@ class SubsonicService {
     // A song from Settings > Local music: its cover is a file on the device.
     if (isLocalSongId(coverArtId)) {
       final file = LocalLibraryIndex.instance.coverFor(coverArtId);
-      return file == null ? '' : Uri.file(file).toString();
+      return file == null ? pendingLocalCoverUrl(coverArtId) : Uri.file(file).toString();
     }
     // Offline-first: a cover saved with a download (600 px) or found in the
     // device library beats the network, so lists look the same with no

@@ -3,6 +3,7 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:ui' show RootIsolateToken;
 
+import 'package:flutter/foundation.dart' show debugPrint;
 import 'package:flutter/services.dart' show BackgroundIsolateBinaryMessenger;
 
 import 'file_source.dart';
@@ -11,8 +12,23 @@ import 'tag_reader.dart';
 
 const _batchSize = 25;
 
+/// Version of how covers are found (embedded picture, folder file names,
+/// platform thumbnail). Part of every fingerprint: raise it when the reader
+/// learns to find more art, and songs that have none are read again once.
+const artReaderVersion = 2;
+const _artTag = '|art$artReaderVersion';
+
 String _fingerprint(ScanEntry e, ScanEntry? lrc, ScanEntry? art) =>
-    '${e.size}:${e.modifiedMs}|${lrc?.modifiedMs ?? ''}:${lrc?.size ?? ''}|${art?.modifiedMs ?? ''}';
+    '${e.size}:${e.modifiedMs}|${lrc?.modifiedMs ?? ''}:${lrc?.size ?? ''}|${art?.modifiedMs ?? ''}$_artTag';
+
+/// The fingerprint to compare a stored row against. A row written by an older
+/// reader that already has a cover keeps its place (the tag is added); one
+/// without a cover gets none, so it is read again with the current reader.
+String? knownFingerprint(String stored, {required bool hasCover}) {
+  if (stored.endsWith(_artTag)) return stored;
+  if (RegExp(r'\|art\d+$').hasMatch(stored)) return null;
+  return hasCover ? '$stored$_artTag' : null;
+}
 
 /// Walks [folders] and reads the tags of files that are new or changed since
 /// [known] (path → fingerprint). Emits batches as it goes, then one
@@ -47,11 +63,12 @@ Stream<ScanEvent> scanFolders({
     yield ScanListed(folder.id, listing.audio.length, work.length);
 
     var unreadable = 0;
+    var artUnreadable = 0;
     var done = 0;
     var batch = <ScannedTrack>[];
     for (final (entry, print, lrc, art) in work) {
       try {
-        batch.add(await readTrack(
+        final track = await readTrack(
           source: source,
           entry: entry,
           folderId: folder.id,
@@ -59,7 +76,9 @@ Stream<ScanEvent> scanFolders({
           artDir: artDir,
           lyricsFile: lrc,
           folderArt: art,
-        ));
+        );
+        if (track.artFailed) artUnreadable++;
+        batch.add(track);
       } on FileSystemException {
         unreadable++;
         seen.remove(entry.path);
@@ -74,7 +93,10 @@ Stream<ScanEvent> scanFolders({
       }
     }
     if (batch.isNotEmpty) yield ScanBatch(batch, done, work.length);
-    yield ScanFolderDone(folder.id, seen, unreadable);
+    if (artUnreadable > 0) {
+      debugPrint('[LocalLibrary] ${folder.name}: art unreadable for $artUnreadable of ${work.length} songs read');
+    }
+    yield ScanFolderDone(folder.id, seen, unreadable, artUnreadable);
   }
 }
 

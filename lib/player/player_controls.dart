@@ -10,6 +10,7 @@ import '../core/theme.dart';
 import '../models/song.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/art/navi_icons.dart';
+import 'audio_quality.dart';
 import 'playback_progress.dart';
 
 export 'playback_progress.dart';
@@ -29,18 +30,8 @@ String formatClock(Duration d) {
 }
 
 /// Honest format label from the file the server reports. Never claims
-/// "Lossless" for a lossy file.
-String? qualityLabel(Song song) {
-  final suffix = song.suffix.toLowerCase();
-  const lossless = {'flac', 'alac', 'wav', 'aiff', 'aif', 'ape', 'wv', 'dsf'};
-  if (lossless.contains(suffix)) return 'Lossless · ${suffix.toUpperCase()}';
-  if (suffix.isEmpty && song.bitRate == 0) return null;
-  final parts = [
-    if (suffix.isNotEmpty) suffix.toUpperCase(),
-    if (song.bitRate > 0) '${song.bitRate} kbps',
-  ];
-  return parts.join(' · ');
-}
+/// "Lossless" for a lossy file. See [AudioQualityLabel].
+String? qualityLabel(Song song, {StreamQuality? stream}) => AudioQualityLabel.of(song, stream: stream);
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Elastic track — the shared bar behind the scrubber and the volume control.
@@ -251,6 +242,9 @@ class Scrubber extends StatefulWidget {
   final Color labelColor;
   final bool showQuality;
 
+  /// How the song's source was opened, so a converted stream says so.
+  final StreamQuality? stream;
+
   const Scrubber({
     super.key,
     required this.player,
@@ -259,6 +253,7 @@ class Scrubber extends StatefulWidget {
     this.trackColor = const Color(0x40FFFFFF),
     this.labelColor = const Color(0x99FFFFFF),
     this.showQuality = true,
+    this.stream,
   });
 
   @override
@@ -278,7 +273,7 @@ class _ScrubberState extends State<Scrubber> {
 
   @override
   Widget build(BuildContext context) {
-    final quality = widget.showQuality ? qualityLabel(widget.song) : null;
+    final quality = widget.showQuality ? qualityLabel(widget.song, stream: widget.stream) : null;
     return RepaintBoundary(
       child: PlaybackProgressBuilder(
         player: widget.player,

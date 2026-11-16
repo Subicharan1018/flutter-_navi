@@ -984,6 +984,63 @@ class $SongMetadataTable extends SongMetadata
     type: DriftSqlType.int,
     requiredDuringInsert: false,
   );
+  static const VerificationMeta _suffixMeta = const VerificationMeta('suffix');
+  @override
+  late final GeneratedColumn<String> suffix = GeneratedColumn<String>(
+    'suffix',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _bitRateMeta = const VerificationMeta(
+    'bitRate',
+  );
+  @override
+  late final GeneratedColumn<int> bitRate = GeneratedColumn<int>(
+    'bit_rate',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _bitDepthMeta = const VerificationMeta(
+    'bitDepth',
+  );
+  @override
+  late final GeneratedColumn<int> bitDepth = GeneratedColumn<int>(
+    'bit_depth',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _samplingRateMeta = const VerificationMeta(
+    'samplingRate',
+  );
+  @override
+  late final GeneratedColumn<int> samplingRate = GeneratedColumn<int>(
+    'sampling_rate',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
+  static const VerificationMeta _channelCountMeta = const VerificationMeta(
+    'channelCount',
+  );
+  @override
+  late final GeneratedColumn<int> channelCount = GeneratedColumn<int>(
+    'channel_count',
+    aliasedName,
+    false,
+    type: DriftSqlType.int,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(0),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     songId,
@@ -999,6 +1056,11 @@ class $SongMetadataTable extends SongMetadata
     starred,
     updatedAt,
     createdAt,
+    suffix,
+    bitRate,
+    bitDepth,
+    samplingRate,
+    channelCount,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1105,6 +1167,42 @@ class $SongMetadataTable extends SongMetadata
         createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
       );
     }
+    if (data.containsKey('suffix')) {
+      context.handle(
+        _suffixMeta,
+        suffix.isAcceptableOrUnknown(data['suffix']!, _suffixMeta),
+      );
+    }
+    if (data.containsKey('bit_rate')) {
+      context.handle(
+        _bitRateMeta,
+        bitRate.isAcceptableOrUnknown(data['bit_rate']!, _bitRateMeta),
+      );
+    }
+    if (data.containsKey('bit_depth')) {
+      context.handle(
+        _bitDepthMeta,
+        bitDepth.isAcceptableOrUnknown(data['bit_depth']!, _bitDepthMeta),
+      );
+    }
+    if (data.containsKey('sampling_rate')) {
+      context.handle(
+        _samplingRateMeta,
+        samplingRate.isAcceptableOrUnknown(
+          data['sampling_rate']!,
+          _samplingRateMeta,
+        ),
+      );
+    }
+    if (data.containsKey('channel_count')) {
+      context.handle(
+        _channelCountMeta,
+        channelCount.isAcceptableOrUnknown(
+          data['channel_count']!,
+          _channelCountMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -1166,6 +1264,26 @@ class $SongMetadataTable extends SongMetadata
         DriftSqlType.int,
         data['${effectivePrefix}created_at'],
       ),
+      suffix: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}suffix'],
+      ),
+      bitRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bit_rate'],
+      )!,
+      bitDepth: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}bit_depth'],
+      )!,
+      samplingRate: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}sampling_rate'],
+      )!,
+      channelCount: attachedDatabase.typeMapping.read(
+        DriftSqlType.int,
+        data['${effectivePrefix}channel_count'],
+      )!,
     );
   }
 
@@ -1190,6 +1308,11 @@ class SongMetadataEntity extends DataClass
   final bool starred;
   final int updatedAt;
   final int? createdAt;
+  final String? suffix;
+  final int bitRate;
+  final int bitDepth;
+  final int samplingRate;
+  final int channelCount;
   const SongMetadataEntity({
     required this.songId,
     required this.trackName,
@@ -1204,6 +1327,11 @@ class SongMetadataEntity extends DataClass
     required this.starred,
     required this.updatedAt,
     this.createdAt,
+    this.suffix,
+    required this.bitRate,
+    required this.bitDepth,
+    required this.samplingRate,
+    required this.channelCount,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1229,6 +1357,13 @@ class SongMetadataEntity extends DataClass
     if (!nullToAbsent || createdAt != null) {
       map['created_at'] = Variable<int>(createdAt);
     }
+    if (!nullToAbsent || suffix != null) {
+      map['suffix'] = Variable<String>(suffix);
+    }
+    map['bit_rate'] = Variable<int>(bitRate);
+    map['bit_depth'] = Variable<int>(bitDepth);
+    map['sampling_rate'] = Variable<int>(samplingRate);
+    map['channel_count'] = Variable<int>(channelCount);
     return map;
   }
 
@@ -1253,6 +1388,13 @@ class SongMetadataEntity extends DataClass
       createdAt: createdAt == null && nullToAbsent
           ? const Value.absent()
           : Value(createdAt),
+      suffix: suffix == null && nullToAbsent
+          ? const Value.absent()
+          : Value(suffix),
+      bitRate: Value(bitRate),
+      bitDepth: Value(bitDepth),
+      samplingRate: Value(samplingRate),
+      channelCount: Value(channelCount),
     );
   }
 
@@ -1275,6 +1417,11 @@ class SongMetadataEntity extends DataClass
       starred: serializer.fromJson<bool>(json['starred']),
       updatedAt: serializer.fromJson<int>(json['updatedAt']),
       createdAt: serializer.fromJson<int?>(json['createdAt']),
+      suffix: serializer.fromJson<String?>(json['suffix']),
+      bitRate: serializer.fromJson<int>(json['bitRate']),
+      bitDepth: serializer.fromJson<int>(json['bitDepth']),
+      samplingRate: serializer.fromJson<int>(json['samplingRate']),
+      channelCount: serializer.fromJson<int>(json['channelCount']),
     );
   }
   @override
@@ -1294,6 +1441,11 @@ class SongMetadataEntity extends DataClass
       'starred': serializer.toJson<bool>(starred),
       'updatedAt': serializer.toJson<int>(updatedAt),
       'createdAt': serializer.toJson<int?>(createdAt),
+      'suffix': serializer.toJson<String?>(suffix),
+      'bitRate': serializer.toJson<int>(bitRate),
+      'bitDepth': serializer.toJson<int>(bitDepth),
+      'samplingRate': serializer.toJson<int>(samplingRate),
+      'channelCount': serializer.toJson<int>(channelCount),
     };
   }
 
@@ -1311,6 +1463,11 @@ class SongMetadataEntity extends DataClass
     bool? starred,
     int? updatedAt,
     Value<int?> createdAt = const Value.absent(),
+    Value<String?> suffix = const Value.absent(),
+    int? bitRate,
+    int? bitDepth,
+    int? samplingRate,
+    int? channelCount,
   }) => SongMetadataEntity(
     songId: songId ?? this.songId,
     trackName: trackName ?? this.trackName,
@@ -1325,6 +1482,11 @@ class SongMetadataEntity extends DataClass
     starred: starred ?? this.starred,
     updatedAt: updatedAt ?? this.updatedAt,
     createdAt: createdAt.present ? createdAt.value : this.createdAt,
+    suffix: suffix.present ? suffix.value : this.suffix,
+    bitRate: bitRate ?? this.bitRate,
+    bitDepth: bitDepth ?? this.bitDepth,
+    samplingRate: samplingRate ?? this.samplingRate,
+    channelCount: channelCount ?? this.channelCount,
   );
   SongMetadataEntity copyWithCompanion(SongMetadataCompanion data) {
     return SongMetadataEntity(
@@ -1345,6 +1507,15 @@ class SongMetadataEntity extends DataClass
       starred: data.starred.present ? data.starred.value : this.starred,
       updatedAt: data.updatedAt.present ? data.updatedAt.value : this.updatedAt,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
+      suffix: data.suffix.present ? data.suffix.value : this.suffix,
+      bitRate: data.bitRate.present ? data.bitRate.value : this.bitRate,
+      bitDepth: data.bitDepth.present ? data.bitDepth.value : this.bitDepth,
+      samplingRate: data.samplingRate.present
+          ? data.samplingRate.value
+          : this.samplingRate,
+      channelCount: data.channelCount.present
+          ? data.channelCount.value
+          : this.channelCount,
     );
   }
 
@@ -1363,7 +1534,12 @@ class SongMetadataEntity extends DataClass
           ..write('rating: $rating, ')
           ..write('starred: $starred, ')
           ..write('updatedAt: $updatedAt, ')
-          ..write('createdAt: $createdAt')
+          ..write('createdAt: $createdAt, ')
+          ..write('suffix: $suffix, ')
+          ..write('bitRate: $bitRate, ')
+          ..write('bitDepth: $bitDepth, ')
+          ..write('samplingRate: $samplingRate, ')
+          ..write('channelCount: $channelCount')
           ..write(')'))
         .toString();
   }
@@ -1383,6 +1559,11 @@ class SongMetadataEntity extends DataClass
     starred,
     updatedAt,
     createdAt,
+    suffix,
+    bitRate,
+    bitDepth,
+    samplingRate,
+    channelCount,
   );
   @override
   bool operator ==(Object other) =>
@@ -1400,7 +1581,12 @@ class SongMetadataEntity extends DataClass
           other.rating == this.rating &&
           other.starred == this.starred &&
           other.updatedAt == this.updatedAt &&
-          other.createdAt == this.createdAt);
+          other.createdAt == this.createdAt &&
+          other.suffix == this.suffix &&
+          other.bitRate == this.bitRate &&
+          other.bitDepth == this.bitDepth &&
+          other.samplingRate == this.samplingRate &&
+          other.channelCount == this.channelCount);
 }
 
 class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
@@ -1417,6 +1603,11 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
   final Value<bool> starred;
   final Value<int> updatedAt;
   final Value<int?> createdAt;
+  final Value<String?> suffix;
+  final Value<int> bitRate;
+  final Value<int> bitDepth;
+  final Value<int> samplingRate;
+  final Value<int> channelCount;
   final Value<int> rowid;
   const SongMetadataCompanion({
     this.songId = const Value.absent(),
@@ -1432,6 +1623,11 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     this.starred = const Value.absent(),
     this.updatedAt = const Value.absent(),
     this.createdAt = const Value.absent(),
+    this.suffix = const Value.absent(),
+    this.bitRate = const Value.absent(),
+    this.bitDepth = const Value.absent(),
+    this.samplingRate = const Value.absent(),
+    this.channelCount = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongMetadataCompanion.insert({
@@ -1448,6 +1644,11 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     this.starred = const Value.absent(),
     required int updatedAt,
     this.createdAt = const Value.absent(),
+    this.suffix = const Value.absent(),
+    this.bitRate = const Value.absent(),
+    this.bitDepth = const Value.absent(),
+    this.samplingRate = const Value.absent(),
+    this.channelCount = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : songId = Value(songId),
        trackName = Value(trackName),
@@ -1469,6 +1670,11 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     Expression<bool>? starred,
     Expression<int>? updatedAt,
     Expression<int>? createdAt,
+    Expression<String>? suffix,
+    Expression<int>? bitRate,
+    Expression<int>? bitDepth,
+    Expression<int>? samplingRate,
+    Expression<int>? channelCount,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1485,6 +1691,11 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
       if (starred != null) 'starred': starred,
       if (updatedAt != null) 'updated_at': updatedAt,
       if (createdAt != null) 'created_at': createdAt,
+      if (suffix != null) 'suffix': suffix,
+      if (bitRate != null) 'bit_rate': bitRate,
+      if (bitDepth != null) 'bit_depth': bitDepth,
+      if (samplingRate != null) 'sampling_rate': samplingRate,
+      if (channelCount != null) 'channel_count': channelCount,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1503,6 +1714,11 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     Value<bool>? starred,
     Value<int>? updatedAt,
     Value<int?>? createdAt,
+    Value<String?>? suffix,
+    Value<int>? bitRate,
+    Value<int>? bitDepth,
+    Value<int>? samplingRate,
+    Value<int>? channelCount,
     Value<int>? rowid,
   }) {
     return SongMetadataCompanion(
@@ -1519,6 +1735,11 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
       starred: starred ?? this.starred,
       updatedAt: updatedAt ?? this.updatedAt,
       createdAt: createdAt ?? this.createdAt,
+      suffix: suffix ?? this.suffix,
+      bitRate: bitRate ?? this.bitRate,
+      bitDepth: bitDepth ?? this.bitDepth,
+      samplingRate: samplingRate ?? this.samplingRate,
+      channelCount: channelCount ?? this.channelCount,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1565,6 +1786,21 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     if (createdAt.present) {
       map['created_at'] = Variable<int>(createdAt.value);
     }
+    if (suffix.present) {
+      map['suffix'] = Variable<String>(suffix.value);
+    }
+    if (bitRate.present) {
+      map['bit_rate'] = Variable<int>(bitRate.value);
+    }
+    if (bitDepth.present) {
+      map['bit_depth'] = Variable<int>(bitDepth.value);
+    }
+    if (samplingRate.present) {
+      map['sampling_rate'] = Variable<int>(samplingRate.value);
+    }
+    if (channelCount.present) {
+      map['channel_count'] = Variable<int>(channelCount.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1587,6 +1823,11 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
           ..write('starred: $starred, ')
           ..write('updatedAt: $updatedAt, ')
           ..write('createdAt: $createdAt, ')
+          ..write('suffix: $suffix, ')
+          ..write('bitRate: $bitRate, ')
+          ..write('bitDepth: $bitDepth, ')
+          ..write('samplingRate: $samplingRate, ')
+          ..write('channelCount: $channelCount, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3576,6 +3817,11 @@ typedef $$SongMetadataTableCreateCompanionBuilder =
       Value<bool> starred,
       required int updatedAt,
       Value<int?> createdAt,
+      Value<String?> suffix,
+      Value<int> bitRate,
+      Value<int> bitDepth,
+      Value<int> samplingRate,
+      Value<int> channelCount,
       Value<int> rowid,
     });
 typedef $$SongMetadataTableUpdateCompanionBuilder =
@@ -3593,6 +3839,11 @@ typedef $$SongMetadataTableUpdateCompanionBuilder =
       Value<bool> starred,
       Value<int> updatedAt,
       Value<int?> createdAt,
+      Value<String?> suffix,
+      Value<int> bitRate,
+      Value<int> bitDepth,
+      Value<int> samplingRate,
+      Value<int> channelCount,
       Value<int> rowid,
     });
 
@@ -3667,6 +3918,31 @@ class $$SongMetadataTableFilterComposer
 
   ColumnFilters<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get suffix => $composableBuilder(
+    column: $table.suffix,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bitRate => $composableBuilder(
+    column: $table.bitRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get bitDepth => $composableBuilder(
+    column: $table.bitDepth,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get samplingRate => $composableBuilder(
+    column: $table.samplingRate,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<int> get channelCount => $composableBuilder(
+    column: $table.channelCount,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -3744,6 +4020,31 @@ class $$SongMetadataTableOrderingComposer
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get suffix => $composableBuilder(
+    column: $table.suffix,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bitRate => $composableBuilder(
+    column: $table.bitRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get bitDepth => $composableBuilder(
+    column: $table.bitDepth,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get samplingRate => $composableBuilder(
+    column: $table.samplingRate,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get channelCount => $composableBuilder(
+    column: $table.channelCount,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SongMetadataTableAnnotationComposer
@@ -3797,6 +4098,25 @@ class $$SongMetadataTableAnnotationComposer
 
   GeneratedColumn<int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
+
+  GeneratedColumn<String> get suffix =>
+      $composableBuilder(column: $table.suffix, builder: (column) => column);
+
+  GeneratedColumn<int> get bitRate =>
+      $composableBuilder(column: $table.bitRate, builder: (column) => column);
+
+  GeneratedColumn<int> get bitDepth =>
+      $composableBuilder(column: $table.bitDepth, builder: (column) => column);
+
+  GeneratedColumn<int> get samplingRate => $composableBuilder(
+    column: $table.samplingRate,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<int> get channelCount => $composableBuilder(
+    column: $table.channelCount,
+    builder: (column) => column,
+  );
 }
 
 class $$SongMetadataTableTableManager
@@ -3847,6 +4167,11 @@ class $$SongMetadataTableTableManager
                 Value<bool> starred = const Value.absent(),
                 Value<int> updatedAt = const Value.absent(),
                 Value<int?> createdAt = const Value.absent(),
+                Value<String?> suffix = const Value.absent(),
+                Value<int> bitRate = const Value.absent(),
+                Value<int> bitDepth = const Value.absent(),
+                Value<int> samplingRate = const Value.absent(),
+                Value<int> channelCount = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongMetadataCompanion(
                 songId: songId,
@@ -3862,6 +4187,11 @@ class $$SongMetadataTableTableManager
                 starred: starred,
                 updatedAt: updatedAt,
                 createdAt: createdAt,
+                suffix: suffix,
+                bitRate: bitRate,
+                bitDepth: bitDepth,
+                samplingRate: samplingRate,
+                channelCount: channelCount,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -3879,6 +4209,11 @@ class $$SongMetadataTableTableManager
                 Value<bool> starred = const Value.absent(),
                 required int updatedAt,
                 Value<int?> createdAt = const Value.absent(),
+                Value<String?> suffix = const Value.absent(),
+                Value<int> bitRate = const Value.absent(),
+                Value<int> bitDepth = const Value.absent(),
+                Value<int> samplingRate = const Value.absent(),
+                Value<int> channelCount = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongMetadataCompanion.insert(
                 songId: songId,
@@ -3894,6 +4229,11 @@ class $$SongMetadataTableTableManager
                 starred: starred,
                 updatedAt: updatedAt,
                 createdAt: createdAt,
+                suffix: suffix,
+                bitRate: bitRate,
+                bitDepth: bitDepth,
+                samplingRate: samplingRate,
+                channelCount: channelCount,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
