@@ -12,6 +12,9 @@ import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
 import '../core/album_palette.dart';
+import '../features/local_library/logic/local_index.dart';
+import '../features/local_library/logic/local_library_providers.dart' show localIndexRevisionProvider;
+import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../models/song.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -137,6 +140,9 @@ class ArtworkRepository {
   }
 
   Future<ArtworkData?> _load(String key, String url) async {
+    // A device cover the index has not loaded yet: nothing to fetch (the
+    // caller loads again once the index changes).
+    if (pendingLocalCoverId(url) != null) return null;
     try {
       final data = debugCoverImageOverride != null ? await _loadViaGpu(key, url) : await _loadViaServer(key, url);
       _cache[key] = data;
@@ -257,6 +263,15 @@ class NowPlayingArtworkNotifier extends Notifier<ArtworkData?> {
       (_, song) => _sync(song),
       fireImmediately: true,
     );
+    // A device song's cover appears when the local index finishes loading or
+    // a rescan finds art: ask again for the playing song.
+    ref.listen<int>(localIndexRevisionProvider, (_, _) {
+      final song = ref.read(playerProvider).currentSong;
+      if (song == null || !isLocalSongId(song.coverArt)) return;
+      if (LocalLibraryIndex.instance.coverFor(song.coverArt) == null) return;
+      _requestedKey = null;
+      _sync(song);
+    });
     return null;
   }
 

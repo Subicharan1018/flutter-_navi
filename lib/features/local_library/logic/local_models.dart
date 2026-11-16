@@ -93,6 +93,10 @@ class ScannedTrack {
   final String? coverPath;
   final String? lyrics;
 
+  /// The file has art we could not read (corrupt picture, unreadable cover
+  /// file). Counted in the scan summary; the song itself is still listed.
+  final bool artFailed;
+
   const ScannedTrack({
     required this.path,
     required this.songId,
@@ -115,6 +119,7 @@ class ScannedTrack {
     this.albumPeak,
     this.coverPath,
     this.lyrics,
+    this.artFailed = false,
   });
 }
 
@@ -143,7 +148,10 @@ class ScanFolderDone extends ScanEvent {
   final String folderId;
   final Set<String> seen;
   final int unreadable;
-  const ScanFolderDone(this.folderId, this.seen, this.unreadable);
+
+  /// Songs whose art exists but could not be read.
+  final int artUnreadable;
+  const ScanFolderDone(this.folderId, this.seen, this.unreadable, [this.artUnreadable = 0]);
 }
 
 /// A folder could not be listed (permission revoked, drive gone). Its

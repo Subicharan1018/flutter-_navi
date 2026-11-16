@@ -38,6 +38,14 @@ class SongMetadata extends Table {
   IntColumn get updatedAt => integer()();
   IntColumn get createdAt => integer().nullable()();
 
+  // Audio format (schema 7). Null / 0 = unknown, as for rows mirrored by an
+  // older build; the next library sync fills them in.
+  TextColumn get suffix => text().nullable()();
+  IntColumn get bitRate => integer().withDefault(const Constant(0))();
+  IntColumn get bitDepth => integer().withDefault(const Constant(0))();
+  IntColumn get samplingRate => integer().withDefault(const Constant(0))();
+  IntColumn get channelCount => integer().withDefault(const Constant(0))();
+
   @override
   Set<Column> get primaryKey => {songId};
 }

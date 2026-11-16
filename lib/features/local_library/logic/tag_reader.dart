@@ -4,6 +4,7 @@ import 'dart:typed_data';
 
 import 'package:audio_metadata_reader/audio_metadata_reader.dart';
 import 'package:crypto/crypto.dart';
+import 'package:flutter/foundation.dart' show debugPrint;
 
 import 'file_source.dart';
 import 'local_models.dart';
@@ -104,19 +105,23 @@ Future<ScannedTrack> readTrack({
   AudioMetadata? meta;
   _ReplayGain rg = _ReplayGain();
   String? coverPath;
+  var artFailed = false;
 
   final opened = await source.open(entry.path);
   try {
     try {
       meta = readMetadata(opened.file, getImage: true);
-    } catch (_) {
+    } catch (e) {
+      debugPrint('[LocalLibrary] tags unreadable (${entry.name}): $e');
       meta = null;
+      artFailed = true;
     }
     if (meta != null) rg = _readReplayGain(opened.file);
     final pics = meta?.pictures ?? const <Picture>[];
     if (pics.isNotEmpty) {
       final pic = pics.firstWhere((p) => p.pictureType == PictureType.coverFront, orElse: () => pics.first);
       coverPath = await saveCover(artDir, pic.bytes, pic.mimetype);
+      if (coverPath == null) artFailed = true;
     }
   } finally {
     await opened.close();
@@ -128,10 +133,18 @@ Future<ScannedTrack> readTrack({
       coverPath = await saveCover(artDir, await art.file.readAsBytes(), extensionOf(folderArt.name));
     } on FileSystemException {
       coverPath = null;
+      artFailed = true;
     } finally {
       await art.close();
     }
   }
+
+  // Last resort: the platform's own thumbnail (Android 10+, SAF only).
+  if (coverPath == null) {
+    final thumb = await source.thumbnail(entry.path);
+    if (thumb != null) coverPath = await saveCover(artDir, thumb, 'image/jpeg');
+  }
+  if (coverPath != null) artFailed = false;
 
   var lyrics = lyricsFile == null ? null : await _readText(source, lyricsFile.path);
   final tagLyrics = meta?.lyrics?.trim();
@@ -163,5 +176,6 @@ Future<ScannedTrack> readTrack({
     albumPeak: rg.albumPeak,
     coverPath: coverPath,
     lyrics: lyrics,
+    artFailed: artFailed,
   );
 }

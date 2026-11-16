@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import '../../../player/audio_quality_provider.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter/services.dart';
 import '../../../core/focus/navi_focus.dart';
@@ -7,7 +8,6 @@ import '../../../models/song.dart';
 import '../../../player/artwork.dart';
 import '../../../player/lyrics_pane.dart';
 import '../../../player/now_playing_style.dart';
-import '../../../player/player_controls.dart';
 import '../../../player/queue_pane.dart';
 import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
@@ -160,7 +160,7 @@ class _AboutSong extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
-    final quality = qualityLabel(song);
+    final quality = audioQualityFor(song, ref.watch(streamQualityProvider));
     Widget fact(String k, String v) => Padding(
       padding: const EdgeInsets.only(bottom: Space.sm + 2),
       child: Row(

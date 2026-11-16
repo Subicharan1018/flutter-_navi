@@ -10,6 +10,7 @@ import 'file_source.dart';
 import 'local_index.dart';
 import 'local_models.dart';
 import 'matcher.dart';
+import 'scanner.dart' show knownFingerprint;
 
 /// Where the added folders are remembered (Hive in the app, a list in tests).
 abstract class FolderStore {
@@ -35,8 +36,17 @@ class ScanSummary {
   final int added;
   final int removed;
   final int unreadable;
+
+  /// Songs read whose art could not be loaded.
+  final int artUnreadable;
   final Map<String, String> failedFolders;
-  const ScanSummary({this.added = 0, this.removed = 0, this.unreadable = 0, this.failedFolders = const {}});
+  const ScanSummary({
+    this.added = 0,
+    this.removed = 0,
+    this.unreadable = 0,
+    this.artUnreadable = 0,
+    this.failedFolders = const {},
+  });
 }
 
 /// Top level so the isolate closure cannot capture the service (and with it
@@ -90,13 +100,18 @@ class LocalLibraryService {
     final known = <String, String>{};
     final ids = targets.map((f) => f.id).toList();
     final rows = await (_db.selectOnly(_db.localSongs)
-          ..addColumns([_db.localSongs.path, _db.localSongs.fingerprint])
+          ..addColumns([_db.localSongs.path, _db.localSongs.fingerprint, _db.localSongs.coverPath])
           ..where(_db.localSongs.folderId.isIn(ids)))
         .get();
     for (final r in rows) {
-      known[r.read(_db.localSongs.path)!] = r.read(_db.localSongs.fingerprint)!;
+      final print = knownFingerprint(
+        r.read(_db.localSongs.fingerprint)!,
+        hasCover: r.read(_db.localSongs.coverPath) != null,
+      );
+      if (print != null) known[r.read(_db.localSongs.path)!] = print;
     }
 
+    var artBad = 0;
     var added = 0, removed = 0, unreadable = 0, doneBefore = 0, totalSoFar = 0;
     final failed = <String, String>{};
     await for (final event in _runScan(folders: targets, known: known)) {
@@ -108,16 +123,18 @@ class LocalLibraryService {
           await _upsert(tracks);
           added += tracks.length;
           onProgress?.call(doneBefore + done, totalSoFar);
-        case ScanFolderDone(:final folderId, :final seen, unreadable: final bad):
+        case ScanFolderDone(:final folderId, :final seen, unreadable: final bad, :final artUnreadable):
           removed += await _removeMissing(folderId, seen);
           unreadable += bad;
+          artBad += artUnreadable;
           doneBefore = totalSoFar;
         case ScanFolderFailed(:final folderId, :final message):
           failed[folderId] = message;
       }
     }
     await rematch();
-    return ScanSummary(added: added, removed: removed, unreadable: unreadable, failedFolders: failed);
+    return ScanSummary(added: added, removed: removed, unreadable: unreadable,
+        artUnreadable: artBad, failedFolders: failed);
   }
 
   Future<void> _upsert(List<ScannedTrack> tracks) async {
@@ -201,11 +218,22 @@ class LocalLibraryService {
     final rows = await _db.select(_db.localSongs).get();
     final paths = <String, String>{};
     final covers = <String, String>{};
+    // A track without art borrows from another track of the same folder, or
+    // of the same album and album artist, that has some.
+    final fallback = AlbumCoverFallback([
+      for (final r in rows)
+        (path: r.path, album: r.album, albumArtist: r.albumArtist.isNotEmpty ? r.albumArtist : r.artist, cover: r.coverPath),
+    ]);
     for (final r in rows) {
       paths[r.songId] = r.path;
       final server = r.serverId;
       if (server != null) paths[server] = r.path;
-      final cover = r.coverPath;
+      final cover = r.coverPath ??
+          fallback.coverFor(
+            path: r.path,
+            album: r.album,
+            albumArtist: r.albumArtist.isNotEmpty ? r.albumArtist : r.artist,
+          );
       if (cover != null) {
         covers[r.songId] = cover;
         // A device file matched to a server song shows its own cover under

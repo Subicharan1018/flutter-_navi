@@ -78,6 +78,11 @@ Future<void> _cacheSongs(AppDatabase db, List<Song> songs) async {
           rating: Value(song.rating),
           starred: Value(song.starred),
           createdAt: Value(song.created?.millisecondsSinceEpoch),
+          suffix: Value(song.suffix),
+          bitRate: Value(song.bitRate),
+          bitDepth: Value(song.bitDepth),
+          samplingRate: Value(song.samplingRate),
+          channelCount: Value(song.channelCount),
         ),
         mode: InsertMode.insertOrReplace,
       );
@@ -115,6 +120,11 @@ Song songFromMetadata(SongMetadataEntity r) => Song(
       rating: r.rating,
       starred: r.starred,
       created: r.createdAt != null ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!) : null,
+      suffix: r.suffix ?? '',
+      bitRate: r.bitRate,
+      bitDepth: r.bitDepth,
+      samplingRate: r.samplingRate,
+      channelCount: r.channelCount,
     );
 
 /// After a complete sync: drop mirrored songs the server no longer has (a
@@ -139,28 +149,7 @@ Future<int> pruneMissingForTest(AppDatabase db, Set<String> seen) => _pruneMissi
 
 Future<List<Song>> _getCachedSongs(AppDatabase db) async {
   final rows = await db.select(db.songMetadata).get();
-  return rows
-      .map(
-        (r) => Song(
-          id: r.songId,
-          title: r.trackName,
-          artist: r.artistName,
-          album: r.albumName,
-          duration: r.durationSec,
-          genre: r.genre ?? '',
-          composer: r.composer ?? '',
-          coverArt: r.songId,
-          track: 0,
-          year: r.year ?? 0,
-          playCount: r.playCount,
-          rating: r.rating,
-          starred: r.starred,
-          created: r.createdAt != null
-              ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!)
-              : null,
-        ),
-      )
-      .toList();
+  return rows.map(songFromMetadata).toList();
 }
 
 /// Library sections; keys the per-section sort preference and the song pager.
@@ -233,23 +222,7 @@ final recentlyPlayedSongsProvider = FutureProvider<List<Song>>((ref) async {
   for (final id in uniqueIds) {
     final meta = metaById[id];
     if (meta == null) continue;
-    songs.add(
-      Song(
-        id: meta.songId,
-        title: meta.trackName,
-        artist: meta.artistName,
-        album: meta.albumName,
-        duration: meta.durationSec,
-        genre: meta.genre ?? '',
-        composer: meta.composer ?? '',
-        coverArt: meta.songId, // Subsonic uses songId as the cover art key
-        track: 0,
-        year: meta.year ?? 0,
-        playCount: meta.playCount,
-        rating: meta.rating,
-        starred: meta.starred,
-      ),
-    );
+    songs.add(songFromMetadata(meta));
   }
   return songs;
 });
@@ -884,24 +857,7 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
 
       final rows = await query.get();
 
-      final newSongs = rows.map((r) => Song(
-        id: r.songId,
-        title: r.trackName,
-        artist: r.artistName,
-        album: r.albumName,
-        duration: r.durationSec,
-        genre: r.genre ?? '',
-        composer: r.composer ?? '',
-        coverArt: r.songId,
-        track: 0,
-        year: r.year ?? 0,
-        playCount: r.playCount,
-        rating: r.rating,
-        starred: r.starred,
-        created: r.createdAt != null
-            ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!)
-            : null,
-      )).toList();
+      final newSongs = rows.map(songFromMetadata).toList();
 
       final hasMore = newSongs.length == pageSize;
       final nextOffset = currentOffset + newSongs.length;
@@ -931,23 +887,7 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
         ? const <SongMetadataEntity>[]
         : await (db.select(db.songMetadata)..where((t) => t.songId.isIn(ids.toList()))).get();
     final mirror = [
-      for (final r in rows)
-        Song(
-          id: r.songId,
-          title: r.trackName,
-          artist: r.artistName,
-          album: r.albumName,
-          duration: r.durationSec,
-          genre: r.genre ?? '',
-          composer: r.composer ?? '',
-          coverArt: r.songId,
-          track: 0,
-          year: r.year ?? 0,
-          playCount: r.playCount,
-          rating: r.rating,
-          starred: r.starred,
-          created: r.createdAt != null ? DateTime.fromMillisecondsSinceEpoch(r.createdAt!) : null,
-        ),
+      for (final r in rows) songFromMetadata(r),
     ];
     final all = sortSongs(
       mergeDownloadedSongs(

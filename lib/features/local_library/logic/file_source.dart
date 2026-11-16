@@ -7,8 +7,20 @@ import 'local_models.dart';
 const audioExtensions = {
   'mp3', 'flac', 'm4a', 'aac', 'ogg', 'oga', 'opus', 'wav', 'aiff', 'aif', 'wma', 'ape', 'mka', 'webm', //
 };
-const _artNames = {'cover', 'folder', 'front', 'album', 'albumart'};
+const _artNames = {
+  'cover', 'folder', 'front', 'album', 'albumart', 'albumartsmall', 'albumartlarge', 'albumartwork', //
+  'coverart', 'art', 'artwork', 'thumb', 'thumbnail', 'poster', 'frontcover', 'cd',
+};
 const _artExtensions = {'jpg', 'jpeg', 'png', 'webp'};
+
+/// Whether an image's base name (no extension) is a folder cover. Case, spaces,
+/// `_` and `-` are ignored (`Cover Art`, `cover_art`, `AlbumArtSmall`), and
+/// Windows Media Player's `AlbumArt_{GUID}_Large` counts too. Mirrored in
+/// `SafChannel.kt`.
+bool isArtName(String base) {
+  final n = base.toLowerCase().replaceAll(RegExp(r'[\s_\-]+'), '');
+  return _artNames.contains(n) || n.startsWith('albumart');
+}
 
 String extensionOf(String name) {
   final dot = name.lastIndexOf('.');
@@ -24,7 +36,7 @@ String baseNameOf(String name) {
 bool isScannable(String name) {
   final ext = extensionOf(name);
   if (audioExtensions.contains(ext) || ext == 'lrc') return true;
-  return _artExtensions.contains(ext) && _artNames.contains(baseNameOf(name).toLowerCase());
+  return _artExtensions.contains(ext) && isArtName(baseNameOf(name));
 }
 
 String lyricsKey(String dir, String name) => '$dir|${baseNameOf(name).toLowerCase()}';
@@ -40,8 +52,11 @@ FolderListing buildListing(Iterable<ScanEntry> entries) {
       audio.add(e);
     } else if (ext == 'lrc') {
       lyrics[lyricsKey(e.dir, e.name)] = e;
-    } else if (_artExtensions.contains(ext) && _artNames.contains(baseNameOf(e.name).toLowerCase())) {
-      art[e.dir] = e;
+    } else if (_artExtensions.contains(ext) && isArtName(baseNameOf(e.name))) {
+      // The first by name wins, so a folder with `cover.jpg` and
+      // `AlbumArtSmall.jpg` always picks the same one.
+      final have = art[e.dir];
+      if (have == null || e.name.compareTo(have.name) < 0) art[e.dir] = e;
     }
   }
   return FolderListing(audio: audio, lyrics: lyrics, folderArt: art);
@@ -59,6 +74,10 @@ class OpenedFile {
 abstract class LocalFileSource {
   Future<FolderListing> list(LocalFolder folder);
   Future<OpenedFile> open(String path);
+
+  /// The platform's own thumbnail for the file (Android 10+ `loadThumbnail`),
+  /// as encoded image bytes. Null when there is none or the source cannot.
+  Future<Uint8List?> thumbnail(String path) async => null;
 }
 
 class IoFileSource implements LocalFileSource {
@@ -96,6 +115,9 @@ class IoFileSource implements LocalFileSource {
 
   @override
   Future<OpenedFile> open(String path) async => OpenedFile(File(path), () async {});
+
+  @override
+  Future<Uint8List?> thumbnail(String path) async => null;
 }
 
 /// Reads folders granted through Android's document picker. Everything is
@@ -138,6 +160,18 @@ class SafFileSource implements LocalFileSource {
           modifiedMs: (r['modified'] as num?)?.toInt() ?? 0,
         ),
     ]);
+  }
+
+  @override
+  Future<Uint8List?> thumbnail(String path) async {
+    try {
+      final bytes = await _channel.invokeMethod<Uint8List>('thumbnail', {'uri': path});
+      return bytes == null || bytes.isEmpty ? null : bytes;
+    } on PlatformException {
+      return null;
+    } on MissingPluginException {
+      return null;
+    }
   }
 
   @override

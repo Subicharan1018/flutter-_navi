@@ -56,6 +56,8 @@ Song _song(String id, String title, String artist, {String suffix = 'flac', int 
       year: 2024,
       suffix: suffix,
       bitRate: suffix == 'flac' ? 1411 : 320,
+      bitDepth: suffix == 'flac' ? 24 : 0,
+      samplingRate: suffix == 'flac' ? 96000 : 0,
     );
 
 final _songs = [

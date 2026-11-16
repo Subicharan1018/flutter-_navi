@@ -131,6 +131,48 @@ void main() {
       expect(events.whereType<ScanListed>().single.total, 1);
     });
 
+    test('finds folder art under other names, ignoring case and spaces', () async {
+      for (final name in ['AlbumArtSmall.jpg', 'Cover Art.png', 'ARTWORK.jpg', 'albumart_{ABC}_Large.jpg', 'front-cover.webp']) {
+        expect(isScannable(name), isTrue, reason: name);
+      }
+      expect(isScannable('holiday.jpg'), isFalse);
+
+      await put('Album/01.mp3', fixtureMp3());
+      await put('Album/AlbumArtSmall.jpg', [0xFF, 0xD8, 0xFF, 0xE0, 4, 5, 6]);
+      final events = await collect(scanFolders(
+        sourceFor: (_) => const IoFileSource(),
+        folders: [folder()],
+        known: const {},
+        artDir: art,
+      ));
+      final t = events.whereType<ScanBatch>().single.tracks.single;
+      expect(t.coverPath, isNotNull);
+      expect(events.whereType<ScanFolderDone>().single.artUnreadable, 0);
+    });
+
+    test('a song scanned before the art reader existed is read again, once', () async {
+      await put('Album/01.mp3', fixtureMp3());
+      await put('Album/Cover Art.jpg', [0xFF, 0xD8, 0xFF, 0xE0, 7, 8, 9]);
+      Future<List<ScanEvent>> scan(Map<String, String> known) =>
+          collect(scanFolders(sourceFor: (_) => const IoFileSource(), folders: [folder()], known: known, artDir: art));
+
+      final first = (await scan({})).whereType<ScanBatch>().single.tracks.single;
+      expect(first.fingerprint, endsWith('|art$artReaderVersion'));
+
+      // What an older build stored: no version tag, and no cover found.
+      final oldPrint = first.fingerprint.replaceFirst(RegExp(r'\|art\d+$'), '');
+      expect(knownFingerprint(oldPrint, hasCover: false), isNull);
+      final again = await scan({
+        for (final e in {first.path: knownFingerprint(oldPrint, hasCover: false)}.entries)
+          if (e.value != null) e.key: e.value!,
+      });
+      expect(again.whereType<ScanBatch>().single.tracks.single.coverPath, isNotNull);
+
+      // Old row that had art keeps its place; the current one is never redone.
+      expect(knownFingerprint(oldPrint, hasCover: true), first.fingerprint);
+      expect((await scan({first.path: first.fingerprint})).whereType<ScanBatch>(), isEmpty);
+    });
+
     test('a file with unreadable tags is kept under its file name', () async {
       await put('Rips/Some Track.mp3', [1, 2, 3, 4, 5, 6, 7, 8]);
       final events = await collect(scanFolders(
@@ -224,6 +266,23 @@ void main() {
       expect(summary.added, 1);
       expect(summary.removed, 1);
       expect((await service.allRows()).map((r) => r.title), unorderedEquals(['One', 'Three']));
+    });
+
+    test('an album where one track has art lends it to the others, but not to other albums', () async {
+      await service.addFolder(folder());
+      await put('CD1/01.mp3', fixtureMp3(title: 'One'));
+      await put('CD1/cover.jpg', [0xFF, 0xD8, 0xFF, 0xE0, 1, 1, 1]);
+      await put('CD2/02.mp3', fixtureMp3(title: 'Two', track: 2));
+      await put('Other/03.mp3', fixtureMp3(title: 'Three', album: 'Another Album'));
+
+      await service.scan();
+      final rows = {for (final r in await service.allRows()) r.title: r};
+      expect(rows['One']!.coverPath, isNotNull);
+      expect(rows['Two']!.coverPath, isNull);
+
+      final index = LocalLibraryIndex.instance;
+      expect(index.coverFor(rows['Two']!.songId), rows['One']!.coverPath);
+      expect(index.coverFor(rows['Three']!.songId), isNull);
     });
 
     test('a folder that cannot be listed keeps its songs', () async {

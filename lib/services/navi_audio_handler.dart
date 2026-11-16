@@ -15,6 +15,7 @@ import 'play_cache.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../providers/settings_provider.dart';
 import '../features/local_library/logic/local_index.dart';
+import '../player/audio_quality.dart';
 import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
 import 'playback_tuning.dart';
@@ -587,13 +588,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Android is written through to the play cache as it plays.
   AudioSource _buildSource(Song song, String? localPath) {
     final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
+    final bitrate = _transcodingService.getCurrentBitrate();
+    final format = _transcodingService.getCurrentFormat();
+    StreamQualityRegistry.instance.record(
+      song.id,
+      localPath != null ? const StreamQuality.local() : StreamQuality(format: format, maxBitRate: bitrate ?? 0),
+    );
     final streamUri = localPath != null
         ? LocalLibraryIndex.uriFor(localPath)
-        : Uri.parse(subsonicService.getStreamUrl(
-            song.id,
-            maxBitRate: _transcodingService.getCurrentBitrate(),
-            format: _transcodingService.getCurrentFormat(),
-          ));
+        : Uri.parse(subsonicService.getStreamUrl(song.id, maxBitRate: bitrate, format: format));
 
     final tag = _mediaTag(song, isLocal: localPath != null);
 
@@ -1012,6 +1015,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
               LocalLibraryIndex.instance.pathFor(song.id) == null
           ? await PlayCache.instance.completeFile(song.id, _cacheQuality)
           : null;
+      if (cached != null) {
+        StreamQualityRegistry.instance.record(
+          song.id,
+          StreamQuality(
+            format: _transcodingService.getCurrentFormat(),
+            maxBitRate: _transcodingService.getCurrentBitrate() ?? 0,
+          ),
+        );
+      }
       final source = cached != null
           ? AudioSource.uri(Uri.file(cached.path), tag: _mediaTag(song, isLocal: false))
           : _toSourceWithPaths(song, offlinePaths);

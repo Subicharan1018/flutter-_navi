@@ -1,4 +1,5 @@
 import 'dart:async';
+import '../player/audio_quality_provider.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
@@ -392,7 +393,12 @@ class _PhoneLayout extends ConsumerWidget {
             child: Column(
               children: [
                 const PlayingOnChip(gap: 6),
-                Scrubber(key: microduckTrackKey, player: notifier.player, song: song),
+                Scrubber(
+                  key: microduckTrackKey,
+                  player: notifier.player,
+                  song: song,
+                  stream: ref.watch(streamQualityProvider),
+                ),
                 const SizedBox(height: 6),
                 // Apple Music's three: shuffle and repeat live in the queue.
                 TransportControls(
@@ -1147,7 +1153,12 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                               const SizedBox(height: 28),
                               _TitleRow(song: widget.song),
                               const SizedBox(height: 14),
-                              Scrubber(key: microduckTrackKey, player: notifier.player, song: widget.song),
+                              Scrubber(
+                                key: microduckTrackKey,
+                                player: notifier.player,
+                                song: widget.song,
+                                stream: ref.watch(streamQualityProvider),
+                              ),
                               const SizedBox(height: 4),
                               TransportControls(
                                 playing: widget.playing,
