@@ -4,3 +4,4 @@ tool/server/moods-v1/** text eol=lf
 tool/server/moods-v2/** text eol=lf
 tool/server/lyrics-v1/** text eol=lf
 tool/server/lyrics-v2/** text eol=lf
+tool/server/lyrics-v3/** text eol=lf

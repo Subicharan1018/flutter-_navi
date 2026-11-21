@@ -19,15 +19,36 @@ class LyricsResult {
   /// Null when unknown (nothing found).
   final String? source;
 
-  const LyricsResult({required this.type, this.lyrics, this.rawText, this.source});
+  /// True when [type] is [LyricsType.none] because a source could not be
+  /// reached (timeout, 429, 5xx, no network) — NOT because every source said
+  /// it has nothing. Such a result is never remembered as "no lyrics".
+  final bool unreachable;
 
+  const LyricsResult({
+    required this.type,
+    this.lyrics,
+    this.rawText,
+    this.source,
+    this.unreachable = false,
+  });
+
+  /// Every source answered and none has these lyrics.
   factory LyricsResult.none() => const LyricsResult(type: LyricsType.none);
+
+  /// Nothing found, but at least one source did not answer: ask again later.
+  factory LyricsResult.unreachable() =>
+      const LyricsResult(type: LyricsType.none, unreachable: true);
 
   /// True when at least one line carries per-word timing.
   bool get wordSynced => lyrics?.lines.any((l) => l.hasWordTimestamps) ?? false;
 
-  LyricsResult withSource(String? source) =>
-      LyricsResult(type: type, lyrics: lyrics, rawText: rawText, source: source);
+  LyricsResult withSource(String? source) => LyricsResult(
+    type: type,
+    lyrics: lyrics,
+    rawText: rawText,
+    source: source,
+    unreachable: unreachable,
+  );
 
   // ── Cache serialisation ──────────────────────────────────────────────────
 

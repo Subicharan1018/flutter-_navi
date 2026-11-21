@@ -27,6 +27,10 @@ class LyricsState {
   /// True when the lines carry per-word timing.
   final bool wordSynced;
 
+  /// True for a short while after "Search again" came back without lyrics, so
+  /// the button can't be hammered (the server also limits it).
+  final bool cooling;
+
   const LyricsState({
     required this.status,
     this.lyrics,
@@ -34,6 +38,7 @@ class LyricsState {
     this.errorMessage,
     this.source,
     this.wordSynced = false,
+    this.cooling = false,
   });
 
   LyricsState copyWith({
@@ -41,6 +46,7 @@ class LyricsState {
     SyncedLyrics? lyrics,
     int? activeLineIndex,
     String? errorMessage,
+    bool? cooling,
   }) {
     return LyricsState(
       status: status ?? this.status,
@@ -49,9 +55,17 @@ class LyricsState {
       errorMessage: errorMessage ?? this.errorMessage,
       source: source,
       wordSynced: wordSynced,
+      cooling: cooling ?? this.cooling,
     );
   }
 }
+
+/// Shown when no source could be reached (as opposed to "no lyrics").
+const kLyricsUnreachableMessage =
+    'Couldn’t reach the lyrics sources. Check your connection and try again.';
+
+/// How long "Search again" stays disabled after it found nothing.
+const kSearchAgainCooldown = Duration(seconds: 20);
 
 // ── Controller ────────────────────────────────────────────────────────────────
 
@@ -62,6 +76,7 @@ class LyricsController extends Notifier<LyricsState> {
   LyricsState build() {
     ref.onDispose(() {
       _posSub?.cancel();
+      _cooldown?.cancel();
     });
 
     // React to song changes.
@@ -116,12 +131,17 @@ class LyricsController extends Notifier<LyricsState> {
 
   // ── Lyrics loading ────────────────────────────────────────────────────────
 
-  Future<void> _loadLyrics(Song song) async {
+  Future<void> _loadLyrics(Song song, {bool refresh = false}) async {
     _posSub?.cancel();
+    _cooldown?.cancel();
     state = const LyricsState(status: LyricsStatus.loading);
 
     try {
-      final result = await ref.read(lyricsRepositoryProvider).getLyrics(song);
+      final result = await ref.read(lyricsRepositoryProvider).getLyrics(song, refresh: refresh);
+
+      // The song changed while the sources were being asked: this answer is
+      // for the previous song and must not be shown on the new one.
+      if (!ref.mounted || ref.read(playerProvider).currentSong?.id != song.id) return;
 
       switch (result.type) {
         case LyricsType.synced:
@@ -144,10 +164,20 @@ class LyricsController extends Notifier<LyricsState> {
             source: result.source,
           );
         case LyricsType.none:
-          state = const LyricsState(status: LyricsStatus.empty);
+          if (result.unreachable) {
+            // Nobody said "no lyrics": a source could not be reached.
+            state = const LyricsState(
+              status: LyricsStatus.error,
+              errorMessage: kLyricsUnreachableMessage,
+            );
+          } else {
+            state = LyricsState(status: LyricsStatus.empty, cooling: refresh);
+            if (refresh) _startCooldown();
+          }
       }
     } catch (e) {
       debugPrint('[LyricsController] Error loading lyrics: $e');
+      if (!ref.mounted || ref.read(playerProvider).currentSong?.id != song.id) return;
       state = LyricsState(
         status: LyricsStatus.error,
         errorMessage: e.toString(),
@@ -155,10 +185,27 @@ class LyricsController extends Notifier<LyricsState> {
     }
   }
 
+  Timer? _cooldown;
+
+  void _startCooldown() {
+    _cooldown?.cancel();
+    _cooldown = Timer(kSearchAgainCooldown, () {
+      if (state.status == LyricsStatus.empty) state = state.copyWith(cooling: false);
+    });
+  }
+
   /// Manually trigger a reload — used by the Retry button in the error state.
   Future<void> retry() async {
     final song = ref.read(playerProvider).currentSong;
     if (song != null) await _loadLyrics(song);
+  }
+
+  /// "Search again": skips the remembered "no lyrics" and asks every source
+  /// once more. Ignored while loading or cooling down after the last search.
+  Future<void> searchAgain() async {
+    if (state.status == LyricsStatus.loading || state.cooling) return;
+    final song = ref.read(playerProvider).currentSong;
+    if (song != null) await _loadLyrics(song, refresh: true);
   }
 }
 

@@ -13,8 +13,10 @@ import 'lrc_parser.dart';
 ///   plainLyrics field only          → [LyricsType.plain]
 ///   404 or both empty               → [LyricsType.none]
 ///
-/// This service never throws — all errors are swallowed and return
-/// [LyricsResult.none()] so the caller always gets a usable value.
+/// This service never throws. A clean 404 (or a 200 without lyrics) is
+/// [LyricsResult.none()]: LRCLIB answered and has nothing. Anything else
+/// (timeout, no network, 429, 5xx, bad JSON) is [LyricsResult.unreachable()],
+/// so the caller never remembers a failed request as "no lyrics".
 class LrcLibService {
   static const String _baseUrl = 'https://lrclib.net/api/get';
 
@@ -45,16 +47,17 @@ class LrcLibService {
       }
 
       if (response.statusCode != 200) {
+        // 429, 5xx …: LRCLIB did not answer, which is not "no lyrics".
         debugPrint(
           '[LrcLibService] HTTP ${response.statusCode} for "${song.title}"',
         );
-        return LyricsResult.none();
+        return LyricsResult.unreachable();
       }
 
       final decoded = jsonDecode(response.body);
       if (decoded is! Map) {
         debugPrint('[LrcLibService] Decoded JSON is not a Map: $decoded');
-        return LyricsResult.none();
+        return LyricsResult.unreachable();
       }
       final json = Map<String, dynamic>.from(decoded);
 
@@ -83,8 +86,9 @@ class LrcLibService {
       );
       return LyricsResult.none();
     } catch (e) {
+      // A timeout, no network or bad JSON: unreachable, never "no lyrics".
       debugPrint('[LrcLibService] Error fetching lyrics: $e');
-      return LyricsResult.none();
+      return LyricsResult.unreachable();
     }
   }
 }
