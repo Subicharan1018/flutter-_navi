@@ -13,6 +13,7 @@ import '../core/focus/navi_focus.dart';
 import '../utils/platform_utils.dart';
 import '../features/exportify_import/ui/exportify_import_section.dart';
 import '../features/flow/ui/flow_settings.dart';
+import '../features/listenbrainz/ui/listenbrainz_section.dart';
 import '../features/local_library/ui/download_location_section.dart';
 import '../features/play_cache/ui/play_cache_section.dart';
 import '../lyrics/ui/lyrics_sources_section.dart';
@@ -593,6 +594,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ]),
           const SettingsCategory('Your data'),
+          const ListenBrainzSection(),
           const ExportifyImportSection(),
           GroupedSection(
             header: 'Your Listening Data',
