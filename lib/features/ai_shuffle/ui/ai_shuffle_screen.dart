@@ -2,7 +2,7 @@
 // Smart Shuffle — the app's own "station": a mix tuned to the moment (time,
 // season, weather, your habits) from the Smart Shuffle server, presented the
 // way Apple Music presents a personal mix: a card in the mix's own colours
-// that says what it's tuned for, one Play button, then the songs.
+
 // =============================================================================
 
 import 'package:flutter/cupertino.dart';
@@ -31,6 +31,7 @@ import '../logic/mix_intent_provider.dart';
 import '../logic/recommendation_resolver.dart';
 import '../logic/shuffle_providers.dart';
 import 'widgets/describe_mix_field.dart';
+import 'widgets/moment_line.dart';
 import 'widgets/smart_shuffle_status.dart';
 
 class AiShuffleScreen extends ConsumerStatefulWidget {
@@ -147,7 +148,6 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
             ),
           ),
         ),
-        SliverToBoxAdapter(child: DescribeMixField(onClear: _fetch)),
         SliverPadding(
           padding: desk ? EdgeInsets.zero : const EdgeInsets.symmetric(horizontal: Space.gutter),
           sliver: SliverToBoxAdapter(
@@ -161,6 +161,8 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
             ),
           ),
         ),
+        const SliverToBoxAdapter(child: SizedBox(height: Space.xl)),
+        SliverToBoxAdapter(child: DescribeMixField(onClear: _fetch)),
         if (starter != null) SliverToBoxAdapter(child: _StarterRow(starter: starter)),
         if (syncing)
           const SliverToBoxAdapter(
@@ -279,18 +281,53 @@ class _MixCard extends ConsumerWidget {
       if (c?.temperatureC != null) '${c!.temperatureC!.round()}°',
     ].join(', ');
 
-    final title1 = mode == PredictMode.discovery ? 'Discoveries for $title' : 'Your Mix for $title';
+    final kind = mode == PredictMode.discovery ? 'Discoveries' : 'Your mix';
+    final desk = PlatformUtils.isDesktop;
     final art = MosaicArt(
       urls: [for (final s in mix.take(12)) svc.getCoverArtUrl(s.coverArt)],
-      size: PlatformUtils.isDesktop ? ArtSize.of(buildContext).header : _art,
+      size: desk ? ArtSize.of(buildContext).header : _art,
       radius: Radii.hero,
       placeholderIcon: NaviGlyph.smartShuffle,
       seed: coverSeed('Smart Shuffle', mix.map((s) => s.id)),
     );
+    final hour = c == null ? null : hourOfTimestamp(c.timestampIst);
 
-    // Windows: the art at the left, the words and compact buttons beside it,
-    // like an album page header.
-    if (PlatformUtils.isDesktop) {
+    // The moment is the hero: the time-of-day word, what it's made of, the
+    // day with "now" marked, and how closely the mix is tuned. No card; the
+    // page is the surface.
+    final words = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(
+          title,
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: naviText(desk ? 56 : 38, FontWeight.w800, t.textPrimary, height: 1.04),
+        ),
+        const SizedBox(height: Space.xs),
+        Text(
+          details.isEmpty ? kind : '$kind · $details',
+          maxLines: 2,
+          overflow: TextOverflow.ellipsis,
+          style: t.title3.copyWith(color: t.accent, fontWeight: FontWeight.w500),
+        ),
+      ],
+    );
+    final gauge = <Widget>[
+      if (hour != null) ...[
+        const SizedBox(height: Space.xl),
+        MomentLine(hour: hour),
+      ],
+      if (c != null) ...[
+        const SizedBox(height: Space.md),
+        Closeness(level: c.fallbackLevel, label: _confidence(c)),
+      ],
+    ];
+
+    // Windows: the art at the left like an album page header, the moment and
+    // compact buttons beside it.
+    if (desk) {
       final g = pageGutter(buildContext);
       return Padding(
         padding: EdgeInsets.fromLTRB(g, 0, g, 0),
@@ -300,29 +337,25 @@ class _MixCard extends ConsumerWidget {
             art,
             const SizedBox(width: Space.xl),
             Flexible(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text(title1, maxLines: 2, overflow: TextOverflow.ellipsis, style: t.title1),
-                  if (details.isNotEmpty) ...[
-                    const SizedBox(height: Space.xxs),
-                    Text(details, style: t.title3.copyWith(color: t.accent, fontWeight: FontWeight.w500)),
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(maxWidth: 560),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    words,
+                    ...gauge,
+                    const SizedBox(height: Space.lg),
+                    Wrap(
+                      spacing: Space.sm,
+                      runSpacing: Space.sm,
+                      children: [
+                        TintedButton(filled: true, height: 36, glyph: NaviGlyph.play, label: 'Play', onTap: busy ? null : onPlay),
+                        TintedButton(height: 36, glyph: NaviGlyph.shuffle, label: 'Reshuffle', onTap: onReshuffle),
+                      ],
+                    ),
                   ],
-                  if (c != null) ...[
-                    const SizedBox(height: Space.sm),
-                    Text(_confidence(c), style: t.footnote),
-                  ],
-                  const SizedBox(height: Space.lg),
-                  Wrap(
-                    spacing: Space.sm,
-                    runSpacing: Space.sm,
-                    children: [
-                      TintedButton(filled: true, height: 36, glyph: NaviGlyph.play, label: 'Play', onTap: busy ? null : onPlay),
-                      TintedButton(height: 36, glyph: NaviGlyph.shuffle, label: 'Reshuffle', onTap: onReshuffle),
-                    ],
-                  ),
-                ],
+                ),
               ),
             ),
           ],
@@ -330,27 +363,19 @@ class _MixCard extends ConsumerWidget {
       );
     }
 
-    // The mix as an Apple playlist header: art, name, why, transport. No
-    // card around it; the page is the surface.
+    // Phone: the word leads, the cover is a stamp beside it.
     return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        art,
-        const SizedBox(height: Space.lg),
-        Text(
-          title1,
-          textAlign: TextAlign.center,
-          maxLines: 2,
-          overflow: TextOverflow.ellipsis,
-          style: t.title1,
+        Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Expanded(child: Padding(padding: const EdgeInsets.only(top: Space.xs), child: words)),
+            const SizedBox(width: Space.lg),
+            art,
+          ],
         ),
-        if (details.isNotEmpty) ...[
-          const SizedBox(height: Space.xxs),
-          Text(details, textAlign: TextAlign.center, style: t.title3.copyWith(color: t.accent, fontWeight: FontWeight.w500)),
-        ],
-        if (c != null) ...[
-          const SizedBox(height: Space.sm),
-          Text(_confidence(c), textAlign: TextAlign.center, style: t.footnote),
-        ],
+        ...gauge,
         const SizedBox(height: Space.xl),
         // Apple's paired capsules: play this mix, or reshuffle it into new
         // picks for the same moment.
@@ -380,7 +405,7 @@ class _MixCard extends ConsumerWidget {
     );
   }
 
-  static const double _art = 220;
+  static const double _art = 112;
 }
 
 /// "Your evening opener" — the song you usually start this time of day with.
