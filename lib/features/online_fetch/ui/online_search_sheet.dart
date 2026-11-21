@@ -494,6 +494,7 @@ class _ResultsState extends ConsumerState<_Results> {
     if (_picked != null) {
       _toggle(c);
     } else if (c.isSong) {
+      HapticFeedback.lightImpact(); // the row's spinner is easy to miss with a thumb over it
       ref.read(fetchJobsProvider.notifier).download(c.id, coverUrl: c.coverUrl);
     } else if (c.type.opensSongs) {
       ref.read(onlineSearchProvider.notifier).openCollection(c);
@@ -650,6 +651,9 @@ class _ResultsState extends ConsumerState<_Results> {
               ],
             ),
           ),
+        // Above the results, not under them: a finished download's Play and
+        // Add to Playlist must be in view without scrolling past every row.
+        _DoneActions(listed: [for (final c in search.candidates) c.id]),
         if (desk)
           FetchResultsTable(
             candidates: search.candidates,
@@ -666,7 +670,6 @@ class _ResultsState extends ConsumerState<_Results> {
             onDownload: () => _primary(c),
             onPlayOwned: () => _playOwned(c),
           ),
-        _DoneActions(listed: [for (final c in search.candidates) c.id]),
       ],
     );
   }
@@ -707,7 +710,7 @@ class _DoneActionsState extends ConsumerState<_DoneActions> with FetchSongAction
     final g = desk ? 0.0 : Space.gutter;
     Widget fit(Widget b) => desk ? b : Expanded(child: b);
     return Padding(
-      padding: EdgeInsets.fromLTRB(g, Space.lg, g, 0),
+      padding: EdgeInsets.fromLTRB(g, Space.xs, g, Space.md),
       child: Row(
         children: [
           fit(TintedButton(

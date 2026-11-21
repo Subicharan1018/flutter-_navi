@@ -1,12 +1,12 @@
 import 'dart:async';
 import '../player/audio_quality_provider.dart';
+import '../player/fitting_title.dart';
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:marquee/marquee.dart';
 
 import '../features/flow/logic/flow_controller.dart' show flowProvider;
 import '../features/flow/ui/flow_pill.dart';
@@ -410,8 +410,8 @@ class _PhoneLayout extends ConsumerWidget {
                 const SizedBox(height: 10),
                 VolumeBar(player: notifier.player),
                 const SizedBox(height: 10),
-                _BottomRow(pane: pane, onTogglePane: onTogglePane),
-                const SizedBox(height: 6),
+                _BottomRow(pane: pane, onTogglePane: onTogglePane, rounded: true),
+                const SizedBox(height: 2),
               ],
             ),
           ),
@@ -954,7 +954,7 @@ class _TitleRow extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(key: microduckTitleKey, height: 28, child: _FittingTitle(text: song.title, style: titleStyle)),
+              SizedBox(key: microduckTitleKey, height: 28, child: FittingTitle(text: song.title, style: titleStyle)),
               const SizedBox(height: 2),
               if (composer != null)
                 Text(composer, maxLines: 1, overflow: TextOverflow.ellipsis, style: composerStyle),
@@ -986,43 +986,6 @@ class _TitleRow extends ConsumerWidget {
   }
 }
 
-/// Static when it fits; a slow marquee with long pauses when it doesn't,
-/// so a long Tamil film title is readable without truncation.
-class _FittingTitle extends StatelessWidget {
-  final String text;
-  final TextStyle style;
-  const _FittingTitle({required this.text, required this.style});
-
-  @override
-  Widget build(BuildContext context) {
-    return LayoutBuilder(builder: (context, c) {
-      final tp = TextPainter(
-        text: TextSpan(text: text, style: style),
-        maxLines: 1,
-        textDirection: Directionality.of(context),
-        textScaler: MediaQuery.textScalerOf(context),
-      )..layout();
-      final overflows = tp.width > c.maxWidth;
-      tp.dispose();
-      final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-      if (!overflows || reduce) {
-        return Text(text, maxLines: 1, overflow: TextOverflow.ellipsis, style: style);
-      }
-      return Marquee(
-        text: text,
-        style: style,
-        blankSpace: 48,
-        velocity: 32,
-        startAfter: const Duration(seconds: 2),
-        pauseAfterRound: const Duration(seconds: 3),
-        fadingEdgeStartFraction: 0.04,
-        fadingEdgeEndFraction: 0.1,
-        showFadingOnlyWhenScrolling: true,
-      );
-    });
-  }
-}
-
 void _showMore(BuildContext context, Song song) {
   showPlatformSheet(
     context: context,
@@ -1046,25 +1009,34 @@ void _showMore(BuildContext context, Song song) {
 class _BottomRow extends ConsumerWidget {
   final _Pane pane;
   final ValueChanged<_Pane> onTogglePane;
-  const _BottomRow({required this.pane, required this.onTogglePane});
+
+  /// Phone: each control sits on a faint round disc (a 56 dp target), so
+  /// the three read as buttons and the open pane's one stands out. Windows
+  /// and TV keep the bare glyphs.
+  final bool rounded;
+  const _BottomRow({required this.pane, required this.onTogglePane, this.rounded = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final remote = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive));
     final sleeping = ref.watch(sleepTimerProvider.select((s) => s.active));
     Color c(bool on) => on ? Colors.white : Colors.white.withValues(alpha: 0.72);
+    final double size = rounded ? 56 : 48;
+    final Color? rest = rounded ? const Color(0x14FFFFFF) : null;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [
         GlyphButton(
-          size: 48,
+          size: size,
+          restFill: rest,
           semanticLabel: 'Lyrics',
           selected: pane == _Pane.lyrics,
           onTap: () => onTogglePane(_Pane.lyrics),
           child: NaviIcon(NaviGlyph.lyrics, size: 24, color: c(pane == _Pane.lyrics)),
         ),
         GlyphButton(
-          size: 48,
+          size: size,
+          restFill: rest,
           semanticLabel: 'Devices',
           selected: remote,
           onTap: () => showDevicesSheet(context),
@@ -1082,7 +1054,8 @@ class _BottomRow extends ConsumerWidget {
           ),
         ),
         GlyphButton(
-          size: 48,
+          size: size,
+          restFill: rest,
           semanticLabel: 'Queue',
           selected: pane == _Pane.queue,
           onTap: () => onTogglePane(_Pane.queue),

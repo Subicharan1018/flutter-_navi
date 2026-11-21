@@ -57,6 +57,15 @@ class FetchCandidateRow extends ConsumerWidget {
       button: tappable,
       selected: selected,
       label: [c.title, _subtitle(c), ?status].where((s) => s.isNotEmpty).join(', '),
+      hint: !tappable
+          ? null
+          : selecting
+              ? (selected! ? 'Double tap to deselect' : 'Double tap to select')
+              : song
+                  ? (c.inLibrary ? 'Double tap to play' : 'Double tap to download')
+                  : (c.type == FetchSearchType.artist || c.type == FetchSearchType.label)
+                      ? 'Double tap to see their songs'
+                      : 'Double tap to download',
       excludeSemantics: true,
       child: InkWell(
         onTap: !tappable ? null : (song && c.inLibrary && !selecting ? onPlayOwned : onDownload),

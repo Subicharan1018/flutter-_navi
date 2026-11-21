@@ -12,6 +12,28 @@ class LyricsServerException implements Exception {
   String toString() => message;
 }
 
+/// What `GET /lyrics/fetch` answers: [lrc] is enhanced LRC (word tags
+/// `<mm:ss.xx>` inside a timed line), [sync] is `word`, `line` or `plain`.
+class ProxyLyrics {
+  final String source;
+  final String sync;
+  final String lrc;
+  const ProxyLyrics({required this.source, required this.sync, required this.lrc});
+
+  /// Null-safe: an answer without text is not an answer.
+  static ProxyLyrics? tryParse(Map<String, dynamic> json) {
+    final lrc = json['lrc']?.toString() ?? '';
+    if (lrc.trim().isEmpty) return null;
+    return ProxyLyrics(
+      source: json['source']?.toString() ?? '',
+      sync: json['sync']?.toString() ?? 'line',
+      lrc: lrc.trim(),
+    );
+  }
+
+  static ProxyLyrics? fromJson(Map<String, dynamic> json) => tryParse(json);
+}
+
 /// Client for the shuffle server's lyrics routes: translation and
 /// pronunciation (`POST /lyrics/translate`) and search by lyrics
 /// (`GET /search/lyrics`). Build the Dio with `createShuffleDio`.
@@ -61,6 +83,40 @@ class LyricsServerApi {
               if (m is Map) LyricMatch.fromJson(Map<String, dynamic>.from(m)),
         ];
       });
+
+  /// Synced lyrics from the third-party [sources] (`LyricsSource.wire` names,
+  /// in the order to try), fetched and cached per song by the server. Null when
+  /// no source has the song (404) or none is switched on; throws
+  /// [LyricsServerException] for anything else, so the caller can fall back.
+  Future<ProxyLyrics?> fetchSynced({
+    required String songId,
+    required String title,
+    required String artist,
+    required String album,
+    required int durationSeconds,
+    required List<String> sources,
+    String? spotifyId,
+  }) => _wrap(() async {
+    try {
+      final r = await _dio.get<Map<String, dynamic>>(
+        '/lyrics/fetch',
+        queryParameters: {
+          'song_id': songId,
+          'title': title,
+          'artist': artist,
+          if (album.isNotEmpty) 'album': album,
+          if (durationSeconds > 0) 'duration': durationSeconds,
+          'sources': sources.join(','),
+          if (spotifyId != null && spotifyId.isNotEmpty) 'spotify_id': spotifyId,
+        },
+        options: Options(receiveTimeout: const Duration(seconds: 25)),
+      );
+      return ProxyLyrics.fromJson(r.data ?? const {});
+    } on DioException catch (e) {
+      if (e.response?.statusCode == 404) return null;
+      rethrow;
+    }
+  });
 
   Future<T> _wrap<T>(Future<T> Function() call) async {
     try {

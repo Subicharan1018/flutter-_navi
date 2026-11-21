@@ -14,6 +14,8 @@ import '../lyrics/models/lyric_translation.dart';
 import '../providers/player_provider.dart';
 import '../utils/platform_utils.dart';
 import 'edge_fade.dart';
+import 'lyric_word_sweep.dart';
+import 'lyrics_source_chip.dart';
 import 'now_playing_style.dart';
 
 /// Time-synced lyrics in the Apple manner: big, bold, left-aligned lines; the
@@ -85,26 +87,33 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
     ref.listen<int>(lyricsControllerProvider.select((s) => s.activeLineIndex), (prev, next) {
       if (next != prev) WidgetsBinding.instance.addPostFrameCallback((_) => _follow(next));
     });
-    final state = ref.watch(lyricsControllerProvider);
+    // Everything but the active line index: that changes every few seconds and
+    // is read by the two lines that change look, not by this whole list.
+    final state = ref.watch(
+      lyricsControllerProvider.select(
+        (s) => (s.status, s.lyrics, s.source, s.wordSynced, s.errorMessage),
+      ),
+    );
     final st = widget.style;
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 280),
-      child: switch (state.status) {
+      child: switch (state.$1) {
         LyricsStatus.loading => _Skeleton(key: const ValueKey('loading'), style: st, padding: widget.padding),
-        LyricsStatus.synced => _synced(state),
-        LyricsStatus.plain => _plain(state.lyrics!, st),
+        LyricsStatus.synced => _withChip(_synced(state.$2!), st, state.$3, state.$4 ? 'WORD' : 'SYNC'),
+        LyricsStatus.plain => _withChip(_plain(state.$2!, st), st, state.$3, 'TEXT'),
         LyricsStatus.empty => _Message(
             key: const ValueKey('empty'),
             style: st,
             title: 'No lyrics for this song',
-            body: 'Lyrics appear here when your server or LRCLIB has them.',
+            body: 'Lyrics appear here when your server, lrc.red, BetterLyrics or LRCLIB has them. '
+                'Choose the sources in Settings.',
           ),
         LyricsStatus.error => _Message(
             key: const ValueKey('error'),
             style: st,
             title: 'Couldn’t load lyrics',
-            body: state.errorMessage ?? 'Check your connection and try again.',
+            body: state.$5 ?? 'Check your connection and try again.',
             action: TextButton(
               onPressed: () => ref.read(lyricsControllerProvider.notifier).retry(),
               child: Text('Try again', style: naviText(15, FontWeight.w600, st.textPrimary)),
@@ -114,9 +123,28 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
     );
   }
 
-  Widget _synced(LyricsState state) {
-    final lines = state.lyrics!.lines;
-    final active = state.activeLineIndex;
+  /// The lyrics with a small "where from" chip under them (`lrc.red · WORD`),
+  /// which is also the credit some sources' terms require.
+  Widget _withChip(Widget lyrics, NowPlayingStyle st, String? source, String kind) {
+    final label = lyricsSourceLabel(source);
+    if (label == null) return lyrics;
+    return Stack(
+      key: lyrics.key,
+      fit: StackFit.expand,
+      children: [
+        lyrics,
+        Positioned(
+          left: 0,
+          right: 0,
+          bottom: 6,
+          child: Center(child: LyricsSourceChip(style: st, label: label, kind: kind)),
+        ),
+      ],
+    );
+  }
+
+  Widget _synced(SyncedLyrics lyrics) {
+    final lines = lyrics.lines;
     final st = widget.style;
     final firstAt = lines.isEmpty ? Duration.zero : lines.first.timestamp;
     final tr = ref.watch(lyricsTranslationProvider);
@@ -135,16 +163,21 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TranslateBar(style: st),
-              if (active < 0 && firstAt > const Duration(seconds: 3))
-                _Breathing(style: st, size: widget.fontSize),
+              if (firstAt > const Duration(seconds: 3))
+                Consumer(
+                  builder: (context, ref, _) => ref.watch(lyricsControllerProvider.select((s) => s.activeLineIndex < 0))
+                      ? _Breathing(style: st, size: widget.fontSize)
+                      : const SizedBox.shrink(),
+                ),
               for (int i = 0; i < lines.length; i++)
                 _Line(
                   key: _keyFor(i),
+                  index: i,
                   line: lines[i],
+                  endsAt: i + 1 < lines.length ? lines[i + 1].timestamp : lines[i].timestamp + const Duration(seconds: 6),
                   extra: _extraFor(tr, i),
                   showTranslation: tr.showTranslation,
                   showPronunciation: tr.showPronunciation,
-                  state: i == active ? _LineState.active : (i < active ? _LineState.past : _LineState.upcoming),
                   fontSize: widget.fontSize,
                   style: st,
                   onTap: () {
@@ -394,33 +427,47 @@ class _Pill extends StatelessWidget {
 
 enum _LineState { past, active, upcoming }
 
-class _Line extends StatelessWidget {
+/// One lyric line. It watches only whether it is past, sung now or upcoming, so
+/// when the song moves on exactly two lines rebuild, not the whole list.
+class _Line extends ConsumerWidget {
+  final int index;
   final LyricLine line;
+
+  /// When the next line starts: the sung line's last word ends here.
+  final Duration endsAt;
   final LineTranslation? extra;
   final bool showTranslation;
   final bool showPronunciation;
-  final _LineState state;
   final double fontSize;
   final NowPlayingStyle style;
   final VoidCallback onTap;
 
   const _Line({
     super.key,
+    required this.index,
     required this.line,
+    required this.endsAt,
     required this.extra,
     required this.showTranslation,
     required this.showPronunciation,
-    required this.state,
     required this.fontSize,
     required this.style,
     required this.onTap,
   });
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
+    final state = ref.watch(
+      lyricsControllerProvider.select(
+        (s) => index == s.activeLineIndex
+            ? _LineState.active
+            : (index < s.activeLineIndex ? _LineState.past : _LineState.upcoming),
+      ),
+    );
     final text = line.text.trim();
     if (text.isEmpty) return SizedBox(height: fontSize * 0.9);
     final active = state == _LineState.active;
+    final textStyle = naviText(fontSize, FontWeight.w800, style.textPrimary).copyWith(height: 1.18);
     return Semantics(
       button: true,
       label: text,
@@ -442,10 +489,19 @@ class _Line extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    text,
-                    style: naviText(fontSize, FontWeight.w800, style.textPrimary).copyWith(height: 1.18),
-                  ),
+                  if (active && line.hasWordTimestamps)
+                    // Only this widget repaints per frame, and only while its
+                    // line is the sung one.
+                    RepaintBoundary(
+                      child: LyricWordSweep(
+                        line: line,
+                        endsAt: endsAt,
+                        style: textStyle,
+                        positionMs: () => ref.read(playerProvider.notifier).player.position.inMilliseconds,
+                      ),
+                    )
+                  else
+                    Text(text, style: textStyle),
                   _Extras(
                     extra: extra,
                     showTranslation: showTranslation,
