@@ -249,12 +249,30 @@ class SubsonicService {
   // HTTP helper
   // ---------------------------------------------------------------------------
 
+  /// A GET that tries once more when the connection itself failed. After the
+  /// machine sleeps or the network changes the pooled keep-alive socket is
+  /// dead: the first request fails (or hangs to the timeout) though the
+  /// server is fine, and a second one on a fresh socket works. Every Subsonic
+  /// read is idempotent, so repeating it is safe; HTTP statuses are never
+  /// retried. The retry gets a shorter wait so a real outage still fails in
+  /// well under a minute.
+  Future<http.Response> _getWithRetry(Uri uri) async {
+    try {
+      return await _client.get(uri).timeout(const Duration(seconds: 20));
+    } on dart_io.SocketException {
+      // fall through to the retry
+    } on http.ClientException {
+      // fall through to the retry
+    } on dart_async.TimeoutException {
+      // fall through to the retry
+    }
+    return _client.get(uri).timeout(const Duration(seconds: 12));
+  }
+
   Future<dynamic> _get(String endpoint, [Map<String, String>? params]) async {
     final url = _buildUrl(endpoint, params);
     try {
-      final response = await _client
-          .get(Uri.parse(url))
-          .timeout(const Duration(seconds: 20));
+      final response = await _getWithRetry(Uri.parse(url));
 
       if (response.statusCode == 401) throw const AuthException();
       if (response.statusCode != 200) {
