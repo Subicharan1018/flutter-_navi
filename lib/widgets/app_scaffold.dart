@@ -9,6 +9,7 @@ import '../features/online_fetch/logic/online_fetch_providers.dart';
 import '../features/online_fetch/ui/fetch_activity.dart';
 import '../providers/library_provider.dart';
 import '../providers/player_provider.dart';
+import '../providers/search_provider.dart' show searchQueryProvider;
 import '../screens/settings_screen.dart';
 import '../services/window_manager_service.dart';
 import '../utils/platform_utils.dart';
@@ -105,6 +106,12 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
     if (tab == _tab) return reselectTab(tab);
     HapticFeedback.selectionClick();
     // Each tab keeps its own stack, so leaving one never loses where you were.
+    // Search is the exception: it opens on its first page, with an empty field
+    // (the desktop field is in the top bar and was just typed in, so it stays).
+    if (tab == AppTab.search) {
+      resetSearchTab();
+      if (!PlatformUtils.isDesktop) ref.read(searchQueryProvider.notifier).state = '';
+    }
     setState(() {
       _tab = tab;
       _visited.add(tab);

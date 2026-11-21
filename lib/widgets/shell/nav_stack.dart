@@ -183,6 +183,10 @@ void reselectTab(AppTab tab) {
   if (tab == AppTab.search) searchFieldRequest.value = true;
 }
 
+/// Search is a task, not a place: coming back to it from another tab starts
+/// from its first page, not the album or artist opened last time.
+void resetSearchTab() => tabNavigators[AppTab.search]?.currentState?.popUntil((r) => r.isFirst);
+
 /// Set to put the caret in Search's field and raise the keyboard (a second
 /// tap on the Search tab, Ctrl+F, '/'). Search clears it once it has, so a
 /// request made before Search was first built still lands.
