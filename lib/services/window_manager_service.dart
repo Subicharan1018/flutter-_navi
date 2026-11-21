@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:window_manager/window_manager.dart';
 import 'package:hive_ce/hive.dart';
 import '../utils/platform_utils.dart';
+import '../utils/trailing_save.dart';
 
 // =============================================================================
 // window_manager_service.dart — Desktop window state persistence
@@ -65,14 +66,21 @@ class WindowManagerService with WindowListener {
 
   // ── WindowListener overrides ───────────────────────────────────────────────
 
-  @override
-  void onWindowResized() => _saveWindowState();
+  /// Resize and move events come once per frame while dragging; the state is
+  /// written when the drag settles, not on every one.
+  late final TrailingSave _writer = TrailingSave(const Duration(milliseconds: 500), _saveWindowState);
 
   @override
-  void onWindowMoved() => _saveWindowState();
+  void onWindowResized() => _writer.schedule();
 
   @override
-  void onWindowClose() => _saveWindowState();
+  void onWindowMoved() => _writer.schedule();
+
+  @override
+  void onWindowClose() {
+    _writer.cancel();
+    _saveWindowState();
+  }
 
   // ── Private helpers ────────────────────────────────────────────────────────
 
