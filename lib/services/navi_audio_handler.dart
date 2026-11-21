@@ -995,11 +995,19 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       useLazyPreparation: true,
       children: sources,
     );
-    await player.setAudioSource(
-      _playlist!,
-      initialIndex: initialIndex,
-      initialPosition: initialPosition,
-    );
+    // Bounded like the desktop path: this runs inside the player's queue lock,
+    // so a connection that never answers would otherwise hold every later
+    // play/skip/queue edit behind it for good.
+    await player
+        .setAudioSource(
+          _playlist!,
+          initialIndex: initialIndex,
+          initialPosition: initialPosition,
+        )
+        .timeout(
+          const Duration(seconds: 30),
+          onTimeout: () => throw TimeoutException('[NaviAudioHandler] setAudioSource timed out'),
+        );
     if (_repeatMode != LoopMode.off) {
       await player.setLoopMode(_repeatMode);
     }
