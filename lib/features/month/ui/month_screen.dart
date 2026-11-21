@@ -237,6 +237,9 @@ class DailyBars extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     if (minutes.isEmpty) return;
     final peak = minutes.reduce((a, b) => a > b ? a : b);
+    final peakDay = peak == 0 ? -1 : minutes.indexOf(peak);
+    // Everything but the biggest day recedes, so the month has one white mark.
+    final dim = Color.lerp(empty, ink, 0.55)!;
     final slot = size.width / minutes.length;
     final w = (slot * 0.62).clamp(1.0, 8.0);
     for (var i = 0; i < minutes.length; i++) {
@@ -245,7 +248,7 @@ class DailyBars extends CustomPainter {
         Rect.fromLTWH(i * slot + (slot - w) / 2, size.height - h, w, h),
         Radius.circular(w / 2),
       );
-      canvas.drawRRect(r, Paint()..color = minutes[i] == 0 ? empty : ink);
+      canvas.drawRRect(r, Paint()..color = minutes[i] == 0 ? empty : (i == peakDay ? ink : dim));
     }
   }
 
