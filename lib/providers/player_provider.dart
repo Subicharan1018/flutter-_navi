@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform, ProcessInfo;
 import 'dart:math';
+import '../player/resume_position.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -850,7 +851,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await seek(Duration(milliseconds: ms));
   }
 
+  /// Where the song that was playing when the app closed stopped; applied only
+  /// if that same song is what starts first (see [resumeSeekMs]).
   int _pendingSeekMs = 0;
+  String? _pendingSeekTrackId;
 
   Future<void> _loadPersistedState() async {
     try {
@@ -858,6 +862,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final p = HiveBoxes.prefs;
       _pendingSeekMs =
           s.get(HiveBoxes.kLastPositionMs, defaultValue: 0) as int;
+      _pendingSeekTrackId = s.get(HiveBoxes.kCurrentTrackId) as String?;
       final shuffle =
           p.get(HiveBoxes.kShufflePreference, defaultValue: false) as bool;
       final repeatIdx = p.get('repeatMode', defaultValue: 0) as int;
@@ -889,7 +894,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
           s.put(HiveBoxes.kCurrentTrackId, state.queue[state.currentIndex].id);
         }
-        s.put(HiveBoxes.kLastPositionMs, player.position.inMilliseconds);
+        // The position belongs to the song the player has loaded. While a
+        // switch is under way the state already names the new song but the
+        // player still reports the old one's time: save zero then.
+        final settled = _audioHandler.currentIndex == state.currentIndex;
+        s.put(HiveBoxes.kLastPositionMs, settled ? player.position.inMilliseconds : 0);
         p.put(HiveBoxes.kShufflePreference, state.shuffleMode);
         p.put('repeatMode', state.repeatMode.index);
       } catch (_) {}
@@ -1462,17 +1471,25 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       } finally {
         _suppressDepth--;
       }
-      if (_pendingSeekMs > 0) {
+      // The remembered time resumes the song it belongs to; whatever else
+      // starts first begins at zero. Either way it is used up.
+      final startingSong = songs.isNotEmpty && startIndex < songs.length ? songs[startIndex] : null;
+      final resumeMs = resumeSeekMs(
+        savedTrackId: _pendingSeekTrackId,
+        savedMs: _pendingSeekMs,
+        startingTrackId: startingSong?.id,
+        durationMs: startingSong == null ? null : startingSong.duration * 1000,
+      );
+      _pendingSeekMs = 0;
+      _pendingSeekTrackId = null;
+      if (resumeMs > 0) {
         try {
-          await player.seek(Duration(milliseconds: _pendingSeekMs));
+          await player.seek(Duration(milliseconds: resumeMs));
         } catch (_) {}
-        _pendingSeekMs = 0;
       }
       _pushUpdate(
-        trackId: songs.isNotEmpty && startIndex < songs.length
-            ? songs[startIndex].id
-            : null,
-        positionMs: _pendingSeekMs,
+        trackId: startingSong?.id,
+        positionMs: resumeMs,
         isPlaying: true,
         queue: songs.map((s) => s.id).toList(),
       );
