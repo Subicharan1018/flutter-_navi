@@ -29,14 +29,18 @@ class RecommendationResolver {
   ///
   /// Each recommendation carries the song's measured tempo; it is kept in the
   /// BPM cache so Microduck can dance to the song's beat.
-  List<Song> resolveAll(Iterable<RecommendedSong> recs) {
-    final out = <Song>[];
+  List<Song> resolveAll(Iterable<RecommendedSong> recs) => [for (final p in resolvePairs(recs)) p.$1];
+
+  /// Like [resolveAll], keeping each song's recommendation (its audio
+  /// features and scores) beside it for the taste field.
+  List<(Song, RecommendedSong)> resolvePairs(Iterable<RecommendedSong> recs) {
+    final out = <(Song, RecommendedSong)>[];
     for (final r in recs) {
       final s = resolve(r);
       if (s == null) continue;
       final tempo = r.tempo;
       if (tempo != null) cacheBpm(s.id, tempo);
-      out.add(s);
+      out.add((s, r));
     }
     return out;
   }

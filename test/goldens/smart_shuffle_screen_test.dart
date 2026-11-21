@@ -69,8 +69,8 @@ RecommendedSong _rec(int i) => RecommendedSong(
       filePath: 'p/$i.mp3',
       genreBucket: 'Film',
       composer: _titles[i].$2,
-      audio: const AudioFeatures(energy: .5, valence: .5, acousticness: .3, danceability: .5),
-      scores: const SongScores(contextHistory: .9, audioFit: .8, composerLoyalty: .7, finalScore: .85),
+      audio: AudioFeatures(energy: .15 + i * .2, valence: .2 + (i * .37) % .7, acousticness: .3, danceability: .3 + i * .12),
+      scores: SongScores(contextHistory: .9, audioFit: .8, composerLoyalty: .7, finalScore: .92 - i * .13),
       why: 'fits',
       artist: _titles[i].$2,
       album: 'Album $i',
@@ -106,9 +106,10 @@ void main() {
   });
   tearDown(() => PlatformUtils.debugDesktopOverride = null);
 
-  Future<void> shoot(WidgetTester tester, PredictQueueState predict, String file, {required bool desktop}) async {
+  Future<void> shoot(WidgetTester tester, PredictQueueState predict, String file,
+      {required bool desktop, double phoneHeight = 844}) async {
     PlatformUtils.debugDesktopOverride = desktop;
-    tester.view.physicalSize = desktop ? const Size(1280, 900) : const Size(390 * 3, 844 * 3);
+    tester.view.physicalSize = desktop ? const Size(1280, 900) : Size(390 * 3, phoneHeight * 3);
     tester.view.devicePixelRatio = desktop ? 1 : 3;
     addTearDown(tester.view.reset);
     final db = AppDatabase.forTesting(NativeDatabase.memory());
@@ -131,7 +132,10 @@ void main() {
       ),
     ));
     await tester.pump(const Duration(milliseconds: 100));
-    await tester.pump(const Duration(milliseconds: 600));
+    // The field blooms and glides frame by frame (a ticker clamps big jumps).
+    for (var i = 0; i < 30; i++) {
+      await tester.pump(const Duration(milliseconds: 40));
+    }
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('smart_shuffle/$file.png'));
   }
 
@@ -142,6 +146,10 @@ void main() {
   );
   const empty = PredictQueueState(status: PredictStatus.loaded, context: _context);
   const failed = PredictQueueState(status: PredictStatus.error, errorMessage: 'offline');
+
+  // The whole page, to see the taste field, the energy dial and the list.
+  testWidgets('phone loaded, full page',
+      (tester) => shoot(tester, loaded, 'screen_phone_loaded_full', desktop: false, phoneHeight: 1500));
 
   for (final (name, state) in [('loaded', loaded), ('empty', empty), ('error', failed)]) {
     testWidgets('phone $name', (tester) => shoot(tester, state, 'screen_phone_$name', desktop: false));

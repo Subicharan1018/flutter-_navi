@@ -32,7 +32,10 @@ import '../logic/recommendation_resolver.dart';
 import '../logic/shuffle_providers.dart';
 import 'widgets/describe_mix_field.dart';
 import 'widgets/moment_line.dart';
+import 'widgets/rise_in.dart';
 import 'widgets/smart_shuffle_status.dart';
+import 'widgets/taste_math.dart';
+import 'widgets/taste_studio.dart';
 
 class AiShuffleScreen extends ConsumerStatefulWidget {
   const AiShuffleScreen({super.key});
@@ -47,6 +50,12 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   /// The mix being played from this screen (see [pickShownMix]).
   ShownMix? _pinned;
 
+  /// The recommendations behind [_pinned], for the taste field.
+  Map<String, TastePoint> _pinnedPoints = const {};
+
+  /// The energy dial: null until touched; then the mix is ordered around it.
+  double? _dial;
+
   @override
   void initState() {
     super.initState();
@@ -58,6 +67,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   /// picks. Only the preview: a mix that's already playing keeps its session.
   void _fetch([PredictMode? mode]) {
     _pinned = null;
+    _dial = null;
     ref.read(mixIntentProvider.notifier).reset(); // leaving a described mix
     ref.read(shuffleQueueProvider.notifier).clearPreview();
     ref.read(predictQueueProvider.notifier).fetchPredict(mode: mode ?? ref.read(predictQueueProvider).mode);
@@ -67,6 +77,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   Future<void> _reshuffle(List<Song> visible) async {
     HapticFeedback.selectionClick();
     _pinned = null;
+    _dial = null;
     // A described mix reshuffles within the songs that fit the description.
     final described = ref.read(mixIntentProvider).result?.candidates;
     try {
@@ -81,12 +92,14 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   }
 
   /// Plays the resolved mix from [start] and opens Now Playing.
-  Future<void> _play(ShownMix shown, {int start = 0}) async {
+  Future<void> _play(ShownMix shown, {int start = 0, Map<String, TastePoint> points = const {}}) async {
     final mix = shown.songs;
     if (_applying || mix.isEmpty) return;
+    HapticFeedback.mediumImpact();
     setState(() {
       _applying = true;
       _pinned = shown; // starting playback clears the preview batches; keep listing this mix
+      _pinnedPoints = points;
     });
     try {
       final shuffle = ref.read(shuffleQueueProvider.notifier);
@@ -112,13 +125,27 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
 
     // After a reshuffle the /next batches are newest; otherwise /predict.
     final recs = shuffleState.batches.isNotEmpty ? shuffleState.allRecommendedSongs : predict.songs;
-    final resolved = RecommendationResolver(library).resolveAll(recs);
-    final shown = pickShownMix(
-      hasPreview: shuffleState.batches.isNotEmpty,
+    final pairs = RecommendationResolver(library).resolvePairs(recs);
+    final resolved = [for (final p in pairs) p.$1];
+    final hasPreview = shuffleState.batches.isNotEmpty;
+    final picked = pickShownMix(
+      hasPreview: hasPreview,
       fresh: (songs: resolved, missing: recs.length - resolved.length),
       pinned: _pinned,
     );
+    // The taste field's numbers for whichever mix is on screen.
+    final points = (hasPreview || _pinned == null)
+        ? {for (final p in pairs) p.$1.id: TastePoint.of(p.$1, p.$2)}
+        : _pinnedPoints;
+    // The energy dial reshapes the order; untouched, it is the server's.
+    final shown = _dial == null
+        ? picked
+        : (
+            songs: reshapeByEnergy(picked.songs, {for (final e in points.entries) e.key: e.value.energy}, _dial),
+            missing: picked.missing,
+          );
     final mix = shown.songs;
+    final fieldPoints = [for (final s in mix) if (points[s.id] != null) points[s.id]!];
     final missing = shown.missing;
     final starter = shuffleState.batches.map((b) => b.sessionStarter).whereType<SessionStarter>().firstOrNull;
     final loading = shuffleState.isLoading || predict.isLoading || syncing;
@@ -156,7 +183,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               mode: predict.mode,
               mix: mix,
               busy: _applying || loading,
-              onPlay: mix.isEmpty ? null : () => _play(shown),
+              onPlay: mix.isEmpty ? null : () => _play(shown, points: points),
               onReshuffle: loading ? null : () => _reshuffle(mix),
             ),
           ),
@@ -192,6 +219,16 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
             ),
           )
         else ...[
+          if (fieldPoints.length >= 3)
+            SliverToBoxAdapter(
+              child: TasteStudio(
+                points: fieldPoints,
+                dial: _dial,
+                onDial: (v) => setState(() => _dial = v),
+                onResetDial: () => setState(() => _dial = null),
+                onPlaySong: (id) => _play(shown, start: mix.indexWhere((s) => s.id == id).clamp(0, mix.length - 1), points: points),
+              ),
+            ),
           const SliverToBoxAdapter(child: SectionHeader(title: 'In This Mix')),
           if (desk)
             // Windows: the same song table as every other list.
@@ -199,14 +236,19 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               padding: EdgeInsets.symmetric(horizontal: g),
               sliver: SongTableSliver(
                 songs: mix,
-                onPlay: (song, _) => _play(shown, start: mix.indexWhere((s) => s.id == song.id).clamp(0, mix.length - 1)),
+                onPlay: (song, _) =>
+                    _play(shown, start: mix.indexWhere((s) => s.id == song.id).clamp(0, mix.length - 1), points: points),
               ),
             )
           else
             SliverFixedExtentList(
               itemExtent: SongTile.extent,
               delegate: SliverChildBuilderDelegate(
-                (context, i) => SongTile(song: mix[i], onTap: () => _play(shown, start: i)),
+                (context, i) => RiseIn(
+                  key: ValueKey(mix[i].id),
+                  index: i,
+                  child: SongTile(song: mix[i], onTap: () => _play(shown, start: i, points: points)),
+                ),
                 childCount: mix.length,
               ),
             ),
