@@ -12,6 +12,7 @@ import '../core/theme.dart';
 import 'shell/dock_glass.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
+import '../player/fitting_title.dart';
 import '../player/player_controls.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
@@ -275,11 +276,14 @@ class _Content extends StatelessWidget {
                 mainAxisAlignment: MainAxisAlignment.center,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    song.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: t.callout.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+                  // A long title scrolls across twice, then rests as an ellipsis
+                  // (see FittingTitle); it fits? plain text.
+                  SizedBox(
+                    height: 21,
+                    child: FittingTitle(
+                      text: song.title,
+                      style: t.callout.copyWith(color: Colors.white, fontWeight: FontWeight.w600),
+                    ),
                   ),
                   const SizedBox(height: 1),
                   Text(

@@ -14,6 +14,7 @@ import '../utils/platform_utils.dart';
 import '../features/flow/ui/flow_settings.dart';
 import '../features/local_library/ui/download_location_section.dart';
 import '../features/play_cache/ui/play_cache_section.dart';
+import '../lyrics/ui/lyrics_sources_section.dart';
 import '../features/local_library/ui/local_music_section.dart';
 import '../features/social/ui/social_settings_section.dart';
 import '../features/updates/logic/update_providers.dart' show updateCheckProvider, updatesSupported;
@@ -435,6 +436,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
+          const SettingsCategory('Lyrics'),
+          const LyricsSourcesSection(),
           const SettingsCategory('Audio quality'),
           GroupedSection(
             header: 'Audio Quality',

@@ -21,11 +21,19 @@ class LyricsState {
 
   final String? errorMessage;
 
+  /// Where the lyrics came from (see [LyricsResult.source]), for the chip.
+  final String? source;
+
+  /// True when the lines carry per-word timing.
+  final bool wordSynced;
+
   const LyricsState({
     required this.status,
     this.lyrics,
     this.activeLineIndex = -1,
     this.errorMessage,
+    this.source,
+    this.wordSynced = false,
   });
 
   LyricsState copyWith({
@@ -39,6 +47,8 @@ class LyricsState {
       lyrics: lyrics ?? this.lyrics,
       activeLineIndex: activeLineIndex ?? this.activeLineIndex,
       errorMessage: errorMessage ?? this.errorMessage,
+      source: source,
+      wordSynced: wordSynced,
     );
   }
 }
@@ -119,6 +129,8 @@ class LyricsController extends Notifier<LyricsState> {
             status: LyricsStatus.synced,
             lyrics: result.lyrics,
             activeLineIndex: -1,
+            source: result.source,
+            wordSynced: result.wordSynced,
           );
           // PERF: Only subscribe to position stream when we have synced
           // lyrics to track. Cancel any previous subscription first.
@@ -129,6 +141,7 @@ class LyricsController extends Notifier<LyricsState> {
             status: LyricsStatus.plain,
             lyrics: result.lyrics,
             activeLineIndex: -1,
+            source: result.source,
           );
         case LyricsType.none:
           state = const LyricsState(status: LyricsStatus.empty);

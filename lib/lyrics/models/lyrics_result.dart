@@ -14,15 +14,27 @@ class LyricsResult {
   /// Stored in cache so re-parsing on cold-start is cheap and lossless.
   final String? rawText;
 
-  const LyricsResult({required this.type, this.lyrics, this.rawText});
+  /// Where the text came from, for the source chip: a [LyricsSource.wire]
+  /// name, `server` (the Navidrome file's own tags), `lrclib` or `device`.
+  /// Null when unknown (nothing found).
+  final String? source;
+
+  const LyricsResult({required this.type, this.lyrics, this.rawText, this.source});
 
   factory LyricsResult.none() => const LyricsResult(type: LyricsType.none);
+
+  /// True when at least one line carries per-word timing.
+  bool get wordSynced => lyrics?.lines.any((l) => l.hasWordTimestamps) ?? false;
+
+  LyricsResult withSource(String? source) =>
+      LyricsResult(type: type, lyrics: lyrics, rawText: rawText, source: source);
 
   // ── Cache serialisation ──────────────────────────────────────────────────
 
   Map<String, dynamic> toJson() => {
     'type': type.name,
     'rawText': rawText ?? '',
+    if (source != null) 'source': source,
   };
 
   factory LyricsResult.fromJson(
@@ -41,6 +53,7 @@ class LyricsResult {
           ? parser(t.name, raw)
           : null,
       rawText: raw,
+      source: json['source']?.toString(),
     );
   }
 }

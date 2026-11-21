@@ -373,6 +373,10 @@ class GlyphButton extends StatefulWidget {
   final Color pressColor;
   final bool selected;
   final Color? selectedColor;
+
+  /// A faint disc behind the glyph even at rest, so the button reads as a
+  /// button (the round controls under Now Playing). Null: no disc until pressed.
+  final Color? restFill;
   final bool autofocus;
 
   const GlyphButton({
@@ -385,6 +389,7 @@ class GlyphButton extends StatefulWidget {
     this.pressColor = const Color(0x24FFFFFF),
     this.selected = false,
     this.selectedColor,
+    this.restFill,
     this.autofocus = false,
   });
 
@@ -445,17 +450,19 @@ class _GlyphButtonState extends State<GlyphButton>
                       curve: Curves.easeOutCubic,
                       width:
                           widget.size *
-                          (widget.selected ? 0.78 : 0.62 + 0.38 * t),
+                          (widget.selected || widget.restFill != null ? 0.78 : 0.62 + 0.38 * t),
                       height:
                           widget.size *
-                          (widget.selected ? 0.78 : 0.62 + 0.38 * t),
+                          (widget.selected || widget.restFill != null ? 0.78 : 0.62 + 0.38 * t),
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: widget.selected
                             ? (widget.selectedColor ?? const Color(0x2EFFFFFF))
-                            : widget.pressColor.withValues(
-                                alpha: widget.pressColor.a * t,
-                              ),
+                            : widget.restFill != null
+                                ? Color.lerp(widget.restFill, widget.pressColor, t)
+                                : widget.pressColor.withValues(
+                                    alpha: widget.pressColor.a * t,
+                                  ),
                       ),
                     ),
                     Transform.scale(
