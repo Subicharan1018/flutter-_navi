@@ -39,13 +39,31 @@ final songCoverUrlProvider = FutureProvider.autoDispose.family<String?, String>(
   return id == null ? null : ref.read(subsonicServiceProvider).getCoverArtUrl(id);
 });
 
-/// Looks up a cover art URL to represent an *artist*, by finding any cached
-/// song of theirs. Artists have no portrait in the Subsonic metadata we cache,
-/// so their most-recently-cached cover stands in — real artwork from their own
-/// catalogue rather than a synthesised placeholder.
+String _artistKey(String name) => name.trim().toLowerCase();
+
+/// Artist id by lower-cased name, from the server's artist index. Fetched once
+/// per sign-in; Replay, Stats and recaps only know artists by name.
+final artistIdsByNameProvider = FutureProvider<Map<String, String>>((ref) async {
+  final raw = await ref.watch(subsonicServiceProvider).getArtists();
+  return {
+    for (final m in raw)
+      if (m['id'] != null && m['name'] != null) _artistKey(m['name'].toString()): m['id'].toString(),
+  };
+});
+
+/// The picture for an *artist* known by name: their own portrait (the same
+/// 'ar-' image the Search and Library pages show) when the server lists them,
+/// otherwise the cover of any cached song of theirs.
 final artistCoverUrlProvider = FutureProvider.autoDispose
     .family<String?, String>((ref, artist) async {
   if (artist.isEmpty) return null;
+
+  try {
+    final id = (await ref.watch(artistIdsByNameProvider.future))[_artistKey(artist)];
+    if (id != null) return ref.read(subsonicServiceProvider).getCoverArtUrl('ar-$id');
+  } catch (_) {
+    // Offline or the index failed: fall through to a song cover.
+  }
 
   final db = ref.watch(appDatabaseProvider);
 

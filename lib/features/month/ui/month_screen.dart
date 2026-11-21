@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../core/theme.dart';
+import '../../../providers/library_provider.dart' show artistCoverUrlProvider;
 import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../widgets/art/generated_cover.dart';
@@ -128,7 +129,7 @@ class MonthBody extends ConsumerWidget {
               onTap: () => _play(context, ref, [for (final s in stats.topSongs) s.songId], i),
             ),
         ],
-        _People(title: 'Top Artists', people: stats.topArtists),
+        _People(title: 'Top Artists', people: stats.topArtists, portraits: true),
         _People(title: 'Top Composers', people: stats.topComposers),
         if (stats.newSongs.isNotEmpty) ...[
           SectionHeader(title: 'Found This Month · ${stats.newSongsCount}'),
@@ -181,7 +182,10 @@ class _Stat extends StatelessWidget {
 class _People extends ConsumerWidget {
   final String title;
   final List<MonthPerson> people;
-  const _People({required this.title, required this.people});
+
+  /// Artists: the artist's own photo. Composers keep a song cover.
+  final bool portraits;
+  const _People({required this.title, required this.people, this.portraits = false});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -200,7 +204,9 @@ class _People extends ConsumerWidget {
             separatorBuilder: (_, _) => const SizedBox(width: Space.md),
             itemBuilder: (context, i) {
               final p = people[i];
-              final art = p.artId == null ? null : ref.read(subsonicServiceProvider).getCoverArtUrl(p.artId);
+              final art = portraits
+                  ? ref.watch(artistCoverUrlProvider(p.name)).asData?.value
+                  : (p.artId == null ? null : ref.read(subsonicServiceProvider).getCoverArtUrl(p.artId));
               return MediaCard(
                 title: p.name,
                 subtitle: '${p.plays} plays · ${minutesLabel(p.minutes)}',
