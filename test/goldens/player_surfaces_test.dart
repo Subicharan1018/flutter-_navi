@@ -30,6 +30,7 @@ import 'package:navivibe/lyrics/models/lyric_line.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/player/artwork.dart';
 import 'package:navivibe/player/artwork_field.dart';
+import 'package:navivibe/player/full_bleed_art.dart' show FullBleedCover;
 import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/screens/now_playing_screen.dart';
@@ -85,10 +86,32 @@ Future<ui.Image> _syntheticCover(String id, int size) async {
   return rec.endRecording().toImage(size, size);
 }
 
+/// Covers that stress the full-bleed look: a pure white one (the worst case
+/// for white text on the fade), a near-black one, and one too small to fill a
+/// phone (it must keep the square cover).
+final _brightSong = _song('t_bright', 'Bright Daylight (From "Contrast")', 'Anirudh Ravichander, Shakthisree Gopalan');
+final _darkSong = _song('t_dark', 'Midnight Drive', 'Sabrina Carpenter');
+final _smallSong = _song('t_small', 'Thumbnail Only', 'Sean Roldan');
+
+Future<ui.Image> _flatCover(Color color, int size) async {
+  final rec = ui.PictureRecorder();
+  Canvas(rec).drawRect(Rect.fromLTWH(0, 0, size.toDouble(), size.toDouble()), Paint()..color = color);
+  return rec.endRecording().toImage(size, size);
+}
+
 final Map<String, Uint8List> _coverBytes = {};
 
 Future<void> _prepareCovers() async {
   final dir = Platform.environment['NAVI_COVERS'];
+  for (final (id, color, px) in [
+    (_brightSong.id, const Color(0xFFFFFFFF), 600),
+    (_darkSong.id, const Color(0xFF050508), 600),
+  ]) {
+    final png = await (await _flatCover(color, px)).toByteData(format: ui.ImageByteFormat.png);
+    _coverBytes[id] = png!.buffer.asUint8List();
+  }
+  _coverBytes[_smallSong.id] =
+      (await (await _syntheticCover(_smallSong.id, 300)).toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
   for (final s in _songs) {
     final f = dir == null ? null : File('$dir/${s.id}.jpg');
     if (f != null && f.existsSync()) {
@@ -199,16 +222,17 @@ Widget _app({
   bool playing = true,
   Duration pos = const Duration(seconds: 71),
 }) {
-  final idx = _songs.indexOf(current);
+  final queue = _songs.contains(current) ? _songs : [current, ..._songs.skip(1)];
+  final idx = queue.indexOf(current);
   final state = PlayerState(
-    queue: _songs,
+    queue: queue,
     currentIndex: idx,
     isPlaying: playing,
     shuffleMode: true,
     autoplayMode: true,
     repeatMode: LoopMode.off,
     starredIds: [_songs[0].id],
-    history: _songs.where((s) => s != current).take(3).toList(),
+    history: queue.where((s) => s != current).take(3).toList(),
     syncMode: SyncMode.activeHere,
   );
   final tokens = AppThemeTokens.fromPalette(art.palette);
@@ -256,7 +280,8 @@ void main() {
   Future<void> shot(
     WidgetTester tester,
     String name, {
-    required int songIndex,
+    int songIndex = 0,
+    Song? only,
     Size size = const Size(390, 844),
     bool playing = true,
     String? tap,
@@ -265,7 +290,7 @@ void main() {
     debugDisableShadows = false; // render real soft shadows, as on device
     await tester.runAsync(_prepareCovers);
     await tester.runAsync(ArtworkField.precache);
-    final song = _songs[songIndex];
+    final song = only ?? _songs[songIndex];
     final art = (await tester.runAsync(() => _artworkFor(song)))!;
     tester.view.physicalSize = size * 3;
     tester.view.devicePixelRatio = 3;
@@ -324,6 +349,12 @@ void main() {
   testWidgets('now playing — paused', (t) => shot(t, 'np_paused', songIndex: 2, playing: false));
   testWidgets('now playing — queue', (t) => shot(t, 'np_queue', songIndex: 1, tap: 'Queue'));
   testWidgets('now playing — lyrics', (t) => shot(t, 'np_lyrics', songIndex: 3, tap: 'Lyrics'));
+  // The full-bleed look's hard cases: white text on the fade over a pure white
+  // cover, a near-black one, and a cover too small to fill the screen (square).
+  testWidgets('now playing — bright cover', (t) => shot(t, 'np_bright', only: _brightSong));
+  testWidgets('now playing — dark cover', (t) => shot(t, 'np_dark', only: _darkSong));
+  testWidgets('now playing — small cover keeps the square', (t) => shot(t, 'np_small_art', only: _smallSong));
+  testWidgets('now playing — bright cover, queue open', (t) => shot(t, 'np_bright_queue', only: _brightSong, tap: 'Queue'));
   testWidgets('now playing — wide', (t) => shot(t, 'np_wide', songIndex: 0, size: const Size(1440, 900)));
   // Phone widths and text sizes, during Flow (the busiest header: the Flow
   // chips share a slot above the title), normal and queue mode: nothing may overflow.
@@ -356,6 +387,47 @@ void main() {
             await _settle(tester);
           }
           expect(tester.takeException(), isNull, reason: 'overflow at ${size.width}dp text x$scale');
+          await tester.pumpWidget(const SizedBox());
+          await tester.pump(const Duration(seconds: 3));
+        });
+      }
+    }
+  }
+  // Which look each screen gets, and that none of them overflow: full bleed on
+  // every portrait phone, the square cover on a landscape phone and a tablet,
+  // and on a small source however tall the screen. Text x1.3 and x1.5 too.
+  for (final (label, size, bleed) in const [
+    ('phone 360x640', Size(360, 640), true),
+    ('phone 393x852', Size(393, 852), true),
+    ('phone 430x932', Size(430, 932), true),
+    ('phone landscape 852x393', Size(852, 393), false),
+    ('tablet 800x1280', Size(800, 1280), false),
+  ]) {
+    for (final scale in const [1.0, 1.3, 1.5]) {
+      for (final small in const [false, true]) {
+        testWidgets('now playing look at $label x$scale${small ? ' small art' : ''}', (tester) async {
+          await tester.runAsync(_prepareCovers);
+          await tester.runAsync(ArtworkField.precache);
+          final song = small ? _smallSong : _songs[0];
+          final art = (await tester.runAsync(() => _artworkFor(song)))!;
+          tester.view.physicalSize = size * 3;
+          tester.view.devicePixelRatio = 3;
+          tester.view.padding = const FakeViewPadding(top: 47 * 3, bottom: 34 * 3);
+          addTearDown(tester.view.reset);
+          await tester.pumpWidget(_app(
+            current: song,
+            art: art,
+            home: Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+                child: const NowPlayingScreen(),
+              ),
+            ),
+          ));
+          await _settle(tester);
+          expect(tester.takeException(), isNull, reason: 'overflow at $label text x$scale');
+          expect(find.byType(FullBleedCover), bleed && !small ? findsOneWidget : findsNothing,
+              reason: 'which look $label gets');
           await tester.pumpWidget(const SizedBox());
           await tester.pump(const Duration(seconds: 3));
         });

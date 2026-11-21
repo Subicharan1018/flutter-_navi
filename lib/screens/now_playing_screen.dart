@@ -20,6 +20,8 @@ import '../models/composer.dart';
 import '../models/song.dart';
 import '../player/artwork.dart';
 import '../player/artwork_field.dart';
+import '../player/cover_quality.dart';
+import '../player/full_bleed_art.dart';
 import '../player/lyrics_pane.dart';
 import '../player/now_playing_style.dart';
 import '../player/mode_buttons.dart';
@@ -163,6 +165,10 @@ class NowPlayingRoute extends PageRoute<void> {
 
 enum _Pane { none, lyrics, queue }
 
+/// Full-bleed art needs a tall screen: height over width at least this (every
+/// phone in portrait; landscape and tablets keep the square cover).
+const double _bleedMinAspect = 1.7;
+
 class NowPlayingScreen extends ConsumerStatefulWidget {
   const NowPlayingScreen({super.key, this.initialImageUrl});
 
@@ -236,6 +242,15 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
     final wide = size.width >= 900 && size.width > size.height;
     // A queue the server chose says so (see SmartContext).
     final smart = SmartContext.of(ref.read(playerProvider.notifier).currentPlaylistName);
+    // Full-bleed art: a tall phone and a cover sharp enough to fill it.
+    // Anything else keeps the square cover on the living field.
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final coverRequest = nowPlayingCoverRequest(ref.read(subsonicServiceProvider), song!, size.width, dpr);
+    final bleed = !wide &&
+        ShellKind.ofContext(context) == ShellKind.phone &&
+        size.height / size.width >= _bleedMinAspect &&
+        coverFitsFullBleed(ref.watch(coverSourcePxProvider(coverRequest)), coverRequest);
+    final palette = art?.palette ?? AlbumPalette.fallback;
 
     return AnnotatedRegion<SystemUiOverlayStyle>(
       value: SystemUiOverlayStyle.light.copyWith(
@@ -258,17 +273,38 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
             child: NowPlayingStyleScope(
               style: NowPlayingStyle.onArtwork,
               child: Scaffold(
-                backgroundColor: art?.palette.deep ?? AlbumPalette.fallback.deep,
+                backgroundColor: palette.deep,
                 body: Stack(
                   fit: StackFit.expand,
                   children: [
-                    ArtworkField(
-                      art: art,
-                      playing: playing && living,
-                      lit: playing,
-                      dim: wide ? 0.55 : (_pane == _Pane.none ? 0 : 1),
-                    ),
-                    if (smart != null) SmartBackdrop(context: smart, songId: song!.id),
+                    if (bleed)
+                      // An opaque tint; the living field only comes in while
+                      // Lyrics or Queue are open, as the art leaves.
+                      AnimatedBuilder(
+                        animation: _paneAnim,
+                        builder: (context, _) {
+                          final t = Curves.easeInOutCubic.transform(_paneAnim.value);
+                          return Stack(
+                            fit: StackFit.expand,
+                            children: [
+                              NowPlayingBackdrop(palette: palette),
+                              if (t > 0)
+                                Opacity(
+                                  opacity: t,
+                                  child: ArtworkField(art: art, playing: playing && living, lit: playing, dim: 1),
+                                ),
+                            ],
+                          );
+                        },
+                      )
+                    else
+                      ArtworkField(
+                        art: art,
+                        playing: playing && living,
+                        lit: playing,
+                        dim: wide ? 0.55 : (_pane == _Pane.none ? 0 : 1),
+                      ),
+                    if (smart != null) SmartBackdrop(context: smart, songId: song.id),
                     if (smart != null && wide)
                       SafeArea(
                         child: Align(
@@ -280,12 +316,13 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
                         ),
                       ),
                     if (wide)
-                      _WideLayout(song: song!, playing: playing)
+                      _WideLayout(song: song, playing: playing)
                     else
                       SafeArea(
                         child: _PhoneLayout(
-                          song: song!,
+                          song: song,
                           playing: playing,
+                          bleedTop: bleed ? MediaQuery.paddingOf(context).top : null,
                           pane: _pane,
                           shownPane: _shownPane,
                           paneAnim: _paneAnim,
@@ -315,6 +352,10 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
 class _PhoneLayout extends ConsumerWidget {
   final Song song;
   final bool playing;
+
+  /// Non-null when the art is full-bleed: the status bar's height, which the
+  /// art reaches up through (it sits behind the grabber and chips).
+  final double? bleedTop;
   final _Pane pane;
   final _Pane shownPane;
   final AnimationController paneAnim;
@@ -324,6 +365,7 @@ class _PhoneLayout extends ConsumerWidget {
   const _PhoneLayout({
     required this.song,
     required this.playing,
+    required this.bleedTop,
     required this.pane,
     required this.shownPane,
     required this.paneAnim,
@@ -358,35 +400,11 @@ class _PhoneLayout extends ConsumerWidget {
           child: child,
         );
 
+    // Listed bottom-up (verticalDirection: up lays it out the same way) so the
+    // grabber and chips paint last, on top of full-bleed art reaching under them.
     return Column(
+      verticalDirection: VerticalDirection.up,
       children: [
-        dismissible(_Grabber(onTap: () => Navigator.maybePop(context))),
-        // Its own slot between the grabber and the stage, so it never lands on the
-        // title: where this queue came from, and Flow's mood and Stop.
-        if (flowActive || smart != null)
-          dismissible(
-            Padding(
-              padding: const EdgeInsets.only(bottom: 6),
-              child: flowActive ? const FlowPill() : SmartContextPill(context: smart!),
-            ),
-          ),
-        Expanded(
-          child: _Stage(
-            song: song,
-            playing: playing,
-            pane: pane,
-            shownPane: shownPane,
-            paneAnim: paneAnim,
-            onClosePane: onClosePane,
-            dismissible: dismissible,
-            previous: previous,
-            next: next,
-            onNext: notifier.playNext,
-            // The swipe shows the queue's previous cover, so it plays exactly
-            // that song (the ⏮ button keeps "restart, then previous").
-            onPrevious: () => notifier.jumpTo(index - 1),
-          ),
-        ),
         dismissible(
           Padding(
             padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
@@ -416,6 +434,36 @@ class _PhoneLayout extends ConsumerWidget {
             ),
           ),
         ),
+        Expanded(
+          child: _Stage(
+            song: song,
+            playing: playing,
+            // Status bar + grabber + the chip row (Flow's 44 dp targets, or
+            // the smaller "Playing from" pill) above the stage.
+            bleedTop: bleedTop == null ? null : bleedTop! + _Grabber.height + (flowActive ? 50 : smart != null ? 42 : 0),
+            pane: pane,
+            shownPane: shownPane,
+            paneAnim: paneAnim,
+            onClosePane: onClosePane,
+            dismissible: dismissible,
+            previous: previous,
+            next: next,
+            onNext: notifier.playNext,
+            // The swipe shows the queue's previous cover, so it plays exactly
+            // that song (the ⏮ button keeps "restart, then previous").
+            onPrevious: () => notifier.jumpTo(index - 1),
+          ),
+        ),
+        // Its own slot between the grabber and the stage, so it never lands on the
+        // title: where this queue came from, and Flow's mood and Stop.
+        if (flowActive || smart != null)
+          dismissible(
+            Padding(
+              padding: const EdgeInsets.only(bottom: 6),
+              child: flowActive ? const FlowPill() : SmartContextPill(context: smart!),
+            ),
+          ),
+        dismissible(_Grabber(onTap: () => Navigator.maybePop(context))),
       ],
     );
   }
@@ -427,6 +475,10 @@ class _PhoneLayout extends ConsumerWidget {
 class _Stage extends StatefulWidget {
   final Song song;
   final bool playing;
+
+  /// Full-bleed art: how far the stage sits below the top of the screen
+  /// (status bar, grabber, chips). Null keeps the square cover.
+  final double? bleedTop;
   final _Pane pane;
   final _Pane shownPane;
   final AnimationController paneAnim;
@@ -442,6 +494,7 @@ class _Stage extends StatefulWidget {
   const _Stage({
     required this.song,
     required this.playing,
+    required this.bleedTop,
     required this.pane,
     required this.shownPane,
     required this.paneAnim,
@@ -465,6 +518,9 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
 
   /// Space between covers in the carousel.
   static const double _coverGap = 28;
+
+  /// Full-bleed art reaches this far above the estimated top of the screen.
+  static const double _bleedSlack = 12;
 
   /// Pull past a missing neighbour: Apple's asymptotic resistance, never
   /// travelling further than this fraction of a stride however far you drag.
@@ -613,10 +669,19 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
         final room = titleTop0 - _titleGap;
         final artSize = math.min(w - 56, room - 8).clamp(140.0, 520.0);
         final top0 = math.max(4.0, (room - artSize) * 0.42);
-        final big = Rect.fromLTWH((w - artSize) / 2, top0, artSize, artSize);
+        // Full bleed: the cover runs edge to edge from the top of the screen
+        // down to where the controls begin (a little past the top so a
+        // mis-estimated chip row never shows a gap).
+        final bleedTop = widget.bleedTop;
+        final bleed = bleedTop != null;
+        final big = bleedTop != null
+            ? Rect.fromLTRB(0, -(bleedTop + _bleedSlack), w, h)
+            : Rect.fromLTWH((w - artSize) / 2, top0, artSize, artSize);
         const small = Rect.fromLTWH(20, _headerTop, _headerArt, _headerArt);
-        final stride = artSize + _coverGap;
+        final stride = bleed ? w : artSize + _coverGap;
         _stride = stride;
+        // Where on the page the art ends, for the colour it fades into.
+        final tintY = bleedTop != null ? ((bleedTop + h) / MediaQuery.sizeOf(context).height).clamp(0.3, 1.0) : 1.0;
 
         // Built once per stage build and only positioned on each animation
         // frame: the same widget instances let Flutter skip rebuilding them
@@ -631,7 +696,7 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
           ),
           child: KeyedSubtree(
             key: ValueKey(widget.song.id),
-            child: _TitleRow(song: widget.song),
+            child: _TitleRow(song: widget.song, onArt: bleed),
           ),
         );
         final pane = AnimatedSwitcher(
@@ -654,11 +719,13 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
             final inPlayer = widget.pane == _Pane.none && widget.paneAnim.value == 0;
             final dx = _swipe.value * (1 - t);
             // Covers shrink a touch as they leave the centre, like a deck.
-            double depth(double offset) => 1 - 0.08 * (offset.abs() / stride).clamp(0.0, 1.0);
+            // (Full-bleed covers slide edge to edge at full size.)
+            double depth(double offset) => bleed ? 1 : 1 - 0.08 * (offset.abs() / stride).clamp(0.0, 1.0);
             // Apple's signature: the cover recedes while paused. The centre
             // cover reaches it on a spring; side covers (seen only mid-swipe)
-            // simply match the resting size.
-            final restScale = reduce || widget.playing ? 1.0 : _pausedScale;
+            // simply match the resting size. Full-bleed art has no edge to
+            // recede from, so it stays put.
+            final restScale = reduce || widget.playing || bleed ? 1.0 : _pausedScale;
             final pausedScale = _lerp(restScale, 1, t);
             // Null when there's nothing to show: a non-positioned placeholder
             // would collapse the Stack's width and shift the whole stage. A
@@ -672,7 +739,14 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
                 child: IgnorePointer(
                   child: Transform.scale(
                     scale: depth(offset) * pausedScale,
-                    child: _SideCover(song: s, size: artRect.width, radius: 12),
+                    child: _SideCover(
+                      song: s,
+                      size: artRect.width,
+                      height: bleed ? artRect.height : null,
+                      radius: bleed ? 0 : 12,
+                      tintY: tintY,
+                      scrim: (bleedTop ?? 0) + 90,
+                    ),
                   ),
                 ),
               );
@@ -721,10 +795,14 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
                         child: _Cover(
                           song: widget.song,
                           size: artRect.width,
-                          radius: _lerp(12, 7, t),
+                          height: bleed ? artRect.height : null,
+                          radius: _lerp(bleed ? 0 : 12, 7, t),
                           scale: restScale,
                           flatten: t,
                           instantSwap: _committed || _gliding,
+                          tintY: tintY,
+                          scrim: (bleedTop ?? 0) + 90,
+                          fade: 1 - t,
                         ),
                       ),
                     ),
@@ -754,6 +832,7 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
 }
 
 class _Grabber extends StatelessWidget {
+  static const double height = 30;
   final VoidCallback onTap;
   const _Grabber({required this.onTap});
 
@@ -766,7 +845,7 @@ class _Grabber extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: SizedBox(
-          height: 30,
+          height: height,
           width: double.infinity,
           child: Center(
             child: Container(
@@ -804,6 +883,16 @@ class _Cover extends ConsumerWidget {
   /// Swap art without the cross-fade (the carousel already slid it in).
   final bool instantSwap;
 
+  /// Full-bleed art: the cover's height (null keeps the square cover, with
+  /// its shadow and its paused recede).
+  final double? height;
+
+  /// Full bleed: where down the page the art ends (0..1), how far the scrim
+  /// behind the status bar reaches, and 1..0 as the art leaves for the header.
+  final double tintY;
+  final double scrim;
+  final double fade;
+
   const _Cover({
     required this.song,
     required this.size,
@@ -811,10 +900,46 @@ class _Cover extends ConsumerWidget {
     required this.scale,
     this.flatten = 0,
     this.instantSwap = false,
+    this.height,
+    this.tintY = 1,
+    this.scrim = 0,
+    this.fade = 1,
   });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final h = height;
+    if (h != null) {
+      // Full bleed. Its own repaint layer: the picture is painted once and the
+      // carousel only moves it; it is rebuilt when the track (or its tint) changes.
+      final palette = ref.watch(albumPaletteProvider);
+      final request = nowPlayingCoverRequest(
+        ref.read(subsonicServiceProvider),
+        song,
+        MediaQuery.sizeOf(context).width,
+        MediaQuery.devicePixelRatioOf(context),
+      );
+      return RepaintBoundary(
+        child: Hero(
+          tag: 'np_cover',
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(radius),
+            child: AnimatedSwitcher(
+              duration: instantSwap ? Duration.zero : const Duration(milliseconds: 320),
+              child: FullBleedCover(
+                key: ValueKey(song.id),
+                request: request,
+                width: size,
+                height: h,
+                tint: nowPlayingTintAt(palette, tintY),
+                scrimHeight: scrim,
+                fade: fade,
+              ),
+            ),
+          ),
+        ),
+      );
+    }
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
     final deep = ref.watch(albumPaletteProvider).deep;
     return _SpringScale(
@@ -901,10 +1026,38 @@ class _SideCover extends ConsumerWidget {
   final Song song;
   final double size;
   final double radius;
-  const _SideCover({required this.song, required this.size, required this.radius});
+
+  /// Full bleed: the cover's height and the fade's target (see [_Cover]).
+  final double? height;
+  final double tintY;
+  final double scrim;
+  const _SideCover({
+    required this.song,
+    required this.size,
+    required this.radius,
+    this.height,
+    this.tintY = 1,
+    this.scrim = 0,
+  });
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final h = height;
+    if (h != null) {
+      final palette = ref.watch(albumPaletteProvider);
+      return FullBleedCover(
+        request: nowPlayingCoverRequest(
+          ref.read(subsonicServiceProvider),
+          song,
+          MediaQuery.sizeOf(context).width,
+          MediaQuery.devicePixelRatioOf(context),
+        ),
+        width: size,
+        height: h,
+        tint: nowPlayingTintAt(palette, tintY),
+        scrimHeight: scrim,
+      );
+    }
     final url = ref.read(subsonicServiceProvider).getCoverArtUrl(song.coverArt);
     final deep = ref.watch(albumPaletteProvider.select((p) => p.deep));
     return DecoratedBox(
@@ -934,18 +1087,25 @@ BoxShadow _coverShadow(Color deep, double size) => BoxShadow(
 
 class _TitleRow extends ConsumerWidget {
   final Song song;
-  const _TitleRow({required this.song});
+  /// On full-bleed art: larger title and a soft shadow, a second line of
+  /// defence behind the fade for a bright cover.
+  final bool onArt;
+  const _TitleRow({required this.song, this.onArt = false});
+
+  static const _shadow = [Shadow(color: Color(0x8C000000), blurRadius: 14, offset: Offset(0, 1))];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final starred = ref.watch(playerProvider.select((s) => s.starredIds.contains(song.id)));
-    final titleStyle = naviText(22, FontWeight.w700, Colors.white);
+    final shadows = onArt ? _shadow : null;
+    final titleStyle = naviText(onArt ? 26 : 22, FontWeight.w700, Colors.white).copyWith(shadows: shadows);
     final composer = composerLineFor(song);
     // The composer leads; singers sit quieter beneath it.
-    final composerStyle = naviText(18, FontWeight.w500, Colors.white.withValues(alpha: 0.82));
-    final artistStyle = composer == null
-        ? naviText(19, FontWeight.w500, Colors.white.withValues(alpha: 0.68))
-        : naviText(15, FontWeight.w400, Colors.white.withValues(alpha: 0.58));
+    final composerStyle = naviText(18, FontWeight.w500, Colors.white.withValues(alpha: 0.82)).copyWith(shadows: shadows);
+    final artistStyle = (composer == null
+            ? naviText(19, FontWeight.w500, Colors.white.withValues(alpha: 0.68))
+            : naviText(15, FontWeight.w400, Colors.white.withValues(alpha: 0.58)))
+        .copyWith(shadows: shadows);
     return Row(
       crossAxisAlignment: CrossAxisAlignment.center,
       children: [
@@ -954,7 +1114,7 @@ class _TitleRow extends ConsumerWidget {
             crossAxisAlignment: CrossAxisAlignment.start,
             mainAxisSize: MainAxisSize.min,
             children: [
-              SizedBox(key: microduckTitleKey, height: 28, child: FittingTitle(text: song.title, style: titleStyle)),
+              SizedBox(key: microduckTitleKey, height: onArt ? 32 : 28, child: FittingTitle(text: song.title, style: titleStyle)),
               const SizedBox(height: 2),
               if (composer != null)
                 Text(composer, maxLines: 1, overflow: TextOverflow.ellipsis, style: composerStyle),
