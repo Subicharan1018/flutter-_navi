@@ -17,11 +17,35 @@ static bool IsVelopackHook(const wchar_t *command_line) {
   return command_line != nullptr && wcsstr(command_line, L"--veloapp-") != nullptr;
 }
 
+// A second copy would double every connection and poll and fight the first for
+// the media session. If NaviVibe is already running, bring its window forward
+// (it may be minimised or hidden in the tray) and let this copy exit.
+static bool ActivateRunningInstance() {
+  HWND existing = ::FindWindowW(L"FLUTTER_RUNNER_WIN32_WINDOW", L"NaviVibe");
+  if (existing == nullptr) {
+    return false;
+  }
+  ::ShowWindow(existing, ::IsIconic(existing) ? SW_RESTORE : SW_SHOW);
+  ::SetForegroundWindow(existing);
+  return true;
+}
+
 int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
                       _In_ wchar_t *command_line, _In_ int show_command) {
   if (IsVelopackHook(command_line)) {
     return EXIT_SUCCESS;
   }
+
+#ifdef NDEBUG
+  // Debug runs (flutter run) may sit beside an installed copy.
+  HANDLE single_instance =
+      ::CreateMutexW(nullptr, TRUE, L"Local\\NaviVibeSingleInstance");
+  if (single_instance != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
+    ActivateRunningInstance();
+    ::CloseHandle(single_instance);
+    return EXIT_SUCCESS;
+  }
+#endif
 
   // One stable identity for the taskbar, the volume flyout (SMTC) and toasts.
   // Must match AppNotifier._aumid in Dart, and be set before any window exists.
