@@ -1,0 +1,20 @@
+[Unit]
+Description=NaviVibe lyrics prefetch (fetches the library's lyrics into the lyrics cache, slowly)
+After=network-online.target navivibe.service
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=subi
+WorkingDirectory=/opt/shuffle-server
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/opt/shuffle-server
+EnvironmentFile=-/opt/shuffle-server/.env
+# 30 requests a minute across all sources, at most 45 minutes a run; the next run carries on.
+ExecStart=/opt/shuffle-server/venv/bin/python -m navivibe.lyrics_prefetch --max-minutes 45 --rate 30
+# Never takes the machine from the music server.
+Nice=15
+IOSchedulingClass=idle
+TimeoutStartSec=3600
+# A failed prefetch is only a missed run: the service and its timer are never marked failed.
+SuccessExitStatus=0 1

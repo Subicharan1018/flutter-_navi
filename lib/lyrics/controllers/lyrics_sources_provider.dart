@@ -13,6 +13,10 @@ enum LyricsSource {
   /// Word timing; community-run, no keys issued, so a song may simply be missing.
   betterLyrics('betterlyrics', 'BetterLyrics', 'https://betterlyrics.org', defaultOn: true),
 
+  /// Line-timed lyrics (or plain text) from YouTube Music, read by the server.
+  /// Unofficial, so it is the last of the on-by-default sources.
+  ytMusic('ytmusic', 'YouTube Music', 'https://music.youtube.com', defaultOn: true),
+
   /// Unofficial wrapper around undocumented Spotify endpoints: may break
   /// Spotify's terms of service, so it stays off until switched on here.
   paxsenix('paxsenix', 'Spotify (unofficial)', null, defaultOn: false);
