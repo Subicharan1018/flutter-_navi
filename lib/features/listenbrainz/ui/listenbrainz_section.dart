@@ -8,18 +8,14 @@ import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../widgets/ui/action_sheet.dart' show SheetAction, SheetGroup, showToast;
 import '../../../widgets/ui/grouped_list.dart';
+import '../../playlist_cover/playlist_image_providers.dart' show navidromeJwtProvider;
 import '../listenbrainz_link.dart';
 
 /// The server-side link for this account, built from the saved sign-in.
-final listenBrainzLinkProvider = Provider.autoDispose<ListenBrainzLink>((ref) {
-  final s = ref.watch(settingsProvider);
-  final base = WebSession.navidromeBase(s.serverUrl);
-  return ListenBrainzLink(
-    base: base,
-    // The browser keeps a sign-in token, never the password.
-    jwt: () async => WebSession.jwt ?? await navidromeLoginToken(base: base, username: s.username, password: s.password),
-  );
-});
+final listenBrainzLinkProvider = Provider.autoDispose<ListenBrainzLink>((ref) => ListenBrainzLink(
+      base: WebSession.navidromeBase(ref.watch(settingsProvider).serverUrl),
+      jwt: ref.watch(navidromeJwtProvider),
+    ));
 
 final listenBrainzStatusProvider =
     FutureProvider.autoDispose<ListenBrainzStatus>((ref) => ref.watch(listenBrainzLinkProvider).status());

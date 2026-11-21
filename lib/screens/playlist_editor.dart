@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/playlist_cover/playlist_image_providers.dart';
 import '../models/playlist.dart';
 import '../providers/library_provider.dart';
 import '../providers/settings_provider.dart';
@@ -75,7 +76,9 @@ class _PlaylistEditorState extends ConsumerState<PlaylistEditor> {
         name: _creating ? null : name,
         comment: _description.text.trim(),
       );
-      if (_image != null) await svc.setPlaylistImage(playlist.id, _image!);
+      if (_image != null) {
+        await ref.read(playlistImageApiProvider).upload(playlist.id, await _image!.readAsBytes(), _image!.path.split(RegExp(r'[\/]')).last);
+      }
       await svc.invalidatePlaylist(playlist.id);
       ref.invalidate(playlistsProvider);
       if (!mounted) return;
