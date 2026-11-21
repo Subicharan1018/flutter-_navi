@@ -75,11 +75,26 @@ class _Content extends StatelessWidget {
             ],
           ),
         ),
+        // The month's minutes lead; plays, days and streak follow.
+        Padding(
+          padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.lg),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              FittedBox(
+                fit: BoxFit.scaleDown,
+                alignment: Alignment.centerLeft,
+                child: Text(figures.first.$1, style: figureStyle(t, 56)),
+              ),
+              Text('listened', style: t.subheadline),
+            ],
+          ),
+        ),
         Padding(
           padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
           child: Row(
             children: [
-              for (final (value, label) in figures)
+              for (final (value, label) in figures.skip(1))
                 Expanded(
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -154,24 +169,48 @@ class _Days extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final max = days.fold<int>(0, (m, d) => d.playCount > m ? d.playCount : m);
-    return SizedBox(
-      height: 56,
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.end,
-        children: [
-          for (final d in days)
-            Expanded(
-              child: Container(
-                height: 3 + 53 * (max == 0 ? 0 : d.playCount / max),
-                margin: const EdgeInsets.symmetric(horizontal: 1),
-                decoration: BoxDecoration(
-                  color: d.playCount == 0 ? t.fill : t.accent,
-                  borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+    final peak = max == 0 ? null : days.indexWhere((d) => d.playCount == max);
+    final dim = Color.lerp(t.bgBase, t.accent, 0.32)!;
+    final axis = t.caption1.copyWith(color: t.textMuted);
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // The peak day is the one white bar; the rest recede.
+        SizedBox(
+          height: 56,
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              for (final (i, d) in days.indexed)
+                Expanded(
+                  child: Container(
+                    height: 3 + 53 * (max == 0 ? 0 : d.playCount / max),
+                    margin: const EdgeInsets.symmetric(horizontal: 1),
+                    decoration: BoxDecoration(
+                      color: d.playCount == 0 ? t.fill : (i == peak ? t.accent : dim),
+                      borderRadius: const BorderRadius.vertical(top: Radius.circular(2)),
+                    ),
+                  ),
                 ),
-              ),
-            ),
+            ],
+          ),
+        ),
+        const SizedBox(height: Space.xs),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [Text('1', style: axis), Text('${(days.length + 1) ~/ 2}', style: axis), Text('${days.length}', style: axis)],
+        ),
+        if (peak != null) ...[
+          const SizedBox(height: Space.sm),
+          Text(
+            'Biggest day: the ${peak + 1}${_ordinal(peak + 1)}, ${days[peak].playCount} ${days[peak].playCount == 1 ? 'play' : 'plays'}.',
+            style: t.subheadline,
+          ),
         ],
-      ),
+      ],
     );
   }
+
+  static String _ordinal(int d) =>
+      d % 100 >= 11 && d % 100 <= 13 ? 'th' : switch (d % 10) { 1 => 'st', 2 => 'nd', 3 => 'rd', _ => 'th' };
 }

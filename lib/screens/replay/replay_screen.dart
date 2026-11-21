@@ -11,7 +11,6 @@ import '../../providers/player_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../utils/format.dart';
 import '../../widgets/art/navi_icons.dart';
-import '../../widgets/cover_art.dart';
 import '../../widgets/desktop_dialogs.dart';
 import '../../widgets/ui/action_sheet.dart';
 import '../../widgets/ui/artwork_page.dart';
@@ -24,6 +23,7 @@ import '../stats/widgets/hours_chart.dart';
 import '../stats/widgets/stat_card.dart';
 import 'month_sheet.dart';
 import 'replay_rows.dart';
+import 'year_shape.dart';
 
 /// Replay, the way Apple Music does it: your year as a playlist. The hero is
 /// a mosaic of your top songs' covers, Play plays them, and below sit the
@@ -70,6 +70,12 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
             unshuffledSongs: songs,
           );
   }
+
+  void _openMonth(ReplayMonthlyCard c) => showPlatformSheet<void>(
+    context: context,
+    builder: (_) => MonthSheet(year: c.year, month: c.month),
+    maxHeight: 760,
+  );
 
   Future<void> _pickYear(YearlyReplayResponse r) async {
     final year = await showChoiceSheet<int>(
@@ -239,18 +245,20 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
                       ),
                     ),
                 ],
-                if (r.monthlyCards.isNotEmpty)
+                if (r.monthlyCards.isNotEmpty) ...[
                   SliverToBoxAdapter(
-                    child: _Months(
+                    child: YearRibbon(
                       cards: r.monthlyCards,
-                      onOpen: (c) => showPlatformSheet<void>(
-                        context: context,
-                        builder: (_) =>
-                            MonthSheet(year: c.year, month: c.month),
-                        maxHeight: 760,
-                      ),
+                      onOpen: (c) => _openMonth(c),
                     ),
                   ),
+                  SliverToBoxAdapter(
+                    child: MonthLedger(
+                      cards: r.monthlyCards,
+                      onOpen: (c) => _openMonth(c),
+                    ),
+                  ),
+                ],
                 SliverPadding(
                   padding: const EdgeInsets.fromLTRB(
                     Space.gutter,
@@ -350,114 +358,6 @@ class _Figures extends StatelessWidget {
           ],
         );
       },
-    );
-  }
-}
-
-/// The year month by month: one tile per month with listening, minutes and
-/// that month's top artist; months without listening are drawn quietly.
-class _Months extends ConsumerWidget {
-  final List<ReplayMonthlyCard> cards;
-  final ValueChanged<ReplayMonthlyCard> onOpen;
-  const _Months({required this.cards, required this.onOpen});
-
-  @override
-  Widget build(BuildContext context, WidgetRef ref) {
-    final t = ThemeTokens.of(context);
-    final busiest = cards.fold<double>(
-      0,
-      (m, c) => c.totalMinutes > m ? c.totalMinutes : m,
-    );
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const SectionHeader(title: 'Month by Month'),
-        SizedBox(
-          height: 156,
-          child: ListView.separated(
-            scrollDirection: Axis.horizontal,
-            padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
-            itemCount: cards.length,
-            separatorBuilder: (_, _) => const SizedBox(width: Space.md),
-            itemBuilder: (context, i) {
-              final c = cards[i];
-              final active = c.totalPlays > 0;
-              final cover = c.topTrack == null
-                  ? null
-                  : ref
-                        .watch(
-                          songCoverUrlProvider(
-                            '${c.topTrack!.title}|${c.topTrack!.artist}',
-                          ),
-                        )
-                        .asData
-                        ?.value;
-              return CupertinoClickable(
-                onTap: active ? () => onOpen(c) : null,
-                scaleFactor: 0.97,
-                semanticLabel: '${c.monthName}, ${c.totalPlays} plays',
-                child: Container(
-                  width: 128,
-                  padding: const EdgeInsets.all(Space.md),
-                  decoration: BoxDecoration(
-                    color: t.bgSurface,
-                    borderRadius: BorderRadius.circular(Radii.group),
-                  ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              c.monthName.substring(0, 3),
-                              style: t.headline,
-                            ),
-                          ),
-                          if (active)
-                            CoverArt(url: cover, size: 28, radius: Radii.thumb),
-                        ],
-                      ),
-                      const Spacer(),
-                      Text(
-                        active ? listeningTime(c.totalMinutes.round()) : '—',
-                        style: figureStyle(
-                          t,
-                          22,
-                        ).copyWith(color: active ? t.textPrimary : t.textMuted),
-                      ),
-                      Text(
-                        active
-                            ? (c.topArtist?.artist ?? '${c.totalPlays} plays')
-                            : 'No listening',
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: t.footnote,
-                      ),
-                      const SizedBox(height: Space.sm),
-                      // How this month compares with the busiest one.
-                      ClipRRect(
-                        borderRadius: BorderRadius.circular(2),
-                        child: Stack(
-                          children: [
-                            Container(height: 3, color: t.fill),
-                            FractionallySizedBox(
-                              widthFactor: busiest == 0
-                                  ? 0
-                                  : c.totalMinutes / busiest,
-                              child: Container(height: 3, color: t.accent),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              );
-            },
-          ),
-        ),
-      ],
     );
   }
 }

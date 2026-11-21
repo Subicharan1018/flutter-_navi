@@ -24,12 +24,13 @@ class ReplayTrackRow extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
     final art = ref.watch(songCoverUrlProvider('${track.title}|${track.artist}')).asData?.value;
+    final lead = rank == 1;
     return CupertinoClickable(
       onTap: onTap,
       scaleFactor: 0.99,
       semanticLabel: '$rank. ${track.title} by ${track.artist}, ${track.playCount} plays',
       child: SizedBox(
-        height: 60,
+        height: lead ? 88 : 60,
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
           child: Row(
@@ -38,21 +39,26 @@ class ReplayTrackRow extends ConsumerWidget {
                 width: 26,
                 child: Text(
                   '$rank',
-                  style: t.callout.copyWith(
+                  style: (lead ? t.title2 : t.callout).copyWith(
                     color: rank <= 3 ? t.textPrimary : t.textSecondary,
                     fontWeight: FontWeight.w600,
                     fontFeatures: const [FontFeature.tabularFigures()],
                   ),
                 ),
               ),
-              CoverArt(url: art, size: 46, radius: Radii.thumb),
+              CoverArt(url: art, size: lead ? 68 : 46, radius: Radii.thumb),
               const SizedBox(width: Space.md),
               Expanded(
                 child: Column(
                   mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(track.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
+                    Text(
+                      track.title,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: lead ? t.headline.copyWith(fontSize: 19) : t.body,
+                    ),
                     Text(track.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                   ],
                 ),
