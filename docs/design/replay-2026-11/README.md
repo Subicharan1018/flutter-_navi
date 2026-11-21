@@ -29,12 +29,21 @@ card chrome, anything that asserts what the server did not measure.
 
 ## Signature ideas (built)
 
-1. **The month reel.** Bar charts were dropped (a graph is not a good way to
-   feel a year). The year is a reel of twelve posters you swipe through: the
-   month in huge capitals, the top song's cover, minutes, top artist. The middle
-   poster is full strength and its neighbours recede and peek in; one selection
-   tick per month passed; tap the middle one to open the month. Starts on the
-   busiest month.
+1. **Your year as a record.** Charts were dropped twice (bars read as a graph,
+   a poster reel read as a carousel). Research that pointed the way: My Listening
+   Record cuts one groove per day you listened into a vinyl disc; Sony's
+   gold-record data art by Visual Cinnamon turns data into the grooves of a
+   record on purpose, favouring "eye catching" over readable numbers;
+   year-ring layouts widen a ring with its quantity; Joy Division's pulsar
+   cover (a ridgeline plot) shows how a stack of white lines on black becomes
+   an icon. We took the record: January is the outer band, December the inner,
+   like tracks on a side. A month's band has more grooves the more you listened,
+   an empty month is bare vinyl. The label is the No. 1 song's cover and turns
+   slowly (one revolution per 14 s, stopped under reduced motion). A tonearm
+   rests on the selected month, starting on the busiest; drag or tap across the
+   record to move it (selection tick per month), then Open. Monochrome, no
+   glow, colour only from the cover on the label. Ridgeline (per-day lines)
+   remains an option if the server ever sends daily data for the whole year.
 2. **Year Story.** A full-bleed, auto-advancing story (tap right/left, hold to
    pause, existing `StoryPager`): minutes counting up, the No. 1 song with
    pulse rings, your top artists rising into place as their own photos
@@ -58,4 +67,4 @@ from the server), a top-artist listening calendar (needs per-day artist data).
 Ease-out, 200-700 ms, one controller per surface, `RepaintBoundary` around
 animated bars, selection held in a `ValueNotifier` so only the readout and bars
 rebuild, `context.motionFull` / `disableAnimations` checked before any tween,
-nothing loops outside the story's pulse rings.
+the only loop is the record label (a 14 s turn in its own RepaintBoundary), stopped under reduced motion and disposed with the widget.

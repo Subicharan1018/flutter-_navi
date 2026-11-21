@@ -23,7 +23,7 @@ import '../stats/widgets/hours_chart.dart';
 import '../stats/widgets/stat_card.dart';
 import 'month_sheet.dart';
 import 'replay_rows.dart';
-import 'year_scrubber.dart';
+import 'year_record.dart';
 import 'year_shape.dart';
 import 'year_story.dart';
 
@@ -265,8 +265,9 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
                 ],
                 if (r.monthlyCards.isNotEmpty) ...[
                   SliverToBoxAdapter(
-                    child: YearReel(
+                    child: YearRecord(
                       cards: r.monthlyCards,
+                      label: tracks.firstOrNull,
                       onOpen: (c) => _openMonth(c),
                     ),
                   ),

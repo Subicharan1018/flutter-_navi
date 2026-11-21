@@ -11,7 +11,7 @@ import '../../utils/format.dart';
 import '../../widgets/art/generated_cover.dart';
 import '../../widgets/motion/number_roll.dart';
 import '../../widgets/motion/play_once.dart';
-import 'year_scrubber.dart' show monthNames;
+import 'year_record.dart' show monthNames;
 import 'year_shape.dart' show busiestMonth;
 
 // Like the month story: always white on black, so it reads the same in every theme.
