@@ -127,7 +127,7 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
   ///
   /// connectivity_plus v7.1.1 returns `List<ConnectivityResult>` — verified
   /// against pubspec.lock (sha: 62ffa266).
-  Future<void> downloadSong(Song song) async {
+  Future<void> downloadSong(Song song, {bool notify = true}) async {
     final current = statusOf(song.id);
     if (current == SongDownloadStatus.downloaded ||
         current == SongDownloadStatus.queued ||
@@ -147,9 +147,9 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
       return;
     }
 
-    unawaited(AppNotifier.prime()); // while the app is open: the prompt can't show later
+    if (notify) unawaited(AppNotifier.prime()); // while the app is open: the prompt can't show later
     await _performDownload(song);
-    if (statusOf(song.id) == SongDownloadStatus.downloaded) {
+    if (notify && statusOf(song.id) == SongDownloadStatus.downloaded) {
       unawaited(AppNotifier.show(
         NotifyChannel.downloads,
         id: 10,

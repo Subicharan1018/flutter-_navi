@@ -16,6 +16,7 @@ import '../features/flow/ui/flow_settings.dart';
 import '../features/listenbrainz/ui/listenbrainz_section.dart';
 import '../features/local_library/ui/download_location_section.dart';
 import '../features/play_cache/ui/play_cache_section.dart';
+import '../features/auto_download/ui/auto_download_section.dart';
 import '../lyrics/ui/lyrics_sources_section.dart';
 import '../features/local_library/ui/local_music_section.dart';
 import '../features/social/ui/social_settings_section.dart';
@@ -538,6 +539,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ],
           ),
           if (PlatformUtils.supportsOfflineFiles) const PlayCacheSection(),
+          if (PlatformUtils.supportsOfflineFiles) const AutoDownloadSection(),
           if (PlatformUtils.supportsOfflineFiles) const DownloadLocationSection(),
           if (PlatformUtils.supportsOfflineFiles) const LocalMusicSection(),
           if (downloads > 0 && PlatformUtils.supportsOfflineFiles)

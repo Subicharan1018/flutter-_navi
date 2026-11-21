@@ -48,6 +48,8 @@ import 'services/notification_triggers.dart';
 import 'services/auto/browse_tree.dart' show CarStyle;
 import 'core/crash_log.dart';
 import 'providers/player_provider.dart';
+import 'player/queue_persistence.dart';
+import 'features/auto_download/logic/auto_download_providers.dart';
 
 // ---------------------------------------------------------------------------
 // globalAudioHandler — the single NaviAudioHandler instance shared across
@@ -204,6 +206,11 @@ Future<void> main(List<String> args) async {
   // Plays heard offline reach the servers once they can; covers missing from
   // downloads are fetched again.
   container.read(offlineSyncBootstrapProvider);
+
+  // The queue and position are saved when the app is left, and put back
+  // (paused) at the next launch.
+  container.read(queuePersistenceBootstrapProvider);
+  container.read(autoDownloadBootstrapProvider);
 
   // Compile the Now Playing artwork-field shader before it's first shown.
   unawaited(ArtworkField.precache());
