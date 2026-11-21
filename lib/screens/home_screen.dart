@@ -19,6 +19,8 @@ import '../features/flow/logic/flow_controller.dart' show flowMoodsProvider, flo
 import '../features/flow/ui/flow_section.dart';
 import '../features/trending/logic/trending_providers.dart' show trendingChartsProvider;
 import '../features/weekly_mix/logic/weekly_mix_providers.dart' show weeklyMixProvider;
+import '../features/weekly_exploration/logic/weekly_providers.dart' show weeklyExplorationProvider;
+import '../features/weekly_exploration/ui/weekly_exploration_section.dart';
 import '../features/weekly_mix/ui/weekly_mix_section.dart';
 import '../features/trending/ui/trending_section.dart';
 import '../models/album.dart';
@@ -81,6 +83,7 @@ class HomeScreen extends ConsumerWidget {
         ref.invalidate(trendingChartsProvider);
         ref.invalidate(discoverProvider);
         ref.invalidate(weeklyMixProvider);
+        ref.invalidate(weeklyExplorationProvider);
         ref.invalidate(flowMoodsProvider);
         ref.invalidate(recapProvider);
       },
@@ -97,6 +100,8 @@ class HomeScreen extends ConsumerWidget {
         // What's new leads; the charts it came from right below.
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 1, child: DiscoverSection())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 2, child: WeeklyMixSection())),
+        // New songs picked for you this week, heard 30 s first (hidden unless this account can download).
+        const SliverToBoxAdapter(child: WeeklyExplorationSection()),
         if (!PlatformUtils.isDesktop) SliverToBoxAdapter(child: Entrance(group: 'home', index: 3, child: FlowSection())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 4, child: TrendingSection())),
         if (!PlatformUtils.isDesktop) SliverToBoxAdapter(child: Entrance(group: 'home', index: 5, child: _TopPicks())),

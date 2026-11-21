@@ -533,6 +533,14 @@ void paintNaviGlyphExtra(
         ..close();
       canvas.drawPath(p, solid);
       if (filled) canvas.drawPath(p, stroke);
+    case NaviGlyph.explore:
+      // Five ticks on a base line; the third one (the pick in hand) stands tallest.
+      const xs = [4.5, 8.25, 12.0, 15.75, 19.5];
+      const tops = [14.0, 11.0, 4.5, 11.0, 14.0];
+      for (var i = 0; i < xs.length; i++) {
+        canvas.drawLine(Offset(xs[i], tops[i]), Offset(xs[i], 17.5), i == 2 && filled ? solid : stroke);
+      }
+      canvas.drawLine(const Offset(3.5, 20.5), const Offset(20.5, 20.5), stroke);
     default:
       break;
   }
