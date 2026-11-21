@@ -14,7 +14,9 @@ import 'package:navivibe/providers/navivibe_replay_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/screens/replay/month_sheet.dart';
 import 'package:navivibe/screens/replay/replay_screen.dart';
-import 'package:navivibe/screens/replay/year_shape.dart';
+import 'package:navivibe/screens/replay/year_scrubber.dart';
+import 'package:navivibe/screens/replay/year_shape.dart' show busiestMonth;
+import 'package:navivibe/screens/replay/year_story.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 
 import 'golden_fonts.dart';
@@ -135,11 +137,11 @@ void main() {
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('replay/year_phone.png'));
   });
 
-  testWidgets('year ribbon, phone', (tester) async {
+  testWidgets('year reel, phone', (tester) async {
     view(tester, const Size(390, 400), 3);
-    await tester.pumpWidget(_app(SingleChildScrollView(child: YearRibbon(cards: _year().monthlyCards, onOpen: (_) {}))));
+    await tester.pumpWidget(_app(SingleChildScrollView(child: YearReel(cards: _year().monthlyCards, onOpen: (_) {}))));
     await tester.pumpAndSettle();
-    await expectLater(find.byType(MaterialApp), matchesGoldenFile('replay/ribbon_phone.png'));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('replay/reel_phone.png'));
     expect(busiestMonth(_year().monthlyCards)?.monthName, 'October');
   });
 
@@ -157,17 +159,61 @@ void main() {
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('replay/year_windows.png'));
   });
 
-  testWidgets('reduced motion draws the ribbon at full height at once', (tester) async {
+  testWidgets('reduced motion: reel is static and nothing animates', (tester) async {
     view(tester, const Size(390, 400), 3);
-    final tokens = AppThemeTokens.fallback;
-    await tester.pumpWidget(MediaQuery(
-      data: const MediaQueryData(size: Size(390, 400), disableAnimations: true),
-      child: ThemeTokens(
-        tokens: tokens,
-        child: MaterialApp(theme: AppTheme.build(tokens), home: Scaffold(body: YearRibbon(cards: _year().monthlyCards, onOpen: (_) {}))),
-      ),
-    ));
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    await tester.pumpWidget(_app(SingleChildScrollView(child: YearReel(cards: _year().monthlyCards, onOpen: (_) {}))));
     await tester.pump();
     expect(tester.hasRunningAnimations, isFalse);
+  });
+
+  testWidgets('the reel starts on the busiest month, swipes, and the middle poster opens', (tester) async {
+    view(tester, const Size(390, 600), 3);
+    ReplayMonthlyCard? opened;
+    await tester.pumpWidget(_app(SingleChildScrollView(child: YearReel(cards: _year().monthlyCards, onOpen: (c) => opened = c))));
+    await tester.pumpAndSettle();
+    final top = tester.getTopLeft(find.byType(YearReel)).dy;
+    await tester.tapAt(Offset(40, top + 150));
+    expect(opened?.month, 10); // starts on October, the busiest
+    opened = null;
+    await tester.dragFrom(Offset(150, top + 150), const Offset(300, 0));
+    await tester.pumpAndSettle();
+    await tester.tapAt(Offset(40, top + 150));
+    expect(opened?.month, 9);
+  });
+
+  testWidgets('year story cards, finished state', (tester) async {
+    view(tester, const Size(390, 844), 3);
+    tester.platformDispatcher.accessibilityFeaturesTestValue = const FakeAccessibilityFeatures(disableAnimations: true);
+    addTearDown(tester.platformDispatcher.clearAllTestValues);
+    await tester.pumpWidget(_app(YearStory(replay: _year())));
+    await tester.pumpAndSettle();
+    for (var i = 1; i <= 5; i++) {
+      await expectLater(find.byType(MaterialApp), matchesGoldenFile('replay/story_$i.png'));
+      if (i < 5) {
+        await tester.tapAt(const Offset(340, 400));
+        await tester.pumpAndSettle();
+      }
+    }
+  });
+
+  testWidgets('year story auto-advances with motion on', (tester) async {
+    view(tester, const Size(390, 844), 3);
+    await tester.pumpWidget(_app(YearStory(replay: _year())));
+    await tester.pump(const Duration(seconds: 8));
+    await tester.pump(const Duration(milliseconds: 400));
+    expect(find.text('Your song of the year'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 30));
+    await tester.pumpWidget(const SizedBox()); // tickers disposed cleanly
+  });
+
+  testWidgets('receipt lists the year', (tester) async {
+    view(tester, const Size(390, 600), 3);
+    await tester.pumpWidget(_app(SingleChildScrollView(child: Padding(padding: const EdgeInsets.all(24), child: YearReceipt(replay: _year(), ink: Colors.white, dim: Colors.grey)))));
+    await tester.pumpAndSettle();
+    expect(find.text('BIGGEST MONTH'), findsOneWidget);
+    expect(find.text('October'), findsOneWidget);
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('replay/receipt.png'));
   });
 }

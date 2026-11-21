@@ -1,3 +1,4 @@
+import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
 
 import '../../../../core/theme.dart';
@@ -65,6 +66,7 @@ class _StoryPagerState extends State<StoryPager> with SingleTickerProviderStateM
   void _go(int to) {
     if (to < 0) return _play(); // back on the first card restarts it
     if (to >= widget.pages.length) return;
+    HapticFeedback.selectionClick();
     setState(() => _index = to);
     _play();
   }
