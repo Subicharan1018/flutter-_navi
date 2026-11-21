@@ -7,6 +7,7 @@ names and ISRCs), no network, no Telegram.
 import asyncio
 import csv
 import io
+import json
 import logging
 import time
 from dataclasses import replace
@@ -27,7 +28,6 @@ HEADER = ["Track URI", "Track Name", "Album Name", "Artist Name(s)", "Release Da
           "Popularity", "Explicit", "Added By", "Added At", "Genres", "Record Label", "Danceability", "Energy",
           "Key", "Loudness", "Mode", "Speechiness", "Acousticness", "Instrumentalness", "Liveness", "Valence",
           "Tempo", "Time Signature", "ISRC"]
-
 LIB = [
     {"id": "s1", "title": "Neela Megam", "artist": "Aarav Kumar • Meena Rao",
      "album": "Neela Megam (Original Motion Picture Soundtrack)", "duration": 250.0, "isrc": "INA010000001"},
@@ -40,7 +40,8 @@ LIB = [
 
 def row(title, artist, isrc="", dur=240, pop=10, album="Album", date="2019-05-01", uri="spotify:track:abc", **feat):
     base = {"Track URI": uri, "Track Name": title, "Album Name": album, "Artist Name(s)": artist,
-            "Release Date": date, "Duration (ms)": str(int(dur * 1000)), "Popularity": str(pop), "ISRC": isrc}
+            "Release Date": date, "Duration (ms)": str(int(dur * 1000)), "Popularity": str(pop), "ISRC": isrc,
+            "Added By": "spotify:user:someone-else-4242", "Added At": "2024-01-02T03:04:05Z"}
     base.update({k.title(): v for k, v in feat.items()})
     return base
 
@@ -69,6 +70,14 @@ def make_csv(rows=ROWS, bom=True, crlf=True, encoding="utf-8") -> bytes:
         w.writerow({k: r.get(k, "") for k in HEADER})
     text = out.getvalue()
     return ((("﻿" if bom else "") + text).encode(encoding))
+
+
+@pytest.fixture(autouse=True)
+def details_db(tmp_path, monkeypatch):
+    """No test ever writes the real spotify_details.db."""
+    p = tmp_path / "spotify_details.db"
+    monkeypatch.setenv("NAVIVIBE_SPOTIFY_DETAILS_DB", str(p))
+    return p
 
 
 @pytest.fixture
@@ -507,3 +516,94 @@ def test_old_imports_are_pruned(conn):
         ex.prune_old(conn, "alice")
     assert conn.execute("SELECT COUNT(*) FROM exportify_imports").fetchone()[0] == ex.MAX_IMPORTS
     assert conn.execute("SELECT COUNT(*) FROM exportify_songs").fetchone()[0] == ex.MAX_IMPORTS
+
+
+# ── spotify_details: what the CSV says about songs we own ────────────────────
+
+def details(path):
+    import sqlite3
+    c = sqlite3.connect(str(path))
+    c.row_factory = sqlite3.Row
+    try:
+        return {r["song_id"]: dict(r) for r in c.execute("SELECT * FROM spotify_details")}
+    finally:
+        c.close()
+
+
+def rich(title, artist, isrc, dur, pop, **extra):
+    r = row(title, artist, isrc, dur, pop)
+    r.update({"Genres": "tamil pop, filmi", "Record Label": "Sample Records", "Explicit": "true", "Danceability": "0.6",
+              "Energy": "0.8", "Key": "7", "Loudness": "-6.5", "Mode": "1", "Speechiness": "0.05", "Acousticness": "0.2",
+              "Instrumentalness": "0", "Liveness": "0.1", "Valence": "0.9", "Tempo": "128.0", "Time Signature": "4"})
+    r.update(extra)
+    return r
+
+
+def import_rich(conn, rows, name="mix"):
+    parsed, st = ex.parse_csv(make_csv(rows))
+    return ex.store_import(conn, "alice", name, parsed, st["skipped"], lambda u: ex.match_rows(u, [dict(s) for s in LIB]))
+
+
+def test_owned_songs_get_a_details_row_with_everything(conn, details_db):
+    import_rich(conn, [rich("Neela Megam", "Aarav Kumar;Meena Rao", "INA010000001", 250, 61, **{"Release Date": "2019-05-01"}),
+                       row("Oru Pudhu Paadal", "Sample Singer", "INA010000010", 240, 80)])
+    d = details(details_db)
+    assert set(d) == {"s1"}                                         # only a song we own; the wishlist has no row
+    s1 = d["s1"]
+    assert (s1["isrc"], s1["popularity"], s1["matched_by"], s1["label"], s1["release_date"], s1["explicit"]) == (
+        "INA010000001", 61, "isrc", "Sample Records", "2019-05-01", 1)
+    assert json.loads(s1["genres"]) == ["tamil pop", "filmi"]
+    assert (s1["valence"], s1["energy"], s1["key"], s1["mode"], s1["tempo"], s1["time_signature"]) == (0.9, 0.8, 7, 1, 128.0, 4)
+    assert s1["duration_s"] == 250.0
+
+
+def test_a_missing_isrc_is_filled_from_the_csv(conn, details_db):
+    import_rich(conn, [rich('Kaadhal Mazhai - From "Mazhai Kaalam"', "Diya Ram", "INA010000002", 201, 55)])
+    s2 = details(details_db)["s2"]                                   # the library has no ISRC for s2
+    assert s2["isrc"] == "INA010000002" and s2["matched_by"] == "title"
+
+
+def test_reimporting_updates_rows_instead_of_duplicating(conn, details_db):
+    import_rich(conn, [rich("Neela Megam", "Aarav Kumar;Meena Rao", "INA010000001", 250, 61)])
+    import_rich(conn, [rich("Neela Megam", "Aarav Kumar;Meena Rao", "INA010000001", 250, 70, Valence="0.4")], name="again")
+    d = details(details_db)
+    assert len(d) == 1 and d["s1"]["popularity"] == 70 and d["s1"]["valence"] == 0.4
+
+
+def test_an_isrc_match_beats_a_title_match_for_the_same_song(conn, details_db):
+    import_rich(conn, [rich("Veera Nadai", "Karthik Sen", "", 180, 11, Valence="0.1"),
+                       rich("Veera Nadai", "Karthik Sen", "INA010000003", 180, 22, Valence="0.7")])
+    s3 = details(details_db)["s3"]
+    assert s3["matched_by"] == "isrc" and s3["valence"] == 0.7
+
+
+def test_songs_that_come_in_later_get_details_too(conn, imp, cfg, details_db):
+    ex.start(conn, imp)
+    bid = ex.tick(conn, cfg, now=NIGHT, free=200.0)[0]["batch_id"]
+    cand = conn.execute("SELECT cand_id FROM exportify_songs WHERE batch_id=? AND pos=6", (bid,)).fetchone()[0]
+    j = db.create_job(conn, "alice", cand, batch_id=bid, status="waiting")
+    db.update_job(conn, j, status="ready", nd_song_id="n-new")
+    ex.settle(conn, imp, NIGHT + 60)
+    d = details(details_db)
+    assert d["n-new"]["isrc"] == "INA010000010" and d["n-new"]["popularity"] == 80
+    assert {"s1", "s2"} <= set(d)
+
+
+def test_added_by_is_never_stored_or_logged(conn, details_db, caplog):
+    import sqlite3
+    caplog.set_level(logging.DEBUG)
+    import_rich(conn, [rich("Neela Megam", "Aarav Kumar;Meena Rao", "INA010000001", 250, 61)])
+    dumps = []
+    for c in (conn, sqlite3.connect(str(details_db))):
+        dumps += list(c.iterdump())
+    text = "\n".join(dumps) + caplog.text
+    assert "someone-else-4242" not in text and "2024-01-02" not in text
+    assert "Neela" not in caplog.text
+
+
+def test_an_unwritable_details_file_never_breaks_the_import(conn, monkeypatch, tmp_path, caplog):
+    monkeypatch.setenv("NAVIVIBE_SPOTIFY_DETAILS_DB", str(tmp_path / "no" / "such" / "dir" / "d.db"))
+    caplog.set_level(logging.WARNING)
+    iid = import_rich(conn, [rich("Neela Megam", "Aarav Kumar;Meena Rao", "INA010000001", 250, 61)])
+    assert iid and ex.get_import(conn, iid, "alice")
+    assert "spotify_details not written" in caplog.text and "Neela" not in caplog.text

@@ -2,7 +2,9 @@
 # exportify-v1: import a Spotify playlist from an Exportify CSV, match it to the library, and fetch the
 # Wishlist a little at a time, never past a disk floor (see README.md).
 #   tg-fetcher   new tgfetch/exportify.py + exportify_api.py; 3 anchored patches (api.py, worker.py, db.py)
-#   shuffle srv  new navivibe/exportify_proxy.py; 2 anchored patches (server.py, hardening.py)
+#   shuffle srv  new navivibe/exportify_proxy.py, spotify_details.py, catalog/spotify_evidence.py; 9 anchored
+#                patches (server.py, hardening.py, catalog/mood_quality.py, catalog/api.py)
+#   data         tg-fetcher writes /opt/shuffle-server/spotify_details.db (table spotify_details) on import
 #   systemd      tg-fetcher-exportify.timer: the nightly pass (optional: you copy the units with sudo)
 #
 # Run on the server as subi (no sudo), from the folder this file is in:
@@ -22,15 +24,15 @@ STAMP=$(date +%Y%m%d-%H%M%S)
 BK=$TG/backups/exportify-v1-$STAMP
 TG_NEW="tgfetch/exportify.py tgfetch/exportify_api.py tests/test_exportify_v1.py"
 TG_PATCHED="tgfetch/api.py tgfetch/worker.py tgfetch/db.py"
-NV_NEW="exportify_proxy.py tests/test_exportify_v1_proxy.py"
-NV_PATCHED="server.py hardening.py"
+NV_NEW="exportify_proxy.py spotify_details.py catalog/spotify_evidence.py tests/test_exportify_v1_proxy.py tests/test_exportify_v1_details.py"
+NV_PATCHED="server.py hardening.py catalog/mood_quality.py catalog/api.py"
 
 [ -x "$PY" ] || { echo "!! $PY not found"; exit 1; }
 [ -x "$SPY" ] || { echo "!! $SPY not found"; exit 1; }
 [ "$(id -un)" != root ] || { echo "!! run as subi, not root"; exit 1; }
 [ -f "$TG/tgfetch/youtube_batch.py" ] || { echo "!! server-fixes-v1 is not installed (tgfetch/youtube_batch.py is missing): install it first"; exit 1; }
 for f in $TG_PATCHED; do [ -f "$TG/$f" ] || { echo "!! $TG/$f not found"; exit 1; }; done
-for f in $NV_PATCHED; do [ -f "$NV/$f" ] || { echo "!! $NV/$f not found"; exit 1; }; done
+for f in $NV_PATCHED; do [ -f "$NV/$f" ] || { echo "!! $NV/$f not found (the mood rules need moods-v2 installed)"; exit 1; }; done
 
 copy_tg() {  # $1 = a tg-fetcher root
   mkdir -p "$1/tests"
@@ -39,8 +41,9 @@ copy_tg() {  # $1 = a tg-fetcher root
 }
 copy_nv() {  # $1 = a navivibe folder
   mkdir -p "$1/tests"
-  cp "$HERE/files/navivibe/exportify_proxy.py" "$1/"
-  cp "$HERE/files/navivibe-tests/test_exportify_v1_proxy.py" "$1/tests/"
+  cp "$HERE/files/navivibe/exportify_proxy.py" "$HERE/files/navivibe/spotify_details.py" "$1/"
+  cp "$HERE/files/navivibe/catalog/spotify_evidence.py" "$1/catalog/"
+  cp "$HERE/files/navivibe-tests/"test_exportify_v1_*.py "$1/tests/"
 }
 
 run_nv_tests() {  # $1 = folder holding navivibe/, $2 = log; prints the summary, writes $2.failed
@@ -52,6 +55,7 @@ new_failures() { comm -13 "$T/.base.log.failed" "$1"; }
 
 echo "== 1/5 tests on a scratch copy first (nothing live is touched)"
 T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
+export NAVIVIBE_SPOTIFY_DETAILS_DB="$T/spotify_details.test.db"    # no test ever writes the real one
 mkdir -p "$T/tg"
 (cd "$TG" && tar cf - --exclude=./venv --exclude=./session --exclude=./data --exclude=./.git \
    --exclude=./backups --exclude='*/__pycache__' --exclude=./.pytest_cache --exclude='./.env*' \
@@ -80,7 +84,7 @@ grep -q 'test_exportify_v1' "$T/.new.log.failed" 2>/dev/null && { echo "!! expor
 echo "== 2/5 back up what runs now -> $BK"
 mkdir -p "$BK/tg" "$BK/shuf"
 for f in $TG_PATCHED; do mkdir -p "$BK/tg/$(dirname "$f")"; cp -a "$TG/$f" "$BK/tg/$f"; done
-for f in $NV_PATCHED; do cp -a "$NV/$f" "$BK/shuf/$f"; done
+for f in $NV_PATCHED; do mkdir -p "$BK/shuf/$(dirname "$f")"; cp -a "$NV/$f" "$BK/shuf/$f"; done
 : > "$BK/new-tg.txt"; : > "$BK/new-shuf.txt"
 for f in $TG_NEW; do [ -e "$TG/$f" ] || echo "$f" >> "$BK/new-tg.txt"; done
 for f in $NV_NEW; do [ -e "$NV/$f" ] || echo "$f" >> "$BK/new-shuf.txt"; done

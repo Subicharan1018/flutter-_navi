@@ -2,6 +2,8 @@
 
   server.py      registers navivibe/exportify_proxy.py and allows a 12 MB body on /exportify
   hardening.py   /exportify counts as the "fetch" route class (same rate limits as /fetch)
+  catalog/mood_quality.py  Spotify's valence / energy as a second opinion for the mood rules (needs moods-v2)
+  catalog/api.py           optional extra keys in GET /catalog/songs (pop, released, sp_genres, label; year where missing)
 
 Every patch is an exact text match: a file already patched is left alone, a file that is not
 the version this package was built on stops the run before anything is written.
@@ -26,6 +28,39 @@ PATCHES = [   # (file, old (exactly once), new)
     ("hardening.py",
      '    if path.startswith("/fetch"):\n',
      '    if path.startswith("/fetch") or path.startswith("/exportify"):      # exportify-v1\n'),
+    # Spotify's valence / energy as a second opinion for the mood rules (needs moods-v2).
+    ("catalog/mood_quality.py",
+     '    dev = _devotional()\n    return {\n        "energy": row.get("energy"),\n',
+     '    dev = _devotional()\n    from navivibe.catalog import spotify_evidence   # exportify-v1\n    return {\n'
+     '        **spotify_evidence.facts_for(row.get("id")),   # exportify-v1: Spotify\'s valence / energy, when a CSV matched\n'
+     '        "energy": row.get("energy"),\n'),
+    ("catalog/mood_quality.py",
+     'def ruled_out(mood: str, f: dict) -> str | None:\n'
+     '    """Why the evidence rules this mood out for the song (None: it doesn\'t)."""\n',
+     'def ruled_out(mood: str, f: dict) -> str | None:\n'
+     '    """Why the evidence rules this mood out for the song (None: it doesn\'t). exportify-v1: Spotify\'s\n'
+     '    numbers are a second opinion (catalog/spotify_evidence.py)."""\n'
+     '    from navivibe.catalog import spotify_evidence\n'
+     '    return spotify_evidence.second_opinion(mood, f, _ruled_out)\n\n\n'
+     'def _ruled_out(mood: str, f: dict) -> str | None:\n'
+     '    """The moods-v2 evidence rules."""\n'),
+    ("catalog/mood_quality.py",
+     '        from navivibe.catalog import store\n        out = []\n        for p in (store.CATALOG_DB, store.CATALOG_DB + "-wal"):\n',
+     '        from navivibe import spotify_details    # exportify-v1: a new import changes the facts\n'
+     '        from navivibe.catalog import store\n        out = []\n'
+     '        for p in (store.CATALOG_DB, store.CATALOG_DB + "-wal", spotify_details.PATH):\n'),
+    # Optional extra keys in GET /catalog/songs (nothing renamed).
+    ("catalog/api.py",
+     '    if s.get("bpm"):\n        e["bpm"] = int(round(s["bpm"]))\n',
+     '    from navivibe import spotify_details   # exportify-v1: pop, released, sp_genres, label; year where missing\n'
+     '    spotify_details.extend_entry(e, s)\n'
+     '    if s.get("bpm"):\n        e["bpm"] = int(round(s["bpm"]))\n'),
+    ("catalog/api.py",
+     '    def _mtime(self):\n        stamp = []\n',
+     '    def _mtime(self):\n        from navivibe import spotify_details   # exportify-v1\n        stamp = []\n'),
+    ("catalog/api.py",
+     '        return tuple(stamp) + (mood_quality.facts_version(),)        # moods-v2\n',
+     '        return tuple(stamp) + (mood_quality.facts_version(), spotify_details.stamp())        # moods-v2, exportify-v1\n'),
 ]
 
 

@@ -92,6 +92,7 @@ CREATE TABLE IF NOT EXISTS exportify_songs (
     attempts    INTEGER NOT NULL DEFAULT 0,
     error       TEXT,
     queued_at   REAL,
+    details     TEXT,                       -- JSON: genres, label, release date, explicit, audio features
     updated_at  REAL NOT NULL
 );
 CREATE INDEX IF NOT EXISTS exportify_songs_import ON exportify_songs(import_id, state);
@@ -141,7 +142,11 @@ _ALIASES = {
     "duration": ("duration (ms)", "duration_ms", "duration"),
     "popularity": ("popularity",),
     "release": ("release date", "album release date"),
-    **{f: (f, f"{f} ") for f in FEATURES},
+    "genres": ("genres", "artist genres"),
+    "label": ("record label", "label"),
+    "explicit": ("explicit",),
+    # Never read, on purpose: "Added By" (other people's Spotify ids) and "Added At".
+    **{f: (f, f.replace("_", " ")) for f in FEATURES},          # "Time Signature"
 }
 _ISRC = re.compile(r"^[A-Z]{2}[A-Z0-9]{3}\d{7}$")
 _YEAR = re.compile(r"^(\d{4})")
@@ -230,6 +235,12 @@ def parse_csv(data) -> tuple[list[dict], dict]:
                 v = _num(cell(rec, f), int if f in _INT_FEATURES else float)
                 if v is not None and cell(rec, f) != "":
                     row["features"][f] = v
+            row["details"] = {
+                "genres": [g.strip()[:40] for g in cell(rec, "genres").split(",") if g.strip()][:8],
+                "label": cell(rec, "label")[:80],
+                "release_date": cell(rec, "release")[:10],
+                "explicit": 1 if cell(rec, "explicit").lower() in ("true", "1", "yes") else 0,
+            }
             rows.append(row)
     except csv.Error:
         raise ExportifyError("This file isn't a readable CSV.") from None
@@ -306,11 +317,12 @@ def store_import(conn, user: str, name: str, rows: list[dict], skipped: int, res
             "VALUES (?,?,?,?,?,?)", (user, clean_name(name), now, len(rows) + skipped, skipped, dupes)).lastrowid
         conn.executemany(
             "INSERT INTO exportify_songs (import_id, user, pos, key, isrc, uri, title, artist, album, year, "
-            "popularity, duration_s, state, how, nd_song_id, similar_id, updated_at) "
-            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
+            "popularity, duration_s, state, how, nd_song_id, similar_id, details, updated_at) "
+            "VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
             [(iid, user, r["pos"], r["key"], r["isrc"] or None, r["uri"] or None, r["title"], r["artist"],
               r["album"], r["year"], r["popularity"], r["duration_s"], m["state"], m["how"], m["nd_song_id"],
-              m["similar_id"], now) for r, m in zip(unique, results)])
+              m["similar_id"], json.dumps({**r.get("details", {}), "features": r["features"]}), now)
+             for r, m in zip(unique, results)])
         conn.executemany(
             "INSERT OR REPLACE INTO exportify_features (isrc, " + ", ".join(FEATURES) + ", updated_at) "
             "VALUES (?," + ",".join("?" * len(FEATURES)) + ",?)",
@@ -323,7 +335,67 @@ def store_import(conn, user: str, name: str, rows: list[dict], skipped: int, res
         conn.execute("ROLLBACK")
         raise
     log.info("exportify: import %s for %s: %d rows, %d unique", iid, user, len(rows), len(unique))
+    refresh_details(conn)
     return iid
+
+
+# ── what the CSV says about songs we own: spotify_details ────────────────────
+
+DETAILS_COLUMNS = ("song_id TEXT PRIMARY KEY, isrc TEXT, popularity INTEGER, genres TEXT, label TEXT, "
+                   "release_date TEXT, explicit INTEGER, duration_s REAL, matched_by TEXT, " +
+                   ", ".join(f"{f} {'INTEGER' if f in _INT_FEATURES else 'REAL'}" for f in FEATURES) +
+                   ", updated_at REAL NOT NULL")
+
+
+def details_path() -> str:
+    """The small database the shuffle server reads (navivibe/spotify_details.py). Its own file, in the
+    shuffle server's folder: no WAL, nothing shared with fetch.db."""
+    import os
+    from tgfetch.config import NAVIVIBE_ROOT
+    return os.getenv("NAVIVIBE_SPOTIFY_DETAILS_DB", os.path.join(NAVIVIBE_ROOT, "spotify_details.db"))
+
+
+def refresh_details(conn, path: str | None = None, now: float | None = None) -> int:
+    """Write what the imports know about each song we own into spotify_details, one row per library
+    song (`song_id` = the Navidrome id): ISRC (from the CSV, so songs the library has no ISRC for get
+    one), popularity, genres, label, release date, explicit, length and Spotify's audio features.
+    A song in several imports is the best of them (an ISRC match beats a title match, then the newest).
+    Re-running rewrites the rows, never duplicates them. Bookkeeping only: a failure is logged (never
+    with contents) and the import goes on. Files and Navidrome's tags are never touched. Returns the
+    number of rows written."""
+    import sqlite3
+    now = time.time() if now is None else now
+    best: dict[str, tuple] = {}
+    for r in conn.execute(
+            "SELECT nd_song_id, isrc, how, popularity, duration_s, details, updated_at FROM exportify_songs "
+            "WHERE nd_song_id IS NOT NULL AND state IN ('owned','downloaded') "
+            "ORDER BY (how='isrc') ASC, updated_at ASC, id ASC"):
+        best[r["nd_song_id"]] = tuple(r)                     # the last one is the best
+    if not best:
+        return 0
+    rows = []
+    for sid, (_, isrc, how, pop, dur, details, _) in best.items():
+        try:
+            d = json.loads(details or "{}")
+        except ValueError:
+            d = {}
+        feat = d.get("features") or {}
+        rows.append((sid, isrc, pop, json.dumps(d.get("genres") or [], ensure_ascii=False), d.get("label") or None,
+                     d.get("release_date") or None, d.get("explicit", 0), dur, how or "library",
+                     *[feat.get(f) for f in FEATURES], now))
+    try:
+        c = sqlite3.connect(path or details_path(), timeout=10)
+        try:
+            c.execute(f"CREATE TABLE IF NOT EXISTS spotify_details ({DETAILS_COLUMNS})")
+            c.execute("CREATE INDEX IF NOT EXISTS spotify_details_isrc ON spotify_details(isrc)")
+            c.executemany("INSERT OR REPLACE INTO spotify_details VALUES (" + ",".join("?" * (len(rows[0]))) + ")", rows)
+            c.commit()
+        finally:
+            c.close()
+    except (sqlite3.Error, OSError) as e:
+        log.warning("exportify: spotify_details not written (%s)", type(e).__name__)
+        return 0
+    return len(rows)
 
 
 def prune_old(conn, user: str) -> None:
@@ -499,7 +571,7 @@ def _job_for(conn, cand_id: int) -> dict | None:
 def settle(conn, import_id: int, now: float) -> int:
     """Queued songs whose job finished become downloaded / owned / failed; a cancelled batch's
     songs go back to the Wishlist. Returns how many changed."""
-    n = 0
+    n, landed = 0, False
     for s in [dict(r) for r in conn.execute(
             "SELECT * FROM exportify_songs WHERE import_id=? AND state='queued'", (import_id,))]:
         job = _job_for(conn, s["cand_id"]) if s["cand_id"] else None
@@ -531,7 +603,10 @@ def settle(conn, import_id: int, now: float) -> int:
                 conn.execute("UPDATE exportify_songs SET state='owned', how='library', nd_song_id=?, updated_at=? "
                              "WHERE user=? AND key=? AND id<>? AND state IN ('wishlist','skipped_disk','failed')",
                              (fields.get("nd_song_id"), now, s["user"], s["key"], s["id"]))
+                landed = True
             n += 1
+    if landed:                                  # songs that just came in get their details too
+        refresh_details(conn)
     return n
 
 
@@ -688,6 +763,8 @@ def tick(conn, settings, user: str | None = None, now: float | None = None, free
                                  "WHERE id=?", (m["nd_song_id"], now, s["id"]))
                 else:
                     keep.append(s)
+            if len(keep) < len(picks):
+                refresh_details(conn)
             picks = keep
         if not picks:
             continue

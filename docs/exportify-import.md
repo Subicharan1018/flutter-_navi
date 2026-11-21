@@ -61,6 +61,15 @@ Songs that didn't come in are listed with why, and tried again after 3 days (twi
 **Try Them Again**. Each song is in one state: in your library, on the wishlist, on its way, fetched, didn't
 come in, or waiting for disk.
 
+## What the file does for songs you already have
+
+Every song the file matches also gets its details saved on the server (never in the audio files or Navidrome's tags):
+ISRC, popularity, genres, label, release date, and Spotify's audio features. This fills the ISRC for songs that had none,
+gives the mood rules a second opinion from Spotify's valence and energy (it can keep or drop a label the labeller gave,
+never add one; your own "Not this mood" and admin labels still win), and adds optional fields to the catalog the app
+reads. Importing the same file again updates the rows. Who added each song to the Spotify playlist is never read.
+Details: `tool/server/exportify-v1/README.md`.
+
 ## The playlist
 
 **Make a Playlist** (on the result screen) makes a playlist named after the file from the songs you already
