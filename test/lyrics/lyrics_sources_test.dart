@@ -223,8 +223,10 @@ void main() {
     expect(lyricsSourceLabel(null), isNull);
   });
 
-  test('only lrc.red and BetterLyrics are on by default; the Spotify wrapper is off', () {
-    expect([for (final s in LyricsSource.values) if (s.defaultOn) s.wire], ['lrcred', 'betterlyrics']);
+  test('lrc.red, BetterLyrics, then YouTube Music are on by default; the Spotify wrapper is off', () {
+    expect([for (final s in LyricsSource.values) if (s.defaultOn) s.wire], ['lrcred', 'betterlyrics', 'ytmusic']);
+    expect(LyricsSource.values.last, LyricsSource.paxsenix);
+    expect(lyricsSourceLabel('ytmusic'), 'YouTube Music');
   });
 
   testWidgets('the chip names the source and the timing', (tester) async {

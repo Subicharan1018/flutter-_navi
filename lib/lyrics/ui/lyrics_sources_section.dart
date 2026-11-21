@@ -14,6 +14,9 @@ class LyricsSourcesSection extends ConsumerWidget {
   static const _notes = {
     LyricsSource.lrcRed: 'Timed line by line, and word by word on many songs.',
     LyricsSource.betterLyrics: 'Word by word. Community-run: some songs are missing.',
+    LyricsSource.ytMusic:
+        'Timed by line where YouTube Music has it, plain text otherwise. Unofficial: it can stop working '
+        'without notice, and may not follow YouTube’s terms of service. Only lyrics text is read.',
     LyricsSource.paxsenix:
         'Unofficial. Uses undocumented Spotify endpoints and may break Spotify’s terms of service, '
         'so it is off unless you switch it on. Only works if the server has been set up for it.',

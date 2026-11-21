@@ -106,7 +106,7 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
             key: const ValueKey('empty'),
             style: st,
             title: 'No lyrics for this song',
-            body: 'Lyrics appear here when your server, lrc.red, BetterLyrics or LRCLIB has them. '
+            body: 'Lyrics appear here when your server, lrc.red, BetterLyrics, YouTube Music or LRCLIB has them. '
                 'Choose the sources in Settings.',
           ),
         LyricsStatus.error => _Message(
