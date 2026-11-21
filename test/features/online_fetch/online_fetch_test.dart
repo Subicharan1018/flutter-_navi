@@ -1042,7 +1042,7 @@ void main() {
       expect(c.inLibrary, isFalse);
       await pump(tester, c);
       expect(find.text('Other version in your library · Download this version'), findsOneWidget);
-      expect(_glyph(NaviGlyph.downloadCircle), findsOneWidget);
+      expect(find.text('Get'), findsOneWidget);
       expect(_glyph(NaviGlyph.checkCircle), findsNothing);
       expect(FetchKind.parse('commentary').label, 'Commentary');
     });

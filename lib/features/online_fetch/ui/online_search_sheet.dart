@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../../../core/motion.dart';
 import '../../../core/theme.dart';
 import '../../../models/song.dart';
 import '../../../providers/player_provider.dart';
@@ -25,6 +26,7 @@ import 'online_search_page.dart';
 import 'send_playlist_sheet.dart';
 import 'widgets/fetch_candidate_row.dart';
 import 'widgets/fetch_results_table.dart';
+import 'widgets/fetch_type_tabs.dart';
 import 'widgets/owned_hint_row.dart';
 
 /// "Search online": find songs, albums, artists or playlists that aren't in
@@ -155,12 +157,8 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.sm),
-            child: NaviSegmented<FetchSearchType>(
-              segments: {for (final ty in FetchSearchType.values) ty: ty.title},
-              value: _type,
-              onChanged: _setType,
-            ),
+            padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.xs),
+            child: FetchTypeTabs(value: _type, onChanged: _setType),
           ),
         ] else
           OnlineArtistHeader(state: s),
@@ -534,6 +532,8 @@ class _ResultsState extends ConsumerState<_Results> {
     // user may search again by hand (the song might be offered in another form).
     final anyBlocked = search.candidates.any((c) => c.isSong && !c.inLibrary && (c.blocked || downloads.jobFor(c.id)?.phase == FetchJobPhase.blocked));
     final dym = search.didYouMean;
+    final featuredFirst =
+        s.type == FetchSearchType.song && s.artist == null && !weak && search.candidates.length > 1 && search.candidates.first.isSong;
     final heading = switch (s.type) {
       _ when s.artist?.type == FetchSearchType.label => 'Tracks',
       _ when s.artist != null => 'Top songs',
@@ -663,12 +663,20 @@ class _ResultsState extends ConsumerState<_Results> {
           )
         else
         for (final (i, c) in search.candidates.indexed)
-          FetchCandidateRow(
-            candidate: c,
-            showSeparator: i < search.candidates.length - 1,
-            selected: picked == null || !c.isSong ? null : picked.contains(c.id),
-            onDownload: () => _primary(c),
-            onPlayOwned: () => _playOwned(c),
+          // Rows settle in one behind the other the first time a search shows.
+          Entrance(
+            group: 'online-fetch-${search.id}',
+            index: i,
+            rise: 10,
+            child: FetchCandidateRow(
+              candidate: c,
+              // The best match leads, larger; it needs a real choice to lead.
+              featured: i == 0 && featuredFirst && picked == null,
+              showSeparator: i < search.candidates.length - 1,
+              selected: picked == null || !c.isSong ? null : picked.contains(c.id),
+              onDownload: () => _primary(c),
+              onPlayOwned: () => _playOwned(c),
+            ),
           ),
       ],
     );

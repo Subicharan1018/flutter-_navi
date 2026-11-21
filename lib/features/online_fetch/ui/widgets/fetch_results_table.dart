@@ -38,6 +38,9 @@ class FetchResultsTable extends StatelessWidget {
   static const double rowHeight = 48;
   static const double art = 36;
 
+  /// Room for the Get / Play / Retry capsule at the end of a row.
+  static const double actionWidth = 72;
+
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
@@ -56,7 +59,7 @@ class FetchResultsTable extends StatelessWidget {
               const SizedBox(width: art + Space.md),
               Expanded(flex: 5, child: Text('Title', style: head)),
               Expanded(flex: 3, child: Text('Status', style: head)),
-              const SizedBox(width: 40),
+              const SizedBox(width: actionWidth),
             ],
           ),
         ),
@@ -166,14 +169,15 @@ class _Row extends ConsumerWidget {
               ),
             ),
             SizedBox(
-              width: 40,
+              width: FetchResultsTable.actionWidth,
               height: 40,
-              child: Center(
+              child: Align(
+                alignment: Alignment.centerRight,
                 child: switch (c.type) {
                   _ when selecting => const SizedBox.shrink(),
-                  FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary, blocked: c.blocked),
+                  FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary, blocked: c.blocked, pill: true),
                   FetchSearchType.artist || FetchSearchType.label => NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
-                  _ => FetchBatchIndicator(batch: batch),
+                  _ => FetchBatchIndicator(batch: batch, pill: true),
                 },
               ),
             ),

@@ -135,7 +135,7 @@ void main() {
     testWidgets('an ordinary result still offers the download', (tester) async {
       await pump(tester, FetchCandidate.fromJson({..._blockedSong, 'blocked': false}));
       expect(find.text(kBlockedByAuthor), findsNothing);
-      expect(_glyph(NaviGlyph.downloadCircle), findsOneWidget);
+      expect(find.text('Get'), findsOneWidget); // the capsule that starts the download
     });
   });
 }

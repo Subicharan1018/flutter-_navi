@@ -31,6 +31,9 @@ class FetchCandidateRow extends ConsumerWidget {
   /// shows whether the song is owned and, once started, its progress.
   final bool interactive;
 
+  /// The best match, set larger than the rest: a 64 pt cover and a title3 title.
+  final bool featured;
+
   const FetchCandidateRow({
     super.key,
     required this.candidate,
@@ -39,6 +42,7 @@ class FetchCandidateRow extends ConsumerWidget {
     this.showSeparator = true,
     this.selected,
     this.interactive = true,
+    this.featured = false,
   });
 
   @override
@@ -51,7 +55,7 @@ class FetchCandidateRow extends ConsumerWidget {
     final status = song ? _songStatus(job, c) : (batch == null ? null : fetchBatchStatus(batch));
     final selecting = selected != null;
     final tappable = fetchCandidateTappable(c, job: job, batch: batch, selecting: selecting, interactive: interactive);
-    final art = 44.0;
+    final art = featured ? 64.0 : 44.0;
 
     return Semantics(
       button: tappable,
@@ -113,7 +117,10 @@ class FetchCandidateRow extends ConsumerWidget {
                     child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Text(c.title, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.body),
+                        Text(c.title,
+                            maxLines: featured ? 2 : 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: featured ? t.title3 : t.body),
                         const SizedBox(height: 2),
                         Text(_subtitle(c), maxLines: 1, overflow: TextOverflow.ellipsis, style: t.subheadline),
                         // A pasted YouTube list: the original title, so a wrong reading shows.
@@ -135,17 +142,17 @@ class FetchCandidateRow extends ConsumerWidget {
                   ),
                   if (!selecting) ...[
                     const SizedBox(width: Space.md),
-                    SizedBox(
-                      width: 28,
-                      height: 28,
+                    ConstrainedBox(
+                      constraints: const BoxConstraints(minWidth: 28, minHeight: 28),
                       child: Center(
+                        widthFactor: 1,
                         child: switch (c.type) {
                           _ when !interactive && job == null => c.inLibrary
                               ? NaviIcon(NaviGlyph.checkCircle, size: 22, color: t.textMuted)
                               : const SizedBox.shrink(),
-                          FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary, blocked: c.blocked),
+                          FetchSearchType.song => FetchJobIndicator(job: job, inLibrary: c.inLibrary, blocked: c.blocked, pill: true),
                           FetchSearchType.artist || FetchSearchType.label => NaviIcon(NaviGlyph.chevron, size: 16, color: t.textMuted),
-                          _ => FetchBatchIndicator(batch: batch),
+                          _ => FetchBatchIndicator(batch: batch, pill: true),
                         },
                       ),
                     ),
@@ -264,7 +271,11 @@ class FetchJobIndicator extends StatelessWidget {
 
   /// The bot already refused this song (no job yet): no download glyph.
   final bool blocked;
-  const FetchJobIndicator({super.key, required this.job, this.inLibrary = false, this.blocked = false});
+
+  /// Result rows: the idle, owned and failed states are words in a capsule
+  /// ("Get", "Play", "Retry") like Apple's Get button, not a bare glyph.
+  final bool pill;
+  const FetchJobIndicator({super.key, required this.job, this.inLibrary = false, this.blocked = false, this.pill = false});
 
   @override
   Widget build(BuildContext context) {
@@ -274,12 +285,14 @@ class FetchJobIndicator extends StatelessWidget {
       return NaviIcon(NaviGlyph.close, size: 22, color: t.textMuted);
     }
     if (j == null) {
+      if (pill) return inLibrary ? const FetchPill('Play', quiet: true) : const FetchPill('Get');
       return NaviIcon(
         inLibrary ? NaviGlyph.playCircle : NaviGlyph.downloadCircle,
         size: 24,
         color: t.accent,
       );
     }
+    if (pill && j.phase == FetchJobPhase.failed) return const FetchPill('Retry', danger: true);
     return switch (j.phase) {
       FetchJobPhase.preparing || FetchJobPhase.adding => const CupertinoActivityIndicator(),
       FetchJobPhase.downloading => _Ring(value: j.progress == 0 ? null : j.progress),
@@ -296,19 +309,45 @@ class FetchJobIndicator extends StatelessWidget {
 /// progress ring, check or warning.
 class FetchBatchIndicator extends StatelessWidget {
   final FetchBatch? batch;
-  const FetchBatchIndicator({super.key, required this.batch});
+  final bool pill;
+  const FetchBatchIndicator({super.key, required this.batch, this.pill = false});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final b = batch;
+    if (pill && b?.status == FetchBatchStatus.failed) return const FetchPill('Retry', danger: true);
     return switch (b?.status) {
-      null => NaviIcon(NaviGlyph.downloadCircle, size: 24, color: t.accent),
+      null => pill ? const FetchPill('Get') : NaviIcon(NaviGlyph.downloadCircle, size: 24, color: t.accent),
       FetchBatchStatus.starting => const CupertinoActivityIndicator(),
       FetchBatchStatus.running => _Ring(value: b!.progress == 0 ? null : b.progress),
       FetchBatchStatus.done => NaviIcon(NaviGlyph.checkCircle, size: 24, color: t.positive, filled: true),
       FetchBatchStatus.failed => NaviIcon(NaviGlyph.alert, size: 24, color: t.danger),
     };
+  }
+}
+
+/// The word a result's tap does, in a capsule: "Get" (white on a fill), "Play"
+/// for what's already owned (quiet), "Retry" for a failure (red). Only a label:
+/// the row around it takes the tap.
+class FetchPill extends StatelessWidget {
+  final String label;
+  final bool quiet;
+  final bool danger;
+  const FetchPill(this.label, {super.key, this.quiet = false, this.danger = false});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    final fg = danger ? t.danger : (quiet ? t.textSecondary : t.onAccent);
+    final bg = danger || quiet ? t.fill : t.accentFill;
+    return Container(
+      height: 28,
+      padding: const EdgeInsets.symmetric(horizontal: Space.md),
+      alignment: Alignment.center,
+      decoration: BoxDecoration(color: bg, borderRadius: BorderRadius.circular(Radii.capsule)),
+      child: Text(label, style: t.footnote.copyWith(color: fg, fontWeight: FontWeight.w700)),
+    );
   }
 }
 
