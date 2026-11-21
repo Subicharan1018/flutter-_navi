@@ -91,7 +91,7 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
     // is read by the two lines that change look, not by this whole list.
     final state = ref.watch(
       lyricsControllerProvider.select(
-        (s) => (s.status, s.lyrics, s.source, s.wordSynced, s.errorMessage),
+        (s) => (s.status, s.lyrics, s.source, s.wordSynced, s.errorMessage, s.cooling),
       ),
     );
     final st = widget.style;
@@ -108,6 +108,15 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
             title: 'No lyrics for this song',
             body: 'Lyrics appear here when your server, lrc.red, BetterLyrics, YouTube Music or LRCLIB has them. '
                 'Choose the sources in Settings.',
+            action: TextButton(
+              key: const ValueKey('search-again'),
+              // Disabled for a short while after a search that found nothing.
+              onPressed: state.$6 ? null : () => ref.read(lyricsControllerProvider.notifier).searchAgain(),
+              child: Text(
+                state.$6 ? 'Searched just now' : 'Search again',
+                style: naviText(15, FontWeight.w600, state.$6 ? st.textSecondary : st.textPrimary),
+              ),
+            ),
           ),
         LyricsStatus.error => _Message(
             key: const ValueKey('error'),
@@ -115,6 +124,7 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
             title: 'Couldn’t load lyrics',
             body: state.$5 ?? 'Check your connection and try again.',
             action: TextButton(
+              key: const ValueKey('lyrics-retry'),
               onPressed: () => ref.read(lyricsControllerProvider.notifier).retry(),
               child: Text('Try again', style: naviText(15, FontWeight.w600, st.textPrimary)),
             ),

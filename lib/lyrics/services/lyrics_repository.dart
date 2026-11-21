@@ -19,17 +19,34 @@ import 'lyrics_server_api.dart';
 /// v2: entries carry their source, and word-timed lyrics are kept.
 const _kCachePrefix = 'lyrics_v2_';
 
-/// How long "nobody has these lyrics" is believed before asking again.
-const _kMissTtl = Duration(hours: 12);
+/// Revision of the lookup itself (matching, sources). A remembered "no lyrics"
+/// written under an older revision is asked about again, once; found lyrics
+/// are kept. Bump it whenever the lookup learns to find songs it used to miss.
+/// 3: a failed request is no longer remembered as "no lyrics", and the server
+/// matches multi-artist and renamed songs.
+const kLookupRev = 3;
+
+/// How long "every source said it has nothing" is believed before asking again.
+const _kMissTtl = Duration(hours: 2);
+
+/// Plain text may hide synced lyrics that a source gained since: a cached
+/// plain result older than this is looked at again, once per app session.
+const _kPlainRecheckAfter = Duration(minutes: 15);
 
 /// Orchestrates the lyrics waterfall, best source first:
 ///   0. a `.lrc` beside a file on this device
 ///   1. the local shared_preferences cache
 ///   2. Subsonic getLyricsBySongId (the file's own tags / sidecar); synced wins
-///   3. the shuffle server's proxy (lrc.red → BetterLyrics → optional Spotify
-///      wrapper, as switched on in Settings): word timing where a source has it
+///   3. the shuffle server's proxy (lrc.red → BetterLyrics → YouTube Music →
+///      optional Spotify wrapper, as switched on in Settings): word timing
+///      where a source has it
 ///   4. LRCLIB public API
 ///   5. plain text from step 2, when nothing synced turned up
+///
+/// Every step ends found / nothing there / could not be reached. "No lyrics"
+/// is remembered only when every step answered; if anything could not be
+/// reached the result is [LyricsResult.unreachable] and nothing is cached, so
+/// one flaky request never hides a song.
 ///
 /// Always returns a [LyricsResult]; never throws to the caller.
 class LyricsRepository {
@@ -37,9 +54,13 @@ class LyricsRepository {
   final LrcLibService _lrcLib;
   final LyricsServerApi? _server;
   final List<LyricsSource> Function() _sources;
+  final DateTime Function() _now;
 
   /// Lyrics kept beside a file on this device (sidecar `.lrc` or tags).
   final Future<String?> Function(String songId)? _deviceLyrics;
+
+  /// Songs whose cached plain text was already looked at again this session.
+  final Set<String> _plainRechecked = {};
 
   LyricsRepository({
     required SubsonicService subsonic,
@@ -47,25 +68,43 @@ class LyricsRepository {
     LyricsServerApi? server,
     List<LyricsSource> Function()? sources,
     Future<String?> Function(String songId)? deviceLyrics,
+    DateTime Function()? now,
   }) : _subsonic = subsonic,
        _lrcLib = lrcLib ?? LrcLibService(),
        _server = server,
        _sources = sources ?? (() => const []),
-       _deviceLyrics = deviceLyrics;
+       _deviceLyrics = deviceLyrics,
+       _now = now ?? DateTime.now;
 
   // ── Public API ─────────────────────────────────────────────────────────────
 
-  Future<LyricsResult> getLyrics(Song song) async {
+  /// [refresh] is the "Search again" button: it skips a remembered "no lyrics"
+  /// and plain text, and tells the server to ask its sources again.
+  Future<LyricsResult> getLyrics(Song song, {bool refresh = false}) async {
     // Step 0 — a .lrc next to the local file beats every online source.
     final device = await _fromDevice(song.id);
     if (device != null) return device.withSource('device');
 
     // Step 1 — local cache
-    final cached = await _fromCache(song.id);
+    LyricsResult? plainKept;
+    final cached = await _readCache(song.id);
     if (cached != null) {
-      debugPrint('[LyricsRepository] Cache hit for "${song.title}"');
-      return cached;
+      final r = cached.result;
+      if (r.type == LyricsType.synced) {
+        debugPrint('[LyricsRepository] Cache hit for "${song.title}"');
+        return r;
+      }
+      if (r.type == LyricsType.none && !refresh && cached.isFreshMiss(_now())) {
+        return r;
+      }
+      if (r.type == LyricsType.plain) {
+        if (!refresh && !_plainDue(song.id, cached)) return r;
+        if (!refresh) return _recheckPlain(song, r);
+        plainKept = r;
+      }
     }
+
+    var failed = false;
 
     // Step 2 — OpenSubsonic getLyricsBySongId (reads FLAC tags + sidecar .lrc).
     // Device songs are unknown to the server.
@@ -108,10 +147,13 @@ class LyricsRepository {
       }
     } catch (e) {
       debugPrint('[LyricsRepository] getLyricsBySongId error: $e');
+      failed = true;
     }
 
     // Step 3 — the proxy's sources. A word-timed answer is the best there is.
-    final online = await _fromProxy(song);
+    final proxy = await _fromProxy(song, refresh: refresh);
+    final online = proxy.result;
+    failed = failed || proxy.failed;
     if (online != null && online.type == LyricsType.synced) {
       await _cache(song.id, online);
       return online;
@@ -123,22 +165,62 @@ class LyricsRepository {
       await _cache(song.id, lrcLibResult);
       return lrcLibResult;
     }
+    failed = failed || lrcLibResult.unreachable;
 
     // Step 5 — plain text, from the best place that had any.
-    final plain = plainFromServer ?? online ?? (lrcLibResult.type == LyricsType.plain ? lrcLibResult : null);
-    final result = plain ?? LyricsResult.none();
-    await _cache(song.id, result);
-    debugPrint('[LyricsRepository] final result (${result.type.name}) for "${song.title}"');
-    return result;
+    final plain =
+        plainFromServer ??
+        plainKept ??
+        online ??
+        (lrcLibResult.type == LyricsType.plain ? lrcLibResult : null);
+    if (plain != null) {
+      await _cache(song.id, plain);
+      debugPrint('[LyricsRepository] final result (plain) for "${song.title}"');
+      return plain;
+    }
+    if (failed) {
+      // Something could not be reached: nobody said "no". Remember nothing,
+      // so the next open (or "Try again") asks again.
+      debugPrint('[LyricsRepository] unreachable for "${song.title}"');
+      return LyricsResult.unreachable();
+    }
+    final none = LyricsResult.none();
+    await _cache(song.id, none);
+    debugPrint('[LyricsRepository] final result (none) for "${song.title}"');
+    return none;
   }
 
-  /// The shuffle server's third-party sources; null when none is switched on,
-  /// the song is only on this device, or the server has nothing / can't be
-  /// reached (the next source in the waterfall then gets its turn).
-  Future<LyricsResult?> _fromProxy(Song song) async {
+  /// Plain text found earlier may be hiding synced lyrics that a source has
+  /// since gained: ask the proxy once per session, keep the plain on any miss.
+  bool _plainDue(String songId, _Cached cached) =>
+      !_plainRechecked.contains(songId) &&
+      _now().difference(cached.at) > _kPlainRecheckAfter;
+
+  Future<LyricsResult> _recheckPlain(Song song, LyricsResult plain) async {
+    _plainRechecked.add(song.id);
+    final proxy = await _fromProxy(song);
+    final online = proxy.result;
+    if (online != null && online.type == LyricsType.synced) {
+      await _cache(song.id, online);
+      return online;
+    }
+    return plain;
+  }
+
+  /// The shuffle server's third-party sources. `result` is null when none is
+  /// switched on, the song is only on this device, or the server has nothing;
+  /// `failed` is true when it could not find out (no network, timeout, 401,
+  /// 429, 5xx, a 404 with `retry`, or an answer that does not parse), so the
+  /// caller never remembers that as "no lyrics".
+  Future<({LyricsResult? result, bool failed})> _fromProxy(
+    Song song, {
+    bool refresh = false,
+  }) async {
     final server = _server;
     final sources = _sources();
-    if (server == null || sources.isEmpty || isLocalSongId(song.id)) return null;
+    if (server == null || sources.isEmpty || isLocalSongId(song.id)) {
+      return (result: null, failed: false);
+    }
     try {
       final got = await server.fetchSynced(
         songId: song.id,
@@ -147,20 +229,24 @@ class LyricsRepository {
         album: song.album,
         durationSeconds: song.duration,
         sources: [for (final s in sources) s.wire],
+        refresh: refresh,
       );
-      if (got == null) return null;
+      if (got == null) return (result: null, failed: false);
       final synced = got.sync != 'plain' && LrcParser.isLrcFormat(got.lrc);
       final lyrics = synced ? LrcParser.parseLrc(got.lrc) : LrcParser.parsePlain(got.lrc);
-      if (lyrics.isEmpty) return null;
-      return LyricsResult(
-        type: synced ? LyricsType.synced : LyricsType.plain,
-        lyrics: lyrics,
-        rawText: got.lrc,
-        source: got.source,
+      if (lyrics.isEmpty) return (result: null, failed: true);
+      return (
+        result: LyricsResult(
+          type: synced ? LyricsType.synced : LyricsType.plain,
+          lyrics: lyrics,
+          rawText: got.lrc,
+          source: got.source,
+        ),
+        failed: false,
       );
     } catch (e) {
       debugPrint('[LyricsRepository] proxy error: $e');
-      return null;
+      return (result: null, failed: true);
     }
   }
 
@@ -219,14 +305,18 @@ class LyricsRepository {
   Future<void> _cache(String songId, LyricsResult result) async {
     try {
       final prefs = await SharedPreferences.getInstance();
-      final json = jsonEncode({...result.toJson(), 'at': DateTime.now().millisecondsSinceEpoch});
+      final json = jsonEncode({
+        ...result.toJson(),
+        'at': _now().millisecondsSinceEpoch,
+        'rev': kLookupRev,
+      });
       await prefs.setString('$_kCachePrefix$songId', json);
     } catch (e) {
       debugPrint('[LyricsRepository] Cache write error: $e');
     }
   }
 
-  Future<LyricsResult?> _fromCache(String songId) async {
+  Future<_Cached?> _readCache(String songId) async {
     try {
       final prefs = await SharedPreferences.getInstance();
       final raw = prefs.getString('$_kCachePrefix$songId');
@@ -234,14 +324,11 @@ class LyricsRepository {
       final decoded = jsonDecode(raw);
       if (decoded is! Map) return null;
       final json = Map<String, dynamic>.from(decoded);
-      final result = LyricsResult.fromJson(json, _parseCached);
-      // Only synced lyrics are kept for good; a miss or plain text is asked
-      // about again later (a source may have the song by then).
-      if (result.type != LyricsType.synced) {
-        final at = DateTime.fromMillisecondsSinceEpoch((json['at'] as num?)?.toInt() ?? 0);
-        if (DateTime.now().difference(at) > _kMissTtl) return null;
-      }
-      return result;
+      return _Cached(
+        LyricsResult.fromJson(json, _parseCached),
+        DateTime.fromMillisecondsSinceEpoch((json['at'] as num?)?.toInt() ?? 0),
+        (json['rev'] as num?)?.toInt() ?? 0,
+      );
     } catch (e) {
       debugPrint('[LyricsRepository] Cache read error: $e');
       return null;
@@ -262,6 +349,19 @@ class LyricsRepository {
     }
     return null;
   }
+}
+
+/// A cache entry with the time and lookup revision it was written under.
+class _Cached {
+  final LyricsResult result;
+  final DateTime at;
+  final int rev;
+  const _Cached(this.result, this.at, this.rev);
+
+  /// A remembered "no lyrics" counts only when this build's lookup wrote it
+  /// and it is recent; an older one (before the lookup learned more) is asked
+  /// about again.
+  bool isFreshMiss(DateTime now) => rev >= kLookupRev && now.difference(at) < _kMissTtl;
 }
 
 // ── Riverpod provider ────────────────────────────────────────────────────────

@@ -86,8 +86,13 @@ class LyricsServerApi {
 
   /// Synced lyrics from the third-party [sources] (`LyricsSource.wire` names,
   /// in the order to try), fetched and cached per song by the server. Null when
-  /// no source has the song (404) or none is switched on; throws
-  /// [LyricsServerException] for anything else, so the caller can fall back.
+  /// every source answered and none has the song (404, or 200 without text);
+  /// throws [LyricsServerException] for anything else — including a 404 that
+  /// says `retry: true` (a source did not answer) — so the caller can tell
+  /// "nobody has it" from "could not find out" and fall back.
+  ///
+  /// [refresh] asks the server to ignore a remembered "nobody has it" and ask
+  /// its sources again (the server limits it to a few times an hour).
   Future<ProxyLyrics?> fetchSynced({
     required String songId,
     required String title,
@@ -96,6 +101,7 @@ class LyricsServerApi {
     required int durationSeconds,
     required List<String> sources,
     String? spotifyId,
+    bool refresh = false,
   }) => _wrap(() async {
     try {
       final r = await _dio.get<Map<String, dynamic>>(
@@ -108,12 +114,22 @@ class LyricsServerApi {
           if (durationSeconds > 0) 'duration': durationSeconds,
           'sources': sources.join(','),
           if (spotifyId != null && spotifyId.isNotEmpty) 'spotify_id': spotifyId,
+          if (refresh) 'refresh': 1,
         },
         options: Options(receiveTimeout: const Duration(seconds: 25)),
       );
       return ProxyLyrics.fromJson(r.data ?? const {});
     } on DioException catch (e) {
-      if (e.response?.statusCode == 404) return null;
+      if (e.response?.statusCode == 404) {
+        final body = e.response?.data;
+        if (body is Map && body['retry'] == true) {
+          throw LyricsServerException(
+            body['error'] is String ? body['error'] as String : 'The lyrics sources did not answer.',
+            statusCode: 404,
+          );
+        }
+        return null;
+      }
       rethrow;
     }
   });
