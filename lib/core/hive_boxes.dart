@@ -108,6 +108,9 @@ class HiveBoxes {
   static const kLastPositionMs = 'lastPositionMs';
   static const kLastTimestamp = 'lastTimestamp';
 
+  /// The queue as one json string (see player/queue_snapshot.dart).
+  static const kQueueSnapshot = 'queueSnapshot_v1';
+
   // ---------------------------------------------------------------------------
   // Prefs keys
   // ---------------------------------------------------------------------------

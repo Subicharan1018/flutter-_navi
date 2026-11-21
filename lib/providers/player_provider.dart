@@ -2,6 +2,8 @@ import 'dart:async';
 import 'dart:io' show Platform, ProcessInfo;
 import 'dart:math';
 import '../player/resume_position.dart';
+import '../player/queue_snapshot.dart';
+import '../offline_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -314,7 +316,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _init();
     addListener(_onOwnStateForQueueMirror, fireImmediately: false);
     unawaited(_initSync());
-    unawaited(_loadPersistedState());
+    unawaited(_loadPersistedState().whenComplete(_restoreQueue));
   }
 
   Future<void> _initSync() async {
@@ -832,6 +834,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       positionMs: player.position.inMilliseconds,
     );
     _stopPositionTick();
+    flushPersist(); // where it stopped is what a restart resumes
   }
 
   Future<void> togglePlay() async {
@@ -887,22 +890,165 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   void _persistState() {
     _persistTimer?.cancel();
-    _persistTimer = Timer(const Duration(seconds: 2), () {
-      try {
-        final s = HiveBoxes.session;
-        final p = HiveBoxes.prefs;
-        if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
-          s.put(HiveBoxes.kCurrentTrackId, state.queue[state.currentIndex].id);
+    _persistTimer = Timer(const Duration(seconds: 2), _persistNow);
+  }
+
+  /// Writes everything now instead of after the debounce: for pause, the app
+  /// going to the background and the window closing.
+  void flushPersist() {
+    _persistTimer?.cancel();
+    _persistNow();
+  }
+
+  // The queue last written, so position ticks (every few seconds) do not
+  // re-encode a queue that has not changed.
+  List<Song>? _savedQueueRef;
+  int _savedIndex = -1;
+  bool? _savedShuffle;
+  int? _savedRepeat;
+  String? _savedSource;
+
+  /// False until the launch restore has had its say: until then the queue is
+  /// empty only because nothing was loaded yet, and must not wipe the snapshot.
+  bool _restoreSettled = false;
+
+  void _persistNow() {
+    try {
+      final s = HiveBoxes.session;
+      final p = HiveBoxes.prefs;
+      if (state.queue.isNotEmpty && state.currentIndex < state.queue.length) {
+        s.put(HiveBoxes.kCurrentTrackId, state.queue[state.currentIndex].id);
+      }
+      // The position belongs to the song the player has loaded. While a
+      // switch is under way the state already names the new song but the
+      // player still reports the old one's time: save zero then.
+      final settled = _audioHandler.currentIndex == state.currentIndex;
+      s.put(HiveBoxes.kLastPositionMs, settled ? player.position.inMilliseconds : 0);
+      p.put(HiveBoxes.kShufflePreference, state.shuffleMode);
+      p.put('repeatMode', state.repeatMode.index);
+    } catch (_) {}
+    _persistQueueSnapshot();
+  }
+
+  /// Bookkeeping only: a failure here never touches playback.
+  void _persistQueueSnapshot() {
+    if (!_restoreSettled || state.syncMode == SyncMode.passive) return;
+    try {
+      final unchanged = identical(state.queue, _savedQueueRef) &&
+          state.currentIndex == _savedIndex &&
+          state.shuffleMode == _savedShuffle &&
+          state.repeatMode.index == _savedRepeat &&
+          _currentPlaylistName == _savedSource;
+      if (unchanged) return;
+      final settings = _ref.read(settingsProvider);
+      final snap = SavedQueue.capture(
+        account: SavedQueue.accountKey(settings.serverUrl, settings.username),
+        queue: state.queue,
+        currentIndex: state.currentIndex,
+        unshuffled: _audioHandler.unshuffledQueue,
+        shuffle: state.shuffleMode,
+        repeat: state.repeatMode.index,
+        source: _currentPlaylistName,
+      );
+      // An emptied queue forgets the snapshot too.
+      if (snap == null) {
+        HiveBoxes.session.delete(HiveBoxes.kQueueSnapshot);
+      } else {
+        HiveBoxes.session.put(HiveBoxes.kQueueSnapshot, snap.encode());
+      }
+      _savedQueueRef = state.queue;
+      _savedIndex = state.currentIndex;
+      _savedShuffle = state.shuffleMode;
+      _savedRepeat = state.repeatMode.index;
+      _savedSource = _currentPlaylistName;
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ Could not save the queue: $e');
+    }
+  }
+
+  /// Puts the last session's queue back, paused, at the saved position.
+  ///
+  /// Skipped when something already started (the listener was quicker), when
+  /// another device holds the session, when the snapshot is damaged, or when
+  /// it belongs to another account. Never throws.
+  Future<void> _restoreQueue() async {
+    try {
+      final raw = HiveBoxes.session.get(HiveBoxes.kQueueSnapshot);
+      final snap = SavedQueue.tryDecode(raw is String ? raw : null);
+      if (raw != null && snap == null) {
+        await HiveBoxes.session.delete(HiveBoxes.kQueueSnapshot); // damaged: start clean
+      }
+      if (snap == null) return;
+      final settings = _ref.read(settingsProvider);
+      final account = SavedQueue.accountKey(settings.serverUrl, settings.username);
+      if (account != snap.account) return;
+
+      final gone = await _goneFromLibrary(snap.songs.map((s) => s.id).toList());
+      final restored = snap.resolve(
+        account: account,
+        isGone: gone,
+        savedTrackId: _pendingSeekTrackId,
+        savedPositionMs: _pendingSeekMs,
+      );
+      if (restored == null) return;
+
+      await _queueLock.run(() async {
+        if (!mounted || state.queue.isNotEmpty || state.syncMode == SyncMode.passive) return;
+        _suppressDepth++; // loading is not listening
+        try {
+          state = state.copyWith(
+            queue: restored.songs,
+            currentIndex: restored.index,
+            isPlaying: false,
+            shuffleMode: restored.shuffle,
+            repeatMode: LoopMode.values[restored.repeat.clamp(0, LoopMode.values.length - 1)],
+          );
+          _currentPlaylistName = restored.source;
+          await _audioHandler.setQueue(restored.songs, restored.index, unshuffledSongs: restored.unshuffled);
+          await _audioHandler.pause();
+          if (restored.positionMs > 0) await player.seek(Duration(milliseconds: restored.positionMs));
+          _trackedIndexForCompletion = restored.index;
+          _positionAtCompletion = Duration(milliseconds: restored.positionMs);
+        } finally {
+          _suppressDepth--;
         }
-        // The position belongs to the song the player has loaded. While a
-        // switch is under way the state already names the new song but the
-        // player still reports the old one's time: save zero then.
-        final settled = _audioHandler.currentIndex == state.currentIndex;
-        s.put(HiveBoxes.kLastPositionMs, settled ? player.position.inMilliseconds : 0);
-        p.put(HiveBoxes.kShufflePreference, state.shuffleMode);
-        p.put('repeatMode', state.repeatMode.index);
-      } catch (_) {}
-    });
+        // Used up, like a position applied by setQueue.
+        _pendingSeekMs = 0;
+        _pendingSeekTrackId = null;
+        _savedQueueRef = state.queue;
+        _savedIndex = state.currentIndex;
+        _savedShuffle = state.shuffleMode;
+        _savedRepeat = state.repeatMode.index;
+        _savedSource = _currentPlaylistName;
+      });
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ Could not restore the queue: $e');
+    } finally {
+      _restoreSettled = true;
+    }
+  }
+
+  /// Which saved songs the library no longer has. Null when that cannot be
+  /// known (library not mirrored yet): then every song is kept. Downloaded
+  /// and local songs are always kept.
+  Future<bool Function(String)?> _goneFromLibrary(List<String> ids) async {
+    try {
+      // The mirror also holds songs added one by one as they are played, so it
+      // only says what is missing once a full library sync has finished.
+      if (librarySyncedAt() == null) return null;
+      final db = _ref.read(appDatabaseProvider);
+      // A slow database must not hold the player back: after 3 s, keep every song.
+      final mirrored = await (db.select(db.songMetadata)..limit(1)).get().timeout(const Duration(seconds: 3));
+      if (mirrored.isEmpty) return null;
+      final rows = await (db.select(db.songMetadata)..where((t) => t.songId.isIn(ids))).get().timeout(const Duration(seconds: 3));
+      final known = {
+        for (final r in rows) r.songId,
+        ...OfflineService().getDownloadedSongIds(),
+      };
+      return (id) => !known.contains(id) && !isLocalSongId(id);
+    } catch (_) {
+      return null;
+    }
   }
 
   AudioPlayer get player => _audioHandler.player;
