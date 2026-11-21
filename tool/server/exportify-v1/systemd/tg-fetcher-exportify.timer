@@ -1,0 +1,10 @@
+[Unit]
+Description=Exportify Wishlist: the nightly pass, checked every 10 min (exportify-v1)
+
+[Timer]
+OnBootSec=5min
+OnUnitActiveSec=10min
+Unit=tg-fetcher-exportify.service
+
+[Install]
+WantedBy=timers.target

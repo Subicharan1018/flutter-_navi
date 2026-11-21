@@ -85,7 +85,7 @@ Research only, nothing fixed. Server paths are on subiserver (`TG` = `/opt/tg-fe
 | 8 | **Add from history to the queue, and a clear Queue action.** | History rows get Play next / Add to queue. The queue gets a visible "Clear queue" (keeping the current song), with undo. |
 | 9 | **Upload a playlist cover image.** | Pick an image, crop it square, and store it on the server (Navidrome playlist image or our own store). Show it on every platform. |
 | 10 | **Show the audio quality in the player.** | Show lossless vs. lossy and the bitrate in kbps (e.g. "FLAC · 16-bit/44.1 kHz" or "MP3 · 320 kbps"). Say when the server is transcoding the stream. |
-| 11 | **Complete the album overnight.** | When a song is downloaded, find its album, mainly Indian soundtracks ("Original Motion Picture Soundtrack", "Original Score"). Queue the rest of the album to download at night. It needs a nightly window, a cap, skipping tracks already owned, and a way to see and cancel the queue. Ties in with Weekly Exploration (`docs/feature-research-2026-11.md`, Part B). |
+| 11 | **Complete the album overnight.** | When a song is downloaded, find its album, mainly Indian soundtracks ("Original Motion Picture Soundtrack", "Original Score"). Queue the rest of the album to download at night. It needs a nightly window, a cap, skipping tracks already owned, and a way to see and cancel the queue. Ties in with Weekly Exploration (`docs/feature-research-2026-11.md`, Part B). The Exportify wishlist fetch (`tgfetch/exportify.py`, `docs/exportify-import.md`) already has the night window, the per-night cap, the disk floor, one batch at a time and pause / cancel; this should reuse that `tick()`, not build a second scheduler. |
 
 ### Chart playback (investigation)
 
@@ -208,7 +208,7 @@ The two big features:
 
 | # | Feature | Size |
 |---|---------|------|
-| R12 | **Spotify history import** (Part C): match tracks to the library, feed the shuffle server, and put unmatched songs on a Wishlist. Also playlists and Liked Songs, Last.fm/ListenBrainz scrobbles, and YouTube Music Takeout. | M |
+| R12 | **Spotify history import** (Part C): match tracks to the library, feed the shuffle server, and put unmatched songs on a Wishlist. Also playlists and Liked Songs, Last.fm/ListenBrainz scrobbles, and YouTube Music Takeout. **Playlists from an Exportify CSV are built** (`tool/server/exportify-v1/`, Settings → Import, `docs/exportify-import.md`): ISRC + title/artist/length matching, a per-user Wishlist, and a fetch with a disk floor, popularity order and a nightly cap. Still open: streaming history, Liked Songs, Last.fm/ListenBrainz, YouTube Music Takeout, and using the stored audio features. | M |
 | R13 | **Weekly Exploration** (Part B): weekly picks with a preview, Keep or Not for me, Keep downloads with a weekly cap, and untouched picks expire after 2 weeks. | M–L |
 
 Recommended order: R12, then R13, then R1 + R2 + R8. The decisions the user needs to make are at the end of the research doc.

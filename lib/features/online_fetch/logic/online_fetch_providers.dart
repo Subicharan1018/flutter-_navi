@@ -1,5 +1,6 @@
 import 'dart:async';
 
+import 'package:dio/dio.dart' show Dio;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -13,12 +14,16 @@ import '../data/online_fetch_api.dart';
 import '../data/server_capabilities.dart';
 import 'fetch_playlists.dart';
 
-final onlineFetchApiProvider = Provider<OnlineFetchApi>((ref) {
-  return OnlineFetchApi(configureFetchTimeouts(createShuffleDio(() {
+/// The shuffle server's Dio with the fetch routes' patience (see [configureFetchTimeouts]).
+/// Shared by every client of the fetch routes (Search online, Import).
+final fetchDioProvider = Provider<Dio>((ref) {
+  return configureFetchTimeouts(createShuffleDio(() {
     final s = ref.read(settingsProvider);
     return (s.username, s.password);
-  }, logTag: 'OnlineFetch')));
+  }, logTag: 'OnlineFetch'));
 });
+
+final onlineFetchApiProvider = Provider<OnlineFetchApi>((ref) => OnlineFetchApi(ref.watch(fetchDioProvider)));
 
 /// Whether this build contains the online-download features at all. False in
 /// public builds ([kPublicBuild]); tests override it to cover both.
