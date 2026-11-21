@@ -244,7 +244,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _broadcastState() {
-    final playing = player.playing;
+    // just_audio keeps playing == true after the queue ends; reporting that
+    // leaves the pill on "pause" for a finished queue.
+    final playing = player.playing && player.processingState != ProcessingState.completed;
     final state = carState?.call() ??
         (liked: false, shuffle: player.shuffleModeEnabled, repeat: _repeatMode);
     final processingState = const {
@@ -509,6 +511,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> stop() async {
     await player.stop();
     await super.stop();
+  }
+
+  /// App swiped from recents: playing music carries on, but a paused or
+  /// finished session is shut down so no stale pill is left behind (vivo /
+  /// OriginOS kill the idle process and orphan the notification otherwise).
+  @override
+  Future<void> onTaskRemoved() async {
+    if (!player.playing) await stop();
   }
 
   @override

@@ -21,6 +21,7 @@ import 'core/theme.dart';
 import 'utils/platform_utils.dart';
 import 'services/app_notifier.dart';
 import 'services/desktop_tray.dart';
+import 'services/media_key_gate.dart';
 import 'services/windows_smtc.dart';
 import 'services/windows_startup.dart';
 import 'services/global_hotkey.dart';
@@ -171,10 +172,11 @@ Future<void> main(List<String> args) async {
       config: const AudioServiceConfig(
         androidNotificationChannelId: 'com.navivibe.audio',
         androidNotificationChannelName: 'NaviVibe',
-        // ongoing=true: notification cannot be swiped away, preventing Android
-        // from instantly killing the foreground service via notification dismiss.
-        // audio_service requires: if ongoing=true then stopForegroundOnPause=true.
-        androidNotificationOngoing: true,
+        // ongoing=false: while paused the notification can be swiped away, which
+        // stops the service and clears the media session. With ongoing=true a
+        // paused notification was undismissable, and when vivo / OriginOS
+        // killed the idle service it stayed behind as a dead, stuck pill.
+        androidNotificationOngoing: false,
         androidStopForegroundOnPause: true,
         // Lets the car lay out folders as grids / lists (see CarStyle).
         androidBrowsableRootExtras: CarStyle.rootExtras,
@@ -272,7 +274,10 @@ Future<void> _startSmtc(ProviderContainer container, NaviAudioHandler handler) a
   final sink = await SmtcWindowsSink.create();
   if (sink == null) return;
   PlayerNotifier player() => container.read(playerProvider.notifier);
+  // SMTC now owns the hardware media keys; the in-app key bindings step aside.
+  MediaKeyGate.instance.smtcActive = true;
   SmtcController(
+    gate: MediaKeyGate.instance,
     sink: sink,
     mediaItem: handler.mediaItem,
     playbackState: handler.playbackState,

@@ -3,6 +3,8 @@ import 'dart:async';
 import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 
+import 'media_key_gate.dart';
+
 // The plugin-backed sink only exists where dart:io does; smtc_windows does not
 // compile for the browser.
 export 'windows_smtc_sink_stub.dart' if (dart.library.io) 'windows_smtc_sink_io.dart';
@@ -94,6 +96,7 @@ class SmtcController {
     required this.transport,
     required Stream<MediaItem?> mediaItem,
     required Stream<PlaybackState> playbackState,
+    this.gate,
   }) {
     _subs
       ..add(mediaItem.listen(_onItem))
@@ -103,6 +106,10 @@ class SmtcController {
 
   final SmtcSink sink;
   final SmtcTransport transport;
+
+  /// When set, a button press runs only if the same kind of press was not
+  /// handled a moment ago (see [MediaKeyGate]).
+  final MediaKeyGate? gate;
   final List<StreamSubscription<Object?>> _subs = [];
 
   SmtcTrack? _track;
@@ -135,6 +142,7 @@ class SmtcController {
     }
     if (changed) unawaited(_safe(() => sink.setTrack(track)));
     if (changed || durationChanged) _sendTimeline();
+    if (changed) _applyStatus();
   }
 
   void _onState(PlaybackState s) {
@@ -143,13 +151,26 @@ class SmtcController {
     final seeked = (s.updatePosition - expected).abs() > seekTolerance;
     _position = s.updatePosition;
     _positionAt = DateTime.now();
-    if (status != _status) {
-      _status = status;
-      unawaited(_safe(() => sink.setStatus(status)));
-      _sendTimeline();
-    } else if (seeked) {
-      _sendTimeline();
+    _raw = status;
+    if (!_applyStatus()) {
+      if (seeked) _sendTimeline();
     }
+  }
+
+  SmtcStatus? _raw;
+
+  /// Windows only routes media keys to a session that is playing or paused: a
+  /// "stopped" session with a song still loaded would ignore the touchpad tap
+  /// and the headset button, so it is shown as paused (Spotify does the same).
+  bool _applyStatus() {
+    final raw = _raw;
+    if (raw == null) return false;
+    final status = (raw == SmtcStatus.stopped && _track != null) ? SmtcStatus.paused : raw;
+    if (status == _status) return false;
+    _status = status;
+    unawaited(_safe(() => sink.setStatus(status)));
+    _sendTimeline();
+    return true;
   }
 
   Duration _expectedPosition() {
@@ -164,17 +185,18 @@ class SmtcController {
   }
 
   void _onButton(SmtcButton b) {
-    switch (b) {
-      case SmtcButton.play:
-        transport.play();
-      case SmtcButton.pause:
-        transport.pause();
-      case SmtcButton.next:
-        transport.next();
-      case SmtcButton.previous:
-        transport.previous();
-      case SmtcButton.stop:
-        transport.stop();
+    final (action, run) = switch (b) {
+      SmtcButton.play => (MediaKeyAction.play, transport.play),
+      SmtcButton.pause => (MediaKeyAction.pause, transport.pause),
+      SmtcButton.next => (MediaKeyAction.next, transport.next),
+      SmtcButton.previous => (MediaKeyAction.previous, transport.previous),
+      SmtcButton.stop => (MediaKeyAction.stop, transport.stop),
+    };
+    final g = gate;
+    if (g == null) {
+      run();
+    } else {
+      g.handle(action, run);
     }
   }
 

@@ -7,6 +7,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../providers/player_provider.dart';
+import '../services/media_key_gate.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/ui/voice_search_button.dart';
 
@@ -140,6 +141,7 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
   ShellCommands? commands, {
   required bool desktop,
 }) {
+  final gate = MediaKeyGate.instance;
   PlayerNotifier notifier() => ref.read(playerProvider.notifier);
   AudioPlayer player() => notifier().player;
 
@@ -157,11 +159,18 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
 
 
   final bindings = <ShortcutActivator, VoidCallback>{
-    const SingleActivator(LogicalKeyboardKey.mediaPlayPause): playPause,
-    const SingleActivator(LogicalKeyboardKey.mediaPlay): () => player().play(),
-    const SingleActivator(LogicalKeyboardKey.mediaPause): () => player().pause(),
-    const SingleActivator(LogicalKeyboardKey.mediaTrackNext): () => notifier().playNext(),
-    const SingleActivator(LogicalKeyboardKey.mediaTrackPrevious): () => notifier().playPrev(),
+    // Hardware media keys also reach Windows' SMTC session; the gate lets only
+    // one of the two paths act (see MediaKeyGate).
+    const SingleActivator(LogicalKeyboardKey.mediaPlayPause): () =>
+        gate.handleInApp(MediaKeyAction.playPause, playPause),
+    const SingleActivator(LogicalKeyboardKey.mediaPlay): () =>
+        gate.handleInApp(MediaKeyAction.play, () => player().play()),
+    const SingleActivator(LogicalKeyboardKey.mediaPause): () =>
+        gate.handleInApp(MediaKeyAction.pause, () => player().pause()),
+    const SingleActivator(LogicalKeyboardKey.mediaTrackNext): () =>
+        gate.handleInApp(MediaKeyAction.next, () => notifier().playNext()),
+    const SingleActivator(LogicalKeyboardKey.mediaTrackPrevious): () =>
+        gate.handleInApp(MediaKeyAction.previous, () => notifier().playPrev()),
     const SingleActivator(LogicalKeyboardKey.mediaFastForward): () => seekBy(const Duration(seconds: 10)),
     const SingleActivator(LogicalKeyboardKey.mediaRewind): () => seekBy(const Duration(seconds: -10)),
   };

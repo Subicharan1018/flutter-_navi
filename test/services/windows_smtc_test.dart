@@ -73,13 +73,16 @@ void main() {
     expect(sink.calls.length, 2);
   });
 
-  test('play, pause and idle map to SMTC status', () async {
+  test('play and pause map to SMTC status; idle with a song loaded stays paused, with none it stops', () async {
     items.add(const MediaItem(id: '1', title: 'S', duration: Duration(seconds: 10)));
     states.add(playing(0));
     states.add(playing(1, on: false));
     states.add(PlaybackState());
     await pump();
-    expect(sink.calls.where((x) => x.startsWith('status')), ['status:playing', 'status:paused', 'status:stopped']);
+    expect(sink.calls.where((x) => x.startsWith('status')), ['status:playing', 'status:paused']);
+    items.add(null);
+    await pump();
+    expect(sink.calls.where((x) => x.startsWith('status')).last, 'status:stopped');
   });
 
   test('ticking position is not re-sent, a seek is', () async {
