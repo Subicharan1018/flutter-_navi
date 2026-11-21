@@ -39,8 +39,9 @@ So the references are not a gap list. The real gaps are below, ranked.
 4. **No credit/source on lyrics (fixed).** The reference's `lrc.red · SYNC` chip tells you where text
    came from and how it is timed. NaviVibe showed no source at all.
 5. **Left alone, on purpose.**
-   - Full-bleed art that melts into the page: against the design system's square Apple-style cover and
-     the "no new surfaces" rule, and a redesign of a 1,200-line screen I couldn't verify on a device.
+   - Full-bleed art that melts into the page: first left alone (against the square Apple-style cover and
+     the "no new surfaces" rule); the owner then chose it from the mock-ups (`docs/design/now-playing-2026-11/`,
+     option B) and it is built for the phone layout; see `DESIGN.md`, "Full-bleed cover".
    - A round cover with a progress *ring* in place of the mini player when scrolling: it would break the
      mascot strip that walks along the hairline, and needs device testing for the dock's animation.
    - Close/translate round buttons over the lyrics: NaviVibe's Translate / Pronounce pills are already
