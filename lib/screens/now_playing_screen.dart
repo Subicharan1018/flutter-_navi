@@ -1263,7 +1263,8 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
           ),
           Expanded(
             child: Padding(
-              padding: const EdgeInsets.fromLTRB(64, 0, 40, 28),
+              // With nothing open beside it, the player stands alone in the middle.
+              padding: EdgeInsets.fromLTRB(_pane == _Pane.none ? 40 : 64, 0, 40, 28),
               child: Row(
                 children: [
                   Expanded(
@@ -1315,27 +1316,29 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                       ),
                     ),
                   ),
-                  const SizedBox(width: 56),
-                  Expanded(
-                    flex: 6,
-                    child: AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 280),
-                      child: switch (_pane) {
-                        _Pane.queue => const QueuePane(
-                            key: ValueKey('wq'),
-                            style: NowPlayingStyle.onArtwork,
-                            showCurrent: true,
-                          ),
-                        _Pane.lyrics => LyricsPane(
-                            key: const ValueKey('wl'),
-                            style: NowPlayingStyle.onArtwork,
-                            fontSize: PlatformUtils.isTv ? 46 : 38,
-                            padding: const EdgeInsets.fromLTRB(8, 120, 8, 0),
-                          ),
-                        _Pane.none => const SizedBox.shrink(),
-                      },
+                  if (_pane != _Pane.none) ...[
+                    const SizedBox(width: 56),
+                    Expanded(
+                      flex: 6,
+                      child: AnimatedSwitcher(
+                        duration: const Duration(milliseconds: 280),
+                        child: switch (_pane) {
+                          _Pane.queue => const QueuePane(
+                              key: ValueKey('wq'),
+                              style: NowPlayingStyle.onArtwork,
+                              showCurrent: true,
+                            ),
+                          _Pane.lyrics => LyricsPane(
+                              key: const ValueKey('wl'),
+                              style: NowPlayingStyle.onArtwork,
+                              fontSize: PlatformUtils.isTv ? 46 : 38,
+                              padding: const EdgeInsets.fromLTRB(8, 120, 8, 0),
+                            ),
+                          _Pane.none => const SizedBox.shrink(),
+                        },
+                      ),
                     ),
-                  ),
+                  ],
                 ],
               ),
             ),

@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/keyboard_shortcuts.dart';
 import '../core/layout/window_size.dart';
 import '../core/theme.dart';
+import '../core/touchpad_swipe.dart';
 import '../features/online_fetch/logic/online_fetch_providers.dart';
 import '../features/online_fetch/ui/fetch_activity.dart';
 import '../providers/library_provider.dart';
@@ -173,11 +174,15 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
               onSelect: _select,
             ),
             ShellKind.sidebar => _scoped(
-              _DesktopShell(
-                tab: _tab,
-                visited: _visited,
-                onSelect: _select,
-                offline: offline,
+              // Windows precision touchpad: two fingers right = back, left = forward.
+              TouchpadSwipeListener(
+                onSwipe: (s) => s == TouchpadSwipe.back ? _back() : _commands.goForward?.call(),
+                child: _DesktopShell(
+                  tab: _tab,
+                  visited: _visited,
+                  onSelect: _select,
+                  offline: offline,
+                ),
               ),
             ),
             ShellKind.phone => _scoped(

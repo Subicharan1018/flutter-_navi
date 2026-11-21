@@ -356,6 +356,26 @@ void main() {
   testWidgets('now playing — small cover keeps the square', (t) => shot(t, 'np_small_art', only: _smallSong));
   testWidgets('now playing — bright cover, queue open', (t) => shot(t, 'np_bright_queue', only: _brightSong, tap: 'Queue'));
   testWidgets('now playing — wide', (t) => shot(t, 'np_wide', songIndex: 0, size: const Size(1440, 900)));
+  // Lyrics are open on a wide screen; closing them leaves nothing beside the player.
+  testWidgets('now playing — wide, nothing open', (t) => shot(t, 'np_wide_closed', songIndex: 0, size: const Size(1440, 900), tap: 'Lyrics'));
+
+  testWidgets('wide: with nothing open the player is centred, not pushed left', (tester) async {
+    await tester.runAsync(_prepareCovers);
+    await tester.runAsync(ArtworkField.precache);
+    final art = (await tester.runAsync(() => _artworkFor(_songs[0])))!;
+    tester.view.physicalSize = const Size(1440, 900) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    await tester.pumpWidget(_app(current: _songs[0], art: art, home: const NowPlayingScreen()));
+    await _settle(tester);
+    final cover = find.byWidgetPredicate((w) => w.runtimeType.toString() == '_Cover');
+    expect(tester.getCenter(cover.first).dx, lessThan(720), reason: 'with lyrics open the player sits on the left');
+    await tester.tap(find.bySemanticsLabel('Lyrics').first);
+    await _settle(tester);
+    expect(tester.getCenter(cover.first).dx, closeTo(720, 24), reason: 'closed, it moves to the middle');
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 3));
+  });
   // Phone widths and text sizes, during Flow (the busiest header: the Flow
   // chips share a slot above the title), normal and queue mode: nothing may overflow.
   for (final size in const [Size(360, 780), Size(393, 852), Size(412, 915)]) {
