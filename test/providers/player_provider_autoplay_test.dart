@@ -292,7 +292,13 @@ void main() {
 
   tearDownAll(() async {
     await Hive.close();
-    if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    // Windows can keep a handle on a file it just closed for a moment; a leftover
+    // temp folder must not fail the run.
+    try {
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    } on FileSystemException {
+      // Left behind in the system temp folder; harmless.
+    }
   });
 
   setUp(() {
