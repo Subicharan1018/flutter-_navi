@@ -78,6 +78,10 @@ class FullBleedCover extends StatelessWidget {
   /// pane header, taking the fade and scrim with it.
   final double fade;
 
+  /// Height of the text block that sits on the fade (see [kTitleZone]); a
+  /// taller block (the mini player's transport) starts the fade higher.
+  final double zone;
+
   const FullBleedCover({
     super.key,
     required this.request,
@@ -86,9 +90,10 @@ class FullBleedCover extends StatelessWidget {
     required this.tint,
     required this.scrimHeight,
     this.fade = 1,
+    this.zone = kTitleZone,
   });
 
-  static const List<double> _ds = [kTitleZone + 176, kTitleZone + 104, kTitleZone + 34, kTitleZone, kTitleZone / 2, 0];
+  List<double> get _ds => [zone + 176, zone + 104, zone + 34, zone, zone / 2, 0];
 
   @override
   Widget build(BuildContext context) {
@@ -117,7 +122,7 @@ class FullBleedCover extends StatelessWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [for (final d in _ds) (color ?? tint).withValues(alpha: fadeAlphaAt(d) * fade)],
+                    colors: [for (final d in _ds) (color ?? tint).withValues(alpha: fadeAlphaAt(d, zone: zone) * fade)],
                     stops: stops,
                   ),
                 ),
