@@ -93,6 +93,14 @@ class ChartPlayer {
   final Ref _ref;
   ChartPlayer(this._ref);
 
+  /// The library song behind a chart row, or null when it isn't playable or
+  /// can't be loaded.
+  Future<Song?> songFor(ChartEntry entry) async {
+    final id = entry.songId;
+    if (!entry.playable || id == null) return null;
+    return (await loadChartSongs(_ref, [id]))[id];
+  }
+
   Future<ChartPlayResult> play(TrendingChart chart, {ChartEntry? from, bool shuffle = false}) async {
     final ids = [for (final e in chart.entries) if (e.playable) e.songId!];
     if (ids.isEmpty) return ChartPlayResult.noSongs;

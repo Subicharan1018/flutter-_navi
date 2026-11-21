@@ -90,6 +90,7 @@ class _ChartColumns extends ConsumerWidget {
                   entry: rows[i],
                   showSeparator: i < rows.length - 1,
                   onTap: () => playFromChart(context, ref, chart, rows[i]),
+                  onLongPress: () => showChartEntryMenu(context, ref, rows[i]),
                 ),
             ],
           );

@@ -321,6 +321,29 @@ void main() {
       expect(find.text('Song 3: Only available in lossy quality'), findsOneWidget);
     });
 
+    testWidgets('long press on a song in the library offers Play Next and Play Last (Home and page)', (tester) async {
+      for (final screen in <Widget>[const SingleChildScrollView(child: TrendingSection()), const TrendingScreen()]) {
+        await tester.pumpWidget(host(screen, () async => TrendingCharts.fromJson(_payload())));
+        await tester.pumpAndSettle();
+        final playable = find.byWidgetPredicate((w) => w is ChartRow && w.entry.playable).first;
+        await tester.longPress(playable);
+        await tester.pumpAndSettle();
+        expect(find.text('Play Next'), findsOneWidget);
+        expect(find.text('Play Last'), findsOneWidget);
+        await tester.tapAt(const Offset(5, 5));
+        await tester.pumpAndSettle();
+      }
+    });
+
+    testWidgets('long press on a song that is not in the library says why', (tester) async {
+      await tester.pumpWidget(section(() async => TrendingCharts.fromJson(_payload())));
+      await tester.pumpAndSettle();
+      await tester.longPress(find.text('Song 3'));
+      await tester.pump();
+      expect(find.text('Song 3: Only available in lossy quality'), findsOneWidget);
+      expect(find.text('Play Next'), findsNothing);
+    });
+
     testWidgets('page: whole chart, library count and Play', (tester) async {
       await tester.pumpWidget(host(const TrendingScreen(), () async => TrendingCharts.fromJson(_payload())));
       await tester.pumpAndSettle();

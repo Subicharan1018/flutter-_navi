@@ -44,6 +44,7 @@ class TrendingScreen extends ConsumerWidget {
               entry: chart.entries[i],
               showSeparator: i < chart.entries.length - 1,
               onPlay: () => playFromChart(context, ref, chart, chart.entries[i]),
+              onLongPress: () => showChartEntryMenu(context, ref, chart.entries[i]),
             ),
           ),
         ] else

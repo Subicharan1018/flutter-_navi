@@ -12,9 +12,16 @@ import 'chart_row.dart';
 class ExpandableChartRow extends StatefulWidget {
   final ChartEntry entry;
   final VoidCallback onPlay;
+  final VoidCallback? onLongPress;
   final bool showSeparator;
 
-  const ExpandableChartRow({super.key, required this.entry, required this.onPlay, this.showSeparator = true});
+  const ExpandableChartRow({
+    super.key,
+    required this.entry,
+    required this.onPlay,
+    this.onLongPress,
+    this.showSeparator = true,
+  });
 
   @override
   State<ExpandableChartRow> createState() => _ExpandableChartRowState();
@@ -34,6 +41,7 @@ class _ExpandableChartRowState extends State<ExpandableChartRow> {
           entry: e,
           detailed: true,
           expanded: _open,
+          onLongPress: widget.onLongPress,
           showSeparator: widget.showSeparator,
           onTap: e.hasDetails
               ? () {

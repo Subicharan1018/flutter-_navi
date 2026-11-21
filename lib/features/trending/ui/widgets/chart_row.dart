@@ -26,6 +26,9 @@ class ChartRow extends ConsumerWidget {
 
   final ChartEntry entry;
   final VoidCallback onTap;
+
+  /// Long press (right-click on desktop): the queue menu.
+  final VoidCallback? onLongPress;
   final bool showSeparator;
   final bool detailed;
   final bool expanded;
@@ -34,6 +37,7 @@ class ChartRow extends ConsumerWidget {
     super.key,
     required this.entry,
     required this.onTap,
+    this.onLongPress,
     this.showSeparator = true,
     this.detailed = false,
     this.expanded = false,
@@ -84,6 +88,7 @@ class ChartRow extends ConsumerWidget {
     );
     return CupertinoClickable(
       onTap: onTap,
+      onLongPress: onLongPress,
       scaleFactor: 0.99,
       semanticLabel: [
         '${entry.rank}. ${entry.title} by ${entry.artist}',
