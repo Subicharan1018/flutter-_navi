@@ -37,9 +37,15 @@ final exportifyCsvPickerProvider = Provider<CsvPicker>((ref) => () async {
     });
 
 /// The user's imports, newest first.
-final exportifyImportsProvider = FutureProvider.autoDispose<List<ExportifySummary>>((ref) {
-  return ref.watch(exportifyApiProvider).imports();
+final exportifyImportsProvider = FutureProvider.autoDispose<List<ExportifySummary>>((ref) async {
+  final all = await ref.watch(exportifyApiProvider).imports();
+  // Weekly Exploration keeps its kept songs in one import of its own so the same night fetch downloads
+  // them; it has a page of its own, so it is not listed as a playlist import.
+  return [for (final s in all) if (s.name != kWeeklyExplorationImportName) s];
 }, retry: (_, _) => null);
+
+/// The name of the import the server keeps Weekly Exploration's kept songs in (tgfetch/weekly_exploration.py).
+const String kWeeklyExplorationImportName = 'Weekly Exploration';
 
 // ─────────────────────────────────────────────────────────────────────────────
 // Choosing and uploading the file

@@ -125,6 +125,9 @@ enum NaviGlyph {
   personCircle,
   gauge,
   moon,
+
+  /// A row of ticks with one standing taller: Weekly Exploration, a week of picks and the one in hand.
+  explore,
 }
 
 class NaviIcon extends StatelessWidget {
