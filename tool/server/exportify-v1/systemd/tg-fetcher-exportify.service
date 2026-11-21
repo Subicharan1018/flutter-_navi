@@ -1,0 +1,25 @@
+[Unit]
+Description=tg-fetcher: queue the next batch of an Exportify Wishlist, if the plan, the night, the cap and the disk allow (exportify-v1)
+After=network-online.target
+
+[Service]
+Type=oneshot
+User=subi
+WorkingDirectory=/opt/tg-fetcher
+Environment=PYTHONUNBUFFERED=1
+EnvironmentFile=/opt/tg-fetcher/.env
+ExecStart=/opt/tg-fetcher/venv/bin/python -m tgfetch.exportify tick
+# It only writes rows in fetch.db (the running service does the downloading) and exits in a second.
+TimeoutStartSec=5min
+Nice=10
+IOSchedulingClass=idle
+MemoryHigh=256M
+MemoryMax=384M
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+StandardOutput=journal
+StandardError=journal

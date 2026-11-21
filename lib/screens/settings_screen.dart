@@ -11,6 +11,7 @@ import '../core/motion.dart' show MotionLevel;
 import '../core/theme.dart';
 import '../core/focus/navi_focus.dart';
 import '../utils/platform_utils.dart';
+import '../features/exportify_import/ui/exportify_import_section.dart';
 import '../features/flow/ui/flow_settings.dart';
 import '../features/local_library/ui/download_location_section.dart';
 import '../features/play_cache/ui/play_cache_section.dart';
@@ -592,6 +593,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             ),
           ]),
           const SettingsCategory('Your data'),
+          const ExportifyImportSection(),
           GroupedSection(
             header: 'Your Listening Data',
             children: [

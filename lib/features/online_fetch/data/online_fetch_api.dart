@@ -157,25 +157,30 @@ class OnlineFetchApi {
         return FetchJob.fromJson(r.data!);
       });
 
-  Future<T> _wrap<T>(Future<T> Function() call) async {
-    try {
-      return await call();
-    } on DioException catch (e) {
-      final code = e.response?.statusCode;
-      final body = e.response?.data;
-      final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
-      final busy = code == 502 || code == 504 || (body is Map && body['busy'] == true);
-      throw OnlineFetchException(
-        switch (code) {
-          null => 'Can’t reach the server. Check your connection.',
-          401 => 'Sign in again to search online.',
-          429 => serverMessage ?? 'Too many requests. Try again in a minute.',
-          _ when busy => 'The server is busy — still working on it.',
-          _ => serverMessage ?? 'Online search isn’t available right now.',
-        },
-        statusCode: code,
-        busy: busy,
-      );
-    }
+  Future<T> _wrap<T>(Future<T> Function() call) => guardFetchCall(call);
+}
+
+/// Runs a call to the shuffle server's fetch routes and turns a failed one into
+/// an [OnlineFetchException] whose message is safe to show (the server's own
+/// sentence when it sent one). Shared by every client of those routes.
+Future<T> guardFetchCall<T>(Future<T> Function() call) async {
+  try {
+    return await call();
+  } on DioException catch (e) {
+    final code = e.response?.statusCode;
+    final body = e.response?.data;
+    final serverMessage = body is Map && body['error'] is String ? body['error'] as String : null;
+    final busy = code == 502 || code == 504 || (body is Map && body['busy'] == true);
+    throw OnlineFetchException(
+      switch (code) {
+        null => 'Can’t reach the server. Check your connection.',
+        401 => 'Sign in again to search online.',
+        429 => serverMessage ?? 'Too many requests. Try again in a minute.',
+        _ when busy => 'The server is busy — still working on it.',
+        _ => serverMessage ?? 'Online search isn’t available right now.',
+      },
+      statusCode: code,
+      busy: busy,
+    );
   }
 }
