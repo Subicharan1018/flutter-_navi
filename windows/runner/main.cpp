@@ -37,9 +37,12 @@ int APIENTRY wWinMain(_In_ HINSTANCE instance, _In_opt_ HINSTANCE prev,
   }
 
 #ifdef NDEBUG
-  // Debug runs (flutter run) may sit beside an installed copy.
+  // Debug runs (flutter run) may sit beside an installed copy, and a profile
+  // run can too with --allow-multiple.
+  const bool allow_multiple =
+      command_line != nullptr && wcsstr(command_line, L"--allow-multiple") != nullptr;
   HANDLE single_instance =
-      ::CreateMutexW(nullptr, TRUE, L"Local\\NaviVibeSingleInstance");
+      allow_multiple ? nullptr : ::CreateMutexW(nullptr, TRUE, L"Local\\NaviVibeSingleInstance");
   if (single_instance != nullptr && ::GetLastError() == ERROR_ALREADY_EXISTS) {
     ActivateRunningInstance();
     ::CloseHandle(single_instance);

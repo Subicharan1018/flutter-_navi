@@ -6,9 +6,12 @@ import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart' as audio_service;
 import 'package:rxdart/rxdart.dart';
 
+import 'package:drift/native.dart';
+import 'package:navivibe/database/app_database.dart';
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/session_sync_provider.dart';
+import 'package:navivibe/providers/settings_provider.dart' show appDatabaseProvider;
 import 'package:navivibe/services/session_sync_service.dart';
 import 'package:navivibe/utils/user_activity.dart';
 import 'package:navivibe/services/navi_audio_handler.dart';
@@ -387,6 +390,8 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         sessionSyncServiceProvider.overrideWithValue(fakeSyncService),
+        // The library copy the player looks songs up in before the server.
+        appDatabaseProvider.overrideWithValue(AppDatabase.forTesting(NativeDatabase.memory())),
       ],
     );
     addTearDown(container.dispose);
@@ -987,11 +992,30 @@ void main() {
       fakeSyncService.emitPrepare(const PrepareTransfer(transferId: 'x1', epoch: 2, trackId: 't2', positionMs: 61000, queue: ['t1', 't2'], queueIndex: 1));
       await Future.delayed(const Duration(milliseconds: 50));
       expect(fakeSyncService.readySent, ['x1']);
-      expect(notifier.state.queue.map((s) => s.id), ['t1', 't2']);
-      expect(notifier.state.currentIndex, 1);
+      // The song that is playing and what follows; songs before it are history.
+      expect(notifier.state.queue.map((s) => s.id), ['t2']);
+      expect(notifier.state.currentIndex, 0);
       expect(audioHandler.player.playing, isFalse);          // not yet the host: silent
       expect(notifier.state.syncMode, SyncMode.passive);
       expect(fakeSyncService.transferredDevices, isEmpty);
+      notifier.dispose();
+    });
+
+    test('a handover says ready after the first few songs, then adds the rest of the queue', () async {
+      final ids = [for (var i = 0; i < 25; i++) 'q$i'];
+      final asked = <int>[];
+      when(() => mockSubsonicService.getSongs(any())).thenAnswer((inv) async {
+        final want = inv.positionalArguments.first as List<String>;
+        asked.add(want.length);
+        return [for (final id in want) Song(id: id, title: id, artist: 'A', album: 'B', coverArt: '', duration: 200, track: 1, year: 2020)];
+      });
+      final notifier = await make(active: 'device-other');
+      fakeSyncService.emitPrepare(PrepareTransfer(transferId: 'x3', epoch: 2, trackId: 'q5', positionMs: 1000, queue: ids, queueIndex: 5));
+      await Future.delayed(const Duration(milliseconds: 20));
+      expect(fakeSyncService.readySent, ['x3']);
+      expect(asked.first, lessThanOrEqualTo(10), reason: 'only the first window is looked up before ready');
+      await Future.delayed(const Duration(milliseconds: 150));
+      expect(asked.every((n) => n <= 40), isTrue, reason: 'the rest comes in small batches, not all at once');
       notifier.dispose();
     });
 

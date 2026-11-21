@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'dart:io' show Platform, ProcessInfo;
 import 'dart:math';
+import '../player/handover_window.dart';
 import '../player/resume_position.dart';
 import '../player/queue_snapshot.dart';
 import '../offline_service.dart';
@@ -341,25 +342,67 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> _onPrepareTransfer(PrepareTransfer p) async {
     if (state.syncMode == SyncMode.activeHere) return;
     try {
-      final ids = p.queue.isNotEmpty ? p.queue : [if (p.trackId != null) p.trackId!];
-      if (ids.isEmpty) return;
-      final songs = await _subsonicService.getSongs(ids);
+      // The server waits only a few seconds for "ready". Load just the song that is
+      // playing and the next few (from this device's library copy where it can,
+      // then the server), say ready, and add the rest of the queue afterwards.
+      final w = handoverWindow(queue: p.queue, trackId: p.trackId, queueIndex: p.queueIndex);
+      if (w.first.isEmpty) return;
+      final songs = await _resolveForHandover(w.first);
       if (songs.isEmpty) return;
-      var at = p.trackId == null ? p.queueIndex : songs.indexWhere((s) => s.id == p.trackId);
-      if (at < 0 || at >= songs.length) at = 0;
       // Loading is not listening: the media-item events it causes must not be counted as plays.
       _suppressDepth++;
       try {
-        await _audioHandler.setQueue(songs, at, unshuffledSongs: songs);
+        await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
         await _audioHandler.pause();
         await _audioHandler.seek(Duration(milliseconds: p.positionMs));
-        state = state.copyWith(queue: songs, currentIndex: at);
+        state = state.copyWith(queue: songs, currentIndex: 0);
       } finally {
         _suppressDepth--;
       }
       _ref.read(sessionSyncServiceProvider).sendReady(p.transferId);
+      if (w.rest.isNotEmpty) unawaited(_fillUpcomingAfterHandover(w.rest));
     } catch (e) {
       debugPrint('[PlayerNotifier] ⚠️ Could not prepare for a handover: $e');
+    }
+  }
+
+  /// [ids] as songs, in that order: this device's library copy first (no
+  /// network), a few server lookups at a time for the rest.
+  Future<List<Song>> _resolveForHandover(List<String> ids) async {
+    final byId = {for (final s in state.queue) s.id: s};
+    final missing = [for (final id in ids) if (!byId.containsKey(id)) id];
+    if (missing.isNotEmpty) {
+      try {
+        final db = _ref.read(appDatabaseProvider);
+        final rows = await (db.select(db.songMetadata)..where((t) => t.songId.isIn(missing))).get();
+        for (final r in rows) {
+          byId[r.songId] = songFromMetadata(r);
+        }
+      } catch (_) {
+        // No library copy on this device: the server answers below.
+      }
+      final stillMissing = [for (final id in missing) if (!byId.containsKey(id)) id];
+      if (stillMissing.isNotEmpty) {
+        for (final s in await _subsonicService.getSongs(stillMissing)) {
+          byId[s.id] = s;
+        }
+      }
+    }
+    return [for (final id in ids) ?byId[id]];
+  }
+
+  /// After a handover: the upcoming songs that were left out of the first
+  /// window, added in small batches. Stops if the queue was replaced meanwhile.
+  Future<void> _fillUpcomingAfterHandover(List<String> ids) async {
+    final epoch = _queueEpoch;
+    try {
+      for (var i = 0; i < ids.length; i += 40) {
+        final songs = await _resolveForHandover(ids.sublist(i, i + 40 > ids.length ? ids.length : i + 40));
+        if (epoch != _queueEpoch || !mounted) return;
+        if (songs.isNotEmpty) await addAllToQueue(songs);
+      }
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ Could not add the rest of the queue after a handover: $e');
     }
   }
 
@@ -813,8 +856,34 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _positionTickTimer = null;
   }
 
+  /// Play pressed here while another device was the host and this device holds
+  /// no queue (the handover had not finished): load the song the other device
+  /// is on, where it is, so Play has something to play.
+  Future<void> _loadRemoteSongIfEmpty() async {
+    final id = state.remoteTrackId;
+    if (state.queue.isNotEmpty || id == null) return;
+    try {
+      final songs = await _resolveForHandover([id]);
+      if (songs.isEmpty) return;
+      final elapsed = state.remoteIsPlaying && state.remoteUpdatedAt != null
+          ? DateTime.now().difference(state.remoteUpdatedAt!).inMilliseconds
+          : 0;
+      _suppressDepth++;
+      try {
+        await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
+        await _audioHandler.seek(Duration(milliseconds: state.remotePositionMs + elapsed));
+        state = state.copyWith(queue: songs, currentIndex: 0);
+      } finally {
+        _suppressDepth--;
+      }
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ Could not load the other device\'s song here: $e');
+    }
+  }
+
   Future<void> play() async {
     if (!await _ensureActiveDevice()) return;
+    await _loadRemoteSongIfEmpty();
     await _audioHandler.play();
     state = state.copyWith(isPlaying: true, syncMode: SyncMode.activeHere);
     _pushUpdate(

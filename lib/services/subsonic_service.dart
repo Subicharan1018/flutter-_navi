@@ -20,6 +20,7 @@ import '../features/local_library/logic/local_index.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../features/share/share_api.dart';
 import '../offline_service.dart';
+import '../utils/bounded_map.dart';
 import 'playlist_cache_service.dart';
 
 class SubsonicService {
@@ -532,14 +533,15 @@ class SubsonicService {
 
   Future<List<Song>> getSongs(List<String> ids) async {
     if (ids.isEmpty) return [];
-    // Fetch all concurrently. Subsonic doesn't have a batch getSong.
-    final results = await Future.wait(
-      ids.map(
-        (id) => getSong(id).then((s) => s as Song?).catchError((e) {
-          debugPrint('Failed to fetch song $id: $e');
-          return null;
-        }),
-      ),
+    // Subsonic has no batch getSong. A few at a time: a whole queue at once is
+    // hundreds of simultaneous requests (slow, and a lot of a phone's data).
+    final results = await mapBounded<String, Song?>(
+      ids,
+      6,
+      (id) => getSong(id).then((s) => s as Song?).catchError((e) {
+        debugPrint('Failed to fetch song $id: $e');
+        return null;
+      }),
     );
     return results.whereType<Song>().toList();
   }
