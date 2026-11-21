@@ -18,6 +18,7 @@ import '../logic/online_fetch_providers.dart';
 import 'fetch_queue_sheet.dart';
 import 'online_search_sheet.dart';
 import 'send_playlist_sheet.dart';
+import 'widgets/fetch_type_tabs.dart';
 
 /// "Search online" on Windows: a page in the window, not a phone sheet. A search
 /// field and the kind of result in one toolbar, the results as a table below
@@ -135,12 +136,8 @@ class _OnlineSearchPageState extends ConsumerState<OnlineSearchPage> {
                             ),
                           ),
                           SizedBox(
-                            width: 420,
-                            child: NaviSegmented<FetchSearchType>(
-                              segments: {for (final ty in FetchSearchType.values) ty: ty.title},
-                              value: _type,
-                              onChanged: _setType,
-                            ),
+                            width: 520,
+                            child: FetchTypeTabs(value: _type, onChanged: _setType),
                           ),
                         ],
                       )
