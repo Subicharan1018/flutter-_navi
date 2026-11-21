@@ -23,7 +23,9 @@ import '../stats/widgets/hours_chart.dart';
 import '../stats/widgets/stat_card.dart';
 import 'month_sheet.dart';
 import 'replay_rows.dart';
+import 'year_record.dart';
 import 'year_shape.dart';
+import 'year_story.dart';
 
 /// Replay, the way Apple Music does it: your year as a playlist. The hero is
 /// a mosaic of your top songs' covers, Play plays them, and below sit the
@@ -127,13 +129,23 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
           : PlayShuffleButtons(
               onPlay: tracks.isEmpty ? null : () => _play(r),
               onShuffle: tracks.isEmpty ? null : () => _play(r, shuffle: true),
-              trailing: r.availableYears.length > 1
-                  ? CircleIconButton(
+              trailing: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (r.totalPlays > 0)
+                    CircleIconButton(
+                      icon: NaviGlyph.playCircle,
+                      label: 'Play Replay story',
+                      onTap: () => showYearStory(context, r),
+                    ),
+                  if (r.availableYears.length > 1)
+                    CircleIconButton(
                       icon: NaviGlyph.calendar,
                       label: 'Choose year',
                       onTap: () => _pickYear(r),
-                    )
-                  : null,
+                    ),
+                ],
+              ),
             ),
       onRefresh: () async =>
           ref.invalidate(navivibeYearlyReplayProvider(_year)),
@@ -207,8 +219,11 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
                                     spacing: Space.md,
                                     runSpacing: Space.lg,
                                     children: [
-                                      for (final a in r.topArtists.take(8))
-                                        ReplayArtistCard(artist: a, size: 120),
+                                      for (final (i, a) in r.topArtists.take(8).indexed)
+                                        RiseIn(
+                                          index: i,
+                                          child: ReplayArtistCard(artist: a, size: 120),
+                                        ),
                                     ],
                                   ),
                                 ),
@@ -238,17 +253,21 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
                         title: 'Top Artists',
                         cardSize: 120,
                         itemCount: r.topArtists.length.clamp(0, 10),
-                        itemBuilder: (context, i) => ReplayArtistCard(
-                          artist: r.topArtists[i],
-                          size: 120,
+                        itemBuilder: (context, i) => RiseIn(
+                          index: i,
+                          child: ReplayArtistCard(
+                            artist: r.topArtists[i],
+                            size: 120,
+                          ),
                         ),
                       ),
                     ),
                 ],
                 if (r.monthlyCards.isNotEmpty) ...[
                   SliverToBoxAdapter(
-                    child: YearRibbon(
+                    child: YearRecord(
                       cards: r.monthlyCards,
+                      label: tracks.firstOrNull,
                       onOpen: (c) => _openMonth(c),
                     ),
                   ),
@@ -276,6 +295,15 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
                           ],
                         ),
                       ListeningClock(byHour: r.hourlyHeatmap),
+                      const SizedBox(height: Space.xl),
+                      Text('Your Year in One Line', style: ThemeTokens.of(context).title3),
+                      const SizedBox(height: Space.md),
+                      YearReceipt(
+                        replay: r,
+                        ink: ThemeTokens.of(context).textPrimary,
+                        dim: ThemeTokens.of(context).textSecondary,
+                      ),
+                      const SizedBox(height: Space.xxl),
                     ],
                   ),
                 ),
