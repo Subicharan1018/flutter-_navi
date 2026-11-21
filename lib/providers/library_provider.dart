@@ -49,7 +49,8 @@ final artistIdsByNameProvider = FutureProvider<Map<String, String>>((ref) async 
     for (final m in raw)
       if (m['id'] != null && m['name'] != null) _artistKey(m['name'].toString()): m['id'].toString(),
   };
-});
+  // A failure just means song covers stand in until the next sign-in or refresh.
+}, retry: (_, _) => null);
 
 /// The picture for an *artist* known by name: their own portrait (the same
 /// 'ar-' image the Search and Library pages show) when the server lists them,

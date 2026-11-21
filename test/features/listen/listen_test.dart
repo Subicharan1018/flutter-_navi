@@ -16,6 +16,7 @@ import 'package:navivibe/features/month/ui/month_screen.dart';
 import 'package:navivibe/features/taste/logic/taste_providers.dart';
 import 'package:navivibe/features/taste/ui/taste_screen.dart';
 import 'package:navivibe/features/weekly_mix/logic/weekly_mix_providers.dart';
+import 'package:navivibe/providers/library_provider.dart' show artistCoverUrlProvider;
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/subsonic_service.dart';
 
@@ -357,7 +358,9 @@ void main() {
       addTearDown(tester.view.reset);
       await tester.pumpWidget(host(
         SingleChildScrollView(child: MonthBody(stats: stats)),
-        const [],
+        // The artist's photo comes from the server and the library database;
+        // neither is under test here.
+        [artistCoverUrlProvider('Xavier').overrideWith((ref) async => null)],
       ));
       expect(find.text('2h 10m'), findsOneWidget);
       expect(find.textContaining('+30m on last month'), findsOneWidget);
