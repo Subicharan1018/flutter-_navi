@@ -36,6 +36,7 @@ import 'package:navivibe/screens/home_screen.dart';
 import 'package:navivibe/widgets/mascot/microduck_pose.dart' show microduckClock;
 import 'package:navivibe/screens/library_screen.dart';
 import 'package:navivibe/screens/settings_screen.dart';
+import 'package:navivibe/screens/settings_folders.dart';
 import 'package:navivibe/widgets/shell/desktop/now_playing_panel.dart' show NowPlayingPanel, PanelKind;
 import 'package:navivibe/widgets/shell/desktop/player_bar.dart';
 import 'package:navivibe/screens/library/songs_page.dart';
@@ -202,6 +203,7 @@ void main() {
   setUp(() => PlatformUtils.debugDesktopOverride = true);
   tearDown(() {
     PlatformUtils.debugDesktopOverride = null;
+    PlatformUtils.debugTvOverride = null;
     debugCoverImageOverride = null;
   });
 
@@ -361,6 +363,21 @@ void main() {
       );
     });
   }
+
+  // Settings on a phone and a TV: the folders, then one folder's page.
+  testWidgets('settings phone folders', (tester) async {
+    PlatformUtils.debugDesktopOverride = false;
+    await shot(tester, const SettingsScreen(), const Size(393, 852), 'settings_phone_folders');
+  });
+  testWidgets('settings phone playback folder', (tester) async {
+    PlatformUtils.debugDesktopOverride = false;
+    await shot(tester, const SettingsScreen(folder: SettingsFolder.playback), const Size(393, 852), 'settings_phone_playback');
+  });
+  testWidgets('settings tv folders', (tester) async {
+    PlatformUtils.debugDesktopOverride = false;
+    PlatformUtils.debugTvOverride = true;
+    await shot(tester, const SettingsScreen(), const Size(1920, 1080), 'settings_tv_folders');
+  });
 
   // The states that are not the happy path, on the table pages and Home: each says
   // what is going on in a few plain words and offers one way out.
