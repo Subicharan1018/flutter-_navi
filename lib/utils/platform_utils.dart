@@ -98,6 +98,9 @@ abstract final class PlatformUtils {
   /// True when "Identify a song" can record (it records to a temp file).
   static bool get supportsSongRecognition => !kIsWeb;
 
+  /// True when the app can update itself (Android APK, Windows installer).
+  static bool get supportsSelfUpdate => isAndroid || isWindows;
+
   /// True when the layout should render an expanded sidebar (NavigationRail)
   /// rather than a bottom navigation bar.
   /// Drive this from a LayoutBuilder width check AND this flag so the layout
