@@ -1,0 +1,29 @@
+{
+ "recenttracks": {
+  "track": {
+   "artist": {
+    "mbid": "",
+    "#text": "Karthik Sen"
+   },
+   "name": "Veera Nadai",
+   "album": {
+    "mbid": "",
+    "#text": "Veera"
+   },
+   "mbid": "",
+   "streamable": "0",
+   "url": "https://example.invalid/x",
+   "date": {
+    "uts": "1700001000",
+    "#text": "01 Jan 2024, 00:00"
+   }
+  },
+  "@attr": {
+   "user": "sample_user",
+   "page": "2",
+   "perPage": "200",
+   "totalPages": "2",
+   "total": "4"
+  }
+ }
+}

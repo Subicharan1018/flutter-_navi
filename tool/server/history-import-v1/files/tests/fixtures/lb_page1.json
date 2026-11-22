@@ -1,0 +1,50 @@
+{
+ "payload": {
+  "count": 3,
+  "latest_listen_ts": 1700003000,
+  "oldest_listen_ts": 1700001000,
+  "user_id": "sample_user",
+  "listens": [
+   {
+    "inserted_at": 1700003005,
+    "listened_at": 1700003000,
+    "recording_msid": "00000000-0000-0000-0000-000000000000",
+    "user_name": "sample_user",
+    "track_metadata": {
+     "artist_name": "Aarav Kumar",
+     "track_name": "Neela Megam",
+     "release_name": "Neela Megam OST",
+     "additional_info": {
+      "isrc": "INA010000001"
+     }
+    }
+   },
+   {
+    "inserted_at": 1700002005,
+    "listened_at": 1700002000,
+    "recording_msid": "00000000-0000-0000-0000-000000000000",
+    "user_name": "sample_user",
+    "track_metadata": {
+     "artist_name": "Diya Ram",
+     "track_name": "Kaadhal Mazhai",
+     "release_name": "Mazhai Kaalam",
+     "additional_info": {
+      "duration_ms": 201000
+     }
+    }
+   },
+   {
+    "inserted_at": 1700001005,
+    "listened_at": 1700001000,
+    "recording_msid": "00000000-0000-0000-0000-000000000000",
+    "user_name": "sample_user",
+    "track_metadata": {
+     "artist_name": "Sample Singer",
+     "track_name": "Oru Pudhu Paadal",
+     "release_name": "Pudhu",
+     "additional_info": {}
+    }
+   }
+  ]
+ }
+}

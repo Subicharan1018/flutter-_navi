@@ -1,0 +1,66 @@
+{
+ "recenttracks": {
+  "track": [
+   {
+    "artist": {
+     "mbid": "",
+     "#text": "Someone"
+    },
+    "name": "Playing Now",
+    "album": {
+     "mbid": "",
+     "#text": ""
+    },
+    "mbid": "",
+    "streamable": "0",
+    "url": "https://example.invalid/x",
+    "@attr": {
+     "nowplaying": "true"
+    }
+   },
+   {
+    "artist": {
+     "mbid": "",
+     "#text": "Aarav Kumar"
+    },
+    "name": "Neela Megam",
+    "album": {
+     "mbid": "",
+     "#text": ""
+    },
+    "mbid": "",
+    "streamable": "0",
+    "url": "https://example.invalid/x",
+    "date": {
+     "uts": "1700003000",
+     "#text": "01 Jan 2024, 00:00"
+    }
+   },
+   {
+    "artist": {
+     "mbid": "",
+     "#text": "Sample Singer"
+    },
+    "name": "Oru Pudhu Paadal",
+    "album": {
+     "mbid": "",
+     "#text": ""
+    },
+    "mbid": "",
+    "streamable": "0",
+    "url": "https://example.invalid/x",
+    "date": {
+     "uts": "1700002000",
+     "#text": "01 Jan 2024, 00:00"
+    }
+   }
+  ],
+  "@attr": {
+   "user": "sample_user",
+   "page": "1",
+   "perPage": "200",
+   "totalPages": "2",
+   "total": "4"
+  }
+ }
+}

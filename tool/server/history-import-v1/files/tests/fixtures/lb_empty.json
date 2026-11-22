@@ -1,0 +1,9 @@
+{
+ "payload": {
+  "count": 0,
+  "latest_listen_ts": 1700003000,
+  "oldest_listen_ts": 1699999000,
+  "user_id": "sample_user",
+  "listens": []
+ }
+}
