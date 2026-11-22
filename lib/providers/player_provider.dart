@@ -221,7 +221,14 @@ final smartReshuffleBusyProvider = NotifierProvider<SmartReshuffleBusy, bool>(Sm
 class PlayerNotifier extends StateNotifier<PlayerState> {
   final Ref _ref;
   final NaviAudioHandler _audioHandler;
-  final SubsonicService _subsonicService;
+  SubsonicService _subsonicService;
+
+  /// False when the handler is the app-wide one from `main()`: it outlives
+  /// this notifier, so disposing the notifier must not tear it down.
+  final bool _ownsAudioHandler;
+
+  /// Point server calls at the live service after a credentials change.
+  void useSubsonicService(SubsonicService service) => _subsonicService = service;
   final ListeningEventCollector _collector;
   final List<StreamSubscription> _subscriptions = [];
 
@@ -305,7 +312,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     this._subsonicService,
     this._collector, {
     Future<String> Function()? deviceIdProvider,
+    bool ownsAudioHandler = true,
   })  : _deviceIdProvider = deviceIdProvider ?? getOrCreateDeviceId,
+        _ownsAudioHandler = ownsAudioHandler,
         super(
           const PlayerState(
             queue: [],
@@ -1720,7 +1729,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     for (final sub in _subscriptions) {
       sub.cancel();
     }
-    _audioHandler.dispose();
+    if (_ownsAudioHandler) _audioHandler.dispose();
     super.dispose();
   }
 
@@ -2975,6 +2984,7 @@ final audioHandlerProvider = Provider<NaviAudioHandler>((ref) {
     handler = globalAudioHandler;
   } catch (_) {
     handler = NaviAudioHandler(ref.read(subsonicServiceProvider));
+    ref.onDispose(handler.dispose);
   }
   // The global handler outlives any one SubsonicService: keep it on the live
   // one without rebuilding this provider (which would tear down playback).
@@ -2990,7 +3000,7 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
   ref,
 ) {
   final handler = ref.watch(audioHandlerProvider);
-  final service = ref.watch(subsonicServiceProvider);
+  final service = ref.read(subsonicServiceProvider);
   final collector = ref.watch(listenerCollectorProvider);
   ref.listen(
     settingsProvider.select(
@@ -3003,5 +3013,11 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
     ),
     fireImmediately: true,
   );
-  return PlayerNotifier(ref, handler, service, collector);
+  final notifier =
+      PlayerNotifier(ref, handler, service, collector, ownsAudioHandler: false);
+  ref.listen<SubsonicService>(
+    subsonicServiceProvider,
+    (_, next) => notifier.useSubsonicService(next),
+  );
+  return notifier;
 });

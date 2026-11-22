@@ -399,6 +399,22 @@ void main() {
   }
 
   group('PlayerNotifier SessionSync Integration', () {
+    test('dispose leaves a handler it does not own alive', () async {
+      final container = createContainer();
+      final ref = container.read(Provider((ref) => ref));
+      final notifier = PlayerNotifier(
+        ref,
+        audioHandler,
+        mockSubsonicService,
+        mockCollector,
+        deviceIdProvider: () async => 'device-me',
+        ownsAudioHandler: false,
+      );
+      await Future.delayed(Duration.zero);
+      notifier.dispose();
+      expect(audioHandler.mediaItem.isClosed, isFalse);
+    });
+
     test('Initializes with SyncMode.idle and reacts to syncUnknown', () async {
       final container = createContainer();
       final ref = container.read(Provider((ref) => ref));
