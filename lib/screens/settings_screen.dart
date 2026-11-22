@@ -12,6 +12,7 @@ import '../core/theme.dart';
 import '../core/focus/navi_focus.dart';
 import '../utils/platform_utils.dart';
 import '../features/exportify_import/ui/exportify_import_section.dart';
+import '../features/album_overnight/ui/album_overnight_settings.dart';
 import '../features/weekly_exploration/ui/weekly_exploration_settings.dart';
 import '../features/flow/ui/flow_settings.dart';
 import '../features/listenbrainz/ui/listenbrainz_section.dart';
@@ -599,6 +600,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           const SettingsCategory('Your data'),
           const ListenBrainzSection(),
           const WeeklyExplorationSettings(),
+          const AlbumOvernightSettings(),
           const ExportifyImportSection(),
           GroupedSection(
             header: 'Your Listening Data',
