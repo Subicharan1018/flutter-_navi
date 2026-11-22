@@ -25,6 +25,10 @@ import '../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../features/ai_shuffle/data/models/feedback_request.dart';
 import '../features/ai_shuffle/data/models/recommended_song.dart';
 import 'library_provider.dart';
+import '../features/everyday/recent_queues.dart';
+import '../features/everyday/song_trim.dart';
+import '../features/everyday/song_trim_providers.dart';
+import '../features/everyday/recent_queues_providers.dart';
 import '../services/session_sync_service.dart';
 import 'session_sync_provider.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
@@ -1216,6 +1220,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (index == prevIndex && state.repeatMode != LoopMode.one) return;
 
         _lastKnownIndex = index;
+        _trimGuard.trackChanged(newSong?.id, newSong?.duration ?? 0);
         // Track the new index for the completion snapshot.
         // Do NOT reset _positionAtCompletion here — it must still hold the
         // previous song's last position until the completion handler consumes it.
@@ -1529,6 +1534,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final currentSong = state.queue[state.currentIndex];
         final duration = currentSong.duration;
 
+        _applyTrim(position.inMilliseconds);
+
         if (state.repeatMode == LoopMode.one &&
             prevPosition.inSeconds > (duration * 0.5) &&
             position.inSeconds < 2) {
@@ -1577,6 +1584,64 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final song = updated.removeLast();
     state = state.copyWith(history: updated);
     return song;
+  }
+
+  // ── R9: the listener's own start and end points ─────────────────────────────
+
+  late final TrimGuard _trimGuard = TrimGuard(lookup: (id) {
+    try {
+      return _ref.read(songTrimsProvider).of(id);
+    } catch (_) {
+      return SongTrim.none;
+    }
+  });
+
+  /// The trim of the song playing was edited: take the new points now.
+  void trimChanged() => _trimGuard.refresh();
+
+  /// Where the current song is, in ms (the last position the player reported).
+  int get positionMs => _lastKnownPosition.inMilliseconds;
+
+  void _applyTrim(int positionMs) {
+    final action = _trimGuard.onPosition(positionMs, repeatOne: state.repeatMode == LoopMode.one);
+    switch (action) {
+      case TrimNothing():
+        break;
+      case TrimSeek(:final ms):
+        unawaited(_audioHandler.seek(Duration(milliseconds: ms)));
+      case TrimAdvance():
+        unawaited(_advancePastTrimEnd());
+    }
+  }
+
+  /// The end point was reached. Goes on exactly as a song that ended by
+  /// itself does (no skip is recorded: the listener chose this end).
+  Future<void> _advancePastTrimEnd() async {
+    try {
+      if (state.queue.isEmpty || state.currentIndex >= state.queue.length) return;
+      final isLast = state.currentIndex >= state.queue.length - 1;
+      if (isLast && state.repeatMode != LoopMode.all) {
+        // Nothing after it: run the song out so the usual end-of-queue
+        // handling (autoplay) takes over.
+        await _audioHandler.seek(Duration(seconds: state.queue[state.currentIndex].duration));
+        return;
+      }
+      await _audioHandler.skipToNext();
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ Trim end could not advance: $e');
+    }
+  }
+
+  /// R6: the queue about to be replaced goes on the "recent queues" list.
+  void _rememberOutgoingQueue() {
+    if (state.queue.length < RecentQueues.minSongs) return;
+    try {
+      _ref.read(recentQueuesProvider.notifier).remember(
+        state.queue,
+        source: _currentPlaylistName,
+        index: state.currentIndex,
+      );
+    } catch (_) {} // bookkeeping never breaks playback
   }
 
   void _clearHistory() {
@@ -1659,6 +1724,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _queueLock.run(() async {
       _queueEpoch++;
       if (!await _ensureActiveDevice()) return;
+      _rememberOutgoingQueue();
       _clearHistory(); // also calls shuffleNotifier.clearQueue() → _sessionId = null
       _ref.read(shuffleQueueProvider.notifier).initSession(); // start session so feedback fires
       _playlistPool = []; // clear pool — not a playlist-shuffle context
@@ -1745,6 +1811,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _queueLock.run(() async {
       _queueEpoch++;
       if (!await _ensureActiveDevice()) return;
+      _rememberOutgoingQueue();
       _clearHistory();
       _nextSourceContext = 'playlist';
       _markTransition('user_selected');

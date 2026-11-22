@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
 import '../core/theme.dart';
+import '../features/everyday/recent_queues_providers.dart';
+import '../features/everyday/recent_queues_sheet.dart';
 import '../models/composer.dart';
 import '../models/song.dart';
 import '../providers/player_provider.dart';
@@ -179,16 +181,32 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                       : upNext.isEmpty
                           ? null
                           : '${upNext.length} ${upNext.length == 1 ? 'song' : 'songs'}',
-                  trailing: editable && upNext.isNotEmpty
-                      ? _TextAction(
+                  trailing: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (queue.length >= 2)
+                        _TextAction(
+                          label: 'Save',
+                          style: st,
+                          onTap: () => saveQueueAsPlaylist(context, ref, queue),
+                        ),
+                      if (editable && ref.watch(recentQueuesProvider).isNotEmpty)
+                        _TextAction(
+                          label: 'Recent',
+                          style: st,
+                          onTap: () => showRecentQueues(context),
+                        ),
+                      if (editable && upNext.isNotEmpty)
+                        _TextAction(
                           label: 'Clear',
                           style: st,
                           onTap: () {
                             HapticFeedback.mediumImpact();
                             queueClearUpcoming(ref);
                           },
-                        )
-                      : null,
+                        ),
+                    ],
+                  ),
                 ),
                 // Shuffle, repeat and autoplay act on this device's player.
                 if (!remote) const _ModePills(),
