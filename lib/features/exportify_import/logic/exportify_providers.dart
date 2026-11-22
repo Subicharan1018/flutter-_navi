@@ -41,8 +41,12 @@ final exportifyImportsProvider = FutureProvider.autoDispose<List<ExportifySummar
   final all = await ref.watch(exportifyApiProvider).imports();
   // Weekly Exploration keeps its kept songs in one import of its own so the same night fetch downloads
   // them; it has a page of its own, so it is not listed as a playlist import.
-  return [for (final s in all) if (s.name != kWeeklyExplorationImportName) s];
+  // Album Overnight does the same (tgfetch/album_overnight.py): its page is Settings › Album Overnight.
+  return [for (final s in all) if (s.name != kWeeklyExplorationImportName && s.name != kAlbumOvernightImportName) s];
 }, retry: (_, _) => null);
+
+/// The name of the import the server keeps Album Overnight's queued tracks in (tgfetch/album_overnight.py).
+const String kAlbumOvernightImportName = 'Album Overnight';
 
 /// The name of the import the server keeps Weekly Exploration's kept songs in (tgfetch/weekly_exploration.py).
 const String kWeeklyExplorationImportName = 'Weekly Exploration';
