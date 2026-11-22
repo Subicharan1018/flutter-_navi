@@ -118,6 +118,7 @@ void main() {
     await tester.pumpWidget(ProviderScope(
       overrides: <Override>[
         appDatabaseProvider.overrideWithValue(db),
+        isOfflineProvider.overrideWithValue(false), // the player reads connectivity; no plugin in a golden
         serverHealthProvider.overrideWith((ref) => Completer<HealthResponse>().future),
         predictQueueProvider.overrideWith((ref) => _FakePredict(predict)),
         allSongsProvider.overrideWith((ref) async => [for (var i = 0; i < _titles.length; i++) _song(i)]),
