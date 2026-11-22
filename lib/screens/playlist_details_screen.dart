@@ -3,6 +3,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/everyday/playlist_history_sheet.dart';
+import '../features/everyday/playlist_versions_providers.dart';
 import '../features/share/share_sheet.dart';
 import '../features/smart_playlists/ui/smart_widgets.dart' show FolderMoveAction;
 
@@ -115,6 +117,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
         _loading = false;
         _failed = false;
       });
+      ref.read(playlistVersionsProvider.notifier).record(_playlist.id, songs);
     } catch (_) {
       if (!mounted) return;
       setState(() {
@@ -158,10 +161,34 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
       await svc.updatePlaylist(_playlist.id, songIndexToRemove: index);
       await svc.invalidatePlaylist(_playlist.id);
       ref.invalidate(playlistsProvider);
+      if (mounted) {
+        showToastWithAction(
+          context,
+          'Removed “${song.title}”',
+          actionLabel: 'Undo',
+          onAction: () => _undoRemove(song, index),
+        );
+      }
     } catch (_) {
       if (!mounted) return;
       setState(() => _songs = [..._songs]..insert(index, song));
       showToast(context, 'Couldn’t remove “${song.title}”. Try again.');
+    }
+  }
+
+  /// Puts a just-removed song back where it was.
+  Future<void> _undoRemove(Song song, int index) async {
+    if (_readOnly || _songs.any((s) => s.id == song.id)) return;
+    final next = [..._songs]..insert(index.clamp(0, _songs.length), song);
+    final previous = _songs;
+    setState(() => _songs = next);
+    try {
+      await ref.read(subsonicServiceProvider).setPlaylistSongs(_playlist.id, [for (final s in next) s.id]);
+      ref.invalidate(playlistsProvider);
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _songs = previous);
+      showToast(context, 'Couldn’t put “${song.title}” back. Try again.');
     }
   }
 
@@ -310,11 +337,23 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                   subtitle: songCount(_songs.length),
                   artUrl: _coverUrl,
                   loadSongs: () async => _songs,
+                  shuffleByAlbum: true,
                   onEdit: readOnly ? null : _edit,
                   onDelete: readOnly ? null : _delete,
                   pin: Pin.playlist(_playlist),
                   share: ShareTarget.playlist(_playlist),
                   extraActions: [
+                    SheetAction(
+                      label: 'History…',
+                      icon: NaviGlyph.clock,
+                      onTap: () => showPlaylistHistory(
+                        context,
+                        playlistId: _playlist.id,
+                        current: _songs,
+                        readOnly: readOnly,
+                        onChanged: _load,
+                      ),
+                    ),
                     if (readOnly)
                       SheetAction(label: 'Make a Copy', icon: NaviGlyph.copy, onTap: _makeCopy)
                     else

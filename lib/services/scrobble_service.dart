@@ -2,6 +2,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/everyday/dont_count.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../features/play_outbox/logic/play_outbox_providers.dart' show PlayRecorder, playRecorderProvider;
 import '../models/song.dart';
@@ -26,6 +27,7 @@ final scrobbleServiceProvider = Provider<ScrobbleService>((ref) {
     ref.watch(subsonicServiceProvider),
     ref.watch(connectivityProvider),
     recorder: ref.watch(playRecorderProvider),
+    isCounting: () => !ref.read(dontCountProvider),
   );
 });
 
@@ -34,7 +36,12 @@ class ScrobbleService {
   final Connectivity _connectivity;
   final PlayRecorder? _recorder;
 
-  ScrobbleService(this._api, this._connectivity, {PlayRecorder? recorder}) : _recorder = recorder;
+  /// False while "Don't count this" is on: nothing is sent or queued.
+  final bool Function() _isCounting;
+
+  ScrobbleService(this._api, this._connectivity, {PlayRecorder? recorder, bool Function()? isCounting})
+    : _recorder = recorder,
+      _isCounting = isCounting ?? (() => true);
 
   Future<bool> _isOffline() async {
     try {
@@ -49,6 +56,7 @@ class ScrobbleService {
   ///
   /// Fire-and-forget — swallows all errors and does nothing if offline.
   void nowPlaying(String songId) async {
+    if (!_isCounting()) return;
     if (isLocalSongId(songId) || await _isOffline()) return;
     unawaited(_api.scrobble(songId, submission: false));
   }
@@ -64,6 +72,7 @@ class ScrobbleService {
   /// not the network is up, dated [startedAtMs], and delivered immediately
   /// when online or on reconnect otherwise.
   void submit(String songId, {Song? song, String? playId, int? startedAtMs}) async {
+    if (!_isCounting()) return;
     final recorder = playId == null ? null : _recorder;
     if (recorder != null) {
       try {

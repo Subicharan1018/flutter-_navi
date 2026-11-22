@@ -35,6 +35,8 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
 import '../utils/platform_utils.dart';
+import '../features/everyday/albums_for_you_shelf.dart';
+import '../features/everyday/history_screen.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
 import '../widgets/ui/action_sheet.dart' show showToast;
@@ -112,6 +114,7 @@ class HomeScreen extends ConsumerWidget {
         if (!PlatformUtils.isDesktop) SliverToBoxAdapter(child: Entrance(group: 'home', index: 5, child: _TopPicks())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 6, child: _RecentlyPlayed())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 7, child: _YourPlaylists())),
+        const SliverToBoxAdapter(child: AlbumsForYouShelf()),
         SliverToBoxAdapter(child: _RecentlyAdded()),
         SliverToBoxAdapter(child: _FirstRun()),
       ],
@@ -433,6 +436,7 @@ class _RecentlyPlayed extends ConsumerWidget {
     if (albums.isNotEmpty) {
       return MediaShelf(
         title: 'Recently Played',
+        onSeeAll: () => navigateInApp(context, const HistoryScreen()),
         cardSize: ArtSize.of(context).tile,
         itemCount: albums.length.clamp(0, 15),
         itemBuilder: (context, i) => _AlbumCard(album: albums[i]),
@@ -442,6 +446,7 @@ class _RecentlyPlayed extends ConsumerWidget {
     final shown = songs.take(15).toList();
     return MediaShelf(
       title: 'Recently Played',
+      onSeeAll: () => navigateInApp(context, const HistoryScreen()),
       cardSize: ArtSize.of(context).tile,
       itemCount: shown.length,
       itemBuilder: (context, i) => MediaCard(

@@ -18,6 +18,10 @@ class Song {
   final int year;
   final bool starred;
   final int playCount;
+
+  /// When the server last saw this song played (Subsonic `played`); null if
+  /// never, or if the server did not say.
+  final DateTime? lastPlayed;
   final int rating;
   final DateTime? created;
 
@@ -57,6 +61,7 @@ class Song {
     required this.year,
     this.starred = false,
     this.playCount = 0,
+    this.lastPlayed,
     this.rating = 0,
     this.created,
     this.bitRate = 0,
@@ -111,6 +116,9 @@ class Song {
       playCount: json['playCount'] is int
           ? json['playCount']
           : int.tryParse(json['playCount']?.toString() ?? '') ?? 0,
+      lastPlayed: json['played'] != null
+          ? DateTime.tryParse(json['played'].toString())
+          : null,
       // Subsonic 'userRating' field (1–5)
       rating: json['userRating'] is int
           ? json['userRating']
@@ -151,6 +159,7 @@ class Song {
       'year': year,
       'starred': starred ? 1 : 0,
       'playCount': playCount,
+      if (lastPlayed != null) 'played': lastPlayed!.toIso8601String(),
       'userRating': rating,
       'created': created?.toIso8601String(),
       'bitRate': bitRate,
@@ -177,6 +186,7 @@ class Song {
     String? composer,
     bool? starred,
     int? playCount,
+    DateTime? lastPlayed,
     int? rating,
     DateTime? created,
     int? bitRate,
@@ -199,6 +209,7 @@ class Song {
       year: year,
       starred: starred ?? this.starred,
       playCount: playCount ?? this.playCount,
+      lastPlayed: lastPlayed ?? this.lastPlayed,
       rating: rating ?? this.rating,
       created: created ?? this.created,
       bitRate: bitRate ?? this.bitRate,
@@ -241,6 +252,7 @@ class Song {
           year == other.year &&
           starred == other.starred &&
           playCount == other.playCount &&
+          lastPlayed == other.lastPlayed &&
           rating == other.rating &&
           created == other.created &&
           bitRate == other.bitRate &&
@@ -268,6 +280,7 @@ class Song {
     year,
     starred,
     playCount,
+    lastPlayed,
     rating,
     created,
     bitRate,

@@ -1,6 +1,7 @@
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/everyday/album_picks_providers.dart' show playShuffledByAlbum;
 import '../features/share/share_sheet.dart';
 import '../models/song.dart';
 import '../providers/pins_provider.dart';
@@ -25,11 +26,13 @@ Future<void> showCollectionActions(
   Pin? pin,
   ShareTarget? share,
   List<Widget> extraActions = const [],
+  bool shuffleByAlbum = false,
 }) =>
     showPlatformSheet(
       context: context,
       menu: true,
       builder: (_) => _CollectionActions(
+        shuffleByAlbum: shuffleByAlbum,
         extraActions: extraActions,
         share: share,
         title: title,
@@ -61,7 +64,11 @@ class _CollectionActions extends ConsumerWidget {
   /// Rows a caller adds in their own group (e.g. Move to Folder…).
   final List<Widget> extraActions;
 
+  /// Offers "Shuffle by Album" (a playlist of songs from many albums).
+  final bool shuffleByAlbum;
+
   const _CollectionActions({
+    this.shuffleByAlbum = false,
     this.extraActions = const [],
     this.share,
     required this.title,
@@ -107,6 +114,12 @@ class _CollectionActions extends ConsumerWidget {
             icon: NaviGlyph.shuffle,
             onTap: () => withSongs((s) => player.playPlaylist(s, shuffle: true, playlistName: title)),
           ),
+          if (shuffleByAlbum)
+            SheetAction(
+              label: 'Shuffle by Album',
+              icon: NaviGlyph.stack,
+              onTap: () => withSongs((s) => playShuffledByAlbum(ref, s, name: title)),
+            ),
         ]),
         SheetGroup(children: [
           SheetAction(

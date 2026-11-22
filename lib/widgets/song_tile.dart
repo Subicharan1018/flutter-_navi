@@ -6,6 +6,7 @@ import '../core/focus/navi_focus.dart';
 import '../core/layout/window_size.dart';
 import '../core/motion.dart';
 import '../core/theme.dart';
+import '../features/everyday/play_stats.dart';
 import '../models/composer.dart';
 import '../models/download_state.dart';
 import '../models/song.dart';
@@ -253,6 +254,15 @@ class _SongTileState extends ConsumerState<SongTile> {
                                 overflow: TextOverflow.ellipsis,
                                 style: t.subheadline,
                               ),
+                            ),
+                          ),
+                        // Wide windows: a quiet play-count column (R5).
+                        if (wide && song.playCount > 0)
+                          Padding(
+                            padding: const EdgeInsets.only(left: Space.sm),
+                            child: Text(
+                              PlayStats.merge(song).countLabel,
+                              style: t.footnote,
                             ),
                           ),
                         _DownloadBadge(songId: song.id),

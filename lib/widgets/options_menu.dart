@@ -3,6 +3,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/everyday/dont_count.dart';
+import '../features/everyday/play_stats_providers.dart';
+import '../features/everyday/song_trim_providers.dart';
+import '../features/everyday/song_trim_sheet.dart';
 import '../features/moods/ui/not_this_mood_action.dart';
 import '../features/share/share_sheet.dart';
 import '../features/social/logic/jam_controller.dart';
@@ -88,6 +92,7 @@ class OptionsMenu extends ConsumerWidget {
           artUrl: service.getCoverArtUrl(song.coverArt),
         ),
         _CreditRows(song: song, page: page),
+        _PlayStatsRow(song: song),
         SheetGroup(children: [
           SheetAction(
             label: 'Play Next',
@@ -148,6 +153,16 @@ class OptionsMenu extends ConsumerWidget {
           ),
           if (isPlayingNow)
             SheetAction(
+              label: ref.watch(dontCountProvider) ? 'Count My Listening Again' : 'Don’t Count This Listening',
+              icon: ref.watch(dontCountProvider) ? NaviGlyph.eye : NaviGlyph.eyeOff,
+              onTap: () {
+                final off = !ref.read(dontCountProvider);
+                ref.read(dontCountProvider.notifier).set(off);
+                showToast(page, off ? 'Not counting this listening' : 'Counting your listening again');
+              },
+            ),
+          if (isPlayingNow)
+            SheetAction(
               label: 'Share now playing',
               icon: NaviGlyph.share,
               onTap: () => runShareNowPlaying(page, song),
@@ -175,6 +190,15 @@ class OptionsMenu extends ConsumerWidget {
               icon: NaviGlyph.mic,
               onTap: () => navigateInApp(page, ArtistScreen(artistId: song.artistId, name: song.artist)),
             ),
+        ]),
+        SheetGroup(children: [
+          SheetAction(
+            label: ref.watch(songTrimsProvider.select((t) => t.of(song.id).isNone))
+                ? 'Start and End…'
+                : 'Start and End (set)…',
+            icon: NaviGlyph.sliders,
+            onTap: () => showSongTrimSheet(page, song),
+          ),
         ]),
         SheetGroup(children: [
           SheetAction(
@@ -216,6 +240,23 @@ class OptionsMenu extends ConsumerWidget {
         const SizedBox(height: Space.sm),
       ],
     );
+  }
+}
+
+/// "12 plays" with "last played yesterday" under the sheet header (R5).
+class _PlayStatsRow extends ConsumerWidget {
+  const _PlayStatsRow({required this.song});
+  final Song song;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final stats = ref.watch(songPlayStatsProvider(song));
+    if (stats.isEmpty) return const SizedBox.shrink();
+    final last = stats.lastPlayedLabel(DateTime.now());
+    return SheetGroup(children: [
+      SheetInfoRow(label: 'Plays', value: stats.countLabel),
+      if (last != null) SheetInfoRow(label: 'Last played', value: last),
+    ]);
   }
 }
 
