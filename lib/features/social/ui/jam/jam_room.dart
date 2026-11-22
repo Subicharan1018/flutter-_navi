@@ -17,9 +17,11 @@ import '../../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../../widgets/mascot/microduck.dart';
 import '../../../../widgets/mascot/microduck_pose.dart';
 import '../../../../widgets/ui/action_sheet.dart';
+import '../../data/social_api.dart' show SocialException;
 import '../../data/social_models.dart';
 import '../../logic/jam_controller.dart';
 import '../../logic/jam_hints.dart';
+import '../../logic/social_providers.dart' show socialApiProvider, socialEnabledProvider;
 import '../../logic/social_rules.dart';
 import '../collab_screens.dart' show saveQueueAsCollab;
 import '../social_widgets.dart';
@@ -61,6 +63,20 @@ void copyJamInvite(BuildContext context, String code) {
   Clipboard.setData(ClipboardData(text: jamInviteText(code)));
   HapticFeedback.selectionClick();
   showToast(context, 'Invite copied. Send it to your friends.');
+}
+
+/// Picks a friend and sends them an invite into this room; they join with one tap.
+Future<void> inviteFriendToJam(BuildContext context, WidgetRef ref, String code, Iterable<String> inside) async {
+  try {
+    final who = await pickPerson(context, ref, title: 'Invite to this room', skip: inside.toSet());
+    if (who == null) return;
+    await ref.read(socialApiProvider).jamInvite(code, who);
+    if (context.mounted) showToast(context, 'Invited $who');
+  } on SocialException catch (e) {
+    if (context.mounted) showToast(context, e.message);
+  } catch (_) {
+    if (context.mounted) showToast(context, 'Couldn’t send the invite. Try again.');
+  }
 }
 
 void shareJamInvite(String code) =>
@@ -175,7 +191,7 @@ List<Widget> jamRoomSlivers(BuildContext context, WidgetRef ref, JamUiState ui) 
   final jam = ui.jam!;
   return [
     SliverToBoxAdapter(child: _RoomHero(jam: jam, driftMs: ui.driftMs)),
-    SliverToBoxAdapter(child: JamCodeStrip(code: jam.code)),
+    SliverToBoxAdapter(child: JamCodeStrip(code: jam.code, members: [for (final m in jam.members) m.username])),
     SliverToBoxAdapter(child: _Transport(jam: jam)),
     SliverToBoxAdapter(child: _QueueHeader(jam: jam)),
     if (jam.queue.isEmpty)
@@ -299,13 +315,17 @@ class SyncPill extends StatelessWidget {
 }
 
 /// The room's code with a visible Copy and Share beside it.
-class JamCodeStrip extends StatelessWidget {
+class JamCodeStrip extends ConsumerWidget {
   final String code;
-  const JamCodeStrip({super.key, required this.code});
+
+  /// Usernames already in the room, so the friend picker leaves them out.
+  final List<String> members;
+  const JamCodeStrip({super.key, required this.code, this.members = const []});
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
+    final social = ref.watch(socialEnabledProvider);
     return Padding(
       padding: const EdgeInsets.fromLTRB(Space.gutter, Space.xl, Space.gutter, 0),
       child: Column(children: [
@@ -332,6 +352,14 @@ class JamCodeStrip extends StatelessWidget {
         ),
         const SizedBox(height: Space.sm),
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [
+          if (social) ...[
+            JamChipButton(
+              glyph: NaviGlyph.group,
+              label: 'Invite',
+              onTap: () => inviteFriendToJam(context, ref, code, members),
+            ),
+            const SizedBox(width: Space.sm),
+          ],
           JamChipButton(glyph: NaviGlyph.copy, label: 'Copy', onTap: () => copyJamInvite(context, code)),
           const SizedBox(width: Space.sm),
           JamChipButton(glyph: NaviGlyph.share, label: 'Share', onTap: () => shareJamInvite(code)),

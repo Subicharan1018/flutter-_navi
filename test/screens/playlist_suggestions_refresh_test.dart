@@ -25,9 +25,12 @@ Song _s(int i) => Song(
 
 class _FakeRepo extends Fake implements ShuffleRepository {
   final calls = <int>[];
+  final excludes = <List<String>>[];
   @override
-  Future<List<({String id, String why})>> getPlaylistSuggestions(List<String> songIds, {int limit = 10}) async {
+  Future<List<({String id, String why})>> getPlaylistSuggestions(List<String> songIds,
+      {int limit = 10, List<String> exclude = const []}) async {
     calls.add(limit);
+    excludes.add(exclude);
     // The server answers the same ranking each time; a bigger limit reaches further down it.
     return [for (var i = 0; i < limit.clamp(0, 25); i++) (id: 's$i', why: '')];
   }
@@ -79,5 +82,8 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Pick 10'), findsNothing);
     expect(find.text('Pick 20'), findsOneWidget);
+    expect(repo.excludes.first, isEmpty, reason: 'the first load excludes nothing');
+    expect(repo.excludes.last.toSet(), containsAll({for (var i = 0; i < 20; i++) 's$i'}),
+        reason: 'Refresh tells the server what was already shown');
   });
 }

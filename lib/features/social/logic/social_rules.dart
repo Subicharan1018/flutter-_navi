@@ -3,6 +3,22 @@ import '../data/social_models.dart';
 /// Who may do what with a collaborative playlist. Plain functions so the rules
 /// are tested without a screen; the server enforces the same ones.
 
+/// "maya invited you to a Jam" / "… to a Collab room": the line on an invitation.
+String jamInviteLine(JamInvite i) => '${i.from} invited you to a ${i.mode == JamMode.collab ? 'Collab room' : 'Jam'}';
+
+/// "2 people in it" / "just them": what is already in the room an invitation points at.
+String jamInviteDetail(JamInvite i) => i.members <= 1 ? 'Just them so far' : '${i.members} people are in it';
+
+/// Invitations to show, newest first, one per room (a re-sent invite replaces the old one).
+List<JamInvite> latestJamInvites(List<JamInvite> all) {
+  final byCode = <String, JamInvite>{};
+  for (final i in all) {
+    final old = byCode[i.code];
+    if (old == null || i.at >= old.at) byCode[i.code] = i;
+  }
+  return byCode.values.toList()..sort((a, b) => b.at.compareTo(a.at));
+}
+
 /// Every active collaborator (owner included) adds, removes and reorders songs.
 bool canEditCollab(CollabPlaylist p, String me) => p.status == 'active';
 

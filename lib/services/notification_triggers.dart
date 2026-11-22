@@ -37,6 +37,9 @@ String invitationText(int count) =>
 /// app is alive they are re-read at this interval (only with social turned on).
 const invitationPollEvery = Duration(minutes: 10);
 
+/// Jam invitations expire with the room (30 minutes), so they are re-read this often.
+const jamInvitePollEvery = Duration(seconds: 45);
+
 // ── friends starting to listen ───────────────────────────────────────────────
 
 /// Title and body of the "friend started listening" notification.
@@ -146,6 +149,11 @@ void wireNotificationTriggers(ProviderContainer container) {
       title: 'Invitation',
       body: invitationText(next),
     ));
+  });
+
+  // A Jam invite is only worth something while the room is live: ask sooner.
+  Timer.periodic(jamInvitePollEvery, (_) {
+    if (container.read(socialEnabledProvider)) container.invalidate(jamInvitesProvider);
   });
 
   Timer.periodic(invitationPollEvery, (_) {
