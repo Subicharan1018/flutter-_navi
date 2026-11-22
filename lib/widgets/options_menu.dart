@@ -8,6 +8,7 @@ import '../features/share/share_sheet.dart';
 import '../features/social/logic/jam_controller.dart';
 import '../features/social/ui/collab_screens.dart' show showAddToCollab;
 import '../features/social/ui/share_now_playing_action.dart' show runShareNowPlaying;
+import '../features/rotation/ui/rest_actions.dart';
 import '../features/taste/ui/never_recommend.dart';
 import '../models/album.dart';
 import '../models/composer.dart';
@@ -194,6 +195,7 @@ class OptionsMenu extends ConsumerWidget {
           ),
         ]),
         NotThisMoodAction(song: song, mood: mood, page: page),
+        RotationActions(song: song, page: page),
         SheetGroup(children: [
           SheetAction(
             label: 'Never Recommend…',

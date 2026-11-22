@@ -16,6 +16,8 @@ import '../services/subsonic_service.dart';
 import '../services/listening_event_collector.dart';
 import 'settings_provider.dart';
 import '../services/navi_audio_handler.dart';
+import '../services/shuffle_bag.dart';
+import '../features/rotation/logic/rotation_providers.dart' show backBiasProvider;
 import '../core/hive_boxes.dart';
 import '../core/app_constants.dart';
 
@@ -1334,6 +1336,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         _lastKnownPosition = Duration.zero;
 
         state = state.copyWith(currentIndex: index);
+        _noteHeardForBag(index);
 
         final isSmartLocal =
             settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal &&
@@ -1787,8 +1790,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _isShuffling = true;
 
       try {
-        final startIndex = Random().nextInt(songs.length);
+        // True Shuffle starts on a song this bag has not played yet.
+        final trueShuffle = settings.shuffleAlgorithm == ShuffleAlgorithm.trueRandom;
+        final startIndex = trueShuffle ? songs.indexOf(_bag.pickStart(songs)) : Random().nextInt(songs.length);
         final currentSong = songs[startIndex];
+        if (trueShuffle) _bag.markHeard(songs, currentSong.id);
 
         // ── Smart Local: 16-song initial load, pool-based refill ──────────
         if (settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
@@ -1891,6 +1897,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             settings.shufflePreference,
             currentSong: currentSong,
             contextName: playlistName,
+            heard: trueShuffle ? _bag.heard(songs) : const {},
           );
           if (!mounted) return;
           final finalQueue = [currentSong, ...shuffled];
@@ -2300,6 +2307,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     });
   }
 
+  /// True Shuffle's memory (see ShuffleBag).
+  final ShuffleBag _bag = ShuffleBag();
+
+  /// The list being shuffled: the original order when it is kept, else the queue.
+  List<Song> _bagSource() => _audioHandler.unshuffledQueue.isNotEmpty ? _audioHandler.unshuffledQueue : state.queue;
+
+  /// While True Shuffle plays, the song that just started counts as heard.
+  void _noteHeardForBag(int index) {
+    if (!state.shuffleMode || index < 0 || index >= state.queue.length) return;
+    if (_ref.read(settingsProvider).shuffleAlgorithm != ShuffleAlgorithm.trueRandom) return;
+    _bag.markHeard(_bagSource(), state.queue[index].id);
+  }
+
   Future<void> _unshuffleLocked() async {
     _shuffleGuardTimer?.cancel();
     _isShuffling = true;
@@ -2340,6 +2360,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           await _audioHandler.mergeShuffle(settings.shufflePreference);
         case ShuffleAlgorithm.recencyDampened:
           await _audioHandler.recencyDampenedWeightedShuffle();
+        case ShuffleAlgorithm.trueRandom:
+          await _audioHandler.bagShuffle(_bag.heard(_bagSource()));
         case ShuffleAlgorithm.standard:
         case ShuffleAlgorithm.smartLocal:
           await _audioHandler.standardShuffle();
@@ -2530,7 +2552,12 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             excludedTitlesOverride: excluded,
           );
       picks = _resolveRecommendations(recs, candidates);
-      if (picks.isEmpty) picks = null;
+      if (picks.isEmpty) {
+        picks = null;
+      } else {
+        // Back in rotation: a few old favourites among the recommender's picks.
+        picks = await _ref.read(backBiasProvider).blend(picks, candidates);
+      }
     } catch (e) {
       debugPrint('[SmartReshuffle] server unavailable: $e');
     }

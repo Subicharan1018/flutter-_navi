@@ -18,6 +18,7 @@ import '../features/local_library/logic/local_index.dart';
 import '../player/audio_quality.dart';
 import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
+import 'shuffle_bag.dart';
 import 'playback_tuning.dart';
 import '../core/hive_boxes.dart';
 import 'auto/browse_tree.dart';
@@ -1634,6 +1635,20 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await _updateQueueAfterAnchor(0);
   }
 
+  /// True Shuffle: unheard songs (per ShuffleBag) first, then the heard ones,
+  /// each in uniform random order; the playing song stays first.
+  Future<void> bagShuffle(Set<String> heard) async {
+    if (_currentQueue.isEmpty) return;
+    final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
+    final currentSong = _currentQueue[safeIndex];
+    final fullPool = _unshuffledQueue.isNotEmpty ? _unshuffledQueue : _currentQueue;
+    final pool = fullPool.where((s) => s.id != currentSong.id).toList();
+    if (pool.isEmpty) return;
+    final shuffled = await compute(bagShuffleIsolate, <String, dynamic>{'songs': pool, 'heard': heard.toList()});
+    _currentQueue = [currentSong, ...shuffled];
+    await _updateQueueAfterAnchor(0);
+  }
+
   // ---------------------------------------------------------------------------
   // 2. Dithered Position Shuffle
   // ---------------------------------------------------------------------------
@@ -1827,11 +1842,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     bool albumShuffleTracks = false,
     Song? currentSong,
     String? contextName,
+    Set<String> heard = const {},
   }) async {
     debugPrint('🎵 [NaviAudioHandler] computeShuffle: algorithm=$algorithm, poolSize=${pool.length}');
     switch (algorithm) {
       case ShuffleAlgorithm.standard:
         return compute(standardShuffleIsolate, pool);
+
+      case ShuffleAlgorithm.trueRandom:
+        return compute(bagShuffleIsolate, <String, dynamic>{'songs': pool, 'heard': heard.toList()});
 
       case ShuffleAlgorithm.spotify:
         return compute(ditheredPositionShuffleIsolate, <String, dynamic>{
