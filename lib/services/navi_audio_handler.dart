@@ -394,10 +394,21 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       case SearchIntent():
         await playFromSearch(intent.query, intent.extras);
       case ViewIntent():
-        final song = intent.toSong();
-        LocalLibraryIndex.instance.register(song.id, intent.path);
-        await _playRequest(Future.value(CarPlayRequest([song])), 'view(${intent.uri})');
+        await playOpenFiles([intent]);
     }
+  }
+
+  /// Plays audio files opened with the app (Android "Open with", or a path on
+  /// the desktop command line) as one queue, in order.
+  Future<void> playOpenFiles(List<ViewIntent> files) async {
+    if (files.isEmpty) return;
+    final songs = <Song>[];
+    for (final f in files) {
+      final song = f.toSong();
+      LocalLibraryIndex.instance.register(song.id, f.path);
+      songs.add(song);
+    }
+    await _playRequest(Future.value(CarPlayRequest(songs)), 'view(${files.first.uri})');
   }
 
   /// Voice: "Hey Google, play Radiohead on NaviVibe".

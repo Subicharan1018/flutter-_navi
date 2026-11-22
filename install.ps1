@@ -89,6 +89,36 @@ if (Test-Path $IconDest) {
 }
 $StartMenuShortcut.Save()
 
+# Stamp the shortcuts with the app's AppUserModelID (the same "NaviVibe" the runner
+# sets on the process), so the taskbar, the volume flyout and media controls
+# group under one name and icon.
+Add-Type -TypeDefinition @"
+using System; using System.Runtime.InteropServices;
+public static class ShortcutAumid {
+  [ComImport, Guid("00021401-0000-0000-C000-000000000046")] class CShellLink {}
+  [ComImport, Guid("0000010b-0000-0000-C000-000000000046"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IPersistFile { void GetClassID(out Guid g); [PreserveSig] int IsDirty(); void Load([MarshalAs(UnmanagedType.LPWStr)] string f, uint m); void Save([MarshalAs(UnmanagedType.LPWStr)] string f, bool r); void SaveCompleted(string f); void GetCurFile(out string f); }
+  [ComImport, Guid("886D8EEB-8CF2-4446-8D02-CDBA1DBDCF99"), InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+  interface IPropertyStore { int GetCount(out uint c); int GetAt(uint i, out PropertyKey k); int GetValue(ref PropertyKey k, out PropVariant v); int SetValue(ref PropertyKey k, ref PropVariant v); int Commit(); }
+  [StructLayout(LayoutKind.Sequential, Pack = 4)] struct PropertyKey { public Guid fmtid; public uint pid; }
+  [StructLayout(LayoutKind.Explicit)] struct PropVariant { [FieldOffset(0)] public ushort vt; [FieldOffset(8)] public IntPtr p; }
+  [DllImport("ole32.dll")] static extern int PropVariantClear(ref PropVariant v);
+  public static void Set(string lnk, string id) {
+    var link = new CShellLink();
+    ((IPersistFile)link).Load(lnk, 2);
+    var store = (IPropertyStore)link;
+    var key = new PropertyKey { fmtid = new Guid("9F4C2855-9F79-4B39-A8D0-E1D42DE1D5F3"), pid = 5 };
+    var v = new PropVariant { vt = 31, p = Marshal.StringToCoTaskMemUni(id) };
+    store.SetValue(ref key, ref v); store.Commit();
+    ((IPersistFile)link).Save(lnk, true);
+    PropVariantClear(ref v);
+  }
+}
+"@
+foreach ($lnk in @($DesktopShortcutPath, $StartMenuShortcutPath)) {
+    try { [ShortcutAumid]::Set($lnk, "NaviVibe") } catch { Write-Warning "Could not set the AppUserModelID on ${lnk}: $_" }
+}
+
 # Step 4: Add to User PATH
 Write-Host "`n=== [4/5] Configuring Environment PATH ===" -ForegroundColor Yellow
 $UserPath = [Environment]::GetEnvironmentVariable("Path", [EnvironmentVariableTarget]::User)
@@ -119,7 +149,12 @@ if (Test-Path `$DesktopShortcut) { Remove-Item -Force `$DesktopShortcut }
 `$StartMenuShortcut = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::Programs)) "NaviVibe.lnk"
 if (Test-Path `$StartMenuShortcut) { Remove-Item -Force `$StartMenuShortcut }
 
-# Remove Registry
+# Remove Registry (uninstall entry, file types, Default apps capability)
+reg delete "HKCU\Software\Classes\NaviVibe.Audio" /f 2>`$null
+reg delete "HKCU\Software\Classes\Applications\navivibe.exe" /f 2>`$null
+reg delete "HKCU\Software\NaviVibe" /f 2>`$null
+reg delete "HKCU\Software\RegisteredApplications" /v NaviVibe /f 2>`$null
+reg delete "HKCU\Software\Classes\AppUserModelId\NaviVibe" /f 2>`$null
 Remove-Item -Path "HKCU:\Software\Microsoft\Windows\CurrentVersion\Uninstall\NaviVibe" -Recurse -Force
 
 # Remove from User PATH
