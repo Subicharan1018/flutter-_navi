@@ -1017,12 +1017,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // Desktop single-source bridge
   // ---------------------------------------------------------------------------
 
-  Future<void> _desktopLoadTrack(
+  /// Loads the track on desktop. False when loading failed (error or timeout,
+  /// already handled by skipping on); a load a newer request replaced is not a failure.
+  Future<bool> _desktopLoadTrack(
     int index,
     Map<String, String?> offlinePaths, {
     Duration? initialPosition,
   }) async {
-    if (index < 0 || index >= _currentQueue.length) return;
+    if (index < 0 || index >= _currentQueue.length) return false;
     final generation = ++_desktopLoadGeneration;
     _desktopLoading = true;
     try {
@@ -1054,7 +1056,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           );
       if (generation != _desktopLoadGeneration) {
         debugPrint('⚡ [Desktop] Load for track $index superseded by generation $_desktopLoadGeneration');
-        return;
+        return true;
       }
       _desktopIndex = index;
       _emitDesktopMediaItem(index);
@@ -1063,10 +1065,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       debugPrint(
         '🎵 [Desktop] Loaded track $index: ${_currentQueue[index].title}',
       );
+      return true;
     } on PlayerInterruptedException {
       // Expected when a newer load supersedes this one (e.g. rapid Next press).
       // Safe to swallow — the newer load will complete instead.
       debugPrint('⚡ [Desktop] Load interrupted (superseded by newer request)');
+      return true;
     } on PlayerException catch (e) {
       debugPrint(
         '❌ [Desktop] PlayerException loading track $index: ${e.message}',
@@ -1074,11 +1078,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (generation == _desktopLoadGeneration) {
         _handleDesktopLoadError(index, e);
       }
+      return false;
     } on TimeoutException catch (e) {
       debugPrint('❌ [Desktop] Timeout loading track $index: $e');
       if (generation == _desktopLoadGeneration) {
         _handleDesktopLoadError(index, e);
       }
+      return false;
     } finally {
       if (generation == _desktopLoadGeneration) {
         _desktopLoading = false;
@@ -1904,7 +1910,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // 2. Re-resolve paths and reload source
       if (_isDesktopBridge) {
         final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-        await _desktopLoadTrack(index, offlinePaths, initialPosition: pos);
+        // A load that failed already skipped on; it is not a recovery, so the
+        // "failed once" mark stays and a second failure on this track skips it.
+        if (!await _desktopLoadTrack(index, offlinePaths, initialPosition: pos)) return;
       } else {
         await _rebuildSource(index, initialPosition: pos);
       }

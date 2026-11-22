@@ -8,6 +8,7 @@ import 'package:audio_service_mpris/audio_service_mpris.dart';
 import 'package:just_audio_media_kit/just_audio_media_kit.dart';
 import 'package:window_manager/window_manager.dart';
 import 'core/hive_boxes.dart';
+import 'core/idle_trim.dart';
 import 'core/web_session.dart';
 import 'utils/web_form_factor.dart';
 import 'widgets/shell/web_form_factor_scope.dart';
@@ -78,7 +79,10 @@ Future<void> main(List<String> args) async {
       ..maximumSize = 400;
     // Eased mouse-wheel scrolling instead of a jump per notch (browsers
     // already smooth the wheel themselves).
-    if (PlatformUtils.isNativeDesktop) SmoothWheel.install();
+    if (PlatformUtils.isNativeDesktop) {
+      SmoothWheel.install();
+      IdleTrim().install();   // empty the cover cache after a minute out of sight
+    }
   }
 
   // MEM-OPT: Configure CachedNetworkImage's separate cache manager.

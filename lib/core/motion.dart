@@ -306,7 +306,9 @@ class _DriftState extends State<Drift> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final clip = widget.radius > 0 ? BorderRadius.circular(widget.radius) : BorderRadius.zero;
-    if (!context.motionFull) {
+    // Desktop holds still: a 16 s pan keeps the whole window repainting at 60 fps
+    // (a full CPU core on Windows, measured) for a nicety nobody watches there.
+    if (!context.motionFull || PlatformUtils.isDesktop) {
       _c.stop();
       return ClipRRect(borderRadius: clip, child: widget.child);
     }
