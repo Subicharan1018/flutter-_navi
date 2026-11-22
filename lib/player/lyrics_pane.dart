@@ -1,7 +1,6 @@
 import 'dart:async';
-import 'dart:math' as math;
-
 import 'package:flutter/material.dart';
+import 'package:flutter/physics.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -14,7 +13,9 @@ import '../lyrics/models/lyric_translation.dart';
 import '../providers/player_provider.dart';
 import '../utils/platform_utils.dart';
 import 'edge_fade.dart';
+import 'lyric_gap_dots.dart';
 import 'lyric_word_sweep.dart';
+import 'lyrics_motion.dart';
 import 'lyrics_source_chip.dart';
 import 'now_playing_style.dart';
 
@@ -41,14 +42,21 @@ class LyricsPane extends ConsumerStatefulWidget {
   ConsumerState<LyricsPane> createState() => _LyricsPaneState();
 }
 
-class _LyricsPaneState extends ConsumerState<LyricsPane> {
+class _LyricsPaneState extends ConsumerState<LyricsPane> with SingleTickerProviderStateMixin {
   final _scroll = ScrollController();
   final Map<int, GlobalKey> _keys = {};
   Timer? _userHold;
   bool _following = true;
 
+  /// Drives the scroll offset with a spring; ticks only while the view moves,
+  /// and (as a ticker) stops by itself when the pane is hidden.
+  late final AnimationController _spring = AnimationController.unbounded(vsync: this)..addListener(_onSpring);
+  int? _lastFollowed;
+  SyncedLyrics? _lyricsSeen;
+
   @override
   void dispose() {
+    _spring.dispose();
     _scroll.dispose();
     _userHold?.cancel();
     super.dispose();
@@ -56,21 +64,61 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
 
   GlobalKey _keyFor(int i) => _keys.putIfAbsent(i, GlobalKey.new);
 
+  void _onSpring() {
+    if (!_scroll.hasClients) return;
+    final p = _scroll.position;
+    final v = _spring.value.clamp(p.minScrollExtent, p.maxScrollExtent);
+    if ((v - p.pixels).abs() > 0.01) _scroll.jumpTo(v);
+  }
+
+  /// Offset that puts line [index] a third of the way down, or null while the
+  /// line is not laid out.
+  double? _targetFor(int index) {
+    final box = _keys[index]?.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !_scroll.hasClients) return null;
+    final viewport = RenderAbstractViewport.maybeOf(box);
+    if (viewport is! RenderBox) return null;
+    final p = _scroll.position;
+    return LyricsMotion.scrollTarget(
+      lineTop: p.pixels + box.localToGlobal(Offset.zero, ancestor: viewport).dy,
+      lineHeight: box.size.height,
+      viewport: p.viewportDimension,
+      minExtent: p.minScrollExtent,
+      maxExtent: p.maxScrollExtent,
+    );
+  }
+
   void _follow(int index, {bool instant = false}) {
     if (!_following || index < 0) return;
-    final ctx = _keys[index]?.currentContext;
-    if (ctx == null) return;
+    final target = _targetFor(index);
+    if (target == null) return;
+    final previous = _lastFollowed;
+    _lastFollowed = index;
+    final pos = _scroll.position;
     final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    Scrollable.ensureVisible(
-      ctx,
-      alignment: 0.3, // the sung line sits a third of the way down
-      duration: instant || reduce ? Duration.zero : const Duration(milliseconds: 650),
-      curve: Curves.easeOutCubic,
+    if (instant || reduce || previous == null || !TickerMode.valuesOf(context).enabled) {
+      _spring.stop();
+      if ((target - pos.pixels).abs() > 0.5) _scroll.jumpTo(target);
+      return;
+    }
+    // A new target mid-glide carries on from the current speed, so quick
+    // successive lines never stop and restart the motion.
+    final velocity = _spring.isAnimating ? _spring.velocity : 0.0;
+    final seek = LyricsMotion.isSeek(previous, index);
+    _spring.animateWith(
+      SpringSimulation(
+        seek ? LyricsMotion.seekSpring : LyricsMotion.scrollSpring,
+        pos.pixels,
+        target,
+        velocity,
+        snapToEnd: true,
+      ),
     );
   }
 
   bool _onUserScroll(UserScrollNotification n) {
     if (n.direction != ScrollDirection.idle) {
+      _spring.stop();
       _following = false;
       _userHold?.cancel();
       _userHold = Timer(const Duration(seconds: 4), () {
@@ -95,6 +143,19 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
       ),
     );
     final st = widget.style;
+
+    // New lyrics: forget the old song's scroll and settle on the current line
+    // without gliding, so a song resumed mid-way opens at the right place.
+    if (!identical(state.$2, _lyricsSeen)) {
+      _lyricsSeen = state.$2;
+      _lastFollowed = null;
+      _spring.stop();
+      if (state.$2 != null) {
+        WidgetsBinding.instance.addPostFrameCallback((_) {
+          if (mounted) _follow(ref.read(lyricsControllerProvider).activeLineIndex, instant: true);
+        });
+      }
+    }
 
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 280),
@@ -173,13 +234,19 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               TranslateBar(style: st),
-              if (firstAt > const Duration(seconds: 3))
+              if (isInstrumentalGap(Duration.zero, firstAt))
+                // Keeps its height once the singing starts, so nothing jumps.
                 Consumer(
-                  builder: (context, ref, _) => ref.watch(lyricsControllerProvider.select((s) => s.activeLineIndex < 0))
-                      ? _Breathing(style: st, size: widget.fontSize)
-                      : const SizedBox.shrink(),
+                  builder: (context, ref, _) => LyricGapDots(
+                    active: ref.watch(lyricsControllerProvider.select((s) => s.activeLineIndex < 0)),
+                    startMs: 0,
+                    endMs: firstAt.inMilliseconds,
+                    positionMs: () => ref.read(playerProvider.notifier).player.position.inMilliseconds,
+                    size: widget.fontSize,
+                    color: st.textPrimary,
+                  ),
                 ),
-              for (int i = 0; i < lines.length; i++)
+              for (int i = 0; i < lines.length; i++) ...[
                 _Line(
                   key: _keyFor(i),
                   index: i,
@@ -197,6 +264,19 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> {
                     ref.read(playerProvider.notifier).player.seek(ts < Duration.zero ? Duration.zero : ts);
                   },
                 ),
+                // A long silence after this line: dots fill across it.
+                if (i + 1 < lines.length && isInstrumentalGap(sungUntil(lines[i]), lines[i + 1].timestamp))
+                  Consumer(
+                    builder: (context, ref, _) => LyricGapDots(
+                      active: ref.watch(lyricsControllerProvider.select((s) => s.activeLineIndex == i)),
+                      startMs: sungUntil(lines[i]).inMilliseconds,
+                      endMs: lines[i + 1].timestamp.inMilliseconds,
+                      positionMs: () => ref.read(playerProvider.notifier).player.position.inMilliseconds,
+                      size: widget.fontSize,
+                      color: st.textPrimary,
+                    ),
+                  ),
+              ],
             ],
           ),
         ),
@@ -435,10 +515,8 @@ class _Pill extends StatelessWidget {
   }
 }
 
-enum _LineState { past, active, upcoming }
-
-/// One lyric line. It watches only whether it is past, sung now or upcoming, so
-/// when the song moves on exactly two lines rebuild, not the whole list.
+/// One lyric line. It watches only its capped distance from the sung line, so
+/// when the song moves on just the lines near it rebuild, not the whole list.
 class _Line extends ConsumerWidget {
   final int index;
   final LyricLine line;
@@ -467,16 +545,16 @@ class _Line extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final state = ref.watch(
+    // Signed distance from the sung line, capped: lines far from it all share
+    // one value, so when the song moves on only the lines near it rebuild.
+    final distance = ref.watch(
       lyricsControllerProvider.select(
-        (s) => index == s.activeLineIndex
-            ? _LineState.active
-            : (index < s.activeLineIndex ? _LineState.past : _LineState.upcoming),
+        (s) => (index - s.activeLineIndex).clamp(-LyricsMotion.maxDistance, LyricsMotion.maxDistance),
       ),
     );
     final text = line.text.trim();
     if (text.isEmpty) return SizedBox(height: fontSize * 0.9);
-    final active = state == _LineState.active;
+    final active = distance == 0;
     final textStyle = naviText(fontSize, FontWeight.w800, style.textPrimary).copyWith(height: 1.18);
     return Semantics(
       button: true,
@@ -486,96 +564,37 @@ class _Line extends ConsumerWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Padding(
-          padding: EdgeInsets.symmetric(vertical: fontSize * 0.36),
-          child: AnimatedOpacity(
-            duration: const Duration(milliseconds: 420),
-            curve: Curves.easeOutCubic,
-            opacity: active ? 1 : (state == _LineState.past ? 0.26 : 0.38),
-            child: AnimatedScale(
-              duration: const Duration(milliseconds: 420),
-              curve: Curves.easeOutCubic,
-              scale: active ? 1 : 0.965,
-              alignment: Alignment.centerLeft,
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  if (active && line.hasWordTimestamps)
-                    // Only this widget repaints per frame, and only while its
-                    // line is the sung one.
-                    RepaintBoundary(
-                      child: LyricWordSweep(
-                        line: line,
-                        endsAt: endsAt,
-                        style: textStyle,
-                        positionMs: () => ref.read(playerProvider.notifier).player.position.inMilliseconds,
-                      ),
-                    )
-                  else
-                    Text(text, style: textStyle),
-                  _Extras(
-                    extra: extra,
-                    showTranslation: showTranslation,
-                    showPronunciation: showPronunciation,
-                    fontSize: fontSize * 0.5,
-                    style: style,
-                  ),
-                ],
-              ),
+          // A shrunk line leaves its full-size box behind, so the padding is
+          // tighter than the visual gap it would otherwise suggest.
+          padding: EdgeInsets.symmetric(vertical: fontSize * 0.28),
+          child: LyricLineMotion(
+            distance: distance,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                if (active && line.hasWordTimestamps)
+                  // Only this widget repaints per frame, and only while its
+                  // line is the sung one.
+                  RepaintBoundary(
+                    child: LyricWordSweep(
+                      line: line,
+                      endsAt: endsAt,
+                      style: textStyle,
+                      positionMs: () => ref.read(playerProvider.notifier).player.position.inMilliseconds,
+                    ),
+                  )
+                else
+                  Text(text, style: textStyle),
+                _Extras(
+                  extra: extra,
+                  showTranslation: showTranslation,
+                  showPronunciation: showPronunciation,
+                  fontSize: fontSize * 0.5,
+                  style: style,
+                ),
+              ],
             ),
           ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Three breathing dots for the instrumental intro, as in Apple Music.
-class _Breathing extends StatefulWidget {
-  final NowPlayingStyle style;
-  final double size;
-  const _Breathing({required this.style, required this.size});
-
-  @override
-  State<_Breathing> createState() => _BreathingState();
-}
-
-class _BreathingState extends State<_Breathing> with SingleTickerProviderStateMixin {
-  late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(milliseconds: 1600));
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
-    reduce ? _c.stop() : _c.repeat();
-  }
-
-  @override
-  void dispose() {
-    _c.dispose();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final d = widget.size * 0.32;
-    return Padding(
-      padding: EdgeInsets.symmetric(vertical: widget.size * 0.5),
-      child: AnimatedBuilder(
-        animation: _c,
-        builder: (context, _) => Row(
-          children: List.generate(3, (i) {
-            // Each dot breathes on the same sine, a fifth of a cycle apart.
-            final t = 0.5 + 0.5 * math.sin(2 * math.pi * (_c.value - i * 0.2));
-            return Container(
-              width: d,
-              height: d,
-              margin: EdgeInsets.only(right: d * 0.6),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: widget.style.textPrimary.withValues(alpha: 0.3 + 0.6 * t),
-              ),
-            );
-          }),
         ),
       ),
     );
