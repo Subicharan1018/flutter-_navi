@@ -155,6 +155,27 @@ class SocialApi {
   Future<JamState> jamKick(String code, String user) =>
       _wrap(() async => _jam(await _post('/social/jam/$code/kick', {'user': user})));
 
+  /// Ask [username] into the room. They see it in their invitations and join with one tap.
+  Future<void> jamInvite(String code, String username) =>
+      _wrap(() async => _post('/social/jam/$code/invite', {'to': username}));
+
+  /// Jam invitations waiting for this person; empty on a server without
+  /// jam-invites-v1 (404), where the share link is still the way in.
+  Future<List<JamInvite>> jamInvites() async {
+    try {
+      final j = await _wrap(() => _get('/social/jam/invites'));
+      return [
+        for (final i in (j['invites'] as List? ?? const []))
+          if (i is Map) JamInvite.fromJson(Map<String, dynamic>.from(i)),
+      ];
+    } on SocialException catch (e) {
+      if (e.status == 404) return const [];
+      rethrow;
+    }
+  }
+
+  Future<void> jamInviteDecline(String code) => _wrap(() async => _post('/social/jam/$code/invite/decline'));
+
   Future<void> jamLeave(String code) => _wrap(() async => _post('/social/jam/$code/leave'));
 
   Future<void> jamEnd(String code) => _wrap(() async => _post('/social/jam/$code/end'));

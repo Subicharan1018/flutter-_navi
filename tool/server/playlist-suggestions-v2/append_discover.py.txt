@@ -1,0 +1,141 @@
+
+
+# ── playlist-suggestions-v2 ──────────────────────────────────────────────────
+# Suggested songs for a playlist, rebuilt around the playlist itself. The first
+# version matched one *average* of the playlist (a mixed playlist's average is a
+# song nobody asked for), ignored singers and moods, and let the listener's own
+# play counts lift favourites, which read as "popular songs". Now:
+#   near     closeness to the closest few playlist songs (not to their average),
+#            so a playlist of kuthu and melody is served from both
+#   words    the same for song-name words
+#   artist   the share of the playlist sung/played by the candidate's artist(s)
+#   composer the share of the playlist by the candidate's composer(s)
+#   mood     the playlist's most common moods against the candidate's
+#   lang     the playlist's language mix (a language it hardly has is dropped)
+#   taste    the listener's own plays, a tie-breaker only
+PLAYLIST_W2 = {"near": 1.0, "words": 0.6, "artist": 1.0, "composer": 0.8, "mood": 0.7, "lang": 0.4, "taste": 0.1}
+NEAR_K = 3
+MIN_REASON_SHARE = 0.2
+MIN_MOOD_SHARE = 0.4
+
+
+def _artist_tokens(row: dict) -> list:
+    """Every artist on a song, lower case ('A, B feat. C' -> a, b, c)."""
+    raw = re.sub(r"\b(?:feat|ft|featuring|with)\b\.?", ",", str(row.get("artist") or ""), flags=re.I)
+    return [t.strip().lower() for t in re.split(r"[,;/&•]", raw) if t.strip() and t.strip().lower() != "unknown"]
+
+
+def _shares(items_per_song: list) -> dict:
+    """Token -> share of the songs that have it (a song counts once per token)."""
+    n = float(len(items_per_song)) or 1.0
+    c = Counter()
+    for items in items_per_song:
+        for t in set(items):
+            c[t] += 1
+    return {t: v / n for t, v in c.items()}
+
+
+def _top_k_mean(sims: np.ndarray, k: int) -> np.ndarray:
+    k = max(1, min(k, sims.shape[1]))
+    return np.sort(sims, axis=1)[:, -k:].mean(axis=1)
+
+
+def fit_playlist(songs: list, ids: list, index: dict, meta: dict, emb: dict, taste: Taste = None,
+                 limit: int = 10, variety: bool = True, exclude: set = None, moods: dict = None) -> list[dict]:
+    """Library songs not in `songs` that fit that playlist, best first. Each item
+    is {"id", "score", "parts", "why"}; `why` is the reason the app shows."""
+    moods = moods or {}
+    inside = [s for s in dict.fromkeys(songs) if s in index and s in meta]
+    if len(inside) < 2:
+        return []
+    have = set(inside)
+    n = float(len(inside))
+    artist = _shares([_artist_tokens(meta[s]) for s in inside])
+    comp = _shares([composer_tokens(meta[s]) or [] for s in inside])
+    mood = _shares([list(moods.get(s) or []) for s in inside])
+    lang = {k: v for k, v in _shares([[meta[s].get("language") or "und"] for s in inside]).items()}
+    scores_ok = sum(is_score(meta[s]) for s in inside) / n >= SCORES_OK_SHARE
+    blocked = exclude or ()
+    cands = []
+    for s in ids:
+        row = meta.get(s)
+        if s in have or not row or s not in index or s in blocked:
+            continue
+        if not scores_ok and is_score(row):
+            continue
+        lg = row.get("language") or "und"
+        if lg != "und" and lang.get(lg, 0.0) < MIN_LANG_SHARE:
+            continue
+        cands.append(s)
+    if not cands:
+        return []
+    rows = np.array([index[s] for s in cands])
+    in_rows = np.array([index[s] for s in inside])
+    sim_a = emb["audio"][rows] @ emb["audio"][in_rows].T
+    sim_w = emb["words"][rows] @ emb["words"][in_rows].T
+    feats = {
+        "near": _top_k_mean(sim_a, NEAR_K),
+        "words": _top_k_mean(sim_w, NEAR_K),
+        "artist": np.sqrt(np.array([max((artist.get(t, 0.0) for t in _artist_tokens(meta[s])), default=0.0)
+                                    for s in cands])),
+        "composer": np.sqrt(np.array([max((comp.get(t, 0.0) for t in (composer_tokens(meta[s]) or [])), default=0.0)
+                                      for s in cands])),
+        "mood": np.array([min(1.0, sum(mood.get(m, 0.0) for m in set(moods.get(s) or []))) for s in cands]),
+        "lang": np.sqrt(np.array([lang.get(meta[s].get("language") or "und", 0.0) for s in cands])),
+        "taste": np.log1p(np.array([(taste.play.get(s, 0.0) if taste else 0.0) for s in cands])),
+    }
+    score = sum(PLAYLIST_W2[k] * _z(feats[k]) for k in feats)
+    nearest = (sim_a + sim_w).argmax(axis=1)
+    order = np.argsort(-score, kind="stable")
+    picked, per_comp, per_film = [], Counter(), Counter()
+    for i in order:
+        s = cands[i]
+        row = meta[s]
+        c = (composer_tokens(row) or ["?"])[0]
+        film = row.get("film") or f"_{s}"
+        if variety and (per_comp[c] >= MAX_PER_COMPOSER or per_film[film] >= MAX_PER_FILM):
+            continue
+        per_comp[c] += 1
+        per_film[film] += 1
+        picked.append({"id": s, "score": float(score[i]),
+                       "parts": {"words": float(feats["words"][i]), "composer": float(feats["composer"][i])},
+                       "why": _playlist_why(row, artist, comp, mood, moods.get(s) or [], meta[inside[int(nearest[i])]])})
+        if len(picked) >= limit:
+            break
+    return picked
+
+
+def _playlist_why(row: dict, artist: dict, comp: dict, mood: dict, tags: list, closest: dict) -> str:
+    """The one line shown under a suggestion: who it shares with the playlist, else its mood, else its neighbour."""
+    shown = re.split(r"[,;/•]", row.get("artist") or row.get("composer") or "")[0].strip()
+    text = None
+    best = max(((artist.get(t, 0.0), t) for t in _artist_tokens(row)), default=(0.0, ""))
+    if best[0] >= MIN_REASON_SHARE and shown:
+        text = f"More {shown}"
+    else:
+        cbest = max(((comp.get(t, 0.0), t) for t in (composer_tokens(row) or [])), default=(0.0, ""))
+        if cbest[0] >= MIN_REASON_SHARE:
+            name = re.split(r"[,;/•]", row.get("composer") or row.get("artist") or "")[0].strip()
+            text = f"More {name}" if name else "Same composer as songs here"
+    if text is None:
+        shared = max(((mood.get(m, 0.0), m) for m in set(tags)), default=(0.0, ""))
+        if shared[0] >= MIN_MOOD_SHARE:
+            text = f"Same mood: {shared[1]}"
+    like = (closest.get("title") or "").strip()
+    if text and like:
+        return f"{text}. Close to “{like}”" if text.startswith("More") else text
+    return text or (f"Close to “{like}”" if like else "Fits this playlist")
+
+
+def suggest_for_playlist(engine, user: str, songs: list, limit: int = 10, now: float = None,
+                         exclude=()) -> list[dict]:
+    """/predict/playlist-suggestions: payload items for songs that fit `songs`.
+    `exclude`: ids the app already showed (a Refresh asks for a fresh batch)."""
+    now = now or time.time()
+    events = _all_events(engine, now)
+    meta, moods = engine.cat.meta, mood_tags.load()
+    taste = build_taste([e for e in events if e.user == user], meta, moods, now)
+    emb = {"audio": engine.fb.au.astype(np.float64), "words": engine.fb.tx.astype(np.float64)}
+    ranked = fit_playlist(songs[:MAX_PLAYLIST_IDS], engine.cat.ids, engine.cat.index, meta, emb, taste, limit,
+                          exclude=set(taste_exclusions.blocked_ids(user, meta)) | set(exclude or ()), moods=moods)
+    return [payload(i, r, meta[r["id"]], r["why"]) for i, r in enumerate(ranked, 1)]

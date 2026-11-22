@@ -88,17 +88,27 @@ final socialSongsProvider = FutureProvider.autoDispose.family<Map<String, Song>,
   return loadChartSongs(ref, joinedIds.split(','));
 });
 
-/// Shared-playlist invitations and Blend requests waiting for an answer.
-/// Zero until social features are on (nothing is asked of the server before).
+/// Friends' invitations into a live Jam. Empty until social features are on.
+final jamInvitesProvider = FutureProvider.autoDispose<List<JamInvite>>(
+  (ref) async {
+    if (!_signedIn(ref) || !ref.watch(socialEnabledProvider)) return const [];
+    return ref.read(socialApiProvider).jamInvites();
+  },
+  retry: (_, _) => null,
+);
+
+/// Shared-playlist invitations, Blend requests and Jam invitations waiting for
+/// an answer. Zero until social features are on (nothing is asked of the server before).
 final invitationCountProvider = Provider<int>((ref) {
   if (!ref.watch(socialEnabledProvider)) return 0;
   final collabs = ref.watch(collabListProvider).asData?.value ?? const <CollabPlaylist>[];
   final blends = ref.watch(blendListProvider).asData?.value ?? const <Blend>[];
-  return countInvitations(collabs, blends);
+  final jams = ref.watch(jamInvitesProvider).asData?.value ?? const <JamInvite>[];
+  return countInvitations(collabs, blends, jams);
 });
 
-int countInvitations(List<CollabPlaylist> collabs, List<Blend> blends) =>
-    collabs.where((p) => p.invited).length + blends.where((b) => b.pending && b.incoming).length;
+int countInvitations(List<CollabPlaylist> collabs, List<Blend> blends, [List<JamInvite> jams = const []]) =>
+    collabs.where((p) => p.invited).length + blends.where((b) => b.pending && b.incoming).length + jams.length;
 
 final blendListProvider = FutureProvider.autoDispose<List<Blend>>(
   (ref) async {

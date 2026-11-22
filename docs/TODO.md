@@ -63,6 +63,7 @@ Research only, nothing fixed. Server paths are on subiserver (`TG` = `/opt/tg-fe
 - **Size.** S–M (server only).
 
 **#6 Playlist suggestions are poor — Cause / what to do**
+- **Status: built** in `tool/server/playlist-suggestions-v2` (max-similarity to the closest songs, artist/composer/mood/language terms, plays as a tie-breaker, `exclude`). Flow neighbours not done; app passes `exclude` on Refresh.
 - **What drives them.** App: `PlaylistSuggestions` (`lib/screens/playlist_suggestions.dart:44-100`) posts the playlist's song ids to `POST /predict/playlist-suggestions` and shows library songs only. Server: `server.py:1412` → `discover.suggest_for_playlist` (`SH/discover.py:429`) → `fit_playlist` (`SH/discover.py:371`). Score = z(audio similarity to the playlist's **single average**) + z(title-word similarity to the average) + 1.2 × composer overlap + 0.5 × z(log of the *user's own plays*) (`PLAYLIST_W`, line 367). Candidates are filtered only by language share and "score" tracks.
 - **Cause (medium confidence; I did not run the live ranking).** One centroid for a mixed playlist matches "average" songs, not any real cluster; no mood; artists/singers are not used (only composer tokens); the plays term (weight 0.5) lifts the user's most-played songs, which feels like popularity; nothing uses Flow/play-session neighbours. The `ids < 2` guard returns nothing for tiny playlists. The app comment says the server has no `exclude`, but the server already supports it.
 - **Fix (proposal).** Score each candidate by its best match to *any* playlist song (max / top-k mean similarity, not the centroid); add: share of the playlist's artists/lyricists/singers (like the composer term), language match weighted by the playlist's mix, mood overlap from `mood_tags.json` (the playlist's top moods vs the candidate's), and **Flow neighbours**: songs that follow the playlist's songs in real listening (`song_transitions` in `model_state_*.json`, other users' sessions). Drop or cut the personal-plays term to a tie-breaker (0.1). Show the real reason ("More Anirudh", "Often played after <song>", "Same mood: sad"). Pass `exclude` from the app instead of fetching 60 and filtering.
@@ -81,7 +82,7 @@ Research only, nothing fixed. Server paths are on subiserver (`TG` = `/opt/tg-fe
 
 | # | Feature | Notes |
 |---|---------|-------|
-| 7 | **Invite people to a Jam from inside the app.** | Pick a friend (social list) and send an invite they can accept with one tap, alongside the share link. |
+| 7 | **Invite people to a Jam from inside the app.** | Pick a friend (social list) and send an invite they can accept with one tap, alongside the share link. **Built:** Invite chip next to Copy/Share in the room, Join/Decline row under Invitations; server `tool/server/jam-invites-v1`. |
 | 8 | **Add from history to the queue, and a clear Queue action.** | History rows get Play next / Add to queue. The queue gets a visible "Clear queue" (keeping the current song), with undo. |
 | 9 | **Upload a playlist cover image.** | Pick an image, crop it square, and store it on the server (Navidrome playlist image or our own store). Show it on every platform. |
 | 10 | **Show the audio quality in the player.** | Show lossless vs. lossy and the bitrate in kbps (e.g. "FLAC · 16-bit/44.1 kHz" or "MP3 · 320 kbps"). Say when the server is transcoding the stream. |

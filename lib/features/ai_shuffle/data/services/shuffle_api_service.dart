@@ -228,11 +228,13 @@ class ShuffleApiService {
 
   /// POST /predict/playlist-suggestions
   /// Library songs that would fit a playlist, each with a one-line reason.
-  Future<List<({String id, String why})>> getPlaylistSuggestions(List<String> songIds, {int limit = 10}) async {
+  /// [exclude] are ids already shown; a server without playlist-suggestions-v2 ignores it.
+  Future<List<({String id, String why})>> getPlaylistSuggestions(List<String> songIds,
+      {int limit = 10, List<String> exclude = const []}) async {
     return _wrap(() async {
       final response = await _dio.post<Map<String, dynamic>>(
         '/predict/playlist-suggestions',
-        data: {'song_ids': songIds, 'limit': limit},
+        data: {'song_ids': songIds, 'limit': limit, if (exclude.isNotEmpty) 'exclude': exclude.take(200).toList()},
         options: Options(contentType: 'application/json'),
       );
       final list = (response.data?['suggestions'] as List<dynamic>? ?? []).whereType<Map>();

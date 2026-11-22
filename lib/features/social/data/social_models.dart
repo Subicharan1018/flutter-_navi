@@ -477,6 +477,36 @@ class CollabPlaylist {
 
 // ── Blend ────────────────────────────────────────────────────────────────────
 
+/// A friend asked you into their live Jam. Accepting is a normal join with [code].
+class JamInvite {
+  final String code;
+  final String from;
+  final JamMode mode;
+  final int members;
+
+  /// Seconds since the epoch, as the server's clock saw them.
+  final double at;
+  final double expiresAt;
+
+  const JamInvite({
+    required this.code,
+    required this.from,
+    this.mode = JamMode.jam,
+    this.members = 1,
+    this.at = 0,
+    this.expiresAt = 0,
+  });
+
+  factory JamInvite.fromJson(Map<String, dynamic> j) => JamInvite(
+        code: _s(j['code']),
+        from: _s(j['from']),
+        mode: JamMode.parse(j['mode']),
+        members: _i(j['members']),
+        at: j['at'] is num ? (j['at'] as num).toDouble() : 0,
+        expiresAt: j['expires_at'] is num ? (j['expires_at'] as num).toDouble() : 0,
+      );
+}
+
 class BlendSong {
   final String songId;
   final String title;

@@ -83,7 +83,7 @@ class _RoomPane extends ConsumerWidget {
       SyncPill(jam: jam, driftMs: driftMs),
       const SizedBox(height: Space.xs),
       Text(jamRoleLine(jam), style: t.caption1, maxLines: 1, overflow: TextOverflow.ellipsis),
-      JamCodeStrip(code: jam.code),
+      JamCodeStrip(code: jam.code, members: [for (final m in jam.members) m.username]),
       const SizedBox(height: Space.md),
       if (jam.youCanEdit)
         Row(mainAxisAlignment: MainAxisAlignment.center, children: [

@@ -65,14 +65,15 @@ class _PlaylistSuggestionsState extends ConsumerState<PlaylistSuggestions> {
   bool _refreshing = false;
 
   /// A new batch: asks for more than a screenful and shows the first ten that
-  /// have not been suggested before (the server has no "exclude" of its own).
+  /// have not been suggested before. What was shown goes to the server as
+  /// `exclude`; repeats are still dropped here because an older server ignores it.
   Future<void> _refresh() async {
     if (_refreshing) return;
     setState(() => _refreshing = true);
     try {
       final found = await ref
           .read(shuffleRepositoryProvider)
-          .getPlaylistSuggestions(widget.songs.map((s) => s.id).toList(), limit: 60);
+          .getPlaylistSuggestions(widget.songs.map((s) => s.id).toList(), limit: 60, exclude: _seen.toList());
       final library = {for (final s in await ref.read(allSongsProvider.future)) s.id: s};
       if (!mounted) return;
       final fresh = <_Pick>[
