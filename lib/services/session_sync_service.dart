@@ -576,6 +576,10 @@ class SessionSyncService {
   int _generation = 0;
   bool _manuallyDisconnected = false;
   bool _isConnecting = false;
+
+  /// Bumped by [resetAccount] so an in-flight [connect] from the old account
+  /// does not clear [_isConnecting] for a newer one.
+  int _connectEpoch = 0;
   PlaybackState _lastState = const PlaybackState.initial();
 
   SessionSyncService({
@@ -625,6 +629,7 @@ class SessionSyncService {
   Future<void> connect() async {
     if (_isConnecting || _channel != null) return;
     _isConnecting = true;
+    final connectEpoch = _connectEpoch;
     _manuallyDisconnected = false;
 
     try {
@@ -655,7 +660,7 @@ class SessionSyncService {
       final generation = _generation;
       final channel = _channelFactory(uri);
       _channel = channel;
-      await channel.ready;
+      await channel.ready.timeout(const Duration(seconds: 15));
       if (generation != _generation) {
         // The account changed (or we were told to disconnect) while this socket was opening:
         // it belongs to someone who is no longer signed in.
@@ -724,7 +729,8 @@ class SessionSyncService {
       if (++_failedConnects >= 2) _jwt = null;
       _scheduleReconnect(isAuthFailure: is4001);
     } finally {
-      _isConnecting = false;
+      // An account reset already cleared the flag; a newer connect() may own it now.
+      if (connectEpoch == _connectEpoch) _isConnecting = false;
     }
   }
 
@@ -893,13 +899,20 @@ class SessionSyncService {
       // Re-fetch the JWT via jwtSupplier before retrying instead of backing off forever
       _reconnectTimer = Timer(const Duration(milliseconds: 500), () async {
         if (!_manuallyDisconnected) {
-          final newToken = await _resolveJwt(forceRefresh: true);
+          String? newToken;
+          try {
+            newToken = await _resolveJwt(forceRefresh: true);
+          } catch (e) {
+            debugPrint('[SessionSync] ❌ Re-auth failed: $e');
+          }
           if (newToken != null && newToken.isNotEmpty) {
             connect();
           } else {
             debugPrint(
               '[SessionSync] ❌ Re-auth failed — no valid token retrieved',
             );
+            // Keep retrying with the normal back-off instead of going quiet.
+            _scheduleReconnect();
           }
         }
       });
@@ -936,7 +949,7 @@ class SessionSyncService {
         if (_jwt != null && _jwt!.isNotEmpty) 'Authorization': 'Bearer $_jwt',
         'Accept': 'application/json',
       },
-    );
+    ).timeout(const Duration(seconds: 10));
 
     if (resp.statusCode == 401) {
       debugPrint(
@@ -951,7 +964,7 @@ class SessionSyncService {
             'Authorization': 'Bearer $refreshedToken',
             'Accept': 'application/json',
           },
-        );
+        ).timeout(const Duration(seconds: 10));
       }
     }
 
@@ -1175,6 +1188,7 @@ class SessionSyncService {
     _devices = const [];
     if (!_devicesController.isClosed) _devicesController.add(_devices);
     _emitState(const PlaybackState.initial());
+    _connectEpoch++;
     _isConnecting = false;
     _reconnectAttempt = 0;
   }
