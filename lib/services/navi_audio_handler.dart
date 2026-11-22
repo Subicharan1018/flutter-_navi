@@ -1082,6 +1082,20 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _applyVolume();
   }
 
+  /// Remembers the queue without loading any audio (offline restore of a song
+  /// that is not on the device). [loadStaged] loads it later.
+  void stageQueue(List<Song> songs, List<Song> unshuffled) {
+    _currentQueue = List.from(songs);
+    _unshuffledQueue = List.from(unshuffled);
+    _offlinePathsCache = null;
+    _offlinePathsQueueLength = 0;
+  }
+
+  Future<void> loadStaged(int index, Duration position) async {
+    await _rebuildSource(index, initialPosition: position);
+    _applyVolume();
+  }
+
   // ---------------------------------------------------------------------------
   // ReplayGain, crossfade, speed
   // ---------------------------------------------------------------------------
@@ -1473,6 +1487,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void _handleDesktopLoadError(int failedIndex, Object error) {
     if (_currentQueue.isEmpty) return;
+    if (_networkDown) {
+      _awaitingNetwork = true; // not the song's fault: wait, do not skip
+      return;
+    }
     debugPrint('⚠️ [Desktop] Handling load error for track $failedIndex. Attempting safe advance...');
     if (failedIndex + 1 < _currentQueue.length) {
       unawaited(_desktopSkipToNext());
@@ -2259,7 +2277,43 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   bool _isRecovering = false;
   int? _lastFailedIndex;
 
+  bool _networkDown = false;
+  bool _awaitingNetwork = false;
+  Timer? _restoreCheck;
+
+  /// Whether the device has no connection. While it is down a stall or a
+  /// failed load is the network, not the song: playback keeps what it has
+  /// buffered and nothing is stopped, reloaded or skipped.
+  bool get networkDown => _networkDown;
+
+  void setNetworkDown(bool down) {
+    if (_networkDown == down) return;
+    _networkDown = down;
+    if (down) {
+      _restoreCheck?.cancel();
+      return;
+    }
+    // Back online: a player still buffering usually resumes alone. Give it a
+    // few seconds, then reload at the same spot if it is still stuck or failed.
+    _restoreCheck?.cancel();
+    _restoreCheck = Timer(const Duration(seconds: 6), () {
+      if (_networkDown) return;
+      final s = player.playerState;
+      final stuck = _awaitingNetwork ||
+          (s.playing &&
+              (s.processingState == ProcessingState.idle ||
+                  s.processingState == ProcessingState.loading ||
+                  s.processingState == ProcessingState.buffering));
+      _awaitingNetwork = false;
+      if (stuck) unawaited(_recoverStuckPlayer());
+    });
+  }
+
   Future<void> _recoverStuckPlayer() async {
+    if (_networkDown) {
+      _awaitingNetwork = true;
+      return;
+    }
     if (_isRecovering) {
       debugPrint('⚡ [NaviAudioHandler] Recovery already in progress. Ignoring re-entrant call.');
       return;
@@ -2326,6 +2380,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> dispose() async {
+    _restoreCheck?.cancel();
     _stuckTimer?.cancel();
     _stuckTimer = null;
     _warmTimer?.cancel();
