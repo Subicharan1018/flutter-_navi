@@ -75,6 +75,15 @@ DEST="$ROOT/releases/$NAME"
 mkdir -p "$DEST.partial"
 cp -a "$SRC/." "$DEST.partial/"
 find "$DEST.partial" -name '*.symbols' -delete
+# Precompressed copies for Caddy's `file_server { precompressed br gzip }`: the
+# app's wasm, JS and fonts are ~20% smaller as Brotli than as gzip, and this
+# is done once here instead of on every request. Without the brotli tool only
+# the gzip copies are made (Caddy then serves gzip; nothing breaks).
+if ! command -v brotli >/dev/null 2>&1; then echo "   brotli not installed: gzip only (sudo apt install brotli)"; fi
+find "$DEST.partial" -type f -size +1k   \( -name '*.wasm' -o -name '*.js' -o -name '*.mjs' -o -name '*.json' -o -name '*.css'      -o -name '*.html' -o -name '*.svg' -o -name '*.ttf' -o -name '*.otf' -o -name '*.txt' \)   -print0 | while IFS= read -r -d '' f; do
+    gzip -9 -k -f "$f"
+    if command -v brotli >/dev/null 2>&1; then brotli -q 11 -k -f "$f"; fi
+  done
 chmod -R a+rX "$DEST.partial"
 mv "$DEST.partial" "$DEST"
 switch_to "$NAME"

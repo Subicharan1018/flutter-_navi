@@ -37,6 +37,16 @@ class CollectionDownloadProgress {
   final int total;
   const CollectionDownloadProgress(this.done, this.active, this.total);
 
+  @override
+  bool operator ==(Object other) =>
+      other is CollectionDownloadProgress &&
+      other.done == done &&
+      other.active == active &&
+      other.total == total;
+
+  @override
+  int get hashCode => Object.hash(done, active, total);
+
   bool get allDone => total > 0 && done == total;
   bool get running => active > 0;
   double get fraction => total == 0 ? 0 : (done + active / 2) / total;
@@ -66,7 +76,8 @@ class CollectionDownloadButton extends ConsumerWidget {
     // The browser build streams only: no download folder to save into.
     if (!PlatformUtils.supportsOfflineFiles) return const SizedBox.shrink();
     final t = ThemeTokens.of(context);
-    final p = CollectionDownloadProgress.of(songs, ref.watch(downloadStateProvider));
+    // Only the counts matter here, so per-chunk progress ticks never rebuild it.
+    final p = ref.watch(downloadStateProvider.select((dl) => CollectionDownloadProgress.of(songs, dl)));
     if (p.running) {
       return CircleIconButton(
         icon: NaviGlyph.download,

@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../core/cover_cache.dart';
 import '../core/theme.dart';
 import '../features/local_library/logic/local_index.dart';
 import '../features/local_library/logic/local_library_providers.dart' show localIndexRevisionProvider;
@@ -15,7 +16,7 @@ import 'art/navi_icons.dart';
 /// the exact pixel count, so the same cover is fetched (and cached) once per
 /// step instead of once per layout, and a slow connection downloads a 128 px
 /// image for a 46 px row instead of the full-size original.
-const kCoverSteps = [96, 160, 256, 384, 512, 768, 1024];
+const kCoverSteps = [128, 256, 512, 1024];
 
 /// [url] (a Subsonic `getCoverArt` link) asking for [px] pixels, rounded up to
 /// the next of [kCoverSteps]. Links that already carry a size, and anything
@@ -101,6 +102,7 @@ class CoverArt extends StatelessWidget {
               )
             : CachedNetworkImage(
                 imageUrl: sizedCoverUrl(url!, px),
+                cacheManager: coverCacheManager,
                 fit: BoxFit.cover,
                 // Width only (see above): both would stretch a non-square cover.
                 memCacheWidth: px,

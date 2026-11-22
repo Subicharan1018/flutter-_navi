@@ -195,11 +195,18 @@ final isOfflineProvider = Provider<bool>((ref) {
   );
 });
 
+/// True once a server URL and password are set. The network providers below
+/// watch this instead of the whole settings state, so changing crossfade, speed
+/// or any other setting does not refetch them. (A URL or password change still
+/// rebuilds them through [subsonicServiceProvider].)
+final _hasCredentialsProvider = Provider<bool>((ref) => ref.watch(settingsProvider
+    .select((s) => s.serverUrl.isNotEmpty && s.password.isNotEmpty)));
+
 // MEM-OPT: Changed from keepAlive to autoDispose. The home screen data is
 // released when the user navigates away, preventing permanent retention.
 final recentlyPlayedAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
-  final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
+  final hasCredentials = ref.watch(_hasCredentialsProvider);
+  if (!hasCredentials) return [];
   final service = ref.watch(subsonicServiceProvider);
   return service.getRecentlyPlayedAlbums();
 });
@@ -248,8 +255,8 @@ final recentlyPlayedSongsProvider = FutureProvider<List<Song>>((ref) async {
 
 // MEM-OPT: autoDispose — released when the playlists tab is closed.
 final playlistsProvider = FutureProvider.autoDispose<List<Playlist>>((ref) async {
-  final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
+  final hasCredentials = ref.watch(_hasCredentialsProvider);
+  if (!hasCredentials) return [];
   final service = ref.watch(subsonicServiceProvider);
   return service.getPlaylists();
 });
@@ -282,8 +289,8 @@ final songsInPlaylistProvider = FutureProvider.autoDispose
 // screen is visible. Released when the screen is popped.
 final favoritesProvider =
     FutureProvider.autoDispose<({List<Song> songs, List<Album> albums})>((ref) async {
-      final settings = ref.watch(settingsProvider);
-      if (settings.serverUrl.isEmpty || settings.password.isEmpty) {
+      final hasCredentials = ref.watch(_hasCredentialsProvider);
+      if (!hasCredentials) {
         return (songs: <Song>[], albums: <Album>[]);
       }
       final service = ref.watch(subsonicServiceProvider);
@@ -388,8 +395,8 @@ bool _syncInFlight = false;
 /// multi-page fetch — an autoDispose provider was torn down mid-await, so the
 /// sync never finished and every list built on the mirror stayed empty.
 final allSongsProvider = FutureProvider<List<Song>>((ref) async {
-  final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
+  final hasCredentials = ref.watch(_hasCredentialsProvider);
+  if (!hasCredentials) return [];
 
   final db = ref.watch(appDatabaseProvider);
   final service = ref.watch(subsonicServiceProvider);
@@ -463,15 +470,15 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
 
 /// Newest albums on the server — Library's "Recently Added" grid.
 final recentlyAddedAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
-  final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
+  final hasCredentials = ref.watch(_hasCredentialsProvider);
+  if (!hasCredentials) return [];
   return ref.watch(subsonicServiceProvider).getAlbumList(type: 'newest', size: 24);
 });
 
 // MEM-OPT: autoDispose — library albums only held while the albums tab is open.
 final libraryAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
-  final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
+  final hasCredentials = ref.watch(_hasCredentialsProvider);
+  if (!hasCredentials) return [];
   final service = ref.watch(subsonicServiceProvider);
   return service.getAlbums(size: 1000);
 });
@@ -779,6 +786,9 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
     });
     if (arg.filter == LibraryFilter.downloaded || ref.read(isOfflineProvider)) {
       ref.listen(downloadedSongIdsProvider, (prev, next) {
+        // A fresh Set is built on every download-state change (each progress
+        // tick); only reload when the downloaded IDs themselves changed.
+        if (prev != null && setEquals(prev, next)) return;
         loadNextPage(isRefresh: true);
       });
     }

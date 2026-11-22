@@ -108,6 +108,10 @@ class AppDatabase extends _$AppDatabase {
     const statements = [
       'CREATE INDEX IF NOT EXISTS idx_song_meta_title_artist ON song_metadata (track_name, artist_name)',
       'CREATE INDEX IF NOT EXISTS idx_song_meta_artist ON song_metadata (artist_name)',
+      // Library paging sorts by these (ORDER BY ... LIMIT 50 OFFSET n).
+      'CREATE INDEX IF NOT EXISTS idx_song_meta_created ON song_metadata (created_at)',
+      'CREATE INDEX IF NOT EXISTS idx_song_meta_play_count ON song_metadata (play_count)',
+      'CREATE INDEX IF NOT EXISTS idx_song_meta_duration ON song_metadata (duration_sec)',
       'CREATE INDEX IF NOT EXISTS idx_play_events_ts ON play_events (ts_start)',
       'CREATE INDEX IF NOT EXISTS idx_play_events_song ON play_events (song_id)',
       'CREATE INDEX IF NOT EXISTS idx_local_songs_folder ON local_songs (folder_id)',

@@ -140,6 +140,15 @@ What the Caddyfile does:
   admin UI (`/app`) is not proxied here.
 - Unknown paths fall back to `index.html` (single-page app).
 - Cache headers as described above.
+- Serves precompressed Brotli, then gzip (`file_server { precompressed br gzip }`).
+  `deploy-web.sh` makes the `.br` and `.gz` copies of each release's wasm, JS,
+  JSON, CSS, HTML and fonts (about 20% smaller than gzip). One-time on the
+  server: `sudo apt install brotli` (without it only gzip copies are made),
+  then re-run `deploy-web.sh` so the script and Caddyfile are installed, and
+  `cd /opt/navivibe-web && docker compose up -d --force-recreate` for the new
+  Caddyfile. Check with
+  `curl -sI -H 'Accept-Encoding: br' https://subimusic.me/main.dart.wasm | grep -i content-encoding`
+  (expect `br`).
 - `X-Content-Type-Options`, `Referrer-Policy: same-origin`, `X-Frame-Options: DENY`,
   HSTS, a `Permissions-Policy`, and this CSP:
   ```

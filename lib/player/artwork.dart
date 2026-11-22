@@ -6,11 +6,11 @@ import 'dart:ui' as ui;
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter_cache_manager/flutter_cache_manager.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
+import '../core/cover_cache.dart';
 import '../core/theme.dart';
 import '../core/album_palette.dart';
 import '../features/local_library/logic/local_index.dart';
@@ -51,7 +51,7 @@ ImageProvider coverImage(String url, String cacheKey, {int? cacheWidth}) {
   final base = debugCoverImageOverride?.call(url, cacheKey) ??
       (url.startsWith('file:')
           ? FileImage(File.fromUri(Uri.parse(url)))
-          : CachedNetworkImageProvider(url, cacheKey: cacheKey) as ImageProvider);
+          : CachedNetworkImageProvider(url, cacheKey: cacheKey, cacheManager: coverCacheManager) as ImageProvider);
   return cacheWidth == null ? base : ResizeImage(base, width: cacheWidth, policy: ResizeImagePolicy.fit);
 }
 
@@ -179,7 +179,7 @@ class ArtworkRepository {
       if (res.statusCode != 200) throw StateError('cover HTTP ${res.statusCode}');
       encoded = res.bodyBytes;
     } else {
-      final file = await DefaultCacheManager()
+      final file = await coverCacheManager
           .getSingleFile(_thumbUrl(url), key: '${key}_$_texSize')
           .timeout(_stepTimeout);
       encoded = await file.readAsBytes();
