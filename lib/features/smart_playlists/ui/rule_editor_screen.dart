@@ -135,7 +135,7 @@ class _SmartPlaylistEditorState extends ConsumerState<SmartPlaylistEditor> {
                   selected: _sort,
                   label: (s) => s.label,
                 );
-                if (v != null) setState(() => _sort = v);
+                if (v != null && mounted) setState(() => _sort = v);
               },
             ),
           ),
