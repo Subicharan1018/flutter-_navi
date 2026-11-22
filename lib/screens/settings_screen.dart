@@ -16,10 +16,11 @@ import '../features/exportify_import/ui/exportify_import_section.dart';
 import '../features/album_overnight/ui/album_overnight_settings.dart';
 import '../features/weekly_exploration/ui/weekly_exploration_settings.dart';
 import '../features/flow/ui/flow_settings.dart';
-import '../features/listenbrainz/ui/listenbrainz_section.dart';
+import '../features/listenbrainz/ui/listenbrainz_section.dart' show ListenBrainzSection, listenBrainzStatusProvider;
 import '../features/local_library/ui/download_location_section.dart';
 import '../features/play_cache/ui/play_cache_section.dart';
 import '../features/auto_download/ui/auto_download_section.dart';
+import '../features/auto_download/logic/auto_download_providers.dart' show autoDownloadSettingsProvider;
 import '../lyrics/ui/lyrics_sources_section.dart';
 import '../features/local_library/ui/local_music_section.dart';
 import '../features/social/ui/social_settings_section.dart';
@@ -46,53 +47,16 @@ import '../widgets/ui/action_sheet.dart';
 import '../widgets/ui/controls.dart' show NaviSearchField;
 import '../widgets/ui/grouped_list.dart';
 import '../widgets/ui/large_title_page.dart';
+import 'settings_folders.dart';
 
-// The categories, most-used first. Every platform shows them in this order.
-const _cPlayback = 'Playback';
-const _cDownloads = 'Downloads & storage';
-const _cAppearance = 'Appearance';
-const _cAccounts = 'Accounts & scrobbling';
-const _cSocial = 'Social & Jam';
-const _cServer = 'Server';
-const _cAdvanced = 'Advanced & diagnostics';
-const _categoryOrder = [_cPlayback, _cDownloads, _cAppearance, _cAccounts, _cSocial, _cServer, _cAdvanced];
-
-/// Splits [items] at its [SettingsCategory] markers into the categories in
-/// [_categoryOrder]. A category may be marked more than once; its sections keep
-/// their source order. Empty categories are left out.
+/// The folders that have something to show here, in order, each with its
+/// sections as built by the screen. A section the platform doesn't offer is
+/// absent from [items]; a folder left empty is left out.
 @visibleForTesting
-Map<String, List<Widget>> groupSettings(List<Widget> items) {
-  final byName = <String, List<Widget>>{};
-  String? current;
-  for (final w in items) {
-    if (w is SettingsCategory) {
-      current = w.name;
-      byName.putIfAbsent(current, () => []);
-    } else if (current != null) {
-      byName[current]!.add(w);
-    }
-  }
-  return {
-    for (final n in _categoryOrder)
-      if (byName[n]?.isNotEmpty ?? false) n: byName[n]!,
-  };
-}
-
-/// Words that find the sections whose rows this file doesn't build itself.
-final Map<Type, String> _sectionWords = {
-  LyricsSourcesSection: 'lyrics sources synced words',
-  PlayCacheSection: 'play cache listen again replay',
-  AutoDownloadSection: 'auto download automatically offline',
-  DownloadLocationSection: 'download location folder storage',
-  LocalMusicSection: 'local music device folder files',
-  SocialSettingsSection: 'social friends jam profile sharing listen together',
-  FlowSettingsSection: 'flow mood radio',
-  ListenBrainzSection: 'listenbrainz last.fm lastfm scrobble scrobbling account token',
-  WeeklyExplorationSettings: 'weekly exploration playlist discover',
-  ExportifyImportSection: 'exportify spotify import csv history',
-  NotificationSettingsSection: 'notifications alerts',
-  WindowsSettingsSection: 'windows tray startup shortcut',
-};
+Map<SettingsFolder, List<Widget>> groupSettings(Map<SettingsSection, Widget> items) => {
+      for (final f in SettingsFolder.values)
+        if (f.sections.any(items.containsKey)) f: [for (final s in f.sections) ?items[s]],
+    };
 
 bool _hit(String text, List<String> terms) {
   final low = text.toLowerCase();
@@ -106,35 +70,46 @@ String _rowText(Widget w) => switch (w) {
       _ => '',
     };
 
-/// The sections of [groups] that match [query], every word of it, by category
+/// The sections of [groups] that match [query], every word of it, by folder
 /// name, section heading, row title/subtitle, or a section's keywords. A
-/// section built here shrinks to its matching rows; a category named in the
+/// section built here shrinks to its matching rows; a folder named in the
 /// query keeps all of its sections.
 @visibleForTesting
-Map<String, List<Widget>> searchSettings(Map<String, List<Widget>> groups, String query) {
+Map<SettingsFolder, List<Widget>> searchSettings(Map<SettingsSection, Widget> items, String query) {
   final terms = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
-  final out = <String, List<Widget>>{};
-  groups.forEach((name, sections) {
-    if (_hit(name, terms)) {
-      out[name] = sections;
-      return;
-    }
+  final out = <SettingsFolder, List<Widget>>{};
+  for (final f in SettingsFolder.values) {
     final kept = <Widget>[];
-    for (final w in sections) {
-      if (w is GroupedSection) {
+    for (final id in f.sections) {
+      final w = items[id];
+      if (w == null) continue;
+      if (_hit(f.title, terms)) {
+        kept.add(w);
+      } else if (w is GroupedSection) {
         final rows = w.children.where((r) => _hit(_rowText(r), terms)).toList();
         if (_hit(w.header ?? '', terms)) {
           kept.add(w);
         } else if (rows.isNotEmpty) {
           kept.add(GroupedSection(header: w.header, children: rows));
         }
-      } else if (_hit(_sectionWords[w.runtimeType] ?? '', terms)) {
+      } else if (_hit(id.words, terms)) {
         kept.add(w);
       }
     }
-    if (kept.isNotEmpty) out[name] = kept;
-  });
+    if (kept.isNotEmpty) out[f] = kept;
+  }
   return out;
+}
+
+/// The folders whose name, or any section's words, match [query]: what the
+/// phone and TV hub lists under the search box (each opens its folder).
+@visibleForTesting
+List<SettingsFolder> searchFolders(String query) {
+  final terms = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  return [
+    for (final f in SettingsFolder.values)
+      if (_hit(f.title, terms) || f.sections.any((id) => _hit(id.words, terms))) f,
+  ];
 }
 
 final _appVersionProvider =FutureProvider<String>((ref) async {
@@ -145,15 +120,18 @@ final _appVersionProvider =FutureProvider<String>((ref) async {
 /// iOS Settings layout: inset groups, coloured icon squares, choices in
 /// sheets. Switches apply at once; account and sync fields apply on Save.
 class SettingsScreen extends ConsumerStatefulWidget {
-  const SettingsScreen({super.key});
+  /// Phone and TV: the folder's page; null is the top level, the list of
+  /// folders. Windows shows every folder in its sidebar and starts on this one.
+  final SettingsFolder? folder;
+  const SettingsScreen({super.key, this.folder});
 
   @override
   ConsumerState<SettingsScreen> createState() => _SettingsScreenState();
 }
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
-  /// Windows: the category showing on the right.
-  String _category = _cPlayback;
+  /// Windows: the folder showing on the right.
+  late SettingsFolder _folder = widget.folder ?? SettingsFolder.playback;
 
   /// The settings search box; empty shows every section in order.
   final _query = TextEditingController();
@@ -331,10 +309,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
     // The sections in order; the markers name the categories the desktop's left
     // list picks between (a phone just scrolls past them).
-    final items = <Widget>[
-          const SizedBox(height: Space.sm),
-          const SettingsCategory(_cServer),
+    final items = <SettingsSection, Widget>{
           if (kIsWeb)
+            SettingsSection.account:
             // Browser: no password is kept, so there is nothing to edit here;
             // signing out forgets the session token.
             GroupedSection(
@@ -361,7 +338,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             )
           else
-          GroupedSection(
+          SettingsSection.account: GroupedSection(
             header: 'Account',
             footer: PlatformUtils.isDesktop ? 'Changes are saved as you type.' : 'Changes to your account apply when you tap Save.',
             children: [
@@ -404,8 +381,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          const SettingsCategory(_cAppearance),
-          GroupedSection(
+          SettingsSection.look: GroupedSection(
             header: 'Look & motion',
             children: [
               GroupedSwitchRow(
@@ -433,7 +409,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          GroupedSection(
+          SettingsSection.mascot: GroupedSection(
             header: 'Mascot',
             footer: 'A little robot walks along the mini player, dances to the music on '
                 'Now Playing, and naps after midnight. Tap it to make it hop.',
@@ -475,8 +451,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
-          const SettingsCategory(_cPlayback),
-          GroupedSection(
+          SettingsSection.audioQuality: GroupedSection(
             header: 'Audio Quality',
             footer: _transcoding
                 ? 'Lower bitrates use less data. Original streams the file exactly as stored.'
@@ -530,7 +505,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ],
             ],
           ),
-          GroupedSection(
+          SettingsSection.playback: GroupedSection(
             header: 'Playback',
             children: [
               GroupedSwitchRow(
@@ -608,10 +583,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
-          const LyricsSourcesSection(),
-          const SettingsCategory(_cDownloads),
-          GroupedSection(
-            header: PlatformUtils.supportsOfflineFiles ? 'Downloads & Storage' : 'Storage',
+          SettingsSection.lyrics: const LyricsSourcesSection(),
+          SettingsSection.storage: GroupedSection(
+            header: 'Storage',
             children: [
               if (PlatformUtils.supportsOfflineFiles)
                 GroupedRow(
@@ -651,12 +625,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          if (PlatformUtils.supportsOfflineFiles) const PlayCacheSection(),
-          if (PlatformUtils.supportsOfflineFiles) const AutoDownloadSection(),
-          if (PlatformUtils.supportsOfflineFiles) const DownloadLocationSection(),
-          if (PlatformUtils.supportsOfflineFiles) const LocalMusicSection(),
+          if (PlatformUtils.supportsOfflineFiles) SettingsSection.playCache: const PlayCacheSection(),
+          if (PlatformUtils.supportsOfflineFiles) SettingsSection.autoDownload: const AutoDownloadSection(),
+          if (PlatformUtils.supportsOfflineFiles) SettingsSection.downloadLocation: const DownloadLocationSection(),
+          if (PlatformUtils.supportsOfflineFiles) SettingsSection.localMusic: const LocalMusicSection(),
           if (downloads > 0 && PlatformUtils.supportsOfflineFiles)
-            GroupedSection(children: [
+            SettingsSection.deleteDownloads: GroupedSection(children: [
               GroupedRow(
                 title: 'Delete All Downloads',
                 destructive: true,
@@ -664,10 +638,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onTap: _busy == null ? () => _deleteAllDownloads(downloads, size) : null,
               ),
             ]),
-          const SettingsCategory(_cSocial),
-          const SocialSettingsSection(),
-          const SettingsCategory(_cPlayback), // Smart Shuffle: still playback, after the basics
-          GroupedSection(
+          SettingsSection.social: const SocialSettingsSection(),
+          SettingsSection.smartShuffle: GroupedSection(
             header: 'Smart Shuffle',
             footer: learned == 0
                 ? 'Recommendations improve as you listen.'
@@ -684,8 +656,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          const FlowSettingsSection(),
-          GroupedSection(
+          SettingsSection.flowLanguages: const FlowSettingsSection(),
+          SettingsSection.tasteMonth: GroupedSection(
             footer: 'Songs, artists and composers you never want recommended.',
             children: [
               GroupedRow(
@@ -700,7 +672,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          GroupedSection(children: [
+          SettingsSection.clearRecommendations: GroupedSection(children: [
             GroupedRow(
               title: 'Clear Recommendation Data',
               destructive: true,
@@ -708,13 +680,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: _busy == null ? _clearRecommendations : null,
             ),
           ]),
-          const SettingsCategory(_cAccounts),
-          const ListenBrainzSection(),
-          const WeeklyExplorationSettings(),
-          const AlbumOvernightSettings(),
-          const ExportifyImportSection(),
-          const SettingsCategory(_cAdvanced),
-          GroupedSection(
+          SettingsSection.scrobbling: const ListenBrainzSection(),
+          SettingsSection.weeklyExploration: const WeeklyExplorationSettings(),
+          SettingsSection.albumOvernight: const AlbumOvernightSettings(),
+          SettingsSection.importData: const ExportifyImportSection(),
+          SettingsSection.listeningData: GroupedSection(
             header: 'Your Listening Data',
             children: [
               if (PlatformUtils.supportsOfflineFiles) // writes files to Downloads
@@ -741,9 +711,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          const NotificationSettingsSection(),
-          const WindowsSettingsSection(),
-          GroupedSection(
+          SettingsSection.notifications: const NotificationSettingsSection(),
+          SettingsSection.windows: const WindowsSettingsSection(),
+          SettingsSection.about: GroupedSection(
             header: 'About',
             children: [
               GroupedRow(title: 'Version', value: version),
@@ -766,11 +736,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
-    ];
+    };
 
     final groups = groupSettings(items);
     final query = _query.text;
-    final results = query.trim().isEmpty ? null : searchSettings(groups, query);
+    final results = query.trim().isEmpty || !PlatformUtils.isDesktop ? null : searchSettings(items, query);
     final search = NaviSearchField(
       controller: _query,
       placeholder: 'Search settings',
@@ -779,27 +749,100 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     );
 
     if (PlatformUtils.isDesktop) return _desktopLayout(context, groups, results, search);
+    final folder = widget.folder;
+    if (folder == null) return _hub(context, groups.keys.toList(), search);
     return LargeTitlePage(
-      title: 'Settings',
-      trailing: CupertinoButton(
-        padding: EdgeInsets.zero,
-        onPressed: _save,
-        child: Text('Save', style: t.headline.copyWith(color: t.accent)),
-      ),
+      title: folder.title,
+      // The account is the one folder that holds fields to save.
+      trailing: folder == SettingsFolder.account
+          ? CupertinoButton(
+              padding: EdgeInsets.zero,
+              onPressed: _save,
+              child: Text('Save', style: t.headline.copyWith(color: t.accent)),
+            )
+          : null,
       slivers: [
         SliverList.list(children: [
-          Padding(padding: const EdgeInsets.symmetric(horizontal: Space.lg), child: search),
-          if (results == null)
-            for (final sections in groups.values) ...sections
-          else
-            ..._resultWidgets(results),
+          const SizedBox(height: Space.sm),
+          ...?groups[folder],
         ]),
       ],
     );
   }
 
-  /// The matching sections, in category order; a note when nothing matches.
-  List<Widget> _resultWidgets(Map<String, List<Widget>> results) {
+  /// Phone and TV top level: the folders, most-used first, each with a line
+  /// on where it stands now. The search box lists the folders that match.
+  Widget _hub(BuildContext context, List<SettingsFolder> folders, Widget search) {
+    final query = _query.text.trim();
+    final shown = query.isEmpty ? folders : searchFolders(query).where(folders.contains).toList();
+    final t = ThemeTokens.of(context);
+    return LargeTitlePage(
+      title: 'Settings',
+      slivers: [
+        SliverList.list(children: [
+          Padding(padding: const EdgeInsets.symmetric(horizontal: Space.lg), child: search),
+          if (shown.isEmpty)
+            Padding(
+              padding: const EdgeInsets.all(Space.xl),
+              child: Text('No settings match “$query”.', style: t.subheadline.copyWith(color: t.textSecondary)),
+            )
+          else
+            GroupedSection(
+              children: [
+                for (final f in shown)
+                  GroupedRow(
+                    title: f.title,
+                    subtitle: _summary(f),
+                    icon: f.icon,
+                    onTap: () => navigateInApp(context, SettingsScreen(folder: f), title: f.title),
+                  ),
+              ],
+            ),
+        ]),
+      ],
+    );
+  }
+
+  /// One line on a folder's current state, for the top level.
+  String _summary(SettingsFolder f) {
+    final s = ref.watch(settingsProvider);
+    switch (f) {
+      case SettingsFolder.playback:
+        final autoplay = ref.watch(playerProvider.select((p) => p.autoplayMode));
+        return '${autoplay ? 'Autoplay on' : 'Autoplay off'} · '
+            '${s.crossfadeSeconds == 0 ? 'Gapless' : 'Crossfade ${crossfadeLabel(s.crossfadeSeconds)}'}';
+      case SettingsFolder.downloads:
+        if (!PlatformUtils.supportsOfflineFiles) return 'Artwork and tempo cache';
+        final n = ref.watch(downloadStateProvider.select((m) => m.length));
+        final bytes = ref.watch(downloadedBytesProvider).asData?.value;
+        final auto = ref.watch(autoDownloadSettingsProvider.select((a) => a.enabled));
+        final held = n == 0
+            ? 'No downloads'
+            : '$n ${n == 1 ? 'song' : 'songs'} · ${bytes == null ? '…' : ref.read(offlineServiceProvider).formatSize(bytes)}';
+        return auto ? '$held · Auto on' : held;
+      case SettingsFolder.flow:
+        final rec = ref.read(recommendationProvider);
+        return rec.enabled ? 'Recommendations on · ${rec.profiles.length} songs learned' : 'Recommendations off';
+      case SettingsFolder.replay:
+        final linked = ref.watch(listenBrainzStatusProvider).asData?.value.linked;
+        return linked == true ? 'ListenBrainz linked' : 'Scrobbling and history import';
+      case SettingsFolder.appearance:
+        return 'Motion ${s.motionLevel.label} · Microduck ${s.microduckEnabled ? 'on' : 'off'}';
+      case SettingsFolder.social:
+        return 'Friends, sharing and alerts';
+      case SettingsFolder.notifications:
+        return PlatformUtils.isWindows ? 'Alerts, tray and startup' : 'Alerts';
+      case SettingsFolder.account:
+        final host = Uri.tryParse(s.serverUrl)?.host ?? s.serverUrl;
+        return [if (s.username.isNotEmpty) s.username, host.isEmpty ? 'Not connected' : host].join(' · ');
+      case SettingsFolder.about:
+        final version = ref.watch(_appVersionProvider).asData?.value ?? '';
+        return version.isEmpty ? 'Status and updates' : 'Version $version';
+    }
+  }
+
+  /// The matching sections, in folder order; a note when nothing matches.
+  List<Widget> _resultWidgets(Map<SettingsFolder, List<Widget>> results) {
     final all = [for (final s in results.values) ...s];
     if (all.isNotEmpty) return all;
     final t = ThemeTokens.of(context);
@@ -812,10 +855,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   /// Windows: categories down the left, the chosen one's settings on the right.
-  Widget _desktopLayout(BuildContext context, Map<String, List<Widget>> groups, Map<String, List<Widget>>? results, Widget search) {
+  Widget _desktopLayout(BuildContext context, Map<SettingsFolder, List<Widget>> groups, Map<SettingsFolder, List<Widget>>? results, Widget search) {
     final t = ThemeTokens.of(context);
     final names = groups.keys.toList();
-    final selected = names.contains(_category) ? _category : names.first;
+    final selected = names.contains(_folder) ? _folder : names.first;
     // One group: the categories and their form, centred in the content area so it
     // never hugs the left edge with dead space to its right.
     return Scaffold(
@@ -838,11 +881,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 Padding(padding: const EdgeInsets.only(bottom: Space.md), child: search),
                 for (final n in names)
                   _SettingsNavRow(
-                    label: n,
+                    label: n.title,
                     selected: results == null && n == selected,
                     onTap: () => setState(() {
                       _query.clear();
-                      _category = n;
+                      _folder = n;
                     }),
                   ),
               ],
@@ -853,7 +896,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
             child: LayoutBuilder(
               builder: (context, c) {
                 final sections = results == null ? groups[selected]! : _resultWidgets(results);
-                final heading = results == null ? selected : 'Search results';
+                final heading = results == null ? selected.title : 'Search results';
                 // A form reads best about 720 px wide; sections of two columns would
                 // split a short list into halves nobody scans. So the pane stays one
                 // column, 48 px after the categories (the page's 24 gutter twice), so the
@@ -901,17 +944,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           if (v != null) onPick(v);
         },
       );
-}
-
-/// Marks where a category of settings begins in the list. Draws nothing: a
-/// phone scrolls past it, the desktop uses it to split the page into the
-/// categories listed on the left.
-class SettingsCategory extends StatelessWidget {
-  final String name;
-  const SettingsCategory(this.name, {super.key});
-
-  @override
-  Widget build(BuildContext context) => const SizedBox.shrink();
 }
 
 class _SettingsNavRow extends StatelessWidget {

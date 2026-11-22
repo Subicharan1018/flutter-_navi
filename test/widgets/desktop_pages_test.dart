@@ -224,14 +224,14 @@ void main() {
       await size(tester, 1366, 768);
       await tester.pumpWidget(_app(const SettingsScreen()));
       await tester.pump(const Duration(milliseconds: 300));
-      for (final c in ['Playback', 'Downloads & storage', 'Appearance', 'Accounts & scrobbling', 'Social & Jam', 'Server', 'Advanced & diagnostics']) {
+      for (final c in ['Playback', 'Downloads & storage', 'Smart Shuffle & Flow', 'Replay & history', 'Appearance', 'Social & Jam', 'Account & server', 'About & advanced']) {
         expect(find.text(c), findsWidgets, reason: c);
       }
       // Playback (the most used) opens first; the account's rows are not showing.
       expect(find.text('Autoplay'), findsOneWidget);
       expect(find.text('Username'), findsNothing);
 
-      await tester.tap(find.text('Server').first);
+      await tester.tap(find.text('Account & server').first);
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Username'), findsOneWidget);
       expect(find.text('Autoplay'), findsNothing);
@@ -258,7 +258,7 @@ void main() {
       await tester.pumpWidget(_app(const SettingsScreen()));
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Save'), findsNothing, reason: 'no Save button on desktop');
-      await tester.tap(find.text('Server').first); // the account lives under Server
+      await tester.tap(find.text('Account & server').first); // the account lives under Server
       await tester.pump(const Duration(milliseconds: 300));
       await tester.enterText(find.widgetWithText(CupertinoTextField, 'yogesh'), 'yogesh2');
       await tester.pump(const Duration(milliseconds: 300));
@@ -282,15 +282,18 @@ void main() {
       expect(find.text('Playback'), findsNWidgets(2), reason: 'the nav row and the page title, not a third time');
     });
 
-    testWidgets('a phone keeps one long list', (tester) async {
+    testWidgets('a phone lists the folders, each opening its own page', (tester) async {
       PlatformUtils.debugDesktopOverride = false;
       await size(tester, 393, 852);
       await tester.pumpWidget(_app(const SettingsScreen()));
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('Autoplay'), findsOneWidget, reason: 'playback comes first');
-      expect(find.text('Username'), findsNothing, reason: 'the server is near the end');
-      await tester.drag(find.byType(Scrollable).first, const Offset(0, -250));
-      await tester.pump();
+      expect(find.text('Playback'), findsOneWidget);
+      expect(find.text('Autoplay'), findsNothing, reason: 'the rows are inside the folder');
+      expect(find.text('Username'), findsNothing);
+      await tester.tap(find.text('Playback'));
+      await tester.pumpAndSettle(const Duration(milliseconds: 100));
+      expect(find.text('Autoplay'), findsOneWidget);
+      expect(find.text('Lyrics sources'), findsOneWidget, reason: 'lyrics live under playback');
       expect(tester.takeException(), isNull);
     });
   });
