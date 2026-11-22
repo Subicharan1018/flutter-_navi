@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show ValueNotifier;
 import '../models/song.dart';
 
 /// What the player actually opened for the current song: the file on this
@@ -40,7 +41,14 @@ class StreamQualityRegistry {
 
   final Map<String, StreamQuality> _byId = {};
 
-  void record(String songId, StreamQuality quality) => _byId[songId] = quality;
+  /// Bumps when a recorded quality changes, so the badge follows the fast-start swap.
+  final ValueNotifier<int> revision = ValueNotifier(0);
+
+  void record(String songId, StreamQuality quality) {
+    if (_byId[songId] == quality) return;
+    _byId[songId] = quality;
+    revision.value++;
+  }
 
   StreamQuality? of(String songId) => _byId[songId];
 

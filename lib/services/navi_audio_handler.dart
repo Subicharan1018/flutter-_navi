@@ -12,6 +12,7 @@ import 'subsonic_service.dart';
 import 'transcoding_service.dart';
 import 'cache_settings_service.dart';
 import 'play_cache.dart';
+import 'fast_start.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../providers/settings_provider.dart';
 import '../features/local_library/logic/local_index.dart';
@@ -101,10 +102,39 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Song? _tunedSong;
   StreamSubscription<Duration>? _fadeSub;
 
+  // ── Fast start and skip settling ────────────────────────────────────────────
+  /// "Fast start" setting (set by the player provider; off until it says so).
+  bool fastStartEnabled = false;
+
+  /// The song playing from its low-rate copy right now, until the swap.
+  String? _fastSongId;
+  int _fastGen = 0;
+
+  /// Sources built from the low-rate copy; they must never outlive the song's
+  /// first seconds in the queue (see [_restoreLowChildren]).
+  final List<AudioSource> _lowChildren = [];
+
+  /// Set while the queue is edited behind the player's back, so the transient
+  /// index changes are not mistaken for track changes.
+  bool _surgery = false;
+
+  /// True while the swap to the full copy briefly silences the player.
+  bool _muteForSwap = false;
+
+  /// Debounces skips; only the song the listener rests on is opened.
+  late final SkipCoordinator _skips;
+  bool _explicitJump = false;
+  int? _landing;
+
+  Timer? _warmTimer;
+  final FirstAudioProbe _probe = FirstAudioProbe();
+  StreamSubscription<Duration>? _probeSub;
+
   NaviAudioHandler(
     SubsonicService subsonicService, {
     AudioPlayer? player,
     TranscodingService? transcodingService,
+    Duration skipSettle = kSkipSettle,
   }) : this._(
          subsonicService,
          player,
@@ -112,6 +142,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
          player == null && PlatformUtils.isAndroid
              ? AndroidEqualizer()
              : null,
+         skipSettle,
        );
 
   NaviAudioHandler._(
@@ -119,6 +150,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     AudioPlayer? player,
     TranscodingService? transcodingService,
     this.equalizer,
+    Duration skipSettle,
   ) : player =
            player ??
            AudioPlayer(
@@ -143,16 +175,24 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
              ),
            ),
        _transcodingService = transcodingService ?? TranscodingService() {
+    _skips = SkipCoordinator(
+      load: _settleLoad,
+      settle: skipSettle,
+      onError: (e, _) {
+        debugPrint('⚠️ [NaviAudioHandler] skip load failed: $e');
+        _desktopLoading = false;
+      },
+    );
     _listenToPlayerEvents();
     _subscriptions.add(mediaItem.listen(_onMediaItemChanged));
 
     _subscriptions.add(this.player.currentIndexStream.listen((index) {
       // On desktop we manage index ourselves — ignore just_audio's index stream
-      if (!_isDesktopBridge && index != null) {
+      if (!_isDesktopBridge && index != null && !_surgery) {
         final globalIndex = _playlistOffset + index;
         if (globalIndex < _currentQueue.length) {
           _trackRecentlyPlayed(_currentQueue[globalIndex].id);
-          _warmPlayCache(globalIndex);
+          _scheduleWarm(globalIndex);
         }
         // A gapless advance changes the position without changing
         // playerState, and the notification interpolates elapsed time from
@@ -235,7 +275,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // (non-desktop only — on desktop we push MediaItem manually via _emitDesktopMediaItem)
     if (!_isDesktopBridge) {
       _subscriptions.add(player.sequenceStateStream.listen((sequenceState) {
-        if (sequenceState.currentSource == null) return;
+        if (sequenceState.currentSource == null || _surgery) return;
         final source = sequenceState.currentSource!;
         if (source.tag is MediaItem) {
           _publishMediaItem(source.tag as MediaItem);
@@ -511,13 +551,273 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> skipToNext() {
     if (_isDesktopBridge) return _desktopSkipToNext();
-    return player.seekToNext();
+    if (_currentQueue.isEmpty) return player.seekToNext();
+    var next = (_skips.pendingIndex ?? currentIndex) + 1;
+    if (next >= _currentQueue.length) {
+      if (_repeatMode != LoopMode.all) return player.seekToNext();
+      next = 0;
+    }
+    _requestSkip(next);
+    return Future.value();
   }
 
   @override
   Future<void> skipToPrevious() {
     if (_isDesktopBridge) return _desktopSkipToPrevious();
-    return player.seekToPrevious();
+    if (_currentQueue.isEmpty) return player.seekToPrevious();
+    // More than 3 s in: previous restarts the song, nothing to load.
+    if (!_skips.hasPending && player.position.inSeconds > 3) return player.seekToPrevious();
+    var prev = (_skips.pendingIndex ?? currentIndex) - 1;
+    if (prev < 0) {
+      if (_repeatMode != LoopMode.all) return player.seekToPrevious();
+      prev = _currentQueue.length - 1;
+    }
+    _requestSkip(prev);
+    return Future.value();
+  }
+
+  /// Shows [index] as the current song at once and opens it once the listener
+  /// stops skipping (see [kSkipSettle]); songs skipped over are never opened.
+  void _requestSkip(int index) {
+    _publishPending(index);
+    _skips.request(index);
+  }
+
+  /// Tells the UI and the notification which song the listener skipped to
+  /// while the player is still on the previous one.
+  void _publishPending(int index) {
+    if (index < 0 || index >= _currentQueue.length) return;
+    if (_isDesktopBridge) {
+      _emitDesktopMediaItem(index);
+      return;
+    }
+    final song = _currentQueue[index];
+    final local = index - _playlistOffset;
+    final pl = _playlist;
+    final tag = pl != null && local >= 0 && local < pl.children.length
+        ? pl.children[local].sequence.firstOrNull?.tag
+        : null;
+    _publishMediaItem(tag is MediaItem ? tag : _mediaTag(song, isLocal: false));
+    _broadcastState();
+  }
+
+  /// Opens [index] now that it is the song the listener settled on.
+  Future<void> _settleLoad(int index, bool Function() stale) async {
+    final explicit = _explicitJump;
+    _explicitJump = false;
+    if (index < 0 || index >= _currentQueue.length) return;
+    final wasPlaying = player.playing;
+    _landing = index;
+    try {
+      await _landOn(index, stale, explicit: explicit, wasPlaying: wasPlaying);
+    } finally {
+      if (_landing == index) _landing = null;
+    }
+  }
+
+  Future<void> _landOn(
+    int index,
+    bool Function() stale, {
+    required bool explicit,
+    required bool wasPlaying,
+  }) async {
+    // Skipped forward and back within the settle time: nothing to load.
+    if (!explicit && !_isDesktopBridge && _playlist != null && index == _playlistOffset + (player.currentIndex ?? -1)) {
+      _publishPending(index);
+      return;
+    }
+    _beginProbe(explicit ? 'tap' : 'skip');
+    final paths = await _precomputeOfflinePaths(_currentQueue);
+    if (stale()) return;
+    await _prepareLanding(index, paths);
+    if (stale()) return;
+    if (_isDesktopBridge) {
+      await _desktopLoadTrack(index, paths);
+      if (stale()) return;
+      if (wasPlaying && !player.playing) await player.play();
+    } else {
+      final local = index - _playlistOffset;
+      final pl = _playlist;
+      if (local >= 0 && pl != null && local < pl.children.length) {
+        if (player.currentIndex != local) await _setChildLow(local, index);
+        if (stale()) return;
+        await player.seek(Duration.zero, index: local);
+        await _restoreLowChildren();
+      } else {
+        await _rebuildSource(index, decided: true);
+        if (stale()) return;
+        if (wasPlaying) await player.play();
+      }
+    }
+    if (!stale()) _armProbe();
+    _startFullFetch(index);
+  }
+
+  /// Decides fast start for the song about to play and drops the previous
+  /// song's low-rate work (its download, and its swap).
+  Future<void> _prepareLanding(int index, Map<String, String?> paths) async {
+    _fastGen++;
+    final song = _currentQueue[index];
+    final cacheOn = !kIsWeb && CacheSettingsService().getMusicCacheEnabled();
+    final onDevice = isLocalSongId(song.id) ||
+        LocalLibraryIndex.instance.pathFor(song.id) != null ||
+        (cacheOn && paths[song.id] != null);
+    final quality = _cacheQuality;
+    final cached = cacheOn && !onDevice && await PlayCache.instance.completeFile(song.id, quality) != null;
+    final warm = cacheOn && !onDevice && !cached && await PlayCache.instance.isWarm(song.id, quality);
+    final decision = FastStartPolicy.decide(FastStartInput(
+      // The full copy has to land in the play cache for the swap.
+      enabled: fastStartEnabled && cacheOn && PlayCache.instance.fileFor(song.id, quality) != null,
+      durationSec: song.duration,
+      suffix: song.suffix,
+      songKbps: song.bitRate,
+      targetKbps: _transcodingService.getCurrentBitrate() ?? 0,
+      alreadyOnDevice: onDevice || cached,
+      alreadyBuffered: warm,
+      bytesPerSec: ThroughputTracker.instance.bytesPerSec,
+    ));
+    _fastSongId = decision.use ? song.id : null;
+    debugPrint('⚡ [FastStart] ${song.title}: $decision');
+  }
+
+  /// Android: swaps the child about to play between its low-rate and full
+  /// source. Never the child that is playing.
+  Future<void> _setChildLow(int local, int index) async {
+    final pl = _playlist;
+    if (pl == null) return;
+    final song = _currentQueue[index];
+    final child = pl.children[local];
+    final isLow = _lowChildren.any((c) => identical(c, child));
+    final wantLow = song.id == _fastSongId;
+    if (isLow == wantLow) return;
+    _surgery = true;
+    try {
+      await pl.removeAt(local);
+      _lowChildren.removeWhere((c) => identical(c, child));
+      await pl.insert(local, _toSource(song));
+    } finally {
+      _surgery = false;
+    }
+  }
+
+  /// Puts the full-quality source back for every low-rate child that is no
+  /// longer playing, so a song left early never plays low-rate later.
+  Future<void> _restoreLowChildren() async {
+    final pl = _playlist;
+    if (pl == null || _lowChildren.isEmpty) return;
+    final playing = player.currentIndex;
+    for (final low in List<AudioSource>.of(_lowChildren)) {
+      final i = pl.children.indexWhere((c) => identical(c, low));
+      if (i < 0) {
+        _lowChildren.remove(low);
+        continue;
+      }
+      if (i == playing) continue;
+      final id = (low.sequence.firstOrNull?.tag as MediaItem?)?.id;
+      final global = _currentQueue.indexWhere((s) => s.id == id);
+      if (global < 0) continue;
+      final savedFast = _fastSongId;
+      _fastSongId = null; // build the full source
+      _surgery = true;
+      try {
+        await pl.removeAt(i);
+        _lowChildren.remove(low);
+        await pl.insert(i, _toSource(_currentQueue[global]));
+      } finally {
+        _surgery = false;
+        _fastSongId = savedFast;
+      }
+    }
+  }
+
+  /// Fetches the full copy of the song that started on its low-rate copy and
+  /// swaps to it, at the same position, once it is on disk.
+  void _startFullFetch(int index) {
+    final song = _currentQueue[index];
+    if (_fastSongId != song.id) return;
+    final gen = ++_fastGen;
+    final quality = _cacheQuality;
+    final url = Uri.parse(subsonicService.getStreamUrl(
+      song.id,
+      maxBitRate: _transcodingService.getCurrentBitrate(),
+      format: _transcodingService.getCurrentFormat(),
+    ));
+    unawaited(() async {
+      try {
+        await PlayCache.instance.prefetch(song.id, quality, url, keep: _cacheKeepIds(index));
+        if (gen == _fastGen) await _swapToFull(song, gen);
+      } catch (e) {
+        debugPrint('⚠️ [FastStart] swap failed: $e');
+      }
+    }());
+  }
+
+  Future<void> _swapToFull(Song song, int gen) async {
+    final file = await PlayCache.instance.completeFile(song.id, _cacheQuality);
+    final pos = player.position;
+    final durMs = (player.duration ?? Duration(seconds: song.duration)).inMilliseconds;
+    final ok = FastStartPolicy.shouldSwap(
+      fullReady: file != null,
+      sameSong: gen == _fastGen && _currentSongOrNull()?.id == song.id,
+      skipPending: _skips.isBusy,
+      positionMs: pos.inMilliseconds,
+      durationMs: durMs,
+    );
+    if (!ok) {
+      debugPrint('⚡ [FastStart] swap skipped for ${song.title}');
+      return;
+    }
+    final wasPlaying = player.playing;
+    final watch = Stopwatch()..start();
+    _fastSongId = null;
+    _fastGen++;
+    _muteForSwap = true;
+    try {
+      // A short ramp to silence, so the cut is never a click.
+      final ramp = swapRamp();
+      for (final v in ramp) {
+        await player.setVolume((_appliedVolume * v).clamp(0.0, 1.0));
+        await Future<void>.delayed(kSwapRampDown ~/ ramp.length);
+      }
+    } catch (_) {}
+    try {
+      await _rebuildSource(currentIndex, initialPosition: pos, decided: true);
+      if (wasPlaying && !player.playing) await player.play();
+    } finally {
+      _muteForSwap = false;
+      _appliedVolume = -1;
+      _applyVolume();
+    }
+    debugPrint('⚡ [FastStart] swapped ${song.title} to full at ${pos.inMilliseconds} ms (took ${watch.elapsedMilliseconds} ms)');
+  }
+
+  // ── First-audio timing (debug and profile builds only) ─────────────────────
+  void _beginProbe(String label) {
+    if (kReleaseMode) return;
+    _probeSub?.cancel();
+    _probeSub = null;
+    _probe.begin(label);
+  }
+
+  void _armProbe() {
+    if (kReleaseMode || !_probe.running) return;
+    try {
+      _probeSub?.cancel();
+      _probeSub = player
+          .createPositionStream(
+            minPeriod: const Duration(milliseconds: 20),
+            maxPeriod: const Duration(milliseconds: 60),
+          )
+          .listen((p) {
+            if (!player.playing || p < const Duration(milliseconds: 40)) return;
+            final line = _probe.firstAudio();
+            _probeSub?.cancel();
+            _probeSub = null;
+            if (line != null) debugPrint('⏱ [FastStart] time to first audio — $line');
+          });
+    } catch (_) {
+      // A test double without position streams.
+    }
   }
 
   @override
@@ -613,6 +913,21 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final musicCacheEnabled = CacheSettingsService().getMusicCacheEnabled();
     final bitrate = _transcodingService.getCurrentBitrate();
     final format = _transcodingService.getCurrentFormat();
+    if (localPath == null && song.id == _fastSongId) {
+      // Fast start: a small copy for the first seconds. Not written to the play
+      // cache (it is not the quality the cache is keyed by); the full copy is
+      // fetched separately and swapped in.
+      StreamQualityRegistry.instance.record(
+        song.id,
+        const StreamQuality(format: kFastStartLowFormat, maxBitRate: kFastStartLowKbps),
+      );
+      final low = AudioSource.uri(
+        Uri.parse(subsonicService.getStreamUrl(song.id, maxBitRate: kFastStartLowKbps, format: kFastStartLowFormat)),
+        tag: _mediaTag(song, isLocal: false),
+      );
+      _lowChildren.add(low);
+      return low;
+    }
     StreamQualityRegistry.instance.record(
       song.id,
       localPath != null ? const StreamQuality.local() : StreamQuality(format: format, maxBitRate: bitrate ?? 0),
@@ -661,6 +976,38 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         for (var i = index - 20; i <= index + 2; i++)
           if (i >= 0 && i < _currentQueue.length) _currentQueue[i].id,
       };
+
+  /// Warms the cache for [index] once the song itself is playing: downloads
+  /// for songs the listener has moved past are cancelled, and nothing new
+  /// starts until the current song has its first audio buffered, so the song
+  /// they landed on never competes with a preload for the connection.
+  void _scheduleWarm(int index, {int attempt = 0}) {
+    _warmTimer?.cancel();
+    if (kIsWeb) return;
+    if (attempt == 0) {
+      PlayCache.instance.cancelPrefetches(keepSongIds: {
+        for (var i = index; i <= index + 2; i++)
+          if (i >= 0 && i < _currentQueue.length) _currentQueue[i].id,
+      });
+    }
+    _warmTimer = Timer(const Duration(milliseconds: 1200), () {
+      final ps = player.processingState;
+      final settling = _skips.isBusy ||
+          ps == ProcessingState.loading ||
+          ps == ProcessingState.buffering;
+      if (settling && attempt < 4) {
+        _scheduleWarm(index, attempt: attempt + 1);
+        return;
+      }
+      if (index != currentIndex) return;
+      final dur = (player.duration ?? Duration(seconds: _currentQueue[index].duration)).inMilliseconds;
+      if (!nextPreloadDue(positionMs: player.position.inMilliseconds, durationMs: dur)) {
+        _scheduleWarm(index, attempt: 5); // check again; attempt>0 keeps downloads running
+        return;
+      }
+      _warmPlayCache(index);
+    });
+  }
 
   /// Downloads the next two songs ahead of time (and, on desktop where the
   /// stream is not written through, the current one), then trims the cache.
@@ -728,7 +1075,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     // MEM-OPT: Invalidate the offline paths cache when the queue is replaced.
     _offlinePathsCache = null;
     _offlinePathsQueueLength = 0;
+    _skips.cancel();
+    _beginProbe('tap');
     await _rebuildSource(startIndex);
+    _armProbe();
     _applyVolume();
   }
 
@@ -866,6 +1216,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _applyVolume() {
+    if (_muteForSwap) return;
     final v = (_replayVolume * _fadeFactor).clamp(0.0, 1.0).toDouble();
     if ((_appliedVolume - v).abs() < 0.001) return;
     _appliedVolume = v;
@@ -960,10 +1311,25 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> _rebuildSource(
     int startIndex, {
     Duration? initialPosition,
+    bool decided = false,
   }) async {
     if (_currentQueue.isEmpty) return;
     final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
+    _lowChildren.clear();
+    // A song that starts from the top (not a reorder or a swap) may fast-start.
+    final startsNew = !decided && initialPosition == null;
+    if (startsNew) {
+      await _prepareLanding(startIndex.clamp(0, _currentQueue.length - 1), offlinePaths);
+    }
+    await _rebuildSourceDecided(startIndex, offlinePaths, initialPosition);
+    if (startsNew) _startFullFetch(startIndex.clamp(0, _currentQueue.length - 1));
+  }
 
+  Future<void> _rebuildSourceDecided(
+    int startIndex,
+    Map<String, String?> offlinePaths,
+    Duration? initialPosition,
+  ) async {
     if (_isDesktopBridge) {
       // ── Desktop: ConcatenatingAudioSource is not supported by
       // just_audio_media_kit 2.1.0. Play one track at a time and advance
@@ -1074,7 +1440,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _desktopIndex = index;
       _emitDesktopMediaItem(index);
       _trackRecentlyPlayed(_currentQueue[index].id);
-      _warmPlayCache(index);
+      _scheduleWarm(index);
       debugPrint(
         '🎵 [Desktop] Loaded track $index: ${_currentQueue[index].title}',
       );
@@ -1232,7 +1598,6 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> _desktopSkipToNext() async {
-    final wasPlaying = player.playing;
     if (_currentQueue.isEmpty) return;
     int next = _desktopTargetIndex + 1;
     if (next >= _currentQueue.length) {
@@ -1244,18 +1609,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     _desktopTargetIndex = next;
     _desktopIndex = next;
-    _emitDesktopMediaItem(next);
-
-    final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-    await _desktopLoadTrack(next, offlinePaths);
-    if (wasPlaying && !player.playing) await player.play();
+    // Holds the completion listener back until the settled song has loaded.
+    _desktopLoading = true;
+    _requestSkip(next);
   }
 
   Future<void> _desktopSkipToPrevious() async {
-    final wasPlaying = player.playing;
     if (_currentQueue.isEmpty) return;
     // If more than 3 seconds in, restart current track
-    if (player.position.inSeconds > 3) {
+    if (!_skips.hasPending && player.position.inSeconds > 3) {
       await player.seek(Duration.zero);
       return;
     }
@@ -1270,37 +1632,36 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     _desktopTargetIndex = prev;
     _desktopIndex = prev;
-    _emitDesktopMediaItem(prev);
-
-    final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-    await _desktopLoadTrack(prev, offlinePaths);
-    if (wasPlaying && !player.playing) await player.play();
+    _desktopLoading = true;
+    _requestSkip(prev);
   }
 
-  /// Current index — Desktop uses _desktopIndex, other platforms use player.currentIndex
-  int get currentIndex => _isDesktopBridge ? _desktopIndex : (_playlistOffset + (player.currentIndex ?? 0));
+  /// Current index — Desktop uses _desktopIndex, other platforms use player.currentIndex.
+  /// While a skip is settling this is the song skipped to, the one the UI shows.
+  int get currentIndex =>
+      _skips.pendingIndex ??
+      _landing ??
+      (_isDesktopBridge ? _desktopIndex : (_playlistOffset + (player.currentIndex ?? 0)));
 
   /// Platform-adaptive index jump.
   /// On Desktop: loads the track at [index] via the single-source bridge.
   /// On other platforms: uses just_audio's seek(Duration.zero, index: index).
   Future<void> jumpToIndex(int index) async {
     if (index < 0 || index >= _currentQueue.length) return;
+    await _jumpNow(index);
+  }
+
+  /// An explicit choice (a tap on the queue): no settling, and any skip still
+  /// waiting or loading is dropped. Errors reach the caller.
+  Future<void> _jumpNow(int index) {
     if (_isDesktopBridge) {
       _desktopTargetIndex = index;
       _desktopIndex = index;
+      _desktopLoading = true;
       _emitDesktopMediaItem(index);
-      final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-      await _desktopLoadTrack(index, offlinePaths);
-    } else {
-      final localIndex = index - _playlistOffset;
-      if (localIndex >= 0 && _playlist != null && localIndex < _playlist!.children.length) {
-        await player.seek(Duration.zero, index: localIndex);
-      } else {
-        final wasPlaying = player.playing;
-        await _rebuildSource(index);
-        if (wasPlaying) await player.play();
-      }
     }
+    _explicitJump = true;
+    return _skips.loadNow(index);
   }
 
   /// Override BaseAudioHandler.skipToQueueItem so callers (and platform media
@@ -1308,24 +1669,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   @override
   Future<void> skipToQueueItem(int index) async {
     index += _carQueueOffset; // the car's queue may be a window of ours
-    final wasPlaying = player.playing;
     if (index < 0 || index >= _currentQueue.length) return;
-    if (_isDesktopBridge) {
-      _desktopTargetIndex = index;
-      _desktopIndex = index;
-      _emitDesktopMediaItem(index);
-      final offlinePaths = await _precomputeOfflinePaths(_currentQueue);
-      await _desktopLoadTrack(index, offlinePaths);
-      if (wasPlaying && !player.playing) await player.play();
-    } else {
-      final localIndex = index - _playlistOffset;
-      if (localIndex >= 0 && _playlist != null && localIndex < _playlist!.children.length) {
-        await player.seek(Duration.zero, index: localIndex);
-      } else {
-        await _rebuildSource(index);
-        if (wasPlaying) await player.play();
-      }
-    }
+    await _jumpNow(index);
   }
 
   Future<void> _updateQueueAfterAnchor(
@@ -1983,6 +2328,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> dispose() async {
     _stuckTimer?.cancel();
     _stuckTimer = null;
+    _warmTimer?.cancel();
+    _skips.dispose();
+    await _probeSub?.cancel();
     await _fadeSub?.cancel();
     _fadeSub = null;
     for (final s in _subscriptions) {

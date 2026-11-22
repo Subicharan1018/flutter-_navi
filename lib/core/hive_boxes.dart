@@ -147,6 +147,7 @@ class HiveBoxes {
   static const kReplayGainMode = 'replay_gain_mode';
   static const kCrossfadeSeconds = 'crossfade_seconds';
   static const kPlaybackSpeed = 'playback_speed';
+  static const kFastStart = 'fast_start';
   static const kEqualizerEnabled = 'equalizer_enabled';
   static const kEqualizerGains = 'equalizer_gains';
 

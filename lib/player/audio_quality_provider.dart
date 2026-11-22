@@ -9,6 +9,10 @@ import 'audio_quality.dart';
 /// is when a source is built.
 final streamQualityProvider = Provider<StreamQuality?>((ref) {
   final id = ref.watch(playerProvider.select((s) => s.currentSong?.id));
+  final reg = StreamQualityRegistry.instance;
+  void changed() => ref.invalidateSelf();
+  reg.revision.addListener(changed);
+  ref.onDispose(() => reg.revision.removeListener(changed));
   if (id == null) return null;
   return StreamQualityRegistry.instance.of(id);
 });

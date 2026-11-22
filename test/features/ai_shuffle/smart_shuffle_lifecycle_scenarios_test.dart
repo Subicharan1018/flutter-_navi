@@ -184,6 +184,12 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
       _processingStateController.stream;
 
   @override
+  ProcessingState get processingState => ProcessingState.ready;
+
+  @override
+  Duration? get duration => null;
+
+  @override
   Stream<Duration> get positionStream => _positionController.stream;
 
   @override

@@ -3198,6 +3198,11 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
     ),
     fireImmediately: true,
   );
+  ref.listen(
+    settingsProvider.select((s) => s.fastStart),
+    (_, on) => handler.fastStartEnabled = on,
+    fireImmediately: true,
+  );
   final notifier =
       PlayerNotifier(ref, handler, service, collector, ownsAudioHandler: false);
   ref.listen<SubsonicService>(

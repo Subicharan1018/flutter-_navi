@@ -128,6 +128,10 @@ class SettingsState {
   /// Playback rate, 0.5–2.0.
   final double playbackSpeed;
 
+  /// Starts songs from a small low-bitrate copy, then swaps to the chosen
+  /// streaming quality. On by default.
+  final bool fastStart;
+
   /// The Microduck mascot (mini player, Now Playing, empty states, Replay).
   final bool microduckEnabled;
 
@@ -153,6 +157,7 @@ class SettingsState {
     this.replayGainMode = ReplayGainMode.off,
     this.crossfadeSeconds = 0,
     this.playbackSpeed = 1.0,
+    this.fastStart = true,
     this.microduckEnabled = false,
     this.microduckName = defaultMicroduckName,
     this.microduckSkin = MicroduckSkin.white,
@@ -172,6 +177,7 @@ class SettingsState {
     ReplayGainMode? replayGainMode,
     int? crossfadeSeconds,
     double? playbackSpeed,
+    bool? fastStart,
     bool? microduckEnabled,
     String? microduckName,
     MicroduckSkin? microduckSkin,
@@ -191,6 +197,7 @@ class SettingsState {
       replayGainMode: replayGainMode ?? this.replayGainMode,
       crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
+      fastStart: fastStart ?? this.fastStart,
       microduckEnabled: microduckEnabled ?? this.microduckEnabled,
       microduckName: microduckName ?? this.microduckName,
       microduckSkin: microduckSkin ?? this.microduckSkin,
@@ -281,6 +288,7 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             ? (p.get(HiveBoxes.kPlaybackSpeed) as num).toDouble()
             : 1.0,
       ),
+      fastStart: p.get(HiveBoxes.kFastStart) != false,
       // Off until the listener turns it on: the mascot animates on the phone's GPU.
       microduckEnabled: p.get(HiveBoxes.kMicroduckEnabled) == true,
       microduckName: cleanMicroduckName(p.get(HiveBoxes.kMicroduckName)?.toString()),
@@ -373,6 +381,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setReplayGainMode(ReplayGainMode mode) async {
     await HiveBoxes.prefs.put(HiveBoxes.kReplayGainMode, mode.name);
     state = state.copyWith(replayGainMode: mode);
+  }
+
+  Future<void> setFastStart(bool on) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kFastStart, on);
+    state = state.copyWith(fastStart: on);
   }
 
   Future<void> setCrossfadeSeconds(int seconds) async {
