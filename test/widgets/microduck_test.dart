@@ -293,9 +293,9 @@ void main() {
       dir.deleteSync(recursive: true);
     });
 
-    test('defaults: on, named Microduck', () {
+    test('defaults: off (it is opt-in), named Microduck', () {
       final s = SettingsNotifier().state;
-      expect(s.microduckEnabled, isTrue);
+      expect(s.microduckEnabled, isFalse);
       expect(s.microduckName, 'Microduck');
     });
 

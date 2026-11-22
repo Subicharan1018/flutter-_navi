@@ -25,7 +25,7 @@ import 'package:navivibe/services/subsonic_service.dart';
 import 'golden_fonts.dart';
 
 class _FakeSettings extends StateNotifier<SettingsState> implements SettingsNotifier {
-  _FakeSettings() : super(const SettingsState(serverUrl: 'https://music.example', username: 'maya', password: 'p'));
+  _FakeSettings() : super(const SettingsState(serverUrl: 'https://music.example', username: 'maya', password: 'p', microduckEnabled: true));
   @override
   dynamic noSuchMethod(Invocation i) => null;
 }

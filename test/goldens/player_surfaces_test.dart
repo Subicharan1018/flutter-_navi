@@ -175,7 +175,7 @@ class _ActiveFlow extends FlowController {
 }
 
 class _FakeSettings extends StateNotifier<SettingsState> implements SettingsNotifier {
-  _FakeSettings() : super(const SettingsState(serverUrl: 'https://music.example', username: 'u', password: 'p'));
+  _FakeSettings() : super(const SettingsState(serverUrl: 'https://music.example', username: 'u', password: 'p', microduckEnabled: true));
   @override
   dynamic noSuchMethod(Invocation i) => null;
 }

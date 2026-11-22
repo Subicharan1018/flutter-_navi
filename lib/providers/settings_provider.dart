@@ -153,7 +153,7 @@ class SettingsState {
     this.replayGainMode = ReplayGainMode.off,
     this.crossfadeSeconds = 0,
     this.playbackSpeed = 1.0,
-    this.microduckEnabled = true,
+    this.microduckEnabled = false,
     this.microduckName = defaultMicroduckName,
     this.microduckSkin = MicroduckSkin.white,
     this.microduckTalks = true,
@@ -281,7 +281,8 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             ? (p.get(HiveBoxes.kPlaybackSpeed) as num).toDouble()
             : 1.0,
       ),
-      microduckEnabled: p.get(HiveBoxes.kMicroduckEnabled) != false,
+      // Off until the listener turns it on: the mascot animates on the phone's GPU.
+      microduckEnabled: p.get(HiveBoxes.kMicroduckEnabled) == true,
       microduckName: cleanMicroduckName(p.get(HiveBoxes.kMicroduckName)?.toString()),
       microduckSkin: cleanMicroduckSkin(p.get(HiveBoxes.kMicroduckSkin)?.toString()),
       microduckTalks: p.get(HiveBoxes.kMicroduckTalks) != false,
