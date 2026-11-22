@@ -245,6 +245,12 @@ class Scrubber extends StatefulWidget {
   /// How the song's source was opened, so a converted stream says so.
   final StreamQuality? stream;
 
+  /// Drawn over the bar (saved moments), given the song's length in ms.
+  final Widget Function(int totalMs)? trackOverlay;
+
+  /// The listener released the bar: jumped from [from] to [to].
+  final void Function(Duration from, Duration to)? onSeekEnd;
+
   const Scrubber({
     super.key,
     required this.player,
@@ -254,6 +260,8 @@ class Scrubber extends StatefulWidget {
     this.labelColor = AppThemeTokens.onArtworkStrong,
     this.showQuality = true,
     this.stream,
+    this.trackOverlay,
+    this.onSeekEnd,
   });
 
   @override
@@ -296,7 +304,9 @@ class _ScrubberState extends State<Scrubber> {
               return Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  ElasticTrack(
+                  _OverlaidTrack(
+                    overlay: widget.trackOverlay?.call(totalMs),
+                    child: ElasticTrack(
                     value: frac,
                     activeColor: active
                         ? widget.color
@@ -310,10 +320,9 @@ class _ScrubberState extends State<Scrubber> {
                       _scrub.value = v;
                     },
                     onChangeEnd: (v) {
-                      progress.seekTo(
-                        widget.player,
-                        Duration(milliseconds: (v * totalMs).round()),
-                      );
+                      final target = Duration(milliseconds: (v * totalMs).round());
+                      widget.onSeekEnd?.call(progress.position, target);
+                      progress.seekTo(widget.player, target);
                       // Hold the thumb where it was released until the
                       // player reports the new position, so it can't flick
                       // back to the old one.
@@ -322,6 +331,7 @@ class _ScrubberState extends State<Scrubber> {
                         _scrub.value = null;
                       });
                     },
+                  ),
                   ),
                   Row(
                     children: [
@@ -357,6 +367,18 @@ class _ScrubberState extends State<Scrubber> {
       ),
     );
   }
+}
+
+/// [child] with an optional [overlay] stacked on top (the saved-moment bands).
+class _OverlaidTrack extends StatelessWidget {
+  final Widget child;
+  final Widget? overlay;
+  const _OverlaidTrack({required this.child, this.overlay});
+
+  @override
+  Widget build(BuildContext context) => overlay == null
+      ? child
+      : Stack(children: [child, Positioned.fill(child: overlay!)]);
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -654,6 +676,7 @@ class GlassCircleButton extends StatelessWidget {
   /// Drawn heavier, for an on state (a starred song).
   final bool filled;
   final VoidCallback onTap;
+  final VoidCallback? onLongPress;
   final String semanticLabel;
   final Color? iconColor;
   final double diameter;
@@ -663,6 +686,7 @@ class GlassCircleButton extends StatelessWidget {
     required this.icon,
     this.filled = false,
     required this.onTap,
+    this.onLongPress,
     required this.semanticLabel,
     this.iconColor,
     this.diameter = 34,
@@ -676,6 +700,7 @@ class GlassCircleButton extends StatelessWidget {
       size: 48,
       semanticLabel: semanticLabel,
       onTap: onTap,
+      onLongPress: onLongPress,
       pressColor: const Color(0x00FFFFFF),
       // A glyph that changes (☆ → ★) pops in, so the state change reads.
       child: AnimatedSwitcher(
