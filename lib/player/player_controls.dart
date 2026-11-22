@@ -250,8 +250,8 @@ class Scrubber extends StatefulWidget {
     required this.player,
     required this.song,
     this.color = Colors.white,
-    this.trackColor = const Color(0x40FFFFFF),
-    this.labelColor = const Color(0x99FFFFFF),
+    this.trackColor = AppThemeTokens.onArtworkMedium,
+    this.labelColor = AppThemeTokens.onArtworkStrong,
     this.showQuality = true,
     this.stream,
   });
@@ -386,7 +386,7 @@ class GlyphButton extends StatefulWidget {
     this.onTap,
     this.onLongPress,
     this.size = 56,
-    this.pressColor = const Color(0x24FFFFFF),
+    this.pressColor = AppThemeTokens.onArtworkSoft,
     this.selected = false,
     this.selectedColor,
     this.restFill,
@@ -457,7 +457,7 @@ class _GlyphButtonState extends State<GlyphButton>
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
                         color: widget.selected
-                            ? (widget.selectedColor ?? const Color(0x2EFFFFFF))
+                            ? (widget.selectedColor ?? AppThemeTokens.onArtworkSelected)
                             : widget.restFill != null
                                 ? Color.lerp(widget.restFill, widget.pressColor, t)
                                 : widget.pressColor.withValues(
@@ -582,8 +582,8 @@ class VolumeBar extends StatefulWidget {
     super.key,
     required this.player,
     this.color = Colors.white,
-    this.trackColor = const Color(0x40FFFFFF),
-    this.iconColor = const Color(0x99FFFFFF),
+    this.trackColor = AppThemeTokens.onArtworkMedium,
+    this.iconColor = AppThemeTokens.onArtworkStrong,
   });
 
   @override

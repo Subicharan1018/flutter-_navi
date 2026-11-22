@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
@@ -10,6 +9,7 @@ import 'package:path_provider/path_provider.dart';
 import '../../../core/hive_boxes.dart';
 import 'update_service.dart';
 import 'update_source.dart';
+import '../../../utils/platform_utils.dart';
 
 /// The build number this binary was made from. CI bakes it in with
 /// `--dart-define=NAVI_BUILD=<n>`; otherwise it is read back from the package,
@@ -18,12 +18,12 @@ int installedBuildNumber(String packageBuild) {
   const baked = int.fromEnvironment('NAVI_BUILD');
   if (baked > 0) return baked;
   final n = int.tryParse(packageBuild) ?? 0;
-  return !kIsWeb && Platform.isAndroid ? n % 1000 : n;
+  return PlatformUtils.isAndroid ? n % 1000 : n;
 }
 
 /// Whether this build can update itself at all. Never in a browser: the web
 /// app updates when the page reloads (the service worker fetches the new one).
-bool get updatesSupported => !kIsWeb && (Platform.isAndroid || Platform.isWindows);
+bool get updatesSupported => PlatformUtils.supportsSelfUpdate;
 
 class UpdateSettings {
   final String source;
@@ -146,7 +146,7 @@ class UpdateRunNotifier extends Notifier<UpdateRun> {
     state = const UpdateRun(busy: true, stage: 'Starting');
     try {
       void progress(double f, String s) => state = UpdateRun(busy: true, fraction: f, stage: s);
-      if (Platform.isWindows) {
+      if (PlatformUtils.isWindows) {
         await service.installWindows(check.manifest, source, progress: progress, cancel: _cancel);
         return;
       }

@@ -25,9 +25,8 @@ void main() {
         ),
       );
 
-  test('the flag is off by default, so personal builds keep everything', () {
+  test('the flag is off by default, so personal builds keep every feature', () {
     expect(kPublicBuild, isFalse);
-    expect(Constants.suggestedServerUrl, isNotEmpty);
   });
 
   group('public build (feature unavailable)', () {

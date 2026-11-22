@@ -26,6 +26,7 @@ import 'replay_rows.dart';
 import 'year_record.dart';
 import 'year_shape.dart';
 import 'year_story.dart';
+import '../../utils/platform_utils.dart';
 
 /// Replay, the way Apple Music does it: your year as a playlist. The hero is
 /// a mosaic of your top songs' covers, Play plays them, and below sit the
@@ -94,7 +95,7 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
   Widget build(BuildContext context) {
     final wide =
         ShellKind.ofContext(context) == ShellKind.sidebar &&
-        MediaQuery.sizeOf(context).width >= 1100;
+        MediaQuery.sizeOf(context).width >= PlatformUtils.kWideContentBreakpoint;
     final replay = ref.watch(navivibeYearlyReplayProvider(_year));
     ref.watch(allSongsProvider); // keeps top songs playable as the mirror fills
     final r = replay.asData?.value;

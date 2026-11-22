@@ -112,6 +112,18 @@ abstract final class PlatformUtils {
   /// renders as a persistent right-side panel instead of a full-screen push.
   static const double kWideScreenBreakpoint = 1200.0;
 
+  /// Content width at which wide two-column content layouts (replay, song
+  /// rows with extra columns) switch on inside the sidebar shell.
+  static const double kWideContentBreakpoint = 1100.0;
+
+  /// Window width at which Now Playing splits artwork and queue side by side
+  /// (landscape only).
+  static const double kNowPlayingSplitBreakpoint = 900.0;
+
+  /// Shortest side (logical pixels) from which a touch device counts as a
+  /// tablet and gets the sidebar shell.
+  static const double kTabletShortestSide = 600.0;
+
   // ── XDG / filesystem helpers (Linux-only) ──────────────────────────────────
 
   /// Returns the XDG Downloads directory path, if available.

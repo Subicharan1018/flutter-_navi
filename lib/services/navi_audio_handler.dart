@@ -24,6 +24,7 @@ import '../core/hive_boxes.dart';
 import 'auto/browse_tree.dart';
 import 'auto/car_browser.dart';
 import 'open_intent.dart';
+import '../utils/platform_utils.dart';
 
 // ---------------------------------------------------------------------------
 // AudioHandler
@@ -108,7 +109,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
          subsonicService,
          player,
          transcodingService,
-         player == null && !kIsWeb && Platform.isAndroid
+         player == null && PlatformUtils.isAndroid
              ? AndroidEqualizer()
              : null,
        );
@@ -466,7 +467,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
   }
 
-  static bool get _isAndroid => !kIsWeb && Platform.isAndroid;
+  static bool get _isAndroid => PlatformUtils.isAndroid;
 
   // Auto's queue view: the whole queue up to this many items, windowed around
   // the current one beyond that (a MediaSession queue is a binder payload).

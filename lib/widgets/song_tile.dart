@@ -99,7 +99,7 @@ class _SongTileState extends ConsumerState<SongTile> {
     final song = widget.song;
     final wide =
         ShellKind.ofContext(context) == ShellKind.sidebar &&
-        MediaQuery.sizeOf(context).width >= 1100;
+        MediaQuery.sizeOf(context).width >= PlatformUtils.kWideContentBreakpoint;
     final isCurrent = ref.watch(
       playerProvider.select((s) => s.currentSong?.id == song.id),
     );

@@ -324,7 +324,7 @@ class _CategoryTile extends ConsumerWidget {
                     angle: 0.42,
                     child: DecoratedBox(
                       decoration: const BoxDecoration(
-                        boxShadow: [BoxShadow(color: Color(0x59000000), blurRadius: 10, offset: Offset(-2, 4))],
+                        boxShadow: [BoxShadow(color: AppThemeTokens.liftShadow, blurRadius: 10, offset: Offset(-2, 4))],
                       ),
                       child: CoverArt(url: url, size: art, radius: Radii.thumb),
                     ),

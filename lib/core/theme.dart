@@ -196,6 +196,19 @@ class AppThemeTokens {
   static const Color onArtwork = Color(0xFFFFFFFF);
   static Color get onArtworkGlass => onArtwork.withValues(alpha: 0.16);
   static Color get onArtworkDim => onArtwork.withValues(alpha: 0.8);
+  // White-at-alpha ladder for glass, tracks and pressed fills over artwork or
+  // the glass dock. Alphas are 8/14/18/25/60 % of white.
+  static const Color onArtworkFaint = Color(0x14FFFFFF);
+  static const Color onArtworkSoft = Color(0x24FFFFFF);
+  static const Color onArtworkSelected = Color(0x2EFFFFFF);
+  static const Color onArtworkMedium = Color(0x40FFFFFF);
+  static const Color onArtworkStrong = Color(0x99FFFFFF);
+  static const Color glassFillHi = Color(0x2BFFFFFF);
+
+  /// Drop shadow under a lifted/dragged tile, and the soft shadow that keeps
+  /// text legible over bright artwork.
+  static const Color liftShadow = Color(0x59000000);
+  static const Color textShadow = Color(0x8C000000);
 
   /// Secondary marks next to the accent (dim chart bars, the second swipe
   /// action) — systemGray2, so white still leads.

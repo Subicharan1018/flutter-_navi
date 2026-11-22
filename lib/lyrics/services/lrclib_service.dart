@@ -4,6 +4,7 @@ import 'package:http/http.dart' as http;
 import '../../models/song.dart';
 import '../models/lyrics_result.dart';
 import 'lrc_parser.dart';
+import '../../core/endpoints.dart';
 
 /// Fetches lyrics from the LRCLIB public API.
 /// https://lrclib.net — no API key required.
@@ -18,7 +19,7 @@ import 'lrc_parser.dart';
 /// (timeout, no network, 429, 5xx, bad JSON) is [LyricsResult.unreachable()],
 /// so the caller never remembers a failed request as "no lyrics".
 class LrcLibService {
-  static const String _baseUrl = 'https://lrclib.net/api/get';
+  static const String _baseUrl = Endpoints.lrclibGet;
 
   final http.Client _client;
 

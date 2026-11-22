@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -12,6 +11,7 @@ import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../widgets/ui/action_sheet.dart';
 import '../../../widgets/ui/grouped_list.dart';
 import '../logic/download_location.dart';
+import '../../../utils/platform_utils.dart';
 
 /// Where offline downloads are stored, how much room is left there, and
 /// moving what is already downloaded.
@@ -47,7 +47,7 @@ class _DownloadLocationSectionState extends ConsumerState<DownloadLocationSectio
   /// Places an Android app can write without a permission: its own folder on
   /// each storage volume (the SD card, if there is one).
   Future<List<String>> _androidVolumes() async {
-    if (kIsWeb || !Platform.isAndroid) return const [];
+    if (!PlatformUtils.isAndroid) return const [];
     try {
       final dirs = await getExternalStorageDirectories() ?? const <Directory>[];
       return [for (final d in dirs) d.path];

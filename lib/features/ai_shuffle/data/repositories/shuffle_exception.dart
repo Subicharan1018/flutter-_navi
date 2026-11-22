@@ -16,7 +16,7 @@ abstract class ShuffleException implements Exception {
 class ShuffleNetworkError extends ShuffleException {
   const ShuffleNetworkError([
     super.message =
-        'Cannot reach shuffle.subimusic.me. Check your internet connection.',
+        'Cannot reach the Smart Shuffle server. Check your internet connection.',
   ]);
 }
 

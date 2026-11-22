@@ -10,15 +10,15 @@ Nothing on the server changes. Standard library only.
 
 ```powershell
 # live server over ssh (Tailscale must be up)
-python tool/export_listens.py --ssh subi@100.99.105.51 --user <your navidrome user> --out listens
+python tool/export_listens.py --ssh <user>@<host> --user <your navidrome user> --out listens
 
 # one date range (UTC days, end inclusive)
-python tool/export_listens.py --ssh subi@100.99.105.51 --user <user> --from 2026-11-01 --to 2026-11-22 --out listens
+python tool/export_listens.py --ssh <user>@<host> --user <user> --from 2026-11-01 --to 2026-11-22 --out listens
 
 # with album covers (password from the environment, never typed on the command line)
 $env:NAVIDROME_PASSWORD = "..."
-python tool/export_listens.py --ssh subi@100.99.105.51 --user <user> --out listens `
-    --covers listens_covers --navidrome-url http://100.99.105.51:4533
+python tool/export_listens.py --ssh <user>@<host> --user <user> --out listens `
+    --covers listens_covers --navidrome-url http://<host>:4533
 ```
 
 Without ssh, copy `/DATA/AppData/navidrome/data/navidrome.db` and use `--db navidrome.db`.

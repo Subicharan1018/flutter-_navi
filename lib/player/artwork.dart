@@ -11,6 +11,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:http/http.dart' as http;
 import 'package:image/image.dart' as img;
 
+import '../core/theme.dart';
 import '../core/album_palette.dart';
 import '../features/local_library/logic/local_index.dart';
 import '../features/local_library/logic/local_library_providers.dart' show localIndexRevisionProvider;
@@ -100,7 +101,7 @@ class CoverImage extends StatelessWidget {
         alignment: Alignment.center,
         child: NaviIcon(
           NaviGlyph.note,
-          color: const Color(0x99FFFFFF),
+          color: AppThemeTokens.onArtworkStrong,
           size: ((width ?? 48) * 0.36).clamp(14.0, 96.0),
         ),
       ),

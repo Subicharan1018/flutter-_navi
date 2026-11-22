@@ -8,6 +8,7 @@ import 'package:flutter/services.dart';
 import '../data/update_manifest.dart';
 import 'update_files.dart';
 import 'update_source.dart';
+import '../../../utils/platform_utils.dart';
 
 /// What the phone tells us about the installed app.
 class InstalledApp {
@@ -86,7 +87,7 @@ class UpdateService {
 
   Future<UpdateCheck> check(UpdateSource source, {required int installedBuild}) async {
     final manifest = await _fetchManifest(source);
-    if (Platform.isAndroid) {
+    if (PlatformUtils.isAndroid) {
       final app = await _native.installedApp();
       String? sha;
       if (app != null) {
@@ -102,7 +103,7 @@ class UpdateService {
       );
       return UpdateCheck(manifest, plan: plan);
     }
-    if (Platform.isWindows) {
+    if (PlatformUtils.isWindows) {
       return UpdateCheck(
         manifest,
         windowsAvailable: manifest.windowsSetup != null && manifest.build > installedBuild,

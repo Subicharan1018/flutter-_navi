@@ -7,14 +7,14 @@ album covers downloaded. Nothing on the server is changed. Python 3.9+, standard
 
 Where the data comes from (pick one):
   --db navidrome.db            a copy of the file (scp it from /DATA/AppData/navidrome/data/)
-  --ssh subi@100.99.105.51     reads the live file over ssh with `sqlite3 -readonly`
+  --ssh <user>@<host>     reads the live file over ssh with `sqlite3 -readonly`
                                (needs Tailscale up and sqlite3 on the server)
 
 Examples:
-  python tool/export_listens.py --ssh subi@100.99.105.51 --user admin --out listens
+  python tool/export_listens.py --ssh <user>@<host> --user admin --out listens
   python tool/export_listens.py --db navidrome.db --user admin --from 2026-11-01 --to 2026-11-22 --out listens
   python tool/export_listens.py --db navidrome.db --user admin --out listens \
-      --covers listens_covers --navidrome-url http://100.99.105.51:4533 --navidrome-user admin
+      --covers listens_covers --navidrome-url http://<host>:4533 --navidrome-user admin
       (the Navidrome password is read from the NAVIDROME_PASSWORD environment variable, never from the command line)
 
 Output columns: played_at_utc, played_at_epoch, title, artist, album, album_artist, duration_s,
@@ -139,7 +139,7 @@ def main() -> None:
     ap.add_argument("--to", dest="end", help="last day, YYYY-MM-DD (UTC, inclusive)")
     ap.add_argument("--out", default="listens", help="output name without extension (writes .csv and .json)")
     ap.add_argument("--covers", help="folder to download one cover per album into")
-    ap.add_argument("--navidrome-url", help="needed with --covers, e.g. http://100.99.105.51:4533")
+    ap.add_argument("--navidrome-url", help="needed with --covers, e.g. http://<host>:4533")
     ap.add_argument("--navidrome-user", help="needed with --covers (defaults to --user)")
     a = ap.parse_args()
     if not USER_OK.match(a.user):

@@ -2,9 +2,9 @@ import 'dart:async';
 import 'dart:io';
 
 import 'package:disk_space_plus/disk_space_plus.dart';
-import 'package:flutter/foundation.dart';
 
 import '../../../core/hive_boxes.dart';
+import '../../../utils/platform_utils.dart';
 
 /// Name of the folder created inside the folder the user picks. Downloads
 /// get their own folder so "delete all downloads" can never touch the user's
@@ -71,11 +71,11 @@ Future<ProcessResult> _run(String exe, List<String> args) => Process.run(exe, ar
 /// does not say. [run] and [android] are test seams.
 Future<int?> freeSpaceBytes(String path, {CommandRunner run = _run, bool? android}) async {
   try {
-    if (android ?? (!kIsWeb && Platform.isAndroid)) {
+    if (android ?? PlatformUtils.isAndroid) {
       final mb = await DiskSpacePlus().getFreeDiskSpaceForPath(path);
       return mb == null ? null : (mb * 1024 * 1024).round();
     }
-    if (Platform.isWindows) {
+    if (PlatformUtils.isWindows) {
       final root = _windowsDrive(path);
       if (root == null) return null;
       final r = await run('powershell', [

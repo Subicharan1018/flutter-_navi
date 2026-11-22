@@ -239,7 +239,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
     final art = ref.watch(nowPlayingArtworkProvider);
     final living = ref.watch(settingsProvider.select((s) => s.fluidBgEnabled)) && context.motionFull;
     final size = MediaQuery.sizeOf(context);
-    final wide = size.width >= 900 && size.width > size.height;
+    final wide = size.width >= PlatformUtils.kNowPlayingSplitBreakpoint && size.width > size.height;
     // A queue the server chose says so (see SmartContext).
     final smart = SmartContext.of(ref.read(playerProvider.notifier).currentPlaylistName);
     // Full-bleed art: a tall phone and a cover sharp enough to fill it.
@@ -1092,7 +1092,7 @@ class _TitleRow extends ConsumerWidget {
   final bool onArt;
   const _TitleRow({required this.song, this.onArt = false});
 
-  static const _shadow = [Shadow(color: Color(0x8C000000), blurRadius: 14, offset: Offset(0, 1))];
+  static const _shadow = [Shadow(color: AppThemeTokens.textShadow, blurRadius: 14, offset: Offset(0, 1))];
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -1182,7 +1182,7 @@ class _BottomRow extends ConsumerWidget {
     final sleeping = ref.watch(sleepTimerProvider.select((s) => s.active));
     Color c(bool on) => on ? Colors.white : Colors.white.withValues(alpha: 0.72);
     final double size = rounded ? 56 : 48;
-    final Color? rest = rounded ? const Color(0x14FFFFFF) : null;
+    final Color? rest = rounded ? AppThemeTokens.onArtworkFaint : null;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceAround,
       children: [

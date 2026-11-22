@@ -26,6 +26,10 @@ abstract class CarLibrary {
   Future<({List<Song> songs, List<Album> albums, List<Artist> artists})> search(String query);
 }
 
+/// Songs fetched per page when listing the whole library for the car; the
+/// page size and the offset step must stay equal.
+const _kSongBatch = 500;
+
 class SubsonicCarLibrary implements CarLibrary {
   final SubsonicService Function() _service;
   SubsonicCarLibrary(this._service);
@@ -60,7 +64,7 @@ class SubsonicCarLibrary implements CarLibrary {
     final out = <Song>[];
     final seen = <String>{};
     for (var page = 0; page < 12; page++) {
-      final batch = await _s.getAllSongs(size: 500, offset: page * 500);
+      final batch = await _s.getAllSongs(size: _kSongBatch, offset: page * _kSongBatch);
       final fresh = batch.where((s) => seen.add(s.id)).toList();
       if (fresh.isEmpty) break;
       out.addAll(fresh);
