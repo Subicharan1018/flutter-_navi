@@ -169,7 +169,14 @@ class _Pending {
   final String cmdId;
   final IdQueue Function(IdQueue) apply;
   final DateTime at;
-  _Pending(this.cmdId, this.apply) : at = DateTime.now();
+
+  /// For an edit the server only forwards (a new queue): settled when the
+  /// host's own report shows it, not when the server says "sent".
+  final bool Function(PlaybackState)? confirmedBy;
+
+  /// A refusal is explained elsewhere (the routed-play notice), not here.
+  final bool quiet;
+  _Pending(this.cmdId, this.apply, {this.confirmedBy, this.quiet = false}) : at = DateTime.now();
 }
 
 final remoteQueueProvider = NotifierProvider<RemoteQueueNotifier, RemoteQueueState>(RemoteQueueNotifier.new);
@@ -236,7 +243,8 @@ class RemoteQueueNotifier extends Notifier<RemoteQueueState> {
   void _onServerState(PlaybackState s) {
     _server = s;
     final now = DateTime.now();
-    _pending.removeWhere((p) => p.cmdId == s.causedByCmdId || now.difference(p.at) > pendingTimeout);
+    _pending.removeWhere((p) =>
+        p.cmdId == s.causedByCmdId || now.difference(p.at) > pendingTimeout || (p.confirmedBy?.call(s) ?? false));
     _resolveMissing(s.queue);
     state = _compose();
   }
@@ -246,8 +254,10 @@ class RemoteQueueNotifier extends Notifier<RemoteQueueState> {
     if (i < 0) return;
     // Accepted: the confirming state (sent just before the answer) already
     // holds the edit. Refused: undo it on screen and say why.
+    final p = _pending[i];
+    if (r.ok && p.confirmedBy != null) return; // forwarded: the host's report settles it
     _pending.removeAt(i);
-    if (!r.ok) _say(r.message);
+    if (!r.ok && !p.quiet) _say(r.message);
     state = _compose();
   }
 
@@ -340,6 +350,30 @@ class RemoteQueueNotifier extends Notifier<RemoteQueueState> {
     final q = view;
     if (q.index + 1 >= q.ids.length) return false;
     return _edit(QueueEditType.clearUpcoming, const {}, applyQueueClearUpcoming);
+  }
+
+  /// A new queue for the playing device (a tap on a song or "Play" while this
+  /// device is its remote), shown at once; [cmdId] is the command that carries it.
+  void replace(List<Song> songs, int index, String cmdId) {
+    for (final s in songs) {
+      _songs[s.id] = s;
+    }
+    final ids = [for (final s in songs) s.id];
+    final at = index.clamp(0, ids.isEmpty ? 0 : ids.length - 1);
+    _pending.add(_Pending(
+      cmdId,
+      (_) => (ids: ids, index: at),
+      confirmedBy: (s) => s.queue.length == ids.length && s.queueIndex == at && _sameIds(s.queue, ids),
+      quiet: true,
+    ));
+    state = _compose();
+  }
+
+  static bool _sameIds(List<String> a, List<String> b) {
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
   }
 
   /// Plays the song at [index] on the playing device.

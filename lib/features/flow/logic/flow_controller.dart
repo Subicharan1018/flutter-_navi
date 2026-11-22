@@ -95,7 +95,8 @@ class FlowController extends Notifier<FlowState> {
         state = state.copyWith(starting: false, error: _emptyMessage());
         return false;
       }
-      final player = ref.read(playerProvider.notifier);
+      // Flow keeps topping up this device's own queue, so it always plays here.
+      final player = ref.read(playerProvider.notifier)..permitClaim();
       await player.playPlaylist(songs, playlistName: flowPlaylistName);
       if (!ref.mounted) return false;
       _current = songs.first;

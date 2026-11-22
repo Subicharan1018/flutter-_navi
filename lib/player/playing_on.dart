@@ -15,6 +15,7 @@ import '../widgets/cover_art.dart';
 import '../widgets/mini_player.dart';
 import 'devices_sheet.dart';
 import 'player_controls.dart' show GlyphButton;
+import 'play_notices.dart';
 import 'remote_queue_sheet.dart';
 
 /// Who is playing, at a glance: "This device" on the host, "Playing on NAME"
@@ -80,11 +81,13 @@ class AdaptiveMiniPlayer extends ConsumerWidget {
     if (passive) return const RemoteMiniPlayer();
     final chip = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.activeHere)) &&
         ref.watch(syncDevicesProvider.select((d) => (d.asData?.value.length ?? 0) >= 2));
-    if (!chip) return const MiniPlayer();
-    return const Column(mainAxisSize: MainAxisSize.min, children: [
-      Padding(padding: EdgeInsets.only(bottom: Space.xs), child: PlayingOnChip()),
-      MiniPlayer(),
-    ]);
+    if (!chip) return const PlayNotices(child: MiniPlayer());
+    return const PlayNotices(
+      child: Column(mainAxisSize: MainAxisSize.min, children: [
+        Padding(padding: EdgeInsets.only(bottom: Space.xs), child: PlayingOnChip()),
+        MiniPlayer(),
+      ]),
+    );
   }
 }
 
@@ -99,7 +102,8 @@ class RemoteMiniPlayer extends ConsumerWidget {
     final svc = ref.read(subsonicServiceProvider);
     final player = ref.read(playerProvider.notifier);
     final host = s.activeDeviceName ?? 'another device';
-    return RemoteQueueNotices(
+    return PlayNotices(
+      child: RemoteQueueNotices(
       child: Padding(
       padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.sm),
       child: Semantics(
@@ -159,6 +163,7 @@ class RemoteMiniPlayer extends ConsumerWidget {
           ),
         ),
       ),
+    ),
     ),
     );
   }

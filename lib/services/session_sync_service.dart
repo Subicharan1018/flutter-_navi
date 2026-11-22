@@ -406,8 +406,12 @@ class CommandResult {
         'queue_changed' || 'stale' => 'The queue changed on the other device. Try again.',
         'is_current' => 'That song is playing. Skip it instead.',
         'queue_full' => 'The queue is full.',
-        'unknown_type' => 'Your session server can’t edit the queue yet. Update it, then try again.',
+        'unknown_type' => 'Your session server can’t do that yet. Update it, then try again.',
         'offline' => 'Can’t reach your other devices. Check your connection.',
+        'timeout' => 'That device didn’t answer. Open NaviVibe on it and try again.',
+        'target_offline' => 'That device went offline.',
+        'busy' => 'Playback is already moving. Try again in a moment.',
+        'epoch_changed' => 'Playback moved to another device. Try again.',
         _ => 'That didn’t work. Try again.',
       };
 }
@@ -1043,7 +1047,10 @@ class SessionSyncService {
 
   /// Remote control: asks the active device (or [target]) to do [action].
   /// Answered on [resultStream].
-  void sendCommand(
+  ///
+  /// Returns the command id (protocol 3) that the answer on [resultStream]
+  /// carries, or null on an older server (answered without an id) or with no link.
+  String? sendCommand(
     String action, {
     int? positionMs,
     double? volume,
@@ -1052,8 +1059,9 @@ class SessionSyncService {
     List<String>? queue,
     String? target,
   }) {
+    if (_channel == null) return null; // a command is for right now; no link, no command
     if (_server3) {
-      _cmd(
+      return _cmd(
         switch (action) { 'set_queue' => 'setQueue', 'play_track' => 'playTrack', _ => action },
         {
           'position_ms': ?positionMs,
@@ -1065,7 +1073,6 @@ class SessionSyncService {
         },
         action: action,
       );
-      return;
     }
     _send({
       'type': 'command',
@@ -1077,6 +1084,32 @@ class SessionSyncService {
       'queue': ?queue,
       'target': ?target,
     });
+    return null;
+  }
+
+  /// Starts [queue] (song ids) at [index] on [deviceId], which need not be the
+  /// device that plays now (`cross-device-v1`, protocol 3 servers that have it):
+  /// the target loads it, then takes over from the current host, which keeps
+  /// playing until then. [meta] names the song for the other devices' screens.
+  /// Returns the command id, or null when it cannot be sent (no link / old server).
+  String? playOn(
+    String deviceId,
+    List<String> queue,
+    int index, {
+    Map<String, dynamic> meta = const {},
+  }) {
+    if (!_server3 || _channel == null) return null;
+    return _cmd(
+      'playOn',
+      {
+        'toDeviceId': deviceId,
+        'queue': queue,
+        'index': index,
+        'force': true,
+        ...meta,
+      },
+      action: 'playOn',
+    );
   }
 
   /// Edits the host's queue from this device (protocol 4): `queue_insert`

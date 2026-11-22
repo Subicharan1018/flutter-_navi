@@ -188,4 +188,19 @@ void main() {
     expect(player.remote, isEmpty);
     expect(sync.sent, isEmpty);
   });
+
+  testWidgets('a new queue sent to the playing device shows in the pane at once, and settles on its report', (tester) async {
+    await pumpPane(tester);
+    final container = ProviderScope.containerOf(tester.element(find.byType(QueuePane)));
+    container.read(remoteQueueProvider.notifier).replace([_s('x'), _s('y'), _s('z')], 0, 'c-1');
+    await tester.pump();
+    expect(find.text('Title y'), findsOneWidget); // upcoming, from the new queue
+    expect(find.text('Title z'), findsOneWidget);
+    expect(find.text('Title c'), findsNothing); // the old queue is gone from the pane
+    sync.hostState(['x', 'y', 'z'], 0, version: 2); // the playing device applied it
+    await tester.pump();
+    expect(find.text('Title y'), findsOneWidget);
+    expect(find.text('Title c'), findsNothing);
+    expect(player.localCalls, isEmpty); // this device's own player was never involved
+  });
 }

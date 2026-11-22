@@ -11,7 +11,6 @@ import '../providers/settings_provider.dart';
 import '../services/session_sync_service.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/cover_art.dart';
-import '../widgets/ui/action_sheet.dart' show showToast;
 import 'devices_sheet.dart';
 import 'player_controls.dart';
 import 'remote_queue_sheet.dart';
@@ -45,7 +44,6 @@ class RemoteControlView extends ConsumerStatefulWidget {
 
 class _RemoteControlViewState extends ConsumerState<RemoteControlView> {
   Timer? _tick;
-  StreamSubscription<CommandResult>? _results;
   double? _dragging; // 0..1 while the scrubber is held
   double _volume = 0.8; // the other device's volume isn't reported; this is the remote's own setting
 
@@ -55,16 +53,11 @@ class _RemoteControlViewState extends ConsumerState<RemoteControlView> {
     _tick = Timer.periodic(const Duration(milliseconds: 500), (_) {
       if (mounted && _dragging == null) setState(() {});
     });
-    _results = ref.read(sessionSyncServiceProvider).resultStream.listen((r) {
-      // Queue edits are explained by RemoteQueueNotices (with the edit undone).
-      if (!r.ok && mounted && !r.action.startsWith('queue_')) showToast(context, r.message);
-    });
   }
 
   @override
   void dispose() {
     _tick?.cancel();
-    _results?.cancel();
     super.dispose();
   }
 

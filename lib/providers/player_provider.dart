@@ -36,6 +36,7 @@ import '../features/peak_moments/logic/reel_provider.dart';
 import '../features/everyday/recent_queues_providers.dart';
 import '../services/session_sync_service.dart';
 import 'session_sync_provider.dart';
+import 'play_route.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../utils/async_lock.dart';
 import '../utils/device_utils.dart';
@@ -345,6 +346,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _syncSub = syncService.stateStream.listen(_onSyncStateChanged);
       _commandSub = syncService.commandStream.listen(_onRemoteCommand);
       _prepareSub = syncService.prepareStream.listen(_onPrepareTransfer);
+      _resultSub = syncService.resultStream.listen(_onSyncResult);
       _onSyncStateChanged(syncService.currentState);
     } catch (e) {
       debugPrint('[PlayerNotifier] ℹ️ SessionSyncService init note: $e');
@@ -353,6 +355,68 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   StreamSubscription<RemoteCommand>? _commandSub;
   StreamSubscription<PrepareTransfer>? _prepareSub;
+  StreamSubscription<CommandResult>? _resultSub;
+
+  /// The server refused (or could not carry out) something this device asked
+  /// of another one: a routed play, a handover, a remote button. Said once, in
+  /// words. Queue edits are explained by the remote queue instead.
+  void _onSyncResult(CommandResult r) {
+    if (r.ok || r.action.startsWith('queue_')) return;
+    _ref.read(playNoticeProvider.notifier).say(r.message);
+  }
+
+  // ── Where a play goes (see play_route.dart) ──────────────────────────────
+
+  /// Set while "Play here" runs: that play stays on this device.
+  bool _hereOnce = false;
+  RoutedPlay? _lastRouted;
+  String? _lastActiveSeen;
+
+  /// A play the person started, sent to another of their devices when that is
+  /// where it belongs. True: it was sent (or refused with a notice), so nothing
+  /// starts here.
+  Future<bool> _routePlay(List<Song> songs, int index, String? name) async {
+    if (songs.isEmpty || !UserActivity.recent()) return false;
+    // Nothing to route unless another device holds playback or one was picked.
+    if (state.syncMode != SyncMode.passive && _ref.read(playTargetProvider) == null) return false;
+    _myDeviceId ??= await _deviceIdProvider();
+    final sync = _ref.read(sessionSyncServiceProvider);
+    final route = resolvePlayRoute(
+      myId: _myDeviceId,
+      activeId: sync.currentState.activeDevice,
+      chosenId: _ref.read(playTargetProvider),
+      person: UserActivity.recent(),
+      here: _hereOnce || DateTime.now().isBefore(_claimPermittedUntil),
+    );
+    if (route is PlayHere) return false;
+    final at = index.clamp(0, songs.length - 1);
+    final notice = _ref.read(playNoticeProvider.notifier);
+    final deviceId = switch (route) {
+      PlayOnHost(:final deviceId) || PlayOnOther(:final deviceId) => deviceId,
+      PlayHere() => '',
+    };
+    final host = deviceNameFor(sync, deviceId, fallback: state.remoteActiveDeviceName);
+    if (!sendPlay(_ref, sync, route, songs, at)) {
+      notice.say(const CommandResult(ok: false, action: 'play', reason: 'offline').message);
+      return true;
+    }
+    _lastRouted = (songs: songs, index: at, name: name);
+    notice.say('Playing on $host', canPlayHere: true);
+    return true;
+  }
+
+  /// "Play here instead": starts what was just sent to another device on this one.
+  Future<void> playHereInstead() async {
+    _ref.read(playTargetProvider.notifier).choose(null);
+    final last = _lastRouted;
+    if (last == null) return claimActiveDevice();
+    _hereOnce = true;
+    try {
+      await setQueue(last.songs, last.index, playlistName: last.name, unshuffledSongs: last.songs);
+    } finally {
+      _hereOnce = false;
+    }
+  }
 
   /// The server is about to make this device the host: load the song where it is now,
   /// paused, and say ready. The current host keeps playing until then, so the handover
@@ -630,6 +694,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }
 
   void _onSyncStateChanged(PlaybackState syncState) {
+    if (!syncState.syncUnknown && syncState.activeDevice != _lastActiveSeen) {
+      // Playback changed hands: a device picked for new music no longer applies.
+      _lastActiveSeen = syncState.activeDevice;
+      _ref.read(playTargetProvider.notifier).choose(null);
+    }
     final wasPassive = state.syncMode == SyncMode.passive;
     final isMineNow = syncState.activeDevice != null &&
         syncState.activeDevice == _myDeviceId;
@@ -1832,6 +1901,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _syncSub?.cancel();
     _commandSub?.cancel();
     _prepareSub?.cancel();
+    _resultSub?.cancel();
     _positionTickTimer?.cancel();
     _shuffleGuardTimer?.cancel();
     _persistTimer?.cancel();
@@ -1857,6 +1927,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     List<Song>? unshuffledSongs,
   }) async {
     debugPrint('🎵 [PlayerProvider] setQueue called with ${songs.length} songs, start: $startIndex, playlist: $playlistName');
+    if (await _routePlay(songs, startIndex, playlistName)) return;
     await _queueLock.run(() async {
       _queueEpoch++;
       if (!await _ensureActiveDevice()) return;
@@ -1945,6 +2016,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   }) async {
     debugPrint('🎵 [PlayerProvider] playPlaylist called with ${songs.length} songs, shuffle: $shuffle, name: $playlistName');
     if (songs.isEmpty) return;
+    if (await _routePlay(shuffle ? (List.of(songs)..shuffle()) : songs, 0, playlistName)) return;
     await _queueLock.run(() async {
       _queueEpoch++;
       if (!await _ensureActiveDevice()) return;
