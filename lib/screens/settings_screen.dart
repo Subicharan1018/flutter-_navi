@@ -541,6 +541,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 value: autoplay,
                 onChanged: (_) => ref.read(playerProvider.notifier).toggleAutoplay(),
               ),
+              GroupedSwitchRow(
+                title: 'Fast Start',
+                subtitle: 'Songs begin at once from a small copy, then switch to your streaming quality.',
+                icon: NaviGlyph.play,
+                value: s.fastStart,
+                onChanged: notifier.setFastStart,
+              ),
               GroupedRow(
                 title: 'Volume Normalisation',
                 icon: NaviGlyph.speaker,

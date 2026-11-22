@@ -3003,5 +3003,10 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
     ),
     fireImmediately: true,
   );
+  ref.listen(
+    settingsProvider.select((s) => s.fastStart),
+    (_, on) => handler.fastStartEnabled = on,
+    fireImmediately: true,
+  );
   return PlayerNotifier(ref, handler, service, collector);
 });
