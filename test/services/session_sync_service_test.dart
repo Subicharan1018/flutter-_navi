@@ -428,6 +428,30 @@ void main() {
       service.dispose();
     });
 
+    test('keeps retrying when the re-auth token refresh throws', () async {
+      final service = SessionSyncService(
+        jwtSupplier: ({bool forceRefresh = false}) {
+          if (forceRefresh) throw StateError('jwt endpoint unreachable');
+          return 'jwt';
+        },
+        deviceIdProvider: () async => 'device-1',
+        channelFactory: (uri) => fakeChannel,
+        httpClient: fakeHttpClient,
+      );
+      final attempts = <int>[];
+      final sub = service.reconnectAttemptStream.listen(attempts.add);
+
+      await service.connect();
+      fakeChannel.simulateClose(4001, 'Unauthorized');
+      await Future.delayed(const Duration(milliseconds: 800));
+
+      // 1 = the auth retry that failed, 2 = the back-off retry scheduled after it.
+      expect(attempts, containsAll([1, 2]));
+
+      await sub.cancel();
+      service.dispose();
+    });
+
     test('REST fetchCurrentState retries on 401 with refreshed token', () async {
       int getCalls = 0;
       int tokenRefreshCalls = 0;

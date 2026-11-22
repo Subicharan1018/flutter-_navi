@@ -105,7 +105,7 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
       final url = ref.read(subsonicServiceProvider).getCoverArtUrl(art, size: 900);
       // A browser has no disk cache to read from; fetch the bytes directly.
       final bytes = kIsWeb
-          ? (await http.get(Uri.parse(url))).bodyBytes
+          ? (await http.get(Uri.parse(url)).timeout(const Duration(seconds: 15))).bodyBytes
           : await (await DefaultCacheManager().getSingleFile(url)).readAsBytes();
       final provider = MemoryImage(bytes);
       if (!mounted) return;

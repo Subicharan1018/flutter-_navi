@@ -90,7 +90,7 @@ final statusProbesProvider = Provider<Map<String, Probe>>((ref) {
           ? ref.read(sessionSyncServiceProvider).connection
           : null;
       return timedProbe(() async {
-        final r = await http.get(Uri.parse('${SessionSyncService.defaultHttpBaseUrl}/health'));
+        final r = await http.get(Uri.parse('${SessionSyncService.defaultHttpBaseUrl}/health')).timeout(const Duration(seconds: 10));
         if (r.statusCode != 200) throw ProbeFailure('Server error (${r.statusCode})');
         return null;
       }, describe: (_) => 'port 5501${live == null ? '' : ' · live link ${live.name}'}');

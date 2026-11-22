@@ -710,7 +710,9 @@ class SubsonicService {
   /// manually using [Uri.queryParametersAll] which accepts `Map<String, List<String>>`.
   Future<void> setPlaylistSongs(String playlistId, List<String> songIds) async {
     playlistAccess.requireEditable(playlistId);
-    final uri = Uri.parse('$serverUrl/createPlaylist.view').replace(
+    // Sent as a form body, not in the URL: a few hundred ids overflow the
+    // URL limit of common proxies (nginx's default is 8 KB).
+    final form = Uri(
       queryParameters: {
         'u': [username],
         for (final e in _authParams(stable: false).entries) e.key: [e.value],
@@ -722,7 +724,11 @@ class SubsonicService {
       },
     );
 
-    final response = await _client.get(uri);
+    final response = await _client.post(
+      Uri.parse('$serverUrl/createPlaylist.view'),
+      headers: {'Content-Type': 'application/x-www-form-urlencoded'},
+      body: form.query,
+    );
     if (response.statusCode != 200) {
       throw Exception('setPlaylistSongs HTTP ${response.statusCode}');
     }

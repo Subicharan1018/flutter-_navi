@@ -229,6 +229,11 @@ class OnlineSearchController extends Notifier<OnlineSearchState> {
       }
     } on OnlineFetchException catch (e) {
       if (ref.mounted && gen == _generation) state = base.withResult(error: e.message);
+    } catch (_) {
+      // A malformed answer must not leave the screen on "searching".
+      if (ref.mounted && gen == _generation) {
+        state = base.withResult(error: 'The server sent an answer the app could not read. Try again.');
+      }
     }
   }
 }
@@ -340,6 +345,9 @@ class FetchJobsController extends Notifier<FetchDownloads> {
 
   /// Give up following a download that hasn't changed for this long.
   static const stallLimit = Duration(minutes: 15);
+
+  /// How long [_follow] keeps polling a server that never answers before it gives up.
+  static const maxOffline = Duration(hours: 2);
 
   /// Server errors in a row (e.g. rate limited) before a download is shown as
   /// failed; one bad poll never fails it. Being offline never does.
@@ -542,6 +550,7 @@ class FetchJobsController extends Notifier<FetchDownloads> {
   }) async {
     var errors = 0;
     var offline = 0;
+    DateTime? offlineSince;
     var lastChange = DateTime.now();
     String? lastSeen;
     while (true) {
@@ -554,12 +563,19 @@ class FetchJobsController extends Notifier<FetchDownloads> {
         value = await fetch();
         errors = 0;
         offline = 0;
+        offlineSince = null;
       } on OnlineFetchException catch (e) {
         if (e.isTransient) {
           // The download carries on on the server; never fail it for being
           // offline or for a slow/busy server, and don't count the time towards a stall.
           offline++;
           lastChange = DateTime.now();
+          offlineSince ??= lastChange;
+          if (lastChange.difference(offlineSince) > maxOffline) {
+            final failed = onGiveUp('The server has not answered for a long time. It may still appear in your library.');
+            if (ref.mounted) put(failed);
+            return failed;
+          }
           continue;
         }
         if (++errors < maxPollErrors) continue;

@@ -113,6 +113,7 @@ class HistoryImportController extends Notifier<HistoryRun> {
       while (!_stop) {
         final r = await api.step(job.id, secret: secret);
         job = r.job;
+        if (!ref.mounted) return;
         state = state.copy(job: job, clearError: true);
         if (r.fatal) {
           state = state.copy(error: job.error ?? 'This import can’t go on.');
@@ -130,9 +131,11 @@ class HistoryImportController extends Notifier<HistoryRun> {
         }
       }
     } on OnlineFetchException catch (e) {
-      state = state.copy(error: e.message);
+      if (ref.mounted) state = state.copy(error: e.message);
+    } catch (_) {
+      if (ref.mounted) state = state.copy(error: 'The import stopped unexpectedly. Tap Resume to try again.');
     } finally {
-      state = state.copy(running: false, waitingS: 0);
+      if (ref.mounted) state = state.copy(running: false, waitingS: 0);
     }
   }
 
@@ -141,6 +144,7 @@ class HistoryImportController extends Notifier<HistoryRun> {
     for (var left = seconds; left > 0 && !_stop; left--) {
       state = state.copy(waitingS: left);
       await delay(const Duration(seconds: 1));
+      if (!ref.mounted) return;
     }
     state = state.copy(waitingS: 0);
   }

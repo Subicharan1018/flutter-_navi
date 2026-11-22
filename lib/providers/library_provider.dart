@@ -426,14 +426,14 @@ final allSongsProvider = FutureProvider<List<Song>>((ref) async {
         await _cacheSongs(db, chunk);
         seen.addAll(chunk.map((s) => s.id));
         progress._page(chunk.length);
-        if (chunk.length < pageSize) {
-          complete = true;
-          break;
-        }
-        offset += pageSize;
+        // Only an empty page ends the sync: a server that caps the page size
+        // below ours returns short pages that are not the end of the library.
+        offset += chunk.length;
       }
-      if (complete) await _pruneMissing(db, seen);
-      _markSynced();
+      if (complete) {
+        await _pruneMissing(db, seen);
+        _markSynced();
+      }
       progress._done();
     } catch (e) {
       progress._failed(e);

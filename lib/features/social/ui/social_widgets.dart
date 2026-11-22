@@ -196,7 +196,14 @@ Future<String?> askForText(
 /// Picks one of the people who turned social features on. [skip] hides people
 /// who are already in whatever this is for.
 Future<String?> pickPerson(BuildContext context, WidgetRef ref, {Set<String> skip = const {}, required String title}) async {
-  final users = await ref.read(socialUsersProvider.future);
+  // socialUsersProvider is autoDispose: keep a listener so it survives the await.
+  final keepAlive = ref.listenManual(socialUsersProvider, (_, _) {});
+  final List<String> users;
+  try {
+    users = await ref.read(socialUsersProvider.future);
+  } finally {
+    keepAlive.close();
+  }
   if (!context.mounted) return null;
   final skipLower = {for (final s in skip) s.toLowerCase()};
   final people = [for (final u in users) if (!skipLower.contains(u.toLowerCase())) u];
