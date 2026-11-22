@@ -181,6 +181,15 @@ void main() {
 
     sharedPlayer = ControlledAudioPlayer();
     sharedSubsonic = MockSubsonicService();
+    // The handler outlives each test (the notifier no longer disposes the
+    // app-wide handler), so it warms the play cache for the next songs.
+    when(
+      () => sharedSubsonic.getStreamUrl(
+        any(),
+        maxBitRate: any(named: 'maxBitRate'),
+        format: any(named: 'format'),
+      ),
+    ).thenReturn('http://localhost/stream');
     sharedHandler = TestAudioHandler(sharedSubsonic, player: sharedPlayer);
 
     await AudioService.init<NaviAudioHandler>(
