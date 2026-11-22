@@ -1,19 +1,26 @@
 import '../../../models/song.dart';
+import '../../../utils/history_title_key.dart';
 import '../../../widgets/mascot/microduck_pose.dart' show cacheBpm;
 import '../data/models/recommended_song.dart';
 
-/// Matches Smart Shuffle recommendations (title + composer from the server)
-/// to songs in the local library: exact title + artist first, then title
-/// alone. Builds its lookup once, so resolving a whole mix is O(n).
+/// Matches Smart Shuffle recommendations and listening-history rows (title +
+/// artist from the server) to songs in the local library. Order of trust:
+/// exact title + artist, exact title, then the title with film/language tags
+/// removed (artist breaks ties). Distinct versions never merge: only tags
+/// like "(From "X")" and "(Tamil)" are ignored. Builds its lookup once, so
+/// resolving a whole mix is O(n).
 class RecommendationResolver {
   final Map<String, Song> _byTitleArtist = {};
   final Map<String, Song> _byTitle = {};
+  final Map<String, List<Song>> _byKey = {};
 
   RecommendationResolver(List<Song> library) {
     for (final s in library) {
       final title = s.title.toLowerCase();
       _byTitleArtist.putIfAbsent('$title|${s.artist.toLowerCase()}', () => s);
       _byTitle.putIfAbsent(title, () => s);
+      final key = historyTitleKey(s.title);
+      if (key.isNotEmpty) (_byKey[key] ??= []).add(s);
     }
   }
 
@@ -22,7 +29,20 @@ class RecommendationResolver {
   /// Any server-side (title, artist) pair — Replay and stats rows use this.
   Song? match(String title, String artist) {
     final t = title.toLowerCase();
-    return _byTitleArtist['$t|${artist.toLowerCase()}'] ?? _byTitle[t];
+    final a = artist.toLowerCase();
+    final exact = _byTitleArtist['$t|$a'] ?? _byTitle[t];
+    if (exact != null) return exact;
+
+    final candidates = _byKey[historyTitleKey(title)];
+    if (candidates == null) return null;
+    if (candidates.length == 1) return candidates.first;
+    if (a.isNotEmpty) {
+      for (final s in candidates) {
+        final sa = s.artist.toLowerCase();
+        if (sa.isNotEmpty && (sa.contains(a) || a.contains(sa))) return s;
+      }
+    }
+    return candidates.first;
   }
 
   /// Library songs for [recs], in order, skipping ones not in the library,
