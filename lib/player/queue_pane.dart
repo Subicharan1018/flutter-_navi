@@ -424,6 +424,7 @@ class _ShuffleModeSheet extends ConsumerWidget {
   /// selected is always shown, so the checkmark is never missing.
   static const _quick = [
     ShuffleAlgorithm.standard,
+    ShuffleAlgorithm.trueRandom,
     ShuffleAlgorithm.spotify,
     ShuffleAlgorithm.youtube,
     ShuffleAlgorithm.smartLocal,

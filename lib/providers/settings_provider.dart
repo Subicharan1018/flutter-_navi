@@ -25,6 +25,11 @@ enum ShuffleAlgorithm {
   /// Basic Fisher-Yates random shuffle.
   standard,
 
+  /// True Shuffle: uniform random with a memory and nothing else. No ratings,
+  /// plays, favourites or recommender; every song plays once before any plays
+  /// twice, even across sessions (see ShuffleBag).
+  trueRandom,
+
   /// Dithered Position Shuffle: assigns each song a floating-point position
   /// score (evenly spaced per group + random offset + small dither), then
   /// sorts globally. Guarantees same-category songs are maximally spread with
@@ -57,6 +62,7 @@ enum ShuffleAlgorithm {
   /// Name shown in Settings and the queue's shuffle-style sheet.
   String get label => switch (this) {
         standard => 'Random',
+        trueRandom => 'True Shuffle',
         spotify => 'Balanced',
         youtube => 'Favorites First',
         albumAware => 'By Album',
@@ -68,6 +74,7 @@ enum ShuffleAlgorithm {
   /// One line on what the listener will hear.
   String get summary => switch (this) {
         standard => 'Every song is equally likely to play next.',
+        trueRandom => 'Pure random, no recommender: every song plays once before any plays twice, even tomorrow.',
         spotify => 'Spreads out songs from the same group so they never play back to back.',
         youtube => 'Leans toward songs you starred, rated highly or play most.',
         albumAware => 'Plays whole albums in order, with the albums shuffled.',

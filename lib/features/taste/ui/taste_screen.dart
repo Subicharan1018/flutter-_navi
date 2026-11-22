@@ -7,6 +7,8 @@ import '../../../widgets/ui/grouped_list.dart';
 import '../../../widgets/ui/large_title_page.dart';
 import '../../../widgets/ui/states.dart';
 import '../../listen/data/listen_models.dart';
+import '../../rotation/logic/rotation_providers.dart' show rotationProvider;
+import '../../rotation/ui/rotation_taste_section.dart';
 import '../logic/taste_providers.dart';
 
 /// Settings > Taste: everything you told NaviVibe never to recommend, grouped
@@ -27,8 +29,12 @@ class TasteScreen extends ConsumerWidget {
     return LargeTitlePage(
       title: 'Taste',
       clearPlayer: false,
-      onRefresh: () => ref.refresh(tasteExclusionsProvider.future),
+      onRefresh: () {
+        ref.invalidate(rotationProvider);
+        return ref.refresh(tasteExclusionsProvider.future).then((_) {});
+      },
       slivers: [
+        const SliverToBoxAdapter(child: RotationTasteSection()),
         if (list != null && list.isNotEmpty)
           SliverList.list(children: [
             const SizedBox(height: Space.sm),
