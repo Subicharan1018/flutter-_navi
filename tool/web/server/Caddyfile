@@ -28,9 +28,14 @@ http://:8090 {
 		# "current" is a symlink to releases/<build>; deploy-web.sh flips it with
 		# an atomic rename, and Caddy follows it per request.
 		root * /srv/navivibe-web/current
+		# Brotli/gzip copies are made at deploy time (deploy-web.sh) and served as
+		# they are; `encode` still compresses anything that has no copy (the API
+		# proxy is in the other handle block and is not affected).
 		encode zstd gzip
 		try_files {path} /index.html
-		file_server
+		file_server {
+			precompressed br gzip
+		}
 
 		header {
 			X-Content-Type-Options nosniff
