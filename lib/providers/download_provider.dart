@@ -45,6 +45,36 @@ final downloadedBytesProvider = FutureProvider.autoDispose<int>((ref) {
 /// Override in tests to avoid platform channel initialisation.
 final connectivityProvider = Provider<Connectivity>((ref) => Connectivity());
 
+/// Lets a progress update through at most every [minInterval], or sooner when
+/// it moved by at least [minStep]. Network chunks arrive far faster than the UI
+/// can show; completion and errors bypass this (they go through `_set`).
+class DownloadProgressThrottle {
+  DownloadProgressThrottle({
+    this.minInterval = const Duration(milliseconds: 250),
+    this.minStep = 0.01,
+    DateTime Function()? now,
+  }) : _now = now ?? DateTime.now;
+
+  final Duration minInterval;
+  final double minStep;
+  final DateTime Function() _now;
+  DateTime? _lastAt;
+  double _lastValue = 0;
+
+  bool shouldEmit(double progress) {
+    final now = _now();
+    final last = _lastAt;
+    if (last != null &&
+        now.difference(last) < minInterval &&
+        (progress - _lastValue).abs() < minStep) {
+      return false;
+    }
+    _lastAt = now;
+    _lastValue = progress;
+    return true;
+  }
+}
+
 class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
   @override
   Map<String, SongDownloadState> build() {
@@ -163,10 +193,12 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
       _set(song.id, SongDownloadStatus.downloading, progress: 0.0);
 
       final offlineService = ref.read(offlineServiceProvider);
+      final throttle = DownloadProgressThrottle();
       final success = await offlineService.downloadSong(
         song,
         subsonicService,
         onProgress: (p) {
+          if (!throttle.shouldEmit(p)) return;
           state = {
             ...state,
             song.id: SongDownloadState(

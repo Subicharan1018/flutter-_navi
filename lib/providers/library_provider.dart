@@ -779,6 +779,9 @@ class PaginatedSongsNotifier extends StateNotifier<PaginatedSongsState> {
     });
     if (arg.filter == LibraryFilter.downloaded || ref.read(isOfflineProvider)) {
       ref.listen(downloadedSongIdsProvider, (prev, next) {
+        // A fresh Set is built on every download-state change (each progress
+        // tick); only reload when the downloaded IDs themselves changed.
+        if (prev != null && setEquals(prev, next)) return;
         loadNextPage(isRefresh: true);
       });
     }
