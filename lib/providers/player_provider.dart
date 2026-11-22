@@ -5,6 +5,7 @@ import '../player/handover_window.dart';
 import '../player/resume_position.dart';
 import '../player/queue_snapshot.dart';
 import '../offline_service.dart';
+import '../player/offline_notice.dart' show needsNetworkToLoad;
 import 'package:flutter/foundation.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -891,6 +892,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   Future<void> play() async {
     if (!await _ensureActiveDevice()) return;
     await _loadRemoteSongIfEmpty();
+    if (_staged != null && !await loadStagedRestore()) return; // still offline: stay paused
     await _audioHandler.play();
     state = state.copyWith(isPlaying: true, syncMode: SyncMode.activeHere);
     _pushUpdate(
@@ -1080,9 +1082,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
             repeatMode: LoopMode.values[restored.repeat.clamp(0, LoopMode.values.length - 1)],
           );
           _currentPlaylistName = restored.source;
-          await _audioHandler.setQueue(restored.songs, restored.index, unshuffledSongs: restored.unshuffled);
-          await _audioHandler.pause();
-          if (restored.positionMs > 0) await player.seek(Duration(milliseconds: restored.positionMs));
+          if (needsNetworkToLoad(
+            offline: _isOffline,
+            songId: restored.songs[restored.index].id,
+            hasLocalCopy: _hasLocalCopy,
+          )) {
+            // Shown paused where it was; loaded when the network is back (or on Play).
+            _audioHandler.stageQueue(restored.songs, restored.unshuffled);
+            _staged = (restored.index, restored.positionMs);
+          } else {
+            await _audioHandler.setQueue(restored.songs, restored.index, unshuffledSongs: restored.unshuffled);
+            await _audioHandler.pause();
+            if (restored.positionMs > 0) await player.seek(Duration(milliseconds: restored.positionMs));
+          }
           _trackedIndexForCompletion = restored.index;
           _positionAtCompletion = Duration(milliseconds: restored.positionMs);
         } finally {
@@ -1101,6 +1113,47 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       debugPrint('[PlayerNotifier] ℹ️ Could not restore the queue: $e');
     } finally {
       _restoreSettled = true;
+    }
+  }
+
+  (int, int)? _staged;
+
+  bool get _isOffline {
+    try {
+      return _ref.read(isOfflineProvider);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  bool _hasLocalCopy(String id) {
+    try {
+      return isLocalSongId(id) || OfflineService().isSongDownloaded(id);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// Loads a queue that was restored offline, paused at its saved second.
+  /// False (and still staged) when the load fails.
+  Future<bool> loadStagedRestore() async {
+    final st = _staged;
+    if (st == null || !mounted) return true;
+    try {
+      await _queueLock.run(() async {
+        _suppressDepth++;
+        try {
+          await _audioHandler.loadStaged(st.$1, Duration(milliseconds: st.$2));
+          await _audioHandler.pause();
+        } finally {
+          _suppressDepth--;
+        }
+      });
+      _staged = null;
+      return true;
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ Staged queue not loaded yet: $e');
+      return false;
     }
   }
 
@@ -3003,5 +3056,12 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
     ),
     fireImmediately: true,
   );
-  return PlayerNotifier(ref, handler, service, collector);
+  // A dropped connection is not a broken song: the handler holds still.
+  handler.setNetworkDown(ref.read(isOfflineProvider));
+  final notifier = PlayerNotifier(ref, handler, service, collector);
+  ref.listen<bool>(isOfflineProvider, (_, offline) {
+    handler.setNetworkDown(offline);
+    if (!offline) unawaited(notifier.loadStagedRestore());
+  });
+  return notifier;
 });

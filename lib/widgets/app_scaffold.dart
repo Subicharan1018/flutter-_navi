@@ -19,6 +19,9 @@ import 'ui/dock_ground.dart';
 import 'shell/dock_glass.dart';
 import '../features/social/ui/jam/jam_pill.dart';
 import '../providers/session_sync_provider.dart';
+import '../features/local_library/logic/local_models.dart' show isLocalSongId;
+import '../offline_service.dart';
+import '../player/offline_notice.dart';
 import '../player/playing_on.dart';
 import 'shell/app_tab.dart';
 import 'shell/nav_stack.dart';
@@ -160,7 +163,7 @@ class _AppScaffoldState extends ConsumerState<AppScaffold>
 
   @override
   Widget build(BuildContext context) {
-    final offline = ref.watch(isOfflineProvider);
+    final offline = ref.watch(offlineNoticeProvider);
     return NaviKeyboardShortcuts(
       commands: _commands,
       child: LayoutBuilder(
@@ -444,12 +447,18 @@ class _TabButton extends StatelessWidget {
   }
 }
 
-class _OfflineBanner extends StatelessWidget {
+class _OfflineBanner extends ConsumerWidget {
   const _OfflineBanner();
 
   @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     final t = ThemeTokens.of(context);
+    // A streamed song keeps going from what the player already buffered; a
+    // downloaded one (or nothing playing) is just "your downloads".
+    final streaming = ref.watch(playerProvider.select((s) {
+      final id = s.currentSong?.id;
+      return id != null && !isLocalSongId(id) && !OfflineService().isSongDownloaded(id);
+    }));
     // Sits on the dock band above the mini player, clear of page titles.
     return Padding(
       padding: const EdgeInsets.only(bottom: Space.sm),
@@ -459,7 +468,9 @@ class _OfflineBanner extends StatelessWidget {
           NaviIcon(NaviGlyph.wifiOff, size: 13, color: t.warning),
           const SizedBox(width: Space.xs + 2),
           Text(
-            'Offline. Playing your downloads.',
+            streaming
+                ? "Offline. Playing what's already loaded."
+                : 'Offline. Playing your downloads.',
             style: t.caption1.copyWith(color: t.textPrimary),
           ),
         ],
