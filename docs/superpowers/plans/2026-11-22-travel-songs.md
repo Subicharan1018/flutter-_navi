@@ -1,6 +1,6 @@
 # Travel Songs Implementation Plan
 
-> **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
+> **For the AI building this:** no skills or plugins are needed. Do the tasks in order, tick each `- [ ]` step as you finish it, and follow the rules in "Read this first". (If your tool has a plan-execution or test-driven-development skill, it may help, but nothing here depends on it.)
 
 **Goal:** Pick a date and see on a map where you were (from Google Timeline) and which songs played along the way, with album covers (from Navidrome listening history).
 
