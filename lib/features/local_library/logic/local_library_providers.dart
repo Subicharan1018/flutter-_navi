@@ -15,6 +15,7 @@ import 'local_index.dart';
 import 'local_library_service.dart';
 import 'local_models.dart';
 import 'scanner.dart';
+import '../../../utils/platform_utils.dart';
 
 class HiveFolderStore implements FolderStore {
   @override
@@ -184,7 +185,7 @@ final localLibraryBootstrapProvider = Provider<void>((ref) {
 
 /// Opens the platform's folder picker. Null when cancelled.
 Future<LocalFolder?> pickLocalFolder() async {
-  if (!kIsWeb && Platform.isAndroid) return SafFileSource.pickFolder();
+  if (PlatformUtils.isAndroid) return SafFileSource.pickFolder();
   final path = await FilePicker.platform.getDirectoryPath(dialogTitle: 'Choose a music folder');
   if (path == null) return null;
   final name = path.split(RegExp(r'[\\/]')).where((s) => s.isNotEmpty).lastOrNull ?? path;

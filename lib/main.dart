@@ -1,4 +1,3 @@
-import 'dart:io' show Platform;
 import 'utils/user_activity.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/material.dart';
@@ -126,7 +125,7 @@ Future<void> main(List<String> args) async {
   }
 
   // ── Media kit: required on Linux / Windows for just_audio playback ─────────
-  if (!kIsWeb && (Platform.isLinux || Platform.isWindows)) {
+  if (PlatformUtils.isLinux || PlatformUtils.isWindows) {
     JustAudioMediaKit.ensureInitialized();
   }
 
