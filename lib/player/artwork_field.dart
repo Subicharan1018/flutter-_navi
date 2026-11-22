@@ -2,7 +2,6 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
 
 import '../core/album_palette.dart';
@@ -59,7 +58,13 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
   static const double _downscale = 6;
 
   ui.FragmentShader? _shader;
-  late final Ticker _ticker = createTicker(_onTick);
+  // Drift repaints at 30 fps, so a 33 ms timer does it with a quarter of the
+  // frames a per-vsync Ticker would drive on a 120 Hz screen. A Timer ignores
+  // TickerMode and the app lifecycle, so _syncTicker checks both itself.
+  static const _frame = Duration(milliseconds: 33);
+  Timer? _timer;
+  final Stopwatch _clock = Stopwatch();
+  late final AppLifecycleListener _lifecycle;
   late final AnimationController _mix = AnimationController(
     vsync: this,
     duration: const Duration(milliseconds: 1100),
@@ -83,11 +88,11 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
   ArtworkData? _from; // outgoing
   ArtworkData? _to; // current
   Duration _lastElapsed = Duration.zero;
-  double _sinceFrame = 0;
 
   @override
   void initState() {
     super.initState();
+    _lifecycle = AppLifecycleListener(onStateChange: (_) => _syncTicker());
     _to = widget.art;
     _from = widget.art;
     ArtworkField._program ??= ui.FragmentProgram.fromAsset('shaders/artwork_field.frag');
@@ -130,27 +135,36 @@ class _ArtworkFieldState extends State<ArtworkField> with TickerProviderStateMix
 
   void _syncTicker() {
     final reduce = !context.motionFull;
-    final run = widget.playing && !reduce;
-    if (run && !_ticker.isActive) {
+    final lifecycle = WidgetsBinding.instance.lifecycleState;
+    final visible = lifecycle == null ||
+        lifecycle == AppLifecycleState.resumed ||
+        lifecycle == AppLifecycleState.inactive;
+    final run = widget.playing && !reduce && TickerMode.valuesOf(context).enabled && visible;
+    if (run && _timer == null) {
       _lastElapsed = Duration.zero;
-      _ticker.start();
-    } else if (!run && _ticker.isActive) {
-      _ticker.stop();
+      _clock
+        ..reset()
+        ..start();
+      _timer = Timer.periodic(_frame, _onTick);
+    } else if (!run && _timer != null) {
+      _timer!.cancel();
+      _timer = null;
+      _clock.stop();
     }
   }
 
-  void _onTick(Duration elapsed) {
-    final dt = (elapsed - _lastElapsed).inMicroseconds / 1e6;
+  void _onTick(Timer _) {
+    final elapsed = _clock.elapsed;
+    // Clamp so a stalled isolate does not make the drift jump.
+    final dt = ((elapsed - _lastElapsed).inMicroseconds / 1e6).clamp(0.0, 0.1);
     _lastElapsed = elapsed;
-    _sinceFrame += dt;
-    if (_sinceFrame < 1 / 30) return; // 30 fps is plenty for slow drift
-    _time.value += _sinceFrame;
-    _sinceFrame = 0;
+    _time.value += dt;
   }
 
   @override
   void dispose() {
-    _ticker.dispose();
+    _timer?.cancel();
+    _lifecycle.dispose();
     _mix.dispose();
     _dim.dispose();
     _energy.dispose();
