@@ -41,7 +41,11 @@ class RecentQueuesNotifier extends Notifier<List<RecentQueue>> {
 
   @override
   List<RecentQueue> build() {
-    _all = RecentQueues.decode(ref.read(recentQueuesBackendProvider).read());
+    try {
+      _all = RecentQueues.decode(ref.read(recentQueuesBackendProvider).read());
+    } catch (_) {
+      _all = const []; // storage not open (a test, a first frame)
+    }
     return RecentQueues.forAccount(_all, _account);
   }
 

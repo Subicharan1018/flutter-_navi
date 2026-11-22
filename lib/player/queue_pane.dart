@@ -916,12 +916,18 @@ class _SectionHeader extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.baseline,
         textBaseline: TextBaseline.alphabetic,
         children: [
-          Text(title, style: naviText(19, FontWeight.w700, style.textPrimary)),
+          Flexible(
+            child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis, style: naviText(19, FontWeight.w700, style.textPrimary)),
+          ),
           if (subtitle != null) ...[
             const SizedBox(width: 8),
-            Text(
-              subtitle!,
-              style: naviText(13, FontWeight.w500, style.textMuted),
+            Flexible(
+              child: Text(
+                subtitle!,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: naviText(13, FontWeight.w500, style.textMuted),
+              ),
             ),
           ],
           const Spacer(),
