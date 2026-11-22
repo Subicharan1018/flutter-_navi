@@ -268,7 +268,11 @@ void main() {
 
   tearDownAll(() async {
     await Hive.close();
-    if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    try {
+      if (tempDir.existsSync()) tempDir.deleteSync(recursive: true);
+    } on FileSystemException {
+      // Windows can still hold a Hive file under load; a leftover temp dir is harmless.
+    }
   });
 
   const server = 'https://music.example';
