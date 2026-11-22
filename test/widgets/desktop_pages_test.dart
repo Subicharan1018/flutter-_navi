@@ -2,6 +2,7 @@ import 'dart:io';
 
 import 'package:flutter/gestures.dart';
 import 'package:flutter/cupertino.dart' show CupertinoTextField;
+import 'package:navivibe/widgets/ui/controls.dart' show NaviSearchField;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/legacy.dart';
@@ -223,17 +224,32 @@ void main() {
       await size(tester, 1366, 768);
       await tester.pumpWidget(_app(const SettingsScreen()));
       await tester.pump(const Duration(milliseconds: 300));
-      for (final c in ['Account', 'Mascot', 'Playback', 'Audio quality', 'Downloads & storage', 'Smart Shuffle', 'Your data', 'About']) {
+      for (final c in ['Playback', 'Downloads & storage', 'Appearance', 'Accounts & scrobbling', 'Social & Jam', 'Server', 'Advanced & diagnostics']) {
         expect(find.text(c), findsWidgets, reason: c);
       }
-      // Account's rows are showing, Playback's are not.
-      expect(find.text('Username'), findsOneWidget);
-      expect(find.text('Living Artwork'), findsNothing);
-
-      await tester.tap(find.text('Playback').first);
-      await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('Living Artwork'), findsOneWidget);
+      // Playback (the most used) opens first; the account's rows are not showing.
+      expect(find.text('Autoplay'), findsOneWidget);
       expect(find.text('Username'), findsNothing);
+
+      await tester.tap(find.text('Server').first);
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Username'), findsOneWidget);
+      expect(find.text('Autoplay'), findsNothing);
+    });
+
+    testWidgets('the search box finds a row in another category and clears back', (tester) async {
+      await size(tester, 1366, 768);
+      await tester.pumpWidget(_app(const SettingsScreen()));
+      await tester.pump(const Duration(milliseconds: 300));
+      await tester.enterText(find.descendant(of: find.byType(NaviSearchField), matching: find.byType(CupertinoTextField)), 'motion');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.text('Search results'), findsOneWidget);
+      expect(find.text('Motion'), findsOneWidget);
+      expect(find.text('Autoplay'), findsNothing);
+
+      await tester.enterText(find.descendant(of: find.byType(NaviSearchField), matching: find.byType(CupertinoTextField)), 'zzzz');
+      await tester.pump(const Duration(milliseconds: 300));
+      expect(find.textContaining('No settings match'), findsOneWidget);
     });
 
     testWidgets('the account saves itself a moment after you stop typing, and Undo puts it back', (tester) async {
@@ -242,6 +258,8 @@ void main() {
       await tester.pumpWidget(_app(const SettingsScreen()));
       await tester.pump(const Duration(milliseconds: 300));
       expect(find.text('Save'), findsNothing, reason: 'no Save button on desktop');
+      await tester.tap(find.text('Server').first); // the account lives under Server
+      await tester.pump(const Duration(milliseconds: 300));
       await tester.enterText(find.widgetWithText(CupertinoTextField, 'yogesh'), 'yogesh2');
       await tester.pump(const Duration(milliseconds: 300));
       expect(savedAccounts, isEmpty, reason: 'not while still typing');
@@ -269,8 +287,9 @@ void main() {
       await size(tester, 393, 852);
       await tester.pumpWidget(_app(const SettingsScreen()));
       await tester.pump(const Duration(milliseconds: 300));
-      expect(find.text('Username'), findsOneWidget);
-      await tester.drag(find.byType(Scrollable).first, const Offset(0, -900));
+      expect(find.text('Autoplay'), findsOneWidget, reason: 'playback comes first');
+      expect(find.text('Username'), findsNothing, reason: 'the server is near the end');
+      await tester.drag(find.byType(Scrollable).first, const Offset(0, -250));
       await tester.pump();
       expect(tester.takeException(), isNull);
     });

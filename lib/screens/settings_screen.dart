@@ -1,7 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/cupertino.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show kIsWeb, visibleForTesting;
 import 'package:flutter/material.dart' show CircularProgressIndicator, Colors, Scaffold;
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -41,10 +41,101 @@ import '../services/playback_tuning.dart';
 import '../services/transcoding_service.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/action_sheet.dart';
+import '../widgets/ui/controls.dart' show NaviSearchField;
 import '../widgets/ui/grouped_list.dart';
 import '../widgets/ui/large_title_page.dart';
 
-final _appVersionProvider = FutureProvider<String>((ref) async {
+// The categories, most-used first. Every platform shows them in this order.
+const _cPlayback = 'Playback';
+const _cDownloads = 'Downloads & storage';
+const _cAppearance = 'Appearance';
+const _cAccounts = 'Accounts & scrobbling';
+const _cSocial = 'Social & Jam';
+const _cServer = 'Server';
+const _cAdvanced = 'Advanced & diagnostics';
+const _categoryOrder = [_cPlayback, _cDownloads, _cAppearance, _cAccounts, _cSocial, _cServer, _cAdvanced];
+
+/// Splits [items] at its [SettingsCategory] markers into the categories in
+/// [_categoryOrder]. A category may be marked more than once; its sections keep
+/// their source order. Empty categories are left out.
+@visibleForTesting
+Map<String, List<Widget>> groupSettings(List<Widget> items) {
+  final byName = <String, List<Widget>>{};
+  String? current;
+  for (final w in items) {
+    if (w is SettingsCategory) {
+      current = w.name;
+      byName.putIfAbsent(current, () => []);
+    } else if (current != null) {
+      byName[current]!.add(w);
+    }
+  }
+  return {
+    for (final n in _categoryOrder)
+      if (byName[n]?.isNotEmpty ?? false) n: byName[n]!,
+  };
+}
+
+/// Words that find the sections whose rows this file doesn't build itself.
+final Map<Type, String> _sectionWords = {
+  LyricsSourcesSection: 'lyrics sources synced words',
+  PlayCacheSection: 'play cache listen again replay',
+  AutoDownloadSection: 'auto download automatically offline',
+  DownloadLocationSection: 'download location folder storage',
+  LocalMusicSection: 'local music device folder files',
+  SocialSettingsSection: 'social friends jam profile sharing listen together',
+  FlowSettingsSection: 'flow mood radio',
+  ListenBrainzSection: 'listenbrainz last.fm lastfm scrobble scrobbling account token',
+  WeeklyExplorationSettings: 'weekly exploration playlist discover',
+  ExportifyImportSection: 'exportify spotify import csv history',
+  NotificationSettingsSection: 'notifications alerts',
+  WindowsSettingsSection: 'windows tray startup shortcut',
+};
+
+bool _hit(String text, List<String> terms) {
+  final low = text.toLowerCase();
+  return terms.every(low.contains);
+}
+
+String _rowText(Widget w) => switch (w) {
+      GroupedRow r => '${r.title} ${r.subtitle ?? ''} ${r.value ?? ''}',
+      GroupedSwitchRow r => '${r.title} ${r.subtitle ?? ''}',
+      GroupedTextFieldRow r => r.title,
+      _ => '',
+    };
+
+/// The sections of [groups] that match [query], every word of it, by category
+/// name, section heading, row title/subtitle, or a section's keywords. A
+/// section built here shrinks to its matching rows; a category named in the
+/// query keeps all of its sections.
+@visibleForTesting
+Map<String, List<Widget>> searchSettings(Map<String, List<Widget>> groups, String query) {
+  final terms = query.toLowerCase().split(RegExp(r'\s+')).where((w) => w.isNotEmpty).toList();
+  final out = <String, List<Widget>>{};
+  groups.forEach((name, sections) {
+    if (_hit(name, terms)) {
+      out[name] = sections;
+      return;
+    }
+    final kept = <Widget>[];
+    for (final w in sections) {
+      if (w is GroupedSection) {
+        final rows = w.children.where((r) => _hit(_rowText(r), terms)).toList();
+        if (_hit(w.header ?? '', terms)) {
+          kept.add(w);
+        } else if (rows.isNotEmpty) {
+          kept.add(GroupedSection(header: w.header, children: rows));
+        }
+      } else if (_hit(_sectionWords[w.runtimeType] ?? '', terms)) {
+        kept.add(w);
+      }
+    }
+    if (kept.isNotEmpty) out[name] = kept;
+  });
+  return out;
+}
+
+final _appVersionProvider =FutureProvider<String>((ref) async {
   final info = await PackageInfo.fromPlatform();
   return '${info.version} (${info.buildNumber})';
 });
@@ -60,7 +151,10 @@ class SettingsScreen extends ConsumerStatefulWidget {
 
 class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   /// Windows: the category showing on the right.
-  String _category = 'Account';
+  String _category = _cPlayback;
+
+  /// The settings search box; empty shows every section in order.
+  final _query = TextEditingController();
 
   late final SettingsState _initial = ref.read(settingsProvider);
   late final _user = TextEditingController(text: _initial.username);
@@ -122,7 +216,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   void dispose() {
     _saveTimer?.cancel();
-    for (final c in [_user, _pass, _duckName]) {
+    for (final c in [_user, _pass, _duckName, _query]) {
       c.dispose();
     }
     super.dispose();
@@ -232,12 +326,13 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final learned = ref.read(recommendationProvider).profiles.length;
     final version = ref.watch(_appVersionProvider).asData?.value ?? '';
     final lastError = ref.watch(lastErrorProvider).asData?.value;
+    final autoplay = ref.watch(playerProvider.select((p) => p.autoplayMode));
 
     // The sections in order; the markers name the categories the desktop's left
     // list picks between (a phone just scrolls past them).
     final items = <Widget>[
           const SizedBox(height: Space.sm),
-          const SettingsCategory('Account'),
+          const SettingsCategory(_cServer),
           if (kIsWeb)
             // Browser: no password is kept, so there is nothing to edit here;
             // signing out forgets the session token.
@@ -302,7 +397,35 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
             ],
           ),
-          const SettingsCategory('Mascot'),
+          const SettingsCategory(_cAppearance),
+          GroupedSection(
+            header: 'Look & motion',
+            children: [
+              GroupedSwitchRow(
+                title: 'Living Artwork',
+                subtitle: 'The Now Playing background moves with the music. Turn off to save battery.',
+                icon: NaviGlyph.signal,
+                value: s.fluidBgEnabled,
+                onChanged: notifier.setFluidBgEnabled,
+              ),
+              GroupedRow(
+                title: 'Motion',
+                icon: NaviGlyph.signal,
+                value: s.motionLevel.label,
+                onTap: () async {
+                  final v = await showChoiceSheet<MotionLevel>(
+                    context,
+                    title: 'Motion',
+                    options: MotionLevel.values,
+                    selected: s.motionLevel,
+                    label: (m) => m.label,
+                    detail: (m) => m.summary,
+                  );
+                  if (v != null) notifier.setMotionLevel(v);
+                },
+              ),
+            ],
+          ),
           GroupedSection(
             header: 'Mascot',
             footer: 'A little robot walks along the mini player, dances to the music on '
@@ -345,32 +468,70 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
-          const SettingsCategory('Playback'),
+          const SettingsCategory(_cPlayback),
+          GroupedSection(
+            header: 'Audio Quality',
+            footer: _transcoding
+                ? 'Lower bitrates use less data. Original streams the file exactly as stored.'
+                : 'Songs stream exactly as stored on your server, including lossless files.',
+            children: [
+              GroupedSwitchRow(
+                title: 'Convert While Streaming',
+                icon: NaviGlyph.aiShuffle,
+                value: _transcoding,
+                onChanged: (v) {
+                  setState(() => _transcoding = v);
+                  ref.read(transcodingProvider).setEnabled(v);
+                },
+              ),
+              if (_transcoding) ...[
+                _bitrateRow('Wi-Fi Quality', NaviGlyph.wifi, _wifiBitrate, (v) {
+                  setState(() => _wifiBitrate = v);
+                  ref.read(transcodingProvider).setWifiBitrate(v);
+                }),
+                _bitrateRow('Cellular Quality', NaviGlyph.radio, _mobileBitrate, (v) {
+                  setState(() => _mobileBitrate = v);
+                  ref.read(transcodingProvider).setMobileBitrate(v);
+                }),
+                GroupedRow(
+                  title: 'Format',
+                  icon: NaviGlyph.doc,
+                  value: TranscodeFormat.getLabel(_format),
+                  onTap: () async {
+                    final v = await showChoiceSheet<String>(
+                      context,
+                      title: 'Format',
+                      options: TranscodeFormat.options,
+                      selected: _format,
+                      label: TranscodeFormat.getLabel,
+                    );
+                    if (v == null) return;
+                    setState(() => _format = v);
+                    ref.read(transcodingProvider).setFormat(v);
+                  },
+                ),
+                GroupedSwitchRow(
+                  title: 'Switch Automatically',
+                  subtitle: 'Uses the Wi-Fi or cellular quality to match your connection.',
+                  icon: NaviGlyph.swap,
+                  value: _smartSwitch,
+                  onChanged: (v) {
+                    setState(() => _smartSwitch = v);
+                    ref.read(transcodingProvider).setSmartEnabled(v);
+                  },
+                ),
+              ],
+            ],
+          ),
           GroupedSection(
             header: 'Playback',
             children: [
               GroupedSwitchRow(
-                title: 'Living Artwork',
-                subtitle: 'The Now Playing background moves with the music. Turn off to save battery.',
-                icon: NaviGlyph.signal,
-                value: s.fluidBgEnabled,
-                onChanged: notifier.setFluidBgEnabled,
-              ),
-              GroupedRow(
-                title: 'Motion',
-                icon: NaviGlyph.signal,
-                value: s.motionLevel.label,
-                onTap: () async {
-                  final v = await showChoiceSheet<MotionLevel>(
-                    context,
-                    title: 'Motion',
-                    options: MotionLevel.values,
-                    selected: s.motionLevel,
-                    label: (m) => m.label,
-                    detail: (m) => m.summary,
-                  );
-                  if (v != null) notifier.setMotionLevel(v);
-                },
+                title: 'Autoplay',
+                subtitle: 'Keeps the music going with similar songs when the queue ends.',
+                icon: NaviGlyph.aiShuffle,
+                value: autoplay,
+                onChanged: (_) => ref.read(playerProvider.notifier).toggleAutoplay(),
               ),
               GroupedRow(
                 title: 'Volume Normalisation',
@@ -440,64 +601,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 ),
             ],
           ),
-          const SettingsCategory('Lyrics'),
           const LyricsSourcesSection(),
-          const SettingsCategory('Audio quality'),
-          GroupedSection(
-            header: 'Audio Quality',
-            footer: _transcoding
-                ? 'Lower bitrates use less data. Original streams the file exactly as stored.'
-                : 'Songs stream exactly as stored on your server, including lossless files.',
-            children: [
-              GroupedSwitchRow(
-                title: 'Convert While Streaming',
-                icon: NaviGlyph.aiShuffle,
-                value: _transcoding,
-                onChanged: (v) {
-                  setState(() => _transcoding = v);
-                  ref.read(transcodingProvider).setEnabled(v);
-                },
-              ),
-              if (_transcoding) ...[
-                _bitrateRow('Wi-Fi Quality', NaviGlyph.wifi, _wifiBitrate, (v) {
-                  setState(() => _wifiBitrate = v);
-                  ref.read(transcodingProvider).setWifiBitrate(v);
-                }),
-                _bitrateRow('Cellular Quality', NaviGlyph.radio, _mobileBitrate, (v) {
-                  setState(() => _mobileBitrate = v);
-                  ref.read(transcodingProvider).setMobileBitrate(v);
-                }),
-                GroupedRow(
-                  title: 'Format',
-                  icon: NaviGlyph.doc,
-                  value: TranscodeFormat.getLabel(_format),
-                  onTap: () async {
-                    final v = await showChoiceSheet<String>(
-                      context,
-                      title: 'Format',
-                      options: TranscodeFormat.options,
-                      selected: _format,
-                      label: TranscodeFormat.getLabel,
-                    );
-                    if (v == null) return;
-                    setState(() => _format = v);
-                    ref.read(transcodingProvider).setFormat(v);
-                  },
-                ),
-                GroupedSwitchRow(
-                  title: 'Switch Automatically',
-                  subtitle: 'Uses the Wi-Fi or cellular quality to match your connection.',
-                  icon: NaviGlyph.swap,
-                  value: _smartSwitch,
-                  onChanged: (v) {
-                    setState(() => _smartSwitch = v);
-                    ref.read(transcodingProvider).setSmartEnabled(v);
-                  },
-                ),
-              ],
-            ],
-          ),
-          const SettingsCategory('Downloads & storage'),
+          const SettingsCategory(_cDownloads),
           GroupedSection(
             header: PlatformUtils.supportsOfflineFiles ? 'Downloads & Storage' : 'Storage',
             children: [
@@ -552,9 +657,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                 onTap: _busy == null ? () => _deleteAllDownloads(downloads, size) : null,
               ),
             ]),
-          const SettingsCategory('Social'),
+          const SettingsCategory(_cSocial),
           const SocialSettingsSection(),
-          const SettingsCategory('Smart Shuffle'),
+          const SettingsCategory(_cPlayback), // Smart Shuffle: still playback, after the basics
           GroupedSection(
             header: 'Smart Shuffle',
             footer: learned == 0
@@ -596,10 +701,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               onTap: _busy == null ? _clearRecommendations : null,
             ),
           ]),
-          const SettingsCategory('Your data'),
+          const SettingsCategory(_cAccounts),
           const ListenBrainzSection(),
           const WeeklyExplorationSettings(),
           const ExportifyImportSection(),
+          const SettingsCategory(_cAdvanced),
           GroupedSection(
             header: 'Your Listening Data',
             children: [
@@ -629,7 +735,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           const NotificationSettingsSection(),
           const WindowsSettingsSection(),
-          const SettingsCategory('About'),
           GroupedSection(
             header: 'About',
             children: [
@@ -655,7 +760,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
     ];
 
-    if (PlatformUtils.isDesktop) return _desktopLayout(context, items);
+    final groups = groupSettings(items);
+    final query = _query.text;
+    final results = query.trim().isEmpty ? null : searchSettings(groups, query);
+    final search = NaviSearchField(
+      controller: _query,
+      placeholder: 'Search settings',
+      onChanged: (_) => setState(() {}),
+      voice: false,
+    );
+
+    if (PlatformUtils.isDesktop) return _desktopLayout(context, groups, results, search);
     return LargeTitlePage(
       title: 'Settings',
       trailing: CupertinoButton(
@@ -663,23 +778,34 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         onPressed: _save,
         child: Text('Save', style: t.headline.copyWith(color: t.accent)),
       ),
-      slivers: [SliverList.list(children: items)],
+      slivers: [
+        SliverList.list(children: [
+          Padding(padding: const EdgeInsets.symmetric(horizontal: Space.lg), child: search),
+          if (results == null)
+            for (final sections in groups.values) ...sections
+          else
+            ..._resultWidgets(results),
+        ]),
+      ],
     );
   }
 
-  /// Windows: categories down the left, the chosen one's settings on the right.
-  Widget _desktopLayout(BuildContext context, List<Widget> items) {
+  /// The matching sections, in category order; a note when nothing matches.
+  List<Widget> _resultWidgets(Map<String, List<Widget>> results) {
+    final all = [for (final s in results.values) ...s];
+    if (all.isNotEmpty) return all;
     final t = ThemeTokens.of(context);
-    final groups = <String, List<Widget>>{};
-    String? current;
-    for (final w in items) {
-      if (w is SettingsCategory) {
-        current = w.name;
-        groups[current] = [];
-      } else if (current != null) {
-        groups[current]!.add(w);
-      }
-    }
+    return [
+      Padding(
+        padding: const EdgeInsets.all(Space.xl),
+        child: Text('No settings match “${_query.text.trim()}”.', style: t.subheadline.copyWith(color: t.textSecondary)),
+      ),
+    ];
+  }
+
+  /// Windows: categories down the left, the chosen one's settings on the right.
+  Widget _desktopLayout(BuildContext context, Map<String, List<Widget>> groups, Map<String, List<Widget>>? results, Widget search) {
+    final t = ThemeTokens.of(context);
     final names = groups.keys.toList();
     final selected = names.contains(_category) ? _category : names.first;
     // One group: the categories and their form, centred in the content area so it
@@ -701,8 +827,16 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   padding: const EdgeInsets.fromLTRB(Space.sm, 0, Space.sm, Space.lg),
                   child: SizedBox(height: _titleBox, child: Align(alignment: Alignment.bottomLeft, child: Text('Settings', style: t.largeTitle))),
                 ),
+                Padding(padding: const EdgeInsets.only(bottom: Space.md), child: search),
                 for (final n in names)
-                  _SettingsNavRow(label: n, selected: n == selected, onTap: () => setState(() => _category = n)),
+                  _SettingsNavRow(
+                    label: n,
+                    selected: results == null && n == selected,
+                    onTap: () => setState(() {
+                      _query.clear();
+                      _category = n;
+                    }),
+                  ),
               ],
             ),
           ),
@@ -710,7 +844,8 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           Expanded(
             child: LayoutBuilder(
               builder: (context, c) {
-                final sections = groups[selected]!;
+                final sections = results == null ? groups[selected]! : _resultWidgets(results);
+                final heading = results == null ? selected : 'Search results';
                 // A form reads best about 720 px wide; sections of two columns would
                 // split a short list into halves nobody scans. So the pane stays one
                 // column, 48 px after the categories (the page's 24 gutter twice), so the
@@ -721,10 +856,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   children: [
                     Padding(
                       padding: EdgeInsets.fromLTRB(pageGutter(context), 0, pageGutter(context), Space.sm),
-                      child: SizedBox(height: _titleBox, child: Align(alignment: Alignment.bottomLeft, child: Text(selected, style: t.title1))),
+                      child: SizedBox(height: _titleBox, child: Align(alignment: Alignment.bottomLeft, child: Text(heading, style: t.title1))),
                     ),
                     SectionHeaderScope(
-                      pageTitle: selected,
+                      pageTitle: heading,
                       child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: sections),
                     ),
                   ],
