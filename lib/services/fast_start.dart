@@ -246,3 +246,19 @@ class FirstAudioProbe {
     return '$_label: ${_watch.elapsedMilliseconds} ms';
   }
 }
+
+/// Preloading the next songs at full quality starts once the current one is
+/// past 25% or 20 s, whichever is later: skipped-early songs cost nothing.
+bool nextPreloadDue({required int positionMs, required int durationMs}) {
+  final threshold = durationMs <= 0
+      ? 20000
+      : (durationMs * 0.25 > 20000 ? (durationMs * 0.25).round() : 20000);
+  return positionMs >= threshold;
+}
+
+/// Volume steps for a short dip around the low->full swap (never a hard cut):
+/// down to silence, and back up. [total] is split evenly over [steps] each way.
+List<double> swapRamp({int steps = 4}) => [
+  for (var i = 1; i <= steps; i++) 1 - i / steps,
+];
+const Duration kSwapRampDown = Duration(milliseconds: 120);

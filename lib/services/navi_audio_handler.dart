@@ -772,7 +772,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _fastGen++;
     _muteForSwap = true;
     try {
-      await player.setVolume(0);
+      // A short ramp to silence, so the cut is never a click.
+      final ramp = swapRamp();
+      for (final v in ramp) {
+        await player.setVolume((_appliedVolume * v).clamp(0.0, 1.0));
+        await Future<void>.delayed(kSwapRampDown ~/ ramp.length);
+      }
     } catch (_) {}
     try {
       await _rebuildSource(currentIndex, initialPosition: pos, decided: true);
@@ -993,7 +998,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         _scheduleWarm(index, attempt: attempt + 1);
         return;
       }
-      if (index == currentIndex) _warmPlayCache(index);
+      if (index != currentIndex) return;
+      final dur = (player.duration ?? Duration(seconds: _currentQueue[index].duration)).inMilliseconds;
+      if (!nextPreloadDue(positionMs: player.position.inMilliseconds, durationMs: dur)) {
+        _scheduleWarm(index, attempt: 5); // check again; attempt>0 keeps downloads running
+        return;
+      }
+      _warmPlayCache(index);
     });
   }
 

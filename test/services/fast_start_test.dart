@@ -292,9 +292,29 @@ void main() {
     });
   });
 
+  _extra();
+
   test('FirstAudioProbe reports once', () {
     final probe = FirstAudioProbe()..begin('tap');
     expect(probe.firstAudio(), startsWith('tap: '));
     expect(probe.firstAudio(), isNull);
+  });
+}
+
+void _extra() {
+  group('next-song preload and swap ramp', () {
+    test('preload waits for 25% or 20 s, whichever is later', () {
+      expect(nextPreloadDue(positionMs: 10000, durationMs: 200000), isFalse);
+      expect(nextPreloadDue(positionMs: 25000, durationMs: 200000), isFalse); // 50 s = 25%
+      expect(nextPreloadDue(positionMs: 50000, durationMs: 200000), isTrue);
+      expect(nextPreloadDue(positionMs: 20000, durationMs: 60000), isTrue); // 20 s later
+    });
+
+    test('swap ramp falls to silence in steps, never a hard cut', () {
+      final r = swapRamp();
+      expect(r.last, 0);
+      expect(r.first, lessThan(1));
+      expect(r.length, greaterThan(1));
+    });
   });
 }
