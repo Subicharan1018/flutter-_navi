@@ -10,6 +10,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/flow/logic/flow_controller.dart' show flowProvider;
 import '../features/flow/ui/flow_pill.dart';
+import '../features/peak_moments/ui/peak_mark_button.dart';
+import '../features/peak_moments/ui/peak_scrubber.dart';
 
 import '../core/motion.dart';
 import '../core/theme.dart';
@@ -411,8 +413,8 @@ class _PhoneLayout extends ConsumerWidget {
             child: Column(
               children: [
                 const PlayingOnChip(gap: 6),
-                Scrubber(
-                  key: microduckTrackKey,
+                PeakScrubber(
+                  scrubberKey: microduckTrackKey,
                   player: notifier.player,
                   song: song,
                   stream: ref.watch(streamQualityProvider),
@@ -1136,6 +1138,7 @@ class _TitleRow extends ConsumerWidget {
             },
           ),
         ),
+        PeakMarkButton(song: song),
         GlassCircleButton(
           icon: NaviGlyph.more,
           semanticLabel: 'More options',
@@ -1287,8 +1290,8 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
                               const SizedBox(height: 28),
                               _TitleRow(song: widget.song),
                               const SizedBox(height: 14),
-                              Scrubber(
-                                key: microduckTrackKey,
+                              PeakScrubber(
+                                scrubberKey: microduckTrackKey,
                                 player: notifier.player,
                                 song: widget.song,
                                 stream: ref.watch(streamQualityProvider),

@@ -7,6 +7,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../core/motion.dart';
 import '../core/theme.dart';
 import '../features/ai_shuffle/ui/ai_shuffle_screen.dart';
+import '../features/peak_moments/data/peak_store.dart' show peakMarksProvider;
+import '../features/peak_moments/ui/highlights_screen.dart';
 import '../features/discover/logic/discover_providers.dart' show discoverProvider;
 import '../features/discover/ui/discover_section.dart';
 import '../features/social/ui/jam/jam_hero.dart';
@@ -202,6 +204,15 @@ class _TopPicks extends ConsumerWidget {
         panel: Color.lerp(ThemeTokens.of(context).accent, ThemeTokens.of(context).bgBase, 0.76),
         width: cardWidth,
         onTap: () => navigateInApp(context, const ReplayScreen()),
+      ),
+      _FeatureCard(
+        title: 'Highlights',
+        subtitle: ref.watch(peakMarksProvider.select((m) => m.liveCount)) == 0
+            ? 'Save the best part of a song, then play only those.'
+            : '${ref.watch(peakMarksProvider.select((m) => m.liveCount))} saved moments, played back to back.',
+        art: MosaicArt(urls: const [], size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.flame, seed: coverSeed('Highlights')),
+        width: cardWidth,
+        onTap: () => navigateInApp(context, const HighlightsScreen()),
       ),
     ];
 

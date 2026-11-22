@@ -6,6 +6,8 @@ import '../core/theme.dart';
 import '../features/everyday/dont_count.dart';
 import '../features/everyday/play_stats_providers.dart';
 import '../features/everyday/song_trim_providers.dart';
+import '../features/peak_moments/data/peak_store.dart';
+import '../features/peak_moments/ui/play_highlights.dart';
 import '../features/everyday/song_trim_sheet.dart';
 import '../features/moods/ui/not_this_mood_action.dart';
 import '../features/share/share_sheet.dart';
@@ -192,6 +194,12 @@ class OptionsMenu extends ConsumerWidget {
             ),
         ]),
         SheetGroup(children: [
+          if (ref.watch(peakMarksProvider.select((m) => m.of(song.id).isNotEmpty)))
+            SheetAction(
+              label: 'Play Highlights',
+              icon: NaviGlyph.flame,
+              onTap: () => playHighlights(page, ref, [song], name: song.title),
+            ),
           SheetAction(
             label: ref.watch(songTrimsProvider.select((t) => t.of(song.id).isNone))
                 ? 'Start and End…'

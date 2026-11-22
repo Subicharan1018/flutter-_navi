@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../features/everyday/album_picks_providers.dart' show playShuffledByAlbum;
+import '../features/peak_moments/ui/play_highlights.dart';
 import '../features/share/share_sheet.dart';
 import '../models/song.dart';
 import '../providers/pins_provider.dart';
@@ -131,6 +132,11 @@ class _CollectionActions extends ConsumerWidget {
             label: 'Play Last',
             icon: NaviGlyph.playLast,
             onTap: () => withSongs((s) => queueSongs(page, ref, s, next: false, label: title)),
+          ),
+          SheetAction(
+            label: 'Play Highlights',
+            icon: NaviGlyph.flame,
+            onTap: () => withSongs((s) => playHighlights(page, ref, s, name: title)),
           ),
         ]),
         if (extraActions.isNotEmpty) SheetGroup(children: extraActions),

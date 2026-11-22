@@ -31,6 +31,8 @@ import '../features/everyday/dont_count.dart';
 import '../features/everyday/recent_queues.dart';
 import '../features/everyday/song_trim.dart';
 import '../features/everyday/song_trim_providers.dart';
+import '../features/peak_moments/logic/reel.dart';
+import '../features/peak_moments/logic/reel_provider.dart';
 import '../features/everyday/recent_queues_providers.dart';
 import '../services/session_sync_service.dart';
 import 'session_sync_provider.dart';
@@ -1144,7 +1146,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// False while "Don't count this" is on (R3): nothing is recorded or sent.
   bool get _counting {
     try {
-      return !_ref.read(dontCountProvider);
+      // A highlight reel plays 20 s cuts: counting them would read as skips.
+      return !_ref.read(dontCountProvider) && _ref.read(reelProvider) == null;
     } catch (_) {
       return true;
     }
@@ -1236,6 +1239,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
         _lastKnownIndex = index;
         _trimGuard.trackChanged(newSong?.id, newSong?.duration ?? 0);
+        _onReelTrack(index, newSong);
         // Track the new index for the completion snapshot.
         // Do NOT reset _positionAtCompletion here — it must still hold the
         // previous song's last position until the completion handler consumes it.
@@ -1550,7 +1554,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final currentSong = state.queue[state.currentIndex];
         final duration = currentSong.duration;
 
-        _applyTrim(position.inMilliseconds);
+        if (_reel == null) {
+          _applyTrim(position.inMilliseconds);
+        } else {
+          _applySegment(position.inMilliseconds);
+        }
 
         if (state.repeatMode == LoopMode.one &&
             prevPosition.inSeconds > (duration * 0.5) &&
@@ -1648,6 +1656,108 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
+  // ── Highlight reel: only the marked parts, back to back ─────────────────────
+
+  final SegmentGuard _segGuard = SegmentGuard();
+  Timer? _segTimer;
+  bool _reelStarting = false;
+
+  ReelPlan? get _reel {
+    try {
+      return _ref.read(reelProvider);
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Plays [plan]: the queue becomes one entry per segment, each started at
+  /// its mark and cut at its end. Any other queue started later (or a queue
+  /// edit that moves entries) ends reel mode and normal playback resumes.
+  Future<void> playReel(ReelPlan plan, {String name = 'Highlights'}) async {
+    if (plan.isEmpty) return;
+    _reelStarting = true;
+    _ref.read(reelProvider.notifier).set(plan);
+    try {
+      await setQueue(plan.songs, 0, playlistName: name, unshuffledSongs: plan.songs);
+    } finally {
+      _reelStarting = false;
+    }
+    final q = state.queue;
+    if (q.length != plan.songs.length || q.isEmpty || q.first.id != plan.songs.first.id) {
+      _endReel(); // the queue was not taken (another device is active)
+    } else {
+      _onReelTrack(state.currentIndex, state.currentSong);
+    }
+  }
+
+  /// Back to normal playback; the song playing carries on as an ordinary one.
+  void _endReel() {
+    _segTimer?.cancel();
+    _segGuard.reset();
+    try {
+      if (_ref.read(reelProvider) != null) _ref.read(reelProvider.notifier).clear();
+    } catch (_) {}
+  }
+
+  void _onReelTrack(int index, Song? song) {
+    final plan = _reel;
+    if (plan == null) return;
+    final seg = song == null ? null : plan.segmentAt(index, song.id);
+    if (seg == null) return _endReel(); // not the reel's entry any more
+    _segTimer?.cancel();
+    _segGuard.trackChanged(index, seg, isLast: index >= plan.segments.length - 1);
+  }
+
+  void _applySegment(int positionMs) =>
+      _runSegment(_segGuard.onPosition(positionMs, repeatOne: state.repeatMode == LoopMode.one));
+
+  void _runSegment(SegmentAction action) {
+    switch (action) {
+      case SegmentNothing():
+        break;
+      case SegmentSeek(:final ms):
+        _segTimer?.cancel();
+        unawaited(_audioHandler.seek(Duration(milliseconds: ms)));
+      case SegmentAdvance():
+        _segTimer?.cancel();
+        unawaited(_advanceReel());
+      case SegmentAdvanceIn(:final ms):
+        _segTimer?.cancel();
+        _segTimer = Timer(Duration(milliseconds: ms), _onSegmentTimer);
+      case SegmentCancel():
+        _segTimer?.cancel();
+      case SegmentFinish():
+        _segTimer?.cancel();
+        unawaited(_finishReel());
+    }
+  }
+
+  /// The exact-end timer. Paused: do nothing, the next position past the end
+  /// (after resuming) cuts it instead.
+  void _onSegmentTimer() {
+    if (!state.isPlaying) return;
+    _runSegment(_segGuard.onTimer(repeatOne: state.repeatMode == LoopMode.one));
+  }
+
+  Future<void> _advanceReel() async {
+    try {
+      await _audioHandler.skipToNext();
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ Reel could not advance: $e');
+    }
+  }
+
+  /// The last segment ended: stop rather than let the song run on (or
+  /// autoplay start something else).
+  Future<void> _finishReel() async {
+    _endReel();
+    try {
+      await pause();
+    } catch (e) {
+      debugPrint('[PlayerNotifier] ℹ️ Reel could not stop: $e');
+    }
+  }
+
   /// R6: the queue about to be replaced goes on the "recent queues" list.
   void _rememberOutgoingQueue() {
     if (state.queue.length < RecentQueues.minSongs) return;
@@ -1717,6 +1827,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _shuffleGuardTimer?.cancel();
     _persistTimer?.cancel();
     _trackChangeTimer?.cancel();
+    _segTimer?.cancel();
     for (final sub in _subscriptions) {
       sub.cancel();
     }
@@ -1740,6 +1851,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _queueLock.run(() async {
       _queueEpoch++;
       if (!await _ensureActiveDevice()) return;
+      if (!_reelStarting) _endReel();
       _rememberOutgoingQueue();
       _clearHistory(); // also calls shuffleNotifier.clearQueue() → _sessionId = null
       _ref.read(shuffleQueueProvider.notifier).initSession(); // start session so feedback fires
@@ -1827,6 +1939,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await _queueLock.run(() async {
       _queueEpoch++;
       if (!await _ensureActiveDevice()) return;
+      _endReel();
       _rememberOutgoingQueue();
       _clearHistory();
       _nextSourceContext = 'playlist';
