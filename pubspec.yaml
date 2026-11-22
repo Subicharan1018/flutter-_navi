@@ -73,6 +73,13 @@ dependencies:
   battery_plus: ^7.1.2
   # mesh_gradient removed (ARCH-2): declared but never imported anywhere
 
+# smtc_windows 1.1.0 was generated with flutter_rust_bridge 2.11.1 and refuses to start under any
+# other runtime ("codegen version (2.11.1) should be the same as runtime version"). Pub picked 2.13.0,
+# so the Windows media session (touchpad tap, media keys, volume flyout) never started. Keep this pin
+# until smtc_windows is upgraded; a test (test/services/smtc_frb_pin_test.dart) fails if it drifts.
+dependency_overrides:
+  flutter_rust_bridge: 2.11.1
+
 dev_dependencies:
   flutter_test:
     sdk: flutter
