@@ -41,11 +41,3 @@ class ShuffleEmptyResponse extends ShuffleException {
     super.message = 'Shuffle server returned no recommendations.',
   ]);
 }
-
-/// The shuffle server URL is not configured in Settings.
-class ShuffleNotConfigured extends ShuffleException {
-  const ShuffleNotConfigured([
-    super.message =
-        'Navidrome credentials not configured. Set username and password in Settings.',
-  ]);
-}

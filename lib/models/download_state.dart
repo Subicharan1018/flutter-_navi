@@ -38,8 +38,6 @@ class SongDownloadState {
     this.errorMessage,
   });
 
-  bool get isDownloaded => status == SongDownloadStatus.downloaded;
-
   /// True while a download is in progress (queued or downloading).
   bool get isActive =>
       status == SongDownloadStatus.queued ||

@@ -21,11 +21,6 @@ import '../theme.dart';
 // [NaviFocusable] adds the pointer side: click, right-click and a hover tint.
 // =============================================================================
 
-/// Raised by the Menu key and a held Select.
-class NaviContextIntent extends Intent {
-  const NaviContextIntent();
-}
-
 /// How long Select must be held to count as a long press.
 const Duration kRemoteLongPress = Duration(milliseconds: 500);
 

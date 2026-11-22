@@ -51,25 +51,8 @@ class PredictContext {
 
   // ── Derived convenience getters ─────────────────────────────────────────
 
-  /// "late_morning__summer__cloudy" → "late_morning"
-  String get timeSlot => bucket.split('__').elementAtOrNull(0) ?? '';
-
   /// "late_morning__summer__cloudy" → "summer"
   String get season => bucket.split('__').elementAtOrNull(1) ?? '';
-
-  /// Human-readable description of fallback level for the UI banner.
-  String get fallbackDescription {
-    switch (fallbackLevel) {
-      case 0: return 'Exact context match ($nInProfile plays)';
-      case 1: return 'Season fallback ($nInProfile plays)';
-      case 2: return 'Time-of-day fallback ($nInProfile plays)';
-      case 3: return 'Global profile (cold start — listen more to personalise)';
-      default: return 'Profile level $fallbackLevel';
-    }
-  }
-
-  /// True when we have high-confidence personalised results.
-  bool get isHighConfidence => fallbackLevel == 0;
 
   factory PredictContext.fromJson(Map<String, dynamic> json) {
     // always-hear: weather is a nested Map { "code", "mood", "temperature_c" }

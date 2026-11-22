@@ -106,7 +106,6 @@ class HiveBoxes {
   // ---------------------------------------------------------------------------
   static const kCurrentTrackId = 'currentTrackId';
   static const kLastPositionMs = 'lastPositionMs';
-  static const kLastTimestamp = 'lastTimestamp';
 
   /// The queue as one json string (see player/queue_snapshot.dart).
   static const kQueueSnapshot = 'queueSnapshot_v1';
@@ -118,8 +117,6 @@ class HiveBoxes {
   static const kShufflePreference = 'shufflePreference';
   static const kAutoplayPreference = 'autoplay_enabled';
   static const kDataCollectionEnabled = 'dataCollectionEnabled';
-  static const kThemeMode = 'theme_mode';
-  static const kMeshGradientEnabled = 'mesh_gradient_enabled';
   static const kImageCacheEnabled = 'cache_images_enabled';
   static const kMusicCacheEnabled = 'cache_music_enabled';
   static const kMusicCacheMaxMb = 'cache_music_max_mb';

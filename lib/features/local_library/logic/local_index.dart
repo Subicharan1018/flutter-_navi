@@ -1,7 +1,5 @@
 import 'package:flutter/foundation.dart';
 
-import 'local_models.dart';
-
 /// In-memory map from song id to the file on this device, read by playback
 /// and artwork code that runs far from any provider (the audio handler is
 /// built before the first widget). Rebuilt from the database after each scan
@@ -46,9 +44,6 @@ class LocalLibraryIndex {
 
   /// What `just_audio` opens for a stored location.
   static Uri uriFor(String path) => path.startsWith('content://') ? Uri.parse(path) : Uri.file(path);
-
-  /// Ids whose cover is a device file (see [coverFor]).
-  static bool hasLocalCover(String coverArtId) => isLocalSongId(coverArtId);
 }
 
 const _pendingCover = 'local-cover:';

@@ -224,21 +224,6 @@ class RecommendationService extends ChangeNotifier {
     return score.clamp(0.0, 1.0);
   }
 
-  List<Song> getPersonalizedFeed(List<Song> allSongs, {int limit = 50}) {
-    if (!_enabled || allSongs.isEmpty) return allSongs.take(limit).toList();
-
-    final hour = DateTime.now().hour;
-    final rnd = Random();
-
-    final scored = allSongs.map((s) {
-      final base = calculateSongScore(s, currentHour: hour);
-      return MapEntry(s, base + rnd.nextDouble() * 0.15);
-    }).toList();
-
-    scored.sort((a, b) => b.value.compareTo(a.value));
-    return scored.take(limit).map((e) => e.key).toList();
-  }
-
   List<Song> getQuickPicks(List<Song> allSongs, {int limit = 20}) {
     if (!_enabled || allSongs.isEmpty) return [];
 
@@ -305,50 +290,6 @@ class RecommendationService extends ChangeNotifier {
     return allSongs.where((s) => s.artist == artist).take(limit).toList();
   }
 
-  Map<String, List<Song>> generateMixes(List<Song> allSongs) {
-    if (!_enabled || allSongs.isEmpty) return {};
-
-    final mixes = <String, List<Song>>{};
-
-    final quick = getQuickPicks(allSongs, limit: 20);
-    if (quick.isNotEmpty) mixes['Quick Picks'] = quick;
-
-    final discover = getDiscoverMix(allSongs, limit: 20);
-    if (discover.isNotEmpty) mixes['Discover Mix'] = discover;
-
-    final topArtists = _getTopArtists(3);
-    for (final artist in topArtists) {
-      final mix = getArtistMix(allSongs, artist, limit: 15);
-      if (mix.length >= 5) mixes['$artist Mix'] = mix;
-    }
-
-    final hour = DateTime.now().hour;
-    String timeLabel;
-    if (hour >= 5 && hour < 12) {
-      timeLabel = 'Morning';
-    } else if (hour >= 12 && hour < 17) {
-      timeLabel = 'Afternoon';
-    } else if (hour >= 17 && hour < 21) {
-      timeLabel = 'Evening';
-    } else {
-      timeLabel = 'Night';
-    }
-
-    if (_timePatterns.containsKey(hour)) {
-      final hg = _timePatterns[hour]!;
-      if (hg.isNotEmpty) {
-        final topG = hg.entries.reduce((a, b) => a.value > b.value ? a : b).key;
-        final timeSongs = allSongs
-            .where((s) => s.genre == topG)
-            .take(15)
-            .toList();
-        if (timeSongs.length >= 5) mixes['$timeLabel Vibes'] = timeSongs;
-      }
-    }
-
-    return mixes;
-  }
-
   List<String> _getTopArtists(int limit) {
     if (_artistAffinity.isEmpty) return [];
     final sorted = _artistAffinity.entries.toList()
@@ -362,9 +303,6 @@ class RecommendationService extends ChangeNotifier {
       ..sort((a, b) => b.value.compareTo(a.value));
     return sorted.take(limit).map((e) => e.key).toList();
   }
-
-  List<String> getRecommendedArtists({int limit = 10}) => _getTopArtists(limit);
-  List<String> getRecommendedGenres({int limit = 5}) => _getTopGenres(limit);
 
   Map<String, dynamic> getListeningStats() {
     int totalPlays = 0;

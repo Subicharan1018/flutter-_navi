@@ -149,7 +149,6 @@ const List<Material> kMaterials = [
 /// Matrix ids: which joint moves a vertex.
 const int mPelvis = 0, mNeck = 1, mHead = 2, mHipL = 3, mKneeL = 4, mAnkleL = 5;
 const int mHipR = 6, mKneeR = 7, mAnkleR = 8, mNeckMid = 9;
-const int kMatrixCount = 10;
 
 /// Dynamic face pieces: the renderer scales/offsets them each frame. The
 /// chest screen's pixel eyes, equaliser bars, mouth and heart; the lens eye's

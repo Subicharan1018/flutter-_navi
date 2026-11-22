@@ -55,11 +55,6 @@ class PlaylistFolders {
         ...folders.where((f) => !f.pinned),
       ];
 
-  List<String> playlistIdsIn(String folderId) => [
-        for (final e in membership.entries)
-          if (e.value == folderId) e.key,
-      ];
-
   int countIn(String folderId) => membership.values.where((v) => v == folderId).length;
 
   /// A new folder named [name] (trimmed; blank names are ignored). Names

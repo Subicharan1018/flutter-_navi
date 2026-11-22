@@ -6,9 +6,6 @@ class CacheSettingsService {
   factory CacheSettingsService() => _instance;
   CacheSettingsService._internal();
 
-  /// No-op — Hive boxes are already open from main(). Kept for API compat.
-  Future<void> initialize() async {}
-
   Future<void> setImageCacheEnabled(bool enabled) async {
     await HiveBoxes.prefs.put(HiveBoxes.kImageCacheEnabled, enabled);
   }
@@ -55,33 +52,5 @@ class CacheSettingsService {
       defaultValue: true,
     );
     return val is bool ? val : true;
-  }
-
-  Future<void> disableAllCaches() async {
-    await Future.wait([
-      setImageCacheEnabled(false),
-      setMusicCacheEnabled(false),
-      setBpmCacheEnabled(false),
-    ]);
-  }
-
-  Future<void> enableAllCaches() async {
-    await Future.wait([
-      setImageCacheEnabled(true),
-      setMusicCacheEnabled(true),
-      setBpmCacheEnabled(true),
-    ]);
-  }
-
-  bool areAllCachesDisabled() {
-    return !getImageCacheEnabled() &&
-        !getMusicCacheEnabled() &&
-        !getBpmCacheEnabled();
-  }
-
-  bool areAllCachesEnabled() {
-    return getImageCacheEnabled() &&
-        getMusicCacheEnabled() &&
-        getBpmCacheEnabled();
   }
 }

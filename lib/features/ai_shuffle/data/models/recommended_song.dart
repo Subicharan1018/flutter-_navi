@@ -81,9 +81,6 @@ class SongPairing {
     this.order = 1,
   });
 
-  /// True when this pairing was learned from the previous *two* songs.
-  bool get isSecondOrder => order >= 2;
-
   factory SongPairing.fromJson(Map<String, dynamic> json) => SongPairing(
     follows: json['follows']?.toString() ?? '',
     timesFollowed: RecommendedSong._parseInt(json['times_followed']),
@@ -149,10 +146,6 @@ class RecommendedSong {
 
   /// Human-readable explanation of why this song was chosen.
   final String why;
-
-  // Legacy fields kept for display compatibility
-  String get legacyArtist => artist ?? composer;
-  String get legacyAlbum => album ?? genreBucket;
 
   const RecommendedSong({
     required this.rank,
@@ -309,8 +302,4 @@ class RecommendedSong {
     if (v is num) return v.toInt();
     return int.tryParse(v.toString());
   }
-
-  /// Shows a cold-start badge when the model has low confidence.
-  /// Exploration picks are inherently low-score, so don't flag those.
-  bool get isColdStart => !isExplore && scores.finalScore < 0.4;
 }

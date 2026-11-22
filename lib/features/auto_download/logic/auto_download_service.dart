@@ -59,8 +59,6 @@ class AutoDownloadService {
   /// Most songs fetched in one pass; the next pass (minutes later) continues.
   static const int maxPerRun = 4;
 
-  bool get isRunning => _running;
-
   /// One pass: forget auto downloads that are gone, trim to the budget, then
   /// fetch the best candidates while the device allows it. Returns the ids it
   /// downloaded.

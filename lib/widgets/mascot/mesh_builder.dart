@@ -123,20 +123,6 @@ class MeshBuilder {
     }
   }
 
-  /// Pixel text on a face looking along +x (or -x for negative [x]): each 'X'
-  /// in [rows] is a small raised box, [px] units on a side, starting at depth
-  /// [z0] and height [y0] (top row), reading left to right as seen from
-  /// outside.
-  void pixelText(List<String> rows, double x, double y0, double z0, double px) {
-    final dir = x < 0 ? -1.0 : 1.0; // viewer on the +x side sees -z to the right
-    for (var r = 0; r < rows.length; r++) {
-      for (var c = 0; c < rows[r].length; c++) {
-        if (rows[r][c] != 'X') continue;
-        simpleBox(x, y0 - r * px, z0 - dir * c * px, 0.008, px * 0.46, px * 0.46);
-      }
-    }
-  }
-
   /// A hard-edged box (12 triangles), for small details.
   void simpleBox(double cx, double cy, double cz, double hx, double hy, double hz) {
     void face(List<List<double>> pts, double nx, double ny, double nz) {
@@ -213,83 +199,6 @@ class MeshBuilder {
     _uvAxis = -1;
   }
 
-  /// A hemisphere (equator at y = cy) squashed to [squash] of its radius.
-  void dome(double cx, double cy, double cz, double radius, double squash, int seg, int rings) {
-    final grid = <List<int>>[];
-    for (var i = 0; i <= rings; i++) {
-      final phi = (math.pi / 2) * i / rings;
-      final ring = <int>[];
-      for (var j = 0; j <= seg; j++) {
-        final th = 2 * math.pi * j / seg;
-        final nx = math.cos(phi) * math.cos(th), ny = math.sin(phi), nz = math.cos(phi) * math.sin(th);
-        ring.add(_v(cx + nx * radius, cy + ny * radius * squash, cz + nz * radius, nx, ny, nz));
-      }
-      grid.add(ring);
-    }
-    for (var i = 0; i < rings; i++) {
-      for (var j = 0; j < seg; j++) {
-        _tri(grid[i][j], grid[i + 1][j], grid[i + 1][j + 1]);
-        _tri(grid[i][j], grid[i + 1][j + 1], grid[i][j + 1]);
-      }
-    }
-    // Flat underside so the helmet is closed when the head tips back.
-    final c = _v(cx, cy, cz, 0, -1, 0);
-    final rim = [
-      for (var j = 0; j <= seg; j++)
-        _v(cx + math.cos(2 * math.pi * j / seg) * radius, cy, cz + math.sin(2 * math.pi * j / seg) * radius, 0, -1, 0),
-    ];
-    for (var j = 0; j < seg; j++) {
-      _tri(c, rim[j], rim[j + 1]);
-    }
-  }
-
-  void sphere(double cx, double cy, double cz, double radius, int seg, int rings) {
-    final grid = <List<int>>[];
-    for (var i = 0; i <= rings * 2; i++) {
-      final phi = -math.pi / 2 + math.pi * i / (rings * 2);
-      final ring = <int>[];
-      for (var j = 0; j <= seg; j++) {
-        final th = 2 * math.pi * j / seg;
-        final nx = math.cos(phi) * math.cos(th), ny = math.sin(phi), nz = math.cos(phi) * math.sin(th);
-        ring.add(_v(cx + nx * radius, cy + ny * radius, cz + nz * radius, nx, ny, nz));
-      }
-      grid.add(ring);
-    }
-    for (var i = 0; i < rings * 2; i++) {
-      for (var j = 0; j < seg; j++) {
-        _tri(grid[i][j], grid[i + 1][j], grid[i + 1][j + 1]);
-        _tri(grid[i][j], grid[i + 1][j + 1], grid[i][j + 1]);
-      }
-    }
-  }
-
-  /// A full ellipsoid with radii [rx], [ry], [rz]: the rounded head.
-  void ellipsoid(double cx, double cy, double cz, double rx, double ry, double rz, int seg, int rings) {
-    final grid = <List<int>>[];
-    for (var i = 0; i <= rings; i++) {
-      final phi = -math.pi / 2 + math.pi * i / rings;
-      final ring = <int>[];
-      for (var j = 0; j <= seg; j++) {
-        final th = 2 * math.pi * j / seg;
-        final ux = math.cos(phi) * math.cos(th), uy = math.sin(phi), uz = math.cos(phi) * math.sin(th);
-        // The normal of an ellipsoid follows the gradient x/rx^2, y/ry^2, z/rz^2.
-        var nx = ux / rx, ny = uy / ry, nz = uz / rz;
-        final len = math.sqrt(nx * nx + ny * ny + nz * nz);
-        nx /= len;
-        ny /= len;
-        nz /= len;
-        ring.add(_v(cx + ux * rx, cy + uy * ry, cz + uz * rz, nx, ny, nz));
-      }
-      grid.add(ring);
-    }
-    for (var i = 0; i < rings; i++) {
-      for (var j = 0; j < seg; j++) {
-        _tri(grid[i][j], grid[i + 1][j], grid[i + 1][j + 1]);
-        _tri(grid[i][j], grid[i + 1][j + 1], grid[i][j + 1]);
-      }
-    }
-  }
-
   /// A flat disc facing +z.
   void disc(double cx, double cy, double z, double r, int seg) {
     final c = _v(cx, cy, z, 0, 0, 1);
@@ -315,34 +224,6 @@ class MeshBuilder {
           math.cos(v) * math.cos(u),
           math.cos(v) * math.sin(u),
           math.sin(v),
-        ));
-      }
-      grid.add(ring);
-    }
-    for (var i = 0; i < seg; i++) {
-      for (var j = 0; j < tube; j++) {
-        _tri(grid[i][j], grid[i + 1][j], grid[i + 1][j + 1]);
-        _tri(grid[i][j], grid[i + 1][j + 1], grid[i][j + 1]);
-      }
-    }
-  }
-
-  /// A ring around the y axis (the helmet's orange rim).
-  void torus(double cx, double cy, double cz, double major, double minor, int seg, int tube) {
-    final grid = <List<int>>[];
-    for (var i = 0; i <= seg; i++) {
-      final u = 2 * math.pi * i / seg;
-      final ring = <int>[];
-      for (var j = 0; j <= tube; j++) {
-        final v = 2 * math.pi * j / tube;
-        final r = major + minor * math.cos(v);
-        ring.add(_v(
-          cx + r * math.cos(u),
-          cy + minor * math.sin(v),
-          cz + r * math.sin(u),
-          math.cos(v) * math.cos(u),
-          math.sin(v),
-          math.cos(v) * math.sin(u),
         ));
       }
       grid.add(ring);

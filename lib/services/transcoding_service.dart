@@ -79,7 +79,6 @@ class TranscodingService extends ChangeNotifier {
   String get format => _format;
   bool get enabled => _enabled;
   bool get smartEnabled => _smartEnabled;
-  ConnectionType get currentConnectionType => _currentConnectionType;
 
   TranscodingService() {
     _loadFromHive();
@@ -185,12 +184,6 @@ class TranscodingService extends ChangeNotifier {
   Future<void> setFormat(String format) async {
     _format = format;
     await HiveBoxes.audio.put(HiveBoxes.kTranscodeFormat, format);
-    notifyListeners();
-  }
-
-  Future<void> setConnectionType(ConnectionType type) async {
-    _currentConnectionType = type;
-    await HiveBoxes.audio.put(HiveBoxes.kConnectionType, type.index);
     notifyListeners();
   }
 

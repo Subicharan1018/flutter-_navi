@@ -198,7 +198,6 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
 
   Future<void> _loadServicePrefs() async {
     final cache = ref.read(cacheSettingsProvider);
-    await cache.initialize();
     final tx = ref.read(transcodingProvider);
     final rec = ref.read(recommendationProvider);
     if (!mounted) return;

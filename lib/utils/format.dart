@@ -15,6 +15,14 @@ String formatTrackDuration(int seconds) {
   return '$m:$s';
 }
 
+/// "812 B", "34 KB", "3.2 MB", "1.25 GB". [kbDecimals] sets the KB precision.
+String formatBytes(int b, {int kbDecimals = 0}) {
+  if (b < 1024) return '$b B';
+  if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(kbDecimals)} KB';
+  if (b < 1024 * 1024 * 1024) return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
+  return '${(b / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+}
+
 /// "12 songs", "1 song".
 String songCount(int n) => n == 1 ? '1 song' : '$n songs';
 

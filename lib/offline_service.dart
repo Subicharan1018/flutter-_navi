@@ -10,6 +10,7 @@ import '../models/playlist.dart';
 import 'features/status/logic/download_speed.dart';
 import 'features/local_library/logic/download_location.dart';
 import 'services/subsonic_service.dart';
+import 'utils/format.dart' show formatBytes;
 
 class DownloadState {
   final bool isDownloading;
@@ -47,9 +48,8 @@ class OfflineService {
   SharedPreferences? _prefs;
   String? _offlineDir;
 
-  bool _offlineMode = false;
+  final bool _offlineMode = false;
   bool get isOfflineMode => _offlineMode;
-  void setOfflineMode(bool value) => _offlineMode = value;
 
   final Set<String> _downloadedFileNames = {};
 
@@ -65,7 +65,6 @@ class OfflineService {
   final ValueNotifier<DownloadState> downloadState = ValueNotifier(
     DownloadState(),
   );
-  bool _isBackgroundDownloadActive = false;
 
   static const String _keyDownloadedSongs = 'offline_downloaded_songs';
 
@@ -164,7 +163,7 @@ class OfflineService {
     return null;
   }
 
-  bool _downloadActive() => _isBackgroundDownloadActive || downloadState.value.isDownloading;
+  bool _downloadActive() => downloadState.value.isDownloading;
 
   /// Tests only: replace where the chosen folder is remembered.
   @visibleForTesting
@@ -213,18 +212,6 @@ class OfflineService {
       _downloadedFileNames.add('$songId.lyrics.json');
     } catch (e) {
       debugPrint('Error saving lyrics: $e');
-    }
-  }
-
-  Future<Map<String, dynamic>?> getLocalLyrics(String songId) async {
-    if (_offlineDir == null) await initialize();
-    try {
-      final filename = '$songId.lyrics.json';
-      if (!_downloadedFileNames.contains(filename)) return null;
-      final file = File(_getLyricsPath(songId));
-      return jsonDecode(await file.readAsString()) as Map<String, dynamic>?;
-    } catch (e) {
-      return null;
     }
   }
 
@@ -283,14 +270,7 @@ class OfflineService {
     return totalSize;
   }
 
-  String formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+  String formatSize(int bytes) => formatBytes(bytes, kbDecimals: 1);
 
   Future<bool> downloadSong(
     Song song,
@@ -456,69 +436,6 @@ class OfflineService {
 
     onComplete?.call();
   }
-
-  Future<void> startBackgroundDownload(
-    List<Song> songs,
-    SubsonicService subsonicService,
-  ) async {
-    if (_isBackgroundDownloadActive) {
-      debugPrint('Background download already in progress');
-      return;
-    }
-
-    _isBackgroundDownloadActive = true;
-    final alreadyDownloadedCount = getDownloadedCount();
-
-    downloadState.value = DownloadState(
-      isDownloading: true,
-      currentProgress: 0,
-      totalCount: songs.length,
-      downloadedCount: alreadyDownloadedCount,
-    );
-
-    if (_offlineDir == null) await initialize();
-
-    try {
-      for (int i = 0; i < songs.length; i++) {
-        if (!_isBackgroundDownloadActive) {
-          break;
-        }
-
-        final song = songs[i];
-
-        if (isSongDownloaded(song.id)) {
-          downloadState.value = downloadState.value.copyWith(
-            currentProgress: i + 1,
-          );
-          continue;
-        }
-
-        final success = await downloadSong(song, subsonicService);
-
-        final newDownloadedCount = getDownloadedCount();
-        downloadState.value = downloadState.value.copyWith(
-          currentProgress: i + 1,
-          downloadedCount: newDownloadedCount,
-        );
-
-        if (!success) {
-          debugPrint('Failed to download song: ${song.title}');
-        }
-      }
-    } catch (e) {
-      debugPrint('Error during background download: $e');
-    } finally {
-      _isBackgroundDownloadActive = false;
-      downloadState.value = downloadState.value.copyWith(isDownloading: false);
-    }
-  }
-
-  void cancelBackgroundDownload() {
-    _isBackgroundDownloadActive = false;
-    downloadState.value = downloadState.value.copyWith(isDownloading: false);
-  }
-
-  bool get isBackgroundDownloadActive => _isBackgroundDownloadActive;
 
   Future<void> downloadPlaylist(
     Playlist playlist,

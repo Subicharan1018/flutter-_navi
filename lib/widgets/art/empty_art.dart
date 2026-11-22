@@ -3,7 +3,6 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 
 import '../../core/theme.dart';
-import '../mascot/microduck_empty.dart';
 
 // =============================================================================
 // Original empty-state illustrations, drawn in code with the theme's own
@@ -47,54 +46,6 @@ class EmptyArt extends StatelessWidget {
       child: CustomPaint(
         size: Size(width, width * 0.75),
         painter: EmptyArtPainter(kind, t.textMuted, t.textSecondary),
-      ),
-    );
-  }
-}
-
-/// Illustration plus a title and an invitation, centred. The replacement for
-/// the old icon + grey line empty states.
-class ArtEmptyState extends StatelessWidget {
-  final EmptyArtKind art;
-  final String title;
-  final String? message;
-  final Widget? action;
-
-  const ArtEmptyState({
-    super.key,
-    required this.art,
-    required this.title,
-    this.message,
-    this.action,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 32),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ExcludeSemantics(child: EmptyIllustration(art, seed: title)),
-            const SizedBox(height: 20),
-            Text(
-              title,
-              textAlign: TextAlign.center,
-              style: naviText(20, FontWeight.w700, t.textPrimary),
-            ),
-            if (message != null) ...[
-              const SizedBox(height: 6),
-              Text(
-                message!,
-                textAlign: TextAlign.center,
-                style: naviText(14, FontWeight.w400, t.textSecondary, height: 1.4),
-              ),
-            ],
-            if (action != null) ...[const SizedBox(height: 16), action!],
-          ],
-        ),
       ),
     );
   }

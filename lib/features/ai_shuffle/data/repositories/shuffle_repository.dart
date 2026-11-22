@@ -27,16 +27,6 @@ class ShuffleRepository {
   // Health
   // ---------------------------------------------------------------------------
 
-  /// Fetches server health. Returns null on any error.
-  Future<HealthResponse?> getHealthOrNull() async {
-    try {
-      return await _api.getHealth();
-    } catch (e) {
-      debugPrint('[ShuffleRepo] health error: $e');
-      return null;
-    }
-  }
-
   /// Health as a stream — polls on creation then once-on-call.
   /// Callers can use Riverpod FutureProvider.autoDispose instead.
   Future<HealthResponse> getHealth() async {

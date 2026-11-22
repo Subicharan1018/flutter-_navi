@@ -314,12 +314,6 @@ class LocalLibraryService {
     return row?.lyrics;
   }
 
-  /// A song by its device id (for restoring a queue after restart).
-  Future<Song?> songById(String id) async {
-    final row = await (_db.select(_db.localSongs)..where((t) => t.songId.equals(id))).getSingleOrNull();
-    return row == null ? null : toSong(row);
-  }
-
   @visibleForTesting
   Future<List<LocalSongEntity>> allRows() => _db.select(_db.localSongs).get();
 }

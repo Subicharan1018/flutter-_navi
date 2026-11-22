@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../../../../core/theme.dart';
 import '../../../../providers/settings_provider.dart';
+import '../../../../utils/format.dart' show formatTrackDuration;
 import '../../../../widgets/art/generated_cover.dart';
 import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/cover_art.dart';
@@ -263,7 +264,7 @@ class _Row extends ConsumerStatefulWidget {
 class _RowState extends ConsumerState<_Row> {
   bool _hover = false;
 
-  String _time(int s) => s <= 0 ? '' : '${s ~/ 60}:${(s % 60).toString().padLeft(2, '0')}';
+  String _time(int s) => s <= 0 ? '' : formatTrackDuration(s);
 
   void _menu(BuildContext context) {
     final item = widget.jam.queue[widget.index];

@@ -86,15 +86,6 @@ abstract final class PlatformUtils {
 
   // ── Feature capability flags ────────────────────────────────────────────────
 
-  /// True when the platform supports keyboard shortcut handling.
-  /// Alias for [isDesktop] — kept as a named flag so intent is explicit
-  /// at call sites (e.g. wrapping a `CallbackShortcuts` widget).
-  static bool get supportsKeyboardShortcuts => isDesktop;
-
-  /// True when MPRIS D-Bus media control is available.
-  /// Only the Linux platform exposes MPRIS.
-  static bool get supportsMpris => isLinux;
-
   /// True when the OS supports window management APIs (size, position, title).
   /// Available on native desktop platforms via the `window_manager` package;
   /// never in a browser, even when it shows the desktop UI.
@@ -106,17 +97,6 @@ abstract final class PlatformUtils {
 
   /// True when "Identify a song" can record (it records to a temp file).
   static bool get supportsSongRecognition => !kIsWeb;
-
-  /// True when the app can update itself (Android APK, Windows installer).
-  static bool get supportsSelfUpdate => isAndroid || isWindows;
-
-  /// True when the options menu should render as a popup rather than a
-  /// bottom sheet. Bottom sheets feel unnatural with a mouse cursor.
-  static bool get prefersPopupMenu => isDesktop;
-
-  /// True when the dialog should be a centered overlay rather than a
-  /// modal bottom sheet (e.g. AddToPlaylistDialog, EditPlaylistScreen).
-  static bool get prefersCenteredDialogs => isDesktop;
 
   /// True when the layout should render an expanded sidebar (NavigationRail)
   /// rather than a bottom navigation bar.
@@ -132,9 +112,6 @@ abstract final class PlatformUtils {
   /// renders as a persistent right-side panel instead of a full-screen push.
   static const double kWideScreenBreakpoint = 1200.0;
 
-  /// Alias for [isDesktop] — used in now_playing_screen layout logic.
-  static bool get isWideScreen => isDesktop;
-
   // ── XDG / filesystem helpers (Linux-only) ──────────────────────────────────
 
   /// Returns the XDG Downloads directory path, if available.
@@ -146,11 +123,5 @@ abstract final class PlatformUtils {
     final home = Platform.environment['HOME'];
     if (home != null && home.isNotEmpty) return '$home/Downloads';
     return null;
-  }
-
-  /// Returns the user's home directory, if available.
-  static String? get homeDir {
-    if (kIsWeb) return null;
-    return Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
   }
 }

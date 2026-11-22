@@ -447,7 +447,7 @@ class SubsonicService {
   }
 
   Future<List<Album>> getFrequentAlbums() async {
-    // BUG-31: cache removed — frequentAlbumsProvider.keepAlive() owns it.
+    // BUG-31: no cache here; callers own their own lifetime.
     final res = await _get('getAlbumList2.view', {'type': 'frequent'});
     final albums = _getList(_getMap(res, 'albumList2'), 'album');
     return albums
@@ -792,15 +792,6 @@ class SubsonicService {
       ..sort((a, b) => b.albumCount.compareTo(a.albumCount));
   }
 
-  /// Albums tagged with [genre].
-  Future<List<Album>> getAlbumsByGenre(String genre, {int size = 200}) async {
-    final res = await _get('getAlbumList2.view', {'type': 'byGenre', 'genre': genre, 'size': '$size'});
-    return _getList(_getMap(res, 'albumList2'), 'album')
-        .whereType<Map>()
-        .map((e) => Album.fromJson(Map<String, dynamic>.from(e)))
-        .toList();
-  }
-
   // ---------------------------------------------------------------------------
   // Starring / Rating / Scrobbling
   // ---------------------------------------------------------------------------
@@ -919,11 +910,6 @@ class SubsonicService {
   void clearCache() {
     _cache.clearAll(); // wipe persisted SQLite playlist songs
   }
-
-  /// No-op — retained for API compatibility.
-  /// Play history cache is owned by recentlyPlayedAlbumsProvider.keepAlive();
-  /// call ref.invalidate(recentlyPlayedAlbumsProvider) to force a refresh.
-  void invalidatePlayHistory() {}
 
   // BUG-3: close the http.Client to release socket connections.
   void dispose() {

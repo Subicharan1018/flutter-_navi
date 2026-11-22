@@ -606,8 +606,6 @@ class RecapFriend {
     this.sharedSongs = const [],
   });
 
-  bool get hasShared => sharedArtists.isNotEmpty || sharedSongs.isNotEmpty;
-
   factory RecapFriend.fromJson(Map<String, dynamic> j) => RecapFriend(
         username: _s(j['username']),
         blendId: _s(j['blend_id']),

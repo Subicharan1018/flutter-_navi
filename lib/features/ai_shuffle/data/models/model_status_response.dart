@@ -59,12 +59,4 @@ class ModelStatusResponse {
     if (v is int) return v.toDouble();
     return double.tryParse(v?.toString() ?? '') ?? 0.0;
   }
-
-  /// Human-readable build timestamp.
-  String get builtAtFormatted {
-    final dt = DateTime.tryParse(builtAt);
-    if (dt == null) return builtAt;
-    final local = dt.toLocal();
-    return '${local.day}/${local.month}/${local.year} ${local.hour}:${local.minute.toString().padLeft(2, '0')}';
-  }
 }
