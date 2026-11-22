@@ -66,11 +66,11 @@ so People / friend activity and Smart Shuffle of a playlist failed for web
 users. The package sends `jwt=` instead. From the repo checkout on your PC:
 
 ```bash
-scp -r export/web-server-v1 subi@100.99.105.51:~/web-server-v1
+scp -r export/web-server-v1 <user>@<host>:~/web-server-v1
 ```
 
 ```bash
-ssh subi@100.99.105.51 'bash ~/web-server-v1/install.sh'
+ssh <user>@<host> 'bash ~/web-server-v1/install.sh'
 ```
 
 It tests on a scratch copy, backs up `navivibe/navidrome.py` to
@@ -93,7 +93,7 @@ Files: `tool/web/server/` in the repo (`deploy-web.sh`, `Caddyfile`,
 `compose.yaml`). Copy them to the server once:
 
 ```bash
-scp -r tool/web/server subi@100.99.105.51:~/navivibe-web-deploy
+scp -r tool/web/server <user>@<host>:~/navivibe-web-deploy
 ```
 
 On the server, create the folder once (the only sudo in this step):
@@ -250,7 +250,7 @@ Rules > Transform Rules > Modify Response Header > Create rule
   email". Leave `/rest`, `/auth`, `/api`, `/share` open.
 - **Shuffle server `/admin/*`, `/metrics`**: Security > WAF > Custom rules, Block
   when `http.host eq "shuffle.subimusic.me" and (starts_with(http.request.uri.path, "/admin") or http.request.uri.path eq "/metrics")`.
-  Use Tailscale (`100.99.105.51:5500`) for admin work.
+  Use Tailscale (`<host>:5500`) for admin work.
 - **tg-fetcher**: no hostname, ever.
 
 ### Rate limits for a public sign-in page (recommended)

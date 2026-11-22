@@ -87,11 +87,11 @@ list takes about 35 minutes. Suggested sheet text: "Deezer, Spotify or YouTube p
 From the PC:
 
 ```bash
-scp -r export/server-fixes-v1 subi@100.99.105.51:/tmp/server-fixes-v1
+scp -r export/server-fixes-v1 <user>@<host>:/tmp/server-fixes-v1
 ```
 
 ```bash
-ssh subi@100.99.105.51 bash /tmp/server-fixes-v1/install.sh
+ssh <user>@<host> bash /tmp/server-fixes-v1/install.sh
 ```
 
 `install.sh` copies tg-fetcher to a scratch folder, patches it, adds the new files and runs the
