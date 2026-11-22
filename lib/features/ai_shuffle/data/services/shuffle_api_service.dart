@@ -37,12 +37,13 @@ import '../models/song_deep_dive_response.dart';
 import '../models/predict_response.dart';
 import '../models/replay_response.dart';
 import '../repositories/shuffle_exception.dart';
+import '../../../../core/endpoints.dart';
 import '../../../../core/web_session.dart';
 
 /// The canonical base URL for the Smart Shuffle hosted service.
 /// `--dart-define=NAVIVIBE_SHUFFLE_URL=...` points a build (a local web test,
 /// say) at another server; release builds use the default.
-const _kShuffleBaseUrl = String.fromEnvironment('NAVIVIBE_SHUFFLE_URL', defaultValue: 'https://shuffle.subimusic.me');
+const _kShuffleBaseUrl = Endpoints.shuffle;
 
 /// The Dio client every caller of shuffle.subimusic.me shares: Basic auth read
 /// from [credentialsSupplier] on each request (so credentials loaded after

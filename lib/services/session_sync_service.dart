@@ -20,6 +20,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 
 import '../core/hive_boxes.dart';
 import '../utils/device_utils.dart';
+import '../core/endpoints.dart';
 
 // ---------------------------------------------------------------------------
 // PlaybackState Model
@@ -489,7 +490,7 @@ class SessionSyncService {
   // `--dart-define=NAVIVIBE_SESSION_URL=https://...` points a test build at
   // another session server; the websocket URL follows it.
   static const String defaultHttpBaseUrl =
-      String.fromEnvironment('NAVIVIBE_SESSION_URL', defaultValue: 'https://session.subimusic.me');
+      Endpoints.session;
   static final String defaultWsBaseUrl =
       '${defaultHttpBaseUrl.replaceFirst(RegExp('^http'), 'ws')}/ws/session';
 
