@@ -2,10 +2,13 @@
 #include <flutter/flutter_view_controller.h>
 #include <windows.h>
 #include <shobjidl.h>
+#include <shellapi.h>
 
 #include <cwchar>
+#include <string>
 
 #include "flutter_window.h"
+#include "open_files.h"
 #include "utils.h"
 
 // Velopack runs the installed exe once at install, update and uninstall with
@@ -15,6 +18,21 @@
 // nothing to do in these hooks, so it exits 0 before creating a window.
 static bool IsVelopackHook(const wchar_t *command_line) {
   return command_line != nullptr && wcsstr(command_line, L"--veloapp-") != nullptr;
+}
+
+// Files named on this launch (Explorer "Open with", a double-clicked .flac):
+// anything after the exe that is not a --flag, newline separated.
+static std::wstring FilesFromCommandLine() {
+  int argc = 0;
+  wchar_t **argv = ::CommandLineToArgvW(::GetCommandLineW(), &argc);
+  std::wstring files;
+  for (int i = 1; argv != nullptr && i < argc; i++) {
+    if (argv[i][0] == L'-') continue;
+    if (!files.empty()) files += L'\n';
+    files += argv[i];
+  }
+  if (argv != nullptr) ::LocalFree(argv);
+  return files;
 }
 
 // A second copy would double every connection and poll and fight the first for
@@ -27,6 +45,16 @@ static bool ActivateRunningInstance() {
   }
   ::ShowWindow(existing, ::IsIconic(existing) ? SW_RESTORE : SW_SHOW);
   ::SetForegroundWindow(existing);
+  const std::wstring files = FilesFromCommandLine();
+  if (!files.empty()) {
+    COPYDATASTRUCT data = {};
+    data.dwData = kOpenFilesCopyData;
+    data.cbData = static_cast<DWORD>(files.size() * sizeof(wchar_t));
+    data.lpData = const_cast<wchar_t *>(files.c_str());
+    ::SendMessageTimeoutW(existing, WM_COPYDATA, 0,
+                          reinterpret_cast<LPARAM>(&data), SMTO_ABORTIFHUNG,
+                          3000, nullptr);
+  }
   return true;
 }
 

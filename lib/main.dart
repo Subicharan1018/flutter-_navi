@@ -22,7 +22,9 @@ import 'core/theme.dart';
 import 'utils/platform_utils.dart';
 import 'services/app_notifier.dart';
 import 'services/desktop_tray.dart';
+import 'services/desktop_registration.dart';
 import 'services/media_key_gate.dart';
+import 'services/open_intent.dart';
 import 'services/windows_smtc.dart';
 import 'services/windows_startup.dart';
 import 'services/global_hotkey.dart';
@@ -38,6 +40,7 @@ import 'screens/login_screen.dart';
 import 'player/artwork.dart';
 import 'player/artwork_field.dart';
 import 'dart:async';
+import 'package:flutter/services.dart' show MethodChannel;
 import 'services/cache_settings_service.dart';
 import 'services/play_cache.dart';
 import 'providers/settings_provider.dart';
@@ -202,6 +205,7 @@ Future<void> main(List<String> args) async {
   _wireCarControls(container, globalAudioHandler);
   AndroidIntegration.init(globalAudioHandler);
   AndroidIntegration.listenForOpenIntents(globalAudioHandler.playOpenIntent);
+  if (PlatformUtils.isDesktop) _wireDesktopOpenFiles(args);
   wireNotificationTriggers(container);
 
   // Songs from Settings > Local music: load the file index, match them to the
@@ -262,6 +266,25 @@ Future<void> main(List<String> args) async {
       child: const WebFormFactorScope(child: MyMusicPlayerApp()),
     ),
   );
+}
+
+/// Audio files named on the command line play at start; a second launch (the
+/// runner forwards its files to the running window) plays them through the
+/// "navivibe/open_files" channel. Windows also registers its file types.
+void _wireDesktopOpenFiles(List<String> args) {
+  Future<void> play(List<String> paths) => globalAudioHandler.playOpenFiles([
+    for (final p in paths) ViewIntent(uri: p, name: p.split(RegExp(r'[\\/]')).last),
+  ]);
+  final initial = audioFilesFromArgs(args);
+  if (initial.isNotEmpty) unawaited(play(initial));
+  if (PlatformUtils.isWindows) {
+    const MethodChannel('navivibe/open_files').setMethodCallHandler((call) async {
+      if (call.method != 'open') return;
+      final paths = audioFilesFromArgs(pathsFromForwarded(call.arguments));
+      if (paths.isNotEmpty) await play(paths);
+    });
+    unawaited(registerWindowsFileTypes());
+  }
 }
 
 /// The global shortcut: leave the mini player, show and focus the window, and

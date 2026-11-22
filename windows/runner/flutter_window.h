@@ -4,6 +4,9 @@
 #include <flutter/dart_project.h>
 #include <flutter/flutter_view_controller.h>
 
+#include <flutter/method_channel.h>
+#include <flutter/standard_method_codec.h>
+
 #include <memory>
 
 #include "win32_window.h"
@@ -28,6 +31,9 @@ class FlutterWindow : public Win32Window {
 
   // The Flutter instance hosted by this window.
   std::unique_ptr<flutter::FlutterViewController> flutter_controller_;
+
+  // Files a second launch hands to this window (WM_COPYDATA) go to Dart here.
+  std::unique_ptr<flutter::MethodChannel<flutter::EncodableValue>> open_files_channel_;
 };
 
 #endif  // RUNNER_FLUTTER_WINDOW_H_

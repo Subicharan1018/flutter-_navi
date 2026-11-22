@@ -1,6 +1,9 @@
 #include "flutter_window.h"
 
 #include <optional>
+#include <string>
+
+#include "open_files.h"
 
 #include "flutter/generated_plugin_registrant.h"
 
@@ -25,6 +28,10 @@ bool FlutterWindow::OnCreate() {
     return false;
   }
   RegisterPlugins(flutter_controller_->engine());
+  open_files_channel_ =
+      std::make_unique<flutter::MethodChannel<flutter::EncodableValue>>(
+          flutter_controller_->engine()->messenger(), "navivibe/open_files",
+          &flutter::StandardMethodCodec::GetInstance());
   SetChildContent(flutter_controller_->view()->GetNativeWindow());
 
   flutter_controller_->engine()->SetNextFrameCallback([&]() {
@@ -41,6 +48,7 @@ bool FlutterWindow::OnCreate() {
 
 void FlutterWindow::OnDestroy() {
   if (flutter_controller_) {
+    open_files_channel_ = nullptr;
     flutter_controller_ = nullptr;
   }
 
@@ -62,6 +70,26 @@ FlutterWindow::MessageHandler(HWND hwnd, UINT const message,
   }
 
   switch (message) {
+    case WM_COPYDATA: {
+      // A second launch (double-clicked file) sends its paths, UTF-16,
+      // newline separated. Hand them to Dart, which plays them.
+      const auto* data = reinterpret_cast<const COPYDATASTRUCT*>(lparam);
+      if (data != nullptr && data->dwData == kOpenFilesCopyData &&
+          open_files_channel_ && data->lpData != nullptr) {
+        const wchar_t* text = static_cast<const wchar_t*>(data->lpData);
+        const int count = static_cast<int>(data->cbData / sizeof(wchar_t));
+        const std::wstring joined(text, count);
+        const int size = ::WideCharToMultiByte(CP_UTF8, 0, joined.c_str(), count,
+                                               nullptr, 0, nullptr, nullptr);
+        std::string utf8(size, '\0');
+        ::WideCharToMultiByte(CP_UTF8, 0, joined.c_str(), count, utf8.data(),
+                              size, nullptr, nullptr);
+        open_files_channel_->InvokeMethod(
+            "open", std::make_unique<flutter::EncodableValue>(utf8));
+        return TRUE;
+      }
+      break;
+    }
     case WM_FONTCHANGE:
       flutter_controller_->engine()->ReloadSystemFonts();
       break;
