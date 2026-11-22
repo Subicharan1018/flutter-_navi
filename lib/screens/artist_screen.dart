@@ -2,6 +2,8 @@ import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/artist_run/logic/artist_run.dart';
+import '../features/artist_run/ui/artist_run.dart';
 import '../models/album.dart';
 import '../player/artwork.dart' show coverPaletteProvider;
 import '../models/song.dart';
@@ -22,12 +24,12 @@ import 'album_details_screen.dart';
 /// An artist's albums (keyed by id) and the server's top songs for them.
 final artistPageProvider = FutureProvider.autoDispose
     .family<({List<Album> albums, List<Song> top}), ({String id, String name})>((ref, a) async {
-  final svc = ref.watch(subsonicServiceProvider);
-  final albums = await svc.getArtistAlbums(a.id);
-  // Top songs need Last.fm on the server; an artist page without them is fine.
-  final top = await svc.getTopSongs(a.name).catchError((_) => <Song>[]);
-  return (albums: albums, top: top);
-});
+      final svc = ref.watch(subsonicServiceProvider);
+      final albums = await svc.getArtistAlbums(a.id);
+      // Top songs need Last.fm on the server; an artist page without them is fine.
+      final top = await svc.getTopSongs(a.name).catchError((_) => <Song>[]);
+      return (albums: albums, top: top);
+    });
 
 /// Apple Music artist page: the portrait full-bleed with the name over it,
 /// Play/Shuffle across everything they made, the latest release, Top Songs
@@ -48,9 +50,22 @@ class ArtistScreen extends ConsumerWidget {
         : await n.setQueue(songs, 0, playlistName: name, unshuffledSongs: songs);
   }
 
+  /// Plays everything released in one year, oldest album first.
+  Future<void> _playYear(WidgetRef ref, ReleaseYear y) async {
+    final svc = ref.read(subsonicServiceProvider);
+    final lists = await Future.wait(y.albums.reversed.map((a) => svc.getAlbum(a.id)));
+    final songs = [for (final l in lists) ...l];
+    if (songs.isEmpty) return;
+    await ref
+        .read(playerProvider.notifier)
+        .setQueue(songs, 0, playlistName: y.year > 0 ? '$name, ${y.year}' : name, unshuffledSongs: songs);
+  }
+
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final key = (id: artistId, name: name);
+    final history = ref.watch(artistHistoryProvider(name)).asData?.value;
+    final withYou = history == null || history.isEmpty ? null : history;
     final page = ref.watch(artistPageProvider(key));
     final svc = ref.read(subsonicServiceProvider);
     final albums = page.asData?.value.albums ?? const <Album>[];
@@ -89,14 +104,14 @@ class ArtistScreen extends ConsumerWidget {
           onTap: albums.isEmpty
               ? null
               : () => showCollectionActions(
-                    context,
-                    title: name,
-                    subtitle: albums.length == 1 ? '1 album' : '${albums.length} albums',
-                    artUrl: svc.getCoverArtUrl(hasPortrait ? portraitId : latest?.coverArt),
-                    placeholderIcon: NaviGlyph.person,
-                    loadSongs: allSongs,
-                    pin: Pin.artist(artistId, name),
-                  ),
+                  context,
+                  title: name,
+                  subtitle: albums.length == 1 ? '1 album' : '${albums.length} albums',
+                  artUrl: svc.getCoverArtUrl(hasPortrait ? portraitId : latest?.coverArt),
+                  placeholderIcon: NaviGlyph.person,
+                  loadSongs: allSongs,
+                  pin: Pin.artist(artistId, name),
+                ),
         ),
       ),
       onRefresh: () async => ref.invalidate(artistPageProvider(key)),
@@ -134,32 +149,23 @@ class ArtistScreen extends ConsumerWidget {
               ),
             ),
           ],
+          if (withYou != null) SliverToBoxAdapter(child: ArtistWithYou(history: withYou)),
           if (albums.length > 1)
-            SliverToBoxAdapter(
-              child: MediaShelf(
-                title: 'Albums',
-                itemCount: albums.length,
-                itemBuilder: (context, i) {
-                  final a = albums[i];
-                  final art = svc.getCoverArtUrl(a.coverArt);
-                  return MediaCard(
-                    title: a.name,
-                    subtitle: a.year > 0 ? '${a.year}' : null,
-                    artUrl: art,
-                    size: ArtSize.of(context).tile,
-                    placeholderIcon: NaviGlyph.library,
-                    onTap: () => navigateInApp(context, AlbumDetailsScreen(album: a)),
-                    onLongPress: () => showCollectionActions(
-                      context,
-                      title: a.name,
-                      subtitle: name,
-                      artUrl: art,
-                      placeholderIcon: NaviGlyph.library,
-                      loadSongs: () => svc.getAlbum(a.id),
-                      pin: Pin.album(a),
-                    ),
-                  );
-                },
+            ...releaseTimelineSlivers(
+              context,
+              years: groupByYear(albums),
+              history: withYou ?? const ArtistHistory(),
+              coverUrl: (a) => svc.getCoverArtUrl(a.coverArt),
+              onOpen: (a) => navigateInApp(context, AlbumDetailsScreen(album: a)),
+              onPlayYear: (y) => _playYear(ref, y),
+              onLongPress: (a) => showCollectionActions(
+                context,
+                title: a.name,
+                subtitle: name,
+                artUrl: svc.getCoverArtUrl(a.coverArt),
+                placeholderIcon: NaviGlyph.library,
+                loadSongs: () => svc.getAlbum(a.id),
+                pin: Pin.album(a),
               ),
             ),
         ],
