@@ -62,11 +62,14 @@ class _TasteStudioState extends State<TasteStudio> {
         ),
         // Reserved height so a tap never moves the page.
         SizedBox(
-          height: 44,
+          height: 64,
           child: picked == null
               ? Center(
                   child: Text(
-                    widget.dial == null ? 'Nearer the centre, closer to this moment.' : 'Nearer the centre, closer to that energy.',
+                    // What the picture means, in one line: each dot is a song.
+                    widget.dial == null
+                        ? 'Each dot is a song. Nearer the centre fits this moment better; sadder to the left, happier to the right.'
+                        : 'Each dot is a song. Nearer the centre is closer to that energy.',
                     style: t.footnote,
                     textAlign: TextAlign.center,
                   ),
@@ -74,21 +77,28 @@ class _TasteStudioState extends State<TasteStudio> {
               : CupertinoButton(
                   padding: EdgeInsets.zero,
                   onPressed: () => widget.onPlaySong(picked.id),
-                  child: Row(
+                  child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      NaviIcon(NaviGlyph.play, size: 14, color: t.textPrimary),
-                      const SizedBox(width: Space.sm),
-                      Flexible(
-                        child: Text.rich(
-                          TextSpan(children: [
-                            TextSpan(text: picked.title, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
-                            TextSpan(text: '  ${picked.artist}', style: t.subheadline),
-                          ]),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                        ),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          NaviIcon(NaviGlyph.play, size: 14, color: t.textPrimary),
+                          const SizedBox(width: Space.sm),
+                          Flexible(
+                            child: Text.rich(
+                              TextSpan(children: [
+                                TextSpan(text: picked.title, style: t.subheadline.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+                                TextSpan(text: '  ${picked.artist}', style: t.subheadline),
+                              ]),
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ),
+                        ],
                       ),
+                      const SizedBox(height: 2),
+                      Text(picked.why.reasons.first, style: t.footnote, maxLines: 2, overflow: TextOverflow.ellipsis, textAlign: TextAlign.center),
                     ],
                   ),
                 ),

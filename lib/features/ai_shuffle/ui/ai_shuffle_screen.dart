@@ -236,6 +236,7 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
               padding: EdgeInsets.symmetric(horizontal: g),
               sliver: SongTableSliver(
                 songs: mix,
+                whyLabel: (s) => points[s.id]?.why.short,
                 onPlay: (song, _) =>
                     _play(shown, start: mix.indexWhere((s) => s.id == song.id).clamp(0, mix.length - 1), points: points),
               ),

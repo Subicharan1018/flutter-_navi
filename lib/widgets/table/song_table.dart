@@ -74,6 +74,10 @@ class SongTableSliver extends ConsumerStatefulWidget {
   /// one album's tracks.
   final bool showDateAdded;
 
+  /// A short reason per row ("You play it on weekday evenings"), shown as a "Why"
+  /// column where there is room. Null = no such column.
+  final String? Function(Song song)? whyLabel;
+
   const SongTableSliver({
     super.key,
     required this.songs,
@@ -84,6 +88,7 @@ class SongTableSliver extends ConsumerStatefulWidget {
     this.showArtwork = true,
     this.showAlbum = true,
     this.showDateAdded = false,
+    this.whyLabel,
   });
 
   @override
@@ -575,6 +580,7 @@ class SongTableState extends ConsumerState<SongTableSliver> {
     final cols = _Columns(
       album: widget.showAlbum && w >= 640 && !hidden.contains('album'),
       added: widget.showDateAdded && w >= 900 && !hidden.contains('added'),
+      why: widget.whyLabel != null && w >= 760,
       width: w,
     );
     final picked = _selectedSongs;
@@ -630,8 +636,9 @@ class SongTableState extends ConsumerState<SongTableSliver> {
 class _Columns {
   final bool album;
   final bool added;
+  final bool why;
   final double width;
-  const _Columns({required this.album, required this.added, required this.width});
+  const _Columns({required this.album, required this.added, this.why = false, required this.width});
 
   static const double num = 56;
   static const double dateW = 112;
@@ -739,6 +746,7 @@ class _HeaderDelegate extends SliverPersistentHeaderDelegate {
               SizedBox(width: _Columns.num, child: Align(alignment: Alignment.centerLeft, child: cell('#', null))),
               Expanded(flex: 4, child: Align(alignment: Alignment.centerLeft, child: cell('Title', SongSort.title))),
               if (columns.album) Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: cell('Album', SongSort.album))),
+              if (columns.why) Expanded(flex: 3, child: Align(alignment: Alignment.centerLeft, child: cell('Why', null))),
               if (columns.added) SizedBox(width: _Columns.dateW, child: Align(alignment: Alignment.centerLeft, child: cell('Added', SongSort.added))),
               SizedBox(width: _Columns.durW, child: Align(alignment: Alignment.centerRight, child: cell('Time', SongSort.duration))),
               SizedBox(
@@ -994,6 +1002,14 @@ class _RowState extends ConsumerState<_Row> {
               child: Padding(
                 padding: const EdgeInsets.only(right: Space.md),
                 child: Text(song.album, maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
+              ),
+            ),
+          if (cols.why)
+            Expanded(
+              flex: 3,
+              child: Padding(
+                padding: const EdgeInsets.only(right: Space.md),
+                child: Text(_t.widget.whyLabel?.call(song) ?? '', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
               ),
             ),
           if (cols.added)

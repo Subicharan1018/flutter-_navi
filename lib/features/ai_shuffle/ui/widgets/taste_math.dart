@@ -2,6 +2,7 @@ import 'dart:math' as math;
 
 import '../../../../models/song.dart';
 import '../../data/models/recommended_song.dart';
+import '../../logic/pick_why.dart';
 
 /// One pick as the taste field sees it: where it sits (closeness, mood) and
 /// how it sounds (energy, danceability). Plain numbers, so the maths is testable
@@ -17,6 +18,9 @@ class TastePoint {
   final double valence;
   final double dance;
 
+  /// Why the server picked it, in words (see [pickWhy]).
+  final PickWhy why;
+
   const TastePoint({
     required this.id,
     required this.title,
@@ -25,6 +29,7 @@ class TastePoint {
     required this.energy,
     required this.valence,
     required this.dance,
+    this.why = PickWhy.generic,
   });
 
   factory TastePoint.of(Song song, RecommendedSong rec) => TastePoint(
@@ -35,6 +40,7 @@ class TastePoint {
         energy: rec.audio.energy.clamp(0.0, 1.0),
         valence: rec.audio.valence.clamp(0.0, 1.0),
         dance: rec.audio.danceability.clamp(0.0, 1.0),
+        why: pickWhy(rec),
       );
 }
 
