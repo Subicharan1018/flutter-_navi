@@ -55,6 +55,12 @@ class StatusScreen extends ConsumerWidget {
                     'Checked ${formatAgo(r.checkedAt, now)}',
                   ].join('\n'),
                   value: r.level.label,
+                  valueColor: switch (r.level) {
+                    HealthLevel.ok => t.positive,
+                    HealthLevel.slow => t.warning,
+                    HealthLevel.down => t.danger,
+                    _ => null,
+                  },
                   trailing: CupertinoButton(
                     key: ValueKey('retry-${r.id}'),
                     padding: const EdgeInsets.symmetric(horizontal: Space.sm),

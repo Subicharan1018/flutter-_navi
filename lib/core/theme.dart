@@ -296,9 +296,9 @@ class AppThemeTokens {
   Color get separatorOpaque => outline;
 
   // ── Semantic state colours ────────────────────────────────────────────────
-  // Monochrome: success is plain white. Only warnings and destructive /
-  // failure states keep a hue (iOS orange / red), because they must stand out.
-  Color get positive => textPrimary;
+  // The app is monochrome; colour appears only where it states a status:
+  // online / done is green, slow / idle orange, down / failed red (iOS system hues).
+  Color get positive => const Color(0xFF30D158); // systemGreen
   Color get warning => const Color(0xFFFF9F0A); // systemOrange
   Color get danger => const Color(0xFFFF453A); // systemRed
 

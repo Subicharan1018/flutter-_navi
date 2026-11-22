@@ -78,6 +78,7 @@ class _StatusSheet extends ConsumerWidget {
               title: 'Status',
               icon: NaviGlyph.radio,
               value: health.isLoading ? 'Checking…' : (h?.isHealthy == true ? 'Online' : 'Offline'),
+              valueColor: health.isLoading ? null : (h?.isHealthy == true ? ThemeTokens.of(context).positive : ThemeTokens.of(context).danger),
             ),
             if (w != null) ...[
               GroupedRow(

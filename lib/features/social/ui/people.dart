@@ -33,7 +33,16 @@ class PresenceMark extends StatelessWidget {
       excludeSemantics: true,
       child: CustomPaint(
         size: Size.square(size),
-        painter: _PresencePainter(state, t.textPrimary, t.textMuted),
+        // Listening now is green, idle is orange; the shape still carries the state.
+        painter: _PresencePainter(
+          state,
+          switch (state) {
+            PresenceState.active => t.positive,
+            PresenceState.idle => t.warning,
+            _ => t.textPrimary,
+          },
+          t.textMuted,
+        ),
       ),
     );
   }

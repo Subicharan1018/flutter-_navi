@@ -160,12 +160,16 @@ class GroupedRow extends StatelessWidget {
   final bool destructive;
   final bool showChevron;
 
+  /// Colour for [value] where it is a status (green online, orange slow, red down).
+  final Color? valueColor;
+
   const GroupedRow({
     super.key,
     required this.title,
     this.subtitle,
     this.icon,
     this.value,
+    this.valueColor,
     this.trailing,
     this.onTap,
     this.destructive = false,
@@ -216,7 +220,7 @@ class GroupedRow extends StatelessWidget {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     textAlign: TextAlign.right,
-                    style: t.body.copyWith(color: t.textSecondary),
+                    style: t.body.copyWith(color: valueColor ?? t.textSecondary),
                   ),
                 ),
               ],
