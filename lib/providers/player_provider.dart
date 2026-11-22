@@ -25,6 +25,7 @@ import '../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../features/ai_shuffle/data/models/feedback_request.dart';
 import '../features/ai_shuffle/data/models/recommended_song.dart';
 import 'library_provider.dart';
+import '../features/everyday/dont_count.dart';
 import '../features/everyday/recent_queues.dart';
 import '../features/everyday/song_trim.dart';
 import '../features/everyday/song_trim_providers.dart';
@@ -1138,12 +1139,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String? _currentPlayId;
   int _currentPlayStartMs = 0;
 
-  void _sendFeedback(FeedbackRequest request) => sendShuffleFeedback(
-    _ref,
-    request,
-    playId: _currentPlayId,
-    startedAtMs: _currentPlayStartMs,
-  );
+  /// False while "Don't count this" is on (R3): nothing is recorded or sent.
+  bool get _counting {
+    try {
+      return !_ref.read(dontCountProvider);
+    } catch (_) {
+      return true;
+    }
+  }
+
+  void _sendFeedback(FeedbackRequest request) {
+    if (!_counting) return;
+    sendShuffleFeedback(
+      _ref,
+      request,
+      playId: _currentPlayId,
+      startedAtMs: _currentPlayStartMs,
+    );
+  }
   Duration _lastKnownPosition = Duration.zero;
   int _lastKnownIndex = 0;
   // Ordering-independent listen ratio snapshot.
@@ -1208,7 +1221,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final prevIndex = _lastKnownIndex;
         final positionAtSwitch = _lastKnownPosition;
         final settings = _ref.read(settingsProvider);
-        final analyticsEnabled = settings.dataCollectionEnabled;
+        final analyticsEnabled = settings.dataCollectionEnabled && _counting;
 
         final Song? prevSong = prevIndex >= 0 && prevIndex < state.queue.length
             ? state.queue[prevIndex]
@@ -1465,7 +1478,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               // Primary path: send feedback and mark it sent so the
               // mediaItem.listen fallback path skips this song.
               _naturalFeedbackSent = true;
-              _collector.onSongEnded(completedSong, player.position);
+              if (_counting) _collector.onSongEnded(completedSong, player.position);
               shuffleNotifier.recordPlay(
                 title: completedSong.title,
                 listenRatio: listenRatio,

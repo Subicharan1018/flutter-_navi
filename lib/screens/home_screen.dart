@@ -33,6 +33,7 @@ import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../utils/format.dart';
 import '../utils/platform_utils.dart';
+import '../features/everyday/albums_for_you_shelf.dart';
 import '../features/everyday/history_screen.dart';
 import '../widgets/app_scaffold.dart' show navigateInApp;
 import '../widgets/collection_actions.dart';
@@ -108,6 +109,7 @@ class HomeScreen extends ConsumerWidget {
         if (!PlatformUtils.isDesktop) SliverToBoxAdapter(child: Entrance(group: 'home', index: 5, child: _TopPicks())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 6, child: _RecentlyPlayed())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 7, child: _YourPlaylists())),
+        const SliverToBoxAdapter(child: AlbumsForYouShelf()),
         SliverToBoxAdapter(child: _RecentlyAdded()),
         SliverToBoxAdapter(child: _FirstRun()),
       ],

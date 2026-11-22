@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../features/everyday/dont_count.dart';
 import '../features/everyday/play_stats_providers.dart';
 import '../features/everyday/song_trim_providers.dart';
 import '../features/everyday/song_trim_sheet.dart';
@@ -149,6 +150,16 @@ class OptionsMenu extends ConsumerWidget {
             icon: NaviGlyph.share,
             onTap: () => showShareSheet(page, ShareTarget.song(song)),
           ),
+          if (isPlayingNow)
+            SheetAction(
+              label: ref.watch(dontCountProvider) ? 'Count My Listening Again' : 'Don’t Count This Listening',
+              icon: ref.watch(dontCountProvider) ? NaviGlyph.eye : NaviGlyph.eyeOff,
+              onTap: () {
+                final off = !ref.read(dontCountProvider);
+                ref.read(dontCountProvider.notifier).set(off);
+                showToast(page, off ? 'Not counting this listening' : 'Counting your listening again');
+              },
+            ),
           if (isPlayingNow)
             SheetAction(
               label: 'Share now playing',

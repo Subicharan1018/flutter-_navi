@@ -49,6 +49,7 @@ import 'services/notification_triggers.dart';
 import 'services/auto/browse_tree.dart' show CarStyle;
 import 'core/crash_log.dart';
 import 'providers/player_provider.dart';
+import 'features/everyday/profiles_providers.dart' show profilesBootstrapProvider;
 import 'player/queue_persistence.dart';
 import 'features/auto_download/logic/auto_download_providers.dart';
 
@@ -214,6 +215,7 @@ Future<void> main(List<String> args) async {
   // The queue and position are saved when the app is left, and put back
   // (paused) at the next launch.
   container.read(queuePersistenceBootstrapProvider);
+  container.read(profilesBootstrapProvider);
   container.read(autoDownloadBootstrapProvider);
 
   // Compile the Now Playing artwork-field shader before it's first shown.

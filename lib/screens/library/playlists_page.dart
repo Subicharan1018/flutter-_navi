@@ -337,6 +337,7 @@ void showPlaylistMenu(BuildContext context, WidgetRef ref, Playlist p) {
     subtitle: songCount(p.songCount),
     artUrl: (p.coverArt ?? '').isEmpty ? null : svc.getCoverArtUrl(p.coverArt),
     loadSongs: () => svc.getPlaylistSongs(p.id),
+    shuffleByAlbum: true,
     onEdit: shared ? null : () => showPlaylistEditor(context, playlist: p),
     onDelete: shared ? null : () => deletePlaylistWithConfirm(context, ref, p),
     pin: Pin.playlist(p),
