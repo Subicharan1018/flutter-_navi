@@ -9,7 +9,9 @@ import 'package:rxdart/rxdart.dart';
 import 'package:drift/native.dart';
 import 'package:navivibe/database/app_database.dart';
 import 'package:navivibe/models/song.dart';
+import 'package:navivibe/providers/play_route.dart';
 import 'package:navivibe/providers/player_provider.dart';
+import 'package:navivibe/providers/remote_queue_provider.dart';
 import 'package:navivibe/providers/session_sync_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart' show appDatabaseProvider;
 import 'package:navivibe/services/session_sync_service.dart';
@@ -277,8 +279,24 @@ class FakeSessionSyncService implements SessionSyncService {
   Stream<RemoteCommand> get commandStream => _commandController.stream;
 
   @override
-  void sendCommand(String action, {int? positionMs, double? volume, String? trackId, int? index, List<String>? queue, String? target}) {
+  String? sendCommand(String action, {int? positionMs, double? volume, String? trackId, int? index, List<String>? queue, String? target}) {
+    if (!linkUp) return null;
     sentCommands.add(action);
+    if (action == 'set_queue') queuesSent.add((queue ?? const [], index));
+    return 'cmd-${sentCommands.length}';
+  }
+
+  final playOns = <(String, List<String>, int)>[];
+  final queuesSent = <(List<String>, int?)>[];
+
+  /// False: the session link is down, nothing can be sent.
+  bool linkUp = true;
+
+  @override
+  String? playOn(String deviceId, List<String> queue, int index, {Map<String, dynamic> meta = const {}}) {
+    if (!linkUp) return null;
+    playOns.add((deviceId, queue, index));
+    return 'play-${playOns.length}';
   }
 
   final _prepareController = StreamController<PrepareTransfer>.broadcast();
@@ -319,8 +337,11 @@ class FakeSessionSyncService implements SessionSyncService {
   @override
   Stream<List<SyncDevice>> get devicesStream => const Stream.empty();
 
+  final _resultController = StreamController<CommandResult>.broadcast(sync: true);
+  void emitResult(CommandResult r) => _resultController.add(r);
+
   @override
-  Stream<CommandResult> get resultStream => const Stream.empty();
+  Stream<CommandResult> get resultStream => _resultController.stream;
 
   @override
   SyncConnection get connection => SyncConnection.online;
@@ -1090,6 +1111,149 @@ void main() {
   });
 
   // ── Protocol 4: the host applies queue edits other devices sent ────────────
+  group('a play started by a person goes where music plays', () {
+    List<Song> songs([int n = 3]) => [for (var i = 0; i < n; i++) _createSong('s$i', 'Song $i')];
+
+    Future<(PlayerNotifier, ProviderContainer)> make({String? active = 'device-pc'}) async {
+      UserActivity.debugSet(DateTime.now()); // a tap started it
+      final container = createContainer();
+      final ref = container.read(Provider((ref) => ref));
+      final notifier = PlayerNotifier(ref, audioHandler, mockSubsonicService, mockCollector, deviceIdProvider: () async => 'device-me');
+      await Future.delayed(Duration.zero);
+      fakeSyncService.emitSyncState(PlaybackState(
+          activeDevice: active, activeDeviceName: 'Windows PC', trackId: 't1', isPlaying: true, queue: const ['t1', 't2'], epoch: 1, version: 1));
+      await Future.delayed(Duration.zero);
+      addTearDown(() => UserActivity.debugSet(null));
+      return (notifier, container);
+    }
+
+    test('a tap while another device plays sends the queue there and plays nothing here', () async {
+      final (notifier, container) = await make();
+      await notifier.setQueue(songs(), 1, playlistName: 'Mix');
+      expect(fakeSyncService.queuesSent.single.$1, ['s0', 's1', 's2']);
+      expect(fakeSyncService.queuesSent.single.$2, 1);
+      expect(fakeSyncService.transferredDevices, isEmpty); // nobody was taken from
+      expect(audioHandler.player.playing, isFalse);
+      expect(notifier.state.queue, isEmpty); // this device's own queue is untouched
+      expect(notifier.state.syncMode, SyncMode.passive);
+      final notice = container.read(playNoticeProvider);
+      expect(notice.message, 'Playing on Windows PC');
+      expect(notice.canPlayHere, isTrue);
+      // The remote queue view shows the new queue at once.
+      expect([for (final s in container.read(remoteQueueProvider).songs) s.id], ['s0', 's1', 's2']);
+      notifier.dispose();
+    });
+
+    test('Play on a list does the same, shuffled or not', () async {
+      final (notifier, _) = await make();
+      await notifier.playPlaylist(songs(), playlistName: 'Album');
+      expect(fakeSyncService.queuesSent.last.$1, ['s0', 's1', 's2']);
+      expect(fakeSyncService.queuesSent.last.$2, 0);
+      await notifier.playPlaylist(songs(5), shuffle: true);
+      expect(fakeSyncService.queuesSent.last.$1.toSet(), {'s0', 's1', 's2', 's3', 's4'});
+      expect(fakeSyncService.queuesSent.length, 2);
+      expect(audioHandler.player.playing, isFalse);
+      notifier.dispose();
+    });
+
+    test('"Play here instead" starts the same songs on this device and takes playback', () async {
+      final (notifier, container) = await make();
+      await notifier.setQueue(songs(), 2);
+      await notifier.playHereInstead();
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      expect(fakeSyncService.forcedClaims, [true]); // a person's choice: it wins
+      expect(notifier.state.queue.map((s) => s.id), ['s0', 's1', 's2']);
+      expect(notifier.state.currentIndex, 2);
+      expect(audioHandler.player.playing, isTrue);
+      expect(container.read(playTargetProvider), isNull);
+      notifier.dispose();
+    });
+
+    test('a play with no touch behind it (restore, autoplay) is never routed', () async {
+      final (notifier, _) = await make();
+      UserActivity.debugSet(null);
+      await notifier.setQueue(songs(), 0);
+      expect(fakeSyncService.queuesSent, isEmpty);
+      expect(fakeSyncService.transferredDevices, isEmpty); // and it does not steal either
+      notifier.dispose();
+    });
+
+    test('a Jam (it opens a claim window) plays here even though another device plays', () async {
+      final (notifier, _) = await make();
+      notifier.permitClaim();
+      await notifier.setQueue(songs(), 0);
+      expect(fakeSyncService.queuesSent, isEmpty);
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      notifier.dispose();
+    });
+
+    test('a device picked in the sheet gets the queue, even when it is not the one playing', () async {
+      final (notifier, container) = await make();
+      container.read(playTargetProvider.notifier).choose('device-tv');
+      await notifier.setQueue(songs(), 1);
+      expect(fakeSyncService.playOns.single.$1, 'device-tv');
+      expect(fakeSyncService.playOns.single.$2, ['s0', 's1', 's2']);
+      expect(fakeSyncService.playOns.single.$3, 1);
+      expect(fakeSyncService.queuesSent, isEmpty);
+      expect(audioHandler.player.playing, isFalse);
+      expect(container.read(playNoticeProvider).message, startsWith('Playing on'));
+      notifier.dispose();
+    });
+
+    test('this device picked in the sheet plays here and takes playback', () async {
+      final (notifier, container) = await make();
+      container.read(playTargetProvider.notifier).choose('device-me');
+      await notifier.setQueue(songs(), 0);
+      expect(fakeSyncService.queuesSent, isEmpty);
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      expect(audioHandler.player.playing, isTrue);
+      notifier.dispose();
+    });
+
+    test('a pick lasts only until playback changes hands', () async {
+      final (notifier, container) = await make();
+      container.read(playTargetProvider.notifier).choose('device-tv');
+      fakeSyncService.emitSyncState(const PlaybackState(activeDevice: 'device-tv', activeDeviceName: 'TV', epoch: 2, version: 2));
+      await Future.delayed(Duration.zero);
+      expect(container.read(playTargetProvider), isNull);
+      notifier.dispose();
+    });
+
+    test('with no link nothing is sent, nothing plays here, and the person is told', () async {
+      final (notifier, container) = await make();
+      fakeSyncService.linkUp = false;
+      await notifier.setQueue(songs(), 0);
+      expect(fakeSyncService.queuesSent, isEmpty);
+      expect(audioHandler.player.playing, isFalse);
+      expect(container.read(playNoticeProvider).message, contains('Can’t reach'));
+      expect(container.read(playNoticeProvider).canPlayHere, isFalse);
+      notifier.dispose();
+    });
+
+    test('when nobody plays anywhere a tap simply plays here', () async {
+      final (notifier, _) = await make(active: null);
+      await notifier.setQueue(songs(), 0);
+      expect(fakeSyncService.queuesSent, isEmpty);
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      expect(audioHandler.player.playing, isTrue);
+      notifier.dispose();
+    });
+
+    test('a refusal from the other device is said in words (offline, no answer)', () async {
+      final (notifier, container) = await make();
+      fakeSyncService.emitResult(const CommandResult(ok: false, action: 'playOn', reason: 'device_offline'));
+      expect(container.read(playNoticeProvider).message, 'That device went offline.');
+      fakeSyncService.emitResult(const CommandResult(ok: false, action: 'transfer', reason: 'timeout'));
+      expect(container.read(playNoticeProvider).message, contains('didn’t answer'));
+      // Queue edits are explained by the remote queue, not twice.
+      final seq = container.read(playNoticeProvider).seq;
+      fakeSyncService.emitResult(const CommandResult(ok: false, action: 'queue_remove', reason: 'queue_changed'));
+      fakeSyncService.emitResult(const CommandResult(ok: true, action: 'playOn'));
+      expect(container.read(playNoticeProvider).seq, seq);
+      notifier.dispose();
+    });
+  });
+
   group('host applies remote queue edits', () {
     late QueueKeepingHandler handler;
     final songs = [for (final id in ['a', 'b', 'c', 'd', 'e']) _createSong(id, 'Song $id')];

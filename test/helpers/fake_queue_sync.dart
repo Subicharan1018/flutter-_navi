@@ -40,9 +40,30 @@ class FakeQueueSync extends Fake implements SessionSyncService {
     return id;
   }
 
+  /// Whole-queue plays: set_queue to the host (ids, index, command id).
+  final queuesSent = <(List<String>, int?, String)>[];
+
+  /// Plays sent to a device that isn't playing: (device, ids, index, command id).
+  final playOns = <(String, List<String>, int, String)>[];
+
   @override
-  void sendCommand(String action, {int? positionMs, double? volume, String? trackId, int? index, List<String>? queue, String? target}) {
+  List<SyncDevice> currentDevices = const [];
+
+  @override
+  String? sendCommand(String action, {int? positionMs, double? volume, String? trackId, int? index, List<String>? queue, String? target}) {
+    if (!online) return null;
     commands.add((action, index, trackId));
+    final id = 'c-${commands.length + playOns.length}';
+    if (action == 'set_queue') queuesSent.add((queue ?? const [], index, id));
+    return id;
+  }
+
+  @override
+  String? playOn(String deviceId, List<String> queue, int index, {Map<String, dynamic> meta = const {}}) {
+    if (!online) return null;
+    final id = 'c-${commands.length + playOns.length + 1}';
+    playOns.add((deviceId, queue, index, id));
+    return id;
   }
 
   /// The server's state (as the host reported it, or after an edit).

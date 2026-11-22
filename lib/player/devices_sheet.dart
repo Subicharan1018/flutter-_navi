@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
+import '../providers/play_route.dart';
 import '../providers/player_provider.dart';
 import '../providers/session_sync_provider.dart';
 import '../services/session_sync_service.dart';
@@ -56,7 +57,7 @@ List<DeviceRowData> deviceRows(List<SyncDevice> devices, {required String? thisI
 String _caption(SyncDevice d, {required bool isThis}) {
   final parts = <String>[
     if (isThis) 'This device',
-    if (d.active) (isThis ? 'Playing here' : 'Host · playing now') else (isThis ? 'Tap to play here' : 'Tap to move playback here'),
+    if (d.active) (isThis ? 'Playing here' : 'Host · playing now') else (isThis ? 'Tap to play here' : 'Tap to move playback to it'),
     if (!isThis && d.lastSeenS != null && d.lastSeenS! >= 20) 'seen ${d.lastSeenS!.round()} s ago',
   ];
   return parts.join(' · ');
@@ -115,6 +116,11 @@ class DevicesSheet extends ConsumerWidget {
                     child: Text('Try again', style: t.callout.copyWith(color: t.accent)),
                   ),
               ]),
+            ),
+          if (rows.length >= 2)
+            Padding(
+              padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.md),
+              child: _SendTo(rows: rows, thisId: thisId, activeId: shown.where((d) => d.active).firstOrNull?.id),
             ),
           Padding(
             padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.md),
@@ -194,5 +200,61 @@ class _DeviceRow extends ConsumerWidget {
         ),
       ),
     );
+  }
+}
+
+/// "New music plays on": where a tap on a song or "Play" starts music. Left on
+/// the device that plays now unless one is picked; the pick lasts until
+/// playback changes hands.
+class _SendTo extends ConsumerWidget {
+  final List<DeviceRowData> rows;
+  final String? thisId;
+  final String? activeId;
+  const _SendTo({required this.rows, required this.thisId, required this.activeId});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final t = ThemeTokens.of(context);
+    final chosen = ref.watch(playTargetProvider);
+    // Nothing picked: music goes to the device that plays, or this one when none does.
+    final shown = chosen ?? activeId ?? thisId;
+    return Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+      Padding(
+        padding: const EdgeInsets.only(bottom: Space.sm),
+        child: Text('Send new music to', style: t.footnote),
+      ),
+      Wrap(spacing: Space.sm, runSpacing: Space.sm, children: [
+        for (final r in rows)
+          Semantics(
+            button: true,
+            selected: r.device.id == shown,
+            label: 'Send new music to ${r.isThis ? 'this device' : r.title}',
+            excludeSemantics: true,
+            child: GestureDetector(
+              behavior: HitTestBehavior.opaque,
+              onTap: () {
+                HapticFeedback.selectionClick();
+                ref.read(playTargetProvider.notifier).choose(r.device.id);
+              },
+              child: Container(
+                constraints: const BoxConstraints(minHeight: 44),
+                padding: const EdgeInsets.symmetric(horizontal: Space.md),
+                decoration: BoxDecoration(
+                  color: r.device.id == shown ? t.textPrimary : t.fill,
+                  borderRadius: BorderRadius.circular(Radii.capsule),
+                ),
+                child: Row(mainAxisSize: MainAxisSize.min, children: [
+                  NaviIcon(syncDeviceGlyph(r.device.type), size: 16, color: r.device.id == shown ? t.bgBase : t.textPrimary),
+                  const SizedBox(width: Space.sm),
+                  Text(
+                    r.isThis ? 'This device' : r.title,
+                    style: t.footnote.copyWith(color: r.device.id == shown ? t.bgBase : t.textPrimary, fontWeight: FontWeight.w600),
+                  ),
+                ]),
+              ),
+            ),
+          ),
+      ]),
+    ]);
   }
 }
