@@ -209,16 +209,21 @@ void main() {
   group('cover art', () {
     test('lists ask the server for the next step up from their display size', () {
       const base = 'https://s.example/rest/getCoverArt.view?id=al-1&u=a&t=b&s=c';
-      expect(Uri.parse(sizedCoverUrl(base, 92)).queryParameters['size'], '96');
-      expect(Uri.parse(sizedCoverUrl(base, 97)).queryParameters['size'], '160');
+      expect(Uri.parse(sizedCoverUrl(base, 92)).queryParameters['size'], '128');
+      expect(Uri.parse(sizedCoverUrl(base, 129)).queryParameters['size'], '256');
       expect(Uri.parse(sizedCoverUrl(base, 450)).queryParameters['size'], '512');
+      expect(Uri.parse(sizedCoverUrl(base, 513)).queryParameters['size'], '1024');
+      // Never a step below what the screen needs.
+      for (final px in [1, 64, 128, 200, 256, 300, 512, 700, 1024]) {
+        expect(int.parse(Uri.parse(sizedCoverUrl(base, px)).queryParameters['size']!), greaterThanOrEqualTo(px));
+      }
       expect(Uri.parse(sizedCoverUrl(base, 5000)).queryParameters['size'], '1024');
       expect(Uri.parse(sizedCoverUrl(base, 92)).queryParameters['id'], 'al-1');
     });
 
     test('the same cover at the same step is one URL, so it is cached once', () {
       const base = 'https://s.example/rest/getCoverArt.view?id=al-1&u=a&t=b&s=c';
-      expect(sizedCoverUrl(base, 120), sizedCoverUrl(base, 150));
+      expect(sizedCoverUrl(base, 140), sizedCoverUrl(base, 250));
     });
 
     test('a link that already has a size, or is not cover art, is left alone', () {
