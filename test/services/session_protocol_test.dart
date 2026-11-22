@@ -439,7 +439,7 @@ void main() {
       expect(rows[2].title, 'Windows PC');
       expect(rows[0].caption, 'This device · Tap to play here');
       expect(rows[1].caption, 'Host · playing now');
-      expect(rows[2].caption, 'Tap to move playback here');
+      expect(rows[2].caption, 'Tap to move playback to it');
     });
 
     test('glyphs by kind', () {
