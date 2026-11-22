@@ -291,11 +291,11 @@ class _TabBar extends ConsumerWidget {
   BoxDecoration _surface(BuildContext context, {bool circle = false}) {
     final glass = DockGlass.of(context);
     return BoxDecoration(
-      color: glass ? const Color(0x14FFFFFF) : _lift(ground, 0.09),
+      color: glass ? AppThemeTokens.onArtworkFaint : _lift(ground, 0.09),
       shape: circle ? BoxShape.circle : BoxShape.rectangle,
       borderRadius: circle ? null : BorderRadius.circular(Radii.capsule),
       border: Border.all(
-        color: glass ? const Color(0x2BFFFFFF) : _lift(ground, 0.16),
+        color: glass ? AppThemeTokens.glassFillHi : _lift(ground, 0.16),
         width: 0.5,
       ),
     );
@@ -338,7 +338,7 @@ class _TabBar extends ConsumerWidget {
                             child: DecoratedBox(
                               decoration: BoxDecoration(
                                 color: DockGlass.of(context)
-                                    ? const Color(0x24FFFFFF)
+                                    ? AppThemeTokens.onArtworkSoft
                                     : _lift(ground, 0.18),
                                 borderRadius: BorderRadius.circular(
                                   Radii.capsule,

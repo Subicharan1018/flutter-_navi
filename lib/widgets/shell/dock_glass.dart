@@ -128,7 +128,7 @@ Color dockCapsuleFill(BuildContext context, Color solid) =>
 
 /// A dock capsule's hairline: a light edge on glass, a lifted step otherwise.
 Color dockCapsuleEdge(BuildContext context, Color solid, {double lift = 0.12}) =>
-    DockGlass.of(context) ? const Color(0x2BFFFFFF) : Color.lerp(solid, Colors.white, lift)!;
+    DockGlass.of(context) ? AppThemeTokens.glassFillHi : Color.lerp(solid, Colors.white, lift)!;
 
 /// The dock's surface: a blurred, tinted sheet with a hairline and a soft top
 /// highlight when [glass] is allowed, the solid [ground] band otherwise. Also
@@ -194,7 +194,7 @@ class _GlassDockState extends State<GlassDock> {
   Widget _frosted(Widget body) {
     const shape = RoundedRectangleBorder(
       borderRadius: BorderRadius.vertical(top: Radius.circular(GlassDock.radius)),
-      side: BorderSide(color: Color(0x24FFFFFF), width: 0.5),
+      side: BorderSide(color: AppThemeTokens.onArtworkSoft, width: 0.5),
     );
     return ClipPath(
       clipper: const ShapeBorderClipper(shape: shape),
@@ -212,7 +212,7 @@ class _GlassDockState extends State<GlassDock> {
               begin: Alignment.topCenter,
               end: Alignment.bottomCenter,
               stops: [0, 0.22],
-              colors: [Color(0x14FFFFFF), Color(0x00FFFFFF)],
+              colors: [AppThemeTokens.onArtworkFaint, Color(0x00FFFFFF)],
             ),
           ),
           child: body,

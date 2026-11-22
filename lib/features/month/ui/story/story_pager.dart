@@ -164,7 +164,7 @@ class _Segments extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     const gap = 4.0;
     final w = (size.width - gap * (count - 1)) / count;
-    final track = Paint()..color = const Color(0x40FFFFFF);
+    final track = Paint()..color = AppThemeTokens.onArtworkMedium;
     final fill = Paint()..color = const Color(0xFFFFFFFF);
     for (var i = 0; i < count; i++) {
       final x = i * (w + gap);

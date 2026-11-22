@@ -143,7 +143,7 @@ class _PlaylistEditorState extends ConsumerState<PlaylistEditor> {
                 decoration: BoxDecoration(
                   color: t.bgElevated,
                   borderRadius: BorderRadius.circular(Radii.hero),
-                  boxShadow: const [BoxShadow(color: Color(0x59000000), blurRadius: 24, offset: Offset(0, 10))],
+                  boxShadow: const [BoxShadow(color: AppThemeTokens.liftShadow, blurRadius: 24, offset: Offset(0, 10))],
                 ),
                 clipBehavior: Clip.antiAlias,
                 child: _image != null

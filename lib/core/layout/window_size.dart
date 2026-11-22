@@ -53,7 +53,7 @@ enum ShellKind {
     // a tablet gets it once it is wide enough.
     if (PlatformUtils.isDesktop) return sidebar;
     if (size.width < PlatformUtils.kDesktopBreakpoint) return phone;
-    if (size.shortestSide >= 600) return sidebar;
+    if (size.shortestSide >= PlatformUtils.kTabletShortestSide) return sidebar;
     return phone;
   }
 
