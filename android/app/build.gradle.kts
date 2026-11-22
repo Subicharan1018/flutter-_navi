@@ -38,6 +38,13 @@ android {
     packaging {
         jniLibs {
             useLegacyPackaging = false
+            // Local arm64-only builds (`--target-platform android-arm64`) otherwise
+            // still packaged the 32-bit and x86 copies of plugin libraries (ML Kit,
+            // sqlite): ~12 MB nothing can load. Flutter passes `target-platform` to
+            // Gradle; CI release builds pass all three ABIs, so they are unchanged.
+            if ((project.findProperty("target-platform") as String?) == "android-arm64") {
+                excludes += listOf("lib/armeabi-v7a/**", "lib/x86/**", "lib/x86_64/**")
+            }
         }
     }
 

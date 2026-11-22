@@ -31,7 +31,7 @@ void main() {
       subsonicServiceProvider.overrideWithValue(svc),
     ]);
     addTearDown(c.dispose);
-    final sub = c.listen(playlistsProvider, (_, __) {});
+    final sub = c.listen(playlistsProvider, (_, _) {});
     addTearDown(sub.close);
 
     await c.read(playlistsProvider.future);
