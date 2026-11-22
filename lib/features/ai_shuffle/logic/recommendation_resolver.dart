@@ -25,14 +25,12 @@ class RecommendationResolver {
     return _byTitleArtist['$t|${artist.toLowerCase()}'] ?? _byTitle[t];
   }
 
-  /// Library songs for [recs], in order, skipping ones not in the library.
+  /// Library songs for [recs], in order, skipping ones not in the library,
+  /// each with its recommendation (audio features and scores) beside it for
+  /// the taste field.
   ///
   /// Each recommendation carries the song's measured tempo; it is kept in the
   /// BPM cache so Microduck can dance to the song's beat.
-  List<Song> resolveAll(Iterable<RecommendedSong> recs) => [for (final p in resolvePairs(recs)) p.$1];
-
-  /// Like [resolveAll], keeping each song's recommendation (its audio
-  /// features and scores) beside it for the taste field.
   List<(Song, RecommendedSong)> resolvePairs(Iterable<RecommendedSong> recs) {
     final out = <(Song, RecommendedSong)>[];
     for (final r in recs) {

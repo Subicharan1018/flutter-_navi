@@ -106,9 +106,6 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
     return state[songId]?.status ?? SongDownloadStatus.notDownloaded;
   }
 
-  /// Returns the download progress [0.0–1.0] for [songId].
-  double progressOf(String songId) => state[songId]?.progress ?? 0.0;
-
   // -------------------------------------------------------------------------
   // Single-song download
   // -------------------------------------------------------------------------

@@ -26,9 +26,6 @@ enum WindowSize {
 
   static WindowSize ofContext(BuildContext context) => of(MediaQuery.sizeOf(context).width);
 
-  bool get isCompact => this == compact;
-  bool get isExpanded => this == expanded;
-
   /// True when the side panel beside the content fits.
   bool get hasSidePanel => this == expanded;
 }

@@ -181,10 +181,6 @@ class MiniPlayer {
 
   Size get size => sizeFor(mode.value);
 
-  /// Where the full window will return to, while in mini mode.
-  @visibleForTesting
-  Rect? get savedBounds => _savedBounds;
-
   /// Where the mini window was last left, if anywhere.
   @visibleForTesting
   Offset? get origin => _origin;

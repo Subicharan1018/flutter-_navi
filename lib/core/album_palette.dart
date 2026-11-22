@@ -79,11 +79,6 @@ class AlbumPalette {
     return nearCool || nearWarm ? math.min(saturation, _edgeSaturation) : saturation;
   }
 
-  /// Text/icon colour that sits on a [vibrant] fill.
-  Color get onVibrant => vibrant.computeLuminance() > 0.42
-      ? const Color(0xFF0B0B0B)
-      : const Color(0xFFFFFFFF);
-
   static AlbumPalette lerp(AlbumPalette a, AlbumPalette b, double t) =>
       AlbumPalette(
         deep: Color.lerp(a.deep, b.deep, t)!,

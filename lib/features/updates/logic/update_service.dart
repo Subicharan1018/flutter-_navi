@@ -301,14 +301,6 @@ class UpdateService {
   /// allow installs from NaviVibe.
   Future<bool> install(File apk) => _native.install(apk.path);
 
-  /// Removes anything left in the staging folder.
-  Future<void> cleanStaging() async {
-    try {
-      final d = await _stagingDir();
-      if (d.existsSync()) await d.delete(recursive: true);
-    } catch (_) {}
-  }
-
   // -------------------------------------------------------------------------
   // Windows
   // -------------------------------------------------------------------------

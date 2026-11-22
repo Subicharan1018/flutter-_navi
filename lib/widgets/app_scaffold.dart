@@ -53,10 +53,6 @@ import '../providers/id_migration_provider.dart';
 export 'shell/app_tab.dart' show AppTab;
 export 'shell/nav_stack.dart' show navigateInApp, selectAppTab;
 
-/// Pages stop growing here on a wide window, so rows and text stay readable;
-/// the page colour still runs edge to edge behind them.
-const double kContentMaxWidth = 1180;
-
 class AppScaffold extends ConsumerStatefulWidget {
   const AppScaffold({super.key});
 

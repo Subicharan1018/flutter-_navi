@@ -105,15 +105,6 @@ List<Song> songsInHeardOrder(List<HistoryEntry> entries) {
   ];
 }
 
-/// The entries of [day] that fall in the same day-part as [anchor]'s play.
-List<HistoryEntry> sameDayPart(HistoryDay day, HistoryEntry anchor) {
-  final part = dayPart(anchor.at.hour);
-  return [
-    for (final e in day.entries)
-      if (dayPart(e.at.hour) == part) e,
-  ];
-}
-
 /// A stretch of one day (all plays in a row sharing a day-part): the unit
 /// "Make a playlist from this evening" works on.
 class HistoryPart {

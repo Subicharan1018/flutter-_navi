@@ -103,11 +103,6 @@ final playRecorderProvider = Provider<PlayRecorder?>((ref) {
   return PlayRecorder(outbox, delivery);
 });
 
-/// Plays waiting for a server, for the Status screen.
-final playOutboxPendingCountProvider = Provider.autoDispose<int>((ref) {
-  return ref.watch(playOutboxProvider)?.pendingCount ?? 0;
-});
-
 /// Pushes waiting plays out, and re-fetches missing download covers, when it
 /// can matter: start-up, sign-in, the network coming back, the app resuming.
 final offlineSyncBootstrapProvider = Provider<void>((ref) {

@@ -37,9 +37,6 @@ class LyricsTranslation {
   LineTranslation operator [](int i) =>
       i >= 0 && i < lines.length ? lines[i] : LineTranslation.empty;
 
-  bool get hasPronunciation => lines.any((l) => l.pronunciation.isNotEmpty);
-  bool get hasTranslation => lines.any((l) => l.translation.isNotEmpty);
-
   factory LyricsTranslation.fromJson(
     Map<String, dynamic> json, {
     required int expectedLines,

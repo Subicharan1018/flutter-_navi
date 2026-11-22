@@ -246,14 +246,6 @@ final recentlyPlayedSongsProvider = FutureProvider<List<Song>>((ref) async {
   return songs;
 });
 
-// MEM-OPT: autoDispose — released when home screen is popped.
-final frequentAlbumsProvider = FutureProvider.autoDispose<List<Album>>((ref) async {
-  final settings = ref.watch(settingsProvider);
-  if (settings.serverUrl.isEmpty || settings.password.isEmpty) return [];
-  final service = ref.watch(subsonicServiceProvider);
-  return service.getFrequentAlbums();
-});
-
 // MEM-OPT: autoDispose — released when the playlists tab is closed.
 final playlistsProvider = FutureProvider.autoDispose<List<Playlist>>((ref) async {
   final settings = ref.watch(settingsProvider);
@@ -374,14 +366,11 @@ Future<void> resetLibrarySyncClock() async {
   } catch (_) {}
 }
 
-/// A song that just arrived on the server (Search online): load it, add it to
-/// the local mirror and refresh the library lists now, instead of waiting up
-/// to [_librarySyncInterval] for the next full sync. Returns the song so the
-/// caller can play it or add it to a playlist.
-Future<Song> mirrorNewSong(Ref ref, String songId) async => (await mirrorNewSongs(ref, [songId])).single;
-
-/// [mirrorNewSong] for a whole album or playlist that just arrived: one
-/// mirror write and one list refresh for all of them.
+/// Songs (a track, album or playlist) that just arrived on the server (Search
+/// online): load them, add them to the local mirror and refresh the library
+/// lists now, instead of waiting up to [_librarySyncInterval] for the next full
+/// sync. One mirror write and one list refresh for all of them. Returns the
+/// songs so the caller can play them or add them to a playlist.
 Future<List<Song>> mirrorNewSongs(Ref ref, List<String> songIds) async {
   final svc = ref.read(subsonicServiceProvider);
   final songs = [for (final id in songIds) await svc.getSong(id)];
