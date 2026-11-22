@@ -453,7 +453,11 @@ void main() {
         ProcessingState.completed,
       );
 
-      await Future.delayed(const Duration(milliseconds: 50));
+      // The skip runs through async hops; wait for it rather than a fixed 50 ms,
+      // which a busy machine (a parallel test run, CI) can overrun.
+      for (var i = 0; i < 100 && handler.player.currentIndex != 1; i++) {
+        await Future.delayed(const Duration(milliseconds: 30));
+      }
 
       // We expect handler.skipToNext() to be called.
       // Our mock skips to next index on the mock player.
