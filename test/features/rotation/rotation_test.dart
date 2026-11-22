@@ -16,7 +16,6 @@ import 'package:navivibe/features/rotation/logic/rotation_providers.dart';
 import 'package:navivibe/features/rotation/ui/back_in_rotation_section.dart';
 import 'package:navivibe/features/rotation/ui/rest_actions.dart';
 import 'package:navivibe/features/rotation/ui/rotation_taste_section.dart';
-import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/shuffle_bag.dart';
 import 'package:navivibe/services/subsonic_service.dart';

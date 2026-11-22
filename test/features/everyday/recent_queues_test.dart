@@ -4,7 +4,6 @@ import 'package:navivibe/features/everyday/recent_queues.dart';
 import 'package:navivibe/features/everyday/recent_queues_providers.dart';
 import 'package:navivibe/features/everyday/save_as_playlist.dart';
 import 'package:navivibe/models/song.dart';
-import 'package:navivibe/providers/settings_provider.dart';
 
 Song s(String id) => Song(id: id, title: 'T$id', artist: 'A', album: 'B', coverArt: id, duration: 100, track: 1, year: 2000);
 List<Song> ids(String csv) => [for (final i in csv.split(',')) s(i)];
