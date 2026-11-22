@@ -1,4 +1,5 @@
 import '../../../models/song.dart';
+import '../../../utils/format.dart' show formatTrackDuration;
 
 // =============================================================================
 // duplicates.dart — finds duplicate songs, albums and artists in the synced
@@ -72,14 +73,12 @@ int songScore(Song s) {
   return v;
 }
 
-String _mmss(int sec) => '${sec ~/ 60}:${(sec % 60).toString().padLeft(2, '0')}';
-
 String _songDetail(Song s) {
   final fmt = s.suffix.isEmpty ? null : s.suffix.toUpperCase();
   return [
     ?fmt,
     if (s.bitRate > 0) '${s.bitRate} kbps',
-    _mmss(s.duration),
+    formatTrackDuration(s.duration),
     if (s.album.isNotEmpty) s.album,
   ].join(' · ');
 }

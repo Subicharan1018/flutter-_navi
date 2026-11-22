@@ -20,6 +20,7 @@ import '../../../utils/platform_utils.dart';
 import '../../art/navi_icons.dart';
 import '../../desktop_dialogs.dart';
 import '../../ui/action_sheet.dart';
+import '../../ui/navi_icon_button.dart';
 import '../app_tab.dart';
 import '../nav_stack.dart';
 
@@ -115,7 +116,7 @@ class _NavButtons extends StatelessWidget {
   }
 }
 
-class _BarButton extends StatefulWidget {
+class _BarButton extends StatelessWidget {
   final NaviGlyph glyph;
   final String tooltip;
   final VoidCallback? onTap;
@@ -123,42 +124,15 @@ class _BarButton extends StatefulWidget {
   const _BarButton({required this.glyph, required this.tooltip, required this.onTap});
 
   @override
-  State<_BarButton> createState() => _BarButtonState();
-}
-
-class _BarButtonState extends State<_BarButton> {
-  bool _hover = false;
-
-  @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final on = widget.onTap != null;
-    return Semantics(
-      button: true,
-      enabled: on,
-      label: widget.tooltip,
-      child: Tooltip(
-        message: widget.tooltip,
-        child: MouseRegion(
-          cursor: on ? SystemMouseCursors.click : SystemMouseCursors.basic,
-          onEnter: (_) => setState(() => _hover = true),
-          onExit: (_) => setState(() => _hover = false),
-          child: NaviPressable(
-            onTap: widget.onTap,
-            radius: 16,
-            child: Container(
-              width: 32,
-              height: 32,
-              margin: const EdgeInsets.symmetric(horizontal: 1),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: on && _hover ? t.hover : Colors.transparent,
-              ),
-              alignment: Alignment.center,
-              child: NaviIcon(widget.glyph, size: 18, color: on ? t.textPrimary : t.textMuted.withValues(alpha: 0.5)),
-            ),
-          ),
-        ),
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 1),
+      child: NaviIconButton(
+        glyph: glyph,
+        tooltip: tooltip,
+        onTap: onTap,
+        color: onTap != null ? t.textPrimary : t.textMuted.withValues(alpha: 0.5),
       ),
     );
   }

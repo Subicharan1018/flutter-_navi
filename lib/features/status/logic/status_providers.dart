@@ -21,6 +21,7 @@ import '../../social/data/social_models.dart' show SocialSettings;
 import '../../social/logic/social_providers.dart';
 import '../../../services/cache_settings_service.dart';
 import '../../../services/play_cache.dart';
+import '../../../utils/format.dart' show formatBytes;
 import 'download_speed.dart';
 import 'status_model.dart';
 

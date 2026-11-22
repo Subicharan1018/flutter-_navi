@@ -10,6 +10,7 @@ import '../models/playlist.dart';
 import 'features/status/logic/download_speed.dart';
 import 'features/local_library/logic/download_location.dart';
 import 'services/subsonic_service.dart';
+import 'utils/format.dart' show formatBytes;
 
 class DownloadState {
   final bool isDownloading;
@@ -269,14 +270,7 @@ class OfflineService {
     return totalSize;
   }
 
-  String formatSize(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    if (bytes < 1024 * 1024) return '${(bytes / 1024).toStringAsFixed(1)} KB';
-    if (bytes < 1024 * 1024 * 1024) {
-      return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
-    }
-    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
-  }
+  String formatSize(int bytes) => formatBytes(bytes, kbDecimals: 1);
 
   Future<bool> downloadSong(
     Song song,

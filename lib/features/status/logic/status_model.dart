@@ -2,6 +2,8 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 
+import '../../../utils/format.dart';
+
 /// How a service is doing, in words (no coloured dots).
 enum HealthLevel {
   ok('OK'),
@@ -136,13 +138,6 @@ String formatAgo(DateTime? at, DateTime now) {
   if (d.inMinutes < 60) return '${d.inMinutes} min ago';
   if (d.inHours < 48) return '${d.inHours} h ago';
   return '${d.inDays} d ago';
-}
-
-String formatBytes(int b) {
-  if (b < 1024) return '$b B';
-  if (b < 1024 * 1024) return '${(b / 1024).toStringAsFixed(0)} KB';
-  if (b < 1024 * 1024 * 1024) return '${(b / (1024 * 1024)).toStringAsFixed(1)} MB';
-  return '${(b / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
 }
 
 String formatSpeed(double bytesPerSecond) => '${formatBytes(bytesPerSecond.round())}/s';
