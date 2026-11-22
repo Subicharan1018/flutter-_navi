@@ -327,7 +327,14 @@ class _BarPlayButtonState extends State<BarPlayButton> {
 /// the time under the pointer; click or drag to seek.
 class DesktopSeekBar extends ConsumerStatefulWidget {
   final Song song;
-  const DesktopSeekBar({super.key, required this.song});
+
+  /// Elapsed and total beside the bar. The mini player turns them off where
+  /// it draws the time somewhere else.
+  final bool showLabels;
+
+  /// The bar's resting height (it grows by 2 under the pointer).
+  final double thickness;
+  const DesktopSeekBar({super.key, required this.song, this.showLabels = true, this.thickness = 6});
 
   @override
   ConsumerState<DesktopSeekBar> createState() => _DesktopSeekBarState();
@@ -352,11 +359,13 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
           final shown = _hover ?? _drag;
           return Row(
             children: [
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 40),
-                child: Text(formatClock(Duration(milliseconds: (f * total).round())), textAlign: TextAlign.right, softWrap: false, style: label),
-              ),
-              const SizedBox(width: Space.sm),
+              if (widget.showLabels) ...[
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 40),
+                  child: Text(formatClock(Duration(milliseconds: (f * total).round())), textAlign: TextAlign.right, softWrap: false, style: label),
+                ),
+                const SizedBox(width: Space.sm),
+              ],
               Expanded(
                 child: LayoutBuilder(
                   builder: (context, c) {
@@ -392,13 +401,13 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
                               alignment: Alignment.centerLeft,
                               children: [
                                 Container(
-                                  height: hovering ? 8 : 6,
+                                  height: hovering ? widget.thickness + 2 : widget.thickness,
                                   decoration: BoxDecoration(color: t.fill, borderRadius: BorderRadius.circular(4)),
                                 ),
                                 FractionallySizedBox(
                                   widthFactor: f,
                                   child: Container(
-                                    height: hovering ? 8 : 6,
+                                    height: hovering ? widget.thickness + 2 : widget.thickness,
                                     decoration: BoxDecoration(color: hovering ? t.textPrimary : t.textSecondary, borderRadius: BorderRadius.circular(4)),
                                   ),
                                 ),
@@ -438,11 +447,13 @@ class _DesktopSeekBarState extends ConsumerState<DesktopSeekBar> {
                   },
                 ),
               ),
-              const SizedBox(width: Space.sm),
-              ConstrainedBox(
-                constraints: const BoxConstraints(minWidth: 40),
-                child: Text(formatClock(progress.total), softWrap: false, style: label),
-              ),
+              if (widget.showLabels) ...[
+                const SizedBox(width: Space.sm),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(minWidth: 40),
+                  child: Text(formatClock(progress.total), softWrap: false, style: label),
+                ),
+              ],
             ],
           );
         },

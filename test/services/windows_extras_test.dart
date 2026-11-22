@@ -25,7 +25,7 @@ class _FakeWindow implements MiniWindow {
   Future<void> setMaximized(bool m) async => maximized = m;
   @override
   Future<void> setBounds(Rect b) async {
-    if (failBounds && b.size == MiniPlayer.size) throw StateError('no');
+    if (failBounds && b.size == MiniPlayer.barSize) throw StateError('no');
     rect = b;
   }
 
@@ -37,6 +37,15 @@ class _FakeWindow implements MiniWindow {
   Future<void> setAlwaysOnTop(bool t) async => onTop = t;
   @override
   Future<void> show() async {}
+}
+
+class _MemStore implements MiniStore {
+  MiniPrefs prefs;
+  _MemStore([this.prefs = const MiniPrefs()]);
+  @override
+  MiniPrefs load() => prefs;
+  @override
+  void save(MiniPrefs p) => prefs = p;
 }
 
 class _FakeDriver implements HotkeyDriver {
@@ -116,7 +125,7 @@ void main() {
       expect(mini.active.value, isTrue);
       expect(w.onTop, isTrue);
       expect(w.resizable, isFalse);
-      expect(w.rect.size, MiniPlayer.size);
+      expect(w.rect.size, MiniPlayer.barSize);
       expect(w.rect.right, 1380);
       expect(w.rect.top, 80);
       expect(WindowManagerService.suspendSaving, isTrue);
@@ -152,6 +161,37 @@ void main() {
       expect(w.onTop, isFalse);
       expect(w.rect, const Rect.fromLTWH(100, 80, 1280, 800));
       expect(WindowManagerService.suspendSaving, isFalse);
+    });
+
+    test('the shape and pin are remembered, and a move is remembered with them', () async {
+      final store = _MemStore();
+      final m = MiniPlayer(window: w, store: store);
+      await m.enter();
+      expect(w.rect.size, MiniPlayer.barSize);
+      await m.setMode(MiniMode.cover);
+      expect(w.rect.size, MiniPlayer.coverSize);
+      expect(w.rect.topLeft, const Offset(1380 - 360, 80), reason: 'grows from the corner it had');
+      await m.setPinned(false);
+      expect(w.onTop, isFalse);
+      w.rect = const Rect.fromLTWH(300, 200, 360, 360); // the user dragged it
+      await m.rememberPosition();
+      await m.exit();
+      expect(store.prefs.mode, MiniMode.cover);
+      expect(store.prefs.pinned, isFalse);
+      expect(store.prefs.origin, const Offset(300, 200));
+      // A new launch opens as it was left: the square, unpinned, where it was.
+      final again = MiniPlayer(window: w, store: store);
+      await again.enter();
+      expect(w.rect, const Rect.fromLTWH(300, 200, 360, 360));
+      expect(w.onTop, isFalse);
+      await again.exit();
+    });
+
+    test('a remembered corner far off every screen is ignored', () async {
+      final m = MiniPlayer(window: w, store: _MemStore(const MiniPrefs(origin: Offset(-9000, 100))));
+      await m.enter();
+      expect(w.rect.topLeft, const Offset(1380 - 360, 80));
+      await m.exit();
     });
 
     test('entering twice keeps the first remembered bounds', () async {
