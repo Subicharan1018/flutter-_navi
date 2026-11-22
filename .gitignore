@@ -85,3 +85,9 @@ design/artwork_board.html
 
 # Sanitised backend export (no history): see docs/backend/SETUP.md
 /export/
+
+# personal exports (docs/travel-songs-plan.md)
+Timeline.json
+listens.csv
+listens.json
+listens_covers/
