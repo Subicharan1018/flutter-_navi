@@ -1,7 +1,7 @@
 # tgfetcher-tests-fix-v1: the tg-fetcher suite no longer depends on `/opt/tg-fetcher/.env`
 
-Test file only (`tests/conftest.py`, one exact-text patch, line endings kept: that file is CRLF on the server). No
-tg-fetcher code changes, nothing to restart.
+`tests/conftest.py` (exact-text patch, line endings kept: that file is CRLF on the server) **and one real bug fix** in
+`tgfetch/weekly_exploration_api.py` (see the second section). The code fix needs `sudo systemctl restart tg-fetcher`.
 
 ## What went wrong
 
@@ -22,12 +22,26 @@ change a test; it also clears the per-call ones (`CHANNEL_FALLBACK_CHANNELS`, `D
 after the config has loaded. A test that wants another value sets it itself (`monkeypatch`). Secrets in `.env` are
 now never visible to a test either.
 
+## A REAL bug found on the way: Weekly Exploration's build thread shared the service's sqlite connection
+
+`test_weekly_exploration_v1::test_routes_build_keep_skip_and_prefs` failed about 2 runs in 100 (also with NO `.env`
+and without the conftest patch: 2/100 and 3/100 measured; it just was not hit before). Cause: `run_build` ran
+`wx.build(conn, ...)` in a background thread on the SAME `sqlite3` connection the event loop uses for
+`GET /weekly/current` (the page polls it during the build). Two threads on one connection give
+`sqlite3.InterfaceError` -> "weekly: build failed" -> the list is not made ("It will try again"). **This can happen in
+production** while the owner's page polls during a build; it is not only a test problem.
+Fix: for a file database the build thread opens its own connection (same settings as `db.connect`) and closes it;
+for an in-memory database (tests only, cannot be opened twice) the build and the weekly routes take turns on a lock.
+New test `tests/test_weekly_build_connection_v1.py` (fails 8/8 without the fix). The same edit is in
+`tool/server/weekly-exploration-v1/files/tgfetch/weekly_exploration_api.py` so a re-install of that package keeps it.
+After: the flaky test 0/100 failed, the new test 0/50, the whole suite 5 runs x 690 passed.
+
 ## Counts (scratch copy of the live tree, the 6+ non-secret `.env` tunables present; no key or token copied)
 
 | | no `.env` | live `.env` values |
 |---|---|---|
-| before | 689 passed | **2 failed**, 687 passed |
-| after | 689 passed, 0 skipped | 689 passed, 0 skipped |
+| before | 689 passed | **2 failed**, 687 passed (+ about 2% flaky weekly test) |
+| after | 690 passed, 0 skipped | 690 passed, 0 skipped |
 
 ## Owner commands (as subi on the server)
 
