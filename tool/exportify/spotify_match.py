@@ -11,7 +11,10 @@ The `Added By` / `Added At` columns are never read.
 """
 import csv
 
-import song_match as sm
+try:                          # package (the server: navivibe.data_queue_tools) or plain script (this folder)
+    from . import song_match as sm
+except ImportError:
+    import song_match as sm
 
 SLACK_S = sm.STRICT_SLACK_S
 FEATURES = ("danceability", "energy", "key", "loudness", "mode", "speechiness", "acousticness", "instrumentalness",
