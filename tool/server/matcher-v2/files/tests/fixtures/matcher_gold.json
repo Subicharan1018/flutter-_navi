@@ -1,0 +1,735 @@
+{
+ "about": "Made-up songs, artists and films (no real library or listening data). label 1 = a human would call both the same recording, 0 = must never match. expect = the confidence the matcher must give (null = no match). Every kind of pair that went wrong in the owner's real data has one here.",
+ "pairs": [
+  {
+   "id": "plain",
+   "label": 1,
+   "expect": "strong",
+   "note": "title + artist + same length",
+   "q": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "album": "Sooriya Nagaram",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "album": "Sooriya Nagaram",
+    "duration": 243
+   }
+  },
+  {
+   "id": "from-tag",
+   "label": 1,
+   "expect": "strong",
+   "note": "film tag and soundtrack words are not part of the title",
+   "q": {
+    "title": "Neela Megham (From \"Sooriya Nagaram\")",
+    "artist": "Ilan",
+    "album": "Sooriya Nagaram (Original Motion Picture Soundtrack)",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "album": "Sooriya Nagaram",
+    "duration": 241
+   }
+  },
+  {
+   "id": "album-artist-is-composer",
+   "label": 1,
+   "expect": "strong",
+   "note": "Spotify names the composer, the library the singers and lists the composer",
+   "q": {
+    "title": "Vaanam Pesum",
+    "artist": "R. K. Selvam",
+    "album": "Kaattu Poo (Original Motion Picture Soundtrack)"
+   },
+   "lib": {
+    "title": "Vaanam Pesum",
+    "artist": "Maya Devi • Arun Pal",
+    "composer": "R.K. Selvam",
+    "album": "Kaattu Poo",
+    "film": "Kaattu Poo",
+    "duration": 280
+   }
+  },
+  {
+   "id": "composer-longer-name",
+   "label": 1,
+   "expect": "strong",
+   "note": "'R. K. Selvam' is 'R. K. Selvam Kumar'",
+   "q": {
+    "title": "Thenral Kaatru",
+    "artist": "R. K. Selvam",
+    "album": "Thenral Kaatru"
+   },
+   "lib": {
+    "title": "Thenral Kaatru",
+    "artist": "R. K. Selvam Kumar • Maya Devi",
+    "duration": 301
+   }
+  },
+  {
+   "id": "initials-moved",
+   "label": 1,
+   "expect": "strong",
+   "note": "'SS Varman' = 'Varman S'",
+   "q": {
+    "title": "Mazhai Naal",
+    "artist": "Varman S"
+   },
+   "lib": {
+    "title": "Mazhai Naal",
+    "artist": "SS Varman • Kavi Nila",
+    "duration": 250
+   }
+  },
+  {
+   "id": "honorific",
+   "label": 1,
+   "expect": "strong",
+   "note": "'Dr. Seerkazhi' = 'Sirkazhi'",
+   "q": {
+    "title": "Nilavu Paadum",
+    "artist": "Sirkazhi Govindan"
+   },
+   "lib": {
+    "title": "Nilavu Paadum",
+    "artist": "Dr. Seerkazhi S. Govindan",
+    "duration": 230
+   }
+  },
+  {
+   "id": "film-and-length",
+   "label": 1,
+   "expect": "strong",
+   "note": "singers vs composer, same film, same length",
+   "q": {
+    "title": "Oru Kanavu",
+    "artist": "Hari, Maya Devi",
+    "album": "Sivappu Ratham",
+    "duration": 347
+   },
+   "lib": {
+    "title": "Oru Kanavu",
+    "artist": "R. K. Selvam",
+    "album": "Sivappu Ratham (Original Motion Picture Soundtrack)",
+    "film": "Sivappu Ratham",
+    "duration": 347
+   }
+  },
+  {
+   "id": "film-only",
+   "label": 1,
+   "expect": "fuzzy",
+   "note": "same film, nobody in common, no length: probably",
+   "q": {
+    "title": "Kaadhal Mazhai",
+    "artist": "Nila Kumar",
+    "album": "Kaadhal Mazhai (Original Motion Picture Soundtrack)"
+   },
+   "lib": {
+    "title": "Kaadhal Mazhai",
+    "artist": "Ilan",
+    "film": "Kaadhal Mazhai",
+    "album": "Kaadhal Mazhai (Original Motion Picture Soundtrack)"
+   }
+  },
+  {
+   "id": "composer-only",
+   "label": 1,
+   "expect": "fuzzy",
+   "note": "one composer in common, no film evidence: probably",
+   "q": {
+    "title": "Raathiri Pookal",
+    "artist": "A. Rajan"
+   },
+   "lib": {
+    "title": "Raathiri Pookal",
+    "artist": "Maya Devi",
+    "composer": "A. Rajan",
+    "duration": 200
+   }
+  },
+  {
+   "id": "seven-seconds",
+   "label": 1,
+   "expect": "fuzzy",
+   "note": "same title and artist, 7 s apart: an edit or a remaster",
+   "q": {
+    "title": "Every Dawn",
+    "artist": "The Marlows",
+    "duration": 254
+   },
+   "lib": {
+    "title": "Every Dawn",
+    "artist": "The Marlows",
+    "duration": 247
+   }
+  },
+  {
+   "id": "fifteen-seconds",
+   "label": 1,
+   "expect": "fuzzy",
+   "note": "15 s is the most any evidence buys",
+   "q": {
+    "title": "Often Alone",
+    "artist": "Kay Dune",
+    "duration": 249
+   },
+   "lib": {
+    "title": "Often Alone",
+    "artist": "Kay Dune",
+    "duration": 234
+   }
+  },
+  {
+   "id": "spelling-phonetic",
+   "label": 1,
+   "expect": "strong",
+   "note": "kaadhal / kadhal, ee / i: the old phonetic key",
+   "q": {
+    "title": "Kaadhal Neeye",
+    "artist": "Ilan",
+    "duration": 250
+   },
+   "lib": {
+    "title": "Kadhal Nieye",
+    "artist": "Ilan",
+    "duration": 250
+   }
+  },
+  {
+   "id": "spelling-loose",
+   "label": 1,
+   "expect": "fuzzy",
+   "note": "kaathal / kadhal needs the wider fold: fuzzy only",
+   "q": {
+    "title": "Kaathal Neram",
+    "artist": "Ilan",
+    "duration": 250
+   },
+   "lib": {
+    "title": "Kadhal Naeram",
+    "artist": "Ilan",
+    "duration": 250
+   }
+  },
+  {
+   "id": "dash-subtitle",
+   "label": 1,
+   "expect": "strong",
+   "note": "an en dash or a spelled-out subtitle",
+   "q": {
+    "title": "Dawn – Orchestral Suite",
+    "artist": "Kay Dune",
+    "duration": 126
+   },
+   "lib": {
+    "title": "Dawn Orchestral Suite",
+    "artist": "Kay Dune",
+    "duration": 126
+   }
+  },
+  {
+   "id": "feat-in-title",
+   "label": 1,
+   "expect": "strong",
+   "note": "the featured artist in the title counts as an artist",
+   "q": {
+    "title": "Night Drive (feat. Ilan)",
+    "artist": "Kay Dune"
+   },
+   "lib": {
+    "title": "Night Drive",
+    "artist": "Ilan • Pia",
+    "duration": 190
+   }
+  },
+  {
+   "id": "ninety-seven-vs-313",
+   "label": 0,
+   "expect": null,
+   "note": "a 97 s song is not a 313 s song, whatever else agrees",
+   "q": {
+    "title": "Kaadhal En Nila",
+    "artist": "Ilan",
+    "album": "Kaadhal En Nila",
+    "duration": 313
+   },
+   "lib": {
+    "title": "Kaadhal En Nila",
+    "artist": "Ilan",
+    "album": "Kaadhal En Nila",
+    "duration": 97
+   }
+  },
+  {
+   "id": "twenty-seconds",
+   "label": 0,
+   "expect": null,
+   "note": "beyond 15 s nothing buys a match",
+   "q": {
+    "title": "Often Alone",
+    "artist": "Kay Dune",
+    "duration": 254
+   },
+   "lib": {
+    "title": "Often Alone",
+    "artist": "Kay Dune",
+    "duration": 234
+   }
+  },
+  {
+   "id": "remix",
+   "label": 0,
+   "expect": null,
+   "note": "remix vs plain",
+   "q": {
+    "title": "Neela Megham - Remix",
+    "artist": "Ilan",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "remix-reverse",
+   "label": 0,
+   "expect": null,
+   "note": "plain vs the library's remix",
+   "q": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham (Remix)",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "sped-up",
+   "label": 0,
+   "expect": null,
+   "note": "sped up",
+   "q": {
+    "title": "Neela Megham (Sped Up)",
+    "artist": "Ilan",
+    "duration": 200
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "live",
+   "label": 0,
+   "expect": null,
+   "note": "live",
+   "q": {
+    "title": "Neela Megham - Live",
+    "artist": "Ilan",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "karaoke",
+   "label": 0,
+   "expect": null,
+   "note": "karaoke",
+   "q": {
+    "title": "Neela Megham [Karaoke]",
+    "artist": "Ilan",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "cover",
+   "label": 0,
+   "expect": null,
+   "note": "cover",
+   "q": {
+    "title": "Neela Megham - Cover",
+    "artist": "Ilan",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "reprise",
+   "label": 0,
+   "expect": null,
+   "note": "reprise",
+   "q": {
+    "title": "Neela Megham (Reprise)",
+    "artist": "Ilan",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "unplugged",
+   "label": 0,
+   "expect": null,
+   "note": "unplugged",
+   "q": {
+    "title": "Neela Megham (Unplugged Version)",
+    "artist": "Ilan",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "female",
+   "label": 0,
+   "expect": null,
+   "note": "female version",
+   "q": {
+    "title": "Neela Megham (Female)",
+    "artist": "Ilan",
+    "duration": 241
+   },
+   "lib": {
+    "title": "Neela Megham",
+    "artist": "Ilan",
+    "duration": 241
+   }
+  },
+  {
+   "id": "radio-edit",
+   "label": 0,
+   "expect": null,
+   "note": "an edit is another cut (a matcher-v2 version word)",
+   "q": {
+    "title": "Night Drive - Radio Edit",
+    "artist": "Kay Dune",
+    "duration": 190
+   },
+   "lib": {
+    "title": "Night Drive",
+    "artist": "Kay Dune",
+    "duration": 190
+   }
+  },
+  {
+   "id": "orchestral",
+   "label": 0,
+   "expect": null,
+   "note": "orchestral (a matcher-v2 version word)",
+   "q": {
+    "title": "Dawn – Orchestral",
+    "artist": "Kay Dune",
+    "duration": 126
+   },
+   "lib": {
+    "title": "Dawn (From \"Sivappu Ratham\")",
+    "artist": "Kay Dune",
+    "duration": 126
+   }
+  },
+  {
+   "id": "library-background-score",
+   "label": 0,
+   "expect": null,
+   "note": "the library's own '(Background Score)' is a score",
+   "q": {
+    "title": "Vetri Padai",
+    "artist": "Ilan",
+    "album": "Sivappu Ratham",
+    "duration": 206
+   },
+   "lib": {
+    "title": "Vetri Padai (Background Score)",
+    "artist": "Ilan",
+    "film": "Sivappu Ratham",
+    "duration": 206
+   }
+  },
+  {
+   "id": "language-tag",
+   "label": 0,
+   "expect": null,
+   "note": "the Telugu release is another recording",
+   "q": {
+    "title": "Kissu Kissu (Telugu)",
+    "artist": "Ilan",
+    "duration": 247
+   },
+   "lib": {
+    "title": "Kissu Kissu (Tamil)",
+    "artist": "Ilan",
+    "duration": 247
+   }
+  },
+  {
+   "id": "same-title-other-film",
+   "label": 0,
+   "expect": null,
+   "note": "same title, nobody in common, another film",
+   "q": {
+    "title": "Anbe Vaa",
+    "artist": "Hari",
+    "album": "Kaattu Poo (Original Motion Picture Soundtrack)"
+   },
+   "lib": {
+    "title": "Anbe Vaa",
+    "artist": "Maya Devi",
+    "composer": "R. K. Selvam",
+    "film": "Sooriya Nagaram",
+    "album": "Sooriya Nagaram (Original Motion Picture Soundtrack)",
+    "duration": 250
+   }
+  },
+  {
+   "id": "same-title-same-composer-other-film",
+   "label": 0,
+   "expect": null,
+   "note": "the composer wrote two songs with this title in two films",
+   "q": {
+    "title": "Anbe Vaa",
+    "artist": "R. K. Selvam",
+    "album": "Kaattu Poo (Original Motion Picture Soundtrack)"
+   },
+   "lib": {
+    "title": "Anbe Vaa",
+    "artist": "Maya Devi",
+    "composer": "R. K. Selvam",
+    "film": "Sooriya Nagaram",
+    "album": "Sooriya Nagaram (Original Motion Picture Soundtrack)",
+    "duration": 250
+   }
+  },
+  {
+   "id": "pop-same-title",
+   "label": 0,
+   "expect": null,
+   "note": "two unrelated pop songs called Thunder",
+   "q": {
+    "title": "Thunder",
+    "artist": "Gale Ponte",
+    "album": "Thunder",
+    "duration": 188
+   },
+   "lib": {
+    "title": "Thunder",
+    "artist": "The Imaginers",
+    "album": "Evolving",
+    "duration": 187
+   }
+  },
+  {
+   "id": "single-album-is-not-a-film",
+   "label": 0,
+   "expect": null,
+   "note": "an album named like the song is not a film",
+   "q": {
+    "title": "Guzar",
+    "artist": "Hari",
+    "album": "Guzar"
+   },
+   "lib": {
+    "title": "Guzar",
+    "artist": "Satin Raj",
+    "album": "Guzar",
+    "duration": 288
+   }
+  },
+  {
+   "id": "writers-list-cover",
+   "label": 0,
+   "expect": null,
+   "note": "a cover whose composer credit lists the original artist",
+   "q": {
+    "title": "Wild Dreams",
+    "artist": "Tia Swiftly"
+   },
+   "lib": {
+    "title": "Wild Dreams",
+    "artist": "Matt Strings",
+    "composer": "Tia Swiftly; Max Mart",
+    "duration": 220
+   }
+  },
+  {
+   "id": "first-name-only",
+   "label": 0,
+   "expect": null,
+   "note": "'Ilan' alone is not 'Ilan Kumar Rao'",
+   "q": {
+    "title": "Soodu",
+    "artist": "Ilan"
+   },
+   "lib": {
+    "title": "Soodu",
+    "artist": "Ilan Kumar Rao",
+    "duration": 200
+   }
+  },
+  {
+   "id": "different-singer-same-title",
+   "label": 0,
+   "expect": null,
+   "note": "another singer's recording of a traditional song",
+   "q": {
+    "title": "Hari Naamam",
+    "artist": "Kavya Aj"
+   },
+   "lib": {
+    "title": "Hari Naamam",
+    "artist": "K. J. Devan",
+    "composer": "G. Rajan",
+    "duration": 307
+   }
+  },
+  {
+   "id": "trailing-language-tag",
+   "label": 1,
+   "expect": "strong",
+   "note": "'(From \"X\") (Tamil)' on the row, none on the library title, a singer in common",
+   "q": {
+    "title": "Veera Nilam (From \"Kaattu Poo\") (Tamil)",
+    "artist": "R. K. Selvam, Kavi Nila",
+    "album": "Veera Nilam",
+    "duration": 193
+   },
+   "lib": {
+    "title": "Veera Nilam",
+    "artist": "Kavi Nila",
+    "duration": 193
+   }
+  },
+  {
+   "id": "promo-cut",
+   "label": 0,
+   "expect": null,
+   "note": "a 53 s promo is not the full song (written as a dash subtitle too)",
+   "q": {
+    "title": "Thee Mazhai - Promo",
+    "artist": "Ilan, Kavi Nila",
+    "album": "Sivappu Ratham",
+    "duration": 53
+   },
+   "lib": {
+    "title": "Thee Mazhai (From \"Sivappu Ratham\")",
+    "artist": "Ilan • Kavi Nila",
+    "film": "Sivappu Ratham",
+    "duration": 207
+   }
+  },
+  {
+   "id": "other-language-same-film",
+   "label": 0,
+   "expect": null,
+   "note": "Telugu row vs the Tamil release of the same film",
+   "q": {
+    "title": "Oh Mazhai Hey Nila (From \"Veli Kadhai (Telugu)\")",
+    "artist": "Hari, S. Devan",
+    "album": "Veli Kadhai (Telugu)",
+    "duration": 246
+   },
+   "lib": {
+    "title": "Hey Mazhai Hey Nila (From \"Veli Kadhai (Tamil)\")",
+    "artist": "Hari",
+    "film": "Veli Kadhai",
+    "duration": 246
+   }
+  },
+  {
+   "id": "wrong-substitute-similar-title",
+   "label": 0,
+   "expect": null,
+   "note": "a transfer service's stand-in with a similar-sounding title and another artist",
+   "q": {
+    "title": "Side To Side",
+    "artist": "Gale Ponte, Nika Minor",
+    "album": "Dangerous Girl",
+    "duration": 226
+   },
+   "lib": {
+    "title": "Sidu Sidu",
+    "artist": "Ilan",
+    "duration": 225
+   }
+  },
+  {
+   "id": "mashup-stand-in",
+   "label": 0,
+   "expect": null,
+   "note": "a mashup of two songs is neither of them",
+   "q": {
+    "title": "Be Yours x Sad Summer",
+    "artist": "DJ Muzzic",
+    "duration": 178
+   },
+   "lib": {
+    "title": "Be Yours",
+    "artist": "Arctic Apes",
+    "duration": 178
+   }
+  },
+  {
+   "id": "live-stand-in",
+   "label": 0,
+   "expect": null,
+   "note": "a live recording is not the studio song",
+   "q": {
+    "title": "Give Us Hope - Live",
+    "artist": "J. Papo, Mont Choir",
+    "duration": 210
+   },
+   "lib": {
+    "title": "Give Us Hope",
+    "artist": "J. Papo",
+    "duration": 209
+   }
+  },
+  {
+   "id": "title-extension",
+   "label": 0,
+   "expect": null,
+   "note": "another title that starts the same, another length",
+   "q": {
+    "title": "Kannimoola Ganapathy",
+    "artist": "Veeramani Dasan",
+    "duration": 1203
+   },
+   "lib": {
+    "title": "Kannimoola Ganapathiyai Vendikittu",
+    "artist": "Veeramani Raju",
+    "duration": 294
+   }
+  }
+ ]
+}

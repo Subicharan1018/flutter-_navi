@@ -1,65 +1,27 @@
 """Read an Exportify CSV and match its rows to library songs, with no server import.
 
-The same rules as exportify-v1's matcher (tool/server/server-fixes-v1 `library_sweep.Index.find`), re-implemented here
-because that one imports server packages: ISRC first (exact), then the clean title (with "(From ...)", " - From ...",
-"Original Motion Picture Soundtrack" and a trailing " - subtitle" dropped) + the SAME version words (a remix, sped-up,
-live, karaoke ... never matches the plain song) + at least one artist in common + length within 5 seconds.
+The matching rules are NOT written here any more: they are matcher-v2's `song_match.py`, the same file the server's
+`library_sweep.Index` uses (tool/server/matcher-v2/files/tgfetch/song_match.py; this folder holds a byte-identical
+copy, matcher-v2's tests_repo/test_parity.py keeps the two equal). ISRC first (exact), then clean title + the same
+version words + an artist (or the composer, or the film) in common + a length that fits the evidence. Every match
+carries a confidence: "isrc", "strong", "fuzzy" (probably the same song: shown, never merged silently).
+`Index.find(row)` keeps its old answer, (song, "isrc" | "title") for isrc / strong matches only;
+`Index.find_match(row, fuzzy=True)` returns the full Match.
 The `Added By` / `Added At` columns are never read.
 """
 import csv
-import difflib
-import re
-import unicodedata
 
-SLACK_S = 5.0
+import song_match as sm
+
+SLACK_S = sm.STRICT_SLACK_S
 FEATURES = ("danceability", "energy", "key", "loudness", "mode", "speechiness", "acousticness", "instrumentalness",
             "liveness", "valence", "tempo", "time_signature")
-_FROM = re.compile(r"[\(\[]\s*(from|feat\.?|ft\.?)\b[^\)\]]*[\)\]]|\s[-–—]\s*(from|feat\.?|ft\.?)\b.*$", re.I)
-_OST = re.compile(r"[\(\[]?\s*original\s+(motion\s+picture\s+)?(sound\s*track|score|background\s+score)\s*[\)\]]?", re.I)
-_SUB = re.compile(r"\s+[-–—:|]\s+.*$")
-_VERSION = re.compile(
-    r"\b(remix|reprise|unplugged|lo-?fi|slowed|reverb|sped(?:\s+up)?|speed\s+up|acoustic|instrumental|karaoke|cover|live|"
-    r"female|male|reloaded|extended|remaster(?:ed)?|mashup|duet|sad|version|revival|demo|nightcore|8d)\b", re.I)
-_SPLIT = re.compile(r"\s*(?:[,;/&•·|]|\bfeat\.?|\bft\.?|\bfeaturing\b|\bwith\b)\s*|\s+(?:x|and)\s+", re.I)
-_CANON = {"sped": "sped up", "speed up": "sped up", "lofi": "lo fi", "remastered": "remaster"}
 
-
-def plain(text) -> str:
-    return "".join(ch for ch in unicodedata.normalize("NFKC", str(text or "")).casefold()
-                   if ch.isalnum() or unicodedata.category(ch).startswith("M"))
-
-
-def versions(title) -> frozenset:
-    out = set()
-    for w in _VERSION.findall(unicodedata.normalize("NFKC", str(title or ""))):
-        w = re.sub(r"[\s-]+", " ", w.lower()).strip()
-        out.add(_CANON.get(w, w))
-    return frozenset(out)
-
-
-def clean_title(title) -> str:
-    s = unicodedata.normalize("NFKC", str(title or ""))
-    s = _OST.sub(" ", _FROM.sub(" ", s))
-    if _SUB.search(s) and _SUB.sub("", s).strip():
-        s = _SUB.sub(" ", s)
-    return plain(s)
-
-
-def names(credit) -> list:
-    out = []
-    for p in _SPLIT.split(unicodedata.normalize("NFKC", str(credit or ""))):
-        n = plain(re.sub(r"\.\s*", "", p))
-        if n and n not in out:
-            out.append(n)
-    return out
-
-
-def share_artist(a, b) -> bool:
-    return any(x == y or difflib.SequenceMatcher(None, x, y).ratio() >= 0.85 for x in names(a) for y in names(b))
-
-
-def norm_isrc(v) -> str:
-    return "".join(ch for ch in str(v or "").upper() if ch.isalnum())
+versions = sm.versions
+clean_title = sm.clean_title
+names = sm.split_names
+share_artist = sm.share_artist
+norm_isrc = sm._isrc
 
 
 def _num(v):
@@ -70,7 +32,7 @@ def _num(v):
 
 
 def parse_exportify(path) -> list:
-    """[{isrc, title, artist, duration_s, features{...}}]; rows without a title are skipped."""
+    """[{isrc, title, artist, album, duration_s, features{...}}]; rows without a title are skipped."""
     rows = []
     with open(path, encoding="utf-8-sig", newline="") as f:
         for r in csv.DictReader(f):
@@ -81,39 +43,30 @@ def parse_exportify(path) -> list:
             ms = _num(low.get("duration (ms)"))
             rows.append({"isrc": norm_isrc(low.get("isrc")), "title": title,
                          "artist": (low.get("artist name(s)") or low.get("artist") or "").replace(";", ", "),
+                         "album": (low.get("album name") or low.get("album") or "").strip(),
                          "duration_s": ms / 1000.0 if ms else _num(low.get("duration")),
                          "features": {f: _num(low.get(f)) for f in FEATURES if _num(low.get(f)) is not None}})
     return rows
 
 
 class Index:
-    def __init__(self, songs):
-        self.by_isrc, self.by_title = {}, {}
-        for s in songs:
-            if norm_isrc(s.get("isrc")):
-                self.by_isrc.setdefault(norm_isrc(s["isrc"]), []).append(s)
-            t = clean_title(s.get("title"))
-            if t:
-                self.by_title.setdefault(t, []).append(s)
+    def __init__(self, songs, rules=sm.ALL_RULES):
+        self._idx = sm.Index(songs, rules)
+
+    def find_match(self, row, fuzzy=True):
+        """sm.Match (confidence isrc | strong | fuzzy) or None; fuzzy=False leaves the fuzzy ones out."""
+        m = self._idx.match(row["title"], row.get("artist") or "", row.get("duration_s"), SLACK_S,
+                            album=row.get("album"), isrc=row.get("isrc"))
+        return m if m is not None and (fuzzy or m.confidence != "fuzzy") else None
 
     def find(self, row):
-        """(song, 'isrc' | 'title') or (None, None)."""
-        if row["isrc"] and row["isrc"] in self.by_isrc:
-            hits = self.by_isrc[row["isrc"]]
-            d = row.get("duration_s")
-            return (min(hits, key=lambda s: abs((s.get("duration") or 0) - d)) if d else hits[0]), "isrc"
-        hits = [s for s in self.by_title.get(clean_title(row["title"]), [])
-                if versions(row["title"]) == versions(s["title"])
-                and share_artist(row["artist"], s.get("artist") or "")
-                and (not row.get("duration_s") or not s.get("duration") or abs(s["duration"] - row["duration_s"]) <= SLACK_S)]
-        if not hits:
-            return None, None
-        d = row.get("duration_s")
-        return (min(hits, key=lambda s: abs((s.get("duration") or 0) - d)) if d else hits[0]), "title"
+        """(song, 'isrc' | 'title') for isrc / strong matches, else (None, None)."""
+        m = self.find_match(row, fuzzy=False)
+        return (m.song, "isrc" if m.confidence == "isrc" else "title") if m else (None, None)
 
 
 def match_rows(rows, songs):
-    """[(row, song, how)] for the rows that matched; one row per library song (the first)."""
+    """[(row, song, how)] for the rows that matched (isrc / strong); one row per library song (the first)."""
     idx, seen, out = Index(songs), set(), []
     for r in rows:
         s, how = idx.find(r)
