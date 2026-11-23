@@ -66,8 +66,40 @@ def eligible(s: dict, exclude=((), ()), skip_have_spotify=True) -> bool:
         return False
     if skip_have_spotify and s.get("feature_source") == "spotify":
         return False
-    ex_isrc, ex_keys = exclude
+    ex_isrc, ex_keys, *more = exclude                  # more[0]: library song ids matched from the files (optional)
+    if more and s.get("id") in more[0]:
+        return False
     return not ((s.get("isrc") and s["isrc"] in ex_isrc) or title_key(s["title"], s["artist"]) in ex_keys)
+
+
+def excluded_ids(paths, songs) -> set:
+    """Library songs that appear in earlier export files (ours or Exportify's), by the exportify-v1 matching rules:
+    ISRC, else clean title + same version words + an artist in common + length within 5 s."""
+    import spotify_match
+    ids = set()
+    for p in paths or ():
+        ids |= {s["id"] for _, s, _ in spotify_match.match_rows(spotify_match.parse_exportify(p), songs)}
+    return ids
+
+
+def pick_gaps(songs: list, n: int, labelled_ids, embeddings: dict, exclude=((), ()), seed: int = 1) -> list:
+    """The n eligible songs (ISRC first) that sit farthest, in the audio-embedding space, from every labelled song and
+    from each other: the biggest coverage gaps of the songs Spotify has already labelled. A composer already chosen costs
+    a penalty so one composer cannot take a gap alone."""
+    import numpy as np
+    import embedding_gap
+    have = [s for s in songs if s["id"] in embeddings]
+    P = embedding_gap.reduce(np.stack([embeddings[s["id"]] for s in have]))
+    pos = {s["id"]: i for i, s in enumerate(have)}
+    labelled = [pos[i] for i in labelled_ids if i in pos]
+    keys = [(s.get("composer") or s["artist"]).split(";")[0].split(",")[0].strip().casefold() for s in have]
+    ok = [i for i, s in enumerate(have) if eligible(s, exclude, True) and s["id"] not in labelled_ids]
+    with_isrc = [i for i in ok if have[i].get("isrc")]
+    chosen = embedding_gap.kcenter(P, labelled, with_isrc, n, keys, COMPOSER_PENALTY)
+    if len(chosen) < n:
+        rest = [i for i in ok if not have[i].get("isrc")]
+        chosen += embedding_gap.kcenter(P, labelled + chosen, rest, n - len(chosen), keys, COMPOSER_PENALTY)
+    return [have[i] for i in chosen]
 
 
 def quantile_edges(values, parts=GRID):

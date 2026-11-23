@@ -102,3 +102,45 @@ quotas and the "farthest song" rule favour the less crowded corners; Tamil is 36
    Exportify songs gave r = 0.75 energy and 0.64 valence, so the embedding model looks better already, but the two numbers come
    from different song sets and are not a controlled comparison; the new report gives the like-for-like "before vs after" once
    the sample is imported.
+
+## First batch result (23 Nov 2026) and the second batch
+
+The owner's Exportify export of the first free batch (495 rows) was read directly, with no server import:
+`python tool/shuffle_eval/calibrate_audio_features.py --catalog catalog.db --exportify My_playlist.csv --out calibration_out`.
+The CSV itself is never committed (it names the Spotify account in `Added By`, which is never read either).
+
+* **Matched:** 485 of 495 rows (442 by ISRC, 43 by title + artist + length). The other 10 are Spotify's own versions of a title
+  (for example "Give Us Hope - Live", "Vaaji Vaaji") that the library does not have under that name.
+* **Labelled songs now:** 814 with an embedding (the 453 the catalog already had from Spotify, plus 361 new; 124 of the 485 matched
+  songs already carried Spotify values in the catalog, so "before" is measured on the 361 whose current value is an estimate).
+* **Cross-validated (5-fold, out-of-fold), embedding ridge vs the catalog's current estimate, on those 361 songs (Pearson r / MAE):**
+
+  | feature | catalog now | embedding model | all 814 labelled |
+  |---|---|---|---|
+  | energy | 0.80 / 0.104 | 0.89 / 0.078 | 0.88 |
+  | valence | 0.68 / 0.146 | 0.71 / 0.139 | 0.72 |
+  | danceability | 0.61 / 0.096 | 0.73 / 0.080 | 0.75 |
+  | acousticness | 0.68 / 0.171 | 0.85 / 0.123 | 0.84 |
+  | loudness (dB) | 0.66 / 1.92 | 0.85 / 1.33 | 0.87 |
+  | tempo (bpm) | 0.05 / 21.4 | 0.24 / 24.1 | 0.25 |
+
+  Valence barely improves: it is the hard one to hear in audio. Tempo cannot be learned from this embedding (r 0.24), but the
+  catalog's own `bpm` agrees with Spotify's tempo up to half or double time (r 0.92, MAE 4.7 once folded), so keep `bpm`.
+* **Coverage of the library by the 814 labelled songs:** energy quartiles low to high 188 / 167 / 182 / 277, valence 268 / 175 / 183 / 188
+  (high-energy and low-valence songs are over-represented; the emptiest cells are energy Q2 x valence Q4, 26 of 140, and Q2 x Q3, 36 of 163);
+  221 of 893 composers, but 56 % of library songs have a labelled composer; **language is the biggest gap: Tamil 85 % of the labelled set
+  against 62 % of the library, English 7 % against 27 %**; decades 1950s to 1990s about 1 % labelled against 5 % of the library; in the embedding
+  space only 29.5 % of the other library songs are as close to a labelled song as labelled songs are to each other (90th percentile
+  distance 0.50 against a typical 0.30). Weakest groups: the 1960s and 1980s, "Asian Music" genres, Hip Hop.
+* **A second batch is worth it.** `--fill-gaps` picks the eligible ISRC songs farthest (audio embedding, 40 principal components) from every
+  labelled song and from each other, with a composer penalty:
+
+      python tool/exportify/library_export.py --catalog catalog.db --sample 200 --fill-gaps --exclude My_playlist.csv --out batch2
+
+  200 songs (117 English, 56 Tamil, 9 Hindi; valence mostly Q3 to Q4, all decades, 195 different composers), none in the first file. Simulated
+  with their current estimates standing in for Spotify's, they lift the share of the library inside the typical labelled gap from 29.5 % to
+  46.1 % and the 99th-percentile distance from 0.84 to 0.50. `--exclude` takes the Exportify CSV directly (ISRC first, else clean title +
+  same version words + an artist in common + length within 5 s, the exportify-v1 rules, re-implemented in `tool/exportify/spotify_match.py`
+  because the server's version imports server packages). Upload `batch2/navivibe_sample_01.csv` (one playlist of 200) to Soundiiz.
+* Proposals only: `calibration_report.json`, `coverage.txt` and `proposed_features.csv` (current / proposed / Spotify value for every song, all six
+  features) are in the shared notes folder. Nothing is applied to the server.

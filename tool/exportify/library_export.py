@@ -219,6 +219,9 @@ def main(argv=None) -> int:
     ap.add_argument("--sample-report", action="store_true", help="print how well the sample covers the library")
     ap.add_argument("--exclude", action="append", default=[], metavar="FILE",
                     help="an earlier export CSV (ours or Exportify's): its songs are skipped; repeatable")
+    ap.add_argument("--fill-gaps", action="store_true",
+                    help="with --sample: pick the songs farthest (audio embedding) from every song already labelled by "
+                         "Spotify (the --exclude files and the catalog's Spotify rows): the biggest coverage gaps")
     ap.add_argument("--seed", type=int, default=1)
     ap.add_argument("--include-have-spotify", action="store_true",
                     help="also sample songs that already carry Spotify values in the catalog (default: skipped)")
@@ -245,8 +248,19 @@ def main(argv=None) -> int:
         if not a.catalog:
             ap.error("--sample needs --catalog (energy / valence / genre come from the catalog)")
         n = a.sample or 500
-        chosen = library_sample.pick(songs, n, a.seed, library_sample.read_exclusions(a.exclude),
-                                     skip_have_spotify=not a.include_have_spotify)
+        ex_isrc, ex_keys = library_sample.read_exclusions(a.exclude)
+        ex_ids = library_sample.excluded_ids(a.exclude, songs)
+        exclude = (ex_isrc, ex_keys, ex_ids)
+        if a.fill_gaps:
+            import embedding_gap
+            emb = embedding_gap.load_embeddings(a.catalog)
+            if not emb:
+                ap.error("--fill-gaps needs the embeddings table in the catalog")
+            labelled = set(ex_ids) | {s["id"] for s in songs if s.get("feature_source") == "spotify"}
+            print("labelled songs (earlier files + Spotify values already in the catalog): %d" % len(labelled))
+            chosen = library_sample.pick_gaps(songs, n, labelled, emb, exclude, a.seed)
+        else:
+            chosen = library_sample.pick(songs, n, a.seed, exclude, skip_have_spotify=not a.include_have_spotify)
         print(library_sample.coverage(chosen, songs))
         if len(chosen) < n:
             print("only %d eligible songs were left (asked for %d)" % (len(chosen), n))

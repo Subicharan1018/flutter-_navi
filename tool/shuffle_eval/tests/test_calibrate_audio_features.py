@@ -11,30 +11,51 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import calibrate_audio_features as C  # noqa: E402
 
 
-def build(d, n=300, labelled=150, noise=0.05, seed=2):
+def build(d, n=300, labelled=150, noise=0.05, seed=2, csv_mode=False):
+    """A catalog of n songs whose features are a (noisy) linear function of a 32-number embedding. The labels come
+    from spotify_details.db, or (csv_mode) from an Exportify-style CSV with the real column names."""
     rng = np.random.default_rng(seed)
     dim = 32
-    W = rng.normal(size=(dim, 3))
+    W = rng.normal(size=(dim, 6))
     E = rng.normal(size=(n, dim)).astype(np.float32)
     raw = E @ W
     Y = 1 / (1 + np.exp(-(raw / raw.std(0) + rng.normal(scale=noise, size=raw.shape))))
     cat, det = os.path.join(d, "catalog.db"), os.path.join(d, "spotify_details.db")
+    csvp = os.path.join(d, "My_playlist.csv")
     c = sqlite3.connect(cat)
-    c.execute("create table songs(id,title,artist,feature_source,energy,valence,danceability,missing)")
+    c.execute("create table songs(id,title,artist,feature_source,isrc,duration,composer,language,year,genre_display,genre_primary,"
+              "energy,valence,danceability,acousticness,bpm,loudness,missing)")
     c.execute("create table embeddings(song_id,model,dim,vec)")
     s = sqlite3.connect(det)
-    s.execute("create table spotify_details(song_id,energy,valence,danceability)")
+    s.execute("create table spotify_details(song_id,energy,valence,danceability,acousticness,tempo,loudness)")
+    rows = []
     for i in range(n):
         sid = "s%d" % i
-        cur = np.clip(Y[i] + rng.normal(scale=0.25, size=3), 0, 1)           # a weaker current estimate
-        c.execute("insert into songs values(?,?,?,?,?,?,?,0)", (sid, "T%d" % i, "A", "essentia_calibrated", *map(float, cur)))
+        cur = np.clip(Y[i] + rng.normal(scale=0.25, size=6), 0, 1)           # a weaker current estimate
+        tempo, loud = 60 + 120 * Y[i][4], -30 + 25 * Y[i][5]
+        c.execute("insert into songs values(?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,0)",
+                  (sid, "Title %d" % i, "Artist %d" % (i % 20), "essentia_calibrated", "INS%09d" % i, 200.0 + i % 30,
+                   "C%d" % (i % 15), "ta", 2000 + i % 25, "Pop", None, *map(float, cur[:4]), float(60 + 120 * cur[4]),
+                   float(-30 + 25 * cur[5])))
         c.execute("insert into embeddings values(?,?,?,?)", (sid, "effnet_discogs", dim, E[i].tobytes()))
         if i < labelled:
-            s.execute("insert into spotify_details values(?,?,?,?)", (sid, *map(float, Y[i])))
+            if csv_mode:
+                rows.append({"Track URI": "spotify:track:%d" % i, "ISRC": "INS%09d" % i if i % 7 else "", "Track Name": "Title %d" % i,
+                             "Artist Name(s)": "Artist %d;Guest" % (i % 20), "Duration (ms)": int((200 + i % 30) * 1000) + 800,
+                             "Added By": "SECRET-USER", "Danceability": Y[i][2], "Energy": Y[i][0], "Valence": Y[i][1],
+                             "Acousticness": Y[i][3], "Tempo": tempo, "Loudness": loud})
+            else:
+                s.execute("insert into spotify_details values(?,?,?,?,?,?,?)", (sid, *map(float, Y[i][:4]), float(tempo), float(loud)))
     c.commit()
     c.close()
     s.commit()
     s.close()
+    if csv_mode:
+        import csv
+        with open(csvp, "w", encoding="utf-8-sig", newline="") as f:
+            w = csv.DictWriter(f, fieldnames=list(rows[0].keys()))
+            w.writeheader()
+            w.writerows(rows)
     return cat, det
 
 
@@ -53,7 +74,7 @@ class CalibrateTests(unittest.TestCase):
             self.assertEqual(before, (sha(cat), sha(det)))                   # read-only
             import json
             rep = json.load(open(os.path.join(out, "calibration_report.json"), encoding="utf-8"))
-            for f in C.FEATURES:
+            for f in ("energy", "valence", "danceability", "acousticness"):
                 r = rep["features"][f]
                 self.assertGreater(r["after_cv"]["r"], 0.9)
                 self.assertGreater(r["same_songs_after_cv"]["r"], r["before_catalog_estimate"]["r"])
@@ -61,7 +82,30 @@ class CalibrateTests(unittest.TestCase):
             with open(os.path.join(out, "proposed_features.csv"), encoding="utf-8-sig") as f:
                 rows = f.read().strip().splitlines()
             self.assertEqual(len(rows), 300 + 1)                              # every song with an embedding
+            self.assertEqual(rep["features"]["tempo"]["labelled"], 150)
             self.assertIn("energy_proposed", rows[0])
+
+    def test_exportify_csv_is_matched_without_a_server_import(self):
+        import json
+        with tempfile.TemporaryDirectory() as d:
+            cat, _ = build(d, csv_mode=True)
+            out = os.path.join(d, "out")
+            self.assertEqual(C.main(["--catalog", cat, "--exportify", os.path.join(d, "My_playlist.csv"), "--out", out]), 0)
+            rep = json.load(open(os.path.join(out, "calibration_report.json"), encoding="utf-8"))
+            m = rep["csv_matches"][0]
+            self.assertEqual((m["rows"], m["matched"]), (150, 150))
+            self.assertGreater(m["by_isrc"], 100)
+            self.assertGreater(m["by_title"], 15)                              # rows with no ISRC: title + artist + length
+            for f in ("energy", "valence", "danceability", "acousticness", "loudness"):
+                r = rep["features"][f]
+                self.assertGreater(r["after_cv"]["r"], 0.9, f)
+                self.assertGreater(r["same_songs_after_cv"]["r"], r["before_catalog_estimate"]["r"], f)
+            cov = rep["coverage"]
+            self.assertEqual(cov["labelled"], 150)
+            self.assertEqual(sum(cov["energy_quartiles_low_to_high"]), 150)
+            self.assertIn("embedding_space", cov)
+            with open(os.path.join(out, "calibration_report.json"), encoding="utf-8") as f:
+                self.assertNotIn("SECRET-USER", f.read())                       # Added By is never read
 
     def test_too_few_labels_refuses(self):
         with tempfile.TemporaryDirectory() as d:

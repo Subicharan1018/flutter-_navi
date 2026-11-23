@@ -8,6 +8,7 @@ import unittest
 sys.path.insert(0, os.path.dirname(__file__))
 import library_export as L  # noqa: E402
 import library_sample as P  # noqa: E402
+import spotify_match as M  # noqa: E402
 
 
 def library(n=400, seed=7):
@@ -128,6 +129,77 @@ class SampleTests(unittest.TestCase):
                 a = {r["title"] for r in csv.DictReader(f1)}
                 b = {r["title"] for r in csv.DictReader(f2)}
             self.assertFalse(a & b)
+
+
+def exportify_csv(path, rows):
+    cols = ["Track URI", "ISRC", "Track Name", "Album Name", "Artist Name(s)", "Duration (ms)", "Added By", "Energy", "Valence"]
+    with open(path, "w", encoding="utf-8-sig", newline="") as f:
+        w = csv.DictWriter(f, fieldnames=cols)
+        w.writeheader()
+        for r in rows:
+            w.writerow({**{c: "" for c in cols}, "Added By": "SECRET-USER", "Energy": "0.5", "Valence": "0.4", **r})
+
+
+class MatchTests(unittest.TestCase):
+    songs = [{"id": "a", "title": 'Kadhal (From "Film")', "artist": "Anirudh Ravichander ; Shakthisree", "duration": 300.0, "isrc": "INS171100001"},
+             {"id": "b", "title": "Kadhal - Remix", "artist": "Anirudh Ravichander", "duration": 250.0, "isrc": ""},
+             {"id": "c", "title": "காதல் கண்", "artist": "Anirudh", "duration": 200.0, "isrc": ""}]
+
+    def run_match(self, rows):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "x.csv")
+            exportify_csv(p, rows)
+            return M.match_rows(M.parse_exportify(p), self.songs)
+
+    def test_isrc_first_then_title_artist_length(self):
+        got = self.run_match([{"ISRC": "ins171100001", "Track Name": "Other name", "Artist Name(s)": "X", "Duration (ms)": "1"},
+                              {"Track Name": "காதல் கண்", "Artist Name(s)": "Anirudh", "Duration (ms)": "203000"}])
+        self.assertEqual([(s["id"], h) for _, s, h in got], [("a", "isrc"), ("c", "title")])
+
+    def test_remix_never_matches_the_plain_song_and_length_must_be_close(self):
+        self.assertEqual(self.run_match([{"Track Name": "Kadhal", "Artist Name(s)": "Anirudh Ravichander", "Duration (ms)": "250000"}]), [])
+        self.assertEqual(self.run_match([{"Track Name": "Kadhal", "Artist Name(s)": "Anirudh Ravichander", "Duration (ms)": "310000"}]), [])
+        got = self.run_match([{"Track Name": "Kadhal - Remix", "Artist Name(s)": "Anirudh Ravichander", "Duration (ms)": "251000"}])
+        self.assertEqual(got[0][1]["id"], "b")
+
+    def test_added_by_is_never_read(self):
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "x.csv")
+            exportify_csv(p, [{"Track Name": "T", "Artist Name(s)": "A", "Duration (ms)": "1000"}])
+            row = M.parse_exportify(p)[0]
+            self.assertNotIn("SECRET-USER", repr(row))
+            self.assertEqual(row["features"]["energy"], 0.5)
+
+
+class GapTests(unittest.TestCase):
+    def test_exportify_csv_excludes_by_matcher_even_with_another_isrc(self):
+        songs = library(40)
+        with tempfile.TemporaryDirectory() as d:
+            p = os.path.join(d, "My_playlist.csv")
+            s = songs[3]
+            exportify_csv(p, [{"ISRC": "XXX000000000", "Track Name": s["title"], "Artist Name(s)": s["artist"],
+                               "Duration (ms)": str(int(s["duration"] * 1000) + 900)}])
+            self.assertEqual(P.excluded_ids([p], songs), {s["id"]})
+            ex = (set(), set(), P.excluded_ids([p], songs))
+        self.assertNotIn(s["id"], {x["id"] for x in P.pick(songs, 39, exclude=ex)})
+
+    def test_fill_gaps_picks_the_uncovered_cluster(self):
+        import numpy as np
+        rng = np.random.default_rng(0)
+        songs = library(120)
+        emb = {}
+        for i, s in enumerate(songs):
+            centre = np.zeros(20)
+            centre[0 if i < 90 else 1] = 8.0                       # cluster A (90 songs) and cluster B (30 songs)
+            emb[s["id"]] = (centre + 0.3 * rng.normal(size=20)).astype(np.float32)
+        labelled = {s["id"] for s in songs[:30]}                    # Spotify labels exist only for cluster A
+        got = P.pick_gaps(songs, 20, labelled, emb)
+        self.assertEqual(len(got), 20)
+        self.assertGreaterEqual(int(got[0]["id"][2:]), 90)                          # the biggest gap is filled first
+        far = P.pick_gaps(songs, 3, labelled | {s["id"] for s in songs[90:]}, emb)   # now B is labelled too: gaps are inside A
+        self.assertTrue(all(int(s["id"][2:]) < 90 for s in far))
+        self.assertEqual([s["id"] for s in got], [s["id"] for s in P.pick_gaps(songs, 20, labelled, emb)])      # deterministic
+        self.assertFalse({s["id"] for s in got} & labelled)
 
 
 if __name__ == "__main__":
