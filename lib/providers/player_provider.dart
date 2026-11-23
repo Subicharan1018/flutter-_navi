@@ -1262,6 +1262,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   AudioPlayer get player => _audioHandler.player;
 
+  /// Test seam: the clock that measures listened time for the 4-minute scrobble cap.
+  @visibleForTesting
+  static DateTime Function() scrobbleNow = DateTime.now;
+
   Duration _scrobbleThreshold = Duration.zero;
   bool _hasScrobbled = false;
   String? _currentScrobbleSongId;
@@ -1462,7 +1466,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           _hasScrobbled = false;
           _currentScrobbleSongId = newSong.id;
           _scrobbleListenDuration = Duration.zero;
-          _scrobblePlayStart = player.playing ? DateTime.now() : null;
+          _scrobblePlayStart = player.playing ? scrobbleNow() : null;
           _scrobbleThreshold = Duration(seconds: newSong.duration) * 0.5;
 
           _ref.read(scrobbleServiceProvider).nowPlaying(newSong.id);
@@ -1541,9 +1545,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (playing != lastPlaying) {
           lastPlaying = playing;
           if (playing && _scrobblePlayStart == null) {
-            _scrobblePlayStart = DateTime.now();
+            _scrobblePlayStart = scrobbleNow();
           } else if (!playing && _scrobblePlayStart != null) {
-            _scrobbleListenDuration += DateTime.now().difference(
+            _scrobbleListenDuration += scrobbleNow().difference(
               _scrobblePlayStart!,
             );
             _scrobblePlayStart = null;
@@ -1701,7 +1705,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         if (!_hasScrobbled && _currentScrobbleSongId != null) {
           Duration totalListened = _scrobbleListenDuration;
           if (state.isPlaying && _scrobblePlayStart != null) {
-            totalListened += DateTime.now().difference(_scrobblePlayStart!);
+            totalListened += scrobbleNow().difference(_scrobblePlayStart!);
           }
           final positionMet = position >= _scrobbleThreshold;
           final fourMinMet = totalListened >= const Duration(minutes: 4);
