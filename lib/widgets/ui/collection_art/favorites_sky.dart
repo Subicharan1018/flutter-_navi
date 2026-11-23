@@ -70,7 +70,7 @@ class _SkyPainter extends CustomPainter {
     for (var i = 0; i < n; i++) {
       // A golden-angle spiral: even spread, the same every time.
       final a = i * 2.39996;
-      final r = size.width * (0.30 + 0.17 * ((i * 7) % n) / n);
+      final r = size.width * (0.24 + 0.13 * ((i * 7) % n) / n);
       final at = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
       final start = i / (n + 2);
       final k = Curves.easeOutBack.transform(((t - start) / 0.4).clamp(0.0, 1.0));

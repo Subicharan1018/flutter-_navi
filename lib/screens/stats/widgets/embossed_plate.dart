@@ -29,7 +29,7 @@ class EmbossedPlate extends StatelessWidget {
         borderRadius: BorderRadius.circular(radius),
         child: Stack(
           children: [
-            Padding(padding: const EdgeInsets.all(Space.xl), child: child),
+            Padding(padding: const EdgeInsets.all(Space.md), child: child),
             Positioned.fill(
               child: IgnorePointer(
                 child: PlayOnce(

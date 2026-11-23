@@ -63,7 +63,7 @@ class _ListeningClockState extends State<ListeningClock> {
     return StatSection(
       title: 'Listening Hours',
       child: LayoutBuilder(builder: (context, c) {
-        final size = math.min(c.maxWidth - Space.xl * 2, _maxDial);
+        final size = math.min(c.maxWidth - Space.md * 2, _maxDial);
         final geometry = _ClockGeometry(size);
         return Center(
           child: EmbossedPlate(
