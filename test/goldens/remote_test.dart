@@ -137,12 +137,22 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('who is playing: the chip and the remote mini player on a passive device', (tester) async {
+  testWidgets('host status is one quiet line of text, no container', (tester) async {
+    await phone(tester, height: 120);
+    await tester.pumpWidget(_app(const Scaffold(
+      body: Align(alignment: Alignment.bottomCenter, child: PlayingOnChip()),
+    )));
+    await tester.pump(const Duration(milliseconds: 200));
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('remote/host_line.png'));
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('who is playing: the remote mini player says it once, no separate chip', (tester) async {
     await phone(tester, height: 220);
     await tester.pumpWidget(_app(const Scaffold(
       body: Align(
         alignment: Alignment.bottomCenter,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [PlayingOnChip(), SizedBox(height: 12), RemoteMiniPlayer()]),
+        child: RemoteMiniPlayer(),
       ),
     )));
     await tester.pump(const Duration(milliseconds: 200));

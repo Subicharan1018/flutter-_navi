@@ -45,6 +45,10 @@ import '../widgets/ui/action_sheet.dart' show showToast;
 import '../widgets/ui/large_title_page.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
+import '../widgets/ui/collection_art/mix_flow.dart';
+import '../widgets/ui/collection_art/favorites_stack.dart';
+import '../widgets/ui/collection_art/peak_wave.dart';
+import '../widgets/ui/collection_art/shuffle_trails.dart';
 import '../widgets/ui/mosaic_art.dart';
 import '../widgets/ui/playlist_cover.dart';
 import '../widgets/ui/states.dart';
@@ -165,13 +169,7 @@ class _TopPicks extends ConsumerWidget {
         _FeatureCard(
           title: 'Start Listening',
           subtitle: 'A shuffle of everything in the library. Tap to play.',
-          art: MosaicArt(
-            urls: [for (final a in added.take(8)) _art(ref, a.coverArt)],
-            size: cardWidth,
-            radius: 0,
-            placeholderIcon: NaviGlyph.shuffle,
-            seed: coverSeed('Start Listening'),
-          ),
+          art: ShuffleTrails(urls: [for (final a in added.take(3)) _art(ref, a.coverArt)], size: cardWidth),
           paletteCoverId: added.isEmpty ? null : added.first.coverArt,
           width: cardWidth,
           onTap: () => _shuffleLibrary(context, ref),
@@ -180,7 +178,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Smart Shuffle',
         subtitle: 'A mix tuned to the time of day and what you play most.',
-        art: MosaicArt(urls: mixArt, size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.smartShuffle, seed: coverSeed('Smart Shuffle')),
+        art: MixFlow(urls: mixArt, size: cardWidth, seed: coverSeed('Smart Shuffle')),
         paletteCoverId: albums.isNotEmpty ? albums.first.coverArt : (recent.isNotEmpty ? recent.first.coverArt : null),
         width: cardWidth,
         onTap: () => navigateInApp(context, const AiShuffleScreen()),
@@ -188,7 +186,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Favorites',
         subtitle: starred.isEmpty ? 'Star songs to collect them here.' : songCount(starred.length),
-        art: MosaicArt(urls: favArt, size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.star, seed: coverSeed('Favorites')),
+        art: FavoritesStack(urls: favArt, size: cardWidth),
         paletteCoverId: starred.isEmpty ? null : starred.first.coverArt,
         width: cardWidth,
         onTap: () => navigateInApp(context, const FavoritesScreen()),
@@ -210,7 +208,7 @@ class _TopPicks extends ConsumerWidget {
         subtitle: ref.watch(peakMarksProvider.select((m) => m.liveCount)) == 0
             ? 'Save the best part of a song, then play only those.'
             : '${ref.watch(peakMarksProvider.select((m) => m.liveCount))} saved moments, played back to back.',
-        art: MosaicArt(urls: const [], size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.flame, seed: coverSeed('Highlights')),
+        art: PeakWave(size: cardWidth),
         width: cardWidth,
         onTap: () => navigateInApp(context, const HighlightsScreen()),
       ),

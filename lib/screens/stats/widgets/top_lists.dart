@@ -22,6 +22,7 @@ class TopArtistsCard extends ConsumerWidget {
     final top = artists.take(6).toList();
     return StatSection(
       title: 'Top Artists',
+      emphasis: StatEmphasis.loud,
       child: top.isEmpty
           ? const _Empty('No artist has enough plays in this period yet.')
           : SizedBox(

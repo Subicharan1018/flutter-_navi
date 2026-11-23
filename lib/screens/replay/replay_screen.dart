@@ -15,7 +15,7 @@ import '../../widgets/desktop_dialogs.dart';
 import '../../widgets/ui/action_sheet.dart';
 import '../../widgets/ui/artwork_page.dart';
 import '../../widgets/ui/media.dart';
-import '../../widgets/ui/mosaic_art.dart';
+import '../../widgets/ui/collection_art/year_poster.dart';
 import '../../widgets/ui/states.dart';
 import '../../widgets/motion/number_roll.dart';
 import '../stats/widgets/genre_mix.dart';
@@ -29,7 +29,7 @@ import 'year_story.dart';
 import '../../utils/platform_utils.dart';
 
 /// Replay, the way Apple Music does it: your year as a playlist. The hero is
-/// a mosaic of your top songs' covers, Play plays them, and below sit the
+/// the year set large over a ribbon of your top songs' covers, Play plays them, and below sit the
 /// numbers, your top songs and artists, and the year month by month.
 class ReplayScreen extends ConsumerStatefulWidget {
   const ReplayScreen({super.key});
@@ -109,14 +109,12 @@ class _ReplayScreenState extends ConsumerState<ReplayScreen> {
 
     return ArtworkPage(
       paletteCoverId: coverIds.nonNulls.firstOrNull,
-      art: (size) => MosaicArt(
+      art: (size) => YearPoster(
+        year: year,
         urls: [
           for (final id in coverIds) id == null ? null : svc.getCoverArtUrl(id),
         ],
         size: size,
-        radius: 0,
-        placeholderIcon: NaviGlyph.calendar,
-        seed: coverSeed('Replay $year'),
       ),
       title: 'Replay $year',
       subtitle: r == null || r.totalPlays == 0

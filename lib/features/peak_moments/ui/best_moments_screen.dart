@@ -12,7 +12,7 @@ import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/cover_art.dart';
 import '../../../widgets/ui/artwork_page.dart';
 import '../../../widgets/ui/media.dart';
-import '../../../widgets/ui/mosaic_art.dart';
+import '../../../widgets/ui/collection_art/peak_wave.dart';
 import '../../../widgets/ui/states.dart';
 import '../logic/best_moments.dart';
 import '../logic/hotspots.dart';
@@ -42,13 +42,7 @@ class BestMomentsScreen extends ConsumerWidget {
     final today = now ?? DateTime.now();
     return ArtworkPage(
       paletteCoverId: null,
-      art: (size) => MosaicArt(
-        urls: const [],
-        size: size,
-        radius: 0,
-        placeholderIcon: NaviGlyph.flame,
-        seed: coverSeed('Best Moments'),
-      ),
+      art: (size) => PeakWave(size: size),
       title: 'Best Moments',
       subtitle: 'Your own peaks',
       onRefresh: () async => ref.invalidate(bestMomentsProvider),

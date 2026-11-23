@@ -19,14 +19,14 @@ import '../widgets/ui/collection_hero.dart';
 import '../widgets/ui/controls.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
-import '../widgets/ui/mosaic_art.dart';
+import '../widgets/ui/collection_art/favorites_stack.dart';
 import '../widgets/ui/states.dart';
 import '../widgets/ui/swipe_actions.dart';
 import 'album_details_screen.dart';
 
 enum _View { songs, albums }
 
-/// Everything you starred, presented as a playlist: a mosaic of its covers,
+/// Everything you starred, presented as a playlist: its lead cover with a star badge,
 /// Play/Shuffle, and a Songs / Albums switch.
 class FavoritesScreen extends ConsumerStatefulWidget {
   const FavoritesScreen({super.key});
@@ -55,12 +55,9 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
     return ArtworkPage(
       paletteCoverId: songs.isEmpty ? null : songs.first.coverArt,
-      art: (size) => MosaicArt(
-        urls: [for (final s in songs.take(24)) svc.getCoverArtUrl(s.coverArt)],
+      art: (size) => FavoritesStack(
+        urls: [for (final s in songs.take(9)) svc.getCoverArtUrl(s.coverArt)],
         size: size,
-        radius: 0,
-        placeholderIcon: NaviGlyph.star,
-        seed: coverSeed('Favorites'),
       ),
       title: 'Favorites',
       detail: favorites.hasValue

@@ -1,14 +1,16 @@
 import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
-import 'ranked_bar_list.dart';
+import '../../../widgets/motion/play_once.dart';
 import 'stat_card.dart';
 
-/// Share of plays per genre as one bar split by genre (the shape of your
-/// taste at a glance), then a legend with the numbers. Shades step from the
-/// accent toward the page, so the biggest genre is the brightest.
+/// Genres as a typographic poster: a white sheet, the leading genre set so
+/// large it fills the width in black, the rest stepping down in size by their
+/// share like the credits on a film poster. The words are the chart. Lines
+/// slide up one after another once.
 class GenreMixCard extends StatelessWidget {
   static const _shown = 5;
+  static const double _small = 17;
 
   final List<Map<String, dynamic>> genres;
   const GenreMixCard({super.key, required this.genres});
@@ -26,37 +28,90 @@ class GenreMixCard extends StatelessWidget {
       for (final g in top) (g['genre']?.toString() ?? 'Unknown', _pct(g['pct'])),
       if (other > 0) ('Everything else', other),
     ];
-    Color shade(int i) => i == parts.length - 1 && other > 0
-        ? t.fill
-        : Color.lerp(t.accent, t.bgOverlay, i / _shown)!;
+    final peak = parts.first.$2;
 
     return StatSection(
       title: 'Genres',
-      readout: parts.first.$1,
-      readoutCaption: 'leads with ${parts.first.$2.round()}% of your plays',
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: SizedBox(
-              height: 14,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final (i, p) in parts.indexed) ...[
-                    if (i > 0) SizedBox(width: 2, child: ColoredBox(color: t.bgBase)),
-                    Expanded(flex: (p.$2 * 10).round().clamp(1, 1000), child: ColoredBox(color: shade(i))),
-                  ],
-                ],
+      child: Semantics(
+        label: 'Genres: ${[for (final p in parts) '${p.$1} ${p.$2.round()} percent'].join(', ')}',
+        excludeSemantics: true,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(22),
+          child: ColoredBox(
+            color: t.accent,
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(Space.xl, Space.xl, Space.xl, Space.lg),
+              child: PlayOnce(
+                duration: const Duration(milliseconds: 1100),
+                curve: Curves.linear,
+                builder: (context, p) => AnimatedBuilder(
+                  animation: p,
+                  builder: (context, _) => Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      for (final (i, g) in parts.indexed)
+                        _Line(
+                          // Each line owns a slice of the one clock.
+                          k: Curves.easeOutCubic.transform(((p.value - i * 0.12) / 0.5).clamp(0.0, 1.0)),
+                          child: i == 0
+                              ? FittedBox(
+                                  fit: BoxFit.scaleDown,
+                                  alignment: Alignment.centerLeft,
+                                  child: Text(
+                                    g.$1,
+                                    maxLines: 1,
+                                    style: t
+                                        .textStyle(76, FontWeight.w800, t.onAccent)
+                                        .copyWith(height: 1.0, letterSpacing: -3),
+                                  ),
+                                )
+                              : Row(
+                                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                                  textBaseline: TextBaseline.alphabetic,
+                                  children: [
+                                    Expanded(
+                                      child: Text(
+                                        g.$1,
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: t
+                                            .textStyle(
+                                              (_small + 17 * (g.$2 / peak)).roundToDouble(),
+                                              FontWeight.w700,
+                                              t.onAccent.withValues(alpha: i == parts.length - 1 && other > 0 ? 0.45 : 0.85),
+                                            )
+                                            .copyWith(height: 1.15, letterSpacing: -0.5),
+                                      ),
+                                    ),
+                                    Text('${g.$2.round()}%', style: figureStyle(t, 15).copyWith(color: t.onAccent.withValues(alpha: 0.6))),
+                                  ],
+                                ),
+                        ),
+                      const SizedBox(height: Space.xs),
+                      Text(
+                        'LEADS WITH ${parts.first.$2.round()}% OF YOUR PLAYS',
+                        style: t.caption2.copyWith(color: t.onAccent.withValues(alpha: 0.55), letterSpacing: 1.1),
+                      ),
+                    ],
+                  ),
+                ),
               ),
             ),
           ),
-          const SizedBox(height: Space.lg),
-          RankedBarList(
-            items: [for (final p in parts) RankedBarItem(label: p.$1, value: p.$2, detail: '${p.$2.round()}%')],
-          ),
-        ],
+        ),
       ),
     );
   }
+}
+
+class _Line extends StatelessWidget {
+  final double k;
+  final Widget child;
+  const _Line({required this.k, required this.child});
+
+  @override
+  Widget build(BuildContext context) => Opacity(
+    opacity: k,
+    child: Transform.translate(offset: Offset(0, 14 * (1 - k)), child: child),
+  );
 }
