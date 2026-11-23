@@ -49,3 +49,56 @@ Not verified: neither service documents which **column headers** a CSV needs, so
 file (`Artist - Title`, the format TuneMyMusic documents for text), which matches by name and artist only. Match rate
 (Tamil film songs on Spotify), service free-tier limits and account login were not tested. The Subsonic source was
 tested against a fake server only, not live Navidrome.
+
+## Calibration sample (the free route moves only about 500 songs)
+
+TuneMyMusic's free tier moves 500 songs in total, so those songs are a **calibration sample**: Spotify's true energy /
+valence / danceability for them train a model that predicts the same numbers for the other songs from the audio embedding.
+`--sample N` picks the N songs that best cover what the model must predict (deterministic, `--seed` 1):
+
+    python tool/exportify/library_export.py --catalog catalog.db --sample 500 --sample-report --dry-run
+    python tool/exportify/library_export.py --catalog catalog.db --sample 500 --out sample_1
+
+Upload `sample_1/navivibe_sample_01.csv` (or `.txt`). A second free batch (Soundiiz, 200 tracks per playlist) adds NEW songs:
+
+    python tool/exportify/library_export.py --catalog catalog.db --sample 200 --exclude sample_1/navivibe_sample_01.csv --out sample_2
+
+`--exclude` takes any earlier export file (ours, or an Exportify CSV), repeatable; songs are matched by ISRC and by clean title +
+first artist. `--max-songs` still splits. How it chooses (`tool/exportify/library_sample.py`):
+
+1. Eligible: no remix / sped-up / slowed / live / karaoke / instrumental / version words in the title, 1 to 10 minutes, not spoken
+   word, and **not already labelled by Spotify** in the catalog (453 songs have Spotify values already: they are training data
+   that exist, so the sample spends its 500 on new ones; `--include-have-spotify` overrides).
+2. ISRC songs first; songs without one only if the ISRC pool cannot fill N.
+3. The energy x valence plane (the catalog's current estimates) is cut at its own quartiles into 4 x 4 cells with equal quotas,
+   served round-robin. Inside a cell the next song is the one farthest in tempo, release year and language from the recent
+   picks, minus penalties for composers, genre buckets and languages already above their share of the pool.
+
+On the 23 Nov 2026 catalog (1,808 eligible songs, 1,686 with an ISRC), `--sample 500`: 500 with ISRC, energy quartiles
+126 / 131 / 136 / 107, valence quartiles 108 / 132 / 135 / 125, every one of the 16 cells holds 23 to 39 songs, 446 different
+composers (at most 4 songs from one), languages en 210 / ta 180 / hi 34 / ml 17 / te 12 ..., all decades from the 1950s.
+English is over-represented against the library (about 31 % of the eligible pool, 42 % of the sample) because the grid
+quotas and the "farthest song" rule favour the less crowded corners; Tamil is 36 % of the sample against 55 % of the pool.
+
+## After the Exportify export: import side
+
+1. In Exportify export the Spotify playlist(s) made from the sample; in NaviVibe Settings → Import → Import a Spotify Playlist
+   (`docs/exportify-import.md`). The server stores each matched song's Spotify features in `spotify_details.db`.
+2. Copy the server data (read-only) and fit the calibration. Nothing is written to the server and nothing is applied:
+
+       scp subi@100.99.105.51:/opt/shuffle-server/catalog.db .
+       scp subi@100.99.105.51:/opt/shuffle-server/spotify_details.db .
+       python tool/shuffle_eval/calibrate_audio_features.py --catalog catalog.db --details spotify_details.db --out calibration_out
+
+   Labels are the Exportify rows plus the catalog songs already marked `feature_source = spotify`. The model is a ridge
+   regression on the standardised `effnet_discogs` embedding (1,280 numbers, 2,503 of 2,504 library songs have one), the
+   strength chosen by an inner cross-validation. `calibration_report.json` gives, per feature, 5-fold out-of-fold Pearson r,
+   MAE and R2 (each labelled song is predicted by a model that never saw it) beside the catalog's current estimate on the songs
+   where that estimate is independent of Spotify. `proposed_features.csv` lists every song with its current value, the proposed
+   value and Spotify's value where known, for review. Applying them to the server (and to the recommender's inputs, which
+   needs the temporal backtest first) stays the owner's decision.
+3. Already measured on the 453 songs that have Spotify values today (cross-validated, no new data): energy r = 0.86 (MAE 0.069),
+   valence r = 0.73 (MAE 0.119), danceability r = 0.72 (MAE 0.070). The earlier held-out check of the current calibration on 695
+   Exportify songs gave r = 0.75 energy and 0.64 valence, so the embedding model looks better already, but the two numbers come
+   from different song sets and are not a controlled comparison; the new report gives the like-for-like "before vs after" once
+   the sample is imported.
