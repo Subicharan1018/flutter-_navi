@@ -42,7 +42,7 @@ class _FakePlayer extends StateNotifier<PlayerState> implements PlayerNotifier {
       );
 
   @override
-  Future<void> insertAllNext(List<Song> songs, {int? atIndex}) async {
+  Future<void> insertAllNext(List<Song> songs, {int? atIndex, bool track = true}) async {
     inserts.add((songs, atIndex));
     // Mirror the real notifier so the pane re-renders with the copy in place.
     final q = [...state.queue]..insertAll(atIndex ?? 1, songs);

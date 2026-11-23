@@ -48,7 +48,9 @@ void main() {
       expect(j['played_at'], 1700000000000);
       final back = FeedbackRequest.fromJson(j);
       expect(back.toJson(), j);
-      expect(back.weatherCode, 500); // captured at play time, not send time
+      // Weather is not sent any more: the server stamps its own reading.
+      expect(j.containsKey('weather_code'), isFalse);
+      expect(j.containsKey('temperature_c'), isFalse);
       expect(back.volume, 0.4);
     });
   });

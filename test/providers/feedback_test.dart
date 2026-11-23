@@ -22,6 +22,7 @@ import 'package:navivibe/features/ai_shuffle/data/repositories/shuffle_repositor
 import 'package:navivibe/features/ai_shuffle/logic/shuffle_providers.dart';
 import 'package:navivibe/features/play_outbox/logic/play_outbox_providers.dart' show playRecorderProvider;
 import 'package:navivibe/features/ai_shuffle/data/models/feedback_request.dart';
+import 'package:navivibe/features/play_outbox/logic/play_event.dart';
 import 'package:audio_service/audio_service.dart';
 
 Song _song({
@@ -189,6 +190,13 @@ class MockAudioHandler extends Mock implements NaviAudioHandler {
   Future<void> dispose() async {}
 }
 
+/// Plays the song the way a real player reports it: a position tick every 2 s.
+void _listenTo(MockAudioHandler handler, int seconds) {
+  for (var s = 0; s <= seconds; s += 2) {
+    handler.player._positionController.add(Duration(seconds: s));
+  }
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   final tempDir = Directory.systemTemp.createTempSync('feedback_test');
@@ -245,19 +253,25 @@ void main() {
     final s1 = _song(id: '1');
     final s2 = _song(id: '2');
     await notifier.setQueue([s1, s2], 0);
-    
+    handler._mediaItemSubject.add(MediaItem(id: s1.id, title: s1.title));
+    await Future.delayed(const Duration(milliseconds: 10));
+    _listenTo(handler, 198);
+
     // Simulate natural completion on track 1
     handler.player.simulateProcessingState(ProcessingState.completed);
     
     // Wait for the async gap inside player_provider
     await Future.delayed(const Duration(milliseconds: 100));
 
-    // Verify feedback was sent
+    // Verify feedback was sent, with what was really heard (198 s of 200)
     verify(() => mockShuffleRepo.postFeedback(any(that: isA<FeedbackRequest>()
         .having((req) => req.title, 'title', contains('1'))
         .having((req) => req.endReason, 'endReason', 'natural')
+        .having((req) => req.eventType, 'eventType', PlayEventType.complete)
+        .having((req) => req.secondsPlayed, 'secondsPlayed', closeTo(198, 3))
+        .having((req) => req.listenRatio, 'listenRatio', closeTo(0.99, 0.02))
     ))).called(1);
-    
+
     // Simulate the fallback path (mediaItem.listen) firing due to skipToNext being called
     // because processingState completed advances to next track non-Linux
     handler._mediaItemSubject.add(MediaItem(id: s2.id, title: s2.title));
@@ -281,12 +295,13 @@ void main() {
     // Emit the first song's mediaItem after setQueue completes so it isn't suppressed.
     handler._mediaItemSubject.add(MediaItem(id: s1.id, title: s1.title));
     await Future.delayed(const Duration(milliseconds: 10));
+    _listenTo(handler, 196);
 
     // Simulate Android mid-queue behaviour: it never emits ProcessingState.completed
     // It just directly emits the next mediaItem
     handler.player.simulateIndexChange(1);
     handler._mediaItemSubject.add(MediaItem(id: s2.id, title: s2.title));
-    
+
     await Future.delayed(const Duration(milliseconds: 100));
 
     // Verify fallback path sent feedback (since transCtx defaults to autoplay if nothing overrode it,
@@ -296,5 +311,24 @@ void main() {
         .having((req) => req.title, 'title', contains('1'))
         .having((req) => req.endReason, 'endReason', 'natural')
     ))).called(1);
+  });
+
+  test('Advancing to the next song with nothing heard sends no "natural at 0 %" row', () async {
+    final notifier = container.read(playerProvider.notifier);
+    container.read(shuffleQueueProvider.notifier).initSession();
+
+    final s1 = _song(id: '1');
+    final s2 = _song(id: '2');
+    await notifier.setQueue([s1, s2], 0);
+    handler._mediaItemSubject.add(MediaItem(id: s1.id, title: s1.title));
+    await Future.delayed(const Duration(milliseconds: 10));
+
+    // The advance arrives with no position ever reported for song 1: the old
+    // code logged this as a natural end at ratio 0.
+    handler.player.simulateIndexChange(1);
+    handler._mediaItemSubject.add(MediaItem(id: s2.id, title: s2.title));
+    await Future.delayed(const Duration(milliseconds: 100));
+
+    verifyNever(() => mockShuffleRepo.postFeedback(any()));
   });
 }

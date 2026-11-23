@@ -8,6 +8,7 @@ import 'package:flutter_riverpod/legacy.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../../providers/settings_provider.dart';
+import '../../play_outbox/logic/play_event.dart';
 import '../../play_outbox/logic/play_outbox_providers.dart';
 import '../data/services/shuffle_api_service.dart';
 import '../data/repositories/shuffle_repository.dart';
@@ -150,6 +151,41 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
   // Session ID — nullable; null means initSession() has not been called yet.
   String? _sessionId;
 
+  // What the server said about each song it served: slot, score, engine and the
+  // served_id of the batch. Keyed by lower-case title (the app matches songs by
+  // title when it places a batch). Bounded; read when a play ends so the play
+  // event can say where the song came from.
+  final Map<String, PlayOrigin> _served = {};
+  bool _eventsSupported = false;
+
+  /// True once /next has answered with a `served_id`: the server keeps the v2
+  /// event log. Until then the app sends only finished plays (which an older
+  /// server reads as before) and holds back start / seek / queue-edit events.
+  bool get eventsSupported => _eventsSupported;
+
+  /// The server's placement of [title], or null if the server did not place it.
+  PlayOrigin? servedOrigin(String title) => _served[title.toLowerCase()];
+
+  /// Remembers the server's placement of every song in [r] (called for each /next answer).
+  @visibleForTesting
+  void registerServed(NextResponse r) {
+    if (r.servedId != null && r.servedId!.isNotEmpty) _eventsSupported = true;
+    for (var i = 0; i < r.queue.length; i++) {
+      final rec = r.queue[i];
+      final score = rec.finalScore ?? rec.scores.finalScore;
+      _served[rec.title.toLowerCase()] = PlayOrigin(
+        source: PlaySource.smartShuffle,
+        slot: i,
+        score: score.isFinite ? score : null,
+        servedBy: r.engine ?? r.mode,
+        servedId: r.servedId,
+      );
+    }
+    while (_served.length > 400) {
+      _served.remove(_served.keys.first);
+    }
+  }
+
   /// Starts a new playback session, generating a fresh UUID.
   /// Must be called AFTER clearQueue() in playPlaylist / _applyAiShuffle.
   void initSession() {
@@ -200,6 +236,7 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
       );
       // Track surfaced titles for impression feedback (shown-but-not-played).
       _recordShown(response.queue.map((s) => s.title));
+      registerServed(response);
       state = state.copyWith(
         batches: [...state.batches, response],
         isLoading: false,
@@ -270,6 +307,7 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
     _recentListenRatios.clear();
     _lastEndReason = '';
     _sessionId = null;
+    _served.clear();
     state = const ShuffleQueueState();
   }
 
@@ -331,6 +369,7 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
         reshuffle: true,
         excludedTitles: excludedTitles,
       );
+      registerServed(response);
       if (isPreviewCall) {
         // REPLACE — reshuffle is not an append for the preview UI.
         state = state.copyWith(
@@ -368,28 +407,47 @@ final shuffleQueueProvider =
 /// Without one (or without an outbox) it is posted directly, best-effort.
 void sendShuffleFeedback(Ref ref, FeedbackRequest request, {String? playId, int? startedAtMs}) {
   final notifier = ref.read(shuffleQueueProvider.notifier);
-  if (!notifier.hasActiveSession) {
+  final type = request.eventType;
+  final aux = type != null && !type.isFinish;
+  // Start / seek / queue-edit events only go to a server that keeps the v2 log
+  // (an older one would store them as if they were plays).
+  if (aux && !notifier.eventsSupported) return;
+  // Plays outside a Smart Shuffle session (album, search, ...) are reported too,
+  // but only to a v2 server: it keeps them apart from shuffle sessions.
+  if (!aux && !notifier.hasActiveSession && !notifier.eventsSupported) {
     debugPrint(
       '[ShuffleFeedback] Skipped — no active session '
       '(title: ${request.title})',
     );
     return;
   }
+  ClientInfo.ensure();
+  final stamped = request.copyWith(
+    tzOffsetMin: request.tzOffsetMin ?? DateTime.now().timeZoneOffset.inMinutes,
+    clientVersion: request.clientVersion ?? (ClientInfo.version.isEmpty ? null : ClientInfo.version),
+    platform: request.platform ?? ClientInfo.platform,
+  );
   final recorder = playId == null ? null : ref.read(playRecorderProvider);
+  // A v2 server refuses a finished play that has no id (it is the idempotency key),
+  // so a direct post carries one too: the play's own, or a fresh one.
+  final startedMs = startedAtMs ?? DateTime.now().millisecondsSinceEpoch;
+  final direct = stamped.playId != null
+      ? stamped
+      : stamped.withPlay(playId: playId ?? const Uuid().v4(), playedAtMs: startedMs);
   if (recorder == null) {
-    ref.read(shuffleRepositoryProvider).postFeedback(request);
+    ref.read(shuffleRepositoryProvider).postFeedback(direct);
     return;
   }
   recorder
       .feedbackReady(
         playId: playId!,
-        songId: request.filePath,
-        startedAtMs: startedAtMs ?? DateTime.now().millisecondsSinceEpoch,
-        request: request,
+        songId: stamped.filePath,
+        startedAtMs: startedMs,
+        request: stamped,
       )
       .catchError((Object e) {
         debugPrint('[ShuffleFeedback] outbox failed ($e); posting directly');
-        ref.read(shuffleRepositoryProvider).postFeedback(request);
+        ref.read(shuffleRepositoryProvider).postFeedback(direct);
       });
 }
 

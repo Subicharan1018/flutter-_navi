@@ -27,6 +27,7 @@ import '../main.dart';
 import '../features/ai_shuffle/logic/shuffle_providers.dart';
 import '../features/ai_shuffle/data/models/feedback_request.dart';
 import '../features/ai_shuffle/data/models/recommended_song.dart';
+import '../features/play_outbox/logic/play_event.dart';
 import 'library_provider.dart';
 import '../features/everyday/dont_count.dart';
 import '../features/everyday/recent_queues.dart';
@@ -482,7 +483,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       for (var i = 0; i < ids.length; i += 40) {
         final songs = await _resolveForHandover(ids.sublist(i, i + 40 > ids.length ? ids.length : i + 40));
         if (epoch != _queueEpoch || !mounted) return;
-        if (songs.isNotEmpty) await addAllToQueue(songs);
+        if (songs.isNotEmpty) await addAllToQueue(songs, track: false);
       }
     } catch (e) {
       debugPrint('[PlayerNotifier] ℹ️ Could not add the rest of the queue after a handover: $e');
@@ -551,19 +552,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         final songs = await _resolveSongs(c.trackIds);
         if (songs.isEmpty) break;
         final at = (c.index ?? state.currentIndex + 1).clamp(0, state.queue.length);
-        await insertAllNext(songs, atIndex: at);
+        await insertAllNext(songs, atIndex: at, track: false);
         applied = true;
       case 'queue_remove':
         final i = locate(c.index, c.trackId);
         if (i != null && i != state.currentIndex) {
-          await removeFromQueue(i);
+          await removeFromQueue(i, track: false);
           applied = true;
         }
       case 'queue_move':
         final i = locate(c.from, c.trackId);
         final to = c.to;
         if (i != null && to != null && to >= 0 && to < state.queue.length) {
-          await reorderQueue(i, to);
+          await reorderQueue(i, to, track: false);
           applied = true;
         }
       case 'queue_clear_upcoming':
@@ -1274,6 +1275,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   String? _currentPlayId;
   int _currentPlayStartMs = 0;
 
+  /// Measures how long the listener really listened to the play in progress
+  /// (seconds_played), and notices scrubs and repeat-one loops.
+  final ListenTracker _tracker = ListenTracker();
+
+  /// Where the play in progress came from (source, slot, score, engine, holdout).
+  PlayOrigin _currentOrigin = const PlayOrigin(source: PlaySource.other);
+
+  /// Songs the app placed WITHOUT the AI on purpose (the 5 % holdout), by song
+  /// id, with the slot they were given. Cleared when a new queue starts.
+  final Map<String, int> _holdoutSlots = {};
+  int _holdoutOrdinal = 0;
+  int _seekEventsThisPlay = 0;
+  Timer? _startEventTimer;
+
   /// False while "Don't count this" is on (R3): nothing is recorded or sent.
   bool get _counting {
     try {
@@ -1292,6 +1307,205 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       playId: _currentPlayId,
       startedAtMs: _currentPlayStartMs,
     );
+  }
+
+  /// Where [song] came from, for its play event. A song reached by advancing
+  /// through the queue keeps the server's placement; a tapped song is what the
+  /// listener tapped (album, playlist, search, queue).
+  PlayOrigin _originFor(Song song, String context) {
+    final advancing = context == 'autoplay' || context == 'manual_next';
+    final heldOutSlot = _holdoutSlots[song.id];
+    if (advancing && heldOutSlot != null) {
+      return PlayOrigin(
+        source: PlaySource.smartShuffle,
+        slot: heldOutSlot,
+        servedBy: 'holdout_random',
+        holdout: true,
+      );
+    }
+    if (advancing) {
+      final served = _ref.read(shuffleQueueProvider.notifier).servedOrigin(song.title);
+      if (served != null) return served;
+    }
+    return PlayOrigin(source: sourceFromContext(context, serverPlaced: false));
+  }
+
+  /// The event for a song that just ended, or null when nothing true can be said
+  /// (a "natural" end with nothing heard was the old app's fake burst row).
+  ({FeedbackRequest request, EndVerdict verdict})? _finishRequest(
+    Song song, {
+    required bool natural,
+    required double snapshotSeconds,
+  }) {
+    final heard = _tracker.isOpen && _tracker.songId == song.id ? _tracker.finish() : ListenResult.none;
+    final verdict = classifyEnd(
+      heard: heard,
+      durationS: song.duration,
+      naturalHint: natural,
+      snapshotSeconds: snapshotSeconds,
+    );
+    if (verdict == null) {
+      debugPrint('[PlayEvent] nothing heard of "${song.title}" — no finish event');
+      return null;
+    }
+    final shuffle = _ref.read(shuffleQueueProvider.notifier);
+    final o = _currentOrigin;
+    return (
+      request: FeedbackRequest(
+        title: song.title,
+        filePath: song.id,
+        genreBucket: song.genre.isNotEmpty ? song.genre : 'unknown',
+        composer: song.composer.isNotEmpty ? song.composer : song.artist,
+        listenRatio: verdict.ratio,
+        endReason: verdict.endReason,
+        durationS: song.duration,
+        sessionId: shuffle.hasActiveSession ? shuffle.sessionId : '',
+        sessionDepth: shuffle.state.sessionDepth,
+        eventType: verdict.type,
+        secondsPlayed: verdict.secondsPlayed,
+        playSource: o.source,
+        slot: o.slot,
+        score: o.score,
+        servedBy: o.servedBy,
+        servedId: o.servedId,
+        holdout: o.holdout,
+      ),
+      verdict: verdict,
+    );
+  }
+
+  /// A non-finish event (start, seek, queue edit) about [song]. Sent only to a
+  /// server that keeps the v2 log; the outbox key is [eventId].
+  void _sendAuxEvent(
+    Song song,
+    PlayEventType type, {
+    required String eventId,
+    String? parentPlayId,
+    QueueEditKind? kind,
+    int? fromIndex,
+    int? toIndex,
+    int? seekFromMs,
+    int? seekToMs,
+    PlayOrigin? origin,
+  }) {
+    if (!_counting || !_ref.read(settingsProvider).dataCollectionEnabled) return;
+    final shuffle = _ref.read(shuffleQueueProvider.notifier);
+    final o = origin ?? _currentOrigin;
+    sendShuffleFeedback(
+      _ref,
+      FeedbackRequest(
+        title: song.title,
+        filePath: song.id,
+        genreBucket: song.genre.isNotEmpty ? song.genre : 'unknown',
+        composer: song.composer.isNotEmpty ? song.composer : song.artist,
+        listenRatio: 0,
+        endReason: type.wire,
+        durationS: song.duration,
+        sessionId: shuffle.hasActiveSession ? shuffle.sessionId : '',
+        eventType: type,
+        parentPlayId: parentPlayId,
+        playSource: o.source,
+        slot: o.slot,
+        servedId: o.servedId,
+        queueEditKind: kind,
+        fromIndex: fromIndex,
+        toIndex: toIndex,
+        seekFromMs: seekFromMs,
+        seekToMs: seekToMs,
+      ),
+      playId: eventId,
+      startedAtMs: DateTime.now().millisecondsSinceEpoch,
+    );
+  }
+
+  /// A queue edit the listener made. [songs] are the entries touched.
+  void _logQueueEdit(QueueEditKind kind, List<Song> songs, {int? from, int? to}) {
+    if (songs.isEmpty) return;
+    final isSmart = _ref.read(shuffleQueueProvider.notifier).hasActiveSession;
+    for (final s in songs.take(5)) {
+      _sendAuxEvent(
+        s,
+        PlayEventType.queueEdit,
+        eventId: ListeningEventCollector.newPlayId(),
+        kind: kind,
+        fromIndex: from,
+        toIndex: to,
+        origin: PlayOrigin(source: isSmart ? PlaySource.smartShuffle : PlaySource.queue),
+      );
+    }
+  }
+
+  /// Moves about 5 % of a smart-shuffle batch to a place the AI did not choose,
+  /// and remembers which songs, so their plays carry `holdout: true`. The song at
+  /// the front is never touched: it is the next one the listener hears.
+  List<Song> _applyHoldout(List<Song> batch) {
+    final shuffle = _ref.read(shuffleQueueProvider.notifier);
+    if (!shuffle.hasActiveSession || !_ref.read(settingsProvider).dataCollectionEnabled || batch.length < 4) {
+      return batch;
+    }
+    final session = shuffle.sessionId;
+    if (_holdoutSession != session) {
+      _holdoutSession = session;
+      _holdoutOrdinal = 0;
+      _holdoutSlots.clear();
+    }
+    final out = List<Song>.of(batch);
+    for (var slot = 1; slot < out.length - 1; slot++) {
+      final ordinal = _holdoutOrdinal++;
+      if (!HoldoutPolicy.isHoldout(session, ordinal)) continue;
+      final from = slot + 1 + HoldoutPolicy.offset(session, ordinal, out.length - slot - 1);
+      final moved = out.removeAt(from);
+      out.insert(slot, moved);
+      _holdoutSlots[moved.id] = slot;
+    }
+    if (_holdoutSlots.length > 300) _holdoutSlots.remove(_holdoutSlots.keys.first);
+    return out;
+  }
+
+  String _holdoutSession = '';
+
+  /// The play in progress started a few seconds ago and is still going: tell the
+  /// server it began (this survives a crash that loses the finish event).
+  void _scheduleStartEvent(Song song, String playId, PlayOrigin origin) {
+    _startEventTimer?.cancel();
+    _startEventTimer = Timer(const Duration(seconds: 3), () {
+      if (!mounted || _currentPlayId != playId) return;
+      _sendAuxEvent(
+        song,
+        PlayEventType.start,
+        eventId: '$playId:s',
+        parentPlayId: playId,
+        origin: origin,
+      );
+    });
+  }
+
+  void _onListenSignal(ListenSignal signal) {
+    final song = state.currentSong;
+    final playId = _currentPlayId;
+    if (song == null || playId == null) return;
+    switch (signal) {
+      case SeekSignal(:final fromMs, :final toMs):
+        if (_seekEventsThisPlay >= 5) return; // a scrub is many ticks: keep the first few
+        _sendAuxEvent(
+          song,
+          PlayEventType.seek,
+          eventId: '$playId:k${_seekEventsThisPlay++}',
+          parentPlayId: playId,
+          seekFromMs: fromMs,
+          seekToMs: toMs,
+        );
+      case LoopSignal():
+        final fin = _finishRequest(song, natural: true, snapshotSeconds: 0);
+        if (fin != null) {
+          _sendFeedback(fin.request.copyWith(eventType: PlayEventType.replay));
+        }
+        // The next lap is a new play.
+        _currentPlayId = ListeningEventCollector.newPlayId();
+        _currentPlayStartMs = DateTime.now().millisecondsSinceEpoch;
+        _seekEventsThisPlay = 0;
+        _tracker.begin(song.id, song.duration);
+    }
   }
   Duration _lastKnownPosition = Duration.zero;
   int _lastKnownIndex = 0;
@@ -1405,26 +1619,23 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           //             runs. The _naturalFeedbackSent guard prevents
           //             double-firing when the primary path already fired.
           if (transCtx == 'autoplay' && prevSong != null && !_naturalFeedbackSent) {
-            final listenRatio = prevSong.duration > 0
-                ? (positionAtSwitch.inSeconds / prevSong.duration).clamp(0.0, 1.0)
-                : 1.0;
-            final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
-            shuffleNotifier.recordPlay(
-              title: prevSong.title,
-              listenRatio: listenRatio,
-              endReason: 'natural',
+            // The position at the switch is often already the NEW song's 0:00,
+            // which used to be logged as "finished naturally at 0 %". What was
+            // really heard comes from the tracker; with nothing heard, nothing
+            // is sent.
+            final fin = _finishRequest(
+              prevSong,
+              natural: true,
+              snapshotSeconds: positionAtSwitch.inMilliseconds / 1000.0,
             );
-            _sendFeedback(FeedbackRequest(
-              title:        prevSong.title,
-              filePath:     prevSong.id,
-              genreBucket:  prevSong.genre.isNotEmpty ? prevSong.genre : 'unknown',
-              composer:     prevSong.composer.isNotEmpty ? prevSong.composer : prevSong.artist,
-              listenRatio:  listenRatio,
-              endReason:    'natural',
-              durationS:    prevSong.duration,
-              sessionId:    shuffleNotifier.sessionId,
-              sessionDepth: shuffleNotifier.state.sessionDepth,
-            ));
+            if (fin != null) {
+              _ref.read(shuffleQueueProvider.notifier).recordPlay(
+                title: prevSong.title,
+                listenRatio: fin.verdict.ratio,
+                endReason: fin.verdict.endReason,
+              );
+              _sendFeedback(fin.request);
+            }
           }
           // Reset for the next track regardless of which path fired.
           _naturalFeedbackSent = false;
@@ -1438,6 +1649,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           _currentPlayId = ListeningEventCollector.newPlayId();
           _currentPlayStartMs = DateTime.now().millisecondsSinceEpoch;
           final capturedPlayId = _currentPlayId;
+          _tracker.begin(newSong.id, newSong.duration);
+          _seekEventsThisPlay = 0;
+          _currentOrigin = _originFor(newSong, sourceCtx);
+          _scheduleStartEvent(newSong, capturedPlayId!, _currentOrigin);
 
           _trackChangeTimer = Timer(const Duration(milliseconds: 200), () {
             if (!mounted) return;
@@ -1608,31 +1823,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
               _positionAtCompletion = Duration.zero;
               _trackedIndexForCompletion = -1;
 
-              final listenRatio = completedSong.duration > 0
-                  ? (snapshot.inSeconds / completedSong.duration).clamp(0.0, 1.0)
-                  : 1.0;
-              final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
+              final fin = _finishRequest(
+                completedSong,
+                natural: true,
+                snapshotSeconds: snapshot.inMilliseconds / 1000.0,
+              );
 
               // Primary path: send feedback and mark it sent so the
               // mediaItem.listen fallback path skips this song.
               _naturalFeedbackSent = true;
               if (_counting) _collector.onSongEnded(completedSong, player.position);
-              shuffleNotifier.recordPlay(
-                title: completedSong.title,
-                listenRatio: listenRatio,
-                endReason: 'natural',
-              );
-              _sendFeedback(FeedbackRequest(
-                title:        completedSong.title,
-                filePath:     completedSong.id,
-                genreBucket:  completedSong.genre.isNotEmpty ? completedSong.genre : 'unknown',
-                composer:     completedSong.composer.isNotEmpty ? completedSong.composer : completedSong.artist,
-                listenRatio:  listenRatio,
-                endReason:    'natural',
-                durationS:    completedSong.duration,
-                sessionId:    shuffleNotifier.sessionId,
-                sessionDepth: shuffleNotifier.state.sessionDepth,
-              ));
+              if (fin != null) {
+                _ref.read(shuffleQueueProvider.notifier).recordPlay(
+                  title: completedSong.title,
+                  listenRatio: fin.verdict.ratio,
+                  endReason: fin.verdict.endReason,
+                );
+                _sendFeedback(fin.request);
+              }
             }
 
             // On Desktop (Linux/Windows/macOS), the NaviAudioHandler._startLinuxCompletionListener handles
@@ -1665,6 +1873,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       positionStream.listen((position) {
         if (_audioHandler.currentIndex == _lastKnownIndex) {
           _lastKnownPosition = position;
+          // Real listening time, and scrubs / repeat-one loops. Ticks from a
+          // song change are ignored (the index differs until the switch lands).
+          final signal = _tracker.onPosition(position, playing: state.isPlaying);
+          if (signal != null) _onListenSignal(signal);
         }
         // Update the ordering-safe completion snapshot using integer index
         // comparison (O(1), no string allocation, no Riverpod state read).
@@ -1959,6 +2171,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _shuffleGuardTimer?.cancel();
     _persistTimer?.cancel();
     _trackChangeTimer?.cancel();
+    _startEventTimer?.cancel();
     _segTimer?.cancel();
     for (final sub in _subscriptions) {
       sub.cancel();
@@ -2279,26 +2492,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       _positionAtCompletion = Duration.zero;
       _trackedIndexForCompletion = -1;
 
-      final listenRatio = currentSong.duration > 0
-          ? (snapshot.inSeconds / currentSong.duration).clamp(0.0, 1.0)
-          : 0.0;
-      final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
-      shuffleNotifier.recordPlay(
-        title: currentSong.title,
-        listenRatio: listenRatio,
-        endReason: 'fwdbtn',
+      final fin = _finishRequest(
+        currentSong,
+        natural: false,
+        snapshotSeconds: snapshot.inMilliseconds / 1000.0,
       );
-      _sendFeedback(FeedbackRequest(
-        title:        currentSong.title,
-        filePath:     currentSong.id,
-        genreBucket:  currentSong.genre.isNotEmpty ? currentSong.genre : 'unknown',
-        composer:     currentSong.composer.isNotEmpty ? currentSong.composer : currentSong.artist,
-        listenRatio:  listenRatio,
-        endReason:    'fwdbtn',
-        durationS:    currentSong.duration,
-        sessionId:    shuffleNotifier.sessionId,
-        sessionDepth: shuffleNotifier.state.sessionDepth,
-      ));
+      if (fin != null) {
+        _ref.read(shuffleQueueProvider.notifier).recordPlay(
+          title: currentSong.title,
+          listenRatio: fin.verdict.ratio,
+          endReason: fin.verdict.endReason,
+        );
+        _sendFeedback(fin.request);
+      }
     }
 
     _suppressNextHistoryPush = true;
@@ -2329,6 +2535,8 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   Future<void> stop() async {
     _stopPositionTick();
+    _startEventTimer?.cancel();
+    _tracker.finish();
     _hasScrobbled = false;
     _currentScrobbleSongId = null;
     _currentPlayId = null;
@@ -2438,7 +2646,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     await insertAllNext([song]);
   }
 
-  Future<void> insertAllNext(List<Song> songs, {int? atIndex}) async {
+  /// [track] false for edits the app makes itself (restore, a synced remote edit,
+  /// a flow engine), which are not the listener's and are not logged.
+  Future<void> insertAllNext(List<Song> songs, {int? atIndex, bool track = true}) async {
     debugPrint('🎵 [PlayerProvider] insertAllNext: ${songs.length} songs');
     if (songs.isEmpty) return;
     await _queueLock.run(() async {
@@ -2458,25 +2668,27 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       state = state.copyWith(queue: currentQueue, currentIndex: newIndex);
       await _audioHandler.insertAllNext(songs, atIndex: insertIndex);
+      if (track) _logQueueEdit(atIndex == null ? QueueEditKind.playNext : QueueEditKind.add, songs, to: insertIndex);
     } finally {
       _suppressDepth--;
     }
     });
   }
 
-  Future<void> addToQueue(Song song) async {
+  Future<void> addToQueue(Song song, {bool track = true}) async {
     debugPrint('🎵 [PlayerProvider] addToQueue: ${song.title}');
     await _queueLock.run(() async {
       _queueEpoch++;
       final currentQueue = List<Song>.from(state.queue)..add(song);
       state = state.copyWith(queue: currentQueue);
       await _audioHandler.addToQueue(song);
+      if (track) _logQueueEdit(QueueEditKind.add, [song], to: currentQueue.length - 1);
     });
   }
 
   /// Batch-add multiple songs — single state update → single UI rebuild.
   /// Uses the handler's batch method for a single platform-channel round trip.
-  Future<void> addAllToQueue(List<Song> songs) async {
+  Future<void> addAllToQueue(List<Song> songs, {bool track = true}) async {
     debugPrint('🎵 [PlayerProvider] addAllToQueue: ${songs.length} songs');
     if (songs.isEmpty) return;
     await _queueLock.run(() async {
@@ -2484,13 +2696,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       final currentQueue = List<Song>.from(state.queue)..addAll(songs);
       state = state.copyWith(queue: currentQueue);
       await _audioHandler.addAllToQueue(songs);
+      if (track) _logQueueEdit(QueueEditKind.add, songs, to: currentQueue.length - songs.length);
     });
   }
 
-  Future<void> removeFromQueue(int index) async {
+  Future<void> removeFromQueue(int index, {bool track = true}) async {
     debugPrint('🎵 [PlayerProvider] removeFromQueue at index: $index');
     await _queueLock.run(() async {
     if (index < 0 || index >= state.queue.length) return;
+    final removed = state.queue[index];
     _queueEpoch++;
     _suppressDepth++;
     try {
@@ -2503,6 +2717,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       }
       state = state.copyWith(queue: currentQueue, currentIndex: newIndex);
       await _audioHandler.removeFromQueue(index);
+      if (track) _logQueueEdit(QueueEditKind.remove, [removed], from: index);
     } finally {
       _suppressDepth--;
     }
@@ -2529,7 +2744,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     });
   }
 
-  Future<void> reorderQueue(int oldIndex, int newIndex) async {
+  Future<void> reorderQueue(int oldIndex, int newIndex, {bool track = true}) async {
     await _queueLock.run(() async {
     final len = state.queue.length;
     if (oldIndex < 0 || oldIndex >= len || newIndex < 0 || newIndex >= len) return;
@@ -2553,6 +2768,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         newIndex,
         isShuffleMode: state.shuffleMode,
       );
+      if (track) _logQueueEdit(QueueEditKind.reorder, [item], from: oldIndex, to: newIndex);
     } finally {
       _suppressDepth--;
     }
@@ -3135,6 +3351,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         orderedBatch = _resolveRecommendations(response.queue, byId);
         final placed = {for (final s in orderedBatch) s.id};
         orderedBatch.addAll(snap.batch.where((s) => !placed.contains(s.id)));
+        // ~5 % of the places are given to songs the AI did not choose for them,
+        // and flagged, so there is a fair baseline to evaluate it against.
+        orderedBatch = _applyHoldout(orderedBatch);
       } catch (e) {
         debugPrint('[Smart Local Refill] API Error: $e — batch stays in pool order');
       }

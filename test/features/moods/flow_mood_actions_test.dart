@@ -47,7 +47,7 @@ class _Player extends StateNotifier<PlayerState> implements PlayerNotifier {
         ));
 
   @override
-  Future<void> removeFromQueue(int index) async {
+  Future<void> removeFromQueue(int index, {bool track = true}) async {
     removed.add(index);
     state = state.copyWith(queue: [...state.queue]..removeAt(index));
   }
