@@ -5,8 +5,9 @@ the live `.env` tunables present). Nothing on the real server was touched. Run e
 package folder (`scp -r tool/server/<name> subi@100.99.105.51:~/` first); none restarts anything.
 
 1. `server-tests-fix-v1`     shuffle-server tests only: suite 1143 passed, 0 skipped. Independent of the others.
-2. `tgfetcher-tests-fix-v1`  tg-fetcher tests only: **must come before any package that tests the live tg-fetcher tree**
-                             (otherwise the live-tree step fails on test_exportify_v1 and rolls back).
+2. `tgfetcher-tests-fix-v1`  tg-fetcher tests + a real Weekly Exploration build fix (restart tg-fetcher): **must come before any package that tests the live tg-fetcher tree**
+                             (otherwise the live-tree step fails on test_exportify_v1 and rolls back). Do not re-install
+                             weekly-exploration-v1 from an old folder afterwards: use the one on main (it carries the fix).
 3. `spotify-history-import-v1`  (tg-fetcher 748 passed, shuffle 1143 -> 1149)
 4. `matcher-v2`              after the importers it patches (806 passed); a missing spotify_history.py is skipped, so
                              installing it before step 3 would leave that one call site unpatched.
