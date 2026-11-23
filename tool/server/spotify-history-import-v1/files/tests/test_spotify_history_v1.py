@@ -341,3 +341,16 @@ def test_a_listenbrainz_job_is_not_reachable_through_the_spotify_routes(api, con
     lb = hi.create_job(conn, "vijay", "listenbrainz", "someone")[0]
     assert client.get(f"/spotify-import/jobs/{lb['id']}").status_code == 404
     assert client.post(f"/spotify-import/jobs/{lb['id']}/page", json={"plays": []}).status_code == 404
+
+
+def test_history_imports_own_routes_stay_closed_to_spotify(conn):
+    """Registering the source for naming must not make `spotify` a source history-import can create or fetch."""
+    with pytest.raises(hi.HistoryError):
+        hi.create_job(conn, "vijay", "spotify", "x")
+    with pytest.raises(hi.HistoryError):
+        hi.create_job(conn, "vijay", "myspace", "x")
+    job = sh.create_job(conn, "vijay", "extended", total=10)[0]
+    with pytest.raises(hi.HistoryError):          # no Last.fm request is ever made for a Spotify job
+        hi.step(conn, job["id"], "vijay", [])
+    assert hi.create_job(conn, "vijay", "lastfm", "someone")[1] is True
+    assert hi.undo(conn, hi.get_job(conn, job["id"], "vijay")) is not None

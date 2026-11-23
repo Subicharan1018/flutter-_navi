@@ -45,7 +45,34 @@ from tgfetch.library_sweep import Index
 log = logging.getLogger("tgfetch.spotify_history")
 
 SOURCE = "spotify"
-hi.SOURCES.setdefault(SOURCE, "Spotify history")
+hi.SOURCES.setdefault(SOURCE, "Spotify history")      # only so Wishlist naming / undo / counts work for this source
+
+
+# history-import's own routes are for the sources it can fetch (ListenBrainz, Last.fm). Registering "spotify" above must
+# not open them to it: a Spotify job is made and fed only by the /spotify-import routes. Both wrappers are idempotent.
+def _closed_create(orig):
+    def create_job(conn, user, source, *a, **k):
+        if source == SOURCE:
+            raise hi.HistoryError("Choose ListenBrainz or Last.fm.", fatal=True)
+        return orig(conn, user, source, *a, **k)
+    create_job._spotify_guard = True
+    return create_job
+
+
+def _closed_step(orig):
+    def step(conn, job_id, user, *a, **k):
+        job = hi.get_job(conn, job_id, user)
+        if job is not None and job["source"] == SOURCE:
+            raise hi.HistoryError("This import is fed from the Spotify screen.", fatal=True)
+        return orig(conn, job_id, user, *a, **k)
+    step._spotify_guard = True
+    return step
+
+
+if not getattr(hi.create_job, "_spotify_guard", False):
+    hi.create_job = _closed_create(hi.create_job)
+if not getattr(hi.step, "_spotify_guard", False):
+    hi.step = _closed_step(hi.step)
 
 IST = ZoneInfo("Asia/Kolkata")
 SKIP_MS = 30_000                 # the owner's rule: under this and ended by a button = a skip
