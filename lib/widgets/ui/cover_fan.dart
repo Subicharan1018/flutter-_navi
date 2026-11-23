@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../../core/theme.dart';
 import '../art/generated_cover.dart';
 import '../cover_art.dart';
+import '../motion/ambient_loop.dart';
 import '../motion/play_once.dart';
 
 /// The mark of a mix: up to three of its covers fanned like a hand of cards
@@ -50,7 +51,12 @@ class CoverFan extends StatelessWidget {
               animation: p,
               builder: (context, _) {
                 final k = p.value;
-                return Stack(
+                // The whole fan breathes a degree or two; the open-out above is one-off.
+                return AmbientLoop(
+                  period: const Duration(seconds: 10),
+                  builder: (context, phase) => Transform.rotate(
+                    angle: 0.03 * math.sin(phase * 2 * math.pi),
+                    child: Stack(
                   clipBehavior: Clip.hardEdge,
                   children: [
                     for (final (i, slot) in order.indexed)
@@ -69,6 +75,8 @@ class CoverFan extends StatelessWidget {
                         ),
                       ),
                   ],
+                    ),
+                  ),
                 );
               },
             ),

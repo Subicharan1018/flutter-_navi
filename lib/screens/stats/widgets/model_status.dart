@@ -3,6 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../../core/theme.dart';
 import '../../../features/ai_shuffle/data/models/model_status_response.dart';
 import '../../../utils/format.dart';
+import 'learning_blob.dart';
 import 'stat_card.dart';
 
 /// What Smart Shuffle has learned about you, and when it next updates.
@@ -36,21 +37,21 @@ class ModelStatusCard extends StatelessWidget {
           ),
           if (threshold > 0) ...[
             const SizedBox(height: Space.lg),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(2),
-              child: Stack(
-                children: [
-                  Container(height: 4, color: t.fill),
-                  FractionallySizedBox(widthFactor: progress, child: Container(height: 4, color: t.accent)),
-                ],
-              ),
-            ),
-            const SizedBox(height: Space.sm),
-            Text(
-              pending >= threshold
-                  ? 'Updating your mixes with your latest plays now.'
-                  : 'Your mixes update after ${threshold - pending} more plays.',
-              style: t.footnote,
+            Row(
+              children: [
+                // The model as a drop: it swells toward its next rebuild and
+                // wobbles while it is learning. Still when up to date.
+                SizedBox(width: 88, height: 88, child: LearningBlob(fill: progress, alive: learning)),
+                const SizedBox(width: Space.lg),
+                Expanded(
+                  child: Text(
+                    pending >= threshold
+                        ? 'Updating your mixes with your latest plays now.'
+                        : 'Your mixes update after ${threshold - pending} more plays.',
+                    style: t.subheadline,
+                  ),
+                ),
+              ],
             ),
           ],
         ],

@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
 import '../../../utils/format.dart';
+import 'embossed_plate.dart';
 import 'stat_card.dart';
 
 /// Plays by hour of day drawn as what they are: a 24-hour clock. Midnight
@@ -62,10 +63,11 @@ class _ListeningClockState extends State<ListeningClock> {
     return StatSection(
       title: 'Listening Hours',
       child: LayoutBuilder(builder: (context, c) {
-        final size = math.min(c.maxWidth, _maxDial);
+        final size = math.min(c.maxWidth - Space.xl * 2, _maxDial);
         final geometry = _ClockGeometry(size);
         return Center(
-          child: Semantics(
+          child: EmbossedPlate(
+            child: Semantics(
             label: 'Listening by hour',
             value: _spoken(shown, counts),
             increasedValue: _spoken((shown + 1) % 24, counts),
@@ -136,6 +138,7 @@ class _ListeningClockState extends State<ListeningClock> {
                 ),
               ),
             ),
+          ),
           ),
         );
       }),

@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../features/ai_shuffle/data/models/contribution_graph_response.dart';
 import '../../features/ai_shuffle/data/models/listening_stats_response.dart';
 import '../../features/ai_shuffle/logic/shuffle_providers.dart';
+import '../../providers/library_provider.dart' show artistCoverUrlProvider;
 import '../../utils/platform_utils.dart';
 import '../../widgets/ui/controls.dart';
 import '../../widgets/ui/large_title_page.dart';
@@ -110,6 +111,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
             ),
           ],
           data: (s) {
+            final topName = s.topArtists.isEmpty ? null : s.topArtists.first['artist']?.toString();
             // Each section eases in once, the first time it scrolls into view.
             final sections = <Widget>[
               for (final (i, w) in <Widget>[
@@ -131,7 +133,8 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   child: SummaryHero(
                     stats: s,
                     periodPhrase: _period.phrase,
-                    topArtist: s.topArtists.isEmpty ? null : s.topArtists.first['artist']?.toString(),
+                    topArtist: topName,
+                    topArtistCover: topName == null ? null : ref.watch(artistCoverUrlProvider(topName)).asData?.value,
                     dailyPlays: [for (final d in days.skip(days.length - _period.trendDays.clamp(7, 30).clamp(0, days.length))) d.count.toDouble()],
                   ),
                 ),

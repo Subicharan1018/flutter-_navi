@@ -15,6 +15,8 @@ import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/ai_shuffle/data/models/listening_stats_response.dart';
 import 'package:navivibe/player/artwork.dart' show debugCoverImageOverride;
 import 'package:navivibe/screens/stats/widgets/genre_mix.dart';
+import 'package:navivibe/screens/stats/widgets/hours_chart.dart';
+import 'package:navivibe/screens/stats/widgets/learning_blob.dart';
 import 'package:navivibe/screens/stats/widgets/summary_grid.dart';
 import 'package:navivibe/widgets/ui/cover_fan.dart';
 import 'package:navivibe/widgets/ui/collection_art/favorites_sky.dart';
@@ -98,7 +100,11 @@ void main() {
   });
 
   testWidgets('stats lead and genre ladder', (tester) async {
-    view(tester, const Size(390, 760), 3);
+    view(tester, const Size(390, 1900), 2);
+    final sw = await tester.runAsync(
+      () => _swatches(['a'], const [Color(0xFF7A3C3C)]),
+    );
+    debugCoverImageOverride = (url, key) => sw![url]!;
     const stats = ListeningStatsResponse(
       period: 'weekly',
       label: '7 Days',
@@ -120,14 +126,16 @@ void main() {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
-            children: const [
-              SummaryHero(
+            children: [
+              const SummaryHero(
                 stats: stats,
                 periodPhrase: 'in the last 7 days',
                 topArtist: 'Sai Abhyankkar',
+                topArtistCover: 'a',
                 dailyPlays: [12, 30, 22, 48, 20, 35, 60, 41, 25, 52],
               ),
-              GenreMixCard(
+              ListeningClock(byHour: const {'22': 40, '23': 52, '0': 31, '14': 9, '9': 12}),
+              const GenreMixCard(
                 genres: [
                   {'genre': 'Tamil Film', 'pct': 54.0},
                   {'genre': 'Indie', 'pct': 22.0},
@@ -136,11 +144,14 @@ void main() {
                   {'genre': 'Other', 'pct': 4.0},
                 ],
               ),
+              const SizedBox(height: 24),
+              const Row(children: [SizedBox(width: 88, height: 88, child: LearningBlob(fill: 0.6, alive: true)), SizedBox(width: 16), SizedBox(width: 88, height: 88, child: LearningBlob(fill: 0.25, alive: false))]),
             ],
           ),
         ),
       ),
     );
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
     await tester.pumpAndSettle();
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('redesign_v2/stats_phone.png'));
   });

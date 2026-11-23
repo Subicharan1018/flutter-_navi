@@ -1,4 +1,3 @@
-import 'dart:math' as math;
 
 import 'package:flutter/cupertino.dart';
 
@@ -101,121 +100,9 @@ class ArtistWithYou extends StatelessWidget {
   }
 }
 
-/// The career at a glance as a ribbon: a hairline from the first release to
-/// the latest with one dot per year that has an album, as large as that year's
-/// song count. Years you have played are white, the rest dim. No bars.
-class CareerStrip extends StatelessWidget {
-  final List<ReleaseYear> years;
-  final ArtistHistory history;
-  const CareerStrip({super.key, required this.years, required this.history});
-
-  @override
-  Widget build(BuildContext context) {
-    final dated = [
-      for (final y in years)
-        if (y.year > 0) y,
-    ];
-    if (dated.length < 2) return const SizedBox.shrink();
-    final t = ThemeTokens.of(context);
-    final first = dated.last.year;
-    final last = dated.first.year;
-    final songs = {for (final y in dated) y.year: y.songs};
-    final heard = {
-      for (final y in dated)
-        if (y.albums.any((a) => history.playsOf(a) > 0)) y.year,
-    };
-    final span = last - first + 1;
-    return Semantics(
-      label: 'Releases from $first to $last, ${dated.length} years with an album',
-      child: ExcludeSemantics(
-        child: Padding(
-          padding: const EdgeInsets.fromLTRB(Space.gutter, Space.sm, Space.gutter, Space.md),
-          child: Column(
-            children: [
-              SizedBox(
-                height: 40,
-                width: double.infinity,
-                child: CustomPaint(
-                  painter: CareerStripPainter(
-                    first: first,
-                    span: span,
-                    songs: songs,
-                    heard: heard,
-                    heardColor: t.accent,
-                    idleColor: t.accentDim,
-                  ),
-                ),
-              ),
-              const SizedBox(height: Space.xs),
-              Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                children: [
-                  Text('$first', style: t.caption1),
-                  Text('$last', style: t.caption1),
-                ],
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class CareerStripPainter extends CustomPainter {
-  final int first;
-  final int span;
-  final Map<int, int> songs;
-  final Set<int> heard;
-
-  final Color heardColor;
-  final Color idleColor;
-  const CareerStripPainter({
-    required this.first,
-    required this.span,
-    required this.songs,
-    required this.heard,
-    required this.heardColor,
-    required this.idleColor,
-  });
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final peak = songs.values.fold(1, math.max);
-    final slot = size.width / span;
-    final lineY = size.height - 10;
-    final paint = Paint();
-    canvas.drawRect(Rect.fromLTWH(0, lineY - 0.5, size.width, 1), paint..color = idleColor.withValues(alpha: 0.5));
-    for (var i = 0; i < span; i++) {
-      final n = songs[first + i];
-      if (n == null) continue;
-      final r = 2.5 + 4.5 * (n / peak);
-      canvas.drawCircle(Offset(slot * (i + 0.5), lineY), r, paint..color = heard.contains(first + i) ? heardColor : idleColor);
-    }
-  }
-
-  @override
-  bool shouldRepaint(CareerStripPainter old) =>
-      old.first != first ||
-      old.span != span ||
-      old.heardColor != heardColor ||
-      old.idleColor != idleColor ||
-      !_sameMap(old.songs, songs) ||
-      old.heard.length != heard.length ||
-      !old.heard.containsAll(heard);
-
-  static bool _sameMap(Map<int, int> a, Map<int, int> b) {
-    if (a.length != b.length) return false;
-    for (final e in a.entries) {
-      if (b[e.key] != e.value) return false;
-    }
-    return true;
-  }
-}
-
 /// The discography as a year spine: a big tabular numeral per year, a hairline
-/// down the page, and that year's covers. A hairline under each cover fills to
-/// your share of plays, so the era you live in shows without a single number.
+/// down the page, and that year's covers. Under each cover its name and, if you
+/// have played it, the plain count ("9 plays"); years you have heard are bright.
 /// Tap a year to play what came out in it.
 ///
 /// Returned as slivers so a hundred-album artist builds only the rows on
@@ -233,9 +120,6 @@ List<Widget> releaseTimelineSlivers(
   final size = (ArtSize.of(context).tile * 0.6).roundToDouble();
   return [
     const SliverToBoxAdapter(child: SectionHeader(title: 'Albums')),
-    SliverToBoxAdapter(
-      child: CareerStrip(years: years, history: history),
-    ),
     SliverList.builder(
       itemCount: years.length,
       itemBuilder: (context, i) => _YearRow(

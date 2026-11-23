@@ -42,7 +42,7 @@ class ListenerTypeLine extends StatelessWidget {
       child: Text.rich(
         TextSpan(
           children: [
-            TextSpan(text: type.name.toUpperCase(), style: t.caption2.copyWith(color: t.gold, letterSpacing: 1.2)),
+            TextSpan(text: type.name.toUpperCase(), style: t.caption2.copyWith(color: t.accent, letterSpacing: 1.2)),
             TextSpan(text: '  ·  peaks at ${hourLabel(type.hour)}', style: t.caption2.copyWith(color: t.textMuted)),
           ],
         ),
