@@ -57,7 +57,18 @@ before any request. Then:
   Track tags weigh 1.0, artist tags 0.6, MusicBrainz genres 0.8; at most 3 genres, each ≥ 20 of 100 and ≥ 25 % of the best.
 * **Cache:** every lookup, misses and errors included, in `lookups(song_id, source, status, result, fetched_at, retry_after)`.
   A miss is retried after 30 days, an error after 1 day, a hit never. Rate limit (HTTP 429/503, Last.fm error 29):
-  the run stops and the next one continues. 5 failures in a row also stop it.
+  is **not** a stop signal: the client waits max(`Retry-After`, 2/4/8/16 s) and retries the SAME request up to 4
+  times. Only if it is still refused is that song left (nothing cached, so it is tried again next run), and after 3
+  songs in a row refused that one service is paused for the rest of the run while the other carries on. The log line
+  names the service and the signal, e.g. `musicbrainz is busy (HTTP 503 zone=search who=search-shed retry-after=1)`.
+  A miss is never a failure; 5 network failures (timeouts, 5xx, bad JSON) in a row stop the run.
+  Seen live on 23 Nov 2026: MusicBrainz's gateway answered a *search* with 503 + `Retry-After: 1` +
+  `X-RateLimit-Zone: search` / `X-RateLimit-Who: search-shed` ("currently busy"): load shedding for the whole search
+  zone, not our own rate (its `X-RateLimit-Limit` was 400). Lookups by mbid are a different zone.
+* **Size of the job** (`--report` prints it): a full first pass is about 5,800 MusicBrainz requests (2 per song with a
+  catalog mbid: recording + releases for the label; 3 without: search first), about 2.3 h at 1.1 s spacing plus
+  retry waits, plus about 2 Last.fm requests for each song with no stored tags. The nightly job runs 02:17 for at most
+  150 min (ends by 06:00), so the first pass finishes in 1 to 3 nights; afterwards it finds nothing due and exits at once.
 * **Resumable / bounded:** `--limit N`, `--max-minutes M`, `--end-by HH:MM`. An interrupted run loses at most the current song.
 
 ## Commands
@@ -77,12 +88,12 @@ errors, the cache or this repo.
 
 ## Nightly option (off by default)
 
-`install.sh --cron` prints and, only if you type `yes`, installs `17 2 * * *` (low priority, stops by 06:30 or
-after 4 h, resumes next night). 02:17 rather than a round hour, as MusicBrainz asks.
+`install.sh --cron` prints and, only if you type `yes`, installs `17 2 * * *` (low priority, stops by 06:00 or
+after 150 min, resumes next night). 02:17 rather than a round hour, as MusicBrainz asks.
 
 ## Verified / not verified
 
-Verified: 22 unit tests with API-shaped fixtures (no network): genre normalisation incl. junk and artist-name tags,
+Verified: 33 unit tests with API-shaped fixtures (no network): genre normalisation incl. junk and artist-name tags,
 MusicBrainz / Last.fm parsing, strict same-song matching (incl. Tamil titles), 1 request/s throttling, rate-limit stop,
 cache and retry dates, resume with zero repeat requests, fill-only-empty, provenance, exportify's table columns unchanged,
 dry run. On a copy of the live `catalog.db` the offline pass alone would give 1,510 release dates and 1,253 genre lists.

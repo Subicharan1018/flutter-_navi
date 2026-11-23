@@ -8,8 +8,10 @@ import time
 from . import genres as G
 from . import match as M
 from . import store as S
-from .net import Client, NetError, RateLimited
+from .net import Client, NetError, RateLimited, MB_INTERVAL  # noqa: F401
 
+MB_COST_S = 1.4           # one MusicBrainz request: 1.1 s spacing + the request itself
+MAX_LIMITED = 3            # songs in a row a service may refuse before it is paused for the run
 ENV_KEY_NAME = "LASTFM_API_KEY"          # the key is referenced by NAME only; its value is never printed or stored
 
 
@@ -154,6 +156,37 @@ def run(cfg: dict, args, client: Client, key: str = "", clock=time.time, log=pri
             end = deadline(args.max_minutes, args.end_by, clock())
             day = S.today(clock())
             errors = done = 0
+            limited = {"musicbrainz": 0, "lastfm": 0}       # consecutive songs a service refused (after retries)
+            paused = set()
+            out.update(deferred=0, paused=[])
+            on = {"musicbrainz": not args.no_musicbrainz, "lastfm": bool(key) and not args.no_lastfm}
+
+            def usable(svc):
+                return on[svc] and svc not in paused
+
+            def attempt(svc, table, fn):
+                """One service for one song. RateLimited: the client already waited and retried the same request;
+                the song is left for the next run and only THIS service is paused after MAX_LIMITED in a row."""
+                nonlocal errors, done
+                try:
+                    fn()
+                except RateLimited as e:
+                    limited[svc] += 1
+                    out["deferred"] += 1
+                    log("%s is busy (%s): song left for the next run (%d in a row)" % (svc, e.detail, limited[svc]))
+                    if limited[svc] >= MAX_LIMITED:
+                        paused.add(svc)
+                        out["paused"].append(svc)
+                        log("%s paused for the rest of this run" % svc)
+                    return
+                except NetError as e:
+                    errors += 1                              # misses are NOT failures: only network / 5xx / bad JSON
+                    cache.put(song["id"], table, "error", {"error": str(e)}, clock())
+                    return
+                limited[svc] = errors = 0
+                done += 1
+                out["mb_lookups" if svc == "musicbrainz" else "lastfm_lookups"] += 1
+
             for song in songs:
                 if clock() >= end:
                     out["stopped"] = "time"
@@ -161,37 +194,23 @@ def run(cfg: dict, args, client: Client, key: str = "", clock=time.time, log=pri
                 if args.limit and done >= args.limit:
                     out["stopped"] = "limit"
                     break
+                if errors >= 5:
+                    out["stopped"] = "errors"
+                    log("5 network failures in a row: stopping")
+                    break
+                if not (usable("musicbrainz") or usable("lastfm")):
+                    out["stopped"] = ("paused: " + ", ".join(out["paused"])) if out["paused"] else "nothing enabled"
+                    break
                 want = needs(song, details)
                 if not want:
                     continue
                 sraw = raw.get(song["id"], {})
                 still = want - set(candidates(song, sraw, cache))
-                src = ""
-                try:
-                    if still & {"isrc", "label", "release_date"} and not args.no_musicbrainz                             and cache.due(song["id"], "mb", day):
-                        src = "mb"
-                        lookup_mb(song, sraw, client, cache, still, clock())
-                        out["mb_lookups"] += 1
-                        done += 1
-                        still = want - set(candidates(song, sraw, cache))
-                    if "genres" in still and key and not args.no_lastfm and not sraw.get("lastfm")                             and cache.due(song["id"], "lastfm", day):
-                        src = "lastfm"
-                        lookup_lastfm(song, key, client, cache, clock())
-                        out["lastfm_lookups"] += 1
-                        done += 1
-                except RateLimited:
-                    out["stopped"] = "rate-limited"
-                    log("rate limited by the service: stopping; the next run continues")
-                    break
-                except NetError as e:
-                    errors += 1
-                    cache.put(song["id"], src, "error", {"error": str(e)}, clock())
-                    if errors >= 5:
-                        out["stopped"] = "errors"
-                        log("5 failures in a row: stopping")
-                        break
-                    continue
-                errors = 0
+                if still & {"isrc", "label", "release_date"} and usable("musicbrainz") and cache.due(song["id"], "mb", day):
+                    attempt("musicbrainz", "mb", lambda: lookup_mb(song, sraw, client, cache, still, clock()))
+                    still = want - set(candidates(song, sraw, cache))
+                if "genres" in still and usable("lastfm") and not sraw.get("lastfm") and cache.due(song["id"], "lastfm", day):
+                    attempt("lastfm", "lastfm", lambda: lookup_lastfm(song, key, client, cache, clock()))
         details = S.read_details(cfg["details"])
         fills = {}
         for song in songs:
@@ -211,6 +230,29 @@ def run(cfg: dict, args, client: Client, key: str = "", clock=time.time, log=pri
     return out
 
 
+def estimate(cfg: dict, key: bool = True) -> dict:
+    """What is still to look up, and how long it takes at the polite rate (no network, no write)."""
+    songs, raw = S.read_catalog(cfg["catalog"])
+    details = S.read_details(cfg["details"])
+    cache = S.Cache(cfg["cache"])
+    day, mb_songs, mb_req, lf_songs = S.today(), 0, 0, 0
+    try:
+        for song in songs:
+            want = needs(song, details)
+            sraw = raw.get(song["id"], {})
+            still = want - set(candidates(song, sraw, cache))
+            if still & {"isrc", "label", "release_date"} and cache.due(song["id"], "mb", day):
+                mb_songs += 1
+                has_mbid = bool(song.get("mbid") or sraw.get("musicbrainz"))
+                mb_req += 2 if has_mbid else 3                  # recording + releases, plus a search without an mbid
+            if key and "genres" in still and not sraw.get("lastfm") and cache.due(song["id"], "lastfm", day):
+                lf_songs += 1
+    finally:
+        cache.close()
+    secs = mb_req * MB_COST_S + lf_songs * 2 * 0.35
+    return {"mb_songs": mb_songs, "mb_requests": mb_req, "lastfm_songs": lf_songs, "hours": secs / 3600.0}
+
+
 def report(cfg: dict) -> str:
     songs, raw = S.read_catalog(cfg["catalog"])
     details = S.read_details(cfg["details"])
@@ -222,4 +264,7 @@ def report(cfg: dict) -> str:
         c = S.Cache(cfg["cache"])
         lines.append("cache: " + ", ".join("%s=%d" % kv for kv in sorted(c.stats().items())))
         c.close()
+    e = estimate(cfg, key=bool(lastfm_key(env_file=cfg["env_file"])))
+    lines.append("still to look up: MusicBrainz %(mb_songs)d songs (%(mb_requests)d requests), Last.fm %(lastfm_songs)d songs; "
+                 "about %(hours).1f h at the polite rate (spread over nightly runs)" % e)
     return "\n".join(lines)

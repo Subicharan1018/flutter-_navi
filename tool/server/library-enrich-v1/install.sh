@@ -42,7 +42,7 @@ mkdir -p /DATA/AppData/navivibe
 echo "== 3/3 read-only check on the live files (writes nothing)"
 (cd "$DEST" && "$PY" -m libenrich --report) || echo "   (report failed: look at the message above)"
 
-CRON="17 2 * * * cd $DEST && LIBENRICH_CONTACT='${LIBENRICH_CONTACT:-<set LIBENRICH_CONTACT>}' nice -n 19 ionice -c3 $PY -m libenrich --run --max-minutes 240 --end-by 06:30 >> /DATA/AppData/navivibe/library_enrich.log 2>&1 # navivibe-libenrich"
+CRON="17 2 * * * cd $DEST && LIBENRICH_CONTACT='${LIBENRICH_CONTACT:-<set LIBENRICH_CONTACT>}' nice -n 19 ionice -c3 $PY -m libenrich --run --max-minutes 150 --end-by 06:00 >> /DATA/AppData/navivibe/library_enrich.log 2>&1 # navivibe-libenrich"
 cat <<EOS
 
 Done. The nightly job is NOT enabled. First run by hand (about 2 hours for the whole library; safe to stop and repeat):

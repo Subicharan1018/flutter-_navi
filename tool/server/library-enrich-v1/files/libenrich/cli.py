@@ -40,6 +40,8 @@ def main(argv=None) -> int:
     out = core.run(cfg, a, client, key)
     print("songs %(songs)d; MusicBrainz lookups %(mb_lookups)d; Last.fm lookups %(lastfm_lookups)d; "
           "stopped: %(stopped)s" % {**out, "stopped": out["stopped"] or "finished"})
+    if out.get("deferred"):
+        print("left for the next run because a service was busy: %d (%s)" % (out["deferred"], ", ".join(out["paused"]) or "none paused"))
     print("would write:", out["to_write"], "| written:", out["written"])
     return 0
 
