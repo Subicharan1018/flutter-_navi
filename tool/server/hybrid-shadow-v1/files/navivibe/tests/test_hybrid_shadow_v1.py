@@ -163,6 +163,8 @@ def _lf(path):
 def test_the_server_copy_of_the_harness_is_the_harness_file():
     here = os.path.dirname(H.__file__)
     assert hashlib.sha256(_lf(os.path.join(here, "hybrid.py"))).hexdigest() == HARNESS_SHA
+    ref = os.path.join(os.path.dirname(__file__), "harness_hybrid_reference.py")
+    assert os.path.exists(ref) and _lf(ref) == _lf(os.path.join(here, "hybrid.py"))
     for up in range(3, 8):                              # in the repo: tool/shuffle_eval/bakeoff/hybrid.py
         repo = os.path.abspath(os.path.join(os.path.dirname(__file__), *[".."] * up, "shuffle_eval", "bakeoff", "hybrid.py"))
         if os.path.exists(repo):
@@ -170,20 +172,22 @@ def test_the_server_copy_of_the_harness_is_the_harness_file():
 
 
 def _harness_module():
-    for up in range(3, 8):
-        p = os.path.abspath(os.path.join(os.path.dirname(__file__), *[".."] * up, "shuffle_eval", "bakeoff", "hybrid.py"))
+    """The repo's harness file when this runs in the repo, else the reference copy shipped beside this
+    test (harness_hybrid_reference.py): the parity test runs everywhere, it is never skipped."""
+    here = os.path.dirname(__file__)
+    paths = [os.path.abspath(os.path.join(here, *[".."] * up, "shuffle_eval", "bakeoff", "hybrid.py")) for up in range(3, 8)]
+    paths.append(os.path.join(here, "harness_hybrid_reference.py"))
+    for p in paths:
         if os.path.exists(p):
             spec = importlib.util.spec_from_file_location("harness_hybrid", p)
             mod = importlib.util.module_from_spec(spec)
             spec.loader.exec_module(mod)
             return mod
-    return None
+    raise AssertionError("no harness file or reference copy found: the package is incomplete")
 
 
 def test_same_inputs_through_the_harness_and_the_server_give_the_same_scores(reranker):
     harness = _harness_module()
-    if harness is None:
-        pytest.skip("harness file not next to the package (running on the server)")
     eng = Engine()
     X = matrix(21)
     kept = [4, 9]
@@ -240,7 +244,18 @@ def test_unreadable_missing_and_incompatible_models_are_refused(tmp_path, rerank
     assert "refit" in store.incompatible(dict(meta, cols=meta["cols"][:-1]), V3)
     assert "refit" in store.incompatible(dict(meta, all_cols=meta["all_cols"][:-1]), V3)
     assert "embeddings differ" in store.incompatible(meta, "a-newer-v3-train")
-    assert "embeddings differ" in store.incompatible(meta, None)
+    # an UNKNOWN v3 stamp cannot be proven to match the vectors the groups were built with: not usable
+    assert "unknown" in store.incompatible(meta, None)
+
+
+def test_the_v3_stamp_is_read_from_disk_when_not_given(tmp_path, reranker):
+    d = tmp_path / "v3"
+    d.mkdir()
+    assert store.v3_trained_at(str(d)) is None                      # no meta.json
+    (d / "meta.json").write_text("{broken")
+    assert store.v3_trained_at(str(d)) is None
+    (d / "meta.json").write_text(json.dumps({"trained_at": V3}))
+    assert store.v3_trained_at(str(d)) == V3
 
 
 def test_the_cache_keeps_shadow_off_until_the_model_matches_the_v3_artifacts(tmp_path, reranker):
@@ -623,3 +638,71 @@ def test_shadow_tables_work_on_an_old_log_and_are_erased_with_the_history():
     c.commit()
     assert c.execute("SELECT COUNT(*) FROM hybrid_shadow").fetchone()[0] == 0
     c.close()
+
+
+# ── the whole nightly fit, end to end (the code `python -m navivibe.hybrid_train` runs) ───────────
+
+class _World:
+    """Stands in for the catalog store, the event loader and the replay (they need the real server)."""
+
+    def __init__(self, n_events):
+        self.eng = Engine()
+        rng = np.random.default_rng(9)
+        now = time.time()
+        self.events = [Ev(now - 3600 + k, song="s%d" % k) for k in range(n_events)]
+        self.songs = {"s%d" % k: int(rng.integers(N)) for k in range(n_events)}
+
+
+def _install_world(monkeypatch, world):
+    cat = types.ModuleType("navivibe.recsys.data")
+    cat.Catalog = types.SimpleNamespace(from_rows=lambda rows: world.eng.cat)
+    cat.load_all = lambda catalog: (world.events, {})
+    rep = types.ModuleType("navivibe.recsys.train")
+
+    class R(Replay):
+        def __init__(self, catalog, arrays, fb, history=None):
+            super().__init__(world.eng, 0, 0)
+            self.cat = types.SimpleNamespace(index=world.songs)
+
+        def features(self, e, s):
+            return matrix(abs(hash(e.song)) % 1000)
+
+    rep.Replay = R
+    rep.ARTIFACT_DIR = "/nonexistent"
+    cs = types.ModuleType("navivibe.catalog.store")
+    cs.load_catalog = lambda: []
+    pkg = types.ModuleType("navivibe.catalog")
+    for name, mod in (("navivibe.recsys.data", cat), ("navivibe.recsys.train", rep),
+                      ("navivibe.catalog", pkg), ("navivibe.catalog.store", cs)):
+        monkeypatch.setitem(__import__("sys").modules, name, mod)
+    monkeypatch.setattr(ht, "build_world", lambda catalog: (world.eng.A, types.SimpleNamespace()))
+    monkeypatch.setattr(store, "v3_trained_at", lambda d=None: V3)
+
+
+def test_the_nightly_fit_writes_a_model_the_server_will_accept(tmp_path, monkeypatch, capsys):
+    _install_world(monkeypatch, _World(900))
+    out = str(tmp_path / "hybrid" / "hybrid_v1.json")
+    assert ht.main(["--out", out]) == 0
+    printed = json.loads(capsys.readouterr().out)
+    assert printed["status"] == "ok" and printed["metrics"]["groups_used"] >= ht.MIN_GROUPS
+    cache = hs.ModelCache(out, str(tmp_path / "v3"))
+    (tmp_path / "v3").mkdir()
+    (tmp_path / "v3" / "meta.json").write_text(json.dumps({"trained_at": V3}))
+    assert cache.get() is not None and cache.reason == "ok"          # compatible with the v3 it was fitted against
+    again = ht.train(out)
+    assert again["model_version"] == printed["model_version"]         # deterministic: same data, same model
+
+
+def test_too_little_data_replaces_nothing_and_still_exits_zero(tmp_path, monkeypatch, capsys):
+    _install_world(monkeypatch, _World(30))
+    out = tmp_path / "hybrid_v1.json"
+    out.write_text("previous")
+    assert ht.main(["--out", str(out)]) == 0
+    assert json.loads(capsys.readouterr().out)["status"] == "not_enough_data" and out.read_text() == "previous"
+
+
+def test_a_failure_exits_one_with_json(tmp_path, monkeypatch, capsys):
+    _install_world(monkeypatch, _World(10))
+    monkeypatch.setattr(ht, "build_world", lambda c: (_ for _ in ()).throw(RuntimeError("no artifacts")))
+    assert ht.main(["--out", str(tmp_path / "m.json")]) == 1
+    assert json.loads(capsys.readouterr().out)["status"] == "error"

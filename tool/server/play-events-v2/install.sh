@@ -45,7 +45,7 @@ if [ "$CHECK" = 1 ]; then
 fi
 
 echo "== 2/4 back up what runs now -> $BK"
-mkdir -p "$BK/navivibe/recsys"
+mkdir -p "$BK/navivibe/recsys" "$BK/navivibe/tests"
 for f in $PATCHED; do cp -a "$SHUF/$f" "$BK/$f"; done
 for f in $NEW_FILES; do [ -e "$SHUF/$f" ] && cp -a "$SHUF/$f" "$BK/$f" || echo "$f" >> "$BK/was-new.txt"; done
 
