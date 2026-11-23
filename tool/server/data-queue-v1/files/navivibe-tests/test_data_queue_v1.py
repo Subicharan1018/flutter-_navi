@@ -404,3 +404,58 @@ def test_backfill_queues_missing_songs_in_gap_order_and_honours_exclude(env, tmp
     assert real["queued"] == real["to_queue"] == len(ids) and "s010" not in ids and "s000" not in ids
     assert {r[0] for r in c.execute("SELECT DISTINCT source FROM queue")} == {"backfill"}
     assert dq.backfill(env["c"], [str(ex)], details_path=env["d"], path=env["q"])["queued"] == 0   # re-run adds nothing
+
+
+# ── the command line, run the way the owner runs it (a separate process, from the server's root) ────────────────
+
+def _cli(env, tmp_path, *args):
+    """python -m navivibe.data_queue <args>, cwd = the folder that holds navivibe/ (the shuffle server's root), the
+    scratch databases passed through the environment. Nothing is imported from this test's process."""
+    import os
+    import subprocess
+    import sys
+    root = os.path.dirname(os.path.dirname(os.path.abspath(dq.__file__)))
+    e = dict(os.environ, NAVIVIBE_CATALOG_DB=env["c"], NAVIVIBE_DATA_QUEUE_DB=env["q"],
+             NAVIVIBE_SPOTIFY_DETAILS_DB=env["d"], PYTHONPATH=root)
+    p = subprocess.run([sys.executable, "-m", "navivibe.data_queue", *args], cwd=root, env=e, capture_output=True,
+                       text=True, timeout=120)
+    assert p.returncode == 0, p.stdout + p.stderr
+    return p.stdout
+
+
+def test_cli_backfill_dry_run_with_exclude_then_real_then_status(env, tmp_path):
+    truth = make_catalog(env["c"])
+    add_details(env["d"], ["s%03d" % i for i in range(30)], truth)          # 30 songs already have real features
+    ex = tmp_path / "merged.csv"
+    ex.write_text("Track Name,Artist Name(s),ISRC,Duration (ms)\nSong 40,Artist 40,%s,240000\n" % song(40)["isrc"], encoding="utf-8")
+    out = _cli(env, tmp_path, "backfill", "--dry-run", "--exclude", str(ex))
+    lines = dict(l.split(None, 1) for l in out.strip().splitlines())
+    assert lines["have_real_features"].strip() == "30" and lines["dry_run"].strip() == "True"
+    assert int(lines["excluded"]) >= 1 and int(lines["queued"]) == 0
+    assert not sqlite3.connect(env["q"]).execute("SELECT COUNT(*) FROM queue").fetchone()[0]    # a dry run writes nothing
+    # without --exclude: still nothing that has real features
+    out2 = _cli(env, tmp_path, "backfill", "--dry-run")
+    n = int(dict(l.split(None, 1) for l in out2.strip().splitlines())["to_queue"])
+    _cli(env, tmp_path, "backfill", "--exclude", str(ex))
+    c = sqlite3.connect(env["q"])
+    ids = {r[0] for r in c.execute("SELECT song_id FROM queue")}
+    assert ids and not ids & {"s%03d" % i for i in range(30)} and "s040" not in ids and len(ids) == n - 1
+    assert '"waiting": %d' % len(ids) in _cli(env, tmp_path, "status")
+
+
+def test_the_whole_flow_through_the_installed_layout(env, client, tmp_path):
+    """Batch from a CLI-seeded queue, both downloads, an Exportify upload, the predicted values."""
+    truth = make_catalog(env["c"])
+    add_details(env["d"], ["s%03d" % i for i in range(80)], truth)
+    _cli(env, tmp_path, "backfill")
+    bid = client.post("/data-queue/batches", headers=ADMIN).get_json()["batch"]["id"]
+    csv_bytes = client.get("/data-queue/batches/%d/file.csv" % bid, headers=ADMIN).data
+    rows = list(csv.reader(io.StringIO(csv_bytes.decode("utf-8-sig"))))[1:]
+    assert 0 < len(rows) <= 200 and client.get("/data-queue/batches/%d/file.txt" % bid, headers=ADMIN).status_code == 200
+    first = rows[0]
+    up = client.post("/data-queue/batches/%d/upload" % bid, headers=ADMIN, json={
+        "name": "x.csv", "csv": exportify_csv([sp_row(first[0], first[1], first[5] or "ZZZ000000001", float(first[4]))])})
+    assert up.status_code == 201, up.get_json()
+    res = up.get_json()
+    assert res["matched"] == 1 and res["predicted"] == len(rows) - 1 and res["not_found"] == len(rows) - 1
+    assert sqlite3.connect(env["q"]).execute("SELECT COUNT(*) FROM predicted WHERE feature_source='predicted'").fetchone()[0] == res["predicted"]

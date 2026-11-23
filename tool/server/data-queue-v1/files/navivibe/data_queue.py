@@ -42,7 +42,6 @@ log = logging.getLogger(__name__)
 
 MAX_BYTES = 8_000_000
 MAX_ROWS = 20_000
-TOOLS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "data_queue_tools")
 LINKS = {"soundiiz": "https://soundiiz.com/tutorial/import-excel-to-soundiiz",
          "tunemymusic": "https://www.tunemymusic.com/transfer/file-to-spotify"}
 FEATURES = ("danceability", "energy", "key", "loudness", "mode", "speechiness", "acousticness", "instrumentalness",
@@ -127,11 +126,7 @@ def gap_scores(waiting_ids, real: set, catalog: str) -> dict:
     gap. Empty when numpy or the embeddings are missing."""
     try:
         import numpy as np
-        sys.path.insert(0, TOOLS)
-        try:
-            import embedding_gap
-        finally:
-            sys.path.remove(TOOLS)
+        from navivibe.data_queue_tools import embedding_gap
         emb = embedding_gap.load_embeddings(catalog)
         if not emb or not waiting_ids:
             return {}
@@ -248,13 +243,8 @@ def parse_csv(data) -> list:
 
 
 def _match_module():
-    sys.path.insert(0, TOOLS)
-    try:
-        import spotify_match
-        return spotify_match
-    finally:
-        sys.path.remove(TOOLS)
-
+    from navivibe.data_queue_tools import spotify_match
+    return spotify_match
 
 def write_details(path: str, items: list, now: float) -> int:
     """Spotify's real numbers for library songs -> spotify_details.db (the same table exportify-v1 writes). Re-running
@@ -499,12 +489,7 @@ def backfill(catalog: str, exclude_files=(), limit: int = 0, dry_run: bool = Fal
     already exported or covered. Songs the sampler finds ineligible (remixes, sped-up, live ... , under a minute,
     spoken word) are not queued: Spotify would not match them."""
     now = time.time() if now is None else now
-    sys.path.insert(0, TOOLS)
-    try:
-        import embedding_gap
-        import library_sample
-    finally:
-        sys.path.remove(TOOLS)
+    from navivibe.data_queue_tools import embedding_gap, library_sample
     library = read_library(catalog)
     songs = list(library.values())
     real = store.real_ids(details_path) | {s["id"] for s in songs if s.get("feature_source") == "spotify"}
