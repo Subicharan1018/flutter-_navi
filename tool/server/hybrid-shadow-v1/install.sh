@@ -19,9 +19,9 @@ SHUF=${SHUF:-/opt/shuffle-server}
 PY=$SHUF/venv/bin/python
 STAMP=$(date +%Y%m%d-%H%M%S)
 BK=$SHUF/backups/hybrid-shadow-v1-$STAMP
-NEW_FILES="navivibe/hybrid.py navivibe/hybrid_store.py navivibe/hybrid_shadow.py navivibe/hybrid_train.py navivibe/tests/test_hybrid_shadow_v1.py"
+NEW_FILES="navivibe/hybrid.py navivibe/hybrid_store.py navivibe/hybrid_shadow.py navivibe/hybrid_train.py navivibe/tests/test_hybrid_shadow_v1.py navivibe/tests/harness_hybrid_reference.py"
 PATCHED="navivibe/server.py navivibe/scheduler.py navivibe/recsys/recommender.py"
-TESTS="navivibe/tests/test_hybrid_shadow_v1.py navivibe/tests/test_play_events_v2.py navivibe/tests/test_feedback_played_at.py navivibe/tests/test_v3.py navivibe/tests/test_hardening.py navivibe/tests/test_security.py"
+TESTS=${TESTS:-"navivibe/tests/test_hybrid_shadow_v1.py navivibe/tests/test_play_events_v2.py navivibe/tests/test_feedback_played_at.py navivibe/tests/test_v3.py navivibe/tests/test_hardening.py navivibe/tests/test_security.py"}
 CHECK=0; [ "${1:-}" = "--check" ] && CHECK=1
 
 [ -x "$PY" ] || { echo "!! $PY not found"; exit 1; }
@@ -36,7 +36,7 @@ cp -a "$SHUF/navivibe" "$T/navivibe"
 find "$T/navivibe" -name __pycache__ -prune -exec rm -rf {} +
 "$PY" -I "$HERE/patch.py" "$T"
 for f in hybrid.py hybrid_store.py hybrid_shadow.py hybrid_train.py; do cp "$HERE/files/navivibe/$f" "$T/navivibe/"; done
-cp "$HERE/files/navivibe/tests/test_hybrid_shadow_v1.py" "$T/navivibe/tests/"
+cp "$HERE/files/navivibe/tests/test_hybrid_shadow_v1.py" "$HERE/files/navivibe/tests/harness_hybrid_reference.py" "$T/navivibe/tests/"
 "$PY" -m py_compile $(for f in $PATCHED $NEW_FILES; do case $f in *tests*) ;; *) echo "$T/$f";; esac; done)
 if (cd "$T" && PYTHONPATH="$T" NAVIVIBE_LOG_DIR="$T/logs" HYBRID_ORDER=shadow "$PY" -m pytest $TESTS -q -p no:cacheprovider > "$T/.tests.log" 2>&1); then
   tail -1 "$T/.tests.log"
@@ -50,7 +50,7 @@ if [ "$CHECK" = 1 ]; then
 fi
 
 echo "== 2/4 back up what runs now -> $BK"
-mkdir -p "$BK/navivibe"
+mkdir -p "$BK/navivibe/recsys" "$BK/navivibe/tests"
 for f in $PATCHED; do cp -a "$SHUF/$f" "$BK/$f"; done
 for f in $NEW_FILES; do [ -e "$SHUF/$f" ] && cp -a "$SHUF/$f" "$BK/$f" || echo "$f" >> "$BK/was-new.txt"; done
 
@@ -64,7 +64,7 @@ restore() {
 
 echo "== 3/4 patch the live code"
 for f in hybrid.py hybrid_store.py hybrid_shadow.py hybrid_train.py; do cp "$HERE/files/navivibe/$f" "$SHUF/navivibe/"; done
-cp "$HERE/files/navivibe/tests/test_hybrid_shadow_v1.py" "$SHUF/navivibe/tests/"
+cp "$HERE/files/navivibe/tests/test_hybrid_shadow_v1.py" "$HERE/files/navivibe/tests/harness_hybrid_reference.py" "$SHUF/navivibe/tests/"
 "$PY" -I "$HERE/patch.py" "$SHUF" || restore
 "$PY" -m py_compile $(for f in $PATCHED navivibe/hybrid.py navivibe/hybrid_store.py navivibe/hybrid_shadow.py navivibe/hybrid_train.py; do echo "$SHUF/$f"; done) || restore
 
@@ -90,7 +90,7 @@ $SHUF/models/hybrid/hybrid_v1.json; takes a few minutes):
 
 Rollback:
     for f in $PATCHED; do cp -a $BK/\$f $SHUF/\$f; done
-    rm -f $SHUF/navivibe/hybrid.py $SHUF/navivibe/hybrid_store.py $SHUF/navivibe/hybrid_shadow.py $SHUF/navivibe/hybrid_train.py $SHUF/navivibe/tests/test_hybrid_shadow_v1.py
+    rm -f $SHUF/navivibe/hybrid.py $SHUF/navivibe/hybrid_store.py $SHUF/navivibe/hybrid_shadow.py $SHUF/navivibe/hybrid_train.py $SHUF/navivibe/tests/test_hybrid_shadow_v1.py $SHUF/navivibe/tests/harness_hybrid_reference.py
     sudo systemctl restart navivibe
 (The extra table in each listening log is harmless to the old code.)
 EOS

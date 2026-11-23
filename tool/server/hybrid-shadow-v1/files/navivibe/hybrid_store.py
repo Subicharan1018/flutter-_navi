@@ -72,13 +72,22 @@ def load(path):
         return None, "unreadable: %s" % type(e).__name__
 
 
-def incompatible(meta, current_v3=None):
-    """None when the model may be used, else the reason it may not."""
+_LOOK_UP = object()
+
+
+def incompatible(meta, current_v3=_LOOK_UP):
+    """None when the model may be used, else the reason it may not.
+
+    `current_v3` is the v3 artifacts' `trained_at` now. Left out, it is read from disk. An
+    explicit None means "unknown": the co-listen and name vectors cannot be proven to match
+    the ones the groups were built with, so the model is NOT compatible (shadow stays off)."""
     if list(meta.get("cols") or []) != list(H.NO_AUDIO_MOOD_COLS):
         return "feature columns differ from the harness (refit needed)"
     if list(meta.get("all_cols") or []) != list(H.ALL_COLS):
         return "v3 FEATURES changed since the fit (refit needed)"
-    now = current_v3 if current_v3 is not None else v3_trained_at()
-    if now is None or meta.get("v3_trained_at") != now:
+    now = v3_trained_at() if current_v3 is _LOOK_UP else current_v3
+    if now is None:
+        return "v3 artifact version unknown (embeddings cannot be proven to match; refit needed)"
+    if meta.get("v3_trained_at") != now:
         return "fitted against v3 artifacts %s, now %s (embeddings differ; refit needed)" % (meta.get("v3_trained_at"), now)
     return None
