@@ -409,6 +409,9 @@ jobs:
   cleanup:
     # Once per release, only after it was published.
     needs: publish
+    # Not the implicit success(): on branches `web` is skipped, and a skipped ancestor
+    # would otherwise skip this job too.
+    if: ${{ !cancelled() && needs.publish.result == 'success' }}
     runs-on: ubuntu-24.04
     permissions:
       contents: write # delete old pre-releases and their tags
