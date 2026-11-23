@@ -360,9 +360,11 @@ jobs:
           else
             range="-n 20"
           fi
-          # Hand-written user-facing notes for this version (release-notes/<version>.md)
-          # win over the commit list; the update screen shows them as they are.
-          if [ -f "release-notes/$NAME.md" ]; then
+          # Hand-written user-facing notes for a version (release-notes/<version>.md) are
+          # used for the FIRST build of that version only (a big release such as 2.0.0).
+          # Every later build of the same version lists just what changed since the
+          # previous release, like any normal build.
+          if [ -f "release-notes/$NAME.md" ] && [ "${prev#v$NAME+}" = "$prev" ]; then
             cp "release-notes/$NAME.md" notes.md
           else
             git log $range --no-merges --pretty='- %s' > notes.md

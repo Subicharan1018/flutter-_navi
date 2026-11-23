@@ -60,6 +60,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Public getter for player_provider to coordinate completion advancement
   static bool get isDesktopBridge => _isDesktopBridge;
 
+  /// The notification / lock screen seek bar, headset and car seek commands and the
+  /// app's own seek bar all end here. audio_service's default does nothing, so
+  /// without this override seeking silently failed on every phone.
+  @override
+  Future<void> seek(Duration position) => player.seek(position);
+
   /// Streams play straight from the URL: on the desktop bridge (no caching
   /// source) and in a browser (LockCachingAudioSource needs a local proxy that
   /// the web can't run; the browser's own HTTP cache does the job).
