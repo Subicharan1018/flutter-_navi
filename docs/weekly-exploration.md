@@ -69,7 +69,9 @@ A second open in the same week tops up to 20 and never repeats a pick. A build r
   feed the owned songs' moods; they are not a signal here.
 - Friends' keeps, followed artists' new releases, and a Buy link.
 - Not-for-me as a learning signal for the recommender beyond the tombstones above.
-- A Monday job: the list is made on the first open of the week (lazily), not at 06:00.
+- A Monday job in v1: the list is made on the first open of the week (lazily). **weekly-exploration-v2**
+  (`tool/server/weekly-exploration-v2/`) adds `python -m navivibe.weekly_build` (`--dry-run`, `--user`) and an optional
+  Monday 06:00 IST cron that builds for every listener who may use it, one at a time.
 
 ## Privacy
 
