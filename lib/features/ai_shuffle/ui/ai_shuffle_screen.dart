@@ -23,7 +23,7 @@ import '../../../widgets/ui/action_sheet.dart';
 import '../../../widgets/ui/controls.dart';
 import '../../../widgets/ui/large_title_page.dart';
 import '../../../widgets/ui/media.dart';
-import '../../../widgets/ui/cover_fan.dart';
+import '../../../widgets/ui/collection_art/mix_flow.dart';
 import '../../../widgets/ui/mosaic_art.dart' show coverSeed;
 import '../../../widgets/ui/states.dart';
 import '../data/models/next_response.dart';
@@ -327,7 +327,7 @@ class _MixCard extends ConsumerWidget {
 
     final kind = mode == PredictMode.discovery ? 'Discoveries' : 'Your mix';
     final desk = PlatformUtils.isDesktop;
-    final art = CoverFan(
+    final art = MixFlow(
       urls: [for (final s in mix.take(12)) svc.getCoverArtUrl(s.coverArt)],
       size: desk ? ArtSize.of(buildContext).header : _art,
       radius: Radii.hero,

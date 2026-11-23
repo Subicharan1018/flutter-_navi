@@ -55,43 +55,68 @@ class ArtistWithYou extends StatelessWidget {
             children: [
               Text('With You', style: t.title2),
               const SizedBox(height: Space.md),
-              ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 520),
-                child: Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    stat(compactCount(history.plays), history.plays == 1 ? 'play' : 'plays'),
-                    stat(listeningTime(history.minutes), 'listening'),
-                  ],
-                ),
-              ),
-              if (history.first != null && history.last != null) ...[
-                const SizedBox(height: Space.lg),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 520),
-                  child: _ListeningSpan(first: history.first!, last: history.last!),
-                ),
-              ],
-              if (top != null) ...[
-                const SizedBox(height: Space.md),
-                Text.rich(
-                  TextSpan(
+              LayoutBuilder(
+                builder: (context, c) {
+                  final figures = Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      TextSpan(text: 'Most played  ', style: t.footnote),
-                      TextSpan(
-                        text: top,
-                        style: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600),
-                      ),
-                      TextSpan(
-                        text: history.topSongPlays > 1 ? '  ${history.topSongPlays} plays' : '',
-                        style: t.footnote,
-                      ),
+                      stat(compactCount(history.plays), history.plays == 1 ? 'play' : 'plays'),
+                      stat(listeningTime(history.minutes), 'listening'),
                     ],
-                  ),
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
+                  );
+                  final span = history.first != null && history.last != null
+                      ? _ListeningSpan(first: history.first!, last: history.last!)
+                      : null;
+                  final mostPlayed = top == null
+                      ? null
+                      : Text.rich(
+                          TextSpan(
+                            children: [
+                              TextSpan(text: 'Most played  ', style: t.footnote),
+                              TextSpan(
+                                text: top,
+                                style: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600),
+                              ),
+                              TextSpan(
+                                text: history.topSongPlays > 1 ? '  ${history.topSongPlays} plays' : '',
+                                style: t.footnote,
+                              ),
+                            ],
+                          ),
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        );
+                  // Wide: the counts on the left, the story of how long you have
+                  // known them on the right, so the page margin is used and the
+                  // block does not leave a hole beside it.
+                  if (c.maxWidth >= 720) {
+                    return Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [figures, if (mostPlayed != null) ...[const SizedBox(height: Space.md), mostPlayed]],
+                          ),
+                        ),
+                        const SizedBox(width: Space.huge),
+                        Expanded(child: Padding(padding: const EdgeInsets.only(top: Space.sm), child: span ?? const SizedBox.shrink())),
+                      ],
+                    );
+                  }
+                  return ConstrainedBox(
+                    constraints: const BoxConstraints(maxWidth: 520),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        figures,
+                        if (span != null) ...[const SizedBox(height: Space.lg), span],
+                        if (mostPlayed != null) ...[const SizedBox(height: Space.md), mostPlayed],
+                      ],
+                    ),
+                  );
+                },
+              ),
             ],
           ),
         ),
@@ -343,6 +368,7 @@ class _ListeningSpan extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
             end('First played', first, CrossAxisAlignment.start),
+            Text(_together(first, last), style: t.footnote.copyWith(color: t.textSecondary)),
             end('Latest', last, CrossAxisAlignment.end),
           ],
         ),
@@ -367,4 +393,13 @@ class _SpanPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_SpanPainter old) => old.line != line || old.dot != dot;
+}
+
+/// "3 yr 3 mo": how long between first and latest play, in plain words.
+String _together(DateTime a, DateTime b) {
+  final months = (b.year - a.year) * 12 + b.month - a.month;
+  final y = months ~/ 12;
+  final m = months % 12;
+  if (y == 0) return m <= 1 ? 'this month' : '$m months';
+  return m == 0 ? '$y yr' : '$y yr $m mo';
 }

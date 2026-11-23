@@ -18,12 +18,15 @@ class EmbossedPlate extends StatelessWidget {
     final slab = Color.lerp(t.bgBase, t.textPrimary, 0.07)!;
     return DecoratedBox(
       decoration: BoxDecoration(
-        color: slab,
+        // Lit from the top: the slab runs from a pale top edge to a deeper foot,
+        // with a hairline all round, so the shape stays clean on every corner.
+        gradient: LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [Color.lerp(t.bgBase, t.textPrimary, 0.11)!, slab],
+        ),
         borderRadius: BorderRadius.circular(radius),
-        boxShadow: [
-          BoxShadow(color: t.textPrimary.withValues(alpha: 0.07), blurRadius: 14, offset: const Offset(-6, -6)),
-          BoxShadow(color: t.bgBase.withValues(alpha: 0.9), blurRadius: 18, offset: const Offset(8, 8)),
-        ],
+        border: Border.all(color: t.textPrimary.withValues(alpha: 0.09), width: 0.75),
       ),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(radius),

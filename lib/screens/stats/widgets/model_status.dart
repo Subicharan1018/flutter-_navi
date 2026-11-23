@@ -41,13 +41,23 @@ class ModelStatusCard extends StatelessWidget {
               children: [
                 // The model as a drop: it swells toward its next rebuild and
                 // wobbles while it is learning. Still when up to date.
-                SizedBox(width: 88, height: 88, child: LearningBlob(fill: progress, alive: learning)),
+                SizedBox(
+                  width: 88,
+                  height: 88,
+                  child: Stack(
+                    alignment: Alignment.center,
+                    children: [
+                      LearningBlob(fill: progress, alive: learning),
+                      Text('${(progress * 100).round()}%', style: figureStyle(t, 17).copyWith(color: t.onAccent)),
+                    ],
+                  ),
+                ),
                 const SizedBox(width: Space.lg),
                 Expanded(
                   child: Text(
                     pending >= threshold
                         ? 'Updating your mixes with your latest plays now.'
-                        : 'Your mixes update after ${threshold - pending} more plays.',
+                        : '$pending of $threshold plays collected. Your mixes update after ${threshold - pending} more.',
                     style: t.subheadline,
                   ),
                 ),

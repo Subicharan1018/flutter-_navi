@@ -45,8 +45,8 @@ import '../widgets/ui/action_sheet.dart' show showToast;
 import '../widgets/ui/large_title_page.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
-import '../widgets/ui/cover_fan.dart';
-import '../widgets/ui/collection_art/favorites_sky.dart';
+import '../widgets/ui/collection_art/mix_flow.dart';
+import '../widgets/ui/collection_art/favorites_stack.dart';
 import '../widgets/ui/collection_art/peak_wave.dart';
 import '../widgets/ui/collection_art/shuffle_trails.dart';
 import '../widgets/ui/mosaic_art.dart';
@@ -169,7 +169,7 @@ class _TopPicks extends ConsumerWidget {
         _FeatureCard(
           title: 'Start Listening',
           subtitle: 'A shuffle of everything in the library. Tap to play.',
-          art: ShuffleTrails(size: cardWidth),
+          art: ShuffleTrails(urls: [for (final a in added.take(3)) _art(ref, a.coverArt)], size: cardWidth),
           paletteCoverId: added.isEmpty ? null : added.first.coverArt,
           width: cardWidth,
           onTap: () => _shuffleLibrary(context, ref),
@@ -178,7 +178,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Smart Shuffle',
         subtitle: 'A mix tuned to the time of day and what you play most.',
-        art: CoverFan(urls: mixArt, size: cardWidth, seed: coverSeed('Smart Shuffle')),
+        art: MixFlow(urls: mixArt, size: cardWidth, seed: coverSeed('Smart Shuffle')),
         paletteCoverId: albums.isNotEmpty ? albums.first.coverArt : (recent.isNotEmpty ? recent.first.coverArt : null),
         width: cardWidth,
         onTap: () => navigateInApp(context, const AiShuffleScreen()),
@@ -186,7 +186,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Favorites',
         subtitle: starred.isEmpty ? 'Star songs to collect them here.' : songCount(starred.length),
-        art: FavoritesSky(coverUrl: favArt.firstOrNull, count: starred.length, size: cardWidth),
+        art: FavoritesStack(urls: favArt, size: cardWidth),
         paletteCoverId: starred.isEmpty ? null : starred.first.coverArt,
         width: cardWidth,
         onTap: () => navigateInApp(context, const FavoritesScreen()),

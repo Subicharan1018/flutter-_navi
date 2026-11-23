@@ -54,12 +54,13 @@ class _HighlightsScreenState extends ConsumerState<HighlightsScreen> {
     final marks = ref.watch(peakMarksProvider);
     final library = songs.asData?.value ?? const <Song>[];
     final marked = songsWithMarks(library, marks);
+    final svc = ref.read(subsonicServiceProvider);
     final hasHot = findHotspots(ref.watch(seekLogProvider)).isNotEmpty;
     final plan = buildReel(marked, marks);
 
     return ArtworkPage(
       paletteCoverId: marked.isEmpty ? null : marked.first.coverArt,
-      art: (size) => PeakWave(size: size),
+      art: (size) => PeakWave(coverUrl: marked.isEmpty ? null : svc.getCoverArtUrl(marked.first.coverArt), size: size),
       title: 'Highlights',
       subtitle: marked.isEmpty ? null : '${plan.songs.length} moments · ${_minutes(plan.totalMs)}',
       detail: marked.isEmpty ? null : 'The best parts of ${songCount(marked.length)}, back to back',

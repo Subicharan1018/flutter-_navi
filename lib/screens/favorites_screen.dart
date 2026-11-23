@@ -19,7 +19,7 @@ import '../widgets/ui/collection_hero.dart';
 import '../widgets/ui/controls.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
-import '../widgets/ui/collection_art/favorites_sky.dart';
+import '../widgets/ui/collection_art/favorites_stack.dart';
 import '../widgets/ui/states.dart';
 import '../widgets/ui/swipe_actions.dart';
 import 'album_details_screen.dart';
@@ -55,9 +55,8 @@ class _FavoritesScreenState extends ConsumerState<FavoritesScreen> {
 
     return ArtworkPage(
       paletteCoverId: songs.isEmpty ? null : songs.first.coverArt,
-      art: (size) => FavoritesSky(
-        coverUrl: songs.isEmpty ? null : svc.getCoverArtUrl(songs.first.coverArt),
-        count: songs.length,
+      art: (size) => FavoritesStack(
+        urls: [for (final s in songs.take(9)) svc.getCoverArtUrl(s.coverArt)],
         size: size,
       ),
       title: 'Favorites',

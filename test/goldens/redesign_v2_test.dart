@@ -1,29 +1,30 @@
-/// 2.0 surfaces: the Smart Shuffle cover fan, the Replay year art, and the
-/// Stats lead (hero number, tall sparkline, genre ladder). Phone 390 wide @3x.
+/// 2.0 surfaces: the art tiles (Smart Shuffle mix, Replay year, Favorites,
+/// Highlights, Start Listening) drawn from textured stand-in covers, and the
+/// Stats cards (hero, streak ticket, dial plate, genre poster, model drop).
+/// Phone 390 wide.
 ///
 ///   flutter test test/goldens/redesign_v2_test.dart --update-goldens
 @Tags(['golden'])
 library;
-
-import 'dart:typed_data';
-import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/ai_shuffle/data/models/listening_stats_response.dart';
+import 'package:navivibe/features/ai_shuffle/data/models/model_status_response.dart';
 import 'package:navivibe/player/artwork.dart' show debugCoverImageOverride;
 import 'package:navivibe/screens/stats/widgets/genre_mix.dart';
 import 'package:navivibe/screens/stats/widgets/hours_chart.dart';
-import 'package:navivibe/screens/stats/widgets/learning_blob.dart';
+import 'package:navivibe/screens/stats/widgets/model_status.dart';
 import 'package:navivibe/screens/stats/widgets/summary_grid.dart';
-import 'package:navivibe/widgets/ui/cover_fan.dart';
-import 'package:navivibe/widgets/ui/collection_art/favorites_sky.dart';
+import 'package:navivibe/widgets/ui/collection_art/favorites_stack.dart';
+import 'package:navivibe/widgets/ui/collection_art/mix_flow.dart';
 import 'package:navivibe/widgets/ui/collection_art/peak_wave.dart';
 import 'package:navivibe/widgets/ui/collection_art/shuffle_trails.dart';
-import 'package:navivibe/widgets/ui/year_art.dart';
+import 'package:navivibe/widgets/ui/collection_art/year_poster.dart';
 
+import 'fake_covers.dart';
 import 'golden_fonts.dart';
 
 Widget _app(Widget body) {
@@ -40,20 +41,8 @@ Widget _app(Widget body) {
   );
 }
 
+const _ids = ['c0', 'c1', 'c2', 'c3', 'c4', 'c5', 'c6', 'c7', 'c8'];
 
-/// Solid swatches stand in for covers, one shade per url, so the fan and the
-/// ribbon show their shapes.
-Future<Map<String, MemoryImage>> _swatches(List<String> keys, List<Color> colors) async {
-  final out = <String, MemoryImage>{};
-  for (final (i, k) in keys.indexed) {
-    final rec = ui.PictureRecorder();
-    Canvas(rec).drawRect(const Rect.fromLTWH(0, 0, 16, 16), Paint()..color = colors[i % colors.length]);
-    final img = await rec.endRecording().toImage(16, 16);
-    final bytes = (await img.toByteData(format: ui.ImageByteFormat.png))!;
-    out[k] = MemoryImage(Uint8List.view(bytes.buffer));
-  }
-  return out;
-}
 void main() {
   setUpAll(loadGoldenFonts);
   tearDown(() => debugCoverImageOverride = null);
@@ -64,47 +53,65 @@ void main() {
     addTearDown(tester.view.reset);
   }
 
-  testWidgets('mix fan and year art', (tester) async {
-    view(tester, const Size(390, 340), 3);
-    final sw = await tester.runAsync(
-      () => _swatches(['a', 'b', 'c', 'd', 'e'], const [Color(0xFFB04A3C), Color(0xFF3C6FB0), Color(0xFFD9A441), Color(0xFF4E8F6A), Color(0xFF7A5FA8)]),
-    );
+  Future<void> covers(WidgetTester tester) async {
+    final sw = await tester.runAsync(() => texturedCovers());
     debugCoverImageOverride = (url, key) => sw![url]!;
+  }
+
+
+  testWidgets('art tiles: mix flow and year poster', (tester) async {
+    view(tester, const Size(390, 220), 3);
+    await covers(tester);
     await tester.pumpWidget(
       _app(
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Column(
+          child: Row(
             children: [
-              Row(children: [
-                CoverFan(urls: const ['a', 'b', 'c', 'd'], size: 170, radius: Radii.hero, seed: 's'),
-                const SizedBox(width: 16),
-                YearArt(year: 2026, urls: const ['a', 'b', 'c', 'd', 'e'], size: 170, radius: Radii.hero),
-              ]),
-              const SizedBox(height: 16),
-              Row(children: [
-                FavoritesSky(coverUrl: 'a', count: 10, size: 106, radius: Radii.hero),
-                const SizedBox(width: 16),
-                PeakWave(size: 106, radius: Radii.hero),
-                const SizedBox(width: 16),
-                ShuffleTrails(size: 106, radius: Radii.hero),
-              ]),
+              MixFlow(urls: _ids, size: 170, radius: Radii.hero, seed: 's'),
+              const SizedBox(width: 16),
+              YearPoster(year: 2026, urls: _ids.sublist(3), size: 170, radius: Radii.hero),
             ],
           ),
         ),
       ),
     );
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
     await tester.pumpAndSettle();
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('redesign_v2/art_phone.png'));
   });
 
-  testWidgets('stats lead and genre ladder', (tester) async {
-    view(tester, const Size(390, 1900), 2);
-    final sw = await tester.runAsync(
-      () => _swatches(['a'], const [Color(0xFF7A3C3C)]),
+  testWidgets('art tiles: constellation, peaks, crossing covers', (tester) async {
+    view(tester, const Size(390, 330), 3);
+    await covers(tester);
+    await tester.pumpWidget(
+      _app(
+        Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            children: [
+              FavoritesStack(urls: _ids, size: 106, radius: Radii.hero),
+              const SizedBox(width: 16),
+              PeakWave(coverUrl: _ids[2], size: 106, radius: Radii.hero),
+              const SizedBox(width: 16),
+              ShuffleTrails(urls: _ids.sublist(4), size: 106, radius: Radii.hero),
+            ],
+          ),
+        ),
+      ),
     );
-    debugCoverImageOverride = (url, key) => sw![url]!;
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
+    await tester.pumpAndSettle();
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('redesign_v2/art_small_phone.png'));
+  });
+
+  testWidgets('stats cards', (tester) async {
+    view(tester, const Size(390, 1900), 2);
+    await covers(tester);
     const stats = ListeningStatsResponse(
       period: 'weekly',
       label: '7 Days',
@@ -118,8 +125,15 @@ void main() {
       topTracks: [],
       recentPlays: [],
       genreBreakdown: [],
-      hourlyHeatmap: {'22': 40, '23': 52, '0': 31, '14': 9},
+      hourlyHeatmap: {'22': 40, '23': 52, '0': 31, '14': 9, '9': 12},
     );
+    final model = ModelStatusResponse.fromJson(const {
+      'total_plays_processed': 5120,
+      'songs_in_library': 2400,
+      'context_buckets': 84,
+      'unprocessed_events': 18,
+      'rebuild_threshold': 50,
+    });
     await tester.pumpWidget(
       _app(
         SingleChildScrollView(
@@ -131,10 +145,10 @@ void main() {
                 stats: stats,
                 periodPhrase: 'in the last 7 days',
                 topArtist: 'Sai Abhyankkar',
-                topArtistCover: 'a',
+                topArtistCover: 'c4',
                 dailyPlays: [12, 30, 22, 48, 20, 35, 60, 41, 25, 52],
               ),
-              ListeningClock(byHour: const {'22': 40, '23': 52, '0': 31, '14': 9, '9': 12}),
+              const ListeningClock(byHour: {'22': 40, '23': 52, '0': 31, '14': 9, '9': 12}),
               const GenreMixCard(
                 genres: [
                   {'genre': 'Tamil Film', 'pct': 54.0},
@@ -144,14 +158,15 @@ void main() {
                   {'genre': 'Other', 'pct': 4.0},
                 ],
               ),
-              const SizedBox(height: 24),
-              const Row(children: [SizedBox(width: 88, height: 88, child: LearningBlob(fill: 0.6, alive: true)), SizedBox(width: 16), SizedBox(width: 88, height: 88, child: LearningBlob(fill: 0.25, alive: false))]),
+              ModelStatusCard(status: model),
             ],
           ),
         ),
       ),
     );
-    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 300)));
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
+    await tester.pumpAndSettle();
+    await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 400)));
     await tester.pumpAndSettle();
     await expectLater(find.byType(MaterialApp), matchesGoldenFile('redesign_v2/stats_phone.png'));
   });
