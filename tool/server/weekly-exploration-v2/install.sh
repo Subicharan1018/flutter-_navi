@@ -53,15 +53,15 @@ echo "== 3/3 tests on the live tree"
 echo "   $(tail -1 "$T/.live")"
 
 # 06:00 IST on Monday = 00:30 UTC (the server clock is UTC).
-CRON="30 0 * * 1 cd $SHUF && nice -n 19 $SPY -m navivibe.weekly_build --users all-eligible >> $LOG 2>&1 # navivibe-weekly-build"
+CRON="30 0 * * 1 cd $SHUF && nice -n 19 $SPY -m navivibe.weekly_build --users with-key >> $LOG 2>&1 # navivibe-weekly-build"
 cat <<EOS
 
 Done. No restart is needed (it is a command, not part of the running service). The Monday job is NOT enabled.
 
-ListenBrainz is per listener: only an account with its own ListenBrainz key in Navidrome gets hints (today: the admin).
-Everyone else gets taste-only picks. The admin's key is never used for anyone else.
+The source is the songs the ListenBrainz API returns for the listener's OWN key (today: the admin only). A listener without
+a key is skipped. The admin's key is never used for anyone else.
 
-1. See who is eligible and whether ListenBrainz hints are used (builds nothing, sends nothing):
+1. Per user: key yes/no, will build yes/no, source (builds nothing, sends nothing):
 
     cd $SHUF && $SPY -m navivibe.weekly_build --users admin --dry-run
 
@@ -69,11 +69,12 @@ Everyone else gets taste-only picks. The admin's key is never used for anyone el
 
     cd $SHUF && $SPY -m navivibe.weekly_build --users admin
 
-3. Everyone allowed, now or by the Monday job below (one listener at a time, 30 s between; run it in screen or tmux):
+3. Everyone with their own key, now or by the Monday job below (one listener at a time, 30 s between; run it in screen or tmux):
 
-    cd $SHUF && $SPY -m navivibe.weekly_build --users all-eligible --dry-run
-    cd $SHUF && $SPY -m navivibe.weekly_build --users all-eligible
+    cd $SHUF && $SPY -m navivibe.weekly_build --users with-key --dry-run
+    cd $SHUF && $SPY -m navivibe.weekly_build --users with-key
 
+Later, to include listeners without a key (picks from their listening history alone): add --include-taste-only.
 One named listener (add --force to top up a list already made this week):
 
     cd $SHUF && $SPY -m navivibe.weekly_build --user NAME

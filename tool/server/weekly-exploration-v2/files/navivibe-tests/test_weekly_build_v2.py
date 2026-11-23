@@ -156,7 +156,7 @@ def test_it_builds_one_listener_at_a_time_and_pauses_between(db):
     kinds = [(m, u) for m, u in order]
     assert kinds.index(("POST", "b")) > max(i for i, k in enumerate(kinds) if k == ("GET", "a"))
     assert sleeps.count(30) == 2 and sleeps.count(wb.POLL_S) >= 6                      # between listeners, and while polling
-    assert "build       a: done (20 picks)" in out
+    assert "build       a: done (20 picks, source taste)" in out
 
 
 def test_each_call_is_signed_for_that_listener_and_carries_their_seeds(db):
@@ -173,7 +173,7 @@ def test_a_failing_listener_is_logged_and_the_rest_go_on(db):
     res, out, _ = go(db, f, ["a", "b", "c"])
     assert res["built"] == 2 and res["failed"] == 1
     assert any(o.startswith("FAILED      b: OSError") for o in out)
-    assert "build       c: done (20 picks)" in out
+    assert "build       c: done (20 picks, source taste)" in out
     assert "connection refused" in "".join(o for o in out if o.startswith("FAILED"))        # the reason is logged, nothing secret in it
 
 
@@ -210,15 +210,61 @@ def test_dry_run_lists_every_decision_and_sends_nothing(db):
     db.execute("INSERT INTO weekly_prefs VALUES ('off', 0, 10, 0)")
     db.execute("INSERT INTO weekly_builds VALUES ('done', ?, 'done', 1, 2, 20, NULL)", (WEEK,))
     f = FakeFetcher(db)
-    res, out, sleeps = go(db, f, ["new", "keyed", "off", "done", "noacc", "quiet"], dry=True, bridge=None,
+    LB = "ListenBrainz (own key; taste fills in if it returns under 8 songs)"
+    res, out, sleeps = go(db, f, ["keyed", "nokey", "off", "done", "noacc", "quiet"], dry=True, bridge=None,
                           access=lambda u: u != "noacc", seeds=lambda u: NONE if u == "quiet" else SEEDS,
-                          has_key=lambda u: u == "keyed")
+                          has_key=lambda u: u in ("keyed", "off", "done", "noacc"))
     assert f.calls == [] and sleeps == []
-    assert out == ["eligible    new: this week's list is not made yet; ListenBrainz hints: none (taste only)",
-                   "eligible    keyed: this week's list is not made yet; ListenBrainz hints: own ListenBrainz key",
-                   "skipped     off: turned_off", "skipped     done: built_this_week", "skipped     noacc: no_download_access",
-                   "skipped     quiet: no_listening_history"]
-    assert res["would_build"] == 2 and res["built"] == 0
+    assert out == [f"keyed: key=yes  will build=yes  source={LB}  [this week's list is not made yet]",
+                   "nokey: key=no  will build=no  source=-  [no_listenbrainz_key]",
+                   "off: key=yes  will build=no  source=-  [turned_off]", "done: key=yes  will build=no  source=-  [built_this_week]",
+                   "noacc: key=yes  will build=no  source=-  [no_download_access]",
+                   "quiet: key=no  will build=no  source=-  [no_listenbrainz_key]"]
+    assert res["would_build"] == 1 and res["built"] == 0
+
+
+def test_only_listeners_with_their_own_key_are_built_unless_taste_only_is_asked_for(db):
+    f = FakeFetcher(db, slow=0)
+    res, out, _ = go(db, f, ["keyed", "nokey"], has_key=lambda u: u == "keyed")
+    assert [u for m, p, u, h in f.calls if m == "POST"] == ["keyed"]
+    assert "skip        nokey: no_listenbrainz_key" in out
+    f2 = FakeFetcher(db, slow=0)
+    res, out, _ = go(db, f2, ["keyed", "nokey", "quiet"], has_key=lambda u: u == "keyed", include_taste=True,
+                     seeds=lambda u: NONE if u == "quiet" else SEEDS)
+    assert [u for m, p, u, h in f2.calls if m == "POST"] == ["nokey"]            # keyed was built above; quiet has no history
+    assert "skip        quiet: no_listening_history" in out
+
+
+def test_a_keyed_listener_needs_no_listening_history(db):
+    assert wb.decide("x", MON, has_access=lambda u: True, prefs={}, builds={}, seeds_for=lambda u: NONE, has_key=lambda u: True)[0] == "build"
+    assert wb.decide("x", MON, has_access=lambda u: True, prefs={}, builds={}, seeds_for=lambda u: NONE, has_key=lambda u: False,
+                     include_taste=True) == ("skip", "no_listening_history")
+
+
+def test_the_source_a_build_used_is_named():
+    assert wb.source_of({"artists": [], "extra": [{"a": 1}]}) == "ListenBrainz"
+    assert wb.source_of({"artists": [{"name": "x"}], "extra": [{"a": 1}]}) == "ListenBrainz + taste"
+    assert wb.source_of({"artists": [{"name": "x"}], "extra": []}) == "taste"
+
+
+def test_listenbrainz_is_the_main_source_when_it_returns_enough_and_taste_fills_in_otherwise(monkeypatch):
+    from navivibe import weekly_exploration as we
+    from navivibe.catalog import store
+    hints = [{"artist": f"B{i}", "title": f"T{i}", "source": "ListenBrainz"} for i in range(wb.MAIN_MIN_HINTS)]
+    monkeypatch.setattr(we, "blocked_artist_names", lambda u: ["Blocked"])
+    asked = []
+    monkeypatch.setattr(we, "lb_hints", lambda u, now, key=None, http=None: asked.append((u, key)) or hints)
+
+    def boom(*a, **k):
+        raise RuntimeError("catalog loaded")
+
+    monkeypatch.setattr(store, "load_catalog", boom)
+    seeds = wb._seeds_loader(MON)("admin")
+    assert seeds == {"artists": [], "blocked_artists": ["Blocked"], "extra": hints}        # LB songs alone: taste not even loaded
+    assert asked == [("admin", wb.own_lb_key)]                                             # and only with the exact account's key lookup
+    monkeypatch.setattr(we, "lb_hints", lambda u, now, key=None, http=None: hints[:3])
+    with pytest.raises(RuntimeError, match="catalog loaded"):
+        wb._seeds_loader(MON)("admin")                                                     # too few: taste is needed to fill in
 
 
 def test_a_listener_who_turned_it_off_is_never_built(db):
@@ -231,7 +277,7 @@ def test_a_listener_who_turned_it_off_is_never_built(db):
 def test_if_tg_fetcher_says_off_or_running_nothing_is_counted(db):
     f = FakeFetcher(db, off=["a"])
     res, out, _ = go(db, f, ["a"])
-    assert res["built"] == 0 and res["failed"] == 0 and "build       a: off (0 picks)" in out
+    assert res["built"] == 0 and res["failed"] == 0 and "build       a: off (0 picks, source taste)" in out
 
 
 def test_limit_caps_the_listeners_in_one_run(db):
@@ -298,18 +344,22 @@ def test_main_dry_run_end_to_end_with_faked_stores(db, monkeypatch, capsys):
     monkeypatch.setattr(wb, "_lock", lambda: True)
     monkeypatch.setattr(fetch_access, "has_access", lambda u: True)
     monkeypatch.setattr(wb.time, "time", lambda: MON)
-    monkeypatch.setattr(wb, "own_lb_key", lambda u: "secret-key" if u == "a" else None)
     monkeypatch.setattr(fetch_access, "admins", lambda: {"a"})
-    assert wb.main(["--dry-run"]) == 0                                   # the default scope is everyone allowed
+    monkeypatch.setattr(wb, "own_lb_key", lambda u: "secret-key" if u in ("a", "b") else None)     # a and b have keys, c has none
+    assert wb.main(["--dry-run"]) == 0                                   # the default scope: everyone with their own key
     text = capsys.readouterr().out
-    assert "scope all-eligible, 3 user(s)" in text
-    assert "eligible    a: this week's list is not made yet; ListenBrainz hints: own ListenBrainz key" in text
-    assert "skipped     b: built_this_week" in text and "skipped     c: no_listening_history" in text
-    assert "eligible 1; skipped built_this_week 1, no_listening_history 1" in text
+    assert "scope with-key, 3 user(s)" in text
+    assert "a: key=yes  will build=yes  source=ListenBrainz (own key; taste fills in if it returns under 8 songs)" in text
+    assert "b: key=yes  will build=no  source=-  [built_this_week]" in text
+    assert "c: key=no  will build=no  source=-  [no_listenbrainz_key]" in text
+    assert "will build 1; skipped built_this_week 1, no_listenbrainz_key 1" in text
     assert "secret-key" not in text
+    assert wb.main(["--dry-run", "--include-taste-only"]) == 0           # later: also those without a key, taste only
+    text = capsys.readouterr().out
+    assert "scope with-key + taste-only" in text and "c: key=no  will build=no  source=-  [no_listening_history]" in text
     assert wb.main(["--dry-run", "--users", "admin"]) == 0               # the first start: the admin account only
     text = capsys.readouterr().out
-    assert "scope admin, 1 user(s)" in text and "eligible    a:" in text and " b:" not in text and " c:" not in text
+    assert "scope admin, 1 user(s)" in text and "a: key=yes  will build=yes" in text and "b:" not in text and "c:" not in text
     assert wb.main(["--dry-run", "--user", "ghost"]) == 2
     monkeypatch.setattr(fetch_access, "admins", lambda: {"nobody"})
     assert wb.main(["--dry-run", "--users", "admin"]) == 2               # no admin among the users: it says so, builds nothing
