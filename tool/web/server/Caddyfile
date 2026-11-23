@@ -43,6 +43,16 @@ http://:8090 {
 			X-Frame-Options DENY
 			Permissions-Policy "camera=(self), microphone=(self), geolocation=(), usb=()"
 			Strict-Transport-Security "max-age=31536000"
+			# Cross-origin isolation: lets skwasm render on a worker thread (less
+			# jank) in Chromium and Firefox. `credentialless` (not require-corp)
+			# keeps cross-origin images, audio and fetches working without each
+			# host sending CORP. Safari ignores it and stays single-threaded.
+			# Tested 2026-11-23 in Chromium: the app boots, isolated=true, and
+			# cross-origin img/audio/fetch behave exactly as without the headers.
+			# Side effect: the browser database uses OPFS instead of a SharedWorker
+			# (drift keeps an existing database in its current storage).
+			Cross-Origin-Opener-Policy "same-origin"
+			Cross-Origin-Embedder-Policy "credentialless"
 			Content-Security-Policy "default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; img-src 'self' data: blob: https://navidrome.subimusic.me; media-src 'self' blob: https://navidrome.subimusic.me; font-src 'self' data: https://fonts.gstatic.com; connect-src 'self' https://navidrome.subimusic.me https://shuffle.subimusic.me https://session.subimusic.me wss://session.subimusic.me https://fonts.gstatic.com; worker-src 'self' blob:; manifest-src 'self'; frame-ancestors 'none'; base-uri 'self'; object-src 'none'; form-action 'self'"
 		}
 

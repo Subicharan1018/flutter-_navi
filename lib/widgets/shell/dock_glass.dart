@@ -62,8 +62,22 @@ class GlassGovernor {
   /// Frames per verdict, the per-frame budget, and the share of over-budget
   /// frames that counts as "sustained".
   static const int window = 120;
-  static const Duration budget = Duration(milliseconds: 24);
   static const double share = 0.5;
+
+  /// The raster time that counts as over budget. 24 ms on a 60 Hz display (about
+  /// 41 fps), tightened by [attach] to 1.5 frames on faster ones, so a 120 Hz
+  /// phone can't run at half its rate with the blur on and never be noticed.
+  static Duration budget = const Duration(milliseconds: 24);
+
+  /// 1.5 frame intervals for a display of [hz], never below 16 ms (a 60 fps
+  /// frame, so a 90-165 Hz phone isn't judged by a budget it can't ever meet
+  /// when the GPU is shared) nor above 24 ms.
+  @visibleForTesting
+  static Duration budgetFor(double hz) {
+    if (hz.isNaN || hz <= 0) return const Duration(milliseconds: 24);
+    final ms = (1500 / hz).clamp(16.0, 24.0);
+    return Duration(microseconds: (ms * 1000).round());
+  }
 
   static int _seen = 0;
   static int _over = 0;
@@ -89,12 +103,17 @@ class GlassGovernor {
     tooSlow.value = false;
     _seen = 0;
     _over = 0;
+    budget = const Duration(milliseconds: 24);
   }
 
   /// Starts listening (release builds only: debug frames are always slow).
   static void attach() {
     if (_attached || !kReleaseMode) return;
     _attached = true;
+    try {
+      final views = SchedulerBinding.instance.platformDispatcher.views;
+      if (views.isNotEmpty) budget = budgetFor(views.first.display.refreshRate);
+    } catch (_) {}
     SchedulerBinding.instance.addTimingsCallback((timings) {
       for (final t in timings) {
         report(t.rasterDuration);

@@ -82,6 +82,10 @@ class MainActivity : AudioServiceActivity() {
                                 packageManager.hasSystemFeature(PackageManager.FEATURE_LEANBACK)
                         )
                     }
+                    "isLowRam" -> {
+                        val am = getSystemService(android.content.Context.ACTIVITY_SERVICE) as android.app.ActivityManager
+                        result.success(am.isLowRamDevice)
+                    }
                     else -> result.notImplemented()
                 }
             }

@@ -161,6 +161,23 @@ void main() {
       expect(GlassGovernor.tooSlow.value, isFalse);
     });
 
+    test('the budget follows the display rate: 24 ms at 60 Hz, tighter above', () {
+      expect(GlassGovernor.budgetFor(60), const Duration(milliseconds: 24));
+      expect(GlassGovernor.budgetFor(90).inMicroseconds, closeTo(16667, 1));
+      expect(GlassGovernor.budgetFor(120), const Duration(milliseconds: 16)); // floor
+      expect(GlassGovernor.budgetFor(30), const Duration(milliseconds: 24)); // cap
+      expect(GlassGovernor.budgetFor(0), const Duration(milliseconds: 24));
+      expect(GlassGovernor.budgetFor(double.nan), const Duration(milliseconds: 24));
+    });
+
+    test('a 120 Hz phone is judged by the tighter budget', () {
+      GlassGovernor.budget = GlassGovernor.budgetFor(120);
+      for (var i = 0; i < GlassGovernor.window; i++) {
+        GlassGovernor.report(const Duration(milliseconds: 20)); // fine at 60 Hz, 41 fps-ish at 120
+      }
+      expect(GlassGovernor.tooSlow.value, isTrue);
+    });
+
     test('sustained slow frames trip it once, at the end of a window', () {
       for (var i = 0; i < GlassGovernor.window - 1; i++) {
         expect(GlassGovernor.report(const Duration(milliseconds: 30)), isFalse);

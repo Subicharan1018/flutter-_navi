@@ -290,15 +290,43 @@ class Drift extends StatefulWidget {
   /// Enlargement that leaves room to pan without showing an edge.
   static const double zoom = 1.12;
 
+  /// Whether the pan runs here at all. Desktop holds still: a 16 s pan keeps the
+  /// whole window repainting at 60 fps (a full CPU core on Windows, measured)
+  /// for a nicety nobody watches. A TV does the same: a couch-distance cover
+  /// doesn't need it and the box's GPU does.
+  @visibleForTesting
+  static bool debugAllowed({required bool motionFull, required bool desktop, required bool tv}) =>
+      motionFull && !desktop && !tv;
+
   @override
   State<Drift> createState() => _DriftState();
 }
 
-class _DriftState extends State<Drift> with SingleTickerProviderStateMixin {
+class _DriftState extends State<Drift> with SingleTickerProviderStateMixin, WidgetsBindingObserver {
   late final AnimationController _c = AnimationController(vsync: this, duration: const Duration(seconds: 16));
+  bool _foreground = true;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    final s = WidgetsBinding.instance.lifecycleState;
+    _foreground = s == null || s == AppLifecycleState.resumed || s == AppLifecycleState.inactive;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    // The screen is off or the app is behind another: a pan nobody sees would
+    // still wake the UI thread every frame. (Covered routes and hidden tabs are
+    // already muted by TickerMode.)
+    final fg = state == AppLifecycleState.resumed || state == AppLifecycleState.inactive;
+    if (fg == _foreground) return;
+    setState(() => _foreground = fg);
+  }
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _c.dispose();
     super.dispose();
   }
@@ -306,9 +334,8 @@ class _DriftState extends State<Drift> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final clip = widget.radius > 0 ? BorderRadius.circular(widget.radius) : BorderRadius.zero;
-    // Desktop holds still: a 16 s pan keeps the whole window repainting at 60 fps
-    // (a full CPU core on Windows, measured) for a nicety nobody watches there.
-    if (!context.motionFull || PlatformUtils.isDesktop) {
+    if (!_foreground ||
+        !Drift.debugAllowed(motionFull: context.motionFull, desktop: PlatformUtils.isDesktop, tv: PlatformUtils.isTv)) {
       _c.stop();
       return ClipRRect(borderRadius: clip, child: widget.child);
     }

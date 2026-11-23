@@ -201,6 +201,22 @@ Priority P1 = do first (cheap, clear win), P4 = not worth it now. Effort S < 1 d
 | 22 | Own baseline profile module | Android | ~30% for Java/Kotlin only; app is sideloaded | Library profiles already packed | M | none | P4 |
 | — | Exists: wasm build, split-per-abi, R8, `extractNativeLibs=false`, decode at display size, server-side cover sizing, 64 px palette decode on an isolate, Navidrome gzip, image cache tuned per platform, `NowPlayingBars` and Microduck tickers gated, `IdleTrim`, no whole `playerProvider` watch, glass governor, 6 h library sync cap | — | — | — | — | — | done |
 
+### Status (2026-11-23)
+
+Built and merged, in two batches. Batch 1 (the owner picked): #2, #3, #4, #7 (server side is owner-run), #8, #9, #15 (owner-run), #20. Batch 2: 
+
+| # | Done | Notes |
+|---|---|---|
+| 1 | yes | `Drift` holds still on TV and desktop, and stops while the app is in the background (`TickerMode` already mutes covered routes and hidden tabs). Test in `test/core/motion_test.dart`. |
+| 5 | partly, on purpose | The 45 s Jam-invite poll and the 10 min collab/blend poll run only with the app on screen, and catch up once on resume. The **People poll is unchanged**: friend-listening and reaction notifications are meant to arrive while music keeps the app alive in the background. |
+| 6 | yes | Inter subset (Latin + extensions, Greek, Cyrillic, punctuation, symbols; kerning, ligatures, tabular figures kept): 9 files, about 410 KB to about 202 KB each. Originals in `tool/fonts/src/`, rebuild with `python tool/fonts/subset_fonts.py`. |
+| 10 | yes | Glass governor budget is 1.5 frame intervals of the display (24 ms at 60 Hz, 16 ms floor at 90 Hz and up). |
+| 11 | yes | TV and low-RAM phones (`ActivityManager.isLowRamDevice`) start on Reduced motion and a 12 MB / 30-image decode cache. A saved choice is never overridden. |
+| 12 | yes | `dev.steenbakker.mobile_scanner.useUnbundled=true`. Phones without Google Play services cannot scan QR codes. |
+| 13 | yes, owner deploys | `Cross-Origin-Opener-Policy: same-origin` and `Cross-Origin-Embedder-Policy: credentialless` in `tool/web/server/Caddyfile`. Tested in Chromium on a local build: the app boots, `crossOriginIsolated` is true, cross-origin image, audio, fetch and WebSocket results are identical with and without the headers. Drift then uses OPFS (SharedWorkers are not allowed under `credentialless`); drift keeps an existing database in its current storage. Safari ignores the headers. |
+
+Not built, by decision: #14 (measure first), #16 to #19, #21, #22.
+
 ---
 
 ## 4. What I could not verify

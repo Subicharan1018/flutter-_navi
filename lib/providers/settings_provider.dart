@@ -5,6 +5,7 @@ import '../core/constants.dart';
 import '../core/hive_boxes.dart';
 import '../core/web_session.dart';
 import '../core/motion.dart' show MotionLevel;
+import '../utils/platform_utils.dart';
 import '../services/subsonic_service.dart';
 import '../services/playlist_cache_service.dart';
 import '../services/listening_event_collector.dart';
@@ -272,7 +273,9 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
           : true,
       motionLevel: MotionLevel.values.firstWhere(
         (e) => e.name == p.get(HiveBoxes.kMotionLevel)?.toString(),
-        orElse: () => MotionLevel.full,
+        // Never chosen: a TV or low-RAM phone starts on Reduced (fewer frames,
+        // fewer offscreen layers); anyone who picked a level keeps it.
+        orElse: () => PlatformUtils.isConstrained ? MotionLevel.reduced : MotionLevel.full,
       ),
       replayGainMode: ReplayGainMode.values.firstWhere(
         (e) => e.name == p.get(HiveBoxes.kReplayGainMode)?.toString(),

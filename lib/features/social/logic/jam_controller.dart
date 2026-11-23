@@ -355,11 +355,11 @@ class JamController extends Notifier<JamUiState> {
         case QueueChange.none:
           break;
         case QueueChange.append:
-          await player.addAllToQueue(songs.sublist(diff.at));
+          await player.addAllToQueue(songs.sublist(diff.at), track: false);
         case QueueChange.removeOne:
-          await player.removeFromQueue(diff.at);
+          await player.removeFromQueue(diff.at, track: false);
         case QueueChange.move:
-          await player.reorderQueue(diff.at, diff.to);
+          await player.reorderQueue(diff.at, diff.to, track: false);
         case QueueChange.replace:
           await player.setQueue(songs, jam.index.clamp(0, songs.length - 1));
           rebuilt = true;

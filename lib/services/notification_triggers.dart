@@ -40,6 +40,10 @@ const invitationPollEvery = Duration(minutes: 10);
 /// Jam invitations expire with the room (30 minutes), so they are re-read this often.
 const jamInvitePollEvery = Duration(seconds: 45);
 
+/// Invitations are re-read only with social on and the app on screen.
+@visibleForTesting
+bool shouldPollInvitations({required bool foreground, required bool social}) => foreground && social;
+
 // ── friends starting to listen ───────────────────────────────────────────────
 
 /// Title and body of the "friend started listening" notification.
@@ -114,6 +118,12 @@ void wireNotificationTriggers(ProviderContainer container) {
   container.read(peopleProvider);
   AppLifecycleListener(onResume: () {
     if (FriendAlertOpen.consume()) selectAppTab(AppTab.jam);
+    // The polls below sleep while the app is hidden; catch up once on return.
+    if (container.read(socialEnabledProvider)) {
+      container.invalidate(jamInvitesProvider);
+      container.invalidate(collabListProvider);
+      container.invalidate(blendListProvider);
+    }
   });
 
   container.listen(updateCheckProvider, (_, next) {
@@ -152,12 +162,22 @@ void wireNotificationTriggers(ProviderContainer container) {
   });
 
   // A Jam invite is only worth something while the room is live: ask sooner.
+  // Both polls only matter while the app is on screen: an invitation that
+  // arrives while it is hidden is read on resume (above), and each background
+  // wake would keep the phone's radio at full power for several seconds.
+  // (Friend alerts are different: they exist to notify while hidden, so the
+  // People poll is left alone.)
   Timer.periodic(jamInvitePollEvery, (_) {
-    if (container.read(socialEnabledProvider)) container.invalidate(jamInvitesProvider);
+    if (!shouldPollInvitations(foreground: AppNotifier.inForeground(), social: container.read(socialEnabledProvider))) {
+      return;
+    }
+    container.invalidate(jamInvitesProvider);
   });
 
   Timer.periodic(invitationPollEvery, (_) {
-    if (!container.read(socialEnabledProvider)) return;
+    if (!shouldPollInvitations(foreground: AppNotifier.inForeground(), social: container.read(socialEnabledProvider))) {
+      return;
+    }
     container.invalidate(collabListProvider);
     container.invalidate(blendListProvider);
   });

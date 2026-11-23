@@ -54,6 +54,9 @@ jobs:
       # The github reporter writes one ::error annotation per failing test (readable
       # without a login via the check-run annotations API); the JSON file has details.
       - run: flutter test --exclude-tags golden --reporter github --file-reporter json:test-results.json
+      - name: Name the failing tests
+        if: failure()
+        run: python3 tool/ci/report_test_failures.py test-results.json
       - name: Keep the test report when tests fail
         if: failure()
         uses: actions/upload-artifact@v7.0.2

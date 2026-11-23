@@ -90,5 +90,5 @@ On a scratch copy of the live tree with the patch (Python 3.10, fastapi 0.136.1)
 1 skipped (55 existing + 20 new). `install.sh` was dry-run on a throwaway tree: install, re-run
 (0 edits, idempotent) and a failing scratch test (nothing installed, file unchanged).
 The app's real client was also run against the patched relay over real WebSockets
-(`tools/session_sim/run_sim.py`, `test/integration/session_live_test.dart` scenario Q1, plus the
+(`tools/session_sim/run_sim.py`, `tool/live/session_live_test.dart` scenario Q1, plus the
 10 existing scenarios): all passed.

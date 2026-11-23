@@ -26,6 +26,13 @@ void main() {
     expect(invitationsIncreased(null, 0), isFalse);
   });
 
+  test('invitation polls run only with social on and the app on screen', () {
+    expect(shouldPollInvitations(foreground: true, social: true), isTrue);
+    expect(shouldPollInvitations(foreground: false, social: true), isFalse);
+    expect(shouldPollInvitations(foreground: true, social: false), isFalse);
+    expect(shouldPollInvitations(foreground: false, social: false), isFalse);
+  });
+
   test('messages read plainly', () {
     expect(invitationText(1), contains('new invitation'));
     expect(invitationText(3), contains('3 invitations'));
