@@ -17,7 +17,9 @@ import 'package:navivibe/utils/platform_utils.dart';
 
 import 'golden_fonts.dart';
 
-final _now = DateTime(2026, 11, 23);
+// The screen words ages from the real clock ("3 days ago"), so the fixtures are built
+// from it too: a fixed date made this golden fail the day after it was recorded.
+final _now = DateTime.now();
 
 QueueStatus _status({bool open = true}) => QueueStatus(
       waiting: 412,
