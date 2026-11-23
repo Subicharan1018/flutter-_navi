@@ -104,7 +104,7 @@ _VERSION = re.compile(
 # matcher-v2 additions: more words that make a different recording
 _VERSION_V2 = re.compile(
     r"\b(radio\s+edit|edit|edition|mix|piano|orchestral|medley|rework|flip|bootleg|stripped|"
-    r"violin|flute|rap|chill\s+trap|trap)\b", re.I)
+    r"violin|flute|rap|chill\s+trap|trap|promo|teaser|trailer)\b", re.I)
 _BGM = re.compile(r"\b(background\s+score|bgm)\b", re.I)
 _LANG_TAG = re.compile(r"[\(\[\-–]\s*(tamil|telugu|hindi|malayalam|kannada)\b", re.I)
 _CANON = {"sped": "sped up", "speed up": "sped up", "lofi": "lo fi", "remastered": "remaster",

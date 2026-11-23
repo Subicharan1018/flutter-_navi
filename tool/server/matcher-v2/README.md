@@ -30,7 +30,7 @@ history); Weekly Exploration treats it as owned (does not suggest a song you pro
 
 | # | rule | what it does |
 |---|---|---|
-| `versions` | more words that make another recording | `edit`/`radio edit`, `edition`, `mix`, `piano`, `orchestral`, `medley`, `rework`, `flip`, `bootleg`, `stripped`, `violin`, `flute`, `rap`, `trap`; plus a library title that says `(Background Score)` never matches a plain song. Only inside the matcher: `library_sweep.versions()` (used to build stored song keys) is untouched. |
+| `versions` | more words that make another recording | `edit`/`radio edit`, `edition`, `mix`, `piano`, `orchestral`, `medley`, `rework`, `flip`, `bootleg`, `stripped`, `violin`, `flute`, `rap`, `trap`, `promo`, `teaser`, `trailer`; plus a library title that says `(Background Score)` never matches a plain song. Only inside the matcher: `library_sweep.versions()` (used to build stored song keys) is untouched. |
 | `len` (a) | length tolerance that scales with evidence | still the caller's slack (5 s) for `artist`; 5 s < Δ ≤ 15 s **and** ≤ 8 % of the song gives `fuzzy` (`artist+length`); never beyond 15 s; never when version words differ (97 s vs 313 s fails). |
 | `names` (c, b) | name matching | `G. V. Prakash` = `G. V. Prakash Kumar` (shorter is a prefix, ≥ 2 tokens), `SS Thaman` = `Thaman S` (initials aside), `Sirkazhi` = `Dr. Seerkazhi S.`, `Jayashri` = `Jayasree`; a single first name is never enough (`Anirudh` ≠ `Anirudh Ravichander`); a name in `(feat. X)` counts. |
 | `role` (b) | composer / lyricist / album artist | the credited name may also be the library's composer, lyricist or album artist (Spotify credits the composer, the library the singers). Only `fuzzy`, or `strong` together with the film. A writers' list as composers (`A; B; C`, a pop cover credits the original artist) does not count on its own. |
@@ -56,7 +56,7 @@ would have refused 39 library songs whose ISRC proves they are the Spotify "– 
 | `old_accept` | 992 | same (assumed) | what the old matcher accepted (non-ISRC rows 104, Vijay's history 888); I read 50 random ones: 49 clearly the same song, 1 (*Water Packet*, credited to a different composer) plausible |
 | `syn_*` | 1,075 | different | made from the library: 400 plain songs with a version word added (remix, sped up, live, karaoke, reprise, cover, unplugged, lofi, instrumental, slowed), 139 the other way round, 500 the same song with its length moved by 22 s – 216 s, 36 same title / different song inside the library |
 
-`files/tests/fixtures/matcher_gold.json` is the **committed** fixture: 37 made-up pairs (15 same, 22 different; no real
+`files/tests/fixtures/matcher_gold.json` is the **committed** fixture: 44 made-up pairs (15 same, 29 different; no real
 titles, artists or films) with one pair per kind of mistake; `tests/test_matcher_v2.py` runs it.
 
 ## Measured (positives: `pos s+f / total` = strong + fuzzy found; FP = wrong ones accepted as strong + fuzzy)
@@ -140,7 +140,7 @@ offline files and was updated to match (`song_match.py` is in its `TOOLS` list a
 
 ## Tests
 
-* `files/tests/test_matcher_v2.py` (46 tests + 5 that need the patched tree): the made-up gold fixture (37 pairs), the
+* `files/tests/test_matcher_v2.py` (53 tests + 5 that need the patched tree): the made-up gold fixture (44 pairs), the
   contract (isrc exact and first, old four-argument call, caller slack, every old version word still blocks, tie-break),
   `norm_title` / `phonetic_key` equal the shuffle server's, the name similarity equals `rapidfuzz`, `load_library` credits.
 * `tests_repo/test_parity.py` (repo only): copies byte-identical; the offline tool answers like the server index on the fixture.
