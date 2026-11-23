@@ -229,6 +229,8 @@ def test_handle_feedback_statuses_and_learning():
     assert cache[("u", "s1")] == ["Song A"]
     assert eng.seen[0]["_played_at"] == int((NOW - timedelta(minutes=4)).timestamp())
     assert eng.seen[0]["_local_hour"] == 17
+    assert eng.seen[0]["_quality"] is None
+
     body, code = pe.handle_feedback("u", finish(), cache, lock, 500, eng, NOW)
     assert (code, body["duplicate"]) == (200, True) and len(eng.seen) == 1
     body, code = pe.handle_feedback("u", finish(play_id="z", title=""), cache, lock, 500, eng, NOW)
