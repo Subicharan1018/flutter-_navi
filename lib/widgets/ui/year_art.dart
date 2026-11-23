@@ -3,7 +3,7 @@ import 'package:flutter/widgets.dart';
 import '../../core/theme.dart';
 import '../cover_art.dart';
 
-/// A year as art: the number set huge in white on an accent ground, with a
+/// A year as art: the number set huge in black on a white ground, with a
 /// ribbon of overlapping covers (the year's top songs) running along the
 /// foot. Replay's identity is the year, not a grid of covers.
 class YearArt extends StatelessWidget {
@@ -36,13 +36,13 @@ class YearArt extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(label, style: t.title3.copyWith(color: t.onAccent.withValues(alpha: 0.6), fontSize: size * 0.085)),
+                Text(label, style: t.title3.copyWith(color: t.bgBase.withValues(alpha: 0.6), fontSize: size * 0.085)),
                 FittedBox(
                   fit: BoxFit.scaleDown,
                   alignment: Alignment.centerLeft,
                   child: Text(
                     '$year',
-                    style: t.largeTitle.copyWith(color: t.onAccent, fontSize: size * 0.30, height: 1.0, letterSpacing: -size * 0.012),
+                    style: t.largeTitle.copyWith(color: t.bgBase, fontSize: size * 0.30, height: 1.0, letterSpacing: -size * 0.012),
                   ),
                 ),
                 const Spacer(),

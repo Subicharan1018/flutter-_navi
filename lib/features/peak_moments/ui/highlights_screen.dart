@@ -11,7 +11,7 @@ import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/cover_art.dart';
 import '../../../widgets/ui/artwork_page.dart';
 import '../../../widgets/ui/media.dart';
-import '../../../widgets/ui/mosaic_art.dart';
+import '../../../widgets/ui/collection_art/peak_wave.dart';
 import '../../../widgets/ui/states.dart';
 import '../data/peak_mark.dart';
 import '../data/peak_store.dart';
@@ -54,19 +54,12 @@ class _HighlightsScreenState extends ConsumerState<HighlightsScreen> {
     final marks = ref.watch(peakMarksProvider);
     final library = songs.asData?.value ?? const <Song>[];
     final marked = songsWithMarks(library, marks);
-    final svc = ref.read(subsonicServiceProvider);
     final hasHot = findHotspots(ref.watch(seekLogProvider)).isNotEmpty;
     final plan = buildReel(marked, marks);
 
     return ArtworkPage(
       paletteCoverId: marked.isEmpty ? null : marked.first.coverArt,
-      art: (size) => MosaicArt(
-        urls: [for (final s in marked.take(8)) svc.getCoverArtUrl(s.coverArt)],
-        size: size,
-        radius: 0,
-        placeholderIcon: NaviGlyph.flame,
-        seed: coverSeed('Highlights'),
-      ),
+      art: (size) => PeakWave(size: size),
       title: 'Highlights',
       subtitle: marked.isEmpty ? null : '${plan.songs.length} moments · ${_minutes(plan.totalMs)}',
       detail: marked.isEmpty ? null : 'The best parts of ${songCount(marked.length)}, back to back',

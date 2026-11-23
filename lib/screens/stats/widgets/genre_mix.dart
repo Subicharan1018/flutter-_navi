@@ -52,7 +52,7 @@ class GenreMixCard extends StatelessWidget {
                             .textStyle(
                               (_small + (_big - _small) * (peak == 0 ? 0 : p.$2 / peak)).roundToDouble(),
                               FontWeight.w700,
-                              i == 0 ? t.accent : (i == parts.length - 1 && other > 0 ? t.textMuted : t.textSecondary),
+                              i == 0 ? t.gold : (i == parts.length - 1 && other > 0 ? t.textMuted : t.textSecondary),
                             )
                             .copyWith(height: 1.1, letterSpacing: -0.6),
                       ),

@@ -7,6 +7,8 @@ import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/motion/number_roll.dart';
 import 'ring_gauge.dart';
 import 'sparkline.dart';
+import 'listener_type.dart';
+import 'streak_dots.dart';
 import 'stat_card.dart';
 import 'stat_tile.dart';
 
@@ -48,6 +50,7 @@ class SummaryHero extends StatelessWidget {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            ListenerTypeLine(byHour: stats.hourlyHeatmap),
             FittedBox(
               fit: BoxFit.scaleDown,
               alignment: Alignment.centerLeft,
@@ -74,7 +77,7 @@ class SummaryHero extends StatelessWidget {
             // The hero visual: the shape of the period, drawn tall.
             if (dailyPlays.length > 2) ...[
               const SizedBox(height: Space.xl),
-              Sparkline(values: dailyPlays, height: 96),
+              Sparkline(values: dailyPlays, height: 96, color: t.gold),
             ],
             const SizedBox(height: Space.xxl),
             IntrinsicHeight(
@@ -109,10 +112,17 @@ class SummaryHero extends StatelessWidget {
                   const _Divider(),
                   Expanded(
                     child: _Cell(
-                      child: StatTile(
-                        glyph: NaviGlyph.flame,
-                        value: NumberRoll(value: stats.streakDays, style: figureStyle(t, 24)),
-                        label: 'day streak',
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          NaviIcon(NaviGlyph.flame, size: 18, color: t.gold),
+                          const SizedBox(height: Space.xs),
+                          NumberRoll(value: stats.streakDays, style: figureStyle(t, 24)),
+                          const SizedBox(height: Space.xs),
+                          StreakDots(streak: stats.streakDays),
+                          const SizedBox(height: Space.xs),
+                          Text('day streak', maxLines: 1, overflow: TextOverflow.ellipsis, style: t.footnote),
+                        ],
                       ),
                     ),
                   ),

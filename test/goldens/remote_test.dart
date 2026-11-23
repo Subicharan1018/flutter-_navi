@@ -137,12 +137,12 @@ void main() {
     expect(tester.takeException(), isNull);
   });
 
-  testWidgets('who is playing: the chip and the remote mini player on a passive device', (tester) async {
+  testWidgets('who is playing: the remote mini player says it once, no separate chip', (tester) async {
     await phone(tester, height: 220);
     await tester.pumpWidget(_app(const Scaffold(
       body: Align(
         alignment: Alignment.bottomCenter,
-        child: Column(mainAxisSize: MainAxisSize.min, children: [PlayingOnChip(), SizedBox(height: 12), RemoteMiniPlayer()]),
+        child: RemoteMiniPlayer(),
       ),
     )));
     await tester.pump(const Duration(milliseconds: 200));

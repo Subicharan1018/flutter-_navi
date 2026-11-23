@@ -17,6 +17,9 @@ import 'package:navivibe/player/artwork.dart' show debugCoverImageOverride;
 import 'package:navivibe/screens/stats/widgets/genre_mix.dart';
 import 'package:navivibe/screens/stats/widgets/summary_grid.dart';
 import 'package:navivibe/widgets/ui/cover_fan.dart';
+import 'package:navivibe/widgets/ui/collection_art/favorites_sky.dart';
+import 'package:navivibe/widgets/ui/collection_art/peak_wave.dart';
+import 'package:navivibe/widgets/ui/collection_art/shuffle_trails.dart';
 import 'package:navivibe/widgets/ui/year_art.dart';
 
 import 'golden_fonts.dart';
@@ -60,7 +63,7 @@ void main() {
   }
 
   testWidgets('mix fan and year art', (tester) async {
-    view(tester, const Size(390, 220), 3);
+    view(tester, const Size(390, 340), 3);
     final sw = await tester.runAsync(
       () => _swatches(['a', 'b', 'c', 'd', 'e'], const [Color(0xFFB04A3C), Color(0xFF3C6FB0), Color(0xFFD9A441), Color(0xFF4E8F6A), Color(0xFF7A5FA8)]),
     );
@@ -69,11 +72,21 @@ void main() {
       _app(
         Padding(
           padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
             children: [
-              CoverFan(urls: const ['a', 'b', 'c', 'd'], size: 170, radius: Radii.hero, seed: 's'),
-              const SizedBox(width: 16),
-              YearArt(year: 2026, urls: const ['a', 'b', 'c', 'd', 'e'], size: 170, radius: Radii.hero),
+              Row(children: [
+                CoverFan(urls: const ['a', 'b', 'c', 'd'], size: 170, radius: Radii.hero, seed: 's'),
+                const SizedBox(width: 16),
+                YearArt(year: 2026, urls: const ['a', 'b', 'c', 'd', 'e'], size: 170, radius: Radii.hero),
+              ]),
+              const SizedBox(height: 16),
+              Row(children: [
+                FavoritesSky(coverUrl: 'a', count: 10, size: 106, radius: Radii.hero),
+                const SizedBox(width: 16),
+                PeakWave(size: 106, radius: Radii.hero),
+                const SizedBox(width: 16),
+                ShuffleTrails(size: 106, radius: Radii.hero),
+              ]),
             ],
           ),
         ),
@@ -99,7 +112,7 @@ void main() {
       topTracks: [],
       recentPlays: [],
       genreBreakdown: [],
-      hourlyHeatmap: {},
+      hourlyHeatmap: {'22': 40, '23': 52, '0': 31, '14': 9},
     );
     await tester.pumpWidget(
       _app(

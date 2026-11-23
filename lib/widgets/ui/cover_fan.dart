@@ -5,6 +5,7 @@ import 'package:flutter/widgets.dart';
 import '../../core/theme.dart';
 import '../art/generated_cover.dart';
 import '../cover_art.dart';
+import '../motion/play_once.dart';
 
 /// The mark of a mix: up to three of its covers fanned like a hand of cards
 /// on an opaque ground, the newest-picked one in front. Used where a mix is
@@ -34,31 +35,43 @@ class CoverFan extends StatelessWidget {
     // Back to front: left, right, centre. Fewer covers keep the same slots.
     const slots = [(-0.06, 0.12, -0.16), (0.26, 0.14, 0.14), (0.11, 0.30, 0.0)];
     final order = distinct.length == 1 ? [2] : (distinct.length == 2 ? [0, 2] : [0, 1, 2]);
+    // The cards start stacked in the middle and open into the fan once.
+    final home = Offset(size * 0.19, size * 0.30);
     return ClipRRect(
       borderRadius: BorderRadius.circular(radius),
       child: ColoredBox(
         color: t.bgElevated,
         child: SizedBox.square(
           dimension: size,
-          child: Stack(
-            clipBehavior: Clip.hardEdge,
-            children: [
-              for (final (i, slot) in order.indexed)
-                Positioned(
-                  left: size * slots[slot].$1 + size * 0.08,
-                  top: size * slots[slot].$2,
-                  child: Transform.rotate(
-                    angle: slots[slot].$3 * math.pi / 3,
-                    child: DecoratedBox(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(Radii.cover),
-                        boxShadow: [BoxShadow(color: t.bgBase.withValues(alpha: 0.5), blurRadius: size * 0.06)],
+          child: PlayOnce(
+            duration: const Duration(milliseconds: 900),
+            curve: Curves.easeOutBack,
+            builder: (context, p) => AnimatedBuilder(
+              animation: p,
+              builder: (context, _) {
+                final k = p.value;
+                return Stack(
+                  clipBehavior: Clip.hardEdge,
+                  children: [
+                    for (final (i, slot) in order.indexed)
+                      Positioned(
+                        left: home.dx + (size * slots[slot].$1 + size * 0.08 - home.dx) * k,
+                        top: home.dy + (size * slots[slot].$2 - home.dy) * k,
+                        child: Transform.rotate(
+                          angle: slots[slot].$3 * math.pi / 3 * k,
+                          child: DecoratedBox(
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(Radii.cover),
+                              boxShadow: [BoxShadow(color: t.bgBase.withValues(alpha: 0.5), blurRadius: size * 0.06)],
+                            ),
+                            child: CoverArt(url: distinct[i], size: c, radius: Radii.cover),
+                          ),
+                        ),
                       ),
-                      child: CoverArt(url: distinct[i], size: c, radius: Radii.cover),
-                    ),
-                  ),
-                ),
-            ],
+                  ],
+                );
+              },
+            ),
           ),
         ),
       ),
