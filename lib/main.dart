@@ -109,6 +109,13 @@ Future<void> main(List<String> args) async {
   if (PlatformUtils.isTv) {
     FocusManager.instance.highlightStrategy = FocusHighlightStrategy.alwaysTraditional;
   }
+  // A 1 GB TV gets 30-40 MB for graphics in all (developer.android.com/training/tv/
+  // playback/memory); a low-RAM phone is similar. Halve the decoded-image cache.
+  if (PlatformUtils.isConstrained) {
+    PaintingBinding.instance.imageCache
+      ..maximumSizeBytes = 12 * 1024 * 1024
+      ..maximumSize = 30;
+  }
 
   // BUG-FIX-2: Must initialize OfflineService before runApp() so that
   // DownloadStateNotifier.build() finds _prefs non-null on its very first

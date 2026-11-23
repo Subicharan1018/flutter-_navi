@@ -42,7 +42,25 @@ abstract final class PlatformUtils {
     } catch (_) {
       _television = false;
     }
+    try {
+      _lowRam = await _android.invokeMethod<bool>('isLowRam') ?? false;
+    } catch (_) {
+      _lowRam = false;
+    }
   }
+
+  /// Test seam: pretend the device is (true) or isn't (false) a low-RAM Android.
+  @visibleForTesting
+  static bool? debugLowRamOverride;
+
+  static bool _lowRam = false;
+
+  /// True when Android flags the device as low-RAM (`ActivityManager
+  /// .isLowRamDevice`, roughly 1 GB or less). Set by [detectTelevision].
+  static bool get isLowRam => debugLowRamOverride ?? _lowRam;
+
+  /// True on a device that should spend less: a TV or a low-RAM phone.
+  static bool get isConstrained => isTv || isLowRam;
 
   /// True when focus (D-pad, keyboard Tab) is the primary way to navigate,
   /// so focus rings and focus-friendly layouts matter most.

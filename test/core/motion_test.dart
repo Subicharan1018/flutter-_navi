@@ -125,6 +125,51 @@ void main() {
     });
   });
 
+  group('Drift on a phone and a TV', () {
+    tearDown(() {
+      PlatformUtils.debugDesktopOverride = null;
+      PlatformUtils.debugTvOverride = null;
+    });
+    const drift = Drift(child: SizedBox(width: 50, height: 50));
+
+    testWidgets('pans on a phone, holds still on a TV', (tester) async {
+      PlatformUtils.debugDesktopOverride = false;
+      PlatformUtils.debugTvOverride = false;
+      await tester.pumpWidget(_app(drift));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.hasRunningAnimations, isTrue);
+
+      PlatformUtils.debugTvOverride = true;
+      await tester.pumpWidget(_app(const SizedBox(), level: MotionLevel.full));
+      await tester.pumpWidget(_app(drift));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.hasRunningAnimations, isFalse);
+    });
+
+    testWidgets('stops while the app is in the background and resumes after', (tester) async {
+      PlatformUtils.debugDesktopOverride = false;
+      PlatformUtils.debugTvOverride = false;
+      await tester.pumpWidget(_app(drift));
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.hasRunningAnimations, isTrue);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      await tester.pump();
+      expect(tester.hasRunningAnimations, isFalse);
+
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await tester.pump(const Duration(milliseconds: 100));
+      expect(tester.hasRunningAnimations, isTrue);
+    });
+
+    test('allowed() needs Full motion on a phone', () {
+      expect(Drift.debugAllowed(motionFull: true, desktop: false, tv: false), isTrue);
+      expect(Drift.debugAllowed(motionFull: true, desktop: false, tv: true), isFalse);
+      expect(Drift.debugAllowed(motionFull: true, desktop: true, tv: false), isFalse);
+      expect(Drift.debugAllowed(motionFull: false, desktop: false, tv: false), isFalse);
+    });
+  });
+
   group('HeartBurst', () {
     Widget w(bool on, MotionLevel l) => _app(
           HeartBurst(active: on, color: Colors.white, child: const SizedBox(width: 40, height: 40)),
