@@ -1,0 +1,4 @@
+{"release-count":3,"releases":[
+ {"id":"r2","title":"Hits","date":"2016","label-info":[{"catalog-number":"X","label":{"id":"aaaa","name":"Later Label"}}]},
+ {"id":"r1","title":"Ethir Neechal","date":"2014-12-12","label-info":[{"catalog-number":"Y","label":{"id":"bbbb","name":"Sony Music Entertainment India Pvt. Ltd."}}]},
+ {"id":"r0","title":"Promo","date":"2014-12-01","label-info":[{"label":{"id":"157afde4-4bf5-4039-8ad2-5a15acc85466","name":"[no label]"}}]}]}
