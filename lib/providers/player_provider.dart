@@ -1392,8 +1392,11 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     int? seekToMs,
     PlayOrigin? origin,
   }) {
-    if (!_counting || !_ref.read(settingsProvider).dataCollectionEnabled) return;
     final shuffle = _ref.read(shuffleQueueProvider.notifier);
+    // Asked first: it is plain memory, and an older server never takes these events,
+    // so settings (Hive) are not even read for them.
+    if (!shuffle.eventsSupported) return;
+    if (!_counting || !_ref.read(settingsProvider).dataCollectionEnabled) return;
     final o = origin ?? _currentOrigin;
     sendShuffleFeedback(
       _ref,
