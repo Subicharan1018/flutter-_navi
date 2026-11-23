@@ -210,13 +210,15 @@ def test_dry_run_lists_every_decision_and_sends_nothing(db):
     db.execute("INSERT INTO weekly_prefs VALUES ('off', 0, 10, 0)")
     db.execute("INSERT INTO weekly_builds VALUES ('done', ?, 'done', 1, 2, 20, NULL)", (WEEK,))
     f = FakeFetcher(db)
-    res, out, sleeps = go(db, f, ["new", "off", "done", "noacc", "quiet"], dry=True, bridge=None,
-                          access=lambda u: u != "noacc", seeds=lambda u: NONE if u == "quiet" else SEEDS)
+    res, out, sleeps = go(db, f, ["new", "keyed", "off", "done", "noacc", "quiet"], dry=True, bridge=None,
+                          access=lambda u: u != "noacc", seeds=lambda u: NONE if u == "quiet" else SEEDS,
+                          has_key=lambda u: u == "keyed")
     assert f.calls == [] and sleeps == []
-    assert out == ["would build new: this week's list is not made yet", "skip        off: turned_off",
-                   "skip        done: built_this_week", "skip        noacc: no_download_access",
-                   "skip        quiet: no_listening_history"]
-    assert res["would_build"] == 1 and res["built"] == 0
+    assert out == ["eligible    new: this week's list is not made yet; ListenBrainz hints: none (taste only)",
+                   "eligible    keyed: this week's list is not made yet; ListenBrainz hints: own ListenBrainz key",
+                   "skipped     off: turned_off", "skipped     done: built_this_week", "skipped     noacc: no_download_access",
+                   "skipped     quiet: no_listening_history"]
+    assert res["would_build"] == 2 and res["built"] == 0
 
 
 def test_a_listener_who_turned_it_off_is_never_built(db):
@@ -296,8 +298,68 @@ def test_main_dry_run_end_to_end_with_faked_stores(db, monkeypatch, capsys):
     monkeypatch.setattr(wb, "_lock", lambda: True)
     monkeypatch.setattr(fetch_access, "has_access", lambda u: True)
     monkeypatch.setattr(wb.time, "time", lambda: MON)
-    assert wb.main(["--dry-run"]) == 0
+    monkeypatch.setattr(wb, "own_lb_key", lambda u: "secret-key" if u == "a" else None)
+    monkeypatch.setattr(fetch_access, "admins", lambda: {"a"})
+    assert wb.main(["--dry-run"]) == 0                                   # the default scope is everyone allowed
     text = capsys.readouterr().out
-    assert "would build a" in text and "skip        b: built_this_week" in text and "skip        c: no_listening_history" in text
-    assert "would build 1; skipped built_this_week 1, no_listening_history 1" in text
+    assert "scope all-eligible, 3 user(s)" in text
+    assert "eligible    a: this week's list is not made yet; ListenBrainz hints: own ListenBrainz key" in text
+    assert "skipped     b: built_this_week" in text and "skipped     c: no_listening_history" in text
+    assert "eligible 1; skipped built_this_week 1, no_listening_history 1" in text
+    assert "secret-key" not in text
+    assert wb.main(["--dry-run", "--users", "admin"]) == 0               # the first start: the admin account only
+    text = capsys.readouterr().out
+    assert "scope admin, 1 user(s)" in text and "eligible    a:" in text and " b:" not in text and " c:" not in text
     assert wb.main(["--dry-run", "--user", "ghost"]) == 2
+    monkeypatch.setattr(fetch_access, "admins", lambda: {"nobody"})
+    assert wb.main(["--dry-run", "--users", "admin"]) == 2               # no admin among the users: it says so, builds nothing
+
+
+def test_scope_admin_means_only_the_admin_accounts():
+    everyone = ["admin", "Admin2", "anish", "sandeep"]
+    assert wb.users_in_scope("admin", everyone, {"admin", "admin2"}) == ["admin", "Admin2"]
+    assert wb.users_in_scope("all-eligible", everyone, {"admin"}) == everyone
+
+
+# ── ListenBrainz is strictly per listener ────────────────────────────────────
+
+@pytest.fixture
+def navidrome(tmp_path, monkeypatch):
+    p = tmp_path / "navidrome.db"
+    c = sqlite3.connect(p)
+    c.execute("CREATE TABLE user (id TEXT PRIMARY KEY, user_name TEXT)")
+    c.execute("CREATE TABLE user_props (user_id TEXT, key TEXT, value TEXT)")
+    c.executemany("INSERT INTO user VALUES (?,?)", [("1", "admin"), ("2", "anish"), ("3", "Admin")])
+    c.execute("INSERT INTO user_props VALUES ('1', 'ListenBrainzSessionKey', 'ADMIN-KEY')")
+    c.commit()
+    c.close()
+    monkeypatch.setattr(wb, "NAVIDROME_DB_URI", f"file:{p}?mode=ro")
+
+
+def test_a_key_belongs_to_exactly_one_account(navidrome):
+    assert wb.own_lb_key("admin") == "ADMIN-KEY"
+    assert wb.own_lb_key("anish") is None                  # no key of their own: taste only
+    assert wb.own_lb_key("Admin") is None                  # not the admin's key under another spelling of the name
+    assert wb.own_lb_key("stranger") is None
+
+
+def test_the_admins_listenbrainz_data_is_never_fetched_for_anyone_else(navidrome):
+    from navivibe import weekly_exploration as we
+    we._lb_cache.clear()
+    calls = []
+
+    def http(method, url, token, body=None):
+        calls.append((token, url))
+        if url.endswith("validate-token"):
+            return {"valid": True, "user_name": "admins_lb_name"}
+        if "/cf/recommendation/" in url:
+            return {"payload": {"mbids": [{"recording_mbid": "m1"}]}}
+        return {"m1": {"recording": {"name": "Song"}, "artist": {"name": "Band"}}}
+
+    hints = {u: we.lb_hints(u, MON, key=wb.own_lb_key, http=http) for u in ("anish", "Admin", "admin", "anish")}
+    assert hints["anish"] == [] and hints["Admin"] == []
+    assert hints["admin"] == [{"artist": "Band", "title": "Song", "source": "ListenBrainz"}]
+    assert {t for t, _ in calls} == {"ADMIN-KEY"}                          # the only key ever sent is the admin's...
+    assert all("admins_lb_name" in u or u.endswith(("validate-token", "recording/")) for _, u in calls)
+    assert len(calls) == 3                                                  # ...for the admin's own list only: nothing for the others
+    assert "anish" not in repr(calls)

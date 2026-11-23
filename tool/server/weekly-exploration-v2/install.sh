@@ -53,24 +53,32 @@ echo "== 3/3 tests on the live tree"
 echo "   $(tail -1 "$T/.live")"
 
 # 06:00 IST on Monday = 00:30 UTC (the server clock is UTC).
-CRON="30 0 * * 1 cd $SHUF && nice -n 19 $SPY -m navivibe.weekly_build >> $LOG 2>&1 # navivibe-weekly-build"
+CRON="30 0 * * 1 cd $SHUF && nice -n 19 $SPY -m navivibe.weekly_build --users all-eligible >> $LOG 2>&1 # navivibe-weekly-build"
 cat <<EOS
 
 Done. No restart is needed (it is a command, not part of the running service). The Monday job is NOT enabled.
 
-See who would get a list now, and why the others are skipped (builds nothing, sends nothing):
+ListenBrainz is per listener: only an account with its own ListenBrainz key in Navidrome gets hints (today: the admin).
+Everyone else gets taste-only picks. The admin's key is never used for anyone else.
 
-    cd $SHUF && $SPY -m navivibe.weekly_build --dry-run
+1. See who is eligible and whether ListenBrainz hints are used (builds nothing, sends nothing):
 
-Start one listener now (add --force to top up a list already made this week):
+    cd $SHUF && $SPY -m navivibe.weekly_build --users admin --dry-run
+
+2. Run it now for the admin account only (the first start):
+
+    cd $SHUF && $SPY -m navivibe.weekly_build --users admin
+
+3. Everyone allowed, now or by the Monday job below (one listener at a time, 30 s between; run it in screen or tmux):
+
+    cd $SHUF && $SPY -m navivibe.weekly_build --users all-eligible --dry-run
+    cd $SHUF && $SPY -m navivibe.weekly_build --users all-eligible
+
+One named listener (add --force to top up a list already made this week):
 
     cd $SHUF && $SPY -m navivibe.weekly_build --user NAME
 
-Build for everyone now (one listener at a time, 30 s between; about 1-2 minutes each; run it in screen or tmux):
-
-    cd $SHUF && $SPY -m navivibe.weekly_build
-
-The job that would run every Monday at 06:00 IST:
+The job that would run every Monday at 06:00 IST (turn it on with: bash install.sh --cron, then type yes):
 
     $CRON
 EOS

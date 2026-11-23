@@ -23,8 +23,14 @@ own throttle and call budget (iTunes about 20 calls a minute, at most 70 outside
 at a time with a pause keeps the whole run inside them. A listener who fails is logged and the rest go on.
 A run that finds a build taking longer than 15 minutes stops (never two at once).
 
-  --dry-run   print the decision for every user and why, build nothing, send nothing
+  --users admin         only the admin account(s) (NAVIVIBE_ADMIN_USERS): the owner's first start
+  --users all-eligible  everyone allowed (the default, and what the Monday cron runs); those without their own
+                        ListenBrainz key get taste-only picks
+  --dry-run   per user: eligible (and whether ListenBrainz hints are used) or skipped and why; builds nothing, sends nothing
   --user N    only this listener (even when built already: add --force to top the list up)
+
+ListenBrainz is strictly per listener: hints come only from the ListenBrainz key Navidrome holds for that exact account
+(Settings > ListenBrainz). There is no server-wide token; the admin's key and data are never used for anyone else.
   --pause S   seconds between listeners (default 30)
   --limit N   build at most N listeners in this run
 
@@ -182,7 +188,7 @@ def build_one(bridge: Bridge, user: str, seeds: dict, *, sleep=time.sleep, clock
 
 def run(users: list[str], now: float, *, has_access, prefs: dict, builds_for, seeds_for, bridge, dry: bool = False,
         force: bool = False, pause: float = PAUSE_S, limit: int | None = None, sleep=time.sleep, out=print,
-        clock=time.time) -> dict:
+        clock=time.time, has_key=lambda u: False) -> dict:
     """Decide for each user and (unless dry) build, one at a time. `builds_for()` re-reads the build table (so a second
     pass in the same run, or a page open meanwhile, is seen). Returns counts and the per-user decisions."""
     decisions, built, failed, stopped = [], 0, 0, False
@@ -197,8 +203,15 @@ def run(users: list[str], now: float, *, has_access, prefs: dict, builds_for, se
         if action == "build" and limit is not None and built + failed >= limit:
             action, why = "skip", "limit_reached"
         decisions.append((u, action, why))
-        if dry or action != "build":
-            out(f"{'would build' if dry and action == 'build' else action:<11} {u}: {why}")
+        if dry:
+            if action == "build":
+                lb = "own ListenBrainz key" if has_key(u) else "none (taste only)"
+                out(f"{'eligible':<11} {u}: {why}; ListenBrainz hints: {lb}")
+            else:
+                out(f"{'skipped':<11} {u}: {why}")
+            continue
+        if action != "build":
+            out(f"{action:<11} {u}: {why}")
             continue
         try:
             outcome, n = build_one(bridge, u, seeds_for(u), sleep=sleep, clock=clock)
@@ -235,10 +248,33 @@ def _seeds_loader(now: float):
             state["events"], _ = load_all(cat)
         we = state["we"]
         s = we.seeds_from(state["events"], state["cat"].meta, user, now, we.blocked_artist_names(user))
-        s["extra"] = we.lb_hints(user, now)
+        s["extra"] = we.lb_hints(user, now, key=own_lb_key)      # strictly this listener's own key, else nothing
         return s
 
     return seeds_for
+
+
+def own_lb_key(user: str) -> str | None:
+    """The ListenBrainz key Navidrome holds for exactly this account (case-sensitive; never another account's, never a
+    server-wide token: there is none). None means no hints for this listener: their list is taste only."""
+    try:
+        c = sqlite3.connect(NAVIDROME_DB_URI, uri=True, timeout=5)
+        try:
+            r = c.execute("SELECT p.value FROM user_props p JOIN user u ON u.id=p.user_id "
+                          "WHERE p.key='ListenBrainzSessionKey' AND u.user_name=?", (user,)).fetchone()
+        finally:
+            c.close()
+    except sqlite3.Error:
+        return None
+    return (r[0] or None) if r else None
+
+
+def users_in_scope(scope: str, everyone: list[str], admins: set) -> list[str]:
+    """`admin`: only the admin account(s) (NAVIVIBE_ADMIN_USERS); `all-eligible`: every user (the decision then drops
+    those who may not use it)."""
+    if scope == "admin":
+        return [u for u in everyone if u.strip().lower() in admins]
+    return list(everyone)
 
 
 def _lock():
@@ -257,7 +293,10 @@ def _lock():
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--dry-run", action="store_true")
-    ap.add_argument("--user")
+    who = ap.add_mutually_exclusive_group()
+    who.add_argument("--users", choices=("admin", "all-eligible"), default="all-eligible",
+                     help="admin: only the admin account (the first start); all-eligible: everyone allowed (the Monday cron, the default)")
+    who.add_argument("--user", help="one named listener")
     ap.add_argument("--force", action="store_true")
     ap.add_argument("--pause", type=float, default=PAUSE_S)
     ap.add_argument("--limit", type=int)
@@ -267,9 +306,13 @@ def main(argv=None) -> int:
     from navivibe import fetch_access
     now = time.time()
     stamp = time.strftime("%Y-%m-%d %H:%M:%S", time.gmtime(now)) + " UTC"
-    users = [a.user] if a.user else navidrome_users()
-    if a.user and a.user not in navidrome_users():
+    everyone = navidrome_users()
+    if a.user and a.user not in everyone:
         print(f"!! {a.user} is not a Navidrome user")
+        return 2
+    users = [a.user] if a.user else users_in_scope(a.users, everyone, fetch_access.admins())
+    if not users:
+        print(f"!! nobody in scope ({a.users}): is NAVIVIBE_ADMIN_USERS set to a Navidrome user?")
         return 2
     lock = _lock()
     if lock is None and not a.dry_run:
@@ -277,12 +320,13 @@ def main(argv=None) -> int:
         return 3
     prefs, _ = read_state()
     bridge = None if a.dry_run else Bridge.from_env()
-    print(f"weekly build {stamp}: week of {week_of(now)}, {len(users)} user(s){' (dry run)' if a.dry_run else ''}")
+    scope = f"user {a.user}" if a.user else a.users
+    print(f"weekly build {stamp}: week of {week_of(now)}, scope {scope}, {len(users)} user(s){' (dry run)' if a.dry_run else ''}")
     res = run(users, now, has_access=fetch_access.has_access, prefs=prefs, builds_for=lambda: read_state()[1],
               seeds_for=_seeds_loader(now), bridge=bridge, dry=a.dry_run, force=a.force,
-              pause=a.pause, limit=a.limit)
+              pause=a.pause, limit=a.limit, has_key=lambda u: own_lb_key(u) is not None)
     skipped = skip_summary(res["decisions"])
-    print(f"done: built {res['built']}, failed {res['failed']}" + (f", would build {res['would_build']}" if a.dry_run else "")
+    print(f"done: built {res['built']}, failed {res['failed']}" + (f", eligible {res['would_build']}" if a.dry_run else "")
           + (f"; skipped {skipped}" if skipped else ""))
     return 1 if res["failed"] or res["stopped"] else 0
 

@@ -31,8 +31,15 @@ with its own throttle and call budget (iTunes about 20 calls a minute; at most 7
 stays inside them. A listener who fails is logged and the rest go on; exit code 1 if any failed. A build still going after
 15 minutes stops the run (never two at once). A lock stops cron and a hand run overlapping.
 
-    --dry-run   the decision for every user and why; builds nothing, sends nothing
+    --users admin         only the admin account(s) (`NAVIVIBE_ADMIN_USERS`): the owner's first start
+    --users all-eligible  everyone allowed (the default; what the Monday cron runs)
+    --dry-run   per user: `eligible` (with whether ListenBrainz hints are used) or `skipped` and why; builds nothing, sends nothing
     --user N    only this listener (--force to top up a list already made this week)
+
+**ListenBrainz is strictly per listener.** The hints come only from the ListenBrainz key Navidrome holds for that exact
+account (`user_props` `ListenBrainzSessionKey`, matched on the exact user name). There is no server-wide token anywhere (v1's page
+path does the same lookup per signed-in user, and its cache is per user). The admin's key and data are never used for anyone
+else; a listener without their own key gets taste-only picks. Today only the admin has a key. Keys are never printed or sent anywhere but `api.listenbrainz.org`.
     --pause S   seconds between listeners (default 30)
     --limit N   at most N builds in this run
 
@@ -49,13 +56,20 @@ Keys are read by name from `/opt/shuffle-server/.env` and never printed.
 
 The cron line it offers (the server clock is UTC, so 06:00 IST on Monday):
 
-    30 0 * * 1 cd /opt/shuffle-server && nice -n 19 /opt/shuffle-server/venv/bin/python -m navivibe.weekly_build >> /DATA/AppData/navivibe/weekly_exploration_build.log 2>&1 # navivibe-weekly-build
+    30 0 * * 1 cd /opt/shuffle-server && nice -n 19 /opt/shuffle-server/venv/bin/python -m navivibe.weekly_build --users all-eligible >> /DATA/AppData/navivibe/weekly_exploration_build.log 2>&1 # navivibe-weekly-build
 
-Then:
+Run it now for the **admin only** (the first start):
 
-    cd /opt/shuffle-server && venv/bin/python -m navivibe.weekly_build --dry-run     # who would get a list
-    cd /opt/shuffle-server && venv/bin/python -m navivibe.weekly_build --user NAME   # one listener now
-    cd /opt/shuffle-server && venv/bin/python -m navivibe.weekly_build               # everyone now (use screen / tmux)
+    cd /opt/shuffle-server && venv/bin/python -m navivibe.weekly_build --users admin --dry-run
+    cd /opt/shuffle-server && venv/bin/python -m navivibe.weekly_build --users admin
+
+Turn on the **Monday job for everyone allowed** (taste-only for those without their own ListenBrainz key):
+
+    bash install.sh --cron        # shows the line above and asks; type yes
+    cd /opt/shuffle-server && venv/bin/python -m navivibe.weekly_build --users all-eligible --dry-run   # a look first
+    cd /opt/shuffle-server && venv/bin/python -m navivibe.weekly_build --users all-eligible             # or now (screen / tmux)
+
+One listener: `... --user NAME` (add `--force` to top up).
 
 Rollback: `rm -f /opt/shuffle-server/navivibe/weekly_build.py /opt/shuffle-server/navivibe/tests/test_weekly_build_v2.py`
 (or the `.bak-<time>` copy the installer made), and `crontab -l | grep -v '# navivibe-weekly-build' | crontab -`.
@@ -64,7 +78,10 @@ Lists already built stay; the page and v1 are untouched.
 ## Checked on 23 Nov 2026 (read-only on the live server)
 
 `--dry-run` against the real `fetch.db`, Navidrome users and listening logs (this file piped to the server's Python,
-nothing installed, nothing written): 32 users. **6 would be built now**: anish, prem2323, Roopika K, Sanjai S, sanjayn29, shimal.
+nothing installed, nothing written): 32 users. **6 would be built now**: anish, prem2323, Roopika K, Sanjai S, sanjayn29, shimal
+(all taste-only: none of them has a ListenBrainz key; only the admin has one). `--users admin` says
+`skipped admin: built_this_week`: the admin opened the page this week, so that list (20 picks, made through the page with the admin's own
+hints) already exists; the admin-only run has nothing to do until next Monday, and `--force` would only top up to 20 (nothing to add).
 Skipped: 4 `built_this_week` (admin, sandeep, vijay with 20 picks each, and JD with an empty list), 22 `no_listening_history`.
 Nobody has turned it off and no one lacks download access (`FETCH_DEFAULT_ACCESS=all`).
 
