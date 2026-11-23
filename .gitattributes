@@ -7,3 +7,4 @@ tool/server/lyrics-v2/** text eol=lf
 tool/server/lyrics-v3/** text eol=lf
 tool/server/weekly-exploration-v1/** text eol=lf
 tool/server/history-import-v1/** text eol=lf
+tool/server/weekly-exploration-v2/** text eol=lf
