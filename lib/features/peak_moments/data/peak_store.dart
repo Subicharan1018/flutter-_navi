@@ -76,16 +76,40 @@ class PeakMarksNotifier extends Notifier<PeakMarks> {
   /// Dragging a mark's end handle: its new length, kept clear of the next
   /// mark and inside the song.
   Future<void> resize(String songId, String markId, int lengthMs, {required int durationMs}) async {
-    final all = state.map[songId] ?? const <PeakMark>[];
+    final m = state.of(songId).where((x) => x.id == markId).firstOrNull;
+    if (m == null) return;
+    await setBounds(songId, markId, endMs: m.startMs + lengthMs, durationMs: durationMs);
+  }
+
+  /// Dragging a mark's start handle: the start moves, the end stays. Kept
+  /// clear of the previous mark, at 0 or later, and 5..90 s long.
+  Future<void> moveStart(String songId, String markId, int startMs, {required int durationMs}) =>
+      setBounds(songId, markId, startMs: startMs, durationMs: durationMs);
+
+  /// Nudge buttons and arrow keys: move the start and/or the end by a delta
+  /// (e.g. -1000 / +1000). The same limits as dragging.
+  Future<void> nudge(String songId, String markId, {int startDeltaMs = 0, int endDeltaMs = 0, required int durationMs}) async {
+    final m = state.of(songId).where((x) => x.id == markId).firstOrNull;
+    if (m == null) return;
+    await setBounds(
+      songId,
+      markId,
+      startMs: startDeltaMs == 0 ? null : m.startMs + startDeltaMs,
+      endMs: endDeltaMs == 0 ? null : m.endMs + endDeltaMs,
+      durationMs: durationMs,
+    );
+  }
+
+  /// The one place a mark's edges change (see [PeakMark.adjusted]). Bumps
+  /// `updatedAt` like every edit, so a later sync takes the newest version.
+  Future<void> setBounds(String songId, String markId, {int? startMs, int? endMs, required int durationMs}) async {
     final live = state.of(songId);
     final m = live.where((x) => x.id == markId).firstOrNull;
     if (m == null) return;
-    var l = lengthMs.clamp(PeakMark.minLengthMs, PeakMark.maxLengthMs);
-    final next = live.where((x) => x.startMs >= m.endMs).firstOrNull;
-    if (next != null && m.startMs + l > next.startMs) l = next.startMs - m.startMs;
-    if (durationMs > 0 && m.startMs + l > durationMs) l = durationMs - m.startMs;
-    if (l < PeakMark.minLengthMs || l == m.lengthMs) return;
-    await _save(songId, [for (final x in all) x.id == markId ? x.copyWith(lengthMs: l, updatedAt: _now()) : x]);
+    final next = m.adjusted(live, startMs: startMs, endMs: endMs, durationMs: durationMs);
+    if (next == null) return;
+    final stamped = next.copyWith(updatedAt: _now());
+    await _save(songId, [for (final x in state.map[songId] ?? const <PeakMark>[]) x.id == markId ? stamped : x]);
   }
 
   Future<void> _remove(String songId, PeakMark mark) {

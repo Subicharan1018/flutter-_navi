@@ -27,6 +27,42 @@ class PeakMark {
   static const minLengthMs = 5000;
   static const maxLengthMs = 90000;
 
+  /// A moment starts this long before the tap that saved it: people tap a
+  /// second or two after the best part begins.
+  static const leadInMs = 3000;
+
+  /// This mark with its start and/or end moved, or null when nothing changes
+  /// or no valid result exists. [others] are the song's other live marks: the
+  /// result never reaches into them, never starts before 0 or ends after
+  /// [durationMs] (0 = unknown), and keeps [minLengthMs]..[maxLengthMs]. When
+  /// the start is what moves, a length that would break those limits is
+  /// corrected at the start (the end stays); otherwise at the end.
+  PeakMark? adjusted(List<PeakMark> others, {int? startMs, int? endMs, required int durationMs}) {
+    const unbounded = 1 << 40;
+    var prevEnd = 0;
+    var limitEnd = durationMs > 0 ? durationMs : unbounded;
+    for (final o in others) {
+      if (o.id == id) continue;
+      if (o.endMs <= this.startMs) {
+        if (o.endMs > prevEnd) prevEnd = o.endMs;
+      } else if (o.startMs >= this.endMs && o.startMs < limitEnd) {
+        limitEnd = o.startMs;
+      }
+    }
+    if (limitEnd - prevEnd < minLengthMs) return null;
+    final movingStart = startMs != null;
+    var s = (startMs ?? this.startMs).clamp(prevEnd, limitEnd - minLengthMs);
+    var e = (endMs ?? this.endMs).clamp(prevEnd + minLengthMs, limitEnd);
+    if (e - s > maxLengthMs) {
+      movingStart ? s = e - maxLengthMs : e = s + maxLengthMs;
+    }
+    if (e - s < minLengthMs) {
+      movingStart ? s = e - minLengthMs : e = s + minLengthMs;
+    }
+    if (s == this.startMs && e == this.endMs) return null;
+    return copyWith(startMs: s, lengthMs: e - s);
+  }
+
   /// Tombstones older than this are dropped when loading.
   static const tombstoneKeep = Duration(days: 90);
 
@@ -164,8 +200,10 @@ PeakMark? placeMark({
   required List<PeakMark> existing,
   required int nowMs,
   int lengthMs = PeakMark.defaultLengthMs,
+  int leadInMs = PeakMark.leadInMs,
 }) {
-  var start = positionMs < 0 ? 0 : positionMs;
+  // Start a little before the tap; the saved part still contains the tap.
+  var start = positionMs - leadInMs < 0 ? 0 : positionMs - leadInMs;
   final live = [...existing]..sort((a, b) => a.startMs.compareTo(b.startMs));
   for (final m in live) {
     if (start >= m.startMs && start < m.endMs) start = m.endMs;

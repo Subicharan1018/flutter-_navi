@@ -1,3 +1,4 @@
+import '../data/peak_mark.dart' show PeakMark;
 import '../data/seek_log.dart';
 
 /// A stretch of a song the listener keeps coming back to.
@@ -47,7 +48,9 @@ List<Hotspot> findHotspots(List<SeekEntry> log, {int minCount = minHotspotCount}
       }
     }
     if (bestCount >= minCount) {
-      out.add(Hotspot(songId: entry.key, startMs: landings[bestFrom].toMs, count: bestCount, lastAtMs: bestLast));
+      // Like a saved moment, start a little before the earliest landing.
+      final start = landings[bestFrom].toMs - PeakMark.leadInMs;
+      out.add(Hotspot(songId: entry.key, startMs: start < 0 ? 0 : start, count: bestCount, lastAtMs: bestLast));
     }
   }
   out.sort((a, b) => b.count != a.count ? b.count.compareTo(a.count) : b.lastAtMs.compareTo(a.lastAtMs));

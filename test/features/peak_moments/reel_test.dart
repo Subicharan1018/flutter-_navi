@@ -43,7 +43,7 @@ void main() {
       final on = buildReel([song('a'), song('b'), song('c')], marks, seekLog: log, includeSuggested: true);
       expect(on.songs.map((s) => s.id), ['a', 'b']); // a keeps its mark only; c has one scrub
       expect(on.segments.last.suggested, isTrue);
-      expect(on.segments.last.startMs, 80000);
+      expect(on.segments.last.startMs, 77000); // 3 s before the earliest landing
     });
     test('segmentAt rejects an entry whose song moved', () {
       final plan = buildReel([song('a')], const PeakMarks().withSong('a', [mark('a1', 0)]));
@@ -65,7 +65,10 @@ void main() {
       expect(findHotspots([seek('a', 10000), seek('a', 90000)]), isEmpty);
       final h = findHotspots([seek('a', 10000), seek('a', 25000), seek('a', 90000)]);
       expect(h.single.count, 2);
-      expect(h.single.startMs, 10000);
+      expect(h.single.startMs, 7000); // 3 s before the earliest landing
+    });
+    test('the lead-in is clamped to 0', () {
+      expect(findHotspots([seek('a', 1000), seek('a', 2000)]).single.startMs, 0);
     });
     test('ranks by count then recency', () {
       final h = findHotspots([
