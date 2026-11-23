@@ -14,7 +14,8 @@ MusicBrainz and Last.fm. Written for `/opt/shuffle-server` on subiserver; instal
 says every request needs a User-Agent with enough information to contact the maintainer ("a contact URL or
 address"). The job sends `NaviVibe-LibraryEnrich/1.0 ( <LIBENRICH_CONTACT> )` and refuses to run without it.
 The existing server enrich code already uses a project URL (`NAVIVIBE_USER_AGENT`); a URL like that, not a
-personal address, is allowed by the policy. No default is baked in on purpose.
+personal address, is allowed by the policy. No default is baked in on purpose. The owner chose
+`https://shuffle.subimusic.me` (23 Nov 2026), so use `LIBENRICH_CONTACT='https://shuffle.subimusic.me'`.
 
 ## What it reads, what it writes
 
