@@ -5,9 +5,10 @@
 ///   SESSION_SIM_REAL=http://127.0.0.1:5598 relay with production timings (for the soak)
 ///   SESSION_SOAK_MINUTES=10                 (optional) length of the idle soak
 ///
-///   flutter test test/integration/session_live_test.dart --plain-name "scenario"
+///   flutter test tool/live/session_live_test.dart --plain-name "scenario"
 ///
-/// Without SESSION_SIM every test here is skipped, so the normal suite never needs a server.
+/// This file lives outside test/ on purpose: the normal `flutter test` run (CI) never needs a
+/// server, so it never sees these tests. Run it by path as above; it fails fast without SESSION_SIM.
 library;
 
 import 'dart:async';
@@ -98,11 +99,7 @@ Future<Map<String, dynamic>> rooms(String base) async =>
     jsonDecode((await http.get(Uri.parse('$base/_sim/rooms'))).body) as Map<String, dynamic>;
 
 void main() {
-  final sim = _sim;
-  if (sim == null) {
-    test('session live scenarios (set SESSION_SIM to run)', () {}, skip: 'no simulation server');
-    return;
-  }
+  final sim = _sim ?? (throw StateError('Set SESSION_SIM to a running simulation server (see the header).'));
   final started = <Dev>[];
   Dev dev(String user, String id, String name, {SyncDeviceType type = SyncDeviceType.phone, String? base}) {
     final d = Dev.create(base ?? sim, user, '$id-${DateTime.now().microsecondsSinceEpoch}', name, type: type);

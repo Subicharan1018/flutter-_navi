@@ -19,9 +19,11 @@ on:
         default: false
 
 # Rapid pushes to one branch: only the newest gets published.
+# A release on main is never cancelled by a later push (a cancelled run is a missed
+# update); a newer push waits its turn. Other branches still keep only the newest.
 concurrency:
   group: release-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
@@ -92,7 +94,10 @@ jobs:
       - run: flutter pub get
       - run: flutter analyze lib
       # Goldens are recorded on Windows and differ on Linux: local only (as in CI).
-      - run: flutter test --exclude-tags golden --reporter github
+      - run: flutter test --exclude-tags golden --reporter github --file-reporter json:test-results.json
+      - name: Name the failing tests
+        if: failure()
+        run: python3 tool/ci/report_test_failures.py test-results.json
 
   android:
     needs: version
@@ -346,6 +351,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAG: ${{ needs.version.outputs.tag }}
+          NAME: ${{ needs.version.outputs.name }}
         run: |
           set -uo pipefail
           prev=$(gh release list --limit 1 --json tagName -q '.[0].tagName' || true)
@@ -354,7 +360,13 @@ jobs:
           else
             range="-n 20"
           fi
-          git log $range --no-merges --pretty='- %s' > notes.md
+          # Hand-written user-facing notes for this version (release-notes/<version>.md)
+          # win over the commit list; the update screen shows them as they are.
+          if [ -f "release-notes/$NAME.md" ]; then
+            cp "release-notes/$NAME.md" notes.md
+          else
+            git log $range --no-merges --pretty='- %s' > notes.md
+          fi
           [ -s notes.md ] || echo '- Maintenance build' > notes.md
 
       - name: Package patches and manifest

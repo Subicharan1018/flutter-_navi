@@ -81,7 +81,7 @@ Future<void> registerWindowsFileTypes({String? exe, Future<ProcessResult> Functi
   if (run == null && (!PlatformUtils.isWindows || !kReleaseMode)) return;
   File? file;
   try {
-    file = File('${Directory.systemTemp.path}\\navivibe_register.reg');
+    file = File('${Directory.systemTemp.path}${Platform.pathSeparator}navivibe_register.reg');
     final text = windowsRegistrationReg(exe ?? Platform.resolvedExecutable);
     // reg.exe reads UTF-16 LE with a byte-order mark, so non-ASCII user names survive.
     final bytes = <int>[0xFF, 0xFE];
