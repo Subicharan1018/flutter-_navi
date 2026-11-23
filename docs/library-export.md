@@ -144,3 +144,68 @@ The CSV itself is never committed (it names the Spotify account in `Added By`, w
   because the server's version imports server packages). Upload `batch2/navivibe_sample_01.csv` (one playlist of 200) to Soundiiz.
 * Proposals only: `calibration_report.json`, `coverage.txt` and `proposed_features.csv` (current / proposed / Spotify value for every song, all six
   features) are in the shared notes folder. Nothing is applied to the server.
+
+## All batches done (23 Nov 2026): real coverage, what is missing, and what to do next
+
+`python tool/shuffle_eval/finalize_spotify_features.py --catalog catalog.db --exportify <each Exportify CSV> --results <each transfer result file> --out final_out`
+(read-only; real and predicted values go to separate files; the CSVs stay outside the repo).
+
+**Real Spotify features now: 2,109 distinct library songs = 84.8 % of the 2,487** (453 the catalog already had, 1,656 new from the
+files). Rows matched per file (ISRC first, then title + artist + length): batches 1 to 6 matched 196, 200, 199, 197, 199, 198 of 197, 200, 200,
+197, 199, 198 rows; batch 7 matched 107 of 114; the first free batch (`My_playlist.csv`) 485 of 495. Batch 8 is empty. Unmatched rows are Spotify's
+other title or version of a song.
+
+**Why batch 7 returned 114 and batch 8 nothing.** The transfer service's own result files (`isFound`) say it: batches 1 to 6 were sent with an
+ISRC and found 98 to 99 % (3, 1 and 2 not found in 01, 05 and 06). Batches 7 and 8 are the songs **without an ISRC** (200 and 100 rows, none has one),
+so the service searched by title and artist: it found 114 of 200 (86 not found) and 72 of 100 (28 not found). Batch 7's 114 found rows are exactly the 114
+Exportify returned. Batch 8's 72 "found" songs were never exported (Exportify's file has only the header): either the playlist was not created
+or filled on Spotify (a free-tier limit is the likely cause, not verified), or it was exported before the transfer finished. Open the playlist on Spotify;
+if it has songs, export it again.
+
+**Cross-validated Pearson r of the embedding model (same 5 folds), earlier 814 labels -> all 2,109:**
+energy 0.853 -> 0.881, valence 0.731 -> 0.793, danceability 0.724 -> 0.767, acousticness 0.856 -> 0.878, loudness 0.786 -> 0.832.
+The catalog's current estimate on the 1,656 songs where it is an estimate (r with Spotify): energy 0.77, valence 0.70, danceability 0.48,
+acousticness 0.64, loudness 0.59; the model on those songs: 0.88, 0.80, 0.76, 0.88, 0.82. Tempo: keep the catalog's `bpm`.
+
+**Gaps that remain.** Language, decade and energy x valence are now balanced (Tamil 62.7 % of the labelled set against 61.8 % of the library, English
+25.4 % against 26.5 %; every energy and valence quartile has 504 to 541 labelled songs). What remains is the 378 songs below and, in the embedding
+space, English pop (mean distance to a labelled song 0.349 against 0.293 typical).
+
+**378 songs still have no real Spotify features** (a reason per song: `remaining_songs.csv`):
+112 not found on Spotify by name (no ISRC); 99 remix / live / sped-up / version titles left out on purpose (Spotify's numbers would belong to
+another recording); 71 found by the transfer service but never exported (batch 8: export again); 48 shorter than 1 or longer than 10 minutes; 23 no
+ISRC and never sent; 11 not picked for any batch; 8 found on Spotify under another title or version (check by hand); 6 with an ISRC not found.
+For those, `predicted_features_remaining.csv` holds model values (energy, valence, danceability, acousticness, loudness), every row marked
+`feature_source = predicted`, with the catalog `bpm` beside them. Real and predicted values are never in the same file.
+
+**Recommendation on applying predictions.** Yes for what stays missing, but only as predicted values stored apart from the real ones, never written
+into the real Spotify columns. Batch 8's 71 songs and the 8 near matches are better fixed by getting their real values (export batch 8 again), which
+leaves about 300 for prediction. The expected error (mean absolute, cross-validated) is about 0.08 for energy, 0.14 for valence, 0.08 for
+danceability, 0.12 for acousticness and 1.3 dB for loudness: fine for moods, Flow and sorting, not for anything that needs a precise value.
+Route: `tool/server/data-queue-v1` (not installed yet). Its `not_on_spotify` state stores them in `data_queue.db` table `predicted` with
+`feature_source = 'predicted'`, using the same ridge model. Once it is installed, `backfill` queues the songs that still lack real features
+(`--exclude` the batch files) and the upload of an Exportify CSV settles a batch. Its README says Flow and Smart Shuffle do not read the predicted
+values yet, so using them there is a separate step. Whether the data queue accepts a header-only CSV to settle a batch of songs known to be
+missing from Spotify is not checked.
+
+### Getting the real features onto the server now (existing importer)
+
+The app importer stores each matched song's Spotify features per ISRC in `spotify_details.db` (one CSV at a time, 8 MB and 20,000 rows at most), so
+merge the files first. `tool/exportify/merge_exportify.py` joins them, drops `Added By` / `Added At`, keeps each ISRC once and skips empty files:
+
+    python tool/exportify/merge_exportify.py (Get-ChildItem C:\Users\yoges\Documents\library_export_rest\result\Navivibe_sample_0*.csv).FullName C:\Users\yoges\Documents\library_export\My_playlist.csv --out C:\Users\yoges\Documents\library_export_rest\merged.csv
+
+On these files: 1,796 rows, 512 KB. Then Settings > Import > Import a Spotify Playlist > Choose CSV File > `merged.csv`.
+
+Will it fetch anything? **No**, from the code in `tool/server/exportify-v1/`: an import only writes rows; the plan is created `idle`; the 10-minute
+timer and `tick()` look only at plans that are `active` or `paused_disk`, and a plan becomes active only when someone presses **Start Fetching** on the
+wishlist screen. Matched songs are `owned` and are never queued. The result screen should show about **1,780 "already in your library"** and about
+**16 "on your wishlist"** (rows that match nothing here, such as "Often" or "Every Breath You Take": another version on Spotify; this is my matcher, not
+the server's, so the server may show a few fewer), with a "to fetch" size and the button **Fetch My Wishlist**. A list with nothing on the wishlist
+shows "Everything on this list is already in your library" instead. **Do not press Fetch My Wishlist or Start Fetching.** **Remove This Import** after
+looking deletes the import's wishlist and plan only: the songs and the Spotify details already written to `spotify_details.db` stay (the details are
+written at import time and `delete_import` removes only the `exportify_*` import tables). **Make a Playlist** is optional and unrelated.
+
+Side effects to expect: songs without an ISRC in the library get the CSV's ISRC; the mood rules take Spotify's valence and energy as a second opinion
+(it can keep or drop a label, never add one; admin labels win; `NAVIVIBE_SPOTIFY_MOODS=0` turns it off). With 1,780 songs instead of the earlier 1,032,
+a few dozen mood labels may change, not hand-judged.
