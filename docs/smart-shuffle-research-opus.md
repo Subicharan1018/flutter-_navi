@@ -1,5 +1,7 @@
 # Smart Shuffle and autoplay: what will really make it better (2026-11-23)
 
+> **SUPERSEDED IN PART (same day).** Several numbers below are wrong; use `docs/smart-shuffle-bakeoff.md` ("Read this first"). In short: the legacy model was tested unfairly (2.0% / 1.2% should be about 18.4% / 18.5%, level with v3 end to end); the "flipped" opener term was really removed; two energy/valence features were silently zeroed; `recent_7d` was a 2-day half-life; v3 retrain noise is about 1 point, so the clean-log and no-history deltas are not reliable; the AI-order comparison is 9 queues and not unbiased. The next-song gain of the blend and the hybrid over v3 holds.
+
 Research only. Nothing on the server or in the app was changed. Server access was read-only: `scp` copies of the catalog, the listening-log databases, `ai_order_log.jsonl` and the server's own `navivibe/` code. Every analysis ran on those copies on the dev PC.
 This builds on `docs/smart-shuffle-eval.md` (AI order, 2026-11-08) and the unmerged `docs/smart-shuffle-data-eval.md` on branch `claude/shuffle-data-eval-f12997` (data audit, hand blend). It does not redo them.
 
