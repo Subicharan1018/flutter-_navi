@@ -3,8 +3,22 @@
 For `/opt/tg-fetcher` and `/opt/shuffle-server` on subiserver. Needs **history-import-v1** installed first (it brings
 exportify-v1 and server-fixes-v1). User-facing description: `docs/spotify-history-import.md`. App: `lib/features/spotify_import/`.
 
-Built on the live code read on 23 Nov 2026 (read-only copy). Scratch results (Windows, Python 3.10): tg-fetcher 58 new tests
-pass; shuffle-server proxy 6 new tests pass against the live `navivibe/` with `patch_proxy.py` applied. Nothing in this folder
+Built on the live code read on 23 Nov 2026 (read-only copy). Scratch results (Windows, Python 3.10): tg-fetcher 59 new tests
+pass; shuffle-server proxy 6 new tests pass against the live `navivibe/` with `patch_proxy.py` applied. Whole tg-fetcher suite on a
+fresh read-only copy of the live tree (24 Nov 2026): 770 pass in either install order with matcher-v2 (see below).
+
+## Install order with matcher-v2
+
+Either order works (both tried on a copy of the live tree, same 770 pass, no new failure). Spotify first, then matcher-v2 gives
+the Spotify matcher the album too (matcher-v2 patches `spotify_history.py`); matcher-v2 first just skips that one optional
+edit and Spotify matches without the album. `patch_tgfetch.py` here only touches `api.py`, which matcher-v2 does not.
+
+## Why history-import's own routes still refuse "spotify"
+
+`spotify_history.py` registers the source name in `history_import.SOURCES` (the Wishlist title and undo need it). That alone
+would make `create_job("spotify")` valid on history-import's `/history-import/jobs` and let `/step` try a Last.fm fetch for a
+Spotify job. The module therefore wraps `hi.create_job` and `hi.step` to refuse it (no file of another package is patched;
+history-import-v1's `test_account_names_are_checked` passes unchanged, and its source now uses a made-up name anyway). Nothing in this folder
 was installed on the server by its author; the owner runs `install.sh` (below).
 
 ## What it does

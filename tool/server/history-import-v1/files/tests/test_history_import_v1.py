@@ -281,7 +281,7 @@ def test_account_names_are_checked(conn):
         with pytest.raises(hi.HistoryError):
             hi.clean_account(bad)
     with pytest.raises(hi.HistoryError):
-        hi.create_job(conn, "admin", "spotify", "x")
+        hi.create_job(conn, "admin", "myspace", "x")
     with pytest.raises(hi.HistoryError):
         hi.log_path("../evil")
 
