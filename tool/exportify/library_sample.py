@@ -75,7 +75,10 @@ def eligible(s: dict, exclude=((), ()), skip_have_spotify=True) -> bool:
 def excluded_ids(paths, songs) -> set:
     """Library songs that appear in earlier export files (ours or Exportify's), by the exportify-v1 matching rules:
     ISRC, else clean title + same version words + an artist in common + length within 5 s."""
-    import spotify_match
+    try:                          # package (the server: navivibe.data_queue_tools) or plain script (this folder)
+        from . import spotify_match
+    except ImportError:
+        import spotify_match
     ids = set()
     for p in paths or ():
         ids |= {s["id"] for _, s, _ in spotify_match.match_rows(spotify_match.parse_exportify(p), songs)}
@@ -87,7 +90,10 @@ def pick_gaps(songs: list, n: int, labelled_ids, embeddings: dict, exclude=((), 
     from each other: the biggest coverage gaps of the songs Spotify has already labelled. A composer already chosen costs
     a penalty so one composer cannot take a gap alone."""
     import numpy as np
-    import embedding_gap
+    try:
+        from . import embedding_gap
+    except ImportError:
+        import embedding_gap
     have = [s for s in songs if s["id"] in embeddings]
     P = embedding_gap.reduce(np.stack([embeddings[s["id"]] for s in have]))
     pos = {s["id"]: i for i, s in enumerate(have)}

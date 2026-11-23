@@ -36,6 +36,7 @@ for f in $NV_PATCHED; do [ -f "$NV/$f" ] || { echo "!! $NV/$f not found"; exit 1
 copy_nv() {  # $1 = a navivibe folder
   mkdir -p "$1/tests" "$1/data_queue_tools"
   cp "$HERE/files/navivibe/data_queue.py" "$HERE/files/navivibe/data_queue_store.py" "$HERE/files/navivibe/data_queue_model.py" "$1/"
+  cp "$HERE/files/navivibe/data_queue_tools/__init__.py" "$1/data_queue_tools/"
   for t in $TOOLS; do cp "$HERE/files/navivibe/data_queue_tools/$t" "$1/data_queue_tools/"; done
   cp "$HERE/files/navivibe-tests/test_data_queue_v1.py" "$1/tests/"
 }
