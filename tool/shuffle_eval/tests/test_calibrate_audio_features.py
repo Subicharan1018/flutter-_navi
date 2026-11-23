@@ -9,6 +9,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 import calibrate_audio_features as C  # noqa: E402
+import finalize_spotify_features as F  # noqa: E402
 
 
 def build(d, n=300, labelled=150, noise=0.05, seed=2, csv_mode=False):
@@ -106,6 +107,31 @@ class CalibrateTests(unittest.TestCase):
             self.assertIn("embedding_space", cov)
             with open(os.path.join(out, "calibration_report.json"), encoding="utf-8") as f:
                 self.assertNotIn("SECRET-USER", f.read())                       # Added By is never read
+
+    def test_finalize_keeps_real_and_predicted_apart_and_explains_the_rest(self):
+        import csv
+        with tempfile.TemporaryDirectory() as d:
+            cat, _ = build(d, csv_mode=True)
+            res = os.path.join(d, "results_Navivibe sample 02.csv")
+            with open(res, "w", encoding="utf-8-sig", newline="") as f:
+                w = csv.writer(f)
+                w.writerow(["title", "artist", "album", "isrc", "isFound"])
+                w.writerow(["Title 200", "Artist 0", "", "", "0"])        # sent without ISRC, not found
+                w.writerow(["Title 201", "Artist 1", "", "INS000000201", "1"])
+            out = os.path.join(d, "out")
+            self.assertEqual(F.main(["--catalog", cat, "--exportify", os.path.join(d, "My_playlist.csv"), "--results", res, "--out", out]), 0)
+            rd = lambda n: list(csv.DictReader(open(os.path.join(out, n), encoding="utf-8-sig")))  # noqa: E731
+            real, rest, pred = rd("real_spotify_features.csv"), rd("remaining_songs.csv"), rd("predicted_features_remaining.csv")
+            self.assertEqual((len(real), len(rest), len(pred)), (150, 150, 150))
+            self.assertFalse({r["song_id"] for r in real} & {r["song_id"] for r in pred})        # never mixed
+            self.assertTrue(all(r["feature_source"] == "spotify" for r in real))
+            self.assertTrue(all(r["feature_source"] == "predicted" for r in pred))
+            self.assertTrue(all(0 <= float(r["energy_predicted"]) <= 1 for r in pred))
+            why = {r["title"]: r["reason"] for r in rest}
+            self.assertIn("did not find it on Spotify", why["Title 200"])
+            self.assertIn("found it", why["Title 201"])
+            self.assertIn("never sent", why["Title 250"])
+            self.assertIn("84.8" if False else "real Spotify features: 150", open(os.path.join(out, "summary.txt"), encoding="utf-8").read())
 
     def test_too_few_labels_refuses(self):
         with tempfile.TemporaryDirectory() as d:

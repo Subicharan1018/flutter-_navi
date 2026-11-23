@@ -171,6 +171,25 @@ class MatchTests(unittest.TestCase):
             self.assertEqual(row["features"]["energy"], 0.5)
 
 
+class MergeTests(unittest.TestCase):
+    def test_merge_dedupes_drops_added_by_and_skips_empty(self):
+        import merge_exportify as MG
+        with tempfile.TemporaryDirectory() as d:
+            a, b, e = (os.path.join(d, n) for n in ("a.csv", "b.csv", "e.csv"))
+            exportify_csv(a, [{"ISRC": "INS1", "Track Name": "One", "Artist Name(s)": "A"}, {"ISRC": "INS2", "Track Name": "Two"}])
+            exportify_csv(b, [{"ISRC": "ins2", "Track Name": "Two again"}, {"ISRC": "INS3", "Track Name": "Three"}, {"ISRC": "INS4", "Track Name": ""}])
+            with open(e, "w", encoding="utf-8-sig") as f:
+                f.write("Track URI,ISRC,Track Name\n")
+            header, rows, per_file = MG.merge([a, b, e])
+            self.assertEqual([r["ISRC"] for r in rows], ["INS1", "INS2", "INS3"])
+            self.assertNotIn("Added By", header)
+            self.assertEqual([k for _, _, k in per_file], [2, 1, 0])
+            out = os.path.join(d, "m.csv")
+            self.assertEqual(MG.main([a, b, "--out", out]), 0)
+            with open(out, encoding="utf-8-sig") as f:
+                self.assertNotIn("SECRET-USER", f.read())
+
+
 class GapTests(unittest.TestCase):
     def test_exportify_csv_excludes_by_matcher_even_with_another_isrc(self):
         songs = library(40)
