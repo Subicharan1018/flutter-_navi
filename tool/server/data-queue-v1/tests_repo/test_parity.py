@@ -35,7 +35,7 @@ def test_file_format_matches_library_export_py():
 
 
 def test_tool_copies_are_identical():
-    for name in ("library_sample.py", "embedding_gap.py", "spotify_match.py"):
+    for name in ("library_sample.py", "embedding_gap.py", "spotify_match.py", "song_match.py"):
         with open(os.path.join(TOOL, "exportify", name), "rb") as a, \
                 open(os.path.join(PKG, "navivibe", "data_queue_tools", name), "rb") as b:
             # compare ignoring line endings (a Windows checkout may differ from the repo's LF)

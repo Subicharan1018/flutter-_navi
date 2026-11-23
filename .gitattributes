@@ -8,3 +8,5 @@ tool/server/lyrics-v3/** text eol=lf
 tool/server/weekly-exploration-v1/** text eol=lf
 tool/server/history-import-v1/** text eol=lf
 tool/server/weekly-exploration-v2/** text eol=lf
+tool/server/matcher-v2/** text eol=lf
+tool/server/data-queue-v1/files/navivibe/data_queue_tools/song_match.py text eol=lf

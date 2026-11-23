@@ -24,7 +24,7 @@ TG_NEW="tgfetch/data_queue_hook.py tests/test_data_queue_v1_hook.py"
 TG_PATCHED="tgfetch/db.py"
 NV_NEW="data_queue.py data_queue_store.py data_queue_model.py tests/test_data_queue_v1.py"
 NV_PATCHED="server.py"
-TOOLS="library_sample.py embedding_gap.py spotify_match.py"
+TOOLS="library_sample.py embedding_gap.py spotify_match.py song_match.py"
 
 [ -x "$PY" ] || { echo "!! $PY not found"; exit 1; }
 [ -x "$SPY" ] || { echo "!! $SPY not found"; exit 1; }
