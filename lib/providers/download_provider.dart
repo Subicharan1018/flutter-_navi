@@ -5,8 +5,23 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../models/song.dart';
 import '../models/download_state.dart';
 import '../offline_service.dart';
+import '../services/android_integration.dart';
 import '../services/app_notifier.dart';
+import '../services/download_keep_alive.dart';
+import '../services/download_notices.dart';
+import '../services/download_queue.dart';
 import 'settings_provider.dart';
+
+/// Keeps the app running while downloads go in the background (Android).
+/// Override in tests.
+final downloadKeepAliveProvider = Provider<DownloadKeepAlive>((ref) => DownloadKeepAlive());
+
+/// Waits between a failed attempt and the next (the partial file resumes).
+/// Overridden in tests.
+final downloadRetryBackoffProvider = Provider<List<Duration>>((ref) => const [Duration(seconds: 5), Duration(seconds: 20)]);
+
+/// The unfinished downloads, saved so a killed app can carry on.
+final pendingDownloadStoreProvider = Provider<PendingDownloadStore>((ref) => const PendingDownloadStore());
 
 // ---------------------------------------------------------------------------
 // DownloadStateNotifier
@@ -89,6 +104,7 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
     // verifies file existence off the fast-path and patches state quietly.
     final offline = ref.watch(offlineServiceProvider);
     final ids = offline.getDownloadedSongIds();
+    _setUpQueue();
 
     // Schedule reconciliation for the next microtask so build() returns
     // synchronously (Notifier.build must be synchronous).
@@ -140,14 +156,79 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
   // Single-song download
   // -------------------------------------------------------------------------
 
+  // -------------------------------------------------------------------------
+  // Queue: downloads run through a [DownloadQueue] (two at a time), kept alive
+  // in the background by [DownloadKeepAlive] and saved so a killed app resumes.
+  // -------------------------------------------------------------------------
+
+  late DownloadQueue _queue;
+
+  void _setUpQueue() {
+    final offline = ref.read(offlineServiceProvider);
+    final keepAlive = ref.read(downloadKeepAliveProvider);
+    final store = ref.read(pendingDownloadStoreProvider);
+    _queue = DownloadQueue(
+      run: _performDownload,
+      onJobStart: (song) {
+        if (ref.mounted) _set(song.id, SongDownloadStatus.downloading, progress: 0.0);
+      },
+      onJobEnd: (song, {required ok, required cancelled}) {
+        if (!ref.mounted) return;
+        if (cancelled) {
+          final next = Map<String, SongDownloadState>.from(state)..remove(song.id);
+          state = next;
+        } else if (ok) {
+          _set(song.id, SongDownloadStatus.downloaded, progress: 1.0);
+        } else {
+          _setFailed(song.id, 'Download failed');
+        }
+      },
+      onBatchDone: (r) => unawaited(postDownloadNotices(r)),
+      onChanged: () {
+        keepAlive.update(done: _queue.batchFinished, total: _queue.batchTotal);
+        unawaited(store.write(_queue.outstandingSongs));
+      },
+      onCancelRunning: offline.cancelDownload,
+      backoff: ref.read(downloadRetryBackoffProvider),
+      isOnline: _isOnline,
+      waitForNetwork: _waitForNetwork,
+    );
+    // The "Stop" button on the ongoing notification.
+    AndroidIntegration.onDownloadStopRequested = cancelAll;
+    ref.onDispose(() {
+      if (AndroidIntegration.onDownloadStopRequested == cancelAll) AndroidIntegration.onDownloadStopRequested = null;
+    });
+  }
+
+  Future<bool> _isOnline() async {
+    final results = await ref.read(connectivityProvider).checkConnectivity();
+    return !results.contains(ConnectivityResult.none);
+  }
+
+  /// Waits (up to 15 minutes) for the network to come back; false if it did not.
+  Future<bool> _waitForNetwork() async {
+    try {
+      final c = ref.read(connectivityProvider);
+      return await c.onConnectivityChanged
+          .firstWhere((r) => !r.contains(ConnectivityResult.none))
+          .timeout(const Duration(minutes: 15))
+          .then((_) => true);
+    } catch (_) {
+      return false;
+    }
+  }
+
+  // -------------------------------------------------------------------------
+  // Single-song download
+  // -------------------------------------------------------------------------
+
   /// Downloads [song] from the Subsonic server.
   ///
   /// - Guards against multi-tap: if the song is already active or downloaded,
   ///   this is a no-op.
   /// - Transitions: notDownloaded → queued → downloading (with progress) →
-  ///   downloaded | failed.
-  /// - The menu stays open: Navigator.pop() is NOT called here.
-  /// Downloads [song] from the Subsonic server.
+  ///   downloaded | failed. The queue retries a failed attempt and resumes the
+  ///   partial file; [notify] false keeps it out of the finished notification.
   ///
   /// BUG-2 FIX: Pre-flight connectivity check gives immediate feedback when
   /// the device is offline instead of letting Dio hang indefinitely.
@@ -167,38 +248,26 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
     _set(song.id, SongDownloadStatus.queued);
 
     // BUG-2 FIX: Pre-flight connectivity check.
-    final connectivity = ref.read(connectivityProvider);
-    final results = await connectivity.checkConnectivity();
-    if (results.contains(ConnectivityResult.none)) {
+    if (!await _isOnline()) {
       _setFailed(song.id, 'No internet connection');
       return;
     }
 
     if (notify) unawaited(AppNotifier.prime()); // while the app is open: the prompt can't show later
-    await _performDownload(song);
-    if (notify && statusOf(song.id) == SongDownloadStatus.downloaded) {
-      unawaited(AppNotifier.show(
-        NotifyChannel.downloads,
-        id: 10,
-        title: 'Download finished',
-        body: '${song.title} is ready offline.',
-      ));
-    }
+    await _queue.enqueue(song, announce: notify);
   }
 
-  Future<void> _performDownload(Song song) async {
-    final subsonicService = ref.read(subsonicServiceProvider);
-
+  /// One attempt at [song]; progress reaches the UI throttled.
+  Future<bool> _performDownload(Song song) async {
     try {
-      _set(song.id, SongDownloadStatus.downloading, progress: 0.0);
-
+      final subsonicService = ref.read(subsonicServiceProvider);
       final offlineService = ref.read(offlineServiceProvider);
       final throttle = DownloadProgressThrottle();
-      final success = await offlineService.downloadSong(
+      return await offlineService.downloadSong(
         song,
         subsonicService,
         onProgress: (p) {
-          if (!throttle.shouldEmit(p)) return;
+          if (!ref.mounted || !throttle.shouldEmit(p)) return;
           state = {
             ...state,
             song.id: SongDownloadState(
@@ -209,14 +278,8 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
           };
         },
       );
-
-      if (success) {
-        _set(song.id, SongDownloadStatus.downloaded, progress: 1.0);
-      } else {
-        _setFailed(song.id, 'Download failed');
-      }
-    } catch (e) {
-      _setFailed(song.id, e.toString());
+    } catch (_) {
+      return false;
     }
   }
 
@@ -226,8 +289,9 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
 
   /// Downloads every song in [songs] that is not already downloaded.
   ///
-  /// All eligible songs are immediately set to [SongDownloadStatus.queued],
-  /// then downloaded sequentially so bandwidth is not thrashed.
+  /// All eligible songs are immediately set to [SongDownloadStatus.queued];
+  /// the queue then runs a couple at a time, and one notification summarises
+  /// the batch when it ends.
   Future<void> downloadPlaylist(List<Song> songs) async {
     final toDownload = songs
         .where((s) => statusOf(s.id) == SongDownloadStatus.notDownloaded)
@@ -246,19 +310,36 @@ class DownloadStateNotifier extends Notifier<Map<String, SongDownloadState>> {
     };
 
     unawaited(AppNotifier.prime());
-    for (final song in toDownload) {
-      await _performDownload(song);
-    }
-    final done = toDownload.where((s) => statusOf(s.id) == SongDownloadStatus.downloaded).length;
-    if (done > 0) {
-      unawaited(AppNotifier.show(
-        NotifyChannel.downloads,
-        id: 10,
-        title: 'Downloads finished',
-        body: downloadsText(done, toDownload.length),
-      ));
-    }
+    await Future.wait(_queue.enqueueAll(toDownload));
   }
+
+  /// Carries on with the songs a previous run of the app had not finished (the
+  /// app was closed or killed mid-download). Partial files resume where they stopped.
+  Future<void> resumePending() async {
+    final offline = ref.read(offlineServiceProvider);
+    final saved = ref.read(pendingDownloadStoreProvider).read();
+    final todo = [
+      for (final s in saved)
+        if (!await offline.isSongDownloadedAsync(s.id) && !_queue.isActive(s.id)) s,
+    ];
+    if (!ref.mounted) return;
+    if (todo.isEmpty) {
+      if (saved.isNotEmpty && _queue.outstanding == 0) await ref.read(pendingDownloadStoreProvider).write(const []);
+      return;
+    }
+    state = {
+      ...state,
+      for (final s in todo) s.id: SongDownloadState(songId: s.id, status: SongDownloadStatus.queued),
+    };
+    await Future.wait(_queue.enqueueAll(todo));
+  }
+
+  /// Stops everything waiting or running (the notification's Stop button).
+  /// Songs go back to "not downloaded"; partial files are removed.
+  void cancelAll() => _queue.cancelAll();
+
+  /// Stops one song's download.
+  void cancel(String songId) => _queue.cancel(songId);
 
   // -------------------------------------------------------------------------
   // Delete

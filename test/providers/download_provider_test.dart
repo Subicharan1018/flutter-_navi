@@ -72,6 +72,7 @@ void main() {
             MockOfflineService(preDownloadedIds: ['123']),
           ),
           connectivityProvider.overrideWithValue(mockConnectivity),
+          downloadRetryBackoffProvider.overrideWithValue(const [Duration.zero]),
         ],
       );
       addTearDown(container.dispose);
@@ -94,6 +95,7 @@ void main() {
             ),
             subsonicServiceProvider.overrideWithValue(mockSubsonicService),
             connectivityProvider.overrideWithValue(mockConnectivity),
+            downloadRetryBackoffProvider.overrideWithValue(const [Duration.zero]),
           ],
         );
         addTearDown(container.dispose);
@@ -122,6 +124,7 @@ void main() {
             ),
             subsonicServiceProvider.overrideWithValue(mockSubsonicService),
             connectivityProvider.overrideWithValue(mockConnectivity),
+            downloadRetryBackoffProvider.overrideWithValue(const [Duration.zero]),
           ],
         );
         addTearDown(container.dispose);
@@ -149,6 +152,7 @@ void main() {
             ),
             subsonicServiceProvider.overrideWithValue(mockSubsonicService),
             connectivityProvider.overrideWithValue(mockConnectivity),
+            downloadRetryBackoffProvider.overrideWithValue(const [Duration.zero]),
           ],
         );
         addTearDown(container.dispose);
@@ -178,6 +182,7 @@ void main() {
           ),
           subsonicServiceProvider.overrideWithValue(mockSubsonicService),
           connectivityProvider.overrideWithValue(mockConnectivity),
+          downloadRetryBackoffProvider.overrideWithValue(const [Duration.zero]),
         ],
       );
       addTearDown(container.dispose);

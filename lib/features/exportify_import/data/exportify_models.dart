@@ -103,6 +103,25 @@ Map<String, Object> planBody(PlanDraft d) => {
     };
 
 /// One import: how many songs, how many matched, what is left to fetch.
+/// "A batch the server fetched for this user ended": `{fetched, failed,
+/// finished_at}` in the import's status. The field is optional on the wire; an
+/// import without it never produces a "finished" notification.
+class FetchFinished {
+  final int fetched;
+  final int failed;
+
+  /// When it ended (an ISO time or epoch seconds, kept as the server wrote it): the identity of this run.
+  final String finishedAt;
+  const FetchFinished({required this.fetched, required this.failed, required this.finishedAt});
+
+  static FetchFinished? tryParse(Object? raw) {
+    if (raw is! Map) return null;
+    final at = raw['finished_at'];
+    if (at == null || '$at'.isEmpty) return null;
+    return FetchFinished(fetched: _int(raw['fetched']), failed: _int(raw['failed']), finishedAt: '$at');
+  }
+}
+
 class ExportifySummary {
   final int id;
   final String name;
@@ -144,7 +163,11 @@ class ExportifySummary {
     required this.freeGb,
     required this.plan,
     this.ownedIds = const [],
+    this.finished,
   });
+
+  /// The server's record that a fetch run ended (optional: older servers omit it).
+  final FetchFinished? finished;
 
   factory ExportifySummary.fromJson(Map<String, dynamic> j) {
     final raw = j['states'] is Map ? j['states'] as Map : const {};
@@ -163,6 +186,7 @@ class ExportifySummary {
       freeGb: j['free_gb'] is num ? (j['free_gb'] as num).toDouble() : null,
       plan: ExportifyPlan.fromJson(j['plan']),
       ownedIds: [for (final id in (j['owned_ids'] as List?) ?? const []) '$id'],
+      finished: FetchFinished.tryParse(j['finished']),
     );
   }
 

@@ -54,6 +54,7 @@ import 'providers/player_provider.dart';
 import 'features/everyday/profiles_providers.dart' show profilesBootstrapProvider;
 import 'player/queue_persistence.dart';
 import 'features/auto_download/logic/auto_download_providers.dart';
+import 'features/downloads/logic/background_downloads.dart';
 
 // ---------------------------------------------------------------------------
 // globalAudioHandler — the single NaviAudioHandler instance shared across
@@ -227,6 +228,7 @@ Future<void> main(List<String> args) async {
   container.read(queuePersistenceBootstrapProvider);
   container.read(profilesBootstrapProvider);
   container.read(autoDownloadBootstrapProvider);
+  container.read(backgroundDownloadsBootstrapProvider);
 
   // Compile the Now Playing artwork-field shader before it's first shown.
   unawaited(ArtworkField.precache());

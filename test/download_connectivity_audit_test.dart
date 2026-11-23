@@ -56,6 +56,7 @@ ProviderContainer _buildContainer({
       offlineServiceProvider.overrideWithValue(mockOffline),
       subsonicServiceProvider.overrideWithValue(mockSubsonic),
       connectivityProvider.overrideWithValue(mockConnectivity),
+      downloadRetryBackoffProvider.overrideWithValue(const [Duration.zero]),
     ],
   );
 }

@@ -81,6 +81,7 @@ class AndroidIntegration {
 
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onIntent') await handle(call.arguments);
+      if (call.method == 'downloadStopRequested') onDownloadStopRequested?.call();
     });
     unawaited(() async {
       try {
@@ -124,6 +125,38 @@ class AndroidIntegration {
       debugPrint('[AndroidIntegration] notify failed: $e');
       return false;
     }
+  }
+
+  /// The "Stop" button on the ongoing download notification was pressed.
+  static void Function()? onDownloadStopRequested;
+
+  /// Starts or updates the foreground service that keeps downloads running in
+  /// the background. False when Android refused (the app can't start one from
+  /// the background) or off Android.
+  static Future<bool> startDownloadService({
+    required String title,
+    required String text,
+    required int done,
+    required int total,
+  }) async {
+    if (!PlatformUtils.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('startDownloadService', {
+            'title': title,
+            'text': text,
+            'done': done,
+            'total': total,
+          }) ??
+          false;
+    } catch (e) {
+      debugPrint('[AndroidIntegration] startDownloadService failed: $e');
+      return false;
+    }
+  }
+
+  static Future<void> stopDownloadService() async {
+    if (!PlatformUtils.isAndroid) return;
+    await _invoke('stopDownloadService');
   }
 
   /// Whether the system lets the app post notifications at all.
