@@ -84,8 +84,13 @@ abstract final class PlatformUtils {
   static bool get isLinux =>
       !kIsWeb && Platform.isLinux && !Platform.environment.containsKey('FLUTTER_TEST');
 
+  /// Test seam: pretend to run on Windows (true) or not (false) so the Windows-only
+  /// settings can be tested on any host.
+  @visibleForTesting
+  static bool? debugWindowsOverride;
+
   /// True only on Windows.
-  static bool get isWindows => !kIsWeb && Platform.isWindows;
+  static bool get isWindows => debugWindowsOverride ?? (!kIsWeb && Platform.isWindows);
 
   /// True only on macOS.
   static bool get isMacOS => !kIsWeb && Platform.isMacOS;

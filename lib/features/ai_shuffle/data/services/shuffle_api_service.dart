@@ -24,6 +24,7 @@ import 'dart:math' as math;
 import 'dart:convert';
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
+import 'package:uuid/uuid.dart';
 
 import '../models/health_response.dart';
 import '../models/intent_response.dart';
@@ -276,7 +277,8 @@ class ShuffleApiService {
     try {
       await _dio.post<void>(
         '/feedback/impressions',
-        data: {'shown': shown, 'played': played},
+        // batch_id lets the server count a re-sent batch once.
+        data: {'shown': shown, 'played': played, 'batch_id': const Uuid().v4()},
         options: Options(contentType: 'application/json'),
       );
     } catch (_) {

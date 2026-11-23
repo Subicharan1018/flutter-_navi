@@ -135,11 +135,11 @@ skew and lopsided latency the error stays under 300 ms (tested).
 
 ## Live scenarios (real client, real relay)
 
-`test/integration/session_live_test.dart` drives the real `SessionSyncService` against the real `session.py` over real
+`tool/live/session_live_test.dart` drives the real `SessionSyncService` against the real `session.py` over real
 WebSockets. The relay is a throwaway copy with fake auth (`tools/session_sim/run_sim.py`, token = base64(`user:sim`)), reached through
 an SSH tunnel; only the reconnect grace is shortened (4 s) for the outage scenarios, every other timing is production. Nothing touches
 production data or credentials. Run: start the sim on the server, tunnel its port, then
-`SESSION_SIM=http://127.0.0.1:5599 flutter test test/integration/session_live_test.dart` (skipped without the variable).
+`SESSION_SIM=http://127.0.0.1:5599 flutter test tool/live/session_live_test.dart` (fails fast without the variable; it lives outside test/ so CI never runs it).
 
 | # | scenario | result | evidence |
 | --- | --- | --- | --- |

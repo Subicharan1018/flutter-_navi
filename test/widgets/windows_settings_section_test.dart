@@ -20,7 +20,6 @@ class _Driver implements HotkeyDriver {
 }
 
 void main() {
-  final onWindows = Platform.isWindows;
   late Directory dir;
   late List<List<String>> reg;
   late _Driver driver;
@@ -32,6 +31,8 @@ void main() {
     HiveBoxes.prefs = await Hive.openBox('prefs');
   });
   tearDownAll(() {
+    PlatformUtils.debugWindowsOverride = null;
+    PlatformUtils.debugDesktopOverride = null;
     try {
       dir.deleteSync(recursive: true);
     } catch (_) {}
@@ -39,6 +40,7 @@ void main() {
   setUp(() async {
     await HiveBoxes.prefs.clear();
     PlatformUtils.debugDesktopOverride = true;
+    PlatformUtils.debugWindowsOverride = true;
     reg = [];
     driver = _Driver();
     hotkey = GlobalHotkey(driver: driver);
@@ -71,7 +73,7 @@ void main() {
     expect(find.text('Start with Windows'), findsOneWidget);
     expect(find.text('Global shortcut'), findsOneWidget);
     expect(find.text('Ctrl+Alt+Space'), findsOneWidget);
-  }, skip: !onWindows);
+  });
 
   testWidgets('turning Start with Windows on writes the Run entry', (tester) async {
     await tester.pumpWidget(app());
@@ -81,7 +83,7 @@ void main() {
     await tester.pump();
     expect(reg.any((a) => a.first == 'add' && a.last == '/f'), isTrue);
     expect(reg.any((a) => a.first == 'add' && a.any((s) => s.endsWith('--minimized'))), isTrue);
-  }, skip: !onWindows);
+  });
 
   testWidgets('the shortcut row records a new combination and registers it', (tester) async {
     await tester.pumpWidget(app());
@@ -104,5 +106,5 @@ void main() {
     await tester.pump();
     expect(find.text('Ctrl+Shift+M'), findsOneWidget);
     expect(driver.registered.single.label, 'Ctrl+Shift+M');
-  }, skip: !onWindows);
+  });
 }

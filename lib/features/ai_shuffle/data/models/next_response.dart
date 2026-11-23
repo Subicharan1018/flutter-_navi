@@ -118,6 +118,13 @@ class NextResponse {
   /// The pinned session opener, when the server applied one.
   final SessionStarter? sessionStarter;
 
+  /// The ranking engine that produced this batch (`v3`, `v3+ai`, `legacy`, ...).
+  final String? engine;
+
+  /// Id of the server's record of this batch (play-events-v2). Null on a server
+  /// that does not keep one: the app then also holds back the extra event types.
+  final String? servedId;
+
   // Alias for compatibility with existing code that reads `.songs`
   List<RecommendedSong> get songs => queue;
 
@@ -129,6 +136,8 @@ class NextResponse {
     this.context,
     this.reshuffle = false,
     this.sessionStarter,
+    this.engine,
+    this.servedId,
   });
 
   factory NextResponse.fromJson(Map<String, dynamic> json) => NextResponse(
@@ -142,6 +151,8 @@ class NextResponse {
         ? QueueContext.fromJson(Map<String, dynamic>.from(json['context'] as Map))
         : null,
     reshuffle: json['reshuffle'] == true || json['reshuffle'] == 1 || json['reshuffle']?.toString().toLowerCase() == 'true',
+    engine: json['engine']?.toString(),
+    servedId: json['served_id']?.toString(),
     sessionStarter: json['session_starter'] is Map
         ? SessionStarter.fromJson(Map<String, dynamic>.from(json['session_starter'] as Map))
         : null,

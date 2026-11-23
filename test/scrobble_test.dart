@@ -324,37 +324,41 @@ void main() {
       verifyNever(() => mockScrobble.submit(any()));
     });
 
-    test(
-      'Threshold capped at 4 minutes for long songs',
-      skip: 'Requires wall-clock time manipulation',
-      () async {
-        final notifier = container.read(playerProvider.notifier);
-        final song = Song(
-          id: 'long',
-          title: 'A',
-          artist: 'B',
-          album: 'C',
-          coverArt: '',
-          duration: 600,
-          track: 1,
-          year: 2024,
-        ); // 10 minutes
+    test('Threshold capped at 4 minutes of listening for long songs', () async {
+      // The cap counts listened wall-clock time, so the notifier's clock is driven by hand.
+      var now = DateTime(2026, 1, 1);
+      PlayerNotifier.scrobbleNow = () => now;
+      addTearDown(() => PlayerNotifier.scrobbleNow = DateTime.now);
 
-        await notifier.setQueue([song], 0);
-        await mockPlayer.emitCurrentIndex(0);
+      final notifier = container.read(playerProvider.notifier);
+      final song = Song(
+        id: 'long',
+        title: 'A',
+        artist: 'B',
+        album: 'C',
+        coverArt: '',
+        duration: 600,
+        track: 1,
+        year: 2024,
+      ); // 10 minutes: 50% is 300 s, but 4 minutes of listening already counts
 
-        // 50% would be 5 minutes, but threshold is 4 mins (240s)
-        mockPlayer.setMockPosition(const Duration(seconds: 230));
-        await Future.delayed(Duration.zero);
-        verifyNever(() => mockScrobble.submit(any()));
+      await notifier.setQueue([song], 0);
+      await mockPlayer.emitCurrentIndex(0);
+      handler.playbackState.add(PlaybackState(playing: true, processingState: AudioProcessingState.ready));
+      await Future.delayed(Duration.zero);
 
-        mockPlayer.setMockPosition(const Duration(seconds: 241));
-        await Future.delayed(Duration.zero);
-        verify(
-          () => mockScrobble.submit('long', song: any(named: 'song'), playId: any(named: 'playId'), startedAtMs: any(named: 'startedAtMs')),
-        ).called(1);
-      },
-    );
+      now = now.add(const Duration(seconds: 230));
+      mockPlayer.setMockPosition(const Duration(seconds: 230));
+      await Future.delayed(Duration.zero);
+      verifyNever(() => mockScrobble.submit(any()));
+
+      now = now.add(const Duration(seconds: 11)); // 241 s listened, position still short of 300 s
+      mockPlayer.setMockPosition(const Duration(seconds: 241));
+      await Future.delayed(Duration.zero);
+      verify(
+        () => mockScrobble.submit('long', song: any(named: 'song'), playId: any(named: 'playId'), startedAtMs: any(named: 'startedAtMs')),
+      ).called(1);
+    });
 
     test('Skips before threshold do not trigger submission', () async {
       final notifier = container.read(playerProvider.notifier);

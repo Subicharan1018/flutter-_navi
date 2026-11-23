@@ -139,7 +139,7 @@ class FlowController extends Notifier<FlowState> {
     _session.fetching = true;
     try {
       for (var i = ref.read(playerProvider).queue.length - 1; i > ref.read(playerProvider).currentIndex; i--) {
-        await player.removeFromQueue(i);
+        await player.removeFromQueue(i, track: false);
       }
     } finally {
       _session.fetching = false;
@@ -173,7 +173,7 @@ class FlowController extends Notifier<FlowState> {
       final songs = await _fetch(FlowSession.batchSize);
       if (!ref.mounted || !state.active) return;
       if (songs.isEmpty) throw ListenException(_emptyMessage());
-      await ref.read(playerProvider.notifier).addAllToQueue(songs);
+      await ref.read(playerProvider.notifier).addAllToQueue(songs, track: false);
       _session.succeeded();
       if (ref.mounted) state = state.copyWith(error: null);
     } catch (e) {
