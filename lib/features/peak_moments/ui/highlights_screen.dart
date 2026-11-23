@@ -18,6 +18,7 @@ import '../data/peak_store.dart';
 import '../logic/hotspots.dart';
 import '../logic/reel.dart';
 import 'best_moments_screen.dart';
+import 'moments_sheet.dart';
 import 'play_highlights.dart';
 
 /// Highlights: every song you saved a best part of, played back to back.
@@ -174,6 +175,7 @@ class _MomentSongRow extends ConsumerWidget {
         : '${marks.length} moments';
     return CupertinoClickable(
       onTap: onTap,
+      onLongPress: () => showMomentsSheet(context, song),
       scaleFactor: 0.99,
       semanticLabel: '${song.title} by ${song.artist}, $span. Play its highlights',
       child: SizedBox(
@@ -196,6 +198,16 @@ class _MomentSongRow extends ConsumerWidget {
               ),
               const SizedBox(width: Space.md),
               Text(span, style: t.footnote.copyWith(fontFeatures: const [FontFeature.tabularFigures()])),
+              const SizedBox(width: Space.xs),
+              CupertinoTap(
+                label: 'Edit moments of ${song.title}',
+                onTap: () => showMomentsSheet(context, song),
+                child: SizedBox(
+                  width: 44,
+                  height: 44,
+                  child: Center(child: NaviIcon(NaviGlyph.sliders, size: 18, color: t.textSecondary)),
+                ),
+              ),
             ],
           ),
         ),

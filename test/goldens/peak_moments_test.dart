@@ -8,6 +8,7 @@ import 'dart:async';
 
 import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart' show LogicalKeyboardKey;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
@@ -19,6 +20,7 @@ import 'package:navivibe/features/peak_moments/logic/best_moments.dart';
 import 'package:navivibe/features/peak_moments/logic/hotspots.dart';
 import 'package:navivibe/features/peak_moments/ui/best_moments_screen.dart';
 import 'package:navivibe/features/peak_moments/ui/highlights_screen.dart';
+import 'package:navivibe/features/peak_moments/ui/moments_sheet.dart' show MomentsSheet;
 import 'package:navivibe/features/peak_moments/ui/peak_scrubber.dart' show PeakBands;
 import 'package:navivibe/models/song.dart';
 import 'package:navivibe/providers/library_provider.dart';
@@ -204,28 +206,59 @@ void main() {
   });
 }
 
+/// The scrubber's saved-moment bands: 350 px for a 240 s song, 20 px gutters.
 void bandTests() {
-  testWidgets('dragging a band handle changes the saved length', (tester) async {
-    tester.view.physicalSize = const Size(390, 200) * 3;
+  const dur = 240000;
+  const gutter = 20.0;
+  const trackW = 350.0;
+  double xOf(int ms) => gutter + trackW * ms / dur;
+  // The handles sit in the lower half of the 32 px band.
+  const y = gutter + 24;
+
+  Future<ProviderContainer> pump(WidgetTester tester, {List<int> taps = const [60000]}) async {
+    tester.view.physicalSize = const Size(390, 140) * 3;
     tester.view.devicePixelRatio = 3;
     addTearDown(tester.view.reset);
-    final store = _Mem();
-    final c = ProviderContainer(overrides: [peakBackendProvider.overrideWithValue(store)]);
+    final c = ProviderContainer(overrides: [peakBackendProvider.overrideWithValue(_Mem())]);
     addTearDown(c.dispose);
-    await c.read(peakMarksProvider.notifier).toggleAt('s0', 60000, durationMs: 240000);
+    for (final tap in taps) {
+      await c.read(peakMarksProvider.notifier).toggleAt('s0', tap, durationMs: dur);
+    }
     await tester.pumpWidget(
       UncontrolledProviderScope(
         container: c,
         child: ThemeTokens(
           tokens: AppThemeTokens.fallback,
           child: MaterialApp(
-            home: Scaffold(
-              body: Consumer(
-                builder: (context, ref, _) => Padding(
-                  padding: const EdgeInsets.all(20),
-                  child: SizedBox(
-                    height: 32,
-                    child: PeakBands(songId: 's0', marks: ref.watch(songMarksProvider('s0')), totalMs: 240000),
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.build(AppThemeTokens.fallback),
+            home: Builder(
+              builder: (context) => Scaffold(
+                backgroundColor: ThemeTokens.of(context).bgBase,
+                body: Consumer(
+                  builder: (context, ref, _) => Padding(
+                    padding: const EdgeInsets.all(gutter),
+                    child: SizedBox(
+                      height: 32,
+                      child: Stack(
+                        children: [
+                          // Stand-in for the 6 px scrubber bar.
+                          Positioned(
+                            left: 0,
+                            right: 0,
+                            top: 13,
+                            height: 6,
+                            child: DecoratedBox(
+                              decoration: BoxDecoration(
+                                color: ThemeTokens.of(context).textMuted,
+                                borderRadius: BorderRadius.circular(3),
+                              ),
+                            ),
+                          ),
+                          PeakBands(songId: 's0', marks: ref.watch(songMarksProvider('s0')), totalMs: dur),
+                        ],
+                      ),
+                    ),
                   ),
                 ),
               ),
@@ -234,12 +267,105 @@ void bandTests() {
         ),
       ),
     );
-    // Track is 350 px for 240 s; the mark ends at 80 s = 116.7 px in.
-    final handle = Offset(20 + 350 * 80 / 240, 20 + 24);
-    await tester.dragFrom(handle, const Offset(35, 0)); // +10% of the width ≈ +24 s
+    return c;
+  }
+
+  List<PeakMark> marks(ProviderContainer c) => c.read(songMarksProvider('s0'));
+
+  testWidgets('both ends have a handle (golden)', (tester) async {
+    await pump(tester, taps: [30000, 150000]);
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('peak_moments/bands_phone.png'));
+  });
+
+  testWidgets('dragging the end handle changes the saved length', (tester) async {
+    final c = await pump(tester); // saved 57..77 s
+    await tester.dragFrom(Offset(xOf(77000), y), const Offset(35, 0)); // +35 px = about +24 s
     await tester.pumpAndSettle();
-    final len = c.read(songMarksProvider('s0')).single.lengthMs;
-    expect(len, inInclusiveRange(40000, 48000));
-    expect(store.values[HivePeakBackend.marksKey], isNotNull);
+    final m = marks(c).single;
+    expect(m.startMs, 57000);
+    expect(m.endMs, inInclusiveRange(98000, 104000));
+  });
+
+  testWidgets('dragging the start handle moves the start and keeps the end', (tester) async {
+    final c = await pump(tester);
+    await tester.dragFrom(Offset(xOf(57000), y), const Offset(-35, 0));
+    await tester.pumpAndSettle();
+    final m = marks(c).single;
+    expect(m.endMs, 77000);
+    expect(m.startMs, inInclusiveRange(29000, 35000));
+  });
+
+  testWidgets('the start handle stops at the previous moment and at 0', (tester) async {
+    final c = await pump(tester, taps: [30000, 100000]); // 27..47 and 97..117
+    await tester.dragFrom(Offset(xOf(97000), y), const Offset(-200, 0));
+    await tester.pumpAndSettle();
+    expect(marks(c).last.startMs, 47000);
+    await tester.dragFrom(Offset(xOf(27000), y), const Offset(-100, 0));
+    await tester.pumpAndSettle();
+    expect(marks(c).first.startMs, 0);
+  });
+
+  testWidgets('the end handle cannot make a moment longer than 90 s', (tester) async {
+    final c = await pump(tester);
+    await tester.dragFrom(Offset(xOf(77000), y), const Offset(300, 0));
+    await tester.pumpAndSettle();
+    expect(marks(c).single.lengthMs, PeakMark.maxLengthMs);
+  });
+
+  testWidgets('arrow keys nudge a focused handle by a second', (tester) async {
+    final c = await pump(tester); // 57..77 s
+    final end = find.descendant(of: find.byKey(const ValueKey('end')), matching: find.byType(GestureDetector));
+    Focus.of(tester.element(end.last)).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+    await tester.pumpAndSettle();
+    expect(marks(c).single.endMs, 79000);
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(marks(c).single.endMs, 78000);
+    expect(marks(c).single.startMs, 57000);
+
+    final start = find.descendant(of: find.byKey(const ValueKey('start')), matching: find.byType(GestureDetector));
+    Focus.of(tester.element(start.last)).requestFocus();
+    await tester.pump();
+    await tester.sendKeyEvent(LogicalKeyboardKey.arrowLeft);
+    await tester.pumpAndSettle();
+    expect(marks(c).single.startMs, 56000);
+  });
+
+  testWidgets('the moments sheet nudges start and end by a second', (tester) async {
+    tester.view.physicalSize = const Size(390, 700) * 3;
+    tester.view.devicePixelRatio = 3;
+    addTearDown(tester.view.reset);
+    final c = ProviderContainer(overrides: [peakBackendProvider.overrideWithValue(_Mem())]);
+    addTearDown(c.dispose);
+    await c.read(peakMarksProvider.notifier).toggleAt('s0', 62000, durationMs: dur); // 59..79 s
+    await c.read(peakMarksProvider.notifier).toggleAt('s0', 150000, durationMs: dur); // 147..167 s
+    await tester.pumpWidget(
+      UncontrolledProviderScope(
+        container: c,
+        child: ThemeTokens(
+          tokens: AppThemeTokens.fallback,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: AppTheme.build(AppThemeTokens.fallback),
+            home: Builder(
+              builder: (context) => Scaffold(
+                backgroundColor: ThemeTokens.of(context).bgBase,
+                body: SingleChildScrollView(child: MomentsSheet(song: _library().first)),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Moment 1 · 0:59–1:19 · 20 s'), findsOneWidget);
+    await expectLater(find.byType(MaterialApp), matchesGoldenFile('peak_moments/moments_sheet_phone.png'));
+    await tester.tap(find.text('−1 s').at(0));
+    await tester.tap(find.text('+1 s').at(1));
+    await tester.pumpAndSettle();
+    expect([marks(c).first.startMs, marks(c).first.endMs], [58000, 80000]);
   });
 }

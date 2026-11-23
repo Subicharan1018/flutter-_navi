@@ -33,10 +33,12 @@ class PeakMarkButton extends ConsumerWidget {
     final pos = ref.read(playerProvider.notifier).positionMs;
     final out = await ref.read(peakMarksProvider.notifier).toggleAt(song.id, pos, durationMs: song.duration * 1000);
     if (!context.mounted) return;
+    // The new moment starts a few seconds before the tap and contains it.
+    final from = ref.read(songMarksProvider(song.id)).where((m) => m.contains(pos)).firstOrNull?.startMs ?? pos;
     showToast(
       context,
       switch (out) {
-        MarkOutcome.added => 'Saved from ${formatTrackDuration(pos ~/ 1000)}. Drag its end on the bar to change the length.',
+        MarkOutcome.added => 'Saved from ${formatTrackDuration(from ~/ 1000)}. Drag its ends on the bar to adjust.',
         MarkOutcome.removed => 'Moment removed',
         MarkOutcome.noRoom => 'No room for a moment here. Try a part of the song that isn’t saved yet.',
       },

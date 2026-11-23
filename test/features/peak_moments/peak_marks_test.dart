@@ -37,9 +37,26 @@ void main() {
     PeakMark? place(int pos, {List<PeakMark> existing = const [], int dur = 200000}) =>
         placeMark(id: 'n', positionMs: pos, durationMs: dur, existing: existing, nowMs: 5);
 
-    test('default 20 s from the playhead', () {
+    test('starts 3 s before the tap and keeps 20 s from there', () {
       final p = place(42000)!;
-      expect([p.startMs, p.lengthMs], [42000, 20000]);
+      expect([p.startMs, p.lengthMs], [39000, 20000]);
+      expect(p.contains(42000), isTrue);
+    });
+    test('at the start of the song the lead-in is clamped to 0', () {
+      expect(place(1500)!.startMs, 0);
+      expect(place(0)!.startMs, 0);
+      expect(place(3000)!.startMs, 0);
+      expect(place(3001)!.startMs, 1);
+    });
+    test('the lead-in stops at the previous mark end', () {
+      final p = place(41000, existing: [m('a', 20000)])!; // a = 20..40 s; 38 s would overlap it
+      expect(p.startMs, 40000);
+      expect(p.contains(41000), isTrue);
+    });
+    test('a short song: lead-in and length fit inside it', () {
+      final p = place(8000, dur: 12000)!;
+      expect([p.startMs, p.endMs], [5000, 12000]);
+      expect(place(1000, dur: 4000), isNull); // under 5 s: no moment
     });
     test('ends where the next mark starts', () {
       final p = place(10000, existing: [m('a', 25000)])!;
@@ -50,7 +67,8 @@ void main() {
       expect(p.startMs, 40000);
     });
     test('no room (gap under 5 s) is null', () {
-      expect(place(10000, existing: [m('a', 12000)]), isNull);
+      expect(place(10000, existing: [m('a', 10000)]), isNull); // 7..10 s is only 3 s
+      expect(place(10000, existing: [m('a', 12000)]), isNotNull); // 7..12 s is exactly 5 s
     });
     test('near the end of the song it slides back to fit 5 s', () {
       final p = place(198000)!;
@@ -66,6 +84,50 @@ void main() {
         }
       }
     });
+  });
+
+  group('PeakMark.adjusted (start and end limits)', () {
+    final a = m('a', 60000); // 60..80 s
+    PeakMark? adj({int? s, int? e, List<PeakMark> others = const [], int dur = 200000}) =>
+        a.adjusted(others, startMs: s, endMs: e, durationMs: dur);
+
+    test('moving the start keeps the end', () {
+      final r = adj(s: 55000)!;
+      expect([r.startMs, r.endMs], [55000, 80000]);
+    });
+    test('the start never goes below 0', () => expect(m('b', 2000).adjusted(const [], startMs: -9000, durationMs: 200000)!.startMs, 0));
+    test('the start cannot get closer than 5 s to the end', () {
+      expect(adj(s: 79000)!.startMs, 75000);
+    });
+    test('the length never exceeds 90 s: dragging the start left stops there', () {
+      final r = adj(s: 0)!;
+      expect([r.startMs, r.endMs], [0, 80000]); // 80 s is fine
+      final long = m('c', 100000, len: 80000).adjusted(const [], startMs: 0, durationMs: 300000)!;
+      expect(long.lengthMs, PeakMark.maxLengthMs);
+      expect(long.endMs, 180000);
+    });
+    test('the start stops at the previous mark end', () {
+      final r = adj(s: 10000, others: [m('p', 20000)])!; // p = 20..40 s
+      expect(r.startMs, 40000);
+    });
+    test('a mark after this one does not limit the start', () {
+      expect(adj(s: 10000, others: [m('n', 100000)])!.startMs, 10000);
+    });
+    test('the end stops at the next mark and at the song end', () {
+      expect(adj(e: 150000, others: [m('n', 100000)])!.endMs, 100000);
+      expect(adj(e: 150000, dur: 120000)!.endMs, 120000);
+    });
+    test('hemmed in by neighbours: it cannot leave the gap', () {
+      final others = [m('p', 40000), m('n', 80000)]; // the gap is exactly 60..80 s
+      expect(adj(s: 30000, others: others), isNull);
+      expect(adj(e: 95000, others: others), isNull);
+      expect(adj(s: 63000, others: others)!.startMs, 63000);
+    });
+    test('a gap under 5 s leaves the mark unchanged', () {
+      expect(m('t', 50000, len: 5000).adjusted([m('p', 30000), m('n', 56000)], startMs: 45000, durationMs: 200000), isNull);
+    });
+    test('an unchanged result is null', () => expect(adj(s: 60000), isNull));
+    test('itself in others is ignored', () => expect(adj(s: 50000, others: [a])!.startMs, 50000));
   });
 
   group('encoding', () {
@@ -110,13 +172,13 @@ void main() {
     test('a song can hold several marks', () async {
       await n().toggleAt('s', 10000, durationMs: 200000);
       await n().toggleAt('s', 100000, durationMs: 200000);
-      expect(c.read(songMarksProvider('s')).map((x) => x.startMs), [10000, 100000]);
+      expect(c.read(songMarksProvider('s')).map((x) => x.startMs), [7000, 97000]);
     });
     test('long-press removes the mark under or nearest the playhead', () async {
       await n().toggleAt('s', 10000, durationMs: 200000);
       await n().toggleAt('s', 100000, durationMs: 200000);
       expect(await n().removeNear('s', 95000), isTrue);
-      expect(c.read(songMarksProvider('s')).map((x) => x.startMs), [10000]);
+      expect(c.read(songMarksProvider('s')).map((x) => x.startMs), [7000]);
       expect(await n().removeNear('other', 0), isFalse);
     });
     test('resize clamps to 5..90 s, the next mark and the song end', () async {
@@ -126,7 +188,45 @@ void main() {
       await n().resize('s', first.id, 1000, durationMs: 200000);
       expect(c.read(songMarksProvider('s')).first.lengthMs, PeakMark.minLengthMs);
       await n().resize('s', first.id, 80000, durationMs: 200000);
-      expect(c.read(songMarksProvider('s')).first.endMs, 50000); // stops at the next mark
+      expect(c.read(songMarksProvider('s')).first.endMs, 47000); // stops at the next mark (47 s)
+    });
+    test('moveStart keeps the end, stays clear of the previous mark and of 0', () async {
+      await n().toggleAt('s', 10000, durationMs: 200000); // 7..27 s
+      await n().toggleAt('s', 50000, durationMs: 200000); // 47..67 s
+      final second = c.read(songMarksProvider('s')).last;
+      await n().moveStart('s', second.id, 40000, durationMs: 200000);
+      var s2 = c.read(songMarksProvider('s')).last;
+      expect([s2.startMs, s2.endMs], [40000, 67000]);
+      await n().moveStart('s', second.id, 20000, durationMs: 200000); // into the first mark
+      s2 = c.read(songMarksProvider('s')).last;
+      expect(s2.startMs, 27000);
+      final first = c.read(songMarksProvider('s')).first;
+      await n().moveStart('s', first.id, -5000, durationMs: 200000);
+      expect(c.read(songMarksProvider('s')).first.startMs, 0);
+    });
+    test('an edit bumps updatedAt so a sync takes the newest version', () async {
+      await n().toggleAt('s', 50000, durationMs: 200000);
+      final before = c.read(songMarksProvider('s')).single;
+      await Future<void>.delayed(const Duration(milliseconds: 5));
+      await n().moveStart('s', before.id, before.startMs + 2000, durationMs: 200000);
+      final after = c.read(songMarksProvider('s')).single;
+      expect(after.id, before.id);
+      expect(after.updatedAt, greaterThan(before.updatedAt));
+      expect(after.createdAt, before.createdAt);
+      // and it is what is stored
+      final stored = PeakMarks.decode(backend.values[HivePeakBackend.marksKey]).of('s').single;
+      expect(stored.startMs, before.startMs + 2000);
+    });
+    test('nudge moves start or end by a second, within the limits', () async {
+      await n().toggleAt('s', 50000, durationMs: 200000); // 47..67 s
+      final id = c.read(songMarksProvider('s')).single.id;
+      await n().nudge('s', id, startDeltaMs: -1000, durationMs: 200000);
+      await n().nudge('s', id, endDeltaMs: 1000, durationMs: 200000);
+      var x = c.read(songMarksProvider('s')).single;
+      expect([x.startMs, x.endMs], [46000, 68000]);
+      await n().nudge('s', id, startDeltaMs: 1000, durationMs: 200000);
+      x = c.read(songMarksProvider('s')).single;
+      expect(x.startMs, 47000);
     });
     test('saves to the backend and a new container reads it back', () async {
       await n().toggleAt('s', 10000, durationMs: 200000);
