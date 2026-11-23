@@ -3,7 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/motion.dart';
 import 'package:navivibe/widgets/motion/ambient_loop.dart';
 
-Widget _host({required bool full, Widget? child, bool tickers = true, double offset = 0}) => MotionScope(
+Widget _host({required bool full, bool tickers = true, double offset = 0}) => MotionScope(
   full: full,
   child: MaterialApp(
     home: Scaffold(
