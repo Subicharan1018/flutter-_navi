@@ -5,6 +5,8 @@ import '../../../widgets/app_scaffold.dart' show navigateInApp;
 import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/grouped_list.dart';
 import '../../online_fetch/logic/online_fetch_providers.dart';
+import '../../data_queue/logic/data_queue_providers.dart' show dataQueueAdminProvider;
+import '../../data_queue/ui/data_queue_screen.dart';
 import '../../history_import/ui/history_import_screen.dart';
 import 'exportify_import_screen.dart';
 
@@ -32,6 +34,14 @@ class ExportifyImportSection extends ConsumerWidget {
           icon: NaviGlyph.clock,
           onTap: () => navigateInApp(context, const HistoryImportScreen(), title: 'Listening History'),
         ),
+        // Admin only: the hidden weekly queue of songs that still need Spotify's audio features.
+        if (ref.watch(dataQueueAdminProvider))
+          GroupedRow(
+            title: 'Data Queue',
+            subtitle: 'Weekly batch for Spotify’s audio features',
+            icon: NaviGlyph.stack,
+            onTap: () => navigateInApp(context, const DataQueueScreen(), title: 'Data queue'),
+          ),
       ],
     );
   }
