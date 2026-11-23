@@ -1,0 +1,93 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mood Review</title>
+<style>
+:root { color-scheme: dark; --line: #222; --mute: #98989d; --fill: #1c1c1e; }
+* { box-sizing: border-box; }
+body { margin: 0; background: #000; color: #fff; font: 16px/1.4 system-ui, "Segoe UI", sans-serif; }
+header { position: sticky; top: 0; background: #000; border-bottom: 1px solid var(--line); padding: 12px 16px; display: flex; flex-wrap: wrap; gap: 12px; align-items: center; z-index: 1; }
+h1 { font-size: 20px; margin: 0; flex: 1 1 auto; }
+#progress { color: var(--mute); font-variant-numeric: tabular-nums; }
+main { max-width: 860px; margin: 0 auto; padding: 8px 16px 80px; }
+.intro { color: var(--mute); max-width: 68ch; }
+button { font: inherit; min-height: 44px; border: 0; border-radius: 22px; padding: 0 16px; background: var(--fill); color: #fff; cursor: pointer; }
+button[aria-pressed="true"], button.main { background: #fff; color: #000; font-weight: 600; }
+button:focus-visible, a:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+article { padding: 20px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; min-width: 0; }
+article.done h2 { color: var(--mute); }
+h2 { font-size: 18px; margin: 0; }
+.sub, .nums, .why { color: var(--mute); font-size: 14px; }
+.nums { font-variant-numeric: tabular-nums; margin: 4px 0 12px; }
+a { color: #fff; }
+.side { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 8px 0; }
+.side b { flex: 1 1 240px; font-weight: 600; }
+.side span { color: var(--mute); font-weight: 400; }
+.moods { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+.foot { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; align-items: center; }
+</style>
+</head>
+<body>
+<header><h1>Mood Review</h1><span id="progress"></span><button id="save" class="main">Save Marks</button></header>
+<main>
+<p class="intro">Mark each song by ear. Say whether the current moods and the proposed moods are right for you, then tap
+the moods it should have. "Proposed" comes from rules, and no person has checked it. Marks stay in this browser until you tap
+Save Marks, which downloads a file. You can stop and come back at any time.</p>
+<div id="list"></div>
+</main>
+<script>
+"use strict";
+const DATA = __DATA__;
+const KEY = "navivibe.mood-review.v3";
+let marks = {};
+try { marks = JSON.parse(localStorage.getItem(KEY) || "{}"); } catch (_) {}
+const keep = () => { try { localStorage.setItem(KEY, JSON.stringify(marks)); } catch (_) {} progress(); };
+const el = (tag, cls, text) => { const e = document.createElement(tag); if (cls) e.className = cls; if (text != null) e.textContent = text; return e; };
+const cap = (m) => m[0].toUpperCase() + m.slice(1);
+const names = (a) => a.length ? a.map(cap).join(", ") : "No mood";
+const num = (v, d) => v == null ? "unknown" : Number(v).toFixed(d);
+const judged = (s) => { const m = marks[s.id]; return m && (m.skip || (m.current && m.proposed)); };
+function progress() { document.getElementById("progress").textContent = DATA.songs.filter(judged).length + " of " + DATA.songs.length + " marked"; }
+function draw(s, box) {
+  const m = marks[s.id] || (marks[s.id] = {});
+  box.textContent = ""; box.className = judged(s) ? "done" : "";
+  box.append(el("h2", "", s.title));
+  const sub = el("div", "sub", [s.artist, s.film].filter(Boolean).join(" · ") + "  ");
+  const link = el("a", "", "Find on Spotify");
+  link.href = "https://open.spotify.com/search/" + encodeURIComponent(s.title + " " + s.artist.split(/[•,&]/)[0]); link.target = "_blank"; link.rel = "noreferrer";
+  sub.append(link); box.append(sub);
+  box.append(el("div", "nums", (s.src === "spotify" ? "Spotify" : "Estimated") + ": energy " + num(s.energy, 2) + ", valence " + num(s.valence, 2) + ", tempo " + num(s.tempo, 0) + (s.lyrics ? "" : " · no lyrics")));
+  for (const side of ["current", "proposed"]) {
+    const row = el("div", "side"), b = el("b", "", names(s[side]) + " ");
+    b.append(el("span", "", side === "current" ? "current" : "proposed")); row.append(b);
+    for (const v of ["right", "wrong"]) {
+      const bt = el("button", "", cap(v)); bt.setAttribute("aria-pressed", m[side] === v);
+      bt.onclick = () => { m[side] = m[side] === v ? undefined : v; if (v === "right" && m[side] && s[side].length) m.moods = [...s[side]]; m.skip = false; keep(); draw(s, box); };
+      row.append(bt);
+    }
+    box.append(row);
+  }
+  if (s.why.length) box.append(el("div", "why", "Why it would change: " + s.why.join("; ")));
+  const chips = el("div", "moods"); chips.setAttribute("aria-label", "Correct moods");
+  for (const x of DATA.moods) {
+    const c = el("button", "", cap(x)), has = (m.moods || []).includes(x); c.setAttribute("aria-pressed", has);
+    c.onclick = () => { m.moods = has ? m.moods.filter((y) => y !== x) : [...(m.moods || []), x]; m.skip = false; keep(); draw(s, box); };
+    chips.append(c);
+  }
+  box.append(chips);
+  const foot = el("div", "foot"), sk = el("button", "", "Not Sure"); sk.setAttribute("aria-pressed", !!m.skip);
+  sk.onclick = () => { m.skip = !m.skip; keep(); draw(s, box); };
+  foot.append(sk); box.append(foot);
+}
+for (const s of DATA.songs) { const box = el("article"); document.getElementById("list").append(box); draw(s, box); }
+document.getElementById("save").onclick = () => {
+  const out = { saved: new Date().toISOString(), songs: DATA.songs.map((s) => ({ ...s, mark: judged(s) || (marks[s.id].moods || []).length ? marks[s.id] : null })) };
+  const a = el("a"); a.href = URL.createObjectURL(new Blob([JSON.stringify(out, null, 1)], { type: "application/json" })); a.download = "mood-marks.json";
+  document.body.append(a); a.click(); a.remove();
+};
+progress();
+</script>
+</body>
+</html>
