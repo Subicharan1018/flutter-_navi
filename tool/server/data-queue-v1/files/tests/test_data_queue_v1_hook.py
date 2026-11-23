@@ -3,6 +3,7 @@ import sqlite3
 
 import pytest
 
+from tgfetch import config  # noqa: F401  puts NAVIVIBE_ROOT on sys.path, as it does when the service starts
 from navivibe import data_queue_store as store
 from tgfetch import data_queue_hook, db
 

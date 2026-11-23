@@ -75,9 +75,8 @@ Re-running adds nothing already queued. Rollback is printed by `install.sh`.
 
 ## Tests
 `files/navivibe-tests/test_data_queue_v1.py` (store, ranking, batches, release, files, upload, idempotency, prediction,
-caps, routes incl. non-admin 404, backfill, plus repo-only checks that the copies in `data_queue_tools/` are
-byte-identical to `tool/exportify/` and the ridge functions give the same numbers as `calibrate_audio_features.py`) and
-`files/tests/test_data_queue_v1_hook.py` (arrival, sources, features present, failure isolation, kill switch).
+caps, routes incl. non-admin 404, backfill; no skips) and
+`files/tests/test_data_queue_v1_hook.py` (arrival, sources, features present, failure isolation, kill switch; it imports `tgfetch.config` first, which puts `NAVIVIBE_ROOT` on the path exactly as the running service does, so the hook reaches the web server's `navivibe.data_queue_store` live and in the test). Repo only, not installed: `tests_repo/test_parity.py` (copies in `data_queue_tools/` identical to `tool/exportify/`, file format and ridge maths equal to `library_export.py` and `calibrate_audio_features.py`; run `python -m pytest tool/server/data-queue-v1/tests_repo`).
 
 ## Not verified / limits
 - Not installed or run on the server; the tests ran locally against a read-only snapshot of the live code, and the two

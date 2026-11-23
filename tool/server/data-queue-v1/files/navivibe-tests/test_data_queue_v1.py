@@ -15,7 +15,6 @@ from navivibe import data_queue_store as store
 
 DAY = 86400.0
 
-
 @pytest.fixture
 def env(tmp_path, monkeypatch):
     qpath, dpath, cpath = str(tmp_path / "q.db"), str(tmp_path / "details.db"), str(tmp_path / "catalog.db")
@@ -27,7 +26,6 @@ def env(tmp_path, monkeypatch):
     monkeypatch.setattr(dq, "gap_scores", lambda *a, **k: {})
     dq._rank_cache["key"] = None
     return {"q": qpath, "d": dpath, "c": cpath}
-
 
 def make_catalog(path, n=120, labelled=80, dim=8):
     """n songs; the first `labelled` carry Spotify numbers in the details db; energy depends on the embedding."""
@@ -54,7 +52,6 @@ def make_catalog(path, n=120, labelled=80, dim=8):
     c.close()
     return truth
 
-
 def add_details(path, ids, truth):
     c = sqlite3.connect(path)
     c.execute("CREATE TABLE IF NOT EXISTS spotify_details (%s)" % dq.DETAILS_COLUMNS)
@@ -65,11 +62,9 @@ def add_details(path, ids, truth):
     c.commit()
     c.close()
 
-
 def song(i, **kw):
     return {"song_id": "s%03d" % i, "title": "Song %d" % i, "artist": "Artist %d" % i, "album": "Album",
             "duration": 200.0 + i, "isrc": "INA%09d" % i, **kw}
-
 
 # ── adding songs ──────────────────────────────────────────────────────────────
 
@@ -82,12 +77,10 @@ def test_enqueue_adds_once_and_never_raises(env):
     assert c.execute("SELECT source FROM queue WHERE song_id='s002'").fetchone()[0] == "other"
     assert store.counts(c)["waiting"] == 2
 
-
 def test_a_broken_queue_file_never_raises(env, tmp_path):
     bad = tmp_path / "dir_not_file"
     bad.mkdir()
     assert store.enqueue(song(1), "link", path=str(bad)) == "error"
-
 
 def test_songs_with_real_features_are_not_queued(env):
     truth = make_catalog(env["c"])
@@ -96,7 +89,6 @@ def test_songs_with_real_features_are_not_queued(env):
     assert store.enqueue(song(2), "exportify") == "queued"
     c = store.connect()
     assert store.counts(c)["waiting"] == 1
-
 
 def test_a_row_without_energy_or_valence_is_not_real(env):
     cx = sqlite3.connect(env["d"])
@@ -107,7 +99,6 @@ def test_a_row_without_energy_or_valence_is_not_real(env):
     cx.close()
     assert store.enqueue(song(5)) == "queued" and store.enqueue(song(6)) == "queued"
 
-
 def test_features_that_land_later_drop_waiting_songs(env):
     truth = make_catalog(env["c"])
     store.enqueue(song(1))
@@ -117,20 +108,17 @@ def test_features_that_land_later_drop_waiting_songs(env):
     assert store.reconcile(c) == 1
     assert store.counts(c)["waiting"] == 1 and store.counts(c)["done"] == 1
 
-
 def test_source_of_a_link():
     assert store.source_of("exportify:12") == "exportify"
     assert store.source_of("https://music.youtube.com/playlist?list=x") == "youtube"
     assert store.source_of("https://open.spotify.com/playlist/x") == "link"
     assert store.source_of(None) == "request"
 
-
 # ── batches ───────────────────────────────────────────────────────────────────
 
 def fill(n, now, **kw):
     for i in range(n):
         store.enqueue(song(i, **kw), "request", now=now)
-
 
 def test_a_batch_has_at_most_200_isrc_first_and_nothing_twice(env):
     now = time.time()
@@ -149,7 +137,6 @@ def test_a_batch_has_at_most_200_isrc_first_and_nothing_twice(env):
     assert not ids1 & ids2 and second["size"] == 50
     assert store.build_batch(c, plays, {}, None, now)["batch_id"] is None
 
-
 def test_most_played_and_recent_come_first(env):
     now = time.time()
     store.enqueue(song(1), "request", now=now - 90 * DAY)
@@ -159,7 +146,6 @@ def test_most_played_and_recent_come_first(env):
     order = [r["song_id"] for r in store.rank_waiting(c, {"s002": 50}, {}, now)]
     assert order == ["s002", "s003", "s001"]
 
-
 def test_the_same_recording_counts_once(env):
     now = time.time()
     store.enqueue(song(1), now=now)
@@ -167,7 +153,6 @@ def test_the_same_recording_counts_once(env):
     store.enqueue({**song(3), "title": "Song 1", "artist": "Artist 1", "isrc": ""}, now=now)
     c = store.connect()
     assert len(store.rank_waiting(c, now=now)) == 1
-
 
 def test_a_song_that_left_the_library_is_skipped_and_tags_refresh(env):
     now = time.time()
@@ -180,7 +165,6 @@ def test_a_song_that_left_the_library_is_skipped_and_tags_refresh(env):
     r = store.batch_songs(c, made["batch_id"])[0]
     assert (r["title"], r["isrc"], r["album"]) == ("New tag", "INA000000009", "Al")
 
-
 def test_an_open_batch_is_released_after_30_days(env):
     now = time.time()
     fill(5, now)
@@ -191,7 +175,6 @@ def test_an_open_batch_is_released_after_30_days(env):
     assert store.counts(c)["waiting"] == 5 and store.counts(c)["in_batch"] == 0
     assert [e["event"] for e in store.audit_of(c, bid)] == ["created", "released"]
     assert store.release(c, bid) is False                              # not open any more
-
 
 def test_files_are_the_library_export_format(env):
     store.enqueue({"song_id": "a", "title": 'Say "hi", now', "artist": "A\nB", "album": "Al", "album_artist": "AA",
@@ -206,30 +189,11 @@ def test_files_are_the_library_export_format(env):
     assert table[1] == ['Say "hi", now', "A B", "Al", "AA", "201", "INA000000001"]
     assert store.file_bytes(rows, "txt") == b'A B - Say "hi", now\n'
 
-
-def test_file_format_matches_library_export_py():
-    """The repo's tool is the format's source; this package only works if both write the same bytes."""
-    import importlib.util
-    import os
-    p = os.path.join(os.path.dirname(__file__), "..", "..", "..", "..", "exportify", "library_export.py")
-    if not os.path.exists(p):
-        pytest.skip("run from the repo to compare with tool/exportify/library_export.py")
-    spec = importlib.util.spec_from_file_location("library_export", p)
-    mod = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(mod)
-    rows = [{"title": "Té, \"x\"", "artist": "A;B", "album": "", "album_artist": "A", "duration": 99.6, "isrc": "usabc1234567"},
-            {"title": "Plain", "artist": "", "album": "Z", "album_artist": "", "duration": None, "isrc": "bad"}]
-    theirs = [mod.make_song(r["title"], r["artist"], r["album"], r["album_artist"], r["duration"], r["isrc"]) for r in rows]
-    assert store.csv_text(rows) == mod.csv_text(theirs)
-    assert store.txt_text(rows) == mod.txt_text(theirs)
-
-
 # ── the upload ────────────────────────────────────────────────────────────────
 
 HEAD = ["Track URI", "Track Name", "Artist Name(s)", "Duration (ms)", "ISRC", "Popularity", "Genres", "Record Label",
         "Release Date", "Explicit", "Danceability", "Energy", "Key", "Loudness", "Mode", "Speechiness", "Acousticness",
         "Instrumentalness", "Liveness", "Valence", "Tempo", "Time Signature", "Added By"]
-
 
 def exportify_csv(rows):
     buf = io.StringIO()
@@ -239,12 +203,10 @@ def exportify_csv(rows):
         w.writerow(r)
     return buf.getvalue()
 
-
 def sp_row(title, artist, isrc, dur_s, energy=0.7, valence=0.4):
     return ["spotify:track:x", title, artist, int(dur_s * 1000), isrc, 55, "tamil pop", "Label", "2019-05-01", "false",
             0.6, energy if energy is not None else "", 6, -6.5, 1, 0.05, 0.3, 0, 0.1, valence if energy is not None else "",
             120, 4, "someone"]
-
 
 def test_upload_matches_stores_predicts_and_is_idempotent(env):
     truth = make_catalog(env["c"])
@@ -286,7 +248,6 @@ def test_upload_matches_stores_predicts_and_is_idempotent(env):
         dq.process_upload(c, bid, exportify_csv(rows[:1]).encode() + b"\n", "o.csv", now, env["d"], env["c"])
     assert e.value.status == 409
 
-
 def test_prediction_learns_the_embedding(env):
     truth = make_catalog(env["c"], n=300, labelled=250)
     add_details(env["d"], ["s%03d" % i for i in range(250)], truth)
@@ -295,7 +256,6 @@ def test_prediction_learns_the_embedding(env):
     out, rep = m.predict(["s%03d" % i for i in range(250, 300)], emb, m.load_truth(env["c"], env["d"]))
     err = np.mean([abs(out["s%03d" % i]["energy"] - truth["s%03d" % i]["energy"]) for i in range(250, 300)])
     assert err < 0.15 and rep["features"]["energy"]["labelled"] == 250
-
 
 def test_too_few_labels_means_no_prediction_but_the_upload_lands(env):
     truth = make_catalog(env["c"])
@@ -310,7 +270,6 @@ def test_too_few_labels_means_no_prediction_but_the_upload_lands(env):
     note = c.execute("SELECT note FROM queue WHERE song_id='s051'").fetchone()[0]
     assert note == "no_prediction"
 
-
 @pytest.mark.parametrize("text,status", [
     ("", 400), ("a,b\n1,2\n", 400),
     ("Track Name,Artist Name(s)\nx,y\n", 400),                         # no audio-feature columns
@@ -324,7 +283,6 @@ def test_bad_files_change_nothing(env, text, status):
     assert e.value.status == status
     assert store.open_batch(c)["id"] == bid and store.counts(c)["in_batch"] == 1
 
-
 def test_size_and_row_caps(env, monkeypatch):
     with pytest.raises(dq.QueueError) as e:
         dq.parse_csv(b"x" * (dq.MAX_BYTES + 1))
@@ -335,11 +293,9 @@ def test_size_and_row_caps(env, monkeypatch):
         dq.parse_csv(many)
     assert e.value.status == 413
 
-
 def test_the_added_by_column_is_never_read():
     rows = dq.parse_csv(exportify_csv([sp_row("T", "A", "USABC1234567", 100)]))
     assert "someone" not in json.dumps(rows)
-
 
 def test_coverage_and_quality(env):
     truth = make_catalog(env["c"])
@@ -353,7 +309,6 @@ def test_coverage_and_quality(env):
     store.enqueue(song(9), "youtube")
     q = store.quality(c)
     assert q["waiting_by_source"] == {"youtube": 1} and q["waiting_with_isrc"] == 1
-
 
 # ── routes ────────────────────────────────────────────────────────────────────
 
@@ -377,9 +332,7 @@ def client(env):
     dq.register_data_queue_routes(app, require_auth, lambda: {"admin"})
     return app.test_client()
 
-
 ADMIN, USER = {"X-Test-User": "admin"}, {"X-Test-User": "someone"}
-
 
 def test_non_admins_get_a_404_and_see_nothing(env, client):
     fill(3, time.time())
@@ -391,7 +344,6 @@ def test_non_admins_get_a_404_and_see_nothing(env, client):
         assert getattr(client, method)(url).status_code == 401
     c = store.connect()
     assert store.counts(c)["in_batch"] == 0 and c.execute("SELECT COUNT(*) FROM batches").fetchone()[0] == 0
-
 
 def test_the_admin_flow_end_to_end(env, client):
     truth = make_catalog(env["c"])
@@ -425,7 +377,6 @@ def test_the_admin_flow_end_to_end(env, client):
     assert st["open_batch"] is None and st["counts"]["done"] == 1 and st["coverage"]["real"] == 81
     assert st["coverage"]["predicted"] == 9
 
-
 def test_upload_errors_are_plain_and_raw_text_works(env, client):
     fill(2, time.time())
     bid = client.post("/data-queue/batches", headers=ADMIN).get_json()["batch"]["id"]
@@ -437,7 +388,6 @@ def test_upload_errors_are_plain_and_raw_text_works(env, client):
     assert client.post("/data-queue/batches/99/upload", json={"csv": "x"}, headers=ADMIN).status_code in (400, 404)
     assert client.post("/data-queue/batches/%d/release" % bid, headers=ADMIN).get_json() == {"released": True}
     assert client.post("/data-queue/batches/%d/release" % bid, headers=ADMIN).status_code == 409
-
 
 # ── backfill ──────────────────────────────────────────────────────────────────
 
@@ -454,41 +404,3 @@ def test_backfill_queues_missing_songs_in_gap_order_and_honours_exclude(env, tmp
     assert real["queued"] == real["to_queue"] == len(ids) and "s010" not in ids and "s000" not in ids
     assert {r[0] for r in c.execute("SELECT DISTINCT source FROM queue")} == {"backfill"}
     assert dq.backfill(env["c"], [str(ex)], details_path=env["d"], path=env["q"])["queued"] == 0   # re-run adds nothing
-
-
-# ── repo-only: the copies in this package match their sources in tool/ ──────────
-
-def _tool(*parts):
-    import os
-    return os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "..", "..", *parts)
-
-
-def test_tool_copies_are_byte_identical():
-    import os
-    for name in ("library_sample.py", "embedding_gap.py", "spotify_match.py"):
-        src = _tool("exportify", name)
-        if not os.path.exists(src):
-            pytest.skip("run from the repo")
-        with open(src, "rb") as a, open(os.path.join(os.path.dirname(dq.__file__), "data_queue_tools", name), "rb") as b:
-            assert a.read() == b.read(), name
-
-
-def test_ridge_matches_the_calibration_script():
-    import importlib.util
-    import os
-    src = _tool("shuffle_eval", "calibrate_audio_features.py")
-    if not os.path.exists(src):
-        pytest.skip("run from the repo")
-    import sys
-    sys.path.insert(0, _tool("exportify"))
-    try:
-        spec = importlib.util.spec_from_file_location("calibrate_audio_features", src)
-        cal = importlib.util.module_from_spec(spec)
-        spec.loader.exec_module(cal)
-    finally:
-        sys.path.remove(_tool("exportify"))
-    from navivibe import data_queue_model as m
-    rng = np.random.default_rng(5)
-    X, y = rng.normal(size=(90, 6)), rng.uniform(size=90)
-    assert m.pick_alpha(X, y, 1, 0.0, 1.0) == cal.pick_alpha(X, y, 1, 0.0, 1.0)
-    assert np.allclose(m.fit_predict(X[:70], y[:70], X[70:], 10.0), cal.fit_predict(X[:70], y[:70], X[70:], 10.0))

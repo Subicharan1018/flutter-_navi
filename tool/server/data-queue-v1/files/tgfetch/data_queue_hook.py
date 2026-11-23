@@ -40,6 +40,7 @@ def on_ready(conn, job_id: int, song_id: str) -> str:
     try:
         if os.getenv("DATA_QUEUE_OFF") == "1":
             return "off"
+        from tgfetch import config  # noqa: F401  puts NAVIVIBE_ROOT on sys.path (as the service does at start)
         from navivibe import data_queue_store as store
         row = conn.execute(
             "SELECT c.title, c.artist, c.album, b.link, c.isrc, c.duration_s FROM jobs j JOIN candidates c ON c.id = j.candidate_id "
