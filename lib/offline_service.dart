@@ -285,22 +285,13 @@ class OfflineService {
       final ext = song.suffix.isNotEmpty ? song.suffix.toLowerCase() : 'mp3';
       final filePath = _getSongPath(song.id, suffix: ext);
 
-      final dio = dioFactory();
-      // BUG-2 FIX: Without timeouts, Dio hangs indefinitely on no-network,
-      // leaving the download state stuck at "downloading" forever.
-      dio.options.connectTimeout = const Duration(seconds: 15);
-      dio.options.receiveTimeout = const Duration(seconds: 120);
-      DownloadSpeedMeter.instance.startFile();
-      await dio.download(
-        url,
-        filePath,
-        onReceiveProgress: (received, total) {
-          DownloadSpeedMeter.instance.record(received);
-          if (total > 0 && onProgress != null) {
-            onProgress(received / total);
-          }
-        },
-      );
+      final cancel = CancelToken();
+      _cancelTokens[song.id] = cancel;
+      try {
+        await fetchResumable(url, filePath, cancel: cancel, onProgress: onProgress);
+      } finally {
+        _cancelTokens.remove(song.id);
+      }
 
       _downloadedFileNames.add('${song.id}.$ext');
 
@@ -336,8 +327,99 @@ class OfflineService {
       return true;
     } catch (e) {
       debugPrint('Error downloading song: $e');
+      if (e is DioException && CancelToken.isCancel(e)) {
+        // Cancelled on purpose: nothing worth resuming.
+        try {
+          await File('${_getSongPath(song.id, suffix: song.suffix)}.part').delete();
+        } catch (_) {}
+      }
       return false;
     }
+  }
+
+  final Map<String, CancelToken> _cancelTokens = {};
+
+  /// Stops [songId]'s download in flight (its partial file is removed).
+  void cancelDownload(String songId) => _cancelTokens[songId]?.cancel('cancelled');
+
+  /// Stops every download in flight.
+  void cancelAllDownloads() {
+    for (final t in _cancelTokens.values.toList()) {
+      t.cancel('cancelled');
+    }
+  }
+
+  /// Downloads [url] to [filePath] through `<filePath>.part`, so a download cut
+  /// short (network drop, process killed) never looks like a finished song and
+  /// the next attempt continues where the last stopped (HTTP range request;
+  /// a server that ignores it just sends the whole file again). The finished
+  /// file appears under its final name only once every byte has arrived.
+  @visibleForTesting
+  Future<void> fetchResumable(
+    String url,
+    String filePath, {
+    CancelToken? cancel,
+    void Function(double progress)? onProgress,
+    bool allowResume = true,
+  }) async {
+    final part = File('$filePath.part');
+    var have = allowResume && await part.exists() ? await part.length() : 0;
+
+    final dio = dioFactory();
+    // Without timeouts Dio hangs on a dead network and the download sits at
+    // "downloading" forever. The receive timeout applies between chunks.
+    dio.options.connectTimeout = const Duration(seconds: 15);
+    dio.options.receiveTimeout = const Duration(seconds: 60);
+    final res = await dio.get<ResponseBody>(
+      url,
+      cancelToken: cancel,
+      options: Options(
+        responseType: ResponseType.stream,
+        headers: have > 0 ? {'range': 'bytes=$have-'} : null,
+        validateStatus: (s) => s == 200 || s == 206 || s == 416,
+      ),
+    );
+    final status = res.statusCode ?? 0;
+    if (status == 416) {
+      // The partial file doesn't fit the server's file any more: start over.
+      if (have > 0 && allowResume) {
+        try {
+          await part.delete();
+        } catch (_) {}
+        return fetchResumable(url, filePath, cancel: cancel, onProgress: onProgress, allowResume: false);
+      }
+      throw DioException(requestOptions: res.requestOptions, response: res, message: 'Range not satisfiable');
+    }
+    final resumed = status == 206 && have > 0;
+    if (!resumed) have = 0;
+    final length = int.tryParse(res.headers.value(Headers.contentLengthHeader) ?? '') ?? -1;
+    final total = length > 0 ? have + length : -1;
+
+    DownloadSpeedMeter.instance.startFile();
+    final sink = part.openWrite(mode: resumed ? FileMode.append : FileMode.write);
+    var received = have;
+    try {
+      await for (final chunk in res.data!.stream) {
+        if (cancel?.isCancelled ?? false) {
+          throw DioException.requestCancelled(requestOptions: res.requestOptions, reason: cancel!.cancelError);
+        }
+        sink.add(chunk);
+        received += chunk.length;
+        DownloadSpeedMeter.instance.record(received);
+        if (total > 0) onProgress?.call(received / total);
+      }
+      await sink.flush();
+    } finally {
+      await sink.close();
+    }
+    if (total > 0 && received != total) {
+      // Cut short without an error: keep the part for the next attempt.
+      throw DioException(
+        requestOptions: res.requestOptions,
+        message: 'Download ended early ($received of $total bytes)',
+      );
+    }
+    await part.rename(filePath);
   }
 
   /// Saves the 600 px cover as `<id>.jpg` beside the audio. Tries twice,

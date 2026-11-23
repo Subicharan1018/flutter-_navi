@@ -35,6 +35,9 @@ class MainActivity : AudioServiceActivity() {
         AppNotifications.ensureChannels(this)
         val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navivibe/android")
         appChannel = channel
+        DownloadService.onStopRequested = {
+            runOnUiThread { channel.invokeMethod("downloadStopRequested", null) }
+        }
         channel.setMethodCallHandler { call, result ->
                 when (call.method) {
                     "getInitialIntent" -> {
@@ -50,6 +53,19 @@ class MainActivity : AudioServiceActivity() {
                             call.argument<String>("body") ?: "",
                         ),
                     )
+                    "startDownloadService" -> result.success(
+                        DownloadService.start(
+                            this,
+                            call.argument<String>("title") ?: "Downloading",
+                            call.argument<String>("text") ?: "",
+                            call.argument<Int>("done") ?: 0,
+                            call.argument<Int>("total") ?: 0,
+                        ),
+                    )
+                    "stopDownloadService" -> {
+                        DownloadService.stop(this)
+                        result.success(null)
+                    }
                     "notificationsEnabled" -> result.success(AppNotifications.enabled(this))
                     "openNotificationSettings" -> {
                         AppNotifications.openSettings(this)

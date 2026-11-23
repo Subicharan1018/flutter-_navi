@@ -8,6 +8,7 @@ import '../../../core/hive_boxes.dart';
 import '../../../providers/download_provider.dart';
 import '../../../providers/library_provider.dart';
 import '../../../providers/settings_provider.dart';
+import '../../../utils/app_resume_observer.dart';
 import '../../ai_shuffle/data/repositories/shuffle_exception.dart';
 import '../../ai_shuffle/logic/shuffle_providers.dart';
 import '../../local_library/logic/local_models.dart' show isLocalSongId;
@@ -111,7 +112,7 @@ final offlineSyncBootstrapProvider = Provider<void>((ref) {
     unawaited(_backfillCovers(ref));
   }
 
-  final observer = _ResumeObserver(run);
+  final observer = AppResumeObserver(run);
   WidgetsBinding.instance.addObserver(observer);
   ref.onDispose(() => WidgetsBinding.instance.removeObserver(observer));
 
@@ -134,15 +135,5 @@ Future<void> _backfillCovers(Ref ref) async {
     await ref.read(offlineServiceProvider).backfillMissingCovers(ref.read(subsonicServiceProvider));
   } catch (e) {
     debugPrint('[Downloads] cover backfill: $e');
-  }
-}
-
-class _ResumeObserver with WidgetsBindingObserver {
-  _ResumeObserver(this.onResume);
-  final VoidCallback onResume;
-
-  @override
-  void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) onResume();
   }
 }
