@@ -52,6 +52,24 @@ edit("navivibe/server.py", "_hybrid_hook(resp", '''            "n_plays_in_profi
     return resp
 ''')
 
+# ── recsys/recommender.py: score the hybrid on each kept play, BEFORE the state learns it ──
+edit("navivibe/recsys/recommender.py", "play_hook(self, user", '''            kept = s.ctx.kept
+            self._user(user).update(i, now.timestamp(), hour_of_play, when.weekday(), ratio, skipped,''',
+     '''            kept = s.ctx.kept
+            try:    # hybrid-shadow-v1: rank the played song with v3 / blend / hybrid, pre-update state
+                from navivibe.hybrid_shadow import play_hook
+                play_hook(self, user, i, s, ratio, now, hour_of_play, when, data)
+            except Exception as _he:
+                print(f"[hybrid-shadow] play hook failed: {_he}")
+            self._user(user).update(i, now.timestamp(), hour_of_play, when.weekday(), ratio, skipped,''')
+
+# ── server.py: DELETE /me/history also clears the shadow rows ──
+edit("navivibe/server.py", "erase_tables(c)", '''        erase_extra_tables(c)
+''', '''        erase_extra_tables(c)
+        from navivibe.hybrid_shadow import erase_tables
+        erase_tables(c)
+''')
+
 # ── scheduler.py: nightly fit with timeout and back-off ──
 edit("navivibe/scheduler.py", "def hybrid_fit_loop", '''def start_background_scheduler(model_manager: dict = None, on_v3_update=None):''',
      '''HYBRID_FIT_HOUR_IST = float(os.getenv("HYBRID_FIT_HOUR_IST", "3.9"))   # 03:54 IST, after the v3 retrain

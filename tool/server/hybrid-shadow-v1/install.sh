@@ -4,7 +4,8 @@
 #   before; after the response is sent, the hybrid ranking for the same request is computed in a
 #   background worker and written to a `hybrid_shadow` table. A nightly fit (03:54 IST) trains
 #   the re-ranker. `on` serves the hybrid for next-song positions only (openers stay on v3).
-#   Adds navivibe/hybrid_core.py, hybrid_shadow.py, hybrid_train.py; patches server.py and
+#   Adds navivibe/hybrid.py (the research harness file, unchanged), hybrid_store.py, hybrid_shadow.py,
+#   hybrid_train.py; patches server.py, recsys/recommender.py and
 #   scheduler.py (small anchored edits, see patch.py). NEEDS play-events-v2 installed first.
 #
 # Run on the server as subi (no sudo), from the folder this file is in:
@@ -18,9 +19,9 @@ SHUF=${SHUF:-/opt/shuffle-server}
 PY=$SHUF/venv/bin/python
 STAMP=$(date +%Y%m%d-%H%M%S)
 BK=$SHUF/backups/hybrid-shadow-v1-$STAMP
-NEW_FILES="navivibe/hybrid_core.py navivibe/hybrid_shadow.py navivibe/hybrid_train.py navivibe/tests/test_hybrid_shadow_v1.py"
-PATCHED="navivibe/server.py navivibe/scheduler.py"
-TESTS="navivibe/tests/test_hybrid_shadow_v1.py navivibe/tests/test_play_events_v2.py navivibe/tests/test_feedback_played_at.py navivibe/tests/test_hardening.py navivibe/tests/test_security.py"
+NEW_FILES="navivibe/hybrid.py navivibe/hybrid_store.py navivibe/hybrid_shadow.py navivibe/hybrid_train.py navivibe/tests/test_hybrid_shadow_v1.py"
+PATCHED="navivibe/server.py navivibe/scheduler.py navivibe/recsys/recommender.py"
+TESTS="navivibe/tests/test_hybrid_shadow_v1.py navivibe/tests/test_play_events_v2.py navivibe/tests/test_feedback_played_at.py navivibe/tests/test_v3.py navivibe/tests/test_hardening.py navivibe/tests/test_security.py"
 CHECK=0; [ "${1:-}" = "--check" ] && CHECK=1
 
 [ -x "$PY" ] || { echo "!! $PY not found"; exit 1; }
@@ -34,7 +35,7 @@ T=$(mktemp -d); trap 'rm -rf "$T"' EXIT
 cp -a "$SHUF/navivibe" "$T/navivibe"
 find "$T/navivibe" -name __pycache__ -prune -exec rm -rf {} +
 "$PY" -I "$HERE/patch.py" "$T"
-for f in hybrid_core.py hybrid_shadow.py hybrid_train.py; do cp "$HERE/files/navivibe/$f" "$T/navivibe/"; done
+for f in hybrid.py hybrid_store.py hybrid_shadow.py hybrid_train.py; do cp "$HERE/files/navivibe/$f" "$T/navivibe/"; done
 cp "$HERE/files/navivibe/tests/test_hybrid_shadow_v1.py" "$T/navivibe/tests/"
 "$PY" -m py_compile $(for f in $PATCHED $NEW_FILES; do case $f in *tests*) ;; *) echo "$T/$f";; esac; done)
 if (cd "$T" && PYTHONPATH="$T" NAVIVIBE_LOG_DIR="$T/logs" HYBRID_ORDER=shadow "$PY" -m pytest $TESTS -q -p no:cacheprovider > "$T/.tests.log" 2>&1); then
@@ -62,10 +63,10 @@ restore() {
 }
 
 echo "== 3/4 patch the live code"
-for f in hybrid_core.py hybrid_shadow.py hybrid_train.py; do cp "$HERE/files/navivibe/$f" "$SHUF/navivibe/"; done
+for f in hybrid.py hybrid_store.py hybrid_shadow.py hybrid_train.py; do cp "$HERE/files/navivibe/$f" "$SHUF/navivibe/"; done
 cp "$HERE/files/navivibe/tests/test_hybrid_shadow_v1.py" "$SHUF/navivibe/tests/"
 "$PY" -I "$HERE/patch.py" "$SHUF" || restore
-"$PY" -m py_compile $(for f in $PATCHED navivibe/hybrid_core.py navivibe/hybrid_shadow.py navivibe/hybrid_train.py; do echo "$SHUF/$f"; done) || restore
+"$PY" -m py_compile $(for f in $PATCHED navivibe/hybrid.py navivibe/hybrid_store.py navivibe/hybrid_shadow.py navivibe/hybrid_train.py; do echo "$SHUF/$f"; done) || restore
 
 echo "== 4/4 tests on the live tree (temp log folder; the real listening logs are not opened)"
 LOGS=$(mktemp -d)
@@ -89,7 +90,7 @@ $SHUF/models/hybrid/hybrid_v1.json; takes a few minutes):
 
 Rollback:
     for f in $PATCHED; do cp -a $BK/\$f $SHUF/\$f; done
-    rm -f $SHUF/navivibe/hybrid_core.py $SHUF/navivibe/hybrid_shadow.py $SHUF/navivibe/hybrid_train.py $SHUF/navivibe/tests/test_hybrid_shadow_v1.py
+    rm -f $SHUF/navivibe/hybrid.py $SHUF/navivibe/hybrid_store.py $SHUF/navivibe/hybrid_shadow.py $SHUF/navivibe/hybrid_train.py $SHUF/navivibe/tests/test_hybrid_shadow_v1.py
     sudo systemctl restart navivibe
 (The extra table in each listening log is harmless to the old code.)
 EOS

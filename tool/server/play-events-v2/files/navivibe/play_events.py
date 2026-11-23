@@ -721,7 +721,8 @@ def handle_feedback(username, data, session_played, session_lock, cache_max, eng
         if engine is not None:
             try:
                 engine.on_feedback(username, dict(data, listen_ratio=res["ratio"],
-                                                  _played_at=res["played_at"], _local_hour=res["local_hour"]))
+                                                  _played_at=res["played_at"], _local_hour=res["local_hour"],
+                                                  _quality=res.get("quality")))
             except Exception as e:  # noqa: BLE001
                 print("[v3] feedback update failed: %s" % e)
     return {"ok": True}, 200  # same body as before: the old route test and old apps expect it

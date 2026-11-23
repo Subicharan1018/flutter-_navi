@@ -1,30 +1,35 @@
-"""hybrid-shadow-v1, the runtime: flag, shadow recorder, optional serving.
+"""hybrid-shadow-v1, the runtime: flag, two shadow logs, optional serving.
 
 HYBRID_ORDER = off | shadow | on        (default shadow; anything else counts as shadow)
   off     nothing runs.
-  shadow  /next returns exactly what it returned before. After the response has gone out, a
-          single background worker computes the hybrid ranking for the same request and writes
-          one row to `hybrid_shadow` in the listener's own log database.
-  on      like shadow, and ALSO the next-song positions (the session already has a kept song)
-          are served in the hybrid's order. Session openers stay on v3. A failure in the hybrid
-          path serves the v3 queue unchanged.
+  shadow  `/next` returns exactly what it returned before. The hybrid (blend top-100 -> LightGBM
+          re-ranker, the harness code in navivibe/hybrid.py) is scored in two places, both off the
+          listener's path, both written to the listener's own log database:
+            hybrid_shadow_plays  one row per kept next-song play, written when its feedback
+                                 arrives and BEFORE the state learns it: the rank v3, the blend
+                                 and the hybrid gave the song that was really played. This is
+                                 what the flip decision uses (docs/hybrid-shadow-spec.md).
+            hybrid_shadow        one row per eligible /next request: the hybrid's top 20 beside
+                                 the ids that were served (latency and structure; not for the flip).
+  on      like shadow, and ALSO next-song positions (the session already has a kept song) are
+          served in the hybrid's order, engine `v3+hybrid`. Openers stay on v3. No model or any
+          error: the v3 queue is served unchanged.
 
-Independent of AI_ORDER (which orders the v3 queue and is untouched).
+Independent of AI_ORDER.
 
 Rules this module keeps
-  * The listener never waits for a shadow computation: the job is queued from
-    `Response.call_on_close` (after the body is sent) and `submit` never blocks or raises.
-  * One worker thread, a bounded queue (64 jobs; the 65th is dropped and counted), a time
-    budget per job (HYBRID_BUDGET_MS, default 2000; a job that waited longer than that in the
-    queue is not run). A miss or a failure is a row with status 'error' and a reason; nothing
-    reaches the request.
-  * The model file is re-read when its mtime changes (nightly fit), never during a request.
-  * No model yet -> the stage-1 blend order is recorded (model_version 'blend-only').
+  * The listener never waits for a ranking. /next: queued from `Response.call_on_close`.
+    /feedback: the one thing done inline is building the feature matrices from the state as it
+    is BEFORE the play is learned (it cannot be done later); the ranking itself runs in the worker.
+  * One worker thread, a bounded queue (64 jobs, at most 16 holding matrices), a time budget per
+    job (HYBRID_BUDGET_MS, default 2000). A miss or a failure is a row with status 'error';
+    nothing is raised into a request. Everything is counted in `stats`.
+  * The model is used only when compatible (see hybrid_store.incompatible); otherwise shadow
+    stays off and `stats` says why.
 """
 import json
 import os
 import queue
-import sqlite3
 import threading
 import time
 from datetime import datetime
@@ -32,14 +37,17 @@ from zoneinfo import ZoneInfo
 
 import numpy as np
 
-from navivibe import hybrid_core as core
+from navivibe import hybrid as H
+from navivibe import hybrid_store as store
 
 IST = ZoneInfo("Asia/Kolkata")
 MODES = ("off", "shadow", "on")
 ELIGIBLE_MODES = ("smart", "smart_candidates")
 TOP_N = int(float(os.getenv("HYBRID_TOP_N", "20")))
 QUEUE_MAX = 64
+PLAY_JOBS_MAX = 16
 SERVED_KEEP = 20
+MIN_RATIO = 0.3               # a play below this is a skip: not scored (spec)
 
 MODEL_PATH = os.getenv("HYBRID_MODEL_PATH", "/opt/shuffle-server/models/hybrid/hybrid_v1.json")
 
@@ -47,29 +55,35 @@ _SCHEMA = """
 CREATE TABLE IF NOT EXISTS hybrid_shadow (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     created_at INTEGER NOT NULL,
-    served_id TEXT,
-    user TEXT,
-    session_id TEXT,
-    position_kind TEXT,
-    mode TEXT,
-    model_version TEXT,
-    blend_version TEXT,
-    status TEXT NOT NULL,
-    error TEXT,
-    top_ids TEXT,
-    top_scores TEXT,
-    n_allowed INTEGER,
-    served_ids TEXT,
-    latency_ms INTEGER,
-    queue_wait_ms INTEGER
+    served_id TEXT, user TEXT, session_id TEXT, position_kind TEXT, mode TEXT,
+    model_version TEXT, status TEXT NOT NULL, error TEXT,
+    top_ids TEXT, top_scores TEXT, n_allowed INTEGER, served_ids TEXT,
+    latency_ms INTEGER, queue_wait_ms INTEGER
 );
 CREATE INDEX IF NOT EXISTS idx_hybrid_shadow_served ON hybrid_shadow(served_id);
-CREATE INDEX IF NOT EXISTS idx_hybrid_shadow_time ON hybrid_shadow(created_at);
+CREATE TABLE IF NOT EXISTS hybrid_shadow_plays (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    created_at INTEGER NOT NULL,
+    played_at INTEGER,
+    user TEXT, session_id TEXT, song_id TEXT, depth INTEGER,
+    rank_v3 REAL, rank_blend REAL, rank_hybrid REAL, in_top100 INTEGER,
+    model_version TEXT, mode TEXT, status TEXT NOT NULL, error TEXT,
+    extra_ms REAL, inline_ms REAL, queue_wait_ms INTEGER
+);
+CREATE INDEX IF NOT EXISTS idx_hybrid_shadow_plays_time ON hybrid_shadow_plays(played_at);
 """
+TABLES = {
+    "hybrid_shadow": ["created_at", "served_id", "user", "session_id", "position_kind", "mode", "model_version",
+                      "status", "error", "top_ids", "top_scores", "n_allowed", "served_ids", "latency_ms",
+                      "queue_wait_ms"],
+    "hybrid_shadow_plays": ["created_at", "played_at", "user", "session_id", "song_id", "depth", "rank_v3",
+                            "rank_blend", "rank_hybrid", "in_top100", "model_version", "mode", "status", "error",
+                            "extra_ms", "inline_ms", "queue_wait_ms"],
+}
+JSON_COLS = {"top_ids", "top_scores", "served_ids"}
 
 
 def mode():
-    """Read on every call, so the flag is a restart-free-able knob in tests and a one-line .env change."""
     v = (os.getenv("HYBRID_ORDER") or "shadow").strip().lower()
     return v if v in MODES else "shadow"
 
@@ -86,8 +100,6 @@ class BudgetExceeded(Exception):
 
 
 class Stats:
-    """Counters since the process started (printed with the status line, handy in tests)."""
-
     def __init__(self):
         self._lock = threading.Lock()
         self.c = {}
@@ -102,22 +114,12 @@ class Stats:
 
 
 stats = Stats()
+_ready, _ready_lock = set(), threading.Lock()
 
 
-# ── storage ───────────────────────────────────────────────────────────────────
-
-_ready = set()
-_ready_lock = threading.Lock()
-
-
-def _db_path(username):
+def ensure_tables(username):
     from navivibe import feedback
-    return feedback.get_db_path(username)
-
-
-def ensure_table(username):
-    from navivibe import feedback
-    path = _db_path(username)
+    path = feedback.get_db_path(username)
     with _ready_lock:
         if path in _ready:
             return path
@@ -137,129 +139,154 @@ def reset_ready_cache():
         _ready.clear()
 
 
-def write_row(username, row):
-    """One INSERT in its own short transaction. Returns True on success; never raises."""
+def write_row(username, row, table="hybrid_shadow"):
+    """One INSERT in its own short transaction. True on success; never raises."""
     try:
         from navivibe import feedback
-        path = ensure_table(username)
+        path = ensure_tables(username)
+        cols = TABLES[table]
+        vals = []
+        for c in cols:
+            v = row.get(c)
+            if c == "user":
+                v = username
+            elif c == "created_at":
+                v = int(v or time.time())
+            elif c in JSON_COLS and v is not None:
+                v = json.dumps(v)
+            vals.append(v)
         conn = feedback._connect(path)
         try:
-            conn.execute(
-                "INSERT INTO hybrid_shadow(created_at, served_id, user, session_id, position_kind, mode, "
-                "model_version, blend_version, status, error, top_ids, top_scores, n_allowed, served_ids, "
-                "latency_ms, queue_wait_ms) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)",
-                (int(row.get("created_at") or time.time()), row.get("served_id"), username,
-                 row.get("session_id"), row.get("position_kind"), row.get("mode"),
-                 row.get("model_version"), row.get("blend_version"), row["status"], row.get("error"),
-                 json.dumps(row.get("top_ids")) if row.get("top_ids") is not None else None,
-                 json.dumps(row.get("top_scores")) if row.get("top_scores") is not None else None,
-                 row.get("n_allowed"), json.dumps(row.get("served_ids")) if row.get("served_ids") is not None else None,
-                 row.get("latency_ms"), row.get("queue_wait_ms")))
+            conn.execute("INSERT INTO %s(%s) VALUES (%s)" % (table, ",".join(cols), ",".join("?" * len(cols))), vals)
             conn.commit()
         finally:
             conn.close()
         return True
-    except Exception as e:  # noqa: BLE001 - the shadow must never raise into anything
+    except Exception as e:  # noqa: BLE001
         stats.add("write_failed")
         print("[hybrid-shadow] could not write a row: %s: %s" % (type(e).__name__, e))
         return False
 
 
-# ── model cache ───────────────────────────────────────────────────────────────
+def erase_tables(conn):
+    """For DELETE /me/history: the shadow rows are listening data too."""
+    n = 0
+    for t in TABLES:
+        try:
+            n += conn.execute("DELETE FROM %s" % t).rowcount or 0
+        except Exception:  # noqa: BLE001 - table not there
+            pass
+    return n
+
+
+# ── model ─────────────────────────────────────────────────────────────────────
 
 class ModelCache:
-    def __init__(self, path=None):
-        self.path = path
+    """(Reranker, meta) when a compatible model exists, else None. Re-checked when the model file
+    or the v3 artifacts change on disk (stat only, no parsing on a request)."""
+
+    def __init__(self, path=None, v3_dir=None):
+        self.path, self.v3_dir = path, v3_dir
         self._lock = threading.Lock()
-        self._mtime = None
-        self._model = None
+        self._key = None
+        self._val = None
+        self.reason = "not loaded"
+
+    def _v3_meta_path(self):
+        from navivibe.recsys.train import ARTIFACT_DIR
+        return os.path.join(self.v3_dir or ARTIFACT_DIR, "meta.json")
 
     def get(self):
         path = self.path or MODEL_PATH
         try:
-            mt = os.stat(path).st_mtime_ns
+            key = (os.stat(path).st_mtime_ns, os.stat(self._v3_meta_path()).st_mtime_ns)
         except OSError:
-            self._mtime, self._model = None, None
+            self._key, self._val, self.reason = None, None, "no model file or no v3 artifacts"
             return None
         with self._lock:
-            if mt != self._mtime:
-                self._model = core.load_model(path)
-                self._mtime = mt
-                if self._model is None:
-                    stats.add("model_unreadable")
+            if key != self._key:
+                self._key = key
+                self._val = None
+                rr, meta = store.load(path)
+                if rr is None:
+                    self.reason = meta
                 else:
-                    print("[hybrid-shadow] loaded model %s (%s)" % (self._model.version, self._model.meta.get("trained_at")))
-            return self._model
+                    why = store.incompatible(meta, store.v3_trained_at(self.v3_dir))
+                    if why:
+                        self.reason = why
+                    else:
+                        self._val, self.reason = (rr, meta), "ok"
+                        print("[hybrid-shadow] model %s loaded (%s)" % (meta["version"], meta["trained_at"]))
+                if self._val is None:
+                    stats.add("model_not_usable")
+                    print("[hybrid-shadow] shadow stays off: %s" % self.reason)
+            return self._val
 
 
 models = ModelCache()
+_fm_cache = {}
 
 
-# ── what one request needs ────────────────────────────────────────────────────
+def feature_matrix(eng):
+    """The harness's FeatureMatrix for this engine (rebuilt when the engine is reloaded)."""
+    key = id(eng)
+    fm = _fm_cache.get(key)
+    if fm is None:
+        _fm_cache.clear()
+        fm = _fm_cache[key] = H.FeatureMatrix(eng.cat, eng.A)
+    return fm
 
-class Job:
-    __slots__ = ("user", "session", "candidates", "served_id", "session_id", "served_ids",
-                 "mode", "queued_at", "now_ts", "n")
 
-    def __init__(self, **kw):
-        for k in self.__slots__:
-            setattr(self, k, kw.get(k))
+# ── ranking helpers ───────────────────────────────────────────────────────────
 
-
-def allowed_mask(eng, user, ctx, candidates):
-    """The songs /next could have served: same rules as V3Engine.recommend."""
+def allowed_mask(eng, user, ctx, candidates=None):
+    """The songs the live ranker may pick: same rules as V3Engine.recommend."""
     allowed = np.ones(len(eng.cat), bool)
     if candidates is not None:
         allowed[:] = False
         for i in eng._resolve_titles(candidates):
             allowed[i] = True
     if ctx.played:
-        allowed[list(ctx.played)] = False          # songs already heard this session
+        allowed[list(ctx.played)] = False
     try:
         from navivibe import taste_exclusions
         blocked = [eng.cat.index[s] for s in taste_exclusions.blocked_ids(user, eng.cat.meta)]
         if blocked:
             allowed[blocked] = False
-    except Exception:  # noqa: BLE001 - no exclusion list is not a reason to lose the row
+    except Exception:  # noqa: BLE001
         pass
     return allowed
 
 
-def rank_for_job(eng, model, job, deadline=None, F=None):
-    """(position_kind, top song indices, scores, n_allowed, model_version, blend_version)."""
-    if F is None:
-        from navivibe.recsys.features import F as _F
-        F = _F
-    now = datetime.fromtimestamp(job.now_ts, IST)
-    with eng._lock_for(job.user):
-        us = eng._user(job.user)
-        ctx = eng._session_ctx(job.user, job.session)
-        allowed = allowed_mask(eng, job.user, ctx, job.candidates)
-        opener = not ctx.kept
-        X = eng.fb.build(us, eng.gs, ctx, job.now_ts, now.hour, now.weekday())
-    if deadline is not None and time.perf_counter() > deadline:
-        raise BudgetExceeded("after features")
-    n_allowed = int(allowed.sum())
-    if n_allowed == 0:
-        return ("opener" if opener else "next"), np.zeros(0, int), np.zeros(0), 0, "none", core.BLEND_VERSION
-    if model is None:
-        top, sc = core.blend_only_rank(X, F, allowed, opener, TOP_N)
-        version, bver = "blend-only", core.BLEND_VERSION
-    else:
-        top, sc = model.rank(X, F, allowed, opener, TOP_N)
-        version, bver = model.version, model.blend_version
-    return ("opener" if opener else "next"), top, sc, n_allowed, version, bver
+def rank_of(scores, allowed, i):
+    """1-based rank of song i among the allowed songs; ties count half a place (the harness rule)."""
+    v = np.where(allowed, np.asarray(scores, np.float64), -np.inf)
+    return 1.0 + float((v > v[i]).sum()) + 0.5 * float((v == v[i]).sum() - 1)
 
 
-# ── the worker ────────────────────────────────────────────────────────────────
+def top_indices(scores, allowed, n):
+    v = np.where(allowed, np.asarray(scores, np.float64), -np.inf)
+    top = np.argsort(-v, kind="stable")[:n]
+    return top[np.isfinite(v[top])]
+
+
+# ── jobs and the worker ───────────────────────────────────────────────────────
+
+class Job:
+    def __init__(self, kind, user, **kw):
+        self.kind, self.user, self.queued_at, self.mode = kind, user, 0.0, None
+        self.__dict__.update(kw)
+
 
 class ShadowRunner:
-    """One daemon thread, a bounded queue. `compute(job, deadline)` returns a row dict;
-    `write(user, row)` stores it. Both are injected so tests need no engine."""
+    """One daemon thread and a bounded queue. `compute(job, deadline)` returns (table, row);
+    `write(user, row, table)` stores it. Both injected, so tests need no engine."""
 
     def __init__(self, compute, write=write_row, maxsize=QUEUE_MAX, clock=time.perf_counter, start=True):
         self.compute, self.write, self.clock = compute, write, clock
         self.q = queue.Queue(maxsize=maxsize)
+        self._play_jobs = 0
+        self._play_lock = threading.Lock()
         self._thread = None
         if start:
             self.start()
@@ -272,19 +299,31 @@ class ShadowRunner:
     def submit(self, job):
         """Never blocks, never raises. False when the job was not accepted."""
         try:
+            if job.kind == "play":
+                with self._play_lock:
+                    if self._play_jobs >= PLAY_JOBS_MAX:
+                        stats.add("dropped_play_jobs_full")
+                        return False
+                    self._play_jobs += 1
             job.queued_at = self.clock()
-            self.q.put_nowait(job)
+            try:
+                self.q.put_nowait(job)
+            except queue.Full:
+                self._release(job)
+                stats.add("dropped_queue_full")
+                return False
             stats.add("submitted")
             return True
-        except queue.Full:
-            stats.add("dropped_queue_full")
-            return False
         except Exception:  # noqa: BLE001
             stats.add("submit_failed")
             return False
 
+    def _release(self, job):
+        if job.kind == "play":
+            with self._play_lock:
+                self._play_jobs = max(0, self._play_jobs - 1)
+
     def drain(self, timeout=5.0):
-        """Tests: wait until every queued job has been handled."""
         end = time.time() + timeout
         while time.time() < end:
             if self.q.unfinished_tasks == 0:
@@ -301,18 +340,26 @@ class ShadowRunner:
                 stats.add("worker_error")
                 print("[hybrid-shadow] worker error: %s: %s" % (type(e).__name__, e))
             finally:
+                self._release(job)
                 self.q.task_done()
+
+    def _base(self, job, waited_ms):
+        if job.kind == "play":
+            return "hybrid_shadow_plays", {"created_at": time.time(), "played_at": job.played_at,
+                                           "session_id": job.session_id, "song_id": job.song_id, "depth": job.depth,
+                                           "mode": job.mode, "inline_ms": job.inline_ms, "queue_wait_ms": waited_ms}
+        return "hybrid_shadow", {"created_at": time.time(), "served_id": job.served_id, "session_id": job.session_id,
+                                 "mode": job.mode, "served_ids": job.served_ids, "queue_wait_ms": waited_ms}
 
     def _run(self, job):
         start = self.clock()
         waited_ms = int((start - job.queued_at) * 1000)
-        base = {"created_at": time.time(), "served_id": job.served_id, "session_id": job.session_id,
-                "mode": job.mode, "served_ids": job.served_ids, "queue_wait_ms": waited_ms}
+        table, base = self._base(job, waited_ms)
         budget = budget_ms()
         if waited_ms > budget:
             stats.add("error_stale")
             self.write(job.user, {**base, "status": "error", "error": "stale: waited %d ms in the queue" % waited_ms,
-                                  "latency_ms": 0})
+                                  "latency_ms": 0}, table)
             return
         try:
             row = self.compute(job, start + budget / 1000.0)
@@ -320,15 +367,15 @@ class ShadowRunner:
             if elapsed > budget:
                 raise BudgetExceeded("took %d ms" % elapsed)
             stats.add("ok")
-            self.write(job.user, {**base, **row, "status": "ok", "latency_ms": elapsed})
+            self.write(job.user, {**base, **row, "status": "ok", "latency_ms": elapsed}, table)
         except BudgetExceeded as e:
             stats.add("error_budget")
             self.write(job.user, {**base, "status": "error", "error": "budget: %s" % e,
-                                  "latency_ms": int((self.clock() - start) * 1000)})
-        except Exception as e:  # noqa: BLE001 - recorded, never raised
+                                  "latency_ms": int((self.clock() - start) * 1000)}, table)
+        except Exception as e:  # noqa: BLE001
             stats.add("error_exception")
             self.write(job.user, {**base, "status": "error", "error": "%s: %s" % (type(e).__name__, str(e)[:200]),
-                                  "latency_ms": int((self.clock() - start) * 1000)})
+                                  "latency_ms": int((self.clock() - start) * 1000)}, table)
 
 
 _runner = None
@@ -354,32 +401,67 @@ def _engine_compute(job, deadline):
     eng = _engine()
     if eng is None:
         raise RuntimeError("v3 engine not available")
-    kind, top, sc, n_allowed, version, bver = rank_for_job(eng, models.get(), job, deadline)
-    return {"position_kind": kind, "model_version": version, "blend_version": bver, "n_allowed": n_allowed,
-            "top_ids": [eng.cat.ids[int(i)] for i in top],
-            "top_scores": [round(float(s), 5) for s in sc]}
+    return compute_play(eng, job, deadline) if job.kind == "play" else compute_next(eng, job, deadline)
 
 
-# ── the two hooks the /next route calls ───────────────────────────────────────
+# ── per play (the flip decision) ──────────────────────────────────────────────
 
-def hook(resp, username, session, served_id, queue_, mode_used, reshuffle, candidates, now_ts=None, active_mode=None):
-    """Called with the finished response. Queues the shadow job to run after the body is sent.
-    Never raises, never blocks."""
+def play_hook(eng, user, i, session, ratio, now, hour, when, data):
+    """Called inside `V3Engine.on_feedback`, under the user's lock, BEFORE the play updates the
+    state. Builds the matrices from the state as it is, queues the ranking. Never raises."""
     try:
-        m = active_mode or mode()
-        if m == "off" or reshuffle or mode_used not in ELIGIBLE_MODES:
-            if m != "off":
-                stats.add("skipped_ineligible")
+        m = mode()
+        if m == "off":
             return
-        job = Job(user=username, session=_copy_session(session), candidates=set(candidates) if candidates else None,
-                  served_id=served_id, session_id=str((session or {}).get("session_id") or ""),
-                  served_ids=[str(q.get("navidrome_id")) for q in (queue_ or [])[:SERVED_KEEP] if isinstance(q, dict)],
-                  mode=m, now_ts=now_ts or time.time(), n=TOP_N)
-        resp.call_on_close(lambda: runner().submit(job))
+        ctx = session.ctx
+        if not ctx.kept:
+            return                                   # an opener: v3 serves it, nothing to score
+        if ratio < MIN_RATIO or i in ctx.played:
+            stats.add("play_skipped_not_scorable")
+            return
+        if (data or {}).get("_quality") not in (None, ""):
+            stats.add("play_skipped_quality")
+            return
+        cur = models.get()
+        if cur is None:
+            stats.add("play_no_model")
+            return
+        t0 = time.perf_counter()
+        ts = now.timestamp()
+        us = eng._user(user)
+        X = eng.fb.build(us, eng.gs, ctx, ts, hour, when.weekday())
+        t1 = time.perf_counter()
+        hb, M = feature_matrix(eng).build(X, us, list(ctx.kept), ts, hour, when.month)
+        t2 = time.perf_counter()
+        allowed = allowed_mask(eng, user, ctx)
+        job = Job("play", user, song=i, song_id=eng.cat.ids[i], X=X, M=M, hb=hb, allowed=allowed,
+                  session_id=str(getattr(session, "key", "") or (data or {}).get("session_id") or ""),
+                  depth=len(ctx.kept), played_at=int((data or {}).get("_played_at") or ts), mode=m,
+                  inline_ms=round((t2 - t0) * 1000, 2), fm_ms=(t2 - t1) * 1000)
+        runner().submit(job)
     except Exception as e:  # noqa: BLE001
-        stats.add("hook_failed")
-        print("[hybrid-shadow] hook failed: %s: %s" % (type(e).__name__, e))
+        stats.add("play_hook_failed")
+        print("[hybrid-shadow] play hook failed: %s: %s" % (type(e).__name__, e))
 
+
+def compute_play(eng, job, deadline=None):
+    rr, meta = models.get() or (None, None)
+    if rr is None:
+        raise RuntimeError("no compatible model")
+    t0 = time.perf_counter()
+    sc = rr.scores(job.M, job.hb, job.allowed)
+    rerank_ms = (time.perf_counter() - t0) * 1000
+    if deadline is not None and time.perf_counter() > deadline:
+        raise BudgetExceeded("after the re-rank")
+    v3 = eng.ranker.predict(job.X, False, num_threads=1)
+    i = job.song
+    return {"rank_v3": rank_of(v3, job.allowed, i), "rank_blend": rank_of(job.hb, job.allowed, i),
+            "rank_hybrid": rank_of(sc, job.allowed, i),
+            "in_top100": int(i in H.candidates(job.hb, job.allowed)), "model_version": meta["version"],
+            "extra_ms": round(job.fm_ms + rerank_ms, 3)}
+
+
+# ── per /next request (latency, structure) and serving ───────────────────────
 
 def _copy_session(session):
     s = dict(session or {})
@@ -389,26 +471,74 @@ def _copy_session(session):
     return s
 
 
+def rank_next(eng, rr, user, session, candidates, now_ts, deadline=None):
+    """(position_kind, top indices, scores, n_allowed) for one /next request."""
+    now = datetime.fromtimestamp(now_ts, IST)
+    with eng._lock_for(user):
+        us = eng._user(user)
+        ctx = eng._session_ctx(user, session)
+        allowed = allowed_mask(eng, user, ctx, candidates)
+        X = eng.fb.build(us, eng.gs, ctx, now_ts, now.hour, now.weekday())
+        hb, M = feature_matrix(eng).build(X, us, list(ctx.kept), now_ts, now.hour, now.month)
+    if deadline is not None and time.perf_counter() > deadline:
+        raise BudgetExceeded("after features")
+    kind = "opener" if not ctx.kept else "next"
+    sc = rr.scores(M, hb, allowed)
+    top = top_indices(sc, allowed, TOP_N)
+    return kind, top, sc[top], int(allowed.sum())
+
+
+def compute_next(eng, job, deadline=None):
+    cur = models.get()
+    if cur is None:
+        raise RuntimeError("no compatible model")
+    rr, meta = cur
+    kind, top, sc, n_allowed = rank_next(eng, rr, job.user, job.session, job.candidates, job.now_ts, deadline)
+    return {"position_kind": kind, "model_version": meta["version"], "n_allowed": n_allowed,
+            "top_ids": [eng.cat.ids[int(i)] for i in top],
+            "top_scores": [round(float(s), 5) for s in sc]}
+
+
+def hook(resp, username, session, served_id, queue_, mode_used, reshuffle, candidates, now_ts=None, active_mode=None):
+    """Called with the finished /next response. Queues the job to run after the body is sent."""
+    try:
+        m = active_mode or mode()
+        if m == "off" or reshuffle or mode_used not in ELIGIBLE_MODES:
+            if m != "off":
+                stats.add("skipped_ineligible")
+            return
+        if models.get() is None:                     # no compatible model: shadow stays off
+            stats.add("next_no_model")
+            return
+        job = Job("next", username, session=_copy_session(session),
+                  candidates=set(candidates) if candidates else None, served_id=served_id,
+                  session_id=str((session or {}).get("session_id") or ""),
+                  served_ids=[str(q.get("navidrome_id")) for q in (queue_ or [])[:SERVED_KEEP] if isinstance(q, dict)],
+                  mode=m, now_ts=now_ts or time.time())
+        resp.call_on_close(lambda: runner().submit(job))
+    except Exception as e:  # noqa: BLE001
+        stats.add("hook_failed")
+        print("[hybrid-shadow] hook failed: %s: %s" % (type(e).__name__, e))
+
+
 def maybe_serve(queue_, engine, username, session, candidates, mode_used, reshuffle, count, now_ts=None,
                 active_mode=None):
-    """(queue, engine). Unchanged unless HYBRID_ORDER=on, the request is a next-song position of a
-    smart request and a model is loaded. Any failure returns the v3 queue as it came."""
+    """(queue, engine): unchanged unless HYBRID_ORDER=on, a smart request, a next-song position and a
+    compatible model. Any failure returns the v3 queue exactly as it came."""
     try:
         if (active_mode or mode()) != "on" or reshuffle or mode_used not in ELIGIBLE_MODES or not queue_:
             return queue_, engine
         eng = _engine()
-        model = models.get()
-        if eng is None or model is None:
+        cur = models.get()
+        if eng is None or cur is None:
             stats.add("on_no_model")
             return queue_, engine
-        job = Job(user=username, session=_copy_session(session),
-                  candidates=set(candidates) if candidates else None, now_ts=now_ts or time.time())
-        kind, top, sc, n_allowed, version, _ = rank_for_job(eng, model, job)
+        kind, top, sc, _ = rank_next(eng, cur[0], username, _copy_session(session),
+                                     set(candidates) if candidates else None, now_ts or time.time())
         if kind != "next" or len(top) == 0:
-            return queue_, engine       # openers stay on v3
-        built = _build_queue(eng, queue_, top, sc, min(int(count), len(top)))
+            return queue_, engine
         stats.add("served_hybrid")
-        return built, "v3+hybrid"
+        return _build_queue(eng, queue_, top, sc, min(int(count), len(top))), "v3+hybrid"
     except Exception as e:  # noqa: BLE001
         stats.add("on_failed")
         print("[hybrid-shadow] serving failed, v3 queue kept: %s: %s" % (type(e).__name__, e))
