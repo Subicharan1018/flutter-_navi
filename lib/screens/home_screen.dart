@@ -45,6 +45,7 @@ import '../widgets/ui/action_sheet.dart' show showToast;
 import '../widgets/ui/large_title_page.dart';
 import '../widgets/art/navi_icons.dart';
 import '../widgets/ui/media.dart';
+import '../widgets/ui/cover_fan.dart';
 import '../widgets/ui/mosaic_art.dart';
 import '../widgets/ui/playlist_cover.dart';
 import '../widgets/ui/states.dart';
@@ -180,7 +181,7 @@ class _TopPicks extends ConsumerWidget {
       _FeatureCard(
         title: 'Smart Shuffle',
         subtitle: 'A mix tuned to the time of day and what you play most.',
-        art: MosaicArt(urls: mixArt, size: cardWidth, radius: 0, placeholderIcon: NaviGlyph.smartShuffle, seed: coverSeed('Smart Shuffle')),
+        art: CoverFan(urls: mixArt, size: cardWidth, seed: coverSeed('Smart Shuffle')),
         paletteCoverId: albums.isNotEmpty ? albums.first.coverArt : (recent.isNotEmpty ? recent.first.coverArt : null),
         width: cardWidth,
         onTap: () => navigateInApp(context, const AiShuffleScreen()),

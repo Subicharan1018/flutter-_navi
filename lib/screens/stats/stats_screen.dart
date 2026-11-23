@@ -131,6 +131,7 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                   child: SummaryHero(
                     stats: s,
                     periodPhrase: _period.phrase,
+                    topArtist: s.topArtists.isEmpty ? null : s.topArtists.first['artist']?.toString(),
                     dailyPlays: [for (final d in days.skip(days.length - _period.trendDays.clamp(7, 30).clamp(0, days.length))) d.count.toDouble()],
                   ),
                 ),

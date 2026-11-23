@@ -20,6 +20,7 @@ class ModelStatusCard extends StatelessWidget {
 
     return StatSection(
       title: 'Smart Shuffle',
+      emphasis: StatEmphasis.quiet,
       readout: learning ? 'Learning' : 'Up to Date',
       readoutColor: learning ? t.accent : t.textSecondary,
       readoutCaption: learning ? 'from your latest plays' : 'with everything you’ve played',

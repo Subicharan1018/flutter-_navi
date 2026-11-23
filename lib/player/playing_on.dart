@@ -19,7 +19,7 @@ import 'play_notices.dart';
 import 'remote_queue_sheet.dart';
 
 /// Who is playing, at a glance: "This device" on the host, "Playing on NAME"
-/// on every other device. Tap for the full list. It stays out of the way when
+/// on every other device, as one quiet line of text. Tap for the full list. It stays out of the way when
 /// this is the only device signed in.
 class PlayingOnChip extends ConsumerWidget {
   /// Space under the chip, taken only while the chip shows.
@@ -49,21 +49,19 @@ class PlayingOnChip extends ConsumerWidget {
           showDevicesSheet(context);
         },
         behavior: HitTestBehavior.opaque,
-        child: Container(
-          constraints: const BoxConstraints(minHeight: 32),
-          padding: const EdgeInsets.symmetric(horizontal: Space.md, vertical: Space.xs),
-          decoration: BoxDecoration(
-            color: t.fill,
-            borderRadius: BorderRadius.circular(Radii.capsule),
-            border: Border.all(color: DockGlass.of(context) ? dockCapsuleEdge(context, t.bgElevated) : t.outline, width: 0.5),
+        child: Padding(
+          // Sits on the mini player's own gutter: a line of text, no container.
+          padding: const EdgeInsets.symmetric(horizontal: Space.gutter + Space.md, vertical: Space.xs),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 24),
+            child: Row(mainAxisSize: MainAxisSize.min, children: [
+              NaviIcon(passive ? NaviGlyph.speaker : NaviGlyph.phone, size: 12, color: t.textMuted),
+              const SizedBox(width: Space.xs + 2),
+              Flexible(child: Text(label, style: t.caption1.copyWith(color: t.textMuted), maxLines: 1, overflow: TextOverflow.ellipsis)),
+            ]),
           ),
-          child: Row(mainAxisSize: MainAxisSize.min, children: [
-            NaviIcon(passive ? NaviGlyph.speaker : NaviGlyph.phone, size: 16, color: t.textPrimary),
-            const SizedBox(width: Space.sm),
-            Flexible(child: Text(label, style: t.footnote.copyWith(color: t.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis)),
-          ]),
         ),
-      ),
+        ),
       ),
     );
   }

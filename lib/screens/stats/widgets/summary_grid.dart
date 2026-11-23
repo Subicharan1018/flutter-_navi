@@ -22,7 +22,16 @@ class SummaryHero extends StatelessWidget {
   /// Plays per day, oldest first; drawn as a sparkline when there are enough.
   final List<double> dailyPlays;
 
-  const SummaryHero({super.key, required this.stats, required this.periodPhrase, this.dailyPlays = const []});
+  /// The artist with the most plays in the period, if any.
+  final String? topArtist;
+
+  const SummaryHero({
+    super.key,
+    required this.stats,
+    required this.periodPhrase,
+    this.dailyPlays = const [],
+    this.topArtist,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -45,14 +54,27 @@ class SummaryHero extends StatelessWidget {
               child: NumberRoll(
                 value: stats.totalMinutes,
                 format: listeningTime,
-                style: figureStyle(t, 64).copyWith(color: t.accent, letterSpacing: -2.4),
+                style: figureStyle(t, 88).copyWith(color: t.accent, letterSpacing: -3.6, height: 0.95),
               ),
             ),
-            const SizedBox(height: Space.xs),
-            Text('listened $periodPhrase', style: t.body.copyWith(color: t.textSecondary)),
+            const SizedBox(height: Space.sm),
+            Text('listened $periodPhrase', style: t.title3.copyWith(color: t.textSecondary, fontWeight: FontWeight.w500)),
+            // One line of character: who the time went to.
+            if (topArtist != null && topArtist!.isNotEmpty) ...[
+              const SizedBox(height: Space.xs),
+              Text.rich(
+                TextSpan(children: [
+                  TextSpan(text: 'Mostly ', style: t.body.copyWith(color: t.textMuted)),
+                  TextSpan(text: topArtist, style: t.body.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+                ]),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+              ),
+            ],
+            // The hero visual: the shape of the period, drawn tall.
             if (dailyPlays.length > 2) ...[
-              const SizedBox(height: Space.lg),
-              Sparkline(values: dailyPlays, height: 44),
+              const SizedBox(height: Space.xl),
+              Sparkline(values: dailyPlays, height: 96),
             ],
             const SizedBox(height: Space.xxl),
             IntrinsicHeight(

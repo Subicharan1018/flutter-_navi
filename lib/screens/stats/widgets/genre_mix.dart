@@ -1,14 +1,15 @@
 import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
-import 'ranked_bar_list.dart';
 import 'stat_card.dart';
 
-/// Share of plays per genre as one bar split by genre (the shape of your
-/// taste at a glance), then a legend with the numbers. Shades step from the
-/// accent toward the page, so the biggest genre is the brightest.
+/// Share of plays per genre as a typographic ladder: each genre is set in
+/// type sized by its share, so the shape of your taste reads as a silhouette
+/// of words (one big, a few medium, a tail) rather than as bars.
 class GenreMixCard extends StatelessWidget {
   static const _shown = 5;
+  static const double _big = 40;
+  static const double _small = 17;
 
   final List<Map<String, dynamic>> genres;
   const GenreMixCard({super.key, required this.genres});
@@ -26,36 +27,43 @@ class GenreMixCard extends StatelessWidget {
       for (final g in top) (g['genre']?.toString() ?? 'Unknown', _pct(g['pct'])),
       if (other > 0) ('Everything else', other),
     ];
-    Color shade(int i) => i == parts.length - 1 && other > 0
-        ? t.fill
-        : Color.lerp(t.accent, t.bgOverlay, i / _shown)!;
+    final peak = parts.first.$2;
 
     return StatSection(
       title: 'Genres',
-      readout: parts.first.$1,
-      readoutCaption: 'leads with ${parts.first.$2.round()}% of your plays',
-      child: Column(
-        children: [
-          ClipRRect(
-            borderRadius: BorderRadius.circular(6),
-            child: SizedBox(
-              height: 14,
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  for (final (i, p) in parts.indexed) ...[
-                    if (i > 0) SizedBox(width: 2, child: ColoredBox(color: t.bgBase)),
-                    Expanded(flex: (p.$2 * 10).round().clamp(1, 1000), child: ColoredBox(color: shade(i))),
+      child: Semantics(
+        label: 'Genres: ${[for (final p in parts) '${p.$1} ${p.$2.round()} percent'].join(', ')}',
+        excludeSemantics: true,
+        child: Column(
+          children: [
+            for (final (i, p) in parts.indexed)
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: Space.xxs),
+                child: Row(
+                  crossAxisAlignment: CrossAxisAlignment.baseline,
+                  textBaseline: TextBaseline.alphabetic,
+                  children: [
+                    Expanded(
+                      child: Text(
+                        p.$1,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: t
+                            .textStyle(
+                              (_small + (_big - _small) * (peak == 0 ? 0 : p.$2 / peak)).roundToDouble(),
+                              FontWeight.w700,
+                              i == 0 ? t.accent : (i == parts.length - 1 && other > 0 ? t.textMuted : t.textSecondary),
+                            )
+                            .copyWith(height: 1.1, letterSpacing: -0.6),
+                      ),
+                    ),
+                    const SizedBox(width: Space.md),
+                    Text('${p.$2.round()}%', style: figureStyle(t, 15).copyWith(color: t.textSecondary)),
                   ],
-                ],
+                ),
               ),
-            ),
-          ),
-          const SizedBox(height: Space.lg),
-          RankedBarList(
-            items: [for (final p in parts) RankedBarItem(label: p.$1, value: p.$2, detail: '${p.$2.round()}%')],
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

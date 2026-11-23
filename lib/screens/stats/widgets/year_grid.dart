@@ -58,6 +58,7 @@ class _YearGridState extends State<YearGrid> {
 
     return StatSection(
       title: 'Your Year',
+      emphasis: StatEmphasis.quiet,
       readout: _selected == null ? '$active days' : '${_months[_selected!.month - 1]} ${_selected!.day}',
       readoutCaption: _selected == null
           ? 'with music, ${compactCount(total)} plays in all'

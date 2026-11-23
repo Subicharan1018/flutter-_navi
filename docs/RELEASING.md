@@ -9,7 +9,7 @@ repository and push, none of this runs.
 ```
 git push origin <any branch>
    └─ GitHub Actions: release.yml
-        ├─ version   name from pubspec (1.0.0) + build number = run number + 100  → tag v1.0.0+<n>
+        ├─ version   name from pubspec (2.0.0) + build number = run number + 100  → tag v2.0.0+<n>
         ├─ android   signed APKs per ABI (arm64-v8a, armeabi-v7a, x86_64) + one universal APK
         ├─ windows   zip of the Release folder + Velopack installer (Setup.exe, full + delta nupkg)
         ├─ publish   binary patches, latest.json, SHA256SUMS.txt, release notes from commit messages → GitHub Release

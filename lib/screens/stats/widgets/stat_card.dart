@@ -2,10 +2,15 @@ import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
 
+/// How loudly a section speaks: [loud] opens a new movement of the page,
+/// [quiet] is a footnote-weight aside, [normal] the default.
+enum StatEmphasis { quiet, normal, loud }
+
 /// One question on the Stats page, set straight on the page with no card
 /// around it: a section title, its one-line answer large underneath, then
 /// the chart or list that backs it up. Sections are separated by space alone.
 class StatSection extends StatelessWidget {
+  final StatEmphasis emphasis;
   final String title;
 
   /// The headline answer, e.g. "9 pm" or "+12%". Shown large, in [readoutColor].
@@ -24,6 +29,7 @@ class StatSection extends StatelessWidget {
     this.readoutCaption,
     this.readoutColor,
     this.trailing,
+    this.emphasis = StatEmphasis.normal,
     required this.child,
   });
 
@@ -31,13 +37,29 @@ class StatSection extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.only(top: Space.xxxl + Space.sm),
+      padding: EdgeInsets.only(
+        top: switch (emphasis) {
+          StatEmphasis.quiet => Space.xxl,
+          StatEmphasis.normal => Space.xxxl + Space.sm,
+          StatEmphasis.loud => Space.huge + Space.xl,
+        },
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Expanded(child: Semantics(header: true, child: Text(title, style: t.title2))),
+              Expanded(child: Semantics(
+                  header: true,
+                  child: Text(
+                    title,
+                    style: switch (emphasis) {
+                      StatEmphasis.quiet => t.headline.copyWith(color: t.textSecondary),
+                      StatEmphasis.normal => t.title2,
+                      StatEmphasis.loud => t.title1,
+                    },
+                  ),
+                ),),
               ?trailing,
             ],
           ),

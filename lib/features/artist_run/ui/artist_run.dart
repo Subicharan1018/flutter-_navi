@@ -63,10 +63,16 @@ class ArtistWithYou extends StatelessWidget {
                   children: [
                     stat(compactCount(history.plays), history.plays == 1 ? 'play' : 'plays'),
                     stat(listeningTime(history.minutes), 'listening'),
-                    stat('${history.first!.year}', 'since ${_months[history.first!.month - 1]}'),
                   ],
                 ),
               ),
+              if (history.first != null && history.last != null) ...[
+                const SizedBox(height: Space.lg),
+                ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 520),
+                  child: _ListeningSpan(first: history.first!, last: history.last!),
+                ),
+              ],
               if (top != null) ...[
                 const SizedBox(height: Space.md),
                 Text.rich(
@@ -95,9 +101,9 @@ class ArtistWithYou extends StatelessWidget {
   }
 }
 
-/// The career at a glance: one bar per year from the first release to the
-/// latest, as tall as that year's songs. Years you have played are white, the
-/// rest dim. Painted once; nothing animates.
+/// The career at a glance as a ribbon: a hairline from the first release to
+/// the latest with one dot per year that has an album, as large as that year's
+/// song count. Years you have played are white, the rest dim. No bars.
 class CareerStrip extends StatelessWidget {
   final List<ReleaseYear> years;
   final ArtistHistory history;
@@ -127,7 +133,7 @@ class CareerStrip extends StatelessWidget {
           child: Column(
             children: [
               SizedBox(
-                height: 44,
+                height: 40,
                 width: double.infinity,
                 child: CustomPaint(
                   painter: CareerStripPainter(
@@ -161,6 +167,7 @@ class CareerStripPainter extends CustomPainter {
   final int span;
   final Map<int, int> songs;
   final Set<int> heard;
+
   final Color heardColor;
   final Color idleColor;
   const CareerStripPainter({
@@ -176,19 +183,14 @@ class CareerStripPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     final peak = songs.values.fold(1, math.max);
     final slot = size.width / span;
-    final bar = math.max(1.0, math.min(slot * 0.6, 14.0));
+    final lineY = size.height - 10;
     final paint = Paint();
-    // The base line makes empty years read as gaps, not as missing data.
-    canvas.drawRect(Rect.fromLTWH(0, size.height - 1, size.width, 1), paint..color = idleColor.withValues(alpha: 0.5));
+    canvas.drawRect(Rect.fromLTWH(0, lineY - 0.5, size.width, 1), paint..color = idleColor.withValues(alpha: 0.5));
     for (var i = 0; i < span; i++) {
       final n = songs[first + i];
       if (n == null) continue;
-      final h = math.max(3.0, (size.height - 4) * n / peak);
-      final cx = slot * (i + 0.5);
-      canvas.drawRRect(
-        RRect.fromRectAndRadius(Rect.fromLTWH(cx - bar / 2, size.height - 1 - h, bar, h), const Radius.circular(1.5)),
-        paint..color = heard.contains(first + i) ? heardColor : idleColor,
-      );
+      final r = 2.5 + 4.5 * (n / peak);
+      canvas.drawCircle(Offset(slot * (i + 0.5), lineY), r, paint..color = heard.contains(first + i) ? heardColor : idleColor);
     }
   }
 
@@ -229,7 +231,6 @@ List<Widget> releaseTimelineSlivers(
 }) {
   final t = ThemeTokens.of(context);
   final size = (ArtSize.of(context).tile * 0.6).roundToDouble();
-  final peak = history.albumPlays.values.fold(0, math.max);
   return [
     const SliverToBoxAdapter(child: SectionHeader(title: 'Albums')),
     SliverToBoxAdapter(
@@ -243,7 +244,6 @@ List<Widget> releaseTimelineSlivers(
         first: i == 0,
         last: i == years.length - 1,
         size: size,
-        peak: peak,
         history: history,
         tokens: t,
         coverUrl: coverUrl,
@@ -260,7 +260,6 @@ class _YearRow extends StatelessWidget {
   final bool first;
   final bool last;
   final double size;
-  final int peak;
   final ArtistHistory history;
   final AppThemeTokens tokens;
   final String Function(Album) coverUrl;
@@ -274,7 +273,6 @@ class _YearRow extends StatelessWidget {
     required this.first,
     required this.last,
     required this.size,
-    required this.peak,
     required this.history,
     required this.tokens,
     required this.coverUrl,
@@ -345,7 +343,6 @@ class _YearRow extends StatelessWidget {
                     _Release(
                       album: a,
                       size: size,
-                      peak: peak,
                       history: history,
                       tokens: t,
                       url: coverUrl(a),
@@ -388,7 +385,6 @@ class _SpinePainter extends CustomPainter {
 class _Release extends StatelessWidget {
   final Album album;
   final double size;
-  final int peak;
   final ArtistHistory history;
   final AppThemeTokens tokens;
   final String url;
@@ -397,7 +393,6 @@ class _Release extends StatelessWidget {
   const _Release({
     required this.album,
     required this.size,
-    required this.peak,
     required this.history,
     required this.tokens,
     required this.url,
@@ -409,7 +404,6 @@ class _Release extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = tokens;
     final plays = history.playsOf(album);
-    final share = plays == 0 || peak == 0 ? 0.0 : math.max(0.08, plays / peak);
     return CupertinoClickable(
       onTap: () => onOpen(album),
       onLongPress: () => onLongPress(album),
@@ -422,30 +416,71 @@ class _Release extends StatelessWidget {
           children: [
             CoverArt(url: url, size: size, radius: Radii.cover, placeholderIcon: NaviGlyph.library),
             const SizedBox(height: Space.xs),
-            // Your share of plays: a hairline track with a white fill.
-            SizedBox(
-              height: 2,
-              child: Stack(
-                children: [
-                  Positioned.fill(child: ColoredBox(color: t.separatorOpaque)),
-                  if (share > 0)
-                    FractionallySizedBox(
-                      widthFactor: share,
-                      child: ColoredBox(color: t.accent),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: Space.xs),
             Text(
               album.name,
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
               style: t.caption1.copyWith(color: t.textPrimary),
             ),
+            if (plays > 0) Text(plays == 1 ? '1 play' : '$plays plays', style: t.caption1),
           ],
         ),
       ),
     );
   }
+}
+
+/// Your first and latest play as one line: a dot at each end of a hairline
+/// with the month under it. The story of how long you have known the artist.
+class _ListeningSpan extends StatelessWidget {
+  final DateTime first;
+  final DateTime last;
+  const _ListeningSpan({required this.first, required this.last});
+
+  @override
+  Widget build(BuildContext context) {
+    final t = ThemeTokens.of(context);
+    Widget end(String caption, DateTime d, CrossAxisAlignment a) => Column(
+      crossAxisAlignment: a,
+      children: [
+        Text(caption, style: t.caption1),
+        Text(_monthYear(d), style: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+      ],
+    );
+    return Column(
+      children: [
+        SizedBox(
+          height: 8,
+          width: double.infinity,
+          child: CustomPaint(painter: _SpanPainter(line: t.separatorOpaque, dot: t.accent)),
+        ),
+        const SizedBox(height: Space.sm),
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            end('First played', first, CrossAxisAlignment.start),
+            end('Latest', last, CrossAxisAlignment.end),
+          ],
+        ),
+      ],
+    );
+  }
+}
+
+class _SpanPainter extends CustomPainter {
+  final Color line;
+  final Color dot;
+  const _SpanPainter({required this.line, required this.dot});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final y = size.height / 2;
+    canvas.drawLine(Offset(4, y), Offset(size.width - 4, y), Paint()..color = line..strokeWidth = 1);
+    final p = Paint()..color = dot;
+    canvas.drawCircle(Offset(4, y), 4, p);
+    canvas.drawCircle(Offset(size.width - 4, y), 4, p);
+  }
+
+  @override
+  bool shouldRepaint(_SpanPainter old) => old.line != line || old.dot != dot;
 }
