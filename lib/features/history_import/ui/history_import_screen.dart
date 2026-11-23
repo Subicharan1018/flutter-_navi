@@ -6,6 +6,7 @@ import '../../../widgets/app_scaffold.dart' show navigateInApp;
 import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/action_sheet.dart' show confirmDestructive, showToast;
 import '../../../widgets/ui/grouped_list.dart';
+import '../../../widgets/ui/import_progress_bar.dart';
 import '../../../widgets/ui/large_title_page.dart';
 import '../../../widgets/ui/media.dart';
 import '../../exportify_import/data/exportify_models.dart' show groupThousands;
@@ -210,21 +211,7 @@ class _Progress extends StatelessWidget {
           if (!job.isDone && (running || p != null))
             Padding(
               padding: const EdgeInsets.only(bottom: Space.sm),
-              child: ClipRRect(
-                borderRadius: BorderRadius.circular(2),
-                child: SizedBox(
-                  height: 4,
-                  child: Stack(
-                    children: [
-                      Positioned.fill(child: ColoredBox(color: t.outline)),
-                      FractionallySizedBox(
-                        widthFactor: p ?? 0.02,
-                        child: ColoredBox(color: t.accent),
-                      ),
-                    ],
-                  ),
-                ),
-              ),
+              child: ImportProgressBar(value: p),
             ),
           for (final l in lines) Text(l, style: t.footnote),
         ],

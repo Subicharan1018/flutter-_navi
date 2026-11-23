@@ -6,6 +6,7 @@ import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/ui/grouped_list.dart';
 import '../../online_fetch/logic/online_fetch_providers.dart';
 import '../../history_import/ui/history_import_screen.dart';
+import '../../spotify_import/ui/spotify_import_screen.dart';
 import 'exportify_import_screen.dart';
 
 /// Settings › Import. Shown only to accounts that may fetch songs (the wishlist is fetched through
@@ -31,6 +32,12 @@ class ExportifyImportSection extends ConsumerWidget {
           subtitle: 'From ListenBrainz or Last.fm',
           icon: NaviGlyph.clock,
           onTap: () => navigateInApp(context, const HistoryImportScreen(), title: 'Listening History'),
+        ),
+        GroupedRow(
+          title: 'Import Spotify History',
+          subtitle: 'From your Extended Streaming History',
+          icon: NaviGlyph.headphones,
+          onTap: () => navigateInApp(context, const SpotifyImportScreen(), title: 'Spotify History'),
         ),
       ],
     );
