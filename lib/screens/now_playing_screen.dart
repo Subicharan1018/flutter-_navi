@@ -524,6 +524,26 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
   /// Full-bleed art reaches this far above the estimated top of the screen.
   static const double _bleedSlack = 12;
 
+  /// Where the art really ends on the screen (0 top .. 1 bottom), measured after
+  /// layout. The estimate from the chip row and status bar is off whenever a
+  /// row above or below the stage changes height (the host line, Flow's chips,
+  /// large text), and then the art fades into a colour that differs from the
+  /// page just under it: a visible line. Null until the first measurement.
+  double? _measuredTintY;
+  final GlobalKey _stageKey = GlobalKey();
+
+  void _measureTint() {
+    if (!mounted) return;
+    final box = _stageKey.currentContext?.findRenderObject();
+    if (box is! RenderBox || !box.attached || !box.hasSize) return;
+    final screenH = MediaQuery.sizeOf(context).height;
+    if (screenH <= 0) return;
+    final bottom = box.localToGlobal(Offset(0, box.size.height)).dy;
+    final frac = (bottom / screenH).clamp(0.3, 1.0);
+    final prev = _measuredTintY;
+    if (prev == null || (frac - prev).abs() > 0.0015) setState(() => _measuredTintY = frac);
+  }
+
   /// Pull past a missing neighbour: Apple's asymptotic resistance, never
   /// travelling further than this fraction of a stride however far you drag.
   static const double _rubberBandReach = 0.35;
@@ -662,7 +682,9 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    WidgetsBinding.instance.addPostFrameCallback((_) => _measureTint());
     return LayoutBuilder(
+      key: _stageKey,
       builder: (context, c) {
         final w = c.maxWidth, h = c.maxHeight;
         // Apple's arrangement: the title sits right above the scrubber, and
@@ -683,7 +705,9 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
         final stride = bleed ? w : artSize + _coverGap;
         _stride = stride;
         // Where on the page the art ends, for the colour it fades into.
-        final tintY = bleedTop != null ? ((bleedTop + h) / MediaQuery.sizeOf(context).height).clamp(0.3, 1.0) : 1.0;
+        final tintY = bleedTop != null
+            ? (_measuredTintY ?? ((bleedTop + h) / MediaQuery.sizeOf(context).height).clamp(0.3, 1.0))
+            : 1.0;
 
         // Built once per stage build and only positioned on each animation
         // frame: the same widget instances let Flutter skip rebuilding them
