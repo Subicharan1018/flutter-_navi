@@ -517,7 +517,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
               ),
               GroupedSwitchRow(
                 title: 'Fast Start',
-                subtitle: 'Starts songs sooner by playing the first seconds at lower quality, then switches to your full quality. Turn off for always full quality.',
+                subtitle: 'Starts songs sooner by playing the first seconds at 192 kbps, then switches to your full quality. Turn off for always full quality.',
                 icon: NaviGlyph.play,
                 value: s.fastStart,
                 onChanged: notifier.setFastStart,

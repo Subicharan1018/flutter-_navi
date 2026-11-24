@@ -8,8 +8,12 @@ import '../player/audio_quality.dart' show isLosslessSuffix;
 /// while the full-quality copy downloads in the background, then swaps to it
 /// at the same position. The chosen streaming quality stays the final target.
 
-/// The low rate used for the first seconds.
-const int kFastStartLowKbps = 64;
+/// The low rate used for the first seconds. 64 kbps mp3 was clearly audible
+/// against a lossless song (dull highs, a "swish"), and listeners noticed the
+/// swap to full quality. 192 kbps is close to transparent for most ears and
+/// still a fraction of a FLAC (about 1/5), so the first audio arrives sooner
+/// and the switch is hard to hear.
+const int kFastStartLowKbps = 192;
 const String kFastStartLowFormat = 'mp3';
 
 /// How long a skip must rest before the song it landed on is opened. Songs

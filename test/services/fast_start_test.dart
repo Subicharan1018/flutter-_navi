@@ -66,7 +66,16 @@ void main() {
       expect(FastStartPolicy.decide(_input(durationSec: 20)).use, isFalse);
     });
 
+    test('the first seconds are never played at an audibly poor rate', () {
+      // 64 kbps was noticeable next to a lossless song and listeners heard the swap.
+      expect(kFastStartLowKbps, greaterThanOrEqualTo(160));
+    });
+
     test('lossy at or below the low rate skips it', () {
+      expect(
+        FastStartPolicy.decide(_input(suffix: 'mp3', songKbps: kFastStartLowKbps)).use,
+        isFalse,
+      );
       expect(
         FastStartPolicy.decide(_input(suffix: 'mp3', songKbps: 64)).use,
         isFalse,
