@@ -13,6 +13,8 @@ import 'transcoding_service.dart';
 import 'cache_settings_service.dart';
 import 'play_cache.dart';
 import 'fast_start.dart';
+import 'seamless_swap.dart';
+import 'head_start_source.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../providers/settings_provider.dart';
 import '../features/local_library/logic/local_index.dart';
@@ -64,7 +66,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// app's own seek bar all end here. audio_service's default does nothing, so
   /// without this override seeking silently failed on every phone.
   @override
-  Future<void> seek(Duration position) => player.seek(position);
+  Future<void> seek(Duration position) {
+    // A swap to the full copy in progress would land at the old position.
+    if (_swapGen != 0) _fastGen++;
+    return player.seek(position);
+  }
 
   /// Streams play straight from the URL: on the desktop bridge (no caching
   /// source) and in a browser (LockCachingAudioSource needs a local proxy that
@@ -184,6 +190,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _skips = SkipCoordinator(
       load: _settleLoad,
       settle: skipSettle,
+      settleFor: _settleFor,
       onError: (e, _) {
         debugPrint('⚠️ [NaviAudioHandler] skip load failed: $e');
         _desktopLoading = false;
@@ -585,6 +592,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Shows [index] as the current song at once and opens it once the listener
   /// stops skipping (see [kSkipSettle]); songs skipped over are never opened.
   void _requestSkip(int index) {
+    // The clock starts at the tap, so the settle wait is part of the number.
+    _beginProbe('skip from tap');
     _publishPending(index);
     _skips.request(index);
   }
@@ -632,11 +641,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _publishPending(index);
       return;
     }
-    _beginProbe(explicit ? 'tap' : 'skip');
+    if (!_probe.running) _beginProbe(explicit ? 'tap' : 'skip');
+    _probe.mark('settled');
     final paths = await _precomputeOfflinePaths(_currentQueue);
     if (stale()) return;
+    _probe.mark('paths');
     await _prepareLanding(index, paths);
     if (stale()) return;
+    _probe.mark('decided');
     if (_isDesktopBridge) {
       await _desktopLoadTrack(index, paths);
       if (stale()) return;
@@ -645,9 +657,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final local = index - _playlistOffset;
       final pl = _playlist;
       if (local >= 0 && pl != null && local < pl.children.length) {
-        if (player.currentIndex != local) await _setChildLow(local, index);
+        if (player.currentIndex != local) {
+          await _setChildLow(local, index);
+          if (_fastSongId != _currentQueue[index].id) await _useHeadChild(local, index);
+        }
         if (stale()) return;
+        _probe.mark('child');
         await player.seek(Duration.zero, index: local);
+        _probe.mark('seek');
         await _restoreLowChildren();
       } else {
         await _rebuildSource(index, decided: true);
@@ -682,7 +699,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       alreadyBuffered: warm,
       bytesPerSec: ThroughputTracker.instance.bytesPerSec,
     ));
-    _fastSongId = decision.use ? song.id : null;
+    // Test hook for measuring the swap on a device (never in release builds):
+    // flutter run --dart-define=FORCE_FAST_START=true
+    final forced = !kReleaseMode &&
+        const bool.fromEnvironment('FORCE_FAST_START') &&
+        fastStartEnabled &&
+        !onDevice &&
+        !cached &&
+        PlayCache.instance.fileFor(song.id, quality) != null;
+    _fastSongId = decision.use || forced ? song.id : null;
     debugPrint('⚡ [FastStart] ${song.title}: $decision');
   }
 
@@ -704,6 +729,85 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     } finally {
       _surgery = false;
     }
+  }
+
+  int _headsFor = -1;
+
+  /// Keeps the first bytes of the next three songs and the previous one in the
+  /// play cache, one small request at a time, once the song playing now has
+  /// its own audio going (see [_scheduleWarm]). A skip onto one then starts
+  /// from those bytes (see [_useHeadChild]). Songs that are skipped past
+  /// within the settle time never get this far, since this only runs from the
+  /// song the listener rests on.
+  void _warmHeads(int index) {
+    if (kIsWeb || _isDesktopBridge || _headsFor == index) return;
+    if (!CacheSettingsService().getMusicCacheEnabled()) return;
+    _headsFor = index;
+    final quality = _cacheQuality;
+    final wanted = <Song>[
+      for (final i in [index + 1, index + 2, index + 3, index - 1])
+        if (i >= 0 && i < _currentQueue.length) _currentQueue[i],
+    ];
+    unawaited(() async {
+      for (final song in wanted) {
+        if (_headsFor != index) return; // the listener moved on
+        if (isLocalSongId(song.id) ||
+            LocalLibraryIndex.instance.pathFor(song.id) != null ||
+            OfflineService().getLocalPath(song.id) != null ||
+            PlayCache.instance.hasCompleteSync(song.id, quality) ||
+            PlayCache.instance.headSync(song.id, quality) != null) {
+          continue;
+        }
+        await PlayCache.instance.prefetchHead(
+          song.id,
+          quality,
+          Uri.parse(subsonicService.getStreamUrl(
+            song.id,
+            maxBitRate: _transcodingService.getCurrentBitrate(),
+            format: _transcodingService.getCurrentFormat(),
+          )),
+        );
+      }
+    }());
+  }
+
+  /// Android: the child the skip lands on plays from its saved head when it
+  /// has one and is not yet fully cached. Never the child that is playing.
+  Future<void> _useHeadChild(int local, int index) async {
+    final pl = _playlist;
+    if (pl == null || kIsWeb || !CacheSettingsService().getMusicCacheEnabled()) return;
+    final song = _currentQueue[index];
+    if (isLocalSongId(song.id) ||
+        LocalLibraryIndex.instance.pathFor(song.id) != null ||
+        OfflineService().getLocalPath(song.id) != null) {
+      return;
+    }
+    if (pl.children[local] is HeadStartSource) return;
+    final quality = _cacheQuality;
+    if (PlayCache.instance.hasCompleteSync(song.id, quality)) return;
+    final head = PlayCache.instance.headSync(song.id, quality);
+    if (head == null) return;
+    final source = HeadStartSource(
+      cache: PlayCache.instance,
+      songId: song.id,
+      quality: quality,
+      url: Uri.parse(subsonicService.getStreamUrl(
+        song.id,
+        maxBitRate: _transcodingService.getCurrentBitrate(),
+        format: _transcodingService.getCurrentFormat(),
+      )),
+      total: head.total,
+      mime: head.mime,
+      tag: _mediaTag(song, isLocal: false),
+    );
+    _surgery = true;
+    try {
+      await pl.removeAt(local);
+      await pl.insert(local, source);
+    } finally {
+      _surgery = false;
+    }
+    debugPrint('⚡ [HeadStart] ${song.title}: playing from ${head.length ~/ 1024} KB saved head');
   }
 
   /// Puts the full-quality source back for every low-rate child that is no
@@ -770,31 +874,93 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       durationMs: durMs,
     );
     if (!ok) {
-      debugPrint('⚡ [FastStart] swap skipped for ${song.title}');
+      final left = durMs - pos.inMilliseconds;
+      debugPrint('⚡ [FastStart] swap skipped for ${song.title}; '
+          '${left > 10000 ? 'WARNING: ${(left / 1000).round()} s of it keep playing at the low rate' : 'little left'}');
       return;
     }
-    final wasPlaying = player.playing;
+    if (!player.playing || file == null) {
+      // Paused: nobody can hear a gap, so reload in place at the same position.
+      _fastSongId = null;
+      _fastGen++;
+      await _rebuildSource(currentIndex, initialPosition: pos, decided: true);
+      return;
+    }
     final watch = Stopwatch()..start();
     _fastSongId = null;
-    _fastGen++;
+    final swapGen = ++_fastGen;
+    _swapGen = swapGen;
     _muteForSwap = true;
+    final helper = _swapHelperFactory();
+    final timeline = <String>[];
+    void mark(String what) =>
+        timeline.add('${watch.elapsedMilliseconds}ms $what main=${player.position.inMilliseconds}'
+            ' helper=${helper.position.inMilliseconds} mainState=${player.processingState.name}');
     try {
-      // A short ramp to silence, so the cut is never a click.
-      final ramp = swapRamp();
-      for (final v in ramp) {
-        await player.setVolume((_appliedVolume * v).clamp(0.0, 1.0));
-        await Future<void>.delayed(kSwapRampDown ~/ ramp.length);
-      }
-    } catch (_) {}
-    try {
-      await _rebuildSource(currentIndex, initialPosition: pos, decided: true);
-      if (wasPlaying && !player.playing) await player.play();
+      final stats = await SeamlessSwap(
+        main: _PlayerVoice(player),
+        helper: _PlayerVoice(helper),
+        baseVolume: () => (_replayVolume * _fadeFactor).clamp(0.0, 1.0).toDouble(),
+        openHelper: (at) async {
+          await helper.setFilePath(file.path);
+          await helper.setVolume(0);
+          await helper.seek(at);
+          unawaited(helper.play());
+          mark('helper open');
+        },
+        reloadMain: (at) async {
+          mark('main reload begin');
+          await _rebuildSource(currentIndex, initialPosition: at, decided: true);
+          if (!player.playing) unawaited(player.play());
+          mark('main reload end');
+        },
+        closeHelper: () async {
+          try {
+            await helper.stop();
+            await helper.dispose();
+          } catch (_) {}
+        },
+        onStep: mark,
+        isAborted: () => _swapGen != swapGen || _fastGen != swapGen || _skips.isBusy || !player.playing,
+      ).run();
+      debugPrint('⚡ [FastStart] swapped ${song.title} to full at ${pos.inMilliseconds} ms '
+          '(${watch.elapsedMilliseconds} ms overlapped, never silent): $stats');
+      debugPrint('⚡ [FastStart] swap timeline: ${timeline.join(' | ')}');
     } finally {
+      if (_swapGen == swapGen) _swapGen = 0;
       _muteForSwap = false;
       _appliedVolume = -1;
       _applyVolume();
     }
-    debugPrint('⚡ [FastStart] swapped ${song.title} to full at ${pos.inMilliseconds} ms (took ${watch.elapsedMilliseconds} ms)');
+  }
+
+  /// The player the swap overlaps with (a test supplies its own).
+  AudioPlayer _swapHelperFactory() => AudioPlayer(
+        handleInterruptions: false,
+        handleAudioSessionActivation: false,
+        androidApplyAudioAttributes: false,
+      );
+
+  /// Generation of the swap in progress, 0 when none; a seek or skip bumps
+  /// [_fastGen], which ends the swap early with the main player restored.
+  int _swapGen = 0;
+
+  /// True when opening [index] costs no request (a file on this device), so a
+  /// skip onto it may settle quickly. Cheap: a few stats at most.
+  Duration _settleFor(int index) {
+    if (index < 0 || index >= _currentQueue.length) return kSkipSettle;
+    final song = _currentQueue[index];
+    if (isLocalSongId(song.id) || LocalLibraryIndex.instance.pathFor(song.id) != null) {
+      return kSkipSettleReady;
+    }
+    if (!kIsWeb && CacheSettingsService().getMusicCacheEnabled()) {
+      if (OfflineService().getLocalPath(song.id) != null) return kSkipSettleReady;
+      if (PlayCache.instance.hasCompleteSync(song.id, _cacheQuality) ||
+          PlayCache.instance.headSync(song.id, _cacheQuality) != null) {
+        return kSkipSettleReady;
+      }
+    }
+    return kSkipSettle;
   }
 
   // ── First-audio timing (debug and profile builds only) ─────────────────────
@@ -808,6 +974,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   void _armProbe() {
     if (kReleaseMode || !_probe.running) return;
     try {
+      debugPrint('⏱ [FastStart] probe armed: playing=${player.playing} pos=${player.position.inMilliseconds} ms state=${player.processingState}');
       _probeSub?.cancel();
       _probeSub = player
           .createPositionStream(
@@ -1006,6 +1173,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
       if (index != currentIndex) return;
+      _warmHeads(index);
       final dur = (player.duration ?? Duration(seconds: _currentQueue[index].duration)).inMilliseconds;
       if (!nextPreloadDue(positionMs: player.position.inMilliseconds, durationMs: dur)) {
         _scheduleWarm(index, attempt: 5); // check again; attempt>0 keeps downloads running
@@ -2403,4 +2571,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await player.stop();
     await player.dispose();
   }
+}
+
+/// A just_audio player as one voice of the Fast Start swap.
+class _PlayerVoice implements SwapVoice {
+  _PlayerVoice(this.p);
+  final AudioPlayer p;
+
+  @override
+  Duration get position => p.position;
+  @override
+  Future<void> setVolume(double v) => p.setVolume(v);
+  @override
+  Future<void> seek(Duration to) => p.seek(to);
 }
