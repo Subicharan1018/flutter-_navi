@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../features/ai_shuffle/data/models/contribution_graph_response.dart';
 import '../../features/ai_shuffle/data/models/listening_stats_response.dart';
 import '../../features/ai_shuffle/logic/shuffle_providers.dart';
+import '../../features/wrapped/ui/wrapped_entry.dart';
 import '../../providers/library_provider.dart' show artistCoverUrlProvider;
 import '../../utils/platform_utils.dart';
 import '../../widgets/ui/controls.dart';
@@ -138,6 +139,10 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                     dailyPlays: [for (final d in days.skip(days.length - _period.trendDays.clamp(7, 30).clamp(0, days.length))) d.count.toDouble()],
                   ),
                 ),
+              ),
+              SliverPadding(
+                padding: EdgeInsets.symmetric(horizontal: g),
+                sliver: SliverToBoxAdapter(child: WrappedStatsRow(year: DateTime.now().year)),
               ),
               SliverPadding(
                 padding: EdgeInsets.symmetric(horizontal: g),

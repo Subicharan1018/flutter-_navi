@@ -1,0 +1,104 @@
+import 'dart:ui' as ui;
+
+import 'package:flutter/material.dart';
+import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/features/wrapped/data/wrapped_models.dart';
+import 'package:navivibe/features/wrapped/film/film.dart';
+import 'package:navivibe/features/wrapped/film/film_assets.dart';
+
+/// A full year: five songs, six artists, a 16-day streak in March, a busy hour at 11 pm.
+WrappedData fixtureWrapped({bool thin = false}) {
+  if (thin) {
+    return WrappedData(
+      year: 2026, totalMinutes: 30, totalPlays: 5, uniqueSongs: 4, uniqueArtists: 2, listeningDays: 1, skipRate: 0, peakHour: 9,
+      hourly: List.filled(24, 0), songs: const [], artists: const [], genres: const [],
+      months: [for (var m = 1; m <= 12; m++) WrappedMonth(month: m, minutes: 0)], days: const [], longestStreak: 0,
+    );
+  }
+  String iso(int m, int d) => '2026-${m.toString().padLeft(2, '0')}-${d.toString().padLeft(2, '0')}';
+  final days = <String, int>{
+    for (var m = 1; m <= 12; m++)
+      for (var d = 1; d <= 28; d += 3) iso(m, d): 20 + (m * d) % 70,
+    for (var d = 5; d <= 20; d++) iso(3, d): 40 + d,
+    iso(10, 14): 412,
+  };
+  final dates = days.keys.toList()..sort();
+  return WrappedData(
+    year: 2026, totalMinutes: 41230, totalPlays: 9120, uniqueSongs: 1480, uniqueArtists: 312, listeningDays: 318, skipRate: 0.18, peakHour: 23,
+    hourly: [for (var h = 0; h < 24; h++) h == 23 ? 900 : (h >= 21 || h <= 1) ? 500 - (h % 7) * 30 : 80 + (h * 37) % 160],
+    songs: const [
+      WrappedSong(title: 'Munbe Vaa', artist: 'A. R. Rahman', plays: 212, minutes: 960),
+      WrappedSong(title: 'Kadhal Sadugudu', artist: 'Harris Jayaraj', plays: 180, minutes: 820),
+      WrappedSong(title: 'Vaseegara', artist: 'Bombay Jayashri', plays: 161, minutes: 700),
+      WrappedSong(title: 'Nenjukkul Peidhidum', artist: 'Harris Jayaraj', plays: 140, minutes: 640),
+      WrappedSong(title: 'Anbil Avan', artist: 'A. R. Rahman', plays: 122, minutes: 530),
+    ],
+    artists: const [
+      WrappedArtist(name: 'A. R. Rahman', plays: 1900, minutes: 8800, songs: 140),
+      WrappedArtist(name: 'Harris Jayaraj', plays: 1400, minutes: 6100, songs: 99),
+      WrappedArtist(name: 'Anirudh', plays: 900, minutes: 3900, songs: 64),
+      WrappedArtist(name: 'Sid Sriram', plays: 600, minutes: 2500, songs: 40),
+      WrappedArtist(name: 'Yuvan', plays: 400, minutes: 1700, songs: 31),
+      WrappedArtist(name: 'Ilaiyaraaja', plays: 300, minutes: 1300, songs: 22),
+    ],
+    genres: const [
+      WrappedGenre(name: 'Tamil film', pct: 54),
+      WrappedGenre(name: 'Pop', pct: 21),
+      WrappedGenre(name: 'Indie', pct: 13),
+      WrappedGenre(name: 'Classical', pct: 8),
+      WrappedGenre(name: 'Rock', pct: 4),
+    ],
+    months: [
+      for (var m = 1; m <= 12; m++)
+        WrappedMonth(month: m, minutes: [2100, 1800, 4800, 3000, 2500, 2200, 3100, 3500, 3900, 5200, 4300, 3800][m - 1], topGenre: 'Tamil film', topSong: 'Munbe Vaa'),
+    ],
+    days: [for (final d in dates) WrappedDay(date: d, minutes: days[d]!)],
+    longestStreak: 16, streakStart: '2026-03-05', streakEnd: '2026-03-20',
+    bestDay: const WrappedDay(date: '2026-10-14', minutes: 412),
+  );
+}
+
+/// Stand-in artwork with a shape and colours of its own, so a picture made of particles can be recognised.
+Future<ui.Image> fakeArt(int seed) {
+  const hues = [18.0, 205.0, 42.0, 150.0, 0.0, 215.0];
+  final rec = ui.PictureRecorder();
+  final c = Canvas(rec);
+  Color hue(double s, double l) => HSLColor.fromAHSL(1, hues[seed % 6], s, l).toColor();
+  c.drawRect(const Rect.fromLTWH(0, 0, 256, 256), Paint()..shader = ui.Gradient.linear(Offset.zero, const Offset(256, 256), [hue(0.6, 0.55), hue(0.5, 0.2)]));
+  c.drawCircle(Offset(90 + seed * 14, 110), 70, Paint()..color = hue(0.75, 0.72));
+  c.drawRect(Rect.fromLTWH(30, 170 + seed * 6, 190, 22), Paint()..color = const Color(0xFFF4EFE6));
+  return rec.endRecording().toImage(256, 256);
+}
+
+/// The film with its artwork in. Call inside `tester.runAsync`.
+Future<WrappedFilm> fixtureFilm({WrappedData? data, bool art = true}) async {
+  final d = data ?? fixtureWrapped();
+  final assets = FilmAssets();
+  if (art) {
+    for (var i = 0; i < d.songs.length; i++) {
+      assets.songs[i] = await FilmCover.of(await fakeArt(i));
+    }
+    for (var i = 0; i < d.artists.length; i++) {
+      assets.artists[i] = await fakeArt(i + 1);
+    }
+  }
+  final film = WrappedFilm(d, assets);
+  assets.year = await textPoints('${d.year}', film.count);
+  return film;
+}
+
+Widget wrappedApp(Widget child, {bool reduced = false}) {
+  final tokens = AppThemeTokens.fallback;
+  return ThemeTokens(
+    tokens: tokens,
+    child: MaterialApp(
+      debugShowCheckedModeBanner: false,
+      theme: AppTheme.build(tokens),
+      builder: (context, c) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(disableAnimations: reduced),
+        child: c!,
+      ),
+      home: Scaffold(backgroundColor: Colors.black, body: child),
+    ),
+  );
+}
