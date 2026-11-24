@@ -1,9 +1,10 @@
 import '../../ai_shuffle/data/models/replay_response.dart';
 import '../data/wrapped_models.dart';
+import '../data/wrapped_story.dart';
 
 /// Works out the whole Wrapped from the year's replay and the replays of its months (those with plays).
 /// Pure: no network, no clock, so it is the same on every run.
-WrappedData buildWrapped(YearlyReplayResponse y, List<MonthlyReplayResponse> months) {
+WrappedData buildWrapped(YearlyReplayResponse y, List<MonthlyReplayResponse> months, {Map<String, SongFacts> facts = const {}, Bookends? ends}) {
   final hourly = List<int>.filled(24, 0);
   y.hourlyHeatmap.forEach((k, v) {
     final h = int.tryParse(k);
@@ -51,7 +52,9 @@ WrappedData buildWrapped(YearlyReplayResponse y, List<MonthlyReplayResponse> mon
     if (bestDay == null || d.minutes > bestDay.minutes) bestDay = d;
   }
 
+  final pool = [for (final t in y.topTracks) WrappedSong(title: t.title, artist: t.artist, plays: t.playCount, minutes: t.totalMinutes.round())];
   return WrappedData(
+    story: buildStory(months: months, days: days, pool: pool, facts: facts, ends: ends),
     year: y.year,
     totalMinutes: y.totalMinutes.round(),
     totalPlays: y.totalPlays,
@@ -61,7 +64,7 @@ WrappedData buildWrapped(YearlyReplayResponse y, List<MonthlyReplayResponse> mon
     skipRate: y.skipRate,
     peakHour: y.peakHourIst,
     hourly: hourly,
-    songs: [for (final t in y.topTracks.take(5)) WrappedSong(title: t.title, artist: t.artist, plays: t.playCount, minutes: t.totalMinutes.round())],
+    songs: pool.take(5).toList(),
     artists: [for (final a in y.topArtists.take(6)) WrappedArtist(name: a.artist, plays: a.playCount, minutes: a.totalMinutes.round(), songs: a.uniqueSongs)],
     genres: [for (final g in y.topGenres.take(6)) WrappedGenre(name: g.genre, pct: g.pct)],
     months: [

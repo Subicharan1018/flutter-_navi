@@ -5,6 +5,7 @@ import 'package:flutter/foundation.dart';
 
 import '../../ai_shuffle/data/models/replay_response.dart';
 import '../data/wrapped_models.dart';
+import '../data/wrapped_story.dart';
 import 'wrapped_builder.dart';
 
 /// Where a Wrapped is kept so it opens at once, and offline.
@@ -15,7 +16,7 @@ abstract class WrappedStore {
 
 /// Where an account's year is kept: one copy per server, user and year.
 String wrappedStoreKey(String serverUrl, String username, int year) =>
-    'wrapped_v1_${serverUrl.trim().toLowerCase()}|${username.trim().toLowerCase()}_$year';
+    'wrapped_v2_${serverUrl.trim().toLowerCase()}|${username.trim().toLowerCase()}_$year';
 
 /// How far a Wrapped has got. Until it is [settled] the days (streak, biggest day) are not known yet.
 class WrappedLoad {
@@ -42,6 +43,8 @@ Stream<WrappedLoad> watchWrapped({
   required WrappedStore store,
   required Future<YearlyReplayResponse> Function(int year) fetchYear,
   required Future<MonthlyReplayResponse> Function(int year, int month) fetchMonth,
+  Future<SongFacts?> Function(String title, String artist)? factsOf,
+  Future<Bookends?> Function(YearlyReplayResponse year)? endsOf,
   Duration yearTimeout = const Duration(seconds: 45),
   Duration monthTimeout = const Duration(seconds: 20),
   void Function(String)? log,
@@ -115,8 +118,30 @@ Stream<WrappedLoad> watchWrapped({
     }
 
     if (!first.isEmpty) await Future.wait([for (var i = 0; i < _parallel; i++) worker()]);
+    // Extras from the phone's own library and the play log: missing ones only leave their scenes out.
+    final extra = Stopwatch()..start();
+    final facts = <String, SongFacts>{};
+    Bookends? ends;
+    if (factsOf != null && !first.isEmpty) {
+      for (final s in y.topTracks) {
+        try {
+          final f = await factsOf(s.title, s.artist).timeout(const Duration(seconds: 3));
+          if (f != null) facts['${s.title}|${s.artist}'] = f;
+        } catch (_) {
+          // not known
+        }
+      }
+    }
+    if (endsOf != null && !first.isEmpty) {
+      try {
+        ends = await endsOf(y).timeout(monthTimeout);
+      } catch (_) {
+        // not known
+      }
+    }
+    say('extras ${extra.elapsedMilliseconds} ms, ${facts.length} of ${y.topTracks.length} songs known, ends ${ends == null ? 'no' : 'yes'}');
     final build = Stopwatch()..start();
-    final data = complete ? buildWrapped(y, months) : first;
+    final data = complete ? buildWrapped(y, months, facts: facts, ends: ends) : buildWrapped(y, const [], facts: facts, ends: ends);
     say('build ${build.elapsedMilliseconds} ms');
     if (!quiet) emit(WrappedLoad(data, settled: true, done: done, total: wanted.length));
     say('settled ${clock.elapsedMilliseconds} ms, ${months.length} of ${wanted.length} months');

@@ -1,5 +1,7 @@
 import 'dart:math' as math;
 
+import 'wrapped_story.dart';
+
 /// A song in your year.
 class WrappedSong {
   final String title;
@@ -98,7 +100,11 @@ class WrappedData {
   final String? streakEnd;
   final WrappedDay? bestDay;
 
+  /// The parts that need more than totals: months, days, the library and the play log.
+  final WrappedStory story;
+
   const WrappedData({
+    this.story = const WrappedStory(),
     required this.year,
     required this.totalMinutes,
     required this.totalPlays,
@@ -151,6 +157,7 @@ class WrappedData {
     'ss': streakStart,
     'se': streakEnd,
     'bd': bestDay?.toJson(),
+    'st': story.toJson(),
   };
 
   factory WrappedData.fromJson(Map<String, dynamic> j) {
@@ -163,6 +170,7 @@ class WrappedData {
       hourly.add(0);
     }
     return WrappedData(
+      story: WrappedStory.fromJson(j['st'] is Map ? Map<String, dynamic>.from(j['st'] as Map) : const {}),
       year: _i(j['y']),
       totalMinutes: _i(j['tm']),
       totalPlays: _i(j['tp']),
