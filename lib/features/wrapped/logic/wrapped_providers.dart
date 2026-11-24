@@ -3,7 +3,6 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import '../../../core/hive_boxes.dart';
 import '../../../providers/settings_provider.dart';
 import '../../ai_shuffle/logic/shuffle_providers.dart';
-import '../data/wrapped_models.dart';
 import 'wrapped_loader.dart';
 
 class _HiveWrappedStore implements WrappedStore {
@@ -19,11 +18,11 @@ final wrappedStoreProvider = Provider<WrappedStore>((ref) => _HiveWrappedStore()
 /// The date Wrapped counts the current year from (tests replace it).
 final wrappedNowProvider = Provider<DateTime Function()>((ref) => DateTime.now);
 
-/// The year's Wrapped, built on demand and kept on the device (one key per account and year).
-final wrappedProvider = FutureProvider.autoDispose.family<WrappedData, int>((ref, year) {
+/// The year's Wrapped in stages (see [watchWrapped]), kept on the device (one key per account and year).
+final wrappedProvider = StreamProvider.autoDispose.family<WrappedLoad, int>(retry: (_, _) => null, (ref, year) {
   final repo = ref.watch(shuffleRepositoryProvider);
   final (server, user) = ref.watch(settingsProvider.select((s) => (s.serverUrl, s.username)));
-  return loadWrapped(
+  return watchWrapped(
     year: year,
     currentYear: ref.read(wrappedNowProvider)().year,
     storeKey: wrappedStoreKey(server, user, year),

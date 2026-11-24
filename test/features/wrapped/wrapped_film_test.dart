@@ -1,12 +1,20 @@
+import 'dart:async';
 import 'dart:ui' as ui;
 
+import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/features/wrapped/film/film.dart';
 import 'package:navivibe/features/wrapped/film/film_export.dart';
 import 'package:navivibe/features/wrapped/film/scenes.dart';
+import 'package:navivibe/features/wrapped/data/wrapped_models.dart';
+import 'package:navivibe/features/wrapped/logic/wrapped_loader.dart';
+import 'package:navivibe/features/wrapped/logic/wrapped_providers.dart';
+import 'package:navivibe/features/wrapped/ui/wrapped_screen.dart';
 import 'package:navivibe/features/wrapped/ui/wrapped_stage.dart';
+import 'package:navivibe/providers/library_provider.dart';
 
 import 'wrapped_fixture.dart';
 
@@ -213,6 +221,89 @@ void main() {
       expect(find.text('How this was worked out'), findsOneWidget);
       await tester.pumpWidget(const SizedBox());
       expect(tester.takeException(), isNull);
+    });
+  });
+
+  group('opening', () {
+    Future<StreamController<WrappedLoad>> screen(WidgetTester tester, {bool reduced = false}) async {
+      phone(tester);
+      final loads = StreamController<WrappedLoad>();
+      addTearDown(loads.close);
+      await tester.pumpWidget(
+        ProviderScope(
+          overrides: [
+            wrappedProvider.overrideWith((ref, year) => loads.stream),
+            songCoverUrlProvider.overrideWith((ref, key) async => null),
+            artistCoverUrlProvider.overrideWith((ref, key) async => null),
+          ],
+          child: wrappedApp(const WrappedScreen(year: 2026, name: 'Subi'), reduced: reduced),
+        ),
+      );
+      await tester.pump();
+      return loads;
+    }
+
+    WrappedStageState stage(WidgetTester tester) => tester.state<WrappedStageState>(find.byType(WrappedStage));
+
+    testWidgets('the intro is on screen before the server has said anything, and says what it waits for', (tester) async {
+      await screen(tester);
+      await run(tester, 2);
+      expect(find.byType(CupertinoActivityIndicator), findsNothing);
+      expect(stage(tester).time, greaterThan(1.5));
+      expect(find.text('Gathering your year'), findsOneWidget);
+      await run(tester, 30);
+      expect(stage(tester).index, 0);
+    });
+
+    testWidgets('the year lets it run on; the months add the rest ahead without a restart', (tester) async {
+      final loads = await screen(tester);
+      await run(tester, 2);
+      final t = stage(tester).time;
+      loads.add(WrappedLoad(fixtureWrapped(), settled: false, total: 11));
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 50));
+      expect(stage(tester).time, greaterThanOrEqualTo(t));
+      expect(stage(tester).widget.film.scenes.last.id, 'clock');
+      for (var i = 0; i < 12; i++) {
+        await tester.tapAt(const Offset(380, 400));
+        await tester.pump(const Duration(milliseconds: 50));
+      }
+      expect(stage(tester).index, 7);
+      loads.add(WrappedLoad(fixtureWrapped(), settled: false, done: 4, total: 11));
+      await run(tester, 0.2);
+      expect(find.text('Adding your months, 4 of 11'), findsOneWidget);
+      await run(tester, 12);
+      expect(stage(tester).index, 7, reason: 'it waits on the last known scene');
+      loads.add(WrappedLoad(fixtureWrapped(), settled: true));
+      await run(tester, 0.4);
+      expect(stage(tester).index, 8);
+      expect(stage(tester).widget.film.scenes.length, 14);
+      expect(find.textContaining('Adding your months'), findsNothing);
+    });
+
+    testWidgets('a failure offers another try, an empty year says so', (tester) async {
+      final loads = await screen(tester);
+      loads.addError(StateError('offline'));
+      await run(tester, 0.2);
+      expect(find.text('Wrapped didn’t load'), findsOneWidget);
+    });
+
+    testWidgets('an empty year says so', (tester) async {
+      final loads = await screen(tester);
+      loads.add(WrappedLoad(emptyWrapped(2026), settled: true));
+      await run(tester, 0.2);
+      expect(find.text('Nothing to wrap yet'), findsOneWidget);
+    });
+
+    testWidgets('reduced motion waits on the still and moves when you tap', (tester) async {
+      final loads = await screen(tester, reduced: true);
+      expect(find.text('Gathering your year'), findsOneWidget);
+      loads.add(WrappedLoad(fixtureWrapped(), settled: true));
+      await tester.pump();
+      await tester.pump();
+      await tester.tapAt(const Offset(380, 400));
+      await tester.pump();
+      expect(stage(tester).index, 1);
     });
   });
 

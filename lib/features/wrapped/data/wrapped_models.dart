@@ -185,6 +185,25 @@ class WrappedData {
   }
 }
 
+/// A year nothing is known about yet: enough to light the intro while the rest is on its way.
+WrappedData emptyWrapped(int year) => WrappedData(
+  year: year,
+  totalMinutes: 0,
+  totalPlays: 0,
+  uniqueSongs: 0,
+  uniqueArtists: 0,
+  listeningDays: 0,
+  skipRate: 0,
+  peakHour: 0,
+  hourly: List.filled(24, 0),
+  songs: const [],
+  artists: const [],
+  genres: const [],
+  months: [for (var m = 1; m <= 12; m++) WrappedMonth(month: m, minutes: 0)],
+  days: const [],
+  longestStreak: 0,
+);
+
 /// Picks the archetype from four dials: how much is new (explorer), how much is one artist
 /// (devotee), how much is after 10 pm (night) and how big your biggest day is next to a usual one (marathon).
 WrappedPersonality personalityOf(WrappedData d) {

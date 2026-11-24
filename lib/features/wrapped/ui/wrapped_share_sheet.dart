@@ -177,8 +177,10 @@ class _WrappedShareSheetState extends State<WrappedShareSheet> {
         Row(
           children: [
             choice('This scene', !_whole, () => setState(() => _whole = false)),
-            const SizedBox(width: Space.sm),
-            choice('The whole film', _whole, () => setState(() => _whole = true)),
+            if (widget.film.settled) ...[
+              const SizedBox(width: Space.sm),
+              choice('The whole film', _whole, () => setState(() => _whole = true)),
+            ],
           ],
         ),
         if (AndroidFilm.available) ...[

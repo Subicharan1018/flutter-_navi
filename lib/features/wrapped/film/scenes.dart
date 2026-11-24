@@ -25,8 +25,17 @@ String sayDate(String? iso) {
   return d == null ? '' : '${d.day} ${_months[d.month - 1]}';
 }
 
-/// The film, in order. A scene with nothing behind it is left out.
-List<FilmScene> filmScenes(WrappedData d) => [
+/// The film, in order. A scene with nothing behind it is left out. Until the year is [settled] the film runs only as
+/// far as what is known, so nothing is ever added behind you: more of it appears ahead.
+List<FilmScene> filmScenes(WrappedData d, {bool settled = true}) {
+  final all = _allScenes(d);
+  if (settled) return all;
+  if (d.isEmpty) return all.take(1).toList();
+  const known = {'intro', 'minutes', 'guess', 'number-one', 'top5', 'artists', 'genres', 'clock'};
+  return all.takeWhile((s) => known.contains(s.id)).toList();
+}
+
+List<FilmScene> _allScenes(WrappedData d) => [
   IgniteScene(),
   SandScene(),
   if (d.songs.length >= 3) GuessScene(),

@@ -11,7 +11,8 @@ WrappedData buildWrapped(YearlyReplayResponse y, List<MonthlyReplayResponse> mon
   });
 
   final byMonth = {for (final m in months) m.month: m};
-  final dayMinutes = <String, double>{};
+  final cards = {for (final c in y.monthlyCards) c.month: c};
+  final dayMinutes =<String, double>{};
   for (final m in months) {
     for (final d in m.dailyBreakdown) {
       if (d.dateStr.isEmpty || d.totalMinutes <= 0) continue;
@@ -67,9 +68,10 @@ WrappedData buildWrapped(YearlyReplayResponse y, List<MonthlyReplayResponse> mon
       for (var m = 1; m <= 12; m++)
         WrappedMonth(
           month: m,
-          minutes: byMonth[m]?.totalMinutes.round() ?? 0,
-          topGenre: byMonth[m]?.topGenres.firstOrNull?.genre,
-          topSong: byMonth[m]?.topTracks.firstOrNull?.title,
+          // the year's own cards already know each month; the month's answer adds its days
+          minutes: (byMonth[m]?.totalMinutes ?? cards[m]?.totalMinutes ?? 0).round(),
+          topGenre: byMonth[m]?.topGenres.firstOrNull?.genre ?? cards[m]?.topGenre,
+          topSong: byMonth[m]?.topTracks.firstOrNull?.title ?? cards[m]?.topTrack?.title,
         ),
     ],
     days: days,

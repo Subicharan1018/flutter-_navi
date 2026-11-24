@@ -35,6 +35,7 @@ web share stills. Instagram's own "add to story" intent is not used because it n
 screen offers Story instead.
 
 ## Data (no new server package)
-`GET /replay?year=` and `GET /replay/<year>/<month>` for months with plays, two requests at a time. Streak, biggest day and
-personality are worked out in the app. Kept per server, user and year; a copy made before the year ended is only used offline.
-A past year kept after it ended opens without the server. New-to-you songs and moods are not in those endpoints, so neither is claimed.
+The intro plays at once. A kept copy (per server, user and year) plays straight away and is refreshed behind it for next time; a
+past year kept after it ended never asks. Otherwise `GET /replay?year=` opens the film as far as the clock, and
+`GET /replay/<year>/<month>` (five at a time, 20 s each) adds the rest ahead of you: streak, biggest day and personality need every
+day, so with a month missing the day scenes are left out rather than guessed. Timings are logged as `[Wrapped]`. New-to-you songs and moods are not in those endpoints, so neither is claimed.

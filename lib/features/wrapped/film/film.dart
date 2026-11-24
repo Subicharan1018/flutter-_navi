@@ -106,10 +106,13 @@ abstract class FilmScene {
 /// The whole film as a pure function of time: the same inputs always paint the same frame, which is why a scene can be
 /// saved as a picture or rendered to a video exactly as it plays.
 class WrappedFilm {
-  final WrappedData data;
+  WrappedData data;
+
+  /// False while more of the year is on its way; the scenes then stop at what is known.
+  bool settled;
   final FilmAssets assets;
   final int count;
-  late final List<FilmScene> scenes = filmScenes(data);
+  late List<FilmScene> scenes = filmScenes(data, settled: settled);
   late final ui.Image _sprite = _makeSprite();
 
   late final Float32List _transforms = Float32List(count * 4);
@@ -118,7 +121,14 @@ class WrappedFilm {
   final Dot _a = Dot(), _b = Dot();
   final Map<String, TextPainter> _text = {};
 
-  WrappedFilm(this.data, this.assets, {this.count = 1500});
+  WrappedFilm(this.data, this.assets, {this.count = 1500, this.settled = true});
+
+  /// More of the year has arrived: the scenes ahead appear, the ones so far stay where they are.
+  void update(WrappedData data, {required bool settled}) {
+    this.data = data;
+    this.settled = settled;
+    scenes = filmScenes(data, settled: settled);
+  }
 
   static Float32List _spriteRects(int n) {
     final r = Float32List(n * 4);

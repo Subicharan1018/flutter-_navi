@@ -36,7 +36,13 @@ class WrappedStage extends StatefulWidget {
 
   /// Repaints when a cover arrives.
   final Listenable? arrivals;
-  const WrappedStage({super.key, required this.film, this.name, this.onClose, this.arrivals});
+
+  /// What the film is waiting for, said on the last scene there is so far; null once all of it is here.
+  final String? waiting;
+
+  /// 0..1 of that, or null when it cannot be counted yet.
+  final double? progress;
+  const WrappedStage({super.key, required this.film, this.name, this.onClose, this.arrivals, this.waiting, this.progress});
 
   @override
   State<WrappedStage> createState() => WrappedStageState();
@@ -311,6 +317,32 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
     final hint = _scene.hint;
     return Stack(
       children: [
+        if (widget.waiting != null && _last_)
+          Positioned(
+            left: 48,
+            right: 48,
+            bottom: pad.bottom + 60,
+            child: IgnorePointer(
+              child: Semantics(
+                liveRegion: true,
+                child: Column(
+                  children: [
+                    Text(widget.waiting!, textAlign: TextAlign.center, style: ThemeTokens.of(context).callout.copyWith(color: kDim)),
+                    const SizedBox(height: Space.sm),
+                    SizedBox(
+                      height: 3,
+                      child: RepaintBoundary(
+                        child: CustomPaint(
+                          size: Size.infinite,
+                          painter: _WaitPainter(this, _beat, widget.progress),
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
         Positioned(
           top: pad.top + Space.xs,
           left: Space.md,
@@ -361,6 +393,28 @@ class _FilmPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_FilmPainter old) => true;
+}
+
+/// The wait, as a line: filling when it can be counted, a glint running along it when it cannot.
+class _WaitPainter extends CustomPainter {
+  final WrappedStageState s;
+  final double? progress;
+  _WaitPainter(this.s, Listenable repaint, this.progress) : super(repaint: repaint);
+
+  @override
+  void paint(ui.Canvas canvas, Size size) {
+    const r = Radius.circular(2);
+    canvas.drawRRect(RRect.fromRectAndRadius(Offset.zero & size, r), Paint()..color = const Color(0xFF2C2C2E));
+    final p = progress;
+    final w = size.width * 0.25;
+    final rect = p != null
+        ? Rect.fromLTWH(0, 0, size.width * clamp01(p), size.height)
+        : Rect.fromLTWH((size.width - w) * (0.5 - 0.5 * math.cos(s._t * 2.2)), 0, w, size.height);
+    if (rect.width > 0) canvas.drawRRect(RRect.fromRectAndRadius(rect, r), Paint()..color = kInk);
+  }
+
+  @override
+  bool shouldRepaint(_WaitPainter old) => old.progress != progress;
 }
 
 class _ProgressPainter extends CustomPainter {
