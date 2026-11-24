@@ -40,6 +40,10 @@ const double kFastStartMinSavingSec = 0.4;
 /// uplink, not a LAN, so the first song of a session still fast-starts).
 const int kFastStartAssumedBytesPerSec = 256 * 1024;
 
+/// Fast Start is used only if the full copy can be expected on disk within
+/// this long (or 25% of the song, if shorter).
+const double kFastStartMaxCatchUpSec = 30;
+
 /// Nothing the swap could still help with is left in the last few seconds.
 const int kFastStartMinRemainingMs = 4000;
 
@@ -116,6 +120,19 @@ class FastStartPolicy {
     final saving = kFastStartFirstAudioSec * (full - kFastStartLowKbps) * 125 / speed;
     if (saving < kFastStartMinSavingSec) {
       return FastStartDecision(false, 'fast link (saves ${saving.toStringAsFixed(2)}s)');
+    }
+    // The swap only happens once the whole full copy is on disk. A song whose
+    // full copy would take longer than this to arrive would play at the low
+    // rate for good (a 24-bit FLAC over a home uplink takes minutes).
+    if (i.durationSec > 0) {
+      final catchUpSec = full * 125 * i.durationSec / speed;
+      final limit = [kFastStartMaxCatchUpSec, i.durationSec * 0.25].reduce((a, b) => a < b ? a : b);
+      if (catchUpSec > limit) {
+        return FastStartDecision(
+          false,
+          'full copy would not catch up (${catchUpSec.toStringAsFixed(0)}s > ${limit.toStringAsFixed(0)}s)',
+        );
+      }
     }
     return FastStartDecision(true, 'saves ~${saving.toStringAsFixed(2)}s');
   }

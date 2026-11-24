@@ -776,7 +776,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       durationMs: durMs,
     );
     if (!ok) {
-      debugPrint('⚡ [FastStart] swap skipped for ${song.title}');
+      final left = durMs - pos.inMilliseconds;
+      debugPrint('⚡ [FastStart] swap skipped for ${song.title}; '
+          '${left > 10000 ? 'WARNING: ${(left / 1000).round()} s of it keep playing at the low rate' : 'little left'}');
       return;
     }
     if (!player.playing || file == null) {
