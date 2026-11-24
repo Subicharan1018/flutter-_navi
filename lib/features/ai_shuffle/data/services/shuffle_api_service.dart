@@ -143,6 +143,8 @@ class ShuffleApiService {
     bool reshuffle = false,
     List<String> excludedTitles = const [],
     String seedTitle = '',
+    List<String> candidateIds = const [],
+    List<String> excludeIds = const [],
   }) async {
     return _wrap(() async {
       final body = <String, dynamic>{
@@ -165,6 +167,10 @@ class ShuffleApiService {
           'recent_listen_ratios': recentListenRatios,
         if (lastEndReason.isNotEmpty) 'last_end_reason': lastEndReason,
         if (candidates.isNotEmpty) 'candidates': candidates,
+        // smart-pick-v1: song ids (exact, ~5 KB for 196 songs) instead of titles, and the ids
+        // already queued, which the server must not pick again. An older server ignores both.
+        if (candidateIds.isNotEmpty) 'candidate_ids': candidateIds,
+        if (excludeIds.isNotEmpty) 'exclude_ids': excludeIds,
         // Reshuffle fields — sent as JSON array (not comma-joined)
         if (reshuffle) 'reshuffle': true,
         if (excludedTitles.isNotEmpty) 'excluded_titles': excludedTitles,

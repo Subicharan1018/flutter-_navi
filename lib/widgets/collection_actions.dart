@@ -28,11 +28,13 @@ Future<void> showCollectionActions(
   ShareTarget? share,
   List<Widget> extraActions = const [],
   bool shuffleByAlbum = false,
+  String? playlistId,
 }) =>
     showPlatformSheet(
       context: context,
       menu: true,
       builder: (_) => _CollectionActions(
+        playlistId: playlistId,
         shuffleByAlbum: shuffleByAlbum,
         extraActions: extraActions,
         share: share,
@@ -68,7 +70,11 @@ class _CollectionActions extends ConsumerWidget {
   /// Offers "Shuffle by Album" (a playlist of songs from many albums).
   final bool shuffleByAlbum;
 
+  /// The Navidrome playlist id when this is a playlist: Smart Shuffle then lets the server read it.
+  final String? playlistId;
+
   const _CollectionActions({
+    this.playlistId,
     this.shuffleByAlbum = false,
     this.extraActions = const [],
     this.share,
@@ -113,7 +119,7 @@ class _CollectionActions extends ConsumerWidget {
           SheetAction(
             label: 'Shuffle',
             icon: NaviGlyph.shuffle,
-            onTap: () => withSongs((s) => player.playPlaylist(s, shuffle: true, playlistName: title)),
+            onTap: () => withSongs((s) => player.playPlaylist(s, shuffle: true, playlistName: title, playlistId: playlistId)),
           ),
           if (shuffleByAlbum)
             SheetAction(

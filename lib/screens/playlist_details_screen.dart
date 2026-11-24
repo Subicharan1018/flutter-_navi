@@ -141,7 +141,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
       return;
     }
     final n = ref.read(playerProvider.notifier);
-    if (shuffle) return n.playPlaylist(playable, shuffle: true, playlistName: _playlist.name);
+    if (shuffle) return n.playPlaylist(playable, shuffle: true, playlistName: _playlist.name, playlistId: _playlist.id);
     // Find the tapped song by identity: offline filtering can drop songs
     // ahead of it, so the on-screen index isn't the queue index.
     final start = from == null ? 0 : playable.indexOf(from);
@@ -337,6 +337,7 @@ class _PlaylistDetailsScreenState extends ConsumerState<PlaylistDetailsScreen> {
                   subtitle: songCount(_songs.length),
                   artUrl: _coverUrl,
                   loadSongs: () async => _songs,
+                  playlistId: _playlist.id,
                   shuffleByAlbum: true,
                   onEdit: readOnly ? null : _edit,
                   onDelete: readOnly ? null : _delete,

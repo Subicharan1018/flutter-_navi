@@ -217,10 +217,14 @@ class ShuffleQueueNotifier extends StateNotifier<ShuffleQueueState> {
     int genreStreakCount = 0,
     List<String> candidates = const [],
     String seedTitle = '',
+    List<String> candidateIds = const [],
+    List<String> excludeIds = const [],
   }) async {
     state = state.copyWith(isLoading: true, error: null);
     try {
       final response = await _repo.getNext(
+        candidateIds: candidateIds,
+        excludeIds: excludeIds,
         source: source,
         playlistId: playlistId,
         count: count,

@@ -38,6 +38,8 @@ class _FakeRepo extends Fake implements ShuffleRepository {
     bool reshuffle = false,
     List<String> excludedTitles = const [],
     String seedTitle = '',
+    List<String> candidateIds = const [],
+    List<String> excludeIds = const [],
   }) async {
     lastExcluded = excludedTitles;
     return NextResponse(mode: 'smart', source: source, queue: [_rec('Fresh')]);

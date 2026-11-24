@@ -278,6 +278,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   //   • When the pool is empty no more fetches are triggered.
   List<Song> _playlistPool = [];
 
+  // Every song of the list being shuffled, and its Navidrome playlist id when it is one: the
+  // pool's complement (played + queued) is what the server is told not to pick again.
+  List<Song> _playlistAllSongs = [];
+  String? _currentPlaylistId;
+  // null until the server has answered once; false = an older server that ignores song ids
+  // (then titles are sent, as before).
+  bool? _serverTakesIds;
+  // Most songs sent as candidates at once (a huge playlist is sampled; the playlist-id form has no cap).
+  static const int _smartPoolCap = 600;
+
   // How many songs to load initially and per refill batch.
   static const int _smartLocalBatchSize = 16;
   // Refill when this many songs remain ahead of the current position.
@@ -2168,6 +2178,48 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     return batch;
   }
 
+  /// Asks the server to CHOOSE and order [count] songs from the whole [pool] (smart-pick-v1:
+  /// the model picks, familiar songs first, cold ones last). Returns them in the server's order,
+  /// matched by song id and only from [pool] (a song outside it never enters the queue). Throws
+  /// when the server cannot be reached; an empty list means it gave nothing usable.
+  ///
+  /// What is sent, smallest first: the playlist id + the ids already played/queued (when the list
+  /// is a Navidrome playlist), else the pool's song ids (capped at [_smartPoolCap]), else, for a
+  /// server that ignores ids, the titles as before.
+  Future<List<Song>> _askServerToPick(List<Song> pool, int count, {String seedTitle = ''}) async {
+    final notifier = _ref.read(shuffleQueueProvider.notifier);
+    final byId = {for (final s in pool) s.id: s};
+    final capped = pool.length > _smartPoolCap ? pool.sublist(0, _smartPoolCap) : pool;
+    if (_serverTakesIds != false) {
+      final inPool = byId.keys.toSet();
+      final done = [for (final s in _playlistAllSongs) if (!inPool.contains(s.id)) s.id];
+      final byPlaylist = (_currentPlaylistId?.isNotEmpty ?? false) && done.length <= capped.length;
+      final response = await notifier.fetchNext(
+        source: 'smart',
+        playlistId: byPlaylist ? _currentPlaylistId : null,
+        playlistName: _currentPlaylistName,
+        candidateIds: byPlaylist ? const [] : [for (final s in capped) s.id],
+        excludeIds: byPlaylist ? done : const [],
+        count: count,
+        seedTitle: seedTitle,
+      );
+      if (response.smartPickInput != null) {
+        _serverTakesIds = true;
+        return _resolveRecommendations(response.queue, byId);
+      }
+      // An older server ignored the ids (and answered from the whole library): ask again by title.
+      _serverTakesIds = false;
+    }
+    final response = await notifier.fetchNext(
+      source: 'smart',
+      playlistName: _currentPlaylistName,
+      candidates: [for (final s in capped) s.title],
+      count: count,
+      seedTitle: seedTitle,
+    );
+    return _resolveRecommendations(response.queue, byId);
+  }
+
   @override
   void dispose() {
     _syncSub?.cancel();
@@ -2286,6 +2338,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     List<Song> songs, {
     bool shuffle = false,
     String? playlistName,
+    // The Navidrome id of the playlist being played, when it IS one: Smart Shuffle then sends just
+    // this id and the songs already queued, and the server reads the playlist itself.
+    String? playlistId,
   }) async {
     debugPrint('🎵 [PlayerProvider] playPlaylist called with ${songs.length} songs, shuffle: $shuffle, name: $playlistName');
     if (songs.isEmpty) return;
@@ -2340,73 +2395,52 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         // True Shuffle starts on a song this bag has not played yet.
         final trueShuffle = settings.shuffleAlgorithm == ShuffleAlgorithm.trueRandom;
         final startIndex = trueShuffle ? songs.indexOf(_bag.pickStart(songs)) : Random().nextInt(songs.length);
-        final currentSong = songs[startIndex];
+        // Smart Local replaces this random start with the song the server picks (below).
+        var currentSong = songs[startIndex];
         if (trueShuffle) _bag.markHeard(songs, currentSong.id);
 
         // ── Smart Local: 16-song initial load, pool-based refill ──────────
         if (settings.shuffleAlgorithm == ShuffleAlgorithm.smartLocal) {
-          // 1. Initialise pool with all songs except the seed.
-          _initPlaylistPool(songs, currentSong.id);
-
-          // 2. Take the first batch from the pool (up to 16).
-          final firstBatch = _takeFromPool(_smartLocalBatchSize);
-
-          // 3. Ask server to order the first batch relative to seed.
+          _playlistAllSongs = songs;
+          _currentPlaylistId = playlistId;
           final shuffleNotifier = _ref.read(shuffleQueueProvider.notifier);
           shuffleNotifier.initSession(); // Fix: Ensure session exists for feedback
-          List<Song>? ordered;
+
+          // 1. The SERVER chooses the opener and the first 16 from the WHOLE playlist (familiar
+          //    songs first, cold ones last, never a cold opener): 17 songs, the first is the seed.
+          var picked = <Song>[];
           try {
-            final candidateTitles = firstBatch.map((s) => s.title).toList();
-
-            shuffleNotifier.recordPlay(
-              title: currentSong.title,
-              listenRatio: 1.0,
-              endReason: 'natural',
-            );
-
-            debugPrint('🎵 [PlayerProvider] shuffleNotifier.fetchNext(source: smart, candidates: ${candidateTitles.length})');
-            // source: 'smart' because playPlaylist has no Navidrome playlistId.
-            // candidates constrains the server to score only the pool batch.
-            final response = await shuffleNotifier.fetchNext(
-              source: 'smart',
-              playlistName: playlistName,
-              candidates: candidateTitles,
-              count: firstBatch.length,
-            );
+            picked = await _askServerToPick(List<Song>.of(songs)..shuffle(Random()), _smartLocalBatchSize + 1);
             if (!mounted) return;
-
-            // Map recommendations back to local Songs using title+artist compound key
-            // to handle same-title remixes common in Tamil film music.
-            final resolved = <Song>[];
-            for (final rec in response.queue) {
-              final match = songs.firstWhereOrNull(
-                (s) =>
-                    s.title.toLowerCase() == rec.title.toLowerCase() &&
-                    s.artist.toLowerCase() == rec.composer.toLowerCase(),
-              ) ?? songs.firstWhereOrNull(
-                // Fallback to title-only if artist mismatch (e.g. various-artists albums)
-                (s) => s.title.toLowerCase() == rec.title.toLowerCase(),
-              );
-              if (match != null && !resolved.contains(match)) {
-                resolved.add(match);
-              }
-            }
-
-            // Pad with any unmatched firstBatch songs to guarantee ~16 songs
-            for (final s in firstBatch) {
-              if (!resolved.contains(s) && resolved.length < firstBatch.length) {
-                resolved.add(s);
-              }
-            }
-            ordered = resolved;
           } catch (e) {
             debugPrint('[Smart Local Init] API Error: $e');
-            ordered = null;
           }
 
-          // 4. Build initial queue: seed + ordered batch (or raw batch on
-          //    server failure). Pool songs not in this batch stay in pool.
-          final initialQueue = [currentSong, ...(ordered ?? firstBatch)];
+          // 2. Seed + first batch. Server unreachable (or nothing usable): the old local start, a
+          //    random seed and the first 16 of the shuffled pool, unordered.
+          final List<Song> firstBatch;
+          if (picked.isNotEmpty) {
+            currentSong = picked.first;
+            _initPlaylistPool(songs, currentSong.id);
+            firstBatch = picked.skip(1).toList();
+            final chosen = {for (final s in firstBatch) s.id};
+            _playlistPool.removeWhere((s) => chosen.contains(s.id));
+            // The server may answer with fewer than 16 (unmatched ids): top up from the pool.
+            if (firstBatch.length < _smartLocalBatchSize) {
+              firstBatch.addAll(_takeFromPool(_smartLocalBatchSize - firstBatch.length));
+            }
+          } else {
+            _initPlaylistPool(songs, currentSong.id);
+            firstBatch = _takeFromPool(_smartLocalBatchSize);
+          }
+          shuffleNotifier.recordPlay(
+            title: currentSong.title,
+            listenRatio: 1.0,
+            endReason: 'natural',
+          );
+
+          // 3. Build initial queue: seed + the batch. Pool songs not in it stay in the pool.
+          final initialQueue = [currentSong, ...firstBatch];
 
           // Emit shuffleMode:true together with the ready queue in one
           // copyWith so no intermediate state is ever broadcast.
@@ -3325,77 +3359,46 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         '(pool remaining: ${_playlistPool.length})',
       );
 
-      // Phase 1 (locked): snapshot, take the next batch from the pool and
-      // append it, so it's playable even if the server never answers.
+      // Phase 1 (locked): snapshot the pool and the song the batch will chain from.
       final snap = await _queueLock.run(() async {
-        final batch = _takeFromPool(_smartLocalBatchSize);
-        if (batch.isEmpty) return null;
+        if (_playlistPool.isEmpty) return null;
         final queue = _audioHandler.currentQueue;
         final anchor = _audioHandler.currentIndex.clamp(0, queue.length - 1);
         final ahead = queue.length > anchor + 1 ? queue.sublist(anchor + 1) : const <Song>[];
-        await _audioHandler.addAllToQueue(batch);
-        _syncQueueFromAudioHandler();
-        // Order the batch off the last song already queued, so transitions
-        // chain from what the listener will actually hear next.
-        return (batch: batch, epoch: _queueEpoch, seed: ahead.isNotEmpty ? ahead.last : seedSong);
+        // Chain from the last song already queued, so transitions follow what the listener
+        // will actually hear next.
+        return (pool: List<Song>.of(_playlistPool), epoch: _queueEpoch, seed: ahead.isNotEmpty ? ahead.last : seedSong);
       });
       if (snap == null) {
         debugPrint('[SMART LOCAL] Pool exhausted — no more songs to queue');
         return;
       }
 
-      // Phase 2 (unlocked): ask the server to order the batch.
-      List<Song>? orderedBatch;
+      // Phase 2 (unlocked): the server CHOOSES the next 16 from the whole remaining pool.
+      List<Song>? picked;
       try {
-        final response = await _ref.read(shuffleQueueProvider.notifier).fetchNext(
-              source: 'smart',
-              playlistName: _currentPlaylistName,
-              candidates: [for (final s in snap.batch) s.title],
-              count: snap.batch.length,
-              seedTitle: snap.seed.title,
-            );
-        final byId = {for (final s in snap.batch) s.id: s};
-        orderedBatch = _resolveRecommendations(response.queue, byId);
-        final placed = {for (final s in orderedBatch) s.id};
-        orderedBatch.addAll(snap.batch.where((s) => !placed.contains(s.id)));
+        picked = await _askServerToPick(snap.pool, _smartLocalBatchSize, seedTitle: snap.seed.title);
         // ~5 % of the places are given to songs the AI did not choose for them,
         // and flagged, so there is a fair baseline to evaluate it against.
-        orderedBatch = _applyHoldout(orderedBatch);
+        if (picked.isNotEmpty) picked = _applyHoldout(picked);
       } catch (e) {
         debugPrint('[Smart Local Refill] API Error: $e — batch stays in pool order');
       }
-      if (!mounted || orderedBatch == null) return;
+      if (!mounted) return;
 
-      // Phase 3 (locked): commit the order if nothing superseded it.
+      // Phase 3 (locked): append the batch if nothing superseded it. The server did not answer
+      // (or gave nothing usable): the next 16 of the pool, in pool order, as before.
       await _queueLock.run(() async {
-        final liveQueue = List<Song>.from(_audioHandler.currentQueue);
-        final liveIds = {for (final s in liveQueue) s.id};
-        if (_queueEpoch != snap.epoch) {
-          // The listener replaced/reshuffled the queue meanwhile. Songs from
-          // this batch that are no longer queued go back to the pool.
-          _playlistPool.addAll(snap.batch.where((s) => !liveIds.contains(s.id)));
-          return;
-        }
-        final anchor = _audioHandler.currentIndex.clamp(0, liveQueue.length - 1);
-        final batchIds = {for (final s in snap.batch) s.id};
-        // Everything after the live song that isn't from this batch (earlier
-        // queue + anything inserted meanwhile) keeps its place, ahead of it.
-        final userUpcoming = [for (final s in liveQueue.sublist(anchor + 1)) if (!batchIds.contains(s.id)) s];
-        final stillAhead = [for (final s in orderedBatch!) if (liveQueue.indexWhere((q) => q.id == s.id) > anchor) s];
-        _suppressDepth++;
-        try {
-          await _audioHandler.commitSmartLocalOrder(
-            pastAndPresent: liveQueue.sublist(0, anchor + 1),
-            orderedFuture: [...userUpcoming, ...stillAhead],
-            anchorIndex: anchor,
-            preferMoveBasedReorder: true,
-          );
-          _syncQueueFromAudioHandler();
-          _drainPoolOfQueuedSongs();
-          _prunePlayedSongs();
-        } finally {
-          _suppressDepth--;
-        }
+        if (_queueEpoch != snap.epoch) return; // the queue was replaced meanwhile: the pool is not ours
+        final inPool = {for (final s in _playlistPool) s.id};
+        final batch = [for (final s in picked ?? const <Song>[]) if (inPool.remove(s.id)) s];
+        _playlistPool.removeWhere((s) => batch.any((b) => b.id == s.id));
+        if (batch.length < _smartLocalBatchSize) batch.addAll(_takeFromPool(_smartLocalBatchSize - batch.length));
+        if (batch.isEmpty) return;
+        await _audioHandler.addAllToQueue(batch);
+        _syncQueueFromAudioHandler();
+        _drainPoolOfQueuedSongs();
+        _prunePlayedSongs();
         debugPrint('[SMART LOCAL] Refill complete. Queue: ${state.queue.length}  Pool: ${_playlistPool.length}');
       });
     } catch (e) {

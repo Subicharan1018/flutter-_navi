@@ -500,6 +500,7 @@ class _YourPlaylists extends ConsumerWidget {
             artUrl: _art(ref, p.coverArt),
             placeholderIcon: NaviGlyph.playlist,
             loadSongs: () => ref.read(subsonicServiceProvider).getPlaylistSongs(p.id),
+            playlistId: p.id,
             pin: Pin.playlist(p),
           ),
         );

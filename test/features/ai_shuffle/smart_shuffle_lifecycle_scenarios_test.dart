@@ -58,8 +58,10 @@ RecommendedSong createTestRecommendation({
   required int rank,
   required String title,
   required String artist,
+  String? navidromeId,
 }) {
   return RecommendedSong(
+    navidromeId: navidromeId,
     rank: rank,
     title: title,
     filePath: 'path/$title.mp3',
@@ -335,11 +337,17 @@ class MockShuffleRepository extends Fake implements ShuffleRepository {
   Duration? artificialDelay;
   bool shouldThrowError = false;
 
+  /// An older server: ignores candidate_ids / exclude_ids (and answers without the smart_pick marker).
+  bool serverIgnoresIds = false;
+
   /// Knowledge of all songs in the test library to support reshuffle
   List<Song> allLibrarySongs = [];
 
   /// Custom order callback for candidates
   List<String> Function(List<String> candidates)? customOrderStrategy;
+
+  /// Same, for a song-id request.
+  List<String> Function(List<String> ids)? customIdOrder;
 
   @override
   Future<NextResponse> getNext({
@@ -357,8 +365,13 @@ class MockShuffleRepository extends Fake implements ShuffleRepository {
     bool reshuffle = false,
     List<String> excludedTitles = const [],
     String seedTitle = '',
+    List<String> candidateIds = const [],
+    List<String> excludeIds = const [],
   }) async {
     getNextCalls.add({
+      'candidateIds': List<String>.from(candidateIds),
+      'excludeIds': List<String>.from(excludeIds),
+      'playlistId': playlistId,
       'source': source,
       'count': count,
       'depth': depth,
@@ -377,11 +390,29 @@ class MockShuffleRepository extends Fake implements ShuffleRepository {
       throw ShuffleServerError(500);
     }
 
+    // smart-pick-v1 server: a song-id request is answered by id (and flagged), like the real one.
+    if (!serverIgnoresIds && (candidateIds.isNotEmpty || (playlistId != null && playlistId.isNotEmpty))) {
+      final pool = candidateIds.isNotEmpty
+          ? candidateIds
+          : [for (final s in allLibrarySongs) if (!excludeIds.contains(s.id)) s.id];
+      final ordered = (customIdOrder?.call(pool) ?? pool.reversed.toList()).take(count).toList();
+      return NextResponse(
+        mode: 'smart',
+        source: source,
+        smartPickInput: candidateIds.isNotEmpty ? 'ids' : 'playlist',
+        queue: [
+          for (final (i, id) in ordered.indexed)
+            createTestRecommendation(rank: i + 1, title: id, artist: 'Test Artist', navidromeId: id),
+        ],
+      );
+    }
+
     final List<String> orderedTitles;
     if (customOrderStrategy != null) {
       orderedTitles = customOrderStrategy!(candidates);
     } else if (candidates.isNotEmpty) {
-      orderedTitles = candidates.reversed.toList();
+      // The real server returns `count` songs from the pool it is given (a whole playlist now).
+      orderedTitles = reshuffle ? candidates.reversed.toList() : candidates.reversed.take(count).toList();
     } else {
       // Reshuffle case without candidates: pick up to 16 library songs not in excludedTitles
       final excludedSet = excludedTitles.toSet();
@@ -538,8 +569,11 @@ void main() {
       // Verify repo received candidates count of 16
       expect(mockRepo.getNextCalls.length, equals(1));
       final firstCall = mockRepo.getNextCalls.first;
-      expect(firstCall['count'], equals(16));
-      expect(firstCall['candidates'].length, equals(16));
+      // The server picks from the WHOLE playlist (by song id) and returns the opener + 16.
+      expect(firstCall['count'], equals(17));
+      expect(firstCall['candidateIds'].length, equals(50));
+      expect(firstCall['candidates'], isEmpty);
+      expect(firstCall['playedTitles'], isEmpty, reason: 'no random seed was played before asking');
 
       // Audio handler should match Riverpod state
       expect(handler.currentQueue.length, equals(17));
@@ -747,6 +781,117 @@ void main() {
       expect(state.queue.length, equals(33),
           reason: 'Fallback should append pool batch unordered on server failure');
       expect(state.currentSong, isNotNull);
+    });
+
+    // ── The model chooses: opener, pool and refills come from the SERVER (smart-pick-v1) ──
+
+    test('The first song is the server\'s pick, not a random seed', () async {
+      final playlist = generatePlaylist(40);
+      setupContainer(librarySongs: playlist);
+      mockRepo.customIdOrder = (ids) => ['id_7', ...ids.where((i) => i != 'id_7')];
+      final notifier = container.read(playerProvider.notifier);
+
+      await notifier.playPlaylist(playlist, shuffle: true, playlistName: 'Melody Hits');
+
+      final state = container.read(playerProvider);
+      expect(state.queue.first.id, 'id_7');
+      expect(state.currentSong!.id, 'id_7');
+      expect(state.queue.length, 17);
+      expect(state.queue.map((s) => s.id).toSet().length, 17, reason: 'no song twice');
+      expect(mockRepo.getNextCalls.length, 1, reason: 'one request: opener and batch together');
+    });
+
+    test('Refills send the WHOLE remaining pool (not a random 16) and the server chooses', () async {
+      final playlist = generatePlaylist(70);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+      await notifier.playPlaylist(playlist, shuffle: true);
+      for (int i = 0; i < 13; i++) {
+        final current = container.read(playerProvider).queue[i];
+        await simulateNaturalTrackCompletion(notifier, nextIndex: i + 1, finishingSong: current);
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+
+      expect(mockRepo.getNextCalls.length, 2);
+      final refill = mockRepo.getNextCalls.last;
+      final queuedBefore = container.read(playerProvider).queue.take(17).map((s) => s.id).toSet();
+      expect(refill['count'], 16);
+      expect((refill['candidateIds'] as List).length, 70 - 17, reason: 'every song not yet queued');
+      expect((refill['candidateIds'] as List).toSet().intersection(queuedBefore), isEmpty);
+      final queue = container.read(playerProvider).queue;
+      expect(queue.length, 33);
+      expect(queue.map((s) => s.id).toSet().length, 33, reason: 'no duplicates across batches');
+    });
+
+    test('A Navidrome playlist sends only its id; what is already queued rides along as exclude_ids', () async {
+      final playlist = generatePlaylist(60);
+      setupContainer(librarySongs: playlist);
+      final notifier = container.read(playerProvider.notifier);
+
+      await notifier.playPlaylist(playlist, shuffle: true, playlistName: 'Melody Hits', playlistId: 'pl-1');
+      final first = mockRepo.getNextCalls.first;
+      expect(first['playlistId'], 'pl-1');
+      expect(first['candidateIds'], isEmpty);
+      expect(first['excludeIds'], isEmpty);
+      expect(container.read(playerProvider).queue.length, 17);
+
+      for (int i = 0; i < 13; i++) {
+        final current = container.read(playerProvider).queue[i];
+        await simulateNaturalTrackCompletion(notifier, nextIndex: i + 1, finishingSong: current);
+      }
+      await Future.delayed(const Duration(milliseconds: 50));
+      final refill = mockRepo.getNextCalls.last;
+      expect(refill['playlistId'], 'pl-1');
+      expect(refill['excludeIds'], hasLength(17), reason: 'the 17 songs already queued');
+      expect(container.read(playerProvider).queue.length, 33);
+    });
+
+    test('A huge playlist is sampled to 600 ids', () async {
+      final playlist = generatePlaylist(700);
+      setupContainer(librarySongs: playlist);
+      await container.read(playerProvider.notifier).playPlaylist(playlist, shuffle: true);
+      expect(mockRepo.getNextCalls.first['candidateIds'], hasLength(600));
+      expect(container.read(playerProvider).queue.length, 17);
+    });
+
+    test('An older server that ignores ids: asked again with titles, once, then remembered', () async {
+      final playlist = generatePlaylist(40);
+      setupContainer(librarySongs: playlist);
+      mockRepo.serverIgnoresIds = true;
+      final notifier = container.read(playerProvider.notifier);
+
+      await notifier.playPlaylist(playlist, shuffle: true);
+
+      expect(mockRepo.getNextCalls.length, 2);
+      expect(mockRepo.getNextCalls[0]['candidateIds'], hasLength(40));
+      expect(mockRepo.getNextCalls[1]['candidateIds'], isEmpty);
+      expect(mockRepo.getNextCalls[1]['candidates'], hasLength(40));
+      expect(container.read(playerProvider).queue.length, 17);
+
+      await notifier.playPlaylist(playlist, shuffle: true);
+      expect(mockRepo.getNextCalls.length, 3, reason: 'remembered: titles straight away');
+      expect(mockRepo.getNextCalls[2]['candidates'], hasLength(40));
+    });
+
+    test('Server down at the start: the old local start (random seed + 16 from the pool)', () async {
+      final playlist = generatePlaylist(40);
+      setupContainer(librarySongs: playlist);
+      mockRepo.shouldThrowError = true;
+      await container.read(playerProvider.notifier).playPlaylist(playlist, shuffle: true);
+      final state = container.read(playerProvider);
+      expect(state.queue.length, 17);
+      expect(state.queue.map((s) => s.id).toSet().length, 17);
+      expect(state.shuffleMode, isTrue);
+    });
+
+    test('Songs the server returns from outside the pool never enter the queue', () async {
+      final playlist = generatePlaylist(40);
+      setupContainer(librarySongs: playlist);
+      mockRepo.customIdOrder = (ids) => ['intruder', ...ids];
+      await container.read(playerProvider.notifier).playPlaylist(playlist, shuffle: true);
+      final state = container.read(playerProvider);
+      expect(state.queue.any((s) => s.id == 'intruder'), isFalse);
+      expect(state.queue.length, 17);
     });
 
     test('Scenario 8: Smart Reshuffle preserves current song and replaces upcoming queue', () async {

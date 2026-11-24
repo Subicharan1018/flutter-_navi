@@ -59,8 +59,12 @@ class ShuffleRepository {
     bool reshuffle = false,
     List<String> excludedTitles = const [],
     String seedTitle = '',
+    List<String> candidateIds = const [],
+    List<String> excludeIds = const [],
   }) async {
     final response = await _api.getNext(
+      candidateIds: candidateIds,
+      excludeIds: excludeIds,
       source: source,
       playlistId: playlistId,
       count: count,

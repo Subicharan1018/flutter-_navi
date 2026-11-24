@@ -25,7 +25,33 @@ class ReversingShuffleRepository extends Fake implements ShuffleRepository {
     bool reshuffle = false,
     List<String> excludedTitles = const [],
     String seedTitle = '',
+    List<String> candidateIds = const [],
+    List<String> excludeIds = const [],
   }) async {
+    // smart-pick-v1 server: answers a song-id request by id (and says so).
+    if (candidateIds.isNotEmpty) {
+      return NextResponse(
+        mode: 'smart',
+        source: source,
+        smartPickInput: 'ids',
+        queue: [
+          for (final (i, id) in candidateIds.reversed.take(count).indexed)
+            RecommendedSong(
+              rank: i + 1,
+              title: id,
+              navidromeId: id,
+              filePath: 'path/$id',
+              genreBucket: 'Rock',
+              composer: 'Artist',
+              audio: const AudioFeatures(energy: 0.5, valence: 0.5, acousticness: 0.5, danceability: 0.5),
+              scores: const SongScores(contextHistory: 0.5, audioFit: 0.5, composerLoyalty: 0.5, finalScore: 0.5),
+              why: '',
+              artist: 'Artist',
+              album: 'Album',
+            ),
+        ],
+      );
+    }
     return NextResponse(
       mode: 'smart',
       source: source,

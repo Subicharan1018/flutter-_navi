@@ -125,6 +125,11 @@ class NextResponse {
   /// that does not keep one: the app then also holds back the extra event types.
   final String? servedId;
 
+  /// How the server read the candidates (`ids`, `titles`, `ids+titles`, `playlist`) when it ran
+  /// smart-pick-v1 (familiar first, cold last, the model picks from the whole pool). Null on a
+  /// server without it: the app then falls back to sending titles.
+  final String? smartPickInput;
+
   // Alias for compatibility with existing code that reads `.songs`
   List<RecommendedSong> get songs => queue;
 
@@ -138,6 +143,7 @@ class NextResponse {
     this.sessionStarter,
     this.engine,
     this.servedId,
+    this.smartPickInput,
   });
 
   factory NextResponse.fromJson(Map<String, dynamic> json) => NextResponse(
@@ -153,6 +159,7 @@ class NextResponse {
     reshuffle: json['reshuffle'] == true || json['reshuffle'] == 1 || json['reshuffle']?.toString().toLowerCase() == 'true',
     engine: json['engine']?.toString(),
     servedId: json['served_id']?.toString(),
+    smartPickInput: json['smart_pick'] is Map ? (json['smart_pick'] as Map)['input']?.toString() ?? '' : null,
     sessionStarter: json['session_starter'] is Map
         ? SessionStarter.fromJson(Map<String, dynamic>.from(json['session_starter'] as Map))
         : null,
