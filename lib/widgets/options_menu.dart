@@ -4,6 +4,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/theme.dart';
 import '../features/everyday/dont_count.dart';
+import '../features/film_credits/logic/film_credits_providers.dart';
+import '../features/film_credits/logic/credit_index.dart' show CreditRole;
+import '../features/film_credits/ui/credit_widgets.dart' show openFilm, openPerson;
 import '../features/everyday/play_stats_providers.dart';
 import '../features/everyday/song_trim_providers.dart';
 import '../features/peak_moments/data/peak_store.dart';
@@ -28,7 +31,6 @@ import '../utils/queue_actions.dart' show addToUpNext;
 import '../providers/settings_provider.dart';
 import '../screens/album_details_screen.dart';
 import '../screens/artist_screen.dart';
-import '../screens/composer_screen.dart';
 import '../utils/platform_utils.dart';
 import 'add_to_playlist_dialog.dart';
 import 'app_scaffold.dart' show navigateInApp;
@@ -193,6 +195,12 @@ class OptionsMenu extends ConsumerWidget {
               icon: NaviGlyph.mic,
               onTap: () => navigateInApp(page, ArtistScreen(artistId: song.artistId, name: song.artist)),
             ),
+          if (ref.watch(creditIndexProvider.select((i) => i.filmOf[song.id])) case final filmKey?)
+            SheetAction(
+              label: 'Go to Film',
+              icon: NaviGlyph.note,
+              onTap: () => openFilm(page, filmKey, ref.read(filmProvider(filmKey))?.title ?? ''),
+            ),
         ]),
         SheetGroup(children: [
           if (ref.watch(peakMarksProvider.select((m) => m.of(song.id).isNotEmpty))) ...[
@@ -296,10 +304,12 @@ class _CreditRows extends ConsumerWidget {
         SheetInfoRow(
           label: 'Composer',
           value: name,
-          onTap: () => navigateInApp(page, ComposerScreen(composerKey: nameKey(name), name: name)),
+          onTap: () => openPerson(page, name, role: CreditRole.musicDirector),
         ),
-      if (lyricist.isNotEmpty) SheetInfoRow(label: 'Lyricist', value: lyricist),
-      if (film.isNotEmpty) SheetInfoRow(label: 'Film', value: film),
+      for (final name in splitComposers(lyricist))
+        SheetInfoRow(label: 'Lyricist', value: name, onTap: () => openPerson(page, name, role: CreditRole.lyricist)),
+      if (film.isNotEmpty)
+        SheetInfoRow(label: 'Film', value: film, onTap: () => openFilm(page, nameKey(film), film)),
     ]);
   }
 }

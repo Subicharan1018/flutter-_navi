@@ -42,6 +42,7 @@ import 'album_details_screen.dart';
 import 'artist_screen.dart';
 import 'category_screen.dart';
 import 'library/composers_page.dart' show ComposerRow;
+import '../features/film_credits/ui/credits_browse.dart';
 
 /// Apple Music's Search: recent searches and Browse by genre while idle;
 /// Artists, Albums and Songs once you type.
@@ -133,7 +134,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       onRefresh: query.isEmpty ? () => ref.read(catalogProvider.notifier).refresh() : null,
       slivers: query.isEmpty
-          ? [_RecentSearches(onTap: _searchFor), const _BrowseCategories()]
+          ? [_RecentSearches(onTap: _searchFor), const CreditsBrowseSection(), const _BrowseCategories()]
           : [_Results(query: query, onUsed: _remember)],
     );
   }
@@ -378,6 +379,7 @@ class _ResultsState extends ConsumerState<_Results> {
     final onUsed = widget.onUsed;
     final results = ref.watch(searchProvider(query));
     final composers = ref.watch(composerSearchProvider(query));
+    final films = ref.watch(filmSearchProvider(query));
     if (results.asData?.value case final value?) _last = value;
     final data = results.isLoading ? _last : (results.asData?.value ?? SearchResults.empty);
 
@@ -399,14 +401,14 @@ class _ResultsState extends ConsumerState<_Results> {
       return const SliverToBoxAdapter(child: TrackListSkeleton());
     }
     final lyricMatches = ref.watch(lyricsSearchProvider(query)).asData?.value ?? const <LyricMatch>[];
-    if (data.isEmpty && composers.isEmpty && (lyricMatches.isNotEmpty || onDevice.isNotEmpty)) {
+    if (data.isEmpty && composers.isEmpty && films.isEmpty && (lyricMatches.isNotEmpty || onDevice.isNotEmpty)) {
       return SliverMainAxisGroup(slivers: [
         LocalSearchSection(songs: onDevice, onUsed: onUsed),
         if (lyricMatches.isNotEmpty) _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),
         SliverToBoxAdapter(child: SearchOnlineRow(query: query)),
       ]);
     }
-    if (data.isEmpty && composers.isEmpty) {
+    if (data.isEmpty && composers.isEmpty && films.isEmpty) {
       final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
       if (online && looksLikeLink(query)) {
         // A pasted playlist link: offer to send it rather than "no results".
@@ -488,6 +490,7 @@ class _ResultsState extends ConsumerState<_Results> {
             ComposerRow(composer: c, showSeparator: i < composers.length - 1, onBeforeOpen: onUsed),
         ]),
       ],
+      if (films.isNotEmpty) FilmSearchSection(query: query, onBeforeOpen: onUsed),
       if (songs.isNotEmpty) ...[
         const SliverToBoxAdapter(child: SectionHeader(title: 'Songs')),
         if (useSongTable())

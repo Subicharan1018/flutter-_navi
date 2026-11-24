@@ -19,6 +19,7 @@ import '../widgets/table/song_table.dart';
 import '../widgets/ui/artwork_page.dart';
 import '../widgets/ui/media.dart';
 import '../widgets/ui/states.dart';
+import '../features/film_credits/ui/credits_browse.dart';
 import 'album_details_screen.dart';
 
 /// An artist's albums (keyed by id) and the server's top songs for them.
@@ -149,6 +150,7 @@ class ArtistScreen extends ConsumerWidget {
               ),
             ),
           ],
+          ArtistFilmsSection(artistName: name),
           if (withYou != null) SliverToBoxAdapter(child: ArtistWithYou(history: withYou)),
           if (albums.length > 1)
             ...releaseTimelineSlivers(
