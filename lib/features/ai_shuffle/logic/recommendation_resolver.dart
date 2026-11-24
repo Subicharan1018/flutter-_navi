@@ -23,16 +23,27 @@ final recommendationResolverProvider = Provider<RecommendationResolver>((ref) {
 class RecommendationResolver {
   final Map<String, Song> _byTitleArtist = {};
   final Map<String, Song> _byTitle = {};
-  final Map<String, List<Song>> _byKey = {};
+  final List<Song> _library;
 
-  RecommendationResolver(List<Song> library) {
+  /// Tag-stripped title → songs. Stripping runs regexes per song, so it is
+  /// built on the first lookup that misses the exact maps, not up front.
+  late final Map<String, List<Song>> _byKey = _indexByKey();
+
+  RecommendationResolver(List<Song> library) : _library = library {
     for (final s in library) {
       final title = s.title.toLowerCase();
       _byTitleArtist.putIfAbsent('$title|${s.artist.toLowerCase()}', () => s);
       _byTitle.putIfAbsent(title, () => s);
-      final key = historyTitleKey(s.title);
-      if (key.isNotEmpty) (_byKey[key] ??= []).add(s);
     }
+  }
+
+  Map<String, List<Song>> _indexByKey() {
+    final out = <String, List<Song>>{};
+    for (final s in _library) {
+      final key = historyTitleKey(s.title);
+      if (key.isNotEmpty) (out[key] ??= []).add(s);
+    }
+    return out;
   }
 
   Song? resolve(RecommendedSong rec) => match(rec.title, rec.composer);
