@@ -158,7 +158,7 @@ class SettingsState {
     this.replayGainMode = ReplayGainMode.off,
     this.crossfadeSeconds = 0,
     this.playbackSpeed = 1.0,
-    this.fastStart = true,
+    this.fastStart = false,
     this.microduckEnabled = false,
     this.microduckName = defaultMicroduckName,
     this.microduckSkin = MicroduckSkin.white,
@@ -291,7 +291,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
             ? (p.get(HiveBoxes.kPlaybackSpeed) as num).toDouble()
             : 1.0,
       ),
-      fastStart: p.get(HiveBoxes.kFastStart) != false,
+      // Off until the listener turns it on: it plays a song's first seconds as a
+      // low-bitrate copy, and where the full copy could not catch up the whole
+      // song stayed low (listeners heard the quality drop). Lossless from the
+      // first second is the default.
+      fastStart: p.get(HiveBoxes.kFastStart) == true,
       // Off until the listener turns it on: the mascot animates on the phone's GPU.
       microduckEnabled: p.get(HiveBoxes.kMicroduckEnabled) == true,
       microduckName: cleanMicroduckName(p.get(HiveBoxes.kMicroduckName)?.toString()),
