@@ -267,16 +267,25 @@ class FirstAudioProbe {
 
   void begin(String label) {
     _label = label;
+    _marks.clear();
     _watch
       ..reset()
       ..start();
   }
 
-  /// Returns "label: N ms" once, then null until the next [begin].
+  final List<String> _marks = [];
+
+  /// Notes a step on the way ("settled", "seek done"); shown with the result.
+  void mark(String step) {
+    if (_watch.isRunning) _marks.add('$step ${_watch.elapsedMilliseconds}');
+  }
+
+  /// Returns "label: N ms (steps)" once, then null until the next [begin].
   String? firstAudio() {
     if (!_watch.isRunning) return null;
     _watch.stop();
-    return '$_label: ${_watch.elapsedMilliseconds} ms';
+    final steps = _marks.isEmpty ? '' : ' [${_marks.join(', ')}]';
+    return '$_label: ${_watch.elapsedMilliseconds} ms$steps';
   }
 }
 

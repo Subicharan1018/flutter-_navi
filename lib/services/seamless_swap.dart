@@ -71,7 +71,11 @@ class SeamlessSwap {
     this.wait = _defaultWait,
     this.lead = kSwapLead,
     this.fade = kSwapFade,
+    this.onStep,
   });
+
+  /// Called at each stage ("helper aligned", "fade out done", ...), for logs.
+  final void Function(String step)? onStep;
 
   final SwapVoice main;
   final SwapVoice helper;
@@ -104,7 +108,9 @@ class SeamlessSwap {
       if (!await _align(follow: helper, leader: main, drifts: drifts)) return await _abort(drifts, reloadMs);
       if (isAborted()) return await _abort(drifts, reloadMs);
 
+      onStep?.call('helper aligned');
       await _fade(from: main, to: helper);
+      onStep?.call('helper carries');
       if (isAborted()) return await _abort(drifts, reloadMs);
 
       final watch = Stopwatch()..start();
@@ -116,7 +122,9 @@ class SeamlessSwap {
       if (!await _align(follow: main, leader: helper, drifts: drifts)) return await _abort(drifts, reloadMs);
       if (isAborted()) return await _abort(drifts, reloadMs);
 
+      onStep?.call('main aligned');
       await _fade(from: helper, to: main);
+      onStep?.call('main carries');
       return SwapStats(alignDriftMs: drifts, reloadMs: reloadMs);
     } catch (_) {
       await _restoreMain();

@@ -591,6 +591,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Shows [index] as the current song at once and opens it once the listener
   /// stops skipping (see [kSkipSettle]); songs skipped over are never opened.
   void _requestSkip(int index) {
+    // The clock starts at the tap, so the settle wait is part of the number.
+    _beginProbe('skip from tap');
     _publishPending(index);
     _skips.request(index);
   }
@@ -638,11 +640,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _publishPending(index);
       return;
     }
-    _beginProbe(explicit ? 'tap' : 'skip');
+    if (!_probe.running) _beginProbe(explicit ? 'tap' : 'skip');
+    _probe.mark('settled');
     final paths = await _precomputeOfflinePaths(_currentQueue);
     if (stale()) return;
+    _probe.mark('paths');
     await _prepareLanding(index, paths);
     if (stale()) return;
+    _probe.mark('decided');
     if (_isDesktopBridge) {
       await _desktopLoadTrack(index, paths);
       if (stale()) return;
@@ -653,7 +658,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       if (local >= 0 && pl != null && local < pl.children.length) {
         if (player.currentIndex != local) await _setChildLow(local, index);
         if (stale()) return;
+        _probe.mark('child');
         await player.seek(Duration.zero, index: local);
+        _probe.mark('seek');
         await _restoreLowChildren();
       } else {
         await _rebuildSource(index, decided: true);
@@ -688,7 +695,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       alreadyBuffered: warm,
       bytesPerSec: ThroughputTracker.instance.bytesPerSec,
     ));
-    _fastSongId = decision.use ? song.id : null;
+    // Test hook for measuring the swap on a device (never in release builds):
+    // flutter run --dart-define=FORCE_FAST_START=true
+    final forced = !kReleaseMode &&
+        const bool.fromEnvironment('FORCE_FAST_START') &&
+        fastStartEnabled &&
+        !onDevice &&
+        !cached &&
+        PlayCache.instance.fileFor(song.id, quality) != null;
+    _fastSongId = decision.use || forced ? song.id : null;
     debugPrint('⚡ [FastStart] ${song.title}: $decision');
   }
 
@@ -796,7 +811,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final helper = _swapHelperFactory();
     final timeline = <String>[];
     void mark(String what) =>
-        timeline.add('${watch.elapsedMilliseconds}ms $what main=${player.position.inMilliseconds}');
+        timeline.add('${watch.elapsedMilliseconds}ms $what main=${player.position.inMilliseconds}'
+            ' helper=${helper.position.inMilliseconds} mainState=${player.processingState.name}');
     try {
       final stats = await SeamlessSwap(
         main: _PlayerVoice(player),
@@ -821,6 +837,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
             await helper.dispose();
           } catch (_) {}
         },
+        onStep: mark,
         isAborted: () => _swapGen != swapGen || _fastGen != swapGen || _skips.isBusy || !player.playing,
       ).run();
       debugPrint('⚡ [FastStart] swapped ${song.title} to full at ${pos.inMilliseconds} ms '
@@ -871,6 +888,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   void _armProbe() {
     if (kReleaseMode || !_probe.running) return;
     try {
+      debugPrint('⏱ [FastStart] probe armed: playing=${player.playing} pos=${player.position.inMilliseconds} ms state=${player.processingState}');
       _probeSub?.cancel();
       _probeSub = player
           .createPositionStream(
