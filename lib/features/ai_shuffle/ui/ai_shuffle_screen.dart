@@ -119,14 +119,14 @@ class _AiShuffleScreenState extends ConsumerState<AiShuffleScreen> {
   Widget build(BuildContext context) {
     final shuffleState = ref.watch(shuffleQueueProvider);
     final predict = ref.watch(predictQueueProvider);
-    final library = ref.watch(allSongsProvider).asData?.value ?? const <Song>[];
+    final libraryEmpty = ref.watch(allSongsProvider.select((a) => a.asData?.value.isEmpty ?? true));
     // Picks resolve against the library mirror; on a first launch it may
     // still be syncing, which is "not ready yet", not "no picks".
-    final syncing = library.isEmpty && ref.watch(librarySyncProvider.select((s) => s.syncing));
+    final syncing = libraryEmpty && ref.watch(librarySyncProvider.select((s) => s.syncing));
 
     // After a reshuffle the /next batches are newest; otherwise /predict.
     final recs = shuffleState.batches.isNotEmpty ? shuffleState.allRecommendedSongs : predict.songs;
-    final pairs = RecommendationResolver(library).resolvePairs(recs);
+    final pairs = ref.watch(recommendationResolverProvider).resolvePairs(recs);
     final resolved = [for (final p in pairs) p.$1];
     final hasPreview = shuffleState.batches.isNotEmpty;
     final picked = pickShownMix(

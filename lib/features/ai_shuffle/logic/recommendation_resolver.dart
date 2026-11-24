@@ -1,4 +1,7 @@
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
 import '../../../models/song.dart';
+import '../../../providers/library_provider.dart';
 import '../../../utils/history_title_key.dart';
 import '../../../widgets/mascot/microduck_pose.dart' show cacheBpm;
 import '../data/models/recommended_song.dart';
@@ -9,6 +12,14 @@ import '../data/models/recommended_song.dart';
 /// removed (artist breaks ties). Distinct versions never merge: only tags
 /// like "(From "X")" and "(Tamil)" are ignored. Builds its lookup once, so
 /// resolving a whole mix is O(n).
+/// The resolver for the current library mirror, built once per library
+/// (indexing thousands of titles costs tens of ms; doing it in `build` made
+/// opening the Shuffle tab drop frames).
+final recommendationResolverProvider = Provider<RecommendationResolver>((ref) {
+  final library = ref.watch(allSongsProvider).asData?.value ?? const <Song>[];
+  return RecommendationResolver(library);
+});
+
 class RecommendationResolver {
   final Map<String, Song> _byTitleArtist = {};
   final Map<String, Song> _byTitle = {};
