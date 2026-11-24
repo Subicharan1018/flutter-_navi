@@ -20,6 +20,11 @@ const String kFastStartLowFormat = 'mp3';
 /// passed over faster than this are never requested.
 const Duration kSkipSettle = Duration(milliseconds: 250);
 
+/// The same wait when the song the skip landed on is already a file on this
+/// device (downloaded, or preloaded into the play cache): opening it costs no
+/// request, so a quick skip past it wastes nothing and the wait can be short.
+const Duration kSkipSettleReady = Duration(milliseconds: 80);
+
 /// Songs shorter than this are not worth two requests.
 const int kFastStartMinDurationSec = 45;
 
@@ -159,11 +164,16 @@ class SkipCoordinator {
   SkipCoordinator({
     required this.load,
     this.settle = kSkipSettle,
+    this.settleFor,
     this.onError,
   });
 
   final Future<void> Function(int index, bool Function() isStale) load;
   final Duration settle;
+
+  /// A shorter wait for an index that costs nothing to open (see
+  /// [kSkipSettleReady]); null or a longer answer falls back to [settle].
+  final Duration Function(int index)? settleFor;
   final void Function(Object error, StackTrace stack)? onError;
 
   Timer? _timer;
@@ -182,10 +192,12 @@ class SkipCoordinator {
     _generation++;
     _pending = index;
     _timer?.cancel();
-    if (settle == Duration.zero) {
+    final custom = settleFor?.call(index);
+    final wait = custom != null && custom < settle ? custom : settle;
+    if (wait == Duration.zero) {
       _fire();
     } else {
-      _timer = Timer(settle, _fire);
+      _timer = Timer(wait, _fire);
     }
   }
 
@@ -260,9 +272,3 @@ bool nextPreloadDue({required int positionMs, required int durationMs}) {
   return positionMs >= threshold;
 }
 
-/// Volume steps for a short dip around the low->full swap (never a hard cut):
-/// down to silence, and back up. [total] is split evenly over [steps] each way.
-List<double> swapRamp({int steps = 4}) => [
-  for (var i = 1; i <= steps; i++) 1 - i / steps,
-];
-const Duration kSwapRampDown = Duration(milliseconds: 120);

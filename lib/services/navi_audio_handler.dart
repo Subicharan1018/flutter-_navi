@@ -13,6 +13,7 @@ import 'transcoding_service.dart';
 import 'cache_settings_service.dart';
 import 'play_cache.dart';
 import 'fast_start.dart';
+import 'seamless_swap.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../providers/settings_provider.dart';
 import '../features/local_library/logic/local_index.dart';
@@ -64,7 +65,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// app's own seek bar all end here. audio_service's default does nothing, so
   /// without this override seeking silently failed on every phone.
   @override
-  Future<void> seek(Duration position) => player.seek(position);
+  Future<void> seek(Duration position) {
+    // A swap to the full copy in progress would land at the old position.
+    if (_swapGen != 0) _fastGen++;
+    return player.seek(position);
+  }
 
   /// Streams play straight from the URL: on the desktop bridge (no caching
   /// source) and in a browser (LockCachingAudioSource needs a local proxy that
@@ -184,6 +189,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _skips = SkipCoordinator(
       load: _settleLoad,
       settle: skipSettle,
+      settleFor: _settleFor,
       onError: (e, _) {
         debugPrint('⚠️ [NaviAudioHandler] skip load failed: $e');
         _desktopLoading = false;
@@ -773,28 +779,83 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       debugPrint('⚡ [FastStart] swap skipped for ${song.title}');
       return;
     }
-    final wasPlaying = player.playing;
+    if (!player.playing || file == null) {
+      // Paused: nobody can hear a gap, so reload in place at the same position.
+      _fastSongId = null;
+      _fastGen++;
+      await _rebuildSource(currentIndex, initialPosition: pos, decided: true);
+      return;
+    }
     final watch = Stopwatch()..start();
     _fastSongId = null;
-    _fastGen++;
+    final swapGen = ++_fastGen;
+    _swapGen = swapGen;
     _muteForSwap = true;
+    final helper = _swapHelperFactory();
+    final timeline = <String>[];
+    void mark(String what) =>
+        timeline.add('${watch.elapsedMilliseconds}ms $what main=${player.position.inMilliseconds}');
     try {
-      // A short ramp to silence, so the cut is never a click.
-      final ramp = swapRamp();
-      for (final v in ramp) {
-        await player.setVolume((_appliedVolume * v).clamp(0.0, 1.0));
-        await Future<void>.delayed(kSwapRampDown ~/ ramp.length);
-      }
-    } catch (_) {}
-    try {
-      await _rebuildSource(currentIndex, initialPosition: pos, decided: true);
-      if (wasPlaying && !player.playing) await player.play();
+      final stats = await SeamlessSwap(
+        main: _PlayerVoice(player),
+        helper: _PlayerVoice(helper),
+        baseVolume: () => (_replayVolume * _fadeFactor).clamp(0.0, 1.0).toDouble(),
+        openHelper: (at) async {
+          await helper.setFilePath(file.path);
+          await helper.setVolume(0);
+          await helper.seek(at);
+          unawaited(helper.play());
+          mark('helper open');
+        },
+        reloadMain: (at) async {
+          mark('main reload begin');
+          await _rebuildSource(currentIndex, initialPosition: at, decided: true);
+          if (!player.playing) unawaited(player.play());
+          mark('main reload end');
+        },
+        closeHelper: () async {
+          try {
+            await helper.stop();
+            await helper.dispose();
+          } catch (_) {}
+        },
+        isAborted: () => _swapGen != swapGen || _fastGen != swapGen || _skips.isBusy || !player.playing,
+      ).run();
+      debugPrint('⚡ [FastStart] swapped ${song.title} to full at ${pos.inMilliseconds} ms '
+          '(${watch.elapsedMilliseconds} ms overlapped, never silent): $stats');
+      debugPrint('⚡ [FastStart] swap timeline: ${timeline.join(' | ')}');
     } finally {
+      if (_swapGen == swapGen) _swapGen = 0;
       _muteForSwap = false;
       _appliedVolume = -1;
       _applyVolume();
     }
-    debugPrint('⚡ [FastStart] swapped ${song.title} to full at ${pos.inMilliseconds} ms (took ${watch.elapsedMilliseconds} ms)');
+  }
+
+  /// The player the swap overlaps with (a test supplies its own).
+  AudioPlayer _swapHelperFactory() => AudioPlayer(
+        handleInterruptions: false,
+        handleAudioSessionActivation: false,
+        androidApplyAudioAttributes: false,
+      );
+
+  /// Generation of the swap in progress, 0 when none; a seek or skip bumps
+  /// [_fastGen], which ends the swap early with the main player restored.
+  int _swapGen = 0;
+
+  /// True when opening [index] costs no request (a file on this device), so a
+  /// skip onto it may settle quickly. Cheap: a few stats at most.
+  Duration _settleFor(int index) {
+    if (index < 0 || index >= _currentQueue.length) return kSkipSettle;
+    final song = _currentQueue[index];
+    if (isLocalSongId(song.id) || LocalLibraryIndex.instance.pathFor(song.id) != null) {
+      return kSkipSettleReady;
+    }
+    if (!kIsWeb && CacheSettingsService().getMusicCacheEnabled()) {
+      if (OfflineService().getLocalPath(song.id) != null) return kSkipSettleReady;
+      if (PlayCache.instance.hasCompleteSync(song.id, _cacheQuality)) return kSkipSettleReady;
+    }
+    return kSkipSettle;
   }
 
   // ── First-audio timing (debug and profile builds only) ─────────────────────
@@ -2403,4 +2464,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await player.stop();
     await player.dispose();
   }
+}
+
+/// A just_audio player as one voice of the Fast Start swap.
+class _PlayerVoice implements SwapVoice {
+  _PlayerVoice(this.p);
+  final AudioPlayer p;
+
+  @override
+  Duration get position => p.position;
+  @override
+  Future<void> setVolume(double v) => p.setVolume(v);
+  @override
+  Future<void> seek(Duration to) => p.seek(to);
 }

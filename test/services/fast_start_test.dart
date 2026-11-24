@@ -318,12 +318,5 @@ void _extra() {
       expect(nextPreloadDue(positionMs: 50000, durationMs: 200000), isTrue);
       expect(nextPreloadDue(positionMs: 20000, durationMs: 60000), isTrue); // 20 s later
     });
-
-    test('swap ramp falls to silence in steps, never a hard cut', () {
-      final r = swapRamp();
-      expect(r.last, 0);
-      expect(r.first, lessThan(1));
-      expect(r.length, greaterThan(1));
-    });
   });
 }

@@ -87,6 +87,16 @@ class PlayCache {
     }
   }
 
+  /// Sync twin of [completeFile] for the skip path (one stat, no LRU touch).
+  bool hasCompleteSync(String songId, String quality) {
+    try {
+      final f = fileFor(songId, quality);
+      return f != null && f.existsSync() && f.lengthSync() > 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// True when the finished copy, or at least [minBytes] of a copy being
   /// written (by the streaming source or a prefetch), is on disk: the song is
   /// already preloaded and needs no fast start.
