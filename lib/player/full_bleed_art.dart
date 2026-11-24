@@ -104,12 +104,24 @@ class FullBleedCover extends StatelessWidget {
       child: Stack(
         fit: StackFit.expand,
         children: [
+          // Underneath: the small cover (usually already cached by the lists),
+          // so the sharp one fades in over a picture, not a blank box.
+          if (request.previewUrl != null)
+            CoverImage(
+              url: request.previewUrl!,
+              cacheKey: '${request.cacheKey}_preview',
+              width: width,
+              height: height,
+              cacheWidth: request.width.clamp(1, kNowPlayingPreviewPx),
+              placeholderColor: const Color(0x00000000),
+            ),
           CoverImage(
             url: request.url,
             cacheKey: request.cacheKey,
             width: width,
             height: height,
             cacheWidth: request.width,
+            placeholderColor: request.previewUrl != null ? const Color(0x00000000) : const Color(0x22FFFFFF),
           ),
           if (fade > 0) ...[
             // The tint follows the page's colour when the palette arrives a

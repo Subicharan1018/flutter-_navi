@@ -9,9 +9,15 @@ import '../services/subsonic_service.dart';
 import 'artwork.dart';
 
 /// The largest cover Now Playing asks the server for. Full-bleed art is a
-/// phone's width wide at 3x, so 1080 px is sharp without fetching the 3000 px
-/// original some albums carry.
-const int kNowPlayingCoverPx = 1080;
+/// phone's width wide at up to ~3.4x (a 1240 px panel), so 1440 px is sharp
+/// without fetching the 3000 px original some albums carry. At 1080 a wide
+/// phone upscaled the picture by 15% and it read as soft.
+const int kNowPlayingCoverPx = 1440;
+
+/// The small cover shown at once while the sharp one downloads, so the picture
+/// is never blank and the sharp one fades in over it instead of replacing a
+/// grey box. It is a size the lists already fetch, so it is usually cached.
+const int kNowPlayingPreviewPx = 512;
 
 /// A source narrower than this stays in the square-cover layout: stretched
 /// across a phone it would be a soft blur.
@@ -27,14 +33,22 @@ class NowPlayingCoverRequest {
   /// the server is asked for).
   final int width;
 
-  const NowPlayingCoverRequest(this.url, this.cacheKey, this.width);
+  /// A small copy of the same cover shown underneath until [url] has decoded
+  /// (null when the cover is already on the device or has no small size).
+  final String? previewUrl;
+
+  const NowPlayingCoverRequest(this.url, this.cacheKey, this.width, {this.previewUrl});
 
   @override
   bool operator ==(Object other) =>
-      other is NowPlayingCoverRequest && other.url == url && other.cacheKey == cacheKey && other.width == width;
+      other is NowPlayingCoverRequest &&
+      other.url == url &&
+      other.cacheKey == cacheKey &&
+      other.width == width &&
+      other.previewUrl == previewUrl;
 
   @override
-  int get hashCode => Object.hash(url, cacheKey, width);
+  int get hashCode => Object.hash(url, cacheKey, width, previewUrl);
 
   /// True when nothing can be shown yet (no cover id, or a device cover the
   /// index has not loaded).
@@ -55,6 +69,7 @@ NowPlayingCoverRequest nowPlayingCoverRequest(SubsonicService service, Song song
     service.getCoverArtUrl(song.coverArt, size: kNowPlayingCoverPx),
     '${coverCacheKey(song)}_$kNowPlayingCoverPx',
     width,
+    previewUrl: service.getCoverArtUrl(song.coverArt, size: kNowPlayingPreviewPx),
   );
 }
 
