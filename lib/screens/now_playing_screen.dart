@@ -40,6 +40,7 @@ import '../widgets/mascot/microduck_strip.dart';
 import '../widgets/options_menu.dart';
 import '../player/devices_sheet.dart';
 import '../player/playing_on.dart';
+import '../player/output_chip.dart';
 import '../player/remote_view.dart';
 
 // =============================================================================
@@ -413,6 +414,7 @@ class _PhoneLayout extends ConsumerWidget {
             child: Column(
               children: [
                 const PlayingOnChip(gap: 6),
+                const OutputChip(),
                 PeakScrubber(
                   scrubberKey: microduckTrackKey,
                   player: notifier.player,

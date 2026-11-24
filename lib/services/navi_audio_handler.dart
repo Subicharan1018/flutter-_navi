@@ -25,6 +25,7 @@ import '../core/hive_boxes.dart';
 import 'auto/browse_tree.dart';
 import 'auto/car_browser.dart';
 import 'open_intent.dart';
+import 'notification_pills.dart';
 import '../utils/platform_utils.dart';
 
 // ---------------------------------------------------------------------------
@@ -312,8 +313,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           MediaControl.skipToPrevious,
           if (playing) MediaControl.pause else MediaControl.play,
           MediaControl.skipToNext,
-          _shuffleControl(state.shuffle),
-          _repeatControl(state.repeat),
+          for (final name in buttonPreset.extras.skip(1)) _extraControl(name, state),
         ],
         queueIndex: _isAndroid && _currentQueue.isNotEmpty
             ? (currentIndex - _carQueueOffset).clamp(0, _currentQueue.length - 1)
@@ -346,6 +346,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   // Custom actions reach the car as well as the notification. The icons are
   // the app's own glyphs (res/drawable/navi_*); "on" states carry a dot.
+  /// The custom buttons after Like, as chosen in Settings > Notifications.
+  static MediaControl _extraControl(String name, ({bool liked, bool shuffle, LoopMode repeat}) state) =>
+      switch (name) {
+        'shuffle' => _shuffleControl(state.shuffle),
+        'repeat' => _repeatControl(state.repeat),
+        'back10' => MediaControl.custom(androidIcon: 'drawable/navi_back10', label: 'Back 10 seconds', name: 'back10'),
+        'forward30' => MediaControl.custom(androidIcon: 'drawable/navi_fwd30', label: 'Forward 30 seconds', name: 'forward30'),
+        _ => MediaControl.custom(androidIcon: 'drawable/navi_sleep', label: 'Sleep timer', name: 'sleep'),
+      };
+
   static MediaControl _likeControl(bool liked) => MediaControl.custom(
     androidIcon: liked ? 'drawable/navi_heart_filled' : 'drawable/navi_heart',
     label: liked ? 'Unlike' : 'Like',
@@ -442,6 +452,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         await playFromSearch(intent.query, intent.extras);
       case ViewIntent():
         await playOpenFiles([intent]);
+      case PlayIdsIntent():
+        break; // library songs: played by the app layer (main.dart)
     }
   }
 
@@ -552,7 +564,24 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   /// The playing item with car-readable artwork.
-  void _publishMediaItem(MediaItem item) => mediaItem.add(_carItem(item));
+  void _publishMediaItem(MediaItem item) => mediaItem.add(_withSubtext(_carItem(item)));
+
+  MediaItem _withSubtext(MediaItem i) => _subtext.isEmpty ? i : i.copyWith(displayDescription: _subtext);
+
+  String _subtext = '';
+
+  /// Which custom buttons the media notification shows (Like always first).
+  ButtonPreset buttonPreset = ButtonPreset.classic;
+
+  /// The line under the song in the media notification (the output device).
+  /// An empty line clears it. Only republishes when the line changed.
+  void setSubtext(String line) {
+    if (line == _subtext) return;
+    _subtext = line;
+    final cur = mediaItem.value;
+    if (cur == null) return;
+    mediaItem.add(cur.copyWith(displayDescription: line));
+  }
 
   @override
   Future<void> skipToNext() {

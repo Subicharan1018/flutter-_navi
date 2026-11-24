@@ -24,6 +24,10 @@ import 'services/desktop_tray.dart';
 import 'services/desktop_registration.dart';
 import 'services/media_key_gate.dart';
 import 'services/open_intent.dart';
+import 'services/notification_pills.dart' show seekBy;
+import 'services/pill_wiring.dart';
+import 'player/sleep_timer.dart' show sleepTimerProvider;
+import 'features/listen/logic/listen_providers.dart' show listenSongsProvider;
 import 'services/windows_smtc.dart';
 import 'services/windows_startup.dart';
 import 'services/global_hotkey.dart';
@@ -211,7 +215,15 @@ Future<void> main(List<String> args) async {
   // Car / browse-tree playback goes through the same path as the UI.
   _wireCarControls(container, globalAudioHandler);
   AndroidIntegration.init(globalAudioHandler);
-  AndroidIntegration.listenForOpenIntents(globalAudioHandler.playOpenIntent);
+  AndroidIntegration.listenForOpenIntents((i) async {
+    if (i is PlayIdsIntent) {
+      final songs = await container.read(listenSongsProvider).load(i.ids);
+      if (songs.isNotEmpty) await container.read(playerProvider.notifier).setQueue(songs, 0);
+      return;
+    }
+    await globalAudioHandler.playOpenIntent(i);
+  });
+  wireNotificationPills(container, globalAudioHandler);
   if (PlatformUtils.isDesktop) _wireDesktopOpenFiles(args);
   wireNotificationTriggers(container);
 
@@ -354,6 +366,12 @@ void _wireCarControls(ProviderContainer container, NaviAudioHandler handler) {
         await p.toggleShuffle();
       case 'repeat':
         await p.cycleRepeat();
+      case 'back10' || 'forward30':
+        final pos = handler.player.position;
+        await p.seek(seekBy(pos, action == 'back10' ? -10 : 30, handler.player.duration));
+      case 'sleep':
+        final timer = container.read(sleepTimerProvider.notifier);
+        container.read(sleepTimerProvider).active ? timer.cancel() : timer.setMinutes(30);
     }
   };
 

@@ -1,5 +1,7 @@
 import 'dart:async';
 
+import '../../../services/pill_wiring.dart' show announceWeeklyReady;
+
 import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
@@ -35,6 +37,7 @@ class WeeklyController extends AsyncNotifier<WeeklyExploration> {
     _poll = Timer(kWeeklyBuildPoll, () async {
       try {
         final next = await ref.read(weeklyApiProvider).current();
+        if (w.building && !next.building) unawaited(announceWeeklyReady(next.picks.length));
         state = AsyncData(next);
         _schedule(next);
       } catch (_) {

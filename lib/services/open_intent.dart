@@ -15,6 +15,9 @@ sealed class OpenIntent {
     }
 
     switch (raw['kind']) {
+      case 'play':
+        final ids = str('ids');
+        return ids == null ? null : PlayIdsIntent(ids.split(',').where((e) => e.isNotEmpty).toList());
       case 'search':
         return SearchIntent(
           query: str('query') ?? str('title') ?? '',
@@ -28,6 +31,12 @@ sealed class OpenIntent {
     }
     return null;
   }
+}
+
+/// A finished-fetch notification was tapped: play these library songs.
+class PlayIdsIntent extends OpenIntent {
+  final List<String> ids;
+  const PlayIdsIntent(this.ids);
 }
 
 /// "Play X on NaviVibe". An empty query means "play some music".

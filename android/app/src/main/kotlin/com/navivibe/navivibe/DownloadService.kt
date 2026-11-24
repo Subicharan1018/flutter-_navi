@@ -39,7 +39,8 @@ class DownloadService : Service() {
         val text = intent?.getStringExtra("text") ?: ""
         val done = intent?.getIntExtra("done", 0) ?: 0
         val total = intent?.getIntExtra("total", 0) ?: 0
-        val note = build(this, title, text, done, total)
+        val live = intent?.getBooleanExtra("live", true) ?: true
+        val note = build(this, title, text, done, total, live)
         if (Build.VERSION.SDK_INT >= 29) {
             startForeground(NOTIFICATION_ID, note, ServiceInfo.FOREGROUND_SERVICE_TYPE_DATA_SYNC)
         } else {
@@ -98,7 +99,7 @@ class DownloadService : Service() {
         @Volatile
         var onStopRequested: (() -> Unit)? = null
 
-        private fun build(ctx: Context, title: String, text: String, done: Int, total: Int): Notification {
+        private fun build(ctx: Context, title: String, text: String, done: Int, total: Int, live: Boolean): Notification {
             AppNotifications.ensureChannels(ctx)
             val open = ctx.packageManager.getLaunchIntentForPackage(ctx.packageName)?.let {
                 PendingIntent.getActivity(ctx, NOTIFICATION_ID, it, PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT)
@@ -116,18 +117,22 @@ class DownloadService : Service() {
                 .setOngoing(true)
                 .setOnlyAlertOnce(true)
                 .setContentIntent(open)
-                .setProgress(total, done.coerceAtMost(total), total <= 0)
                 .addAction(Notification.Action.Builder(null as android.graphics.drawable.Icon?, "Stop", stop).build())
+            if (live) {
+                LiveUpdates.decorate(b, done.coerceAtMost(total), total, total <= 0, if (total > 0) "$done/$total" else null)
+            } else {
+                b.setProgress(total, done.coerceAtMost(total), total <= 0)
+            }
             if (Build.VERSION.SDK_INT >= 31) b.setForegroundServiceBehavior(Notification.FOREGROUND_SERVICE_IMMEDIATE)
             return b.build()
         }
 
         /** Starts or updates the service. False when Android refuses (app in the background without the right to start it). */
-        fun start(ctx: Context, title: String, text: String, done: Int, total: Int): Boolean {
+        fun start(ctx: Context, title: String, text: String, done: Int, total: Int, live: Boolean = true): Boolean {
             return try {
                 val i = Intent(ctx, DownloadService::class.java)
                     .putExtra("title", title).putExtra("text", text)
-                    .putExtra("done", done).putExtra("total", total)
+                    .putExtra("done", done).putExtra("total", total).putExtra("live", live)
                 if (Build.VERSION.SDK_INT >= 26) ctx.startForegroundService(i) else ctx.startService(i)
                 true
             } catch (e: Exception) {

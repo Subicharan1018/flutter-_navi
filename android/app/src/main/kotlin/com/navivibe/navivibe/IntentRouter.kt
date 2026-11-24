@@ -13,8 +13,12 @@ import android.provider.OpenableColumns
  *  - VIEW / SEND of audio ("Open with")             -> {kind: view, uri, name}
  */
 object IntentRouter {
+    /** A finished-fetch notification: comma separated song ids to play on tap. */
+    const val EXTRA_PLAY_IDS = "navivibe_play_ids"
+
     fun parse(ctx: Context, intent: Intent?): Map<String, Any?>? {
         intent ?: return null
+        intent.getStringExtra(EXTRA_PLAY_IDS)?.let { return mapOf("kind" to "play", "ids" to it) }
         when (intent.action) {
             "android.media.action.MEDIA_PLAY_FROM_SEARCH" -> return mapOf(
                 "kind" to "search",

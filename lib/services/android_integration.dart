@@ -3,6 +3,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../utils/platform_utils.dart';
+import 'notification_pills.dart';
 import 'open_intent.dart';
 
 /// Android-only glue: home-screen widget state and the one-time
@@ -82,6 +83,7 @@ class AndroidIntegration {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onIntent') await handle(call.arguments);
       if (call.method == 'downloadStopRequested') onDownloadStopRequested?.call();
+      if (call.method == 'audioRouteChanged') onAudioRouteChanged?.call();
     });
     unawaited(() async {
       try {
@@ -130,6 +132,9 @@ class AndroidIntegration {
   /// The "Stop" button on the ongoing download notification was pressed.
   static void Function()? onDownloadStopRequested;
 
+  /// The set of connected outputs changed (headphones, Bluetooth, car).
+  static void Function()? onAudioRouteChanged;
+
   /// Starts or updates the foreground service that keeps downloads running in
   /// the background. False when Android refused (the app can't start one from
   /// the background) or off Android.
@@ -138,6 +143,7 @@ class AndroidIntegration {
     required String text,
     required int done,
     required int total,
+    bool live = true,
   }) async {
     if (!PlatformUtils.isAndroid) return false;
     try {
@@ -146,6 +152,7 @@ class AndroidIntegration {
             'text': text,
             'done': done,
             'total': total,
+            'live': live,
           }) ??
           false;
     } catch (e) {
@@ -170,6 +177,67 @@ class AndroidIntegration {
   }
 
   static Future<void> openNotificationSettings() => _invoke('openNotificationSettings');
+
+  /// Connected audio outputs, raw (see `outputRoute`). Empty off Android.
+  static Future<List<AudioDevice>> audioOutputs() async {
+    if (!PlatformUtils.isAndroid) return const [];
+    try {
+      return AudioDevice.parseList(await _channel.invokeMethod<Object?>('audioOutputs'));
+    } catch (_) {
+      return const [];
+    }
+  }
+
+  /// Posts or updates an ongoing progress notification (a Live Update on
+  /// Android 16+). [id] picks the slot; [whenMs] with [countDown] draws a
+  /// system countdown; [timeoutMs] removes it if the app dies. False when blocked.
+  static Future<bool> livePost({
+    required int id,
+    required String title,
+    required String text,
+    int value = 0,
+    int max = 0,
+    bool indeterminate = false,
+    String? chip,
+    int whenMs = 0,
+    bool countDown = false,
+    int timeoutMs = 0,
+  }) async {
+    if (!PlatformUtils.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('livePost', {
+            'id': id,
+            'title': title,
+            'text': text,
+            'value': value,
+            'max': max,
+            'indeterminate': indeterminate,
+            'chip': chip,
+            'whenMs': whenMs,
+            'countDown': countDown,
+            'timeoutMs': timeoutMs,
+          }) ??
+          false;
+    } catch (e) {
+      debugPrint('[AndroidIntegration] livePost failed: $e');
+      return false;
+    }
+  }
+
+  static Future<void> liveEnd(int id) async {
+    if (!PlatformUtils.isAndroid) return;
+    await _invoke('liveEnd', {'id': id});
+  }
+
+  /// A finished notice whose tap plays [ids] (comma separated song ids).
+  static Future<bool> notifyPlayable({required int id, required String title, required String text, required String ids}) async {
+    if (!PlatformUtils.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('notifyPlayable', {'id': id, 'title': title, 'text': text, 'ids': ids}) ?? false;
+    } catch (_) {
+      return false;
+    }
+  }
 
   static Future<void> _invoke(String method, [Object? args]) async {
     try {

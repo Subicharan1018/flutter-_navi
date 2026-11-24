@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'android_integration.dart';
+import 'pill_prefs.dart';
 
 /// Text of the ongoing "downloading" notification.
 ({String title, String text}) downloadProgressText({required int done, required int total}) {
@@ -25,7 +26,7 @@ class DownloadKeepAlive {
     DateTime Function()? now,
   })  : _start = start ??
             ((title, text, done, total) =>
-                AndroidIntegration.startDownloadService(title: title, text: text, done: done, total: total)),
+                AndroidIntegration.startDownloadService(title: title, text: text, done: done, total: total, live: Pill.downloads.on)),
         _stop = stop ?? AndroidIntegration.stopDownloadService,
         _now = now ?? DateTime.now;
 

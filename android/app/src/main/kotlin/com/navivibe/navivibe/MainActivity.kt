@@ -11,6 +11,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
     private var saf: SafChannel? = null
     private var appChannel: MethodChannel? = null
+    private var route: AudioRoute? = null
 
     // The intent that opened the app, kept until Dart asks for it once.
     private var pendingIntent: Map<String, Any?>? = null
@@ -35,6 +36,8 @@ class MainActivity : AudioServiceActivity() {
         AppNotifications.ensureChannels(this)
         val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navivibe/android")
         appChannel = channel
+        route?.stop()
+        route = AudioRoute(applicationContext) { runOnUiThread { channel.invokeMethod("audioRouteChanged", null) } }.also { it.start() }
         DownloadService.onStopRequested = {
             runOnUiThread { channel.invokeMethod("downloadStopRequested", null) }
         }
@@ -60,12 +63,42 @@ class MainActivity : AudioServiceActivity() {
                             call.argument<String>("text") ?: "",
                             call.argument<Int>("done") ?: 0,
                             call.argument<Int>("total") ?: 0,
+                            call.argument<Boolean>("live") ?: true,
                         ),
                     )
                     "stopDownloadService" -> {
                         DownloadService.stop(this)
                         result.success(null)
                     }
+                    "audioOutputs" -> result.success(route?.outputs() ?: emptyList<Any>())
+                    "livePost" -> result.success(
+                        LiveUpdates.post(
+                            this,
+                            call.argument<Int>("id") ?: 20,
+                            call.argument<String>("title") ?: "NaviVibe",
+                            call.argument<String>("text") ?: "",
+                            call.argument<Int>("value") ?: 0,
+                            call.argument<Int>("max") ?: 0,
+                            call.argument<Boolean>("indeterminate") ?: false,
+                            call.argument<String>("chip"),
+                            (call.argument<Number>("whenMs") ?: 0L).toLong(),
+                            call.argument<Boolean>("countDown") ?: false,
+                            (call.argument<Number>("timeoutMs") ?: 0L).toLong(),
+                        ),
+                    )
+                    "liveEnd" -> {
+                        LiveUpdates.end(this, call.argument<Int>("id") ?: 20)
+                        result.success(null)
+                    }
+                    "notifyPlayable" -> result.success(
+                        LiveUpdates.postPlayable(
+                            this,
+                            call.argument<Int>("id") ?: 30,
+                            call.argument<String>("title") ?: "NaviVibe",
+                            call.argument<String>("text") ?: "",
+                            call.argument<String>("ids") ?: "",
+                        ),
+                    )
                     "notificationsEnabled" -> result.success(AppNotifications.enabled(this))
                     "openNotificationSettings" -> {
                         AppNotifications.openSettings(this)
