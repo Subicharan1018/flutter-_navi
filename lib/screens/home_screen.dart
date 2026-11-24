@@ -23,6 +23,7 @@ import '../features/trending/logic/trending_providers.dart' show trendingChartsP
 import '../features/rotation/logic/rotation_providers.dart' show backInRotationProvider;
 import '../features/rotation/ui/back_in_rotation_section.dart';
 import '../features/weekly_mix/logic/weekly_mix_providers.dart' show weeklyMixProvider;
+import '../features/preview_feed/ui/preview_feed_entry.dart';
 import '../features/weekly_exploration/logic/weekly_providers.dart' show weeklyExplorationProvider;
 import '../features/weekly_exploration/ui/weekly_exploration_section.dart';
 import '../features/weekly_mix/ui/weekly_mix_section.dart';
@@ -115,6 +116,7 @@ class HomeScreen extends ConsumerWidget {
         const SliverToBoxAdapter(child: BackInRotationSection()),
         // New songs picked for you this week, heard 30 s first (hidden unless this account can download).
         const SliverToBoxAdapter(child: WeeklyExplorationSection()),
+        const SliverToBoxAdapter(child: PreviewFeedEntry()),
         if (!PlatformUtils.isDesktop) SliverToBoxAdapter(child: Entrance(group: 'home', index: 3, child: FlowSection())),
         SliverToBoxAdapter(child: Entrance(group: 'home', index: 4, child: TrendingSection())),
         if (!PlatformUtils.isDesktop) SliverToBoxAdapter(child: Entrance(group: 'home', index: 5, child: _TopPicks())),
