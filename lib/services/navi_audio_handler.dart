@@ -14,6 +14,7 @@ import 'cache_settings_service.dart';
 import 'play_cache.dart';
 import 'fast_start.dart';
 import 'seamless_swap.dart';
+import 'head_start_source.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../providers/settings_provider.dart';
 import '../features/local_library/logic/local_index.dart';
@@ -656,7 +657,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final local = index - _playlistOffset;
       final pl = _playlist;
       if (local >= 0 && pl != null && local < pl.children.length) {
-        if (player.currentIndex != local) await _setChildLow(local, index);
+        if (player.currentIndex != local) {
+          await _setChildLow(local, index);
+          if (_fastSongId != _currentQueue[index].id) await _useHeadChild(local, index);
+        }
         if (stale()) return;
         _probe.mark('child');
         await player.seek(Duration.zero, index: local);
@@ -725,6 +729,85 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     } finally {
       _surgery = false;
     }
+  }
+
+  int _headsFor = -1;
+
+  /// Keeps the first bytes of the next three songs and the previous one in the
+  /// play cache, one small request at a time, once the song playing now has
+  /// its own audio going (see [_scheduleWarm]). A skip onto one then starts
+  /// from those bytes (see [_useHeadChild]). Songs that are skipped past
+  /// within the settle time never get this far, since this only runs from the
+  /// song the listener rests on.
+  void _warmHeads(int index) {
+    if (kIsWeb || _isDesktopBridge || _headsFor == index) return;
+    if (!CacheSettingsService().getMusicCacheEnabled()) return;
+    _headsFor = index;
+    final quality = _cacheQuality;
+    final wanted = <Song>[
+      for (final i in [index + 1, index + 2, index + 3, index - 1])
+        if (i >= 0 && i < _currentQueue.length) _currentQueue[i],
+    ];
+    unawaited(() async {
+      for (final song in wanted) {
+        if (_headsFor != index) return; // the listener moved on
+        if (isLocalSongId(song.id) ||
+            LocalLibraryIndex.instance.pathFor(song.id) != null ||
+            OfflineService().getLocalPath(song.id) != null ||
+            PlayCache.instance.hasCompleteSync(song.id, quality) ||
+            PlayCache.instance.headSync(song.id, quality) != null) {
+          continue;
+        }
+        await PlayCache.instance.prefetchHead(
+          song.id,
+          quality,
+          Uri.parse(subsonicService.getStreamUrl(
+            song.id,
+            maxBitRate: _transcodingService.getCurrentBitrate(),
+            format: _transcodingService.getCurrentFormat(),
+          )),
+        );
+      }
+    }());
+  }
+
+  /// Android: the child the skip lands on plays from its saved head when it
+  /// has one and is not yet fully cached. Never the child that is playing.
+  Future<void> _useHeadChild(int local, int index) async {
+    final pl = _playlist;
+    if (pl == null || kIsWeb || !CacheSettingsService().getMusicCacheEnabled()) return;
+    final song = _currentQueue[index];
+    if (isLocalSongId(song.id) ||
+        LocalLibraryIndex.instance.pathFor(song.id) != null ||
+        OfflineService().getLocalPath(song.id) != null) {
+      return;
+    }
+    if (pl.children[local] is HeadStartSource) return;
+    final quality = _cacheQuality;
+    if (PlayCache.instance.hasCompleteSync(song.id, quality)) return;
+    final head = PlayCache.instance.headSync(song.id, quality);
+    if (head == null) return;
+    final source = HeadStartSource(
+      cache: PlayCache.instance,
+      songId: song.id,
+      quality: quality,
+      url: Uri.parse(subsonicService.getStreamUrl(
+        song.id,
+        maxBitRate: _transcodingService.getCurrentBitrate(),
+        format: _transcodingService.getCurrentFormat(),
+      )),
+      total: head.total,
+      mime: head.mime,
+      tag: _mediaTag(song, isLocal: false),
+    );
+    _surgery = true;
+    try {
+      await pl.removeAt(local);
+      await pl.insert(local, source);
+    } finally {
+      _surgery = false;
+    }
+    debugPrint('⚡ [HeadStart] ${song.title}: playing from ${head.length ~/ 1024} KB saved head');
   }
 
   /// Puts the full-quality source back for every low-rate child that is no
@@ -872,7 +955,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
     if (!kIsWeb && CacheSettingsService().getMusicCacheEnabled()) {
       if (OfflineService().getLocalPath(song.id) != null) return kSkipSettleReady;
-      if (PlayCache.instance.hasCompleteSync(song.id, _cacheQuality)) return kSkipSettleReady;
+      if (PlayCache.instance.hasCompleteSync(song.id, _cacheQuality) ||
+          PlayCache.instance.headSync(song.id, _cacheQuality) != null) {
+        return kSkipSettleReady;
+      }
     }
     return kSkipSettle;
   }
@@ -1087,6 +1173,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         return;
       }
       if (index != currentIndex) return;
+      _warmHeads(index);
       final dur = (player.duration ?? Duration(seconds: _currentQueue[index].duration)).inMilliseconds;
       if (!nextPreloadDue(positionMs: player.position.inMilliseconds, durationMs: dur)) {
         _scheduleWarm(index, attempt: 5); // check again; attempt>0 keeps downloads running
