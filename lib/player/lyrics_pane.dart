@@ -12,7 +12,6 @@ import '../lyrics/models/lyric_line.dart';
 import '../lyrics/models/lyric_translation.dart';
 import '../providers/player_provider.dart';
 import '../utils/platform_utils.dart';
-import 'edge_fade.dart';
 import 'lyric_gap_dots.dart';
 import 'lyric_word_sweep.dart';
 import 'lyrics_motion.dart';
@@ -223,10 +222,9 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> with SingleTickerProvid
     return NotificationListener<UserScrollNotification>(
       key: const ValueKey('synced'),
       onNotification: _onUserScroll,
-      child: EdgeFade(
-        top: 0.07,
-        bottom: 0.14,
-        child: SingleChildScrollView(
+      // No edge-fade mask: a ShaderMask re-renders the whole list off-screen
+      // every frame. Far lines are already dim, so the cut is soft anyway.
+      child: SingleChildScrollView(
           controller: _scroll,
           physics: PlatformUtils.isDesktop ? const ClampingScrollPhysics() : const BouncingScrollPhysics(),
           padding: widget.padding.copyWith(bottom: 320),
@@ -280,7 +278,6 @@ class _LyricsPaneState extends ConsumerState<LyricsPane> with SingleTickerProvid
             ],
           ),
         ),
-      ),
     );
   }
 
@@ -331,12 +328,16 @@ class _Extras extends StatelessWidget {
   final double fontSize;
   final NowPlayingStyle style;
 
+  /// Multiplies the text colours; how far this line has receded.
+  final double alpha;
+
   const _Extras({
     required this.extra,
     required this.showTranslation,
     required this.showPronunciation,
     required this.fontSize,
     required this.style,
+    this.alpha = 1,
   });
 
   @override
@@ -354,7 +355,7 @@ class _Extras extends StatelessWidget {
           if (pron.isNotEmpty)
             Text(
               pron,
-              style: naviText(fontSize, FontWeight.w600, style.textPrimary.withValues(alpha: 0.78))
+              style: naviText(fontSize, FontWeight.w600, style.textPrimary.withValues(alpha: 0.78 * alpha))
                   .copyWith(height: 1.25, fontStyle: FontStyle.italic),
             ),
           if (trans.isNotEmpty)
@@ -362,7 +363,8 @@ class _Extras extends StatelessWidget {
               padding: EdgeInsets.only(top: pron.isNotEmpty ? fontSize * 0.1 : 0),
               child: Text(
                 trans,
-                style: naviText(fontSize, FontWeight.w600, style.textSecondary).copyWith(height: 1.25),
+                style: naviText(fontSize, FontWeight.w600, style.textSecondary.withValues(alpha: style.textSecondary.a * alpha))
+                    .copyWith(height: 1.25),
               ),
             ),
         ],
@@ -555,7 +557,6 @@ class _Line extends ConsumerWidget {
     final text = line.text.trim();
     if (text.isEmpty) return SizedBox(height: fontSize * 0.9);
     final active = distance == 0;
-    final textStyle = naviText(fontSize, FontWeight.w800, style.textPrimary).copyWith(height: 1.18);
     return Semantics(
       button: true,
       label: text,
@@ -569,31 +570,39 @@ class _Line extends ConsumerWidget {
           padding: EdgeInsets.symmetric(vertical: fontSize * 0.28),
           child: LyricLineMotion(
             distance: distance,
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                if (active && line.hasWordTimestamps)
-                  // Only this widget repaints per frame, and only while its
-                  // line is the sung one.
-                  RepaintBoundary(
-                    child: LyricWordSweep(
-                      line: line,
-                      endsAt: endsAt,
-                      style: textStyle,
-                      positionMs: () => ref.read(playerProvider.notifier).player.position.inMilliseconds,
-                    ),
-                  )
-                else
-                  Text(text, style: textStyle),
-                _Extras(
-                  extra: extra,
-                  showTranslation: showTranslation,
-                  showPronunciation: showPronunciation,
-                  fontSize: fontSize * 0.5,
-                  style: style,
-                ),
-              ],
-            ),
+            // Alpha rides in the text colour, so no line needs an off-screen
+            // layer to be dimmed.
+            builder: (context, alpha) {
+              final base = style.textPrimary;
+              final textStyle = naviText(fontSize, FontWeight.w800, base.withValues(alpha: base.a * alpha))
+                  .copyWith(height: 1.18);
+              return Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  if (active && line.hasWordTimestamps)
+                    // Only this widget repaints per frame, and only while its
+                    // line is the sung one.
+                    RepaintBoundary(
+                      child: LyricWordSweep(
+                        line: line,
+                        endsAt: endsAt,
+                        style: textStyle,
+                        positionMs: () => ref.read(playerProvider.notifier).player.position.inMilliseconds,
+                      ),
+                    )
+                  else
+                    Text(text, style: textStyle),
+                  _Extras(
+                    extra: extra,
+                    showTranslation: showTranslation,
+                    showPronunciation: showPronunciation,
+                    fontSize: fontSize * 0.5,
+                    style: style,
+                    alpha: alpha,
+                  ),
+                ],
+              );
+            },
           ),
         ),
       ),

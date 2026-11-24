@@ -64,8 +64,8 @@ double _scaleOf(WidgetTester t, String text) => t
     .transform
     .storage[0];
 
-double _opacityOf(WidgetTester t, String text) =>
-    t.widget<Opacity>(find.descendant(of: _motionOf(text), matching: find.byType(Opacity)).first).opacity;
+/// How visible a line is: its text colour's alpha (there is no Opacity layer).
+double _opacityOf(WidgetTester t, String text) => t.widget<Text>(find.text(text)).style!.color!.a;
 
 void main() {
   group('LyricsMotion maths', () {
@@ -76,15 +76,22 @@ void main() {
       expect(LyricsMotion.scaleFor(0.5), closeTo((1 + LyricsMotion.restScale) / 2, 1e-9));
     });
 
-    test('opacity and blur fall off with distance, and are continuous', () {
+    test('opacity falls off with distance, and is continuous', () {
       expect(LyricsMotion.opacityFor(0), 1);
-      expect(LyricsMotion.blurFor(0), 0);
       for (var d = 0.0; d < 5; d += 0.5) {
         expect(LyricsMotion.opacityFor(d + 0.5), lessThanOrEqualTo(LyricsMotion.opacityFor(d)));
-        expect(LyricsMotion.blurFor(d + 0.5), greaterThanOrEqualTo(LyricsMotion.blurFor(d)));
       }
       // Lines already sung fade a little further than the ones still to come.
       expect(LyricsMotion.opacityFor(-1), lessThan(LyricsMotion.opacityFor(1)));
+    });
+
+    test('lines lean back like a drum: none on the sung line, mirrored either side, capped', () {
+      expect(LyricsMotion.tiltFor(0), 0);
+      expect(LyricsMotion.tiltFor(2), -LyricsMotion.tiltFor(-2));
+      expect(LyricsMotion.tiltFor(1), lessThan(LyricsMotion.tiltFor(2)));
+      expect(LyricsMotion.tiltFor(9), LyricsMotion.maxTilt);
+      // The sung line's transform is the identity: crisp, undistorted text.
+      expect(LyricsMotion.transformFor(0).isIdentity(), isTrue);
     });
 
     test('the target offset puts a line a third of the way down, inside the scroll range', () {
