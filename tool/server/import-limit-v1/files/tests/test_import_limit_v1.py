@@ -2,8 +2,9 @@
 from tgfetch import exportify as ex
 
 
-def test_the_default_limit_is_still_twenty():
-    assert ex.MAX_IMPORTS == 20
+def test_the_limit_is_the_setting_and_twenty_without_one():
+    import os
+    assert ex.MAX_IMPORTS == int(os.getenv("EXPORTIFY_MAX_IMPORTS", "20"))   # the live .env sets 200
 
 
 def test_prune_old_keeps_the_newest_up_to_the_limit(conn, monkeypatch):
