@@ -8,12 +8,27 @@ import 'package:flutter/foundation.dart' show debugPrint;
 /// failed downloads and logged unhandled errors. There the app assumes it is
 /// online; a request that cannot reach the server still reports its own error.
 Future<void> installLinuxConnectivityFallback({Duration timeout = const Duration(seconds: 2)}) async {
-  try {
-    await ConnectivityPlatform.instance.checkConnectivity().timeout(timeout);
-  } catch (e) {
-    debugPrint('[Connectivity] NetworkManager unavailable ($e); assuming online.');
-    ConnectivityPlatform.instance = AssumeOnlineConnectivity();
+  final answered = Completer<Object?>(); // null: it works; else why not
+  void answer(Object? why) {
+    if (!answered.isCompleted) answered.complete(why);
   }
+
+  // Its own zone: with no system bus, the NetworkManager client also throws
+  // from a signal subscription nobody awaits. A try block misses that one, and
+  // it was recorded as a crash.
+  runZonedGuarded(() async {
+    try {
+      await ConnectivityPlatform.instance.checkConnectivity().timeout(timeout);
+      answer(null);
+    } catch (e) {
+      answer(e);
+    }
+  }, (e, _) => answer(e));
+
+  final why = await answered.future;
+  if (why == null) return;
+  debugPrint('[Connectivity] NetworkManager unavailable ($why); assuming online.');
+  ConnectivityPlatform.instance = AssumeOnlineConnectivity();
 }
 
 class AssumeOnlineConnectivity extends ConnectivityPlatform {

@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:io';
 
 import 'package:connectivity_plus_platform_interface/connectivity_plus_platform_interface.dart';
@@ -10,6 +11,17 @@ import 'package:navivibe/utils/desktop_share.dart';
 class _NoNetworkManager extends ConnectivityPlatform {
   @override
   Future<List<ConnectivityResult>> checkConnectivity() async => throw const SocketException('no system bus');
+}
+
+/// Like the real one with no system bus: the call fails, and a second error
+/// escapes from work nobody awaits.
+class _StrayError extends ConnectivityPlatform {
+  @override
+  Future<List<ConnectivityResult>> checkConnectivity() async {
+    scheduleMicrotask(() => throw const SocketException('no system bus (signal subscription)'));
+    await Future<void>.delayed(Duration.zero);
+    throw const SocketException('no system bus');
+  }
 }
 
 class _Works extends ConnectivityPlatform {
@@ -48,6 +60,14 @@ void main() {
       ConnectivityPlatform.instance = _NoNetworkManager();
       await installLinuxConnectivityFallback();
       expect(await ConnectivityPlatform.instance.checkConnectivity(), [ConnectivityResult.other]);
+    });
+
+    test('keeps a stray error from the client to itself', () async {
+      ConnectivityPlatform.instance = _StrayError();
+      // An escaped error would fail this test.
+      await installLinuxConnectivityFallback();
+      await Future<void>.delayed(const Duration(milliseconds: 20));
+      expect(ConnectivityPlatform.instance, isA<AssumeOnlineConnectivity>());
     });
 
     test('leaves a working implementation alone', () async {
