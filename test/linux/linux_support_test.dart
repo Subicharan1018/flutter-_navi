@@ -6,6 +6,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/keyringless_key.dart';
 import 'package:navivibe/services/linux_connectivity.dart';
+import 'package:navivibe/services/linux_shutdown.dart';
 import 'package:navivibe/utils/desktop_share.dart';
 
 class _NoNetworkManager extends ConnectivityPlatform {
@@ -75,6 +76,26 @@ void main() {
       ConnectivityPlatform.instance = works;
       await installLinuxConnectivityFallback();
       expect(ConnectivityPlatform.instance, same(works));
+    });
+  });
+
+  group('quitting', () {
+    test('runs every step in order, then exits once, even when one fails or hangs', () async {
+      final ran = <String>[];
+      final codes = <int>[];
+      final shutdown = LinuxShutdown([
+        () async => ran.add('save'),
+        () async => throw StateError('broken step'),
+        () => Completer<void>().future, // never finishes
+        () async => ran.add('close database'),
+      ], stepTimeout: const Duration(milliseconds: 20), quit: codes.add);
+
+      final first = shutdown.run();
+      await shutdown.run(); // a second click on the close button
+      await first;
+
+      expect(ran, ['save', 'close database']);
+      expect(codes, [0]);
     });
   });
 

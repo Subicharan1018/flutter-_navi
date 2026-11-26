@@ -82,6 +82,13 @@ class WindowManagerService with WindowListener {
     _saveWindowState();
   }
 
+  /// Writes the window's size and position now (Linux quit, before the
+  /// database is closed).
+  Future<void> flush() {
+    _writer.cancel();
+    return _saveWindowState();
+  }
+
   // ── Private helpers ────────────────────────────────────────────────────────
 
   Future<void> _saveWindowState() async {

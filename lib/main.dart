@@ -23,6 +23,8 @@ import 'services/app_notifier.dart';
 import 'services/desktop_tray.dart';
 import 'services/desktop_registration.dart';
 import 'services/linux_connectivity.dart';
+import 'services/linux_shutdown.dart';
+import 'package:hive_ce/hive.dart' show Hive;
 import 'services/media_key_gate.dart';
 import 'services/open_intent.dart';
 import 'services/windows_smtc.dart';
@@ -241,6 +243,19 @@ Future<void> main(List<String> args) async {
 
   // Compile the Now Playing artwork-field shader before it's first shown.
   unawaited(ArtworkField.precache());
+
+  // Linux: save, stop the player and exit, without GTK's window teardown.
+  if (PlatformUtils.isLinux) {
+    unawaited(LinuxShutdown([
+      () async => container.read(playerProvider.notifier).flushPersist(),
+      WindowManagerService.instance.flush,
+      () async {
+        await windowManager.hide(); // gone from the screen while the rest finishes
+      },
+      globalAudioHandler.player.dispose,
+      Hive.close,
+    ]).install());
+  }
 
   if (DesktopTray.supported) {
     final player = container.read(playerProvider.notifier);
