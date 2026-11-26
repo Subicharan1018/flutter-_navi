@@ -432,6 +432,24 @@ void main() {
       expect(await File('${root.path}${Platform.pathSeparator}to${Platform.pathSeparator}b.mp3').length(), 2);
     });
 
+    test('a half-copied file from an interrupted move never costs the full original', () async {
+      await put('from/song.flac', [1, 2, 3, 4, 5, 6]);
+      await put('to/song.flac', [1, 2]); // the app was killed during this copy
+      await put('to/other.flac.moving', [7]); // and during this one
+      await put('from/other.flac', [7, 8, 9]);
+      final r = await moveDirectoryFiles(
+        '${root.path}${Platform.pathSeparator}from',
+        '${root.path}${Platform.pathSeparator}to',
+      );
+      expect(r.failed, 0);
+      final sep = Platform.pathSeparator;
+      expect(await File('${root.path}${sep}to${sep}song.flac').readAsBytes(), [1, 2, 3, 4, 5, 6]);
+      expect(await File('${root.path}${sep}to${sep}other.flac').readAsBytes(), [7, 8, 9]);
+      expect(Directory('${root.path}${sep}to').listSync().map((e) => e.uri.pathSegments.last),
+          unorderedEquals(['song.flac', 'other.flac']));
+      expect(Directory('${root.path}${sep}from').listSync(), isEmpty);
+    });
+
     test('directory size adds the files', () async {
       await put('d/a', [1, 2, 3]);
       await put('d/b', [1]);
