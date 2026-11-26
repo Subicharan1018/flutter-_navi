@@ -11,10 +11,13 @@ import 'scenes.dart';
 
 const kInk = Color(0xFFFFFFFF);
 const kDim = Color(0xFF9E9EA4);
+const kBlack = Color(0xFF000000);
 const kTau = math.pi * 2;
 
 double clamp01(double v) => v < 0 ? 0 : (v > 1 ? 1 : v);
 double mix(double a, double b, double t) => a + (b - a) * t;
+Color white(double a) => Color.fromRGBO(255, 255, 255, clamp01(a));
+Color grey(int v) => Color.fromRGBO(v, v, v, 1);
 
 /// Eased 0..1 as [t] runs from [a] to [b].
 double ramp(double t, double a, double b, [Curve curve = Curves.easeInOutCubic]) => b <= a ? (t >= b ? 1 : 0) : curve.transform(clamp01((t - a) / (b - a)));
@@ -26,36 +29,39 @@ double rnd(int i, [int salt = 0]) {
   return ((x ^ (x >> 16)) & 0xffff) / 0xffff;
 }
 
-/// One particle, reused for every particle of every frame.
-class Dot {
-  double x = 0, y = 0, r = 1, a = 1;
-  int rgb = 0xFFFFFF;
-  void set(double px, double py, double radius, double alpha, [int colour = 0xFFFFFF]) {
-    x = px;
-    y = py;
-    r = radius;
-    a = alpha;
-    rgb = colour;
-  }
-}
+Paint stroke(Color c, double w, {StrokeCap cap = StrokeCap.butt}) => Paint()
+  ..style = PaintingStyle.stroke
+  ..strokeWidth = w
+  ..strokeCap = cap
+  ..strokeJoin = StrokeJoin.round
+  ..color = c;
+Paint fill(Color c) => Paint()..color = c;
 
 /// What your finger is doing to the film. Pictures and videos are made with an untouched one.
 class FilmTouch {
   Offset? finger;
-  double grip = 0; // 0..1, eases in and out with the finger
   double spin = 0; // radians added by dragging
   double tiltX = 0, tiltY = 0; // -1..1
   double? scrubX; // 0..1 across the stage while a finger chooses something
   int? guess;
   double guessAt = 0;
-  final List<(Offset, double)> blasts = []; // where, and how many seconds ago
+  Offset? kickAt;
+  double kick = 9; // seconds since the last tap on the scene
 
-  void tick(double dt) {
-    grip = finger == null ? math.max(0, grip - dt * 2.5) : math.min(1, grip + dt * 6);
-    for (var i = 0; i < blasts.length; i++) {
-      blasts[i] = (blasts[i].$1, blasts[i].$2 + dt);
-    }
-    blasts.removeWhere((b) => b.$2 > 1.3);
+  void tick(double dt) => kick += dt;
+
+  /// 1 at the tap, gone within [over] seconds.
+  double punch([double over = 0.6]) => math.max(0, 1 - kick / over);
+}
+
+/// One particle, reused for every particle of every frame.
+class Dot {
+  double x = 0, y = 0, r = 1, a = 1;
+  void set(double px, double py, double radius, double alpha) {
+    x = px;
+    y = py;
+    r = radius;
+    a = alpha;
   }
 }
 
@@ -67,7 +73,6 @@ class FilmFrame {
   final double t;
   final FilmTouch touch;
   final String? name;
-
   FilmFrame(this.film, this.canvas, this.size, this.t, this.touch, this.name);
 
   double get w => size.width;
@@ -75,53 +80,58 @@ class FilmFrame {
 
   /// The unit: 1 at the 360 wide design.
   double get u => size.width / 360;
-  Offset get mid => Offset(w / 2, h / 2);
   WrappedData get d => film.data;
   FilmAssets get assets => film.assets;
+  FilmFrame at(double time) => FilmFrame(film, canvas, size, time, touch, name);
 }
 
-/// A scene is a formation for the swarm (where every particle is at a moment) and what is drawn over it.
 abstract class FilmScene {
   String get id;
   double get length;
 
-  /// The moment that makes the best still.
+  /// The moment that makes the best still: after its numbers have landed.
   double get still => length * 0.82;
+
+  /// How it is drawn, in a few words (for the contact sheet).
+  String get technique;
+  bool get particles => false;
   String why(WrappedData d);
   String share(WrappedData d);
 
   /// Read aloud by a screen reader in place of the animation.
   String speech(WrappedData d);
-
-  /// What touching does, shown once as a hint; null when the scene only stirs.
   String? get hint => null;
 
-  /// True when dragging belongs to the scene.
-  bool get drags => false;
-  void place(FilmFrame f, int i, int n, Dot out);
-  void under(FilmFrame f) {}
-  void over(FilmFrame f) {}
+  /// True when a drag belongs to the scene across its width ([FilmTouch.scrubX]).
+  int get scrubSteps => 0;
+  void paint(FilmFrame f);
+
+  /// A tap on the scene at [p]; return a new time to jump to, or null.
+  double? tap(FilmFrame f, Offset p) => null;
+
+  /// How long the scene runs given what was touched.
+  double end(FilmTouch t) => length;
 }
 
 /// The whole film as a pure function of time: the same inputs always paint the same frame, which is why a scene can be
-/// saved as a picture or rendered to a video exactly as it plays.
+/// saved as a picture or rendered to a video exactly as it plays. Only the scene on screen is ever painted.
 class WrappedFilm {
   WrappedData data;
 
   /// False while more of the year is on its way; the scenes then stop at what is known.
   bool settled;
   final FilmAssets assets;
-  final int count;
+
+  /// Particles for the two scenes that use them. Lowered on a phone that cannot keep up.
+  int grains;
   late List<FilmScene> scenes = filmScenes(data, settled: settled);
   late final ui.Image _sprite = _makeSprite();
-
-  late final Float32List _transforms = Float32List(count * 4);
-  late final Float32List _rects = _spriteRects(count);
-  late final Int32List _colors = Int32List(count);
-  final Dot _a = Dot(), _b = Dot();
+  Float32List _transforms = Float32List(0), _rects = Float32List(0);
+  Int32List _colors = Int32List(0);
+  final Dot _dot = Dot();
   final Map<String, TextPainter> _text = {};
 
-  WrappedFilm(this.data, this.assets, {this.count = 1500, this.settled = true});
+  WrappedFilm(this.data, this.assets, {this.grains = 520, this.settled = true});
 
   /// More of the year has arrived: the scenes ahead appear, the ones so far stay where they are.
   void update(WrappedData data, {required bool settled}) {
@@ -130,22 +140,12 @@ class WrappedFilm {
     scenes = filmScenes(data, settled: settled);
   }
 
-  static Float32List _spriteRects(int n) {
-    final r = Float32List(n * 4);
-    for (var i = 0; i < n; i++) {
-      r[i * 4 + 2] = 32;
-      r[i * 4 + 3] = 32;
-    }
-    return r;
-  }
-
   static ui.Image _makeSprite() {
     final rec = ui.PictureRecorder();
     Canvas(rec).drawCircle(
       const Offset(16, 16),
       16,
-      Paint()
-        ..shader = ui.Gradient.radial(const Offset(16, 16), 16, const [Color(0xFFFFFFFF), Color(0xFFFFFFFF), Color(0x00FFFFFF)], const [0, 0.62, 1]),
+      Paint()..shader = ui.Gradient.radial(const Offset(16, 16), 16, const [kInk, kInk, Color(0x00FFFFFF)], const [0, 0.62, 1]),
     );
     final pic = rec.endRecording();
     final img = pic.toImageSync(32, 32);
@@ -161,93 +161,103 @@ class WrappedFilm {
     assets.dispose();
   }
 
-  /// Paints scene [index] at [t] seconds. For the first moments the swarm is still flying from scene [from].
+  static const cut = 0.6;
+
+  /// Paints scene [index] at [t] seconds. For the first moments it is cutting in over scene [from].
   void paint(Canvas canvas, Size size, {required int index, required double t, int? from, double fromT = 0, FilmTouch? touch, String? name}) {
     // Only between frames: within one, a scene may still be holding a line of words.
-    if (_text.length > 220) {
-      for (final t in _text.values) {
-        t.dispose();
+    if (_text.length > 320) {
+      for (final p in _text.values) {
+        p.dispose();
       }
       _text.clear();
     }
-    final scene = scenes[index];
-    final f = FilmFrame(this, canvas, size, t, touch ?? FilmTouch(), name);
+    final hand = touch ?? FilmTouch();
+    final box = Offset.zero & size;
+    void scene(int i, double time) {
+      canvas.drawRect(box, fill(kBlack));
+      scenes[i].paint(FilmFrame(this, canvas, size, time, i == index ? hand : FilmTouch(), name));
+    }
+
     canvas.save();
-    canvas.clipRect(Offset.zero & size);
-    canvas.drawRect(Offset.zero & size, Paint()..color = const Color(0xFF000000));
-    scene.under(f);
-    _swarm(f, scene, from == null ? null : scenes[from], fromT);
-    scene.over(f);
+    canvas.clipRect(box);
+    if (from == null || t >= cut) {
+      scene(index, t);
+    } else {
+      final k = Curves.easeInOutCubic.transform(clamp01(t / cut));
+      _cut(canvas, size, index % 5, k, () => scene(from, fromT), () => scene(index, t));
+    }
     canvas.restore();
   }
 
-  void _swarm(FilmFrame f, FilmScene scene, FilmScene? prev, double fromT) {
-    const flight = 1.5;
-    final u = f.u;
-    final morphing = prev != null && f.t < flight;
-    final old = morphing ? FilmFrame(this, f.canvas, f.size, fromT + f.t, f.touch, f.name) : null;
-    final finger = f.touch.finger;
-    for (var i = 0; i < count; i++) {
-      scene.place(f, i, count, _a);
-      var x = _a.x, y = _a.y, r = _a.r, a = _a.a;
-      var rgb = _a.rgb;
-      if (morphing) {
-        prev.place(old!, i, count, _b);
-        final delay = rnd(i, 91) * 0.5;
-        final k = ramp(f.t, delay, delay + flight - 0.5);
-        final arc = math.sin(math.pi * k);
-        final dx = x - _b.x, dy = y - _b.y;
-        final bend = (rnd(i, 92) - 0.5) * 0.9;
-        x = _b.x + dx * k - dy * bend * arc + math.sin(f.t * 5 + i) * 10 * u * arc;
-        y = _b.y + dy * k + dx * bend * arc + math.cos(f.t * 4 + i) * 10 * u * arc;
-        r = mix(_b.r, r, k) * (1 + arc * 0.5);
-        a = mix(_b.a, a, k);
-        rgb = _mixRgb(_b.rgb, rgb, k);
-      }
-      if (finger != null || f.touch.grip > 0) {
-        final p = finger ?? _lastFinger;
-        final dx = x - p.dx, dy = y - p.dy;
-        final dist = math.sqrt(dx * dx + dy * dy);
-        final reach = 90 * u;
-        if (dist < reach && dist > 0.5) {
-          final push = (1 - dist / reach) * 46 * u * f.touch.grip;
-          // away from the finger, with a little turn, so it feels like stirring
-          x += dx / dist * push - dy / dist * push * 0.5;
-          y += dy / dist * push + dx / dist * push * 0.5;
-        }
-      }
-      for (final (at, age) in f.touch.blasts) {
-        final dx = x - at.dx, dy = y - at.dy;
-        final dist = math.sqrt(dx * dx + dy * dy) + 0.5;
-        final ring = age * 520 * u;
-        final band = (dist - ring) / (70 * u);
-        final push = math.exp(-band * band) * 70 * u * (1 - age / 1.3);
-        x += dx / dist * push;
-        y += dy / dist * push;
-      }
-      final scale = r / 16;
-      _transforms[i * 4] = scale;
-      _transforms[i * 4 + 1] = 0;
-      _transforms[i * 4 + 2] = x - r;
-      _transforms[i * 4 + 3] = y - r;
-      _colors[i] = ((clamp01(a) * 255).round() << 24) | rgb;
+  /// Five cuts, so two neighbours never change the same way.
+  void _cut(Canvas c, Size s, int kind, double k, VoidCallback old, VoidCallback next) {
+    void moved(double dx, double dy, VoidCallback draw) {
+      c.save();
+      c.translate(dx, dy);
+      c.clipRect(Offset.zero & s);
+      draw();
+      c.restore();
     }
-    if (finger != null) _lastFinger = finger;
-    f.canvas.drawRawAtlas(_sprite, _transforms, _rects, _colors, BlendMode.modulate, null, Paint()..filterQuality = FilterQuality.low);
+
+    void clipped(Path path, VoidCallback draw) {
+      c.save();
+      c.clipPath(path);
+      draw();
+      c.restore();
+    }
+
+    switch (kind) {
+      case 0: // pushed up
+        moved(0, -s.height * k, old);
+        moved(0, s.height * (1 - k), next);
+      case 1: // iris
+        old();
+        clipped(Path()..addOval(Rect.fromCircle(center: s.center(Offset.zero), radius: s.longestSide * 0.62 * k)), next);
+      case 2: // blinds
+        old();
+        final path = Path();
+        for (var i = 0; i < 6; i++) {
+          path.addRect(Rect.fromLTWH(s.width * i / 6, 0, s.width / 6 * k + 0.5, s.height));
+        }
+        clipped(path, next);
+      case 3: // whip
+        moved(-s.width * k, 0, old);
+        moved(s.width * (1 - k), 0, next);
+      default: // doors
+        old();
+        clipped(Path()..addRect(Rect.fromLTWH(0, s.height / 2 * (1 - k), s.width, s.height * k)), next);
+    }
   }
 
-  Offset _lastFinger = Offset.zero;
+  // ── particles ──────────────────────────────────────────────────────────
 
-  static int _mixRgb(int a, int b, double k) {
-    if (a == b) return a;
-    int ch(int s) => (((a >> s) & 255) + ((((b >> s) & 255) - ((a >> s) & 255)) * k)).round();
-    return (ch(16) << 16) | (ch(8) << 8) | ch(0);
+  /// Draws [n] particles in one call.
+  void dots(Canvas c, int n, void Function(int i, Dot out) place) {
+    if (_transforms.length != n * 4) {
+      _transforms = Float32List(n * 4);
+      _rects = Float32List(n * 4);
+      _colors = Int32List(n);
+      for (var i = 0; i < n; i++) {
+        _rects[i * 4 + 2] = 32;
+        _rects[i * 4 + 3] = 32;
+      }
+    }
+    for (var i = 0; i < n; i++) {
+      place(i, _dot);
+      _transforms[i * 4] = _dot.r / 16;
+      _transforms[i * 4 + 1] = 0;
+      _transforms[i * 4 + 2] = _dot.x - _dot.r;
+      _transforms[i * 4 + 3] = _dot.y - _dot.r;
+      _colors[i] = ((clamp01(_dot.a) * 255).round() << 24) | 0xFFFFFF;
+    }
+    c.drawRawAtlas(_sprite, _transforms, _rects, _colors, BlendMode.modulate, null, Paint()..filterQuality = FilterQuality.low);
   }
 
   // ── words ──────────────────────────────────────────────────────────────
 
-  TextPainter words(String text, double size, {FontWeight weight = FontWeight.w800, Color color = kInk}) {
-    final key = '$text|${size.toStringAsFixed(1)}|${weight.value}|${color.toARGB32()}';
+  TextPainter words(String text, double size, {FontWeight weight = FontWeight.w800, Color color = kInk, double outline = 0}) {
+    final key = '$text|${size.toStringAsFixed(1)}|${weight.value}|${color.toARGB32()}|$outline';
     final hit = _text[key];
     if (hit != null) return hit;
     final tp = TextPainter(
@@ -258,7 +268,8 @@ class WrappedFilm {
           fontSize: size,
           height: 1.08,
           fontWeight: weight,
-          color: color,
+          color: outline > 0 ? null : color,
+          foreground: outline > 0 ? stroke(color, outline) : null,
           letterSpacing: size * (-0.0223 + 0.185 * math.exp(-0.1745 * size)),
           fontFeatures: const [FontFeature.tabularFigures()],
         ),
@@ -287,7 +298,7 @@ class WrappedFilm {
       out.add(line);
       final fits = out.length <= lines && out.every((l) => words(l, s, weight: weight).width <= width);
       if (fits) return (s, out);
-      if (s <= size * 0.42) {
+      if (s <= size * 0.55) {
         // too long even small: keep what fits and say so
         final cut = out.take(lines).toList();
         for (var i = 0; i < cut.length; i++) {
@@ -304,8 +315,15 @@ class WrappedFilm {
     }
   }
 
-  /// Words that rise out of their own baseline one after another and settle with a small overshoot.
-  /// Returns the height they take. [x] is the left edge, or the middle when [center].
+  /// One line, as it is, fitted to [width]. [align] 0 left, 0.5 middle, 1 right of [x]. Returns its width.
+  double line(Canvas c, String text, double x, double y, double size, {FontWeight weight = FontWeight.w700, Color color = kInk, double align = 0, double width = 1e6}) {
+    final (s, rows) = fit(text, size, width, 1, weight);
+    final tp = words(rows.first, s, weight: weight, color: color);
+    tp.paint(c, Offset(x - tp.width * align, y));
+    return tp.width;
+  }
+
+  /// Words that rise out of their own baseline one after another and settle with a small overshoot. Returns the height.
   double kinetic(
     FilmFrame f,
     String text, {
@@ -331,7 +349,9 @@ class WrappedFilm {
       for (final word in row.split(' ')) {
         final tp = words(word, s, weight: weight, color: color);
         final k = ramp(f.t, at + n * stagger, at + n * stagger + 0.7, Curves.easeOutBack);
-        if (k > 0.001) {
+        if (k >= 0.999) {
+          tp.paint(c, Offset(px, top));
+        } else if (k > 0.001) {
           c.save();
           c.clipRect(Rect.fromLTWH(px - s * 0.2, top - s * 0.12, tp.width + s * 0.4, tp.height + s * 0.24));
           c.translate(px, top + tp.height * (1 - k) * 1.1);
@@ -347,41 +367,55 @@ class WrappedFilm {
     return top - y;
   }
 
-  /// A number that races up and lands with a kick.
-  void counter(FilmFrame f, int value, String Function(int) say, {required double x, required double y, required double size, required double from, required double to, double? width, bool center = false}) {
-    if (f.t < from) return;
-    final k = ramp(f.t, from, to, Curves.easeOutExpo);
-    final shown = (value * k).round();
-    final end = words(say(value), size);
+  /// A number that races up and lands with a kick. Returns its width.
+  double counter(
+    FilmFrame f,
+    int value,
+    String Function(int) say, {
+    required double x,
+    required double y,
+    required double size,
+    required double from,
+    required double to,
+    double? width,
+    double align = 0,
+    Color color = kInk,
+  }) {
+    final end = words(say(value), size, color: color);
     final maxW = width ?? f.w - 48 * f.u;
     final s = end.width > maxW ? size * maxW / end.width : size;
-    final tp = k >= 1 ? words(say(value), s) : words(say(shown), s);
+    if (f.t < from) return math.min(end.width, maxW);
+    final k = ramp(f.t, from, to, Curves.easeOutExpo);
+    final tp = words(say(k >= 1 ? value : (value * k).round()), s, color: color);
     final kick = 1 + 0.1 * math.sin(math.pi * clamp01((f.t - to + 0.25) / 0.45));
     final c = f.canvas;
     c.save();
-    c.translate(center ? x : x + tp.width / 2, y + tp.height / 2);
+    c.translate(x + tp.width * (0.5 - align), y + tp.height / 2);
     c.scale(kick);
     tp.paint(c, Offset(-tp.width / 2, -tp.height / 2));
     c.restore();
+    return tp.width;
   }
 
-  /// A cover inside [rect] with corner [radius], turned by [angle]; nothing until it has arrived.
-  void picture(Canvas c, ui.Image? image, Rect rect, {double radius = 0, double angle = 0, double alpha = 1}) {
-    if (image == null || alpha <= 0.003 || rect.width < 1) return;
-    final s = math.min(image.width, image.height).toDouble();
+  /// A cover inside [rect] with corner [radius], turned by [angle]; a plain grey tile until it has arrived.
+  void picture(Canvas c, ui.Image? image, Rect rect, {double radius = 0, double angle = 0, bool tile = false}) {
+    if (rect.width < 1 || (image == null && !tile)) return;
     c.save();
     c.translate(rect.center.dx, rect.center.dy);
     if (angle != 0) c.rotate(angle);
     final box = Rect.fromCenter(center: Offset.zero, width: rect.width, height: rect.height);
     c.clipRRect(RRect.fromRectAndRadius(box, Radius.circular(radius)));
-    c.drawImageRect(
-      image,
-      Rect.fromCenter(center: Offset(image.width / 2, image.height / 2), width: s, height: s),
-      box,
-      Paint()
-        ..filterQuality = FilterQuality.medium
-        ..color = Color.fromRGBO(255, 255, 255, clamp01(alpha)),
-    );
+    if (image == null) {
+      c.drawRect(box, fill(const Color(0xFF2C2C2E)));
+    } else {
+      final scale = math.min(image.width / rect.width, image.height / rect.height);
+      c.drawImageRect(
+        image,
+        Rect.fromCenter(center: Offset(image.width / 2, image.height / 2), width: rect.width * scale, height: rect.height * scale),
+        box,
+        Paint()..filterQuality = FilterQuality.medium,
+      );
+    }
     c.restore();
   }
 }

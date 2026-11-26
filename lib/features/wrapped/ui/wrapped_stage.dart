@@ -2,31 +2,43 @@ import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart' show Material, MaterialType;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme.dart';
 import '../../../widgets/art/navi_icons.dart';
 import '../film/film.dart';
-import '../film/scenes.dart';
 import 'wrapped_share_sheet.dart';
 
 /// When a scene lands something you should feel it.
 const _thumps = <String, List<double>>{
-  'intro': [0.9, 2.9],
+  'intro': [3.3],
   'minutes': [1.5, 5.4],
-  'number-one': [2.8, 3.9],
-  'streak': [2.0, 5.2],
-  'discovery': [1.0, 3.6],
-  'personality': [1.9],
-  'journey': [4.9],
-  'best-day': [2.6, 4.6],
-  'finale': [0.1, 2.4],
+  'guess': [2.8, 5.5],
+  'number-one': [2.6],
+  'top5': [2.6, 3.7, 4.7, 5.8, 6.8],
+  'clock': [3.4],
+  'journey': [5.0],
+  'race': [7.6],
+  'obsession': [5.0],
+  'bookends': [5.1],
+  'composers': [3.2],
+  'languages': [1.0, 1.75, 2.5, 3.25, 4.0, 4.75],
+  'era': [4.0],
+  'week': [2.6],
+  'streak': [5.4],
+  'loyalty': [4.0, 6.2],
+  'best-day': [1.1, 5.1],
+  'discovery': [0.5, 1.4, 2.3, 3.2, 4.1, 5.0, 5.8],
+  'personality': [3.7],
+  'finale': [0.9],
 };
 
-/// Plays the film and lets you touch it. Tap the edges to move, tap the middle to blast the swarm (or play the
-/// scene), drag to stir, hold to pause, flick up from the bottom for how a number was worked out. Keys: arrows,
-/// space, Esc. With reduced motion every scene is its still and nothing moves by itself.
+/// Plays the film and lets you touch it. Tap the edges to move, tap or drag the middle to play the scene, hold to
+/// pause, flick up from the bottom for how a number was worked out. Keys: arrows, space, Esc. With reduced motion every
+/// scene is its still and nothing moves by itself. Nothing is painted while a panel covers it.
 class WrappedStage extends StatefulWidget {
   final WrappedFilm film;
 
@@ -90,7 +102,14 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
   }
 
   @override
+  void initState() {
+    super.initState();
+    SchedulerBinding.instance.addTimingsCallback(_onTimings);
+  }
+
+  @override
   void dispose() {
+    SchedulerBinding.instance.removeTimingsCallback(_onTimings);
     _ticker.dispose();
     _beat.dispose();
     super.dispose();
@@ -99,19 +118,19 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
   void _tick(Duration now) {
     final dt = math.min(0.05, (now - _last).inMicroseconds / 1e6);
     _last = now;
+    if (_busy) return; // a panel is over the film: no work behind it
     _touch.tick(dt);
     if (_start == null) {
       _touch.tiltX *= math.pow(0.05, dt).toDouble();
       _touch.tiltY *= math.pow(0.05, dt).toDouble();
     }
-    if (!_held && !_busy) _t += dt;
+    if (!_held) _t += dt;
     final cues = _thumps[_scene.id] ?? const [];
     while (_thump < cues.length && _t >= cues[_thump]) {
       _thump++;
       HapticFeedback.mediumImpact();
     }
-    final end = _scene.id == 'guess' && _touch.guess != null ? _touch.guessAt + 3.6 : _scene.length;
-    if (_t >= end && !_last_ && _start == null) {
+    if (_t >= _scene.end(_touch) &&!_last_ && _start == null) {
       _go(_index + 1);
       return;
     }
@@ -132,8 +151,41 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
         ..scrubX = null
         ..spin = 0
         ..guess = null
-        ..blasts.clear();
+        ..kick = 9;
     });
+    _report();
+  }
+
+  // ── frames ─────────────────────────────────────────────────────────────
+
+  // How long each frame of the scene took (build and raster together), so a phone that cannot keep up gets fewer
+  // grains, and a profile run can say how smooth each scene was.
+  final List<int> _frames = [];
+  String _measured = '';
+
+  void _onTimings(List<FrameTiming> timings) {
+    if (_busy) return;
+    if (_measured != _scene.id) _report();
+    for (final t in timings) {
+      _frames.add(math.max(t.buildDuration.inMicroseconds, t.rasterDuration.inMicroseconds));
+    }
+    if (_scene.particles && _frames.length >= 45) {
+      final slow = _frames.skip(_frames.length - 45).where((v) => v > 16700).length;
+      if (slow > 9 && widget.film.grains > 180) widget.film.grains = (widget.film.grains * 0.65).round();
+    }
+  }
+
+  void _report() {
+    if (kProfileMode && _frames.length > 20) {
+      final sorted = [..._frames]..sort();
+      final slow = sorted.where((v) => v > 16700).length;
+      debugPrint(
+        '[Wrapped] frames $_measured n=${sorted.length} slow=$slow (${(100 * slow / sorted.length).toStringAsFixed(1)}%) '
+        'p50=${(sorted[sorted.length ~/ 2] / 1000).toStringAsFixed(1)} p90=${(sorted[sorted.length * 9 ~/ 10] / 1000).toStringAsFixed(1)} max=${(sorted.last / 1000).toStringAsFixed(1)} grains=${widget.film.grains}',
+      );
+    }
+    _frames.clear();
+    _measured = _scene.id;
   }
 
   void _hold(bool on) => _held = on;
@@ -142,33 +194,23 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
     final x = p.dx / _size.width;
     if (x < 0.16) return _go(_index - 1);
     if (x > 0.84) return _go(_index + 1);
-    if (_scene.id == 'guess' && _touch.guess == null) {
-      for (var k = 0; k < 3; k++) {
-        if (GuessScene.card(_size, k, _t).inflate(14 * _size.width / 360).contains(p)) {
-          final right = guessOrder(widget.film.data)[k] == 0;
-          right ? HapticFeedback.heavyImpact() : HapticFeedback.vibrate();
-          setState(() {
-            _touch.guess = k;
-            _touch.guessAt = _reduced ? _t - 2 : _t;
-          });
-          if (right) _touch.blasts.add((p, 0));
-          return;
-        }
-      }
-    }
     if (_reduced) return _go(_index + 1);
-    if (_scene.id == 'top5') {
-      final done = 1.0 + widget.film.data.songs.length * CountdownScene.beat;
-      if (_t < done) {
-        HapticFeedback.heavyImpact();
-        _touch.blasts.add((p, 0));
-        final next = _t < 1 ? 1.0 : 1.0 + (((_t - 1) ~/ CountdownScene.beat) + 1) * CountdownScene.beat;
-        _t = next + 0.01;
-        return;
+    final before = _touch.guess;
+    final rec = ui.PictureRecorder();
+    final jump = _scene.tap(FilmFrame(widget.film, ui.Canvas(rec), _size, _t, _touch, widget.name), p);
+    rec.endRecording().dispose();
+    if (jump != null) {
+      _t = jump;
+      _thump = 0;
+      final cues = _thumps[_scene.id] ?? const [];
+      while (_thump < cues.length && cues[_thump] <= _t) {
+        _thump++;
       }
     }
-    HapticFeedback.mediumImpact();
-    _touch.blasts.add((p, 0));
+    _touch
+      ..kick = 0
+      ..kickAt = p;
+    _touch.guess != before && _touch.guess == 0 ? HapticFeedback.heavyImpact() : HapticFeedback.mediumImpact();
   }
 
   void _panStart(Offset p) {
@@ -177,20 +219,16 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
   }
 
   void _panUpdate(Offset p, Offset delta) {
-    _touch.finger = _scene.drags ? null : p;
+    _touch.finger = p;
     final u = _size.width / 360;
     _touch.spin += delta.dx / (90 * u);
     _touch.tiltX = (_touch.tiltX + delta.dx / (130 * u)).clamp(-1.0, 1.0);
     _touch.tiltY = (_touch.tiltY + delta.dy / (160 * u)).clamp(-1.0, 1.0);
-    if (_scene.drags) {
+    final steps = _scene.scrubSteps;
+    if (steps > 0) {
       final was = _touch.scrubX;
       _touch.scrubX = clamp01(p.dx / _size.width);
-      final steps = switch (_scene.id) {
-        'clock' => 24,
-        'journey' => 12,
-        _ => 0,
-      };
-      if (steps > 0 && was != null && (was * steps).floor() != (_touch.scrubX! * steps).floor()) HapticFeedback.selectionClick();
+      if (was != null && (was * steps).floor() != (_touch.scrubX! * steps).floor()) HapticFeedback.selectionClick();
     }
     if (_reduced) _beat.value++;
   }
@@ -254,7 +292,8 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
     return Focus(
       autofocus: true,
       onKeyEvent: _key,
-      child: ColoredBox(
+      // a Material so no words fall back to Flutter's yellow "no text style" underline
+      child: Material(
         color: const Color(0xFF000000),
         child: LayoutBuilder(
           builder: (context, box) {

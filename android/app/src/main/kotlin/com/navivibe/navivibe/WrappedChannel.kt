@@ -189,18 +189,27 @@ private class FilmEncoder(val file: File, private val width: Int, private val he
         val cbBuf = cb.buffer
         val crBuf = cr.buffer
         val row = ByteArray(width)
-        var p = 0
+        val w = width
         for (j in 0 until height) {
-            for (i in 0 until width) {
-                val r = rgba[p].toInt() and 255
-                val g = rgba[p + 1].toInt() and 255
-                val b = rgba[p + 2].toInt() and 255
-                row[i] = (((66 * r + 129 * g + 25 * b + 128) shr 8) + 16).toByte()
-                if (j and 1 == 0 && i and 1 == 0) {
-                    cbBuf.put((j / 2) * cb.rowStride + (i / 2) * cb.pixelStride, (((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128).toByte())
-                    crBuf.put((j / 2) * cr.rowStride + (i / 2) * cr.pixelStride, (((112 * r - 94 * g - 18 * b + 128) shr 8) + 128).toByte())
-                }
+            var p = j * w * 4
+            for (i in 0 until w) {
+                row[i] = (((66 * (rgba[p].toInt() and 255) + 129 * (rgba[p + 1].toInt() and 255) + 25 * (rgba[p + 2].toInt() and 255) + 128) shr 8) + 16).toByte()
                 p += 4
+            }
+            if (j and 1 == 0) {
+                var q = j * w * 4
+                var cbAt = (j / 2) * cb.rowStride
+                var crAt = (j / 2) * cr.rowStride
+                for (i in 0 until w / 2) {
+                    val r = rgba[q].toInt() and 255
+                    val g = rgba[q + 1].toInt() and 255
+                    val b = rgba[q + 2].toInt() and 255
+                    cbBuf.put(cbAt, (((-38 * r - 74 * g + 112 * b + 128) shr 8) + 128).toByte())
+                    crBuf.put(crAt, (((112 * r - 94 * g - 18 * b + 128) shr 8) + 128).toByte())
+                    cbAt += cb.pixelStride
+                    crAt += cr.pixelStride
+                    q += 8
+                }
             }
             if (y.pixelStride == 1) {
                 yBuf.position(j * y.rowStride)

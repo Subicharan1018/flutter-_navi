@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:math' as math;
 import 'dart:ui' as ui;
 
@@ -19,33 +20,37 @@ class FilmClip {
 /// One scene at its own pace.
 List<FilmClip> sceneClip(WrappedFilm film, int index) => [FilmClip(index, film.scenes[index].length, film.scenes[index].length)];
 
-/// The whole film inside a minute, the longest an Instagram story runs.
+/// The scenes that make the one-minute cut.
+const _highlights = ['intro', 'minutes', 'number-one', 'top5', 'artists', 'genres', 'clock', 'journey', 'obsession', 'languages', 'era', 'streak', 'best-day', 'personality', 'finale'];
+
+/// The film's highlights inside a minute, the longest an Instagram story runs.
 List<FilmClip> wholeFilm(WrappedFilm film) {
-  final each = math.min(4.2, 59 / film.scenes.length);
-  return [for (var i = 0; i < film.scenes.length; i++) FilmClip(i, math.min(film.scenes[i].length, film.scenes[i].still + 0.6), each)];
+  final picks = [
+    for (var i = 0; i < film.scenes.length; i++)
+      if (_highlights.contains(film.scenes[i].id)) i,
+  ];
+  final each = math.min(4.4, 59 / math.max(1, picks.length));
+  return [for (final i in picks) FilmClip(i, math.min(film.scenes[i].length, film.scenes[i].still + 0.5), each)];
 }
 
-Future<ui.Image> _frame(WrappedFilm film, Size size, {required int index, required double t, int? from, double fromT = 0, String? name}) async {
+ui.Picture _record(WrappedFilm film, Size size, {required int index, required double t, int? from, double fromT = 0, String? name}) {
   final rec = ui.PictureRecorder();
   final canvas = ui.Canvas(rec);
   film.paint(canvas, size, index: index, t: t, from: from, fromT: fromT, name: name);
-  if (film.scenes[index].id != 'finale') {
-    // the poster carries its own mark; every other scene gets the small one
+  if (film.scenes[index].id != 'finale' && film.scenes[index].id != 'discovery') {
+    // the sleeve and the receipt carry their own mark; every other scene gets the small one
     final u = size.width / 360;
     final mark = film.words('NaviVibe', 14 * u, weight: ui.FontWeight.w700);
-    mark.paint(canvas, ui.Offset(size.width / 2 - mark.width / 2, size.height - 36 * u));
+    mark.paint(canvas, ui.Offset(size.width / 2 - mark.width / 2, size.height - 34 * u));
   }
-  final pic = rec.endRecording();
-  try {
-    return await pic.toImage(size.width.round(), size.height.round());
-  } finally {
-    pic.dispose();
-  }
+  return rec.endRecording();
 }
 
 /// Scene [index] at its best moment as a PNG: 1080 x 1920, or 1080 x 1080 when [square].
 Future<Uint8List> renderStill(WrappedFilm film, int index, {String? name, bool square = false}) async {
-  final image = await _frame(film, square ? const Size(1080, 1080) : const Size(1080, 1920), index: index, t: film.scenes[index].still, name: name);
+  final pic = _record(film, square ? const Size(1080, 1080) : const Size(1080, 1920), index: index, t: film.scenes[index].still, name: name);
+  final image = await pic.toImage(1080, square ? 1080 : 1920);
+  pic.dispose();
   try {
     return (await image.toByteData(format: ui.ImageByteFormat.png))!.buffer.asUint8List();
   } finally {
@@ -66,7 +71,11 @@ class ExportCancelled implements Exception {}
 const filmFps = 24;
 const filmVideoSize = Size(720, 1280);
 
-/// Renders [clips] frame by frame into [sink] and returns the file. Frame n always shows the same moment, however slow the phone.
+/// Frames drawn ahead of the encoder: drawing, reading back and encoding run side by side.
+const _ahead = 3;
+
+/// Renders [clips] frame by frame into [sink] and returns the file. Frame n always shows the same moment, however slow
+/// the phone, and frames always arrive in order.
 Future<String> renderVideo(
   WrappedFilm film,
   List<FilmClip> clips,
@@ -78,24 +87,62 @@ Future<String> renderVideo(
   Size size = filmVideoSize,
 }) async {
   final total = clips.fold<int>(0, (a, c) => a + (c.seconds * filmFps).round());
+  final clock = Stopwatch()..start();
+  final w = size.width.round(), h = size.height.round();
   var done = 0;
+
+  Future<Uint8List> read(ui.Picture pic) async {
+    final image = await pic.toImage(w, h);
+    pic.dispose();
+    try {
+      return (await image.toByteData())!.buffer.asUint8List();
+    } finally {
+      image.dispose();
+    }
+  }
+
+  final reading = <Future<Uint8List>>[];
+  Future<void>? sending;
+  Object? failed;
+  Future<void> send() async {
+    final bytes = await reading.removeAt(0);
+    await sending;
+    if (failed != null) throw failed!;
+    sending = sink
+        .add(bytes)
+        .then((_) {
+          onProgress?.call(++done / total);
+        })
+        .catchError((Object e) {
+          failed = e;
+        });
+  }
+
   try {
-    await sink.start(size.width.round(), size.height.round(), filmFps, fileName);
+    await sink.start(w, h, filmFps, fileName);
     for (var k = 0; k < clips.length; k++) {
       final c = clips[k];
       final frames = (c.seconds * filmFps).round();
       for (var i = 0; i < frames; i++) {
         if (cancelled?.call() ?? false) throw ExportCancelled();
         final t = c.until * i / math.max(1, frames - 1);
-        final image = await _frame(film, size, index: c.index, t: t, from: k == 0 ? null : clips[k - 1].index, fromT: k == 0 ? 0 : clips[k - 1].until, name: name);
-        final bytes = (await image.toByteData())!;
-        image.dispose();
-        await sink.add(bytes.buffer.asUint8List());
-        onProgress?.call(++done / total);
+        reading.add(read(_record(film, size, index: c.index, t: t, from: k == 0 ? null : clips[k - 1].index, fromT: k == 0 ? 0 : clips[k - 1].until, name: name)));
+        if (reading.length >= _ahead) await send();
       }
     }
-    return await sink.finish();
+    while (reading.isNotEmpty) {
+      await send();
+    }
+    await sending;
+    if (failed != null) throw failed!;
+    final path = await sink.finish();
+    debugPrint('[Wrapped] video $total frames in ${clock.elapsedMilliseconds} ms (${(clock.elapsedMilliseconds / math.max(1, total)).toStringAsFixed(1)} ms a frame)');
+    return path;
   } catch (_) {
+    for (final r in reading) {
+      unawaited(r.then((_) {}, onError: (_) {}));
+    }
+    await sending;
     await sink.cancel();
     rethrow;
   }

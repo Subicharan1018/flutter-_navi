@@ -1,4 +1,4 @@
-/// Wrapped, scene by scene, as a strip of four moments: mid-flight, forming, formed, and the still that is shared.
+/// Wrapped, scene by scene, as a strip of four moments: the cut, forming, formed, and the still that is shared.
 ///
 ///   flutter test test/goldens/wrapped_test.dart --update-goldens
 @Tags(['golden'])
@@ -7,6 +7,7 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/features/wrapped/film/film.dart';
+import 'package:navivibe/features/wrapped/film/scenes.dart';
 
 import '../features/wrapped/wrapped_fixture.dart';
 import 'golden_fonts.dart';
@@ -19,11 +20,11 @@ class _Strip extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     final s = film.scenes[index];
-    final times = [0.65, s.length * 0.3, s.length * 0.55, s.still];
+    final times = [0.3, s.length * 0.28, s.length * 0.5, s.still];
     for (var i = 0; i < 4; i++) {
       canvas.save();
       canvas.translate(i * 364.0, 0);
-      film.paint(canvas, const Size(360, 640), index: index, t: times[i], from: index == 0 ? null : index - 1, fromT: index == 0 ? 0 : film.scenes[index - 1].length);
+      film.paint(canvas, const Size(360, 780), index: index, t: times[i], from: index == 0 ? null : index - 1, fromT: index == 0 ? 0 : film.scenes[index - 1].length);
       canvas.restore();
     }
   }
@@ -50,13 +51,13 @@ void main() {
     addTearDown(tester.view.reset);
   }
 
-  for (final (i, id) in ['intro', 'minutes', 'guess', 'number-one', 'top5', 'artists', 'genres', 'clock', 'streak', 'discovery', 'personality', 'journey', 'best-day', 'finale'].indexed) {
+  final ids = [for (final s in filmScenes(fixtureWrapped())) s.id];
+  for (final (i, id) in ids.indexed) {
     testWidgets(id, (tester) async {
-      view(tester, const Size(1452, 640));
+      view(tester, const Size(1452, 780));
       final film = (await tester.runAsync(fixtureFilm))!;
       addTearDown(film.dispose);
-      expect(film.scenes[i].id, id);
-      await tester.pumpWidget(wrappedApp(RepaintBoundary(child: CustomPaint(size: const Size(1452, 640), painter: _Strip(film, i)))));
+      await tester.pumpWidget(wrappedApp(RepaintBoundary(child: CustomPaint(size: const Size(1452, 780), painter: _Strip(film, i)))));
       await expectLater(find.byType(MaterialApp), matchesGoldenFile('wrapped/$id.png'));
     });
   }

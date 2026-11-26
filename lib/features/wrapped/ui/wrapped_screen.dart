@@ -1,3 +1,5 @@
+import 'dart:ui' as ui;
+
 import 'package:cached_network_image/cached_network_image.dart';
 import 'package:flutter/cupertino.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -42,7 +44,7 @@ class WrappedScreen extends ConsumerStatefulWidget {
 }
 
 class _WrappedScreenState extends ConsumerState<WrappedScreen> {
-  late final WrappedFilm _film = WrappedFilm(emptyWrapped(widget.year), FilmAssets(), count: PlatformUtils.isConstrained ? 900 : 1500, settled: false);
+  late final WrappedFilm _film = WrappedFilm(emptyWrapped(widget.year), FilmAssets(), grains: PlatformUtils.isConstrained ? 260 : 520, settled: false);
   final ValueNotifier<int> _arrivals = ValueNotifier(0);
   final Set<String> _wanted = {};
   final Set<String> _asked = {};
@@ -52,12 +54,7 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
   @override
   void initState() {
     super.initState();
-    textPoints('${widget.year}', _film.count).then((p) {
-      if (!mounted) return;
-      _film.assets.year = p;
-      debugPrint('[Wrapped] intro ready ${_clock.elapsedMilliseconds} ms');
-      _arrivals.value++;
-    });
+    WidgetsBinding.instance.addPostFrameCallback((_) => debugPrint('[Wrapped] intro on screen ${_clock.elapsedMilliseconds} ms'));
     ref.listenManual(wrappedProvider(widget.year), fireImmediately: true, (_, next) {
       final load = next.asData?.value;
       if (load == null || identical(load, _load)) return;
@@ -70,13 +67,14 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
   }
 
   void _wantArt(WrappedData d) {
-    for (final (i, s) in d.songs.take(5).indexed) {
-      if (!_wanted.add('s$i')) continue;
-      ref.listenManual(songCoverUrlProvider(s.coverKey), fireImmediately: true, (_, v) => _fetch('s$i', v.asData?.value, (url) => _song(i, url)));
+    final o = d.story.obsession;
+    for (final key in {for (final s in d.songs.take(5)) s.coverKey, if (o != null) '${o.title}|${o.artist}'}) {
+      if (!_wanted.add('s$key')) continue;
+      ref.listenManual(songCoverUrlProvider(key), fireImmediately: true, (_, v) => _fetch('s$key', v.asData?.value, (url) => _picture(_film.assets.covers, key, url, 640)));
     }
-    for (final (i, a) in d.artists.take(6).indexed) {
-      if (!_wanted.add('a$i')) continue;
-      ref.listenManual(artistCoverUrlProvider(a.name), fireImmediately: true, (_, v) => _fetch('a$i', v.asData?.value, (url) => _artist(i, url)));
+    for (final name in {for (final a in d.artists.take(6)) a.name, ...d.story.race.keys, ?d.story.loyal?.name}) {
+      if (!_wanted.add('a$name')) continue;
+      ref.listenManual(artistCoverUrlProvider(name), fireImmediately: true, (_, v) => _fetch('a$name', v.asData?.value, (url) => _picture(_film.assets.people, name, url, 256)));
     }
   }
 
@@ -87,22 +85,13 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
 
   ImageProvider _provider(String url) => testCoverOverride(url) ?? CachedNetworkImageProvider(url);
 
-  Future<void> _song(int i, String url) async {
-    final image = await loadFilmImage(_provider(url), width: 640);
-    if (image == null) return;
-    final cover = await FilmCover.of(image);
-    if (!mounted) return image.dispose();
-    _film.assets.songs[i] = cover;
-    _arrivals.value++;
-    debugPrint('[Wrapped] cover ${i + 1} ${_clock.elapsedMilliseconds} ms');
-  }
-
-  Future<void> _artist(int i, String url) async {
-    final image = await loadFilmImage(_provider(url), width: 320);
+  Future<void> _picture(Map<String, ui.Image> into, String key, String url, int width) async {
+    final image = await loadFilmImage(_provider(url), width: width);
     if (image == null) return;
     if (!mounted) return image.dispose();
-    _film.assets.artists[i] = image;
+    into[key] = image;
     _arrivals.value++;
+    debugPrint('[Wrapped] picture ${_film.assets.covers.length + _film.assets.people.length} at ${_clock.elapsedMilliseconds} ms');
   }
 
   @override
@@ -157,7 +146,7 @@ class _Message extends StatelessWidget {
   Widget build(BuildContext context) => SafeArea(
     child: Stack(
       children: [
-        Center(child: child),
+        Center(child: DefaultTextStyle(style: const TextStyle(decoration: TextDecoration.none), child: child)),
         Positioned(
           top: Space.sm,
           right: Space.md,

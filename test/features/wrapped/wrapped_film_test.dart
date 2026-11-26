@@ -8,7 +8,10 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/features/wrapped/film/film.dart';
 import 'package:navivibe/features/wrapped/film/film_export.dart';
+import 'package:navivibe/core/theme.dart';
+import 'package:navivibe/features/wrapped/film/film_assets.dart';
 import 'package:navivibe/features/wrapped/film/scenes.dart';
+import 'package:navivibe/features/wrapped/film/scenes_music.dart';
 import 'package:navivibe/features/wrapped/data/wrapped_models.dart';
 import 'package:navivibe/features/wrapped/logic/wrapped_loader.dart';
 import 'package:navivibe/features/wrapped/logic/wrapped_providers.dart';
@@ -72,7 +75,36 @@ void main() {
   group('the film', () {
     test('a thin year keeps only the scenes it can fill', () {
       expect(filmScenes(fixtureWrapped(thin: true)).map((s) => s.id), ['intro', 'minutes', 'discovery', 'personality', 'finale']);
-      expect(filmScenes(fixtureWrapped()).length, 14);
+      expect(filmScenes(fixtureWrapped()).length, 23);
+    });
+
+    test('particles only where they are the thing itself, and no two scenes are drawn the same way', () {
+      final s = filmScenes(fixtureWrapped());
+      expect([for (final x in s) if (x.particles) x.id], ['minutes', 'artists']);
+      expect(s.map((x) => x.technique).toSet().length, s.length);
+      expect(WrappedFilm(fixtureWrapped(), FilmAssets()).grains, lessThanOrEqualTo(520));
+    });
+
+    test('every scene says how it was worked out, what to share and what to read aloud', () {
+      for (final s in filmScenes(fixtureWrapped())) {
+        for (final text in [s.why(fixtureWrapped()), s.share(fixtureWrapped()), s.speech(fixtureWrapped())]) {
+          expect(text.length, greaterThan(12), reason: s.id);
+          expect(text, isNot(contains('null')), reason: s.id);
+        }
+        expect(s.still, lessThanOrEqualTo(s.length), reason: s.id);
+      }
+    });
+
+    test('a film’s name is left off its songs', () {
+      expect(nice('Hangova (From "DC")'), 'Hangova');
+      expect(nice('Song [feat. X]'), 'Song');
+      expect(nice('(From "X")'), '(From "X")');
+      expect(nice('Love (Remix)'), 'Love (Remix)');
+    });
+
+    test('the cards end where their shuffle says, each in its own place', () {
+      expect({for (var c = 0; c < 3; c++) CardsScene.place(c, CardsScene.ready).$1}, {0.0, 1.0, 2.0});
+      expect([for (var c = 0; c < 3; c++) CardsScene.place(c, 0).$1], [0, 1, 2]);
     });
 
     testWidgets('the same moment always paints the same picture', (tester) async {
@@ -113,11 +145,9 @@ void main() {
 
     test('a still is taken after the numbers have landed', () {
       final s = {for (final s in filmScenes(fixtureWrapped())) s.id: s.still};
-      expect(s['minutes'], greaterThanOrEqualTo(5.4));
-      expect(s['number-one'], greaterThanOrEqualTo(6.0));
-      expect(s['streak'], greaterThanOrEqualTo(5.2));
-      expect(s['discovery'], greaterThanOrEqualTo(3.6));
-      expect(s['best-day'], greaterThanOrEqualTo(5.0));
+      for (final (id, lands) in [('minutes', 5.4), ('number-one', 5.0), ('top5', 6.7), ('race', 7.6), ('obsession', 5.0), ('era', 4.0), ('week', 3.6), ('streak', 5.4), ('loyalty', 4.0), ('best-day', 5.0), ('discovery', 5.4)]) {
+        expect(s[id], greaterThanOrEqualTo(lands), reason: id);
+      }
     });
   });
 
@@ -150,38 +180,90 @@ void main() {
       expect(stage.time, greaterThan(t));
     });
 
-    testWidgets('a tap in the middle sends a blast through the swarm, which dies away', (tester) async {
+    testWidgets('a tap in the middle kicks the scene, and the kick dies away', (tester) async {
       final (_, stage) = await open(tester);
       await tester.tapAt(const Offset(195, 400));
       await tester.pump(const Duration(milliseconds: 50));
-      expect(stage.touch.blasts, hasLength(1));
+      expect(stage.touch.punch(), greaterThan(0.5));
       await run(tester, 2);
-      expect(stage.touch.blasts, isEmpty);
+      expect(stage.touch.punch(), 0);
     });
 
-    testWidgets('a right guess is kept and the film moves on', (tester) async {
-      final (film, stage) = await open(tester);
+    testWidgets('cards cannot be picked while they move; a pick is kept and the film moves on', (tester) async {
+      final (_, stage) = await open(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await run(tester, 2);
-      final right = guessOrder(film.data).indexOf(0);
-      await tester.tapAt(GuessScene.card(const Size(390, 844), right, stage.time).center);
+      await tester.tapAt(const Offset(195, 397));
       await tester.pump();
-      expect(stage.touch.guess, right);
+      expect(stage.touch.guess, isNull);
+      await run(tester, 4.5);
+      await tester.tapAt(const Offset(195, 397));
+      await tester.pump();
+      final middle = [0, 1, 2].firstWhere((c) => CardsScene.place(c, 9).$1 == 1);
+      expect(stage.touch.guess, middle);
       await run(tester, 4);
       expect(stage.index, 3);
     });
 
-    testWidgets('a tap in the countdown smashes to the next song', (tester) async {
+    testWidgets('a tap sends the departures board round again', (tester) async {
       final (_, stage) = await open(tester);
       for (var i = 0; i < 4; i++) {
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.pump();
       }
-      await run(tester, 1.4);
+      await run(tester, 5);
       await tester.tapAt(const Offset(195, 400));
       await tester.pump();
-      expect(stage.time, greaterThanOrEqualTo(3.0));
+      expect(stage.time, lessThan(1.2));
+    });
+
+    testWidgets('nothing runs behind an open panel', (tester) async {
+      final (_, stage) = await open(tester);
+      await run(tester, 1);
+      await tester.tap(find.textContaining('Why?'));
+      await run(tester, 0.6);
+      final t = stage.time;
+      await run(tester, 1);
+      expect(stage.time, t);
+    });
+
+    testWidgets('no words on the stage or its panels wear Flutter’s yellow underline', (tester) async {
+      phone(tester);
+      final film = (await tester.runAsync(fixtureFilm))!;
+      addTearDown(film.dispose);
+      // as it is on the phone: a bare route, no Scaffold or Material above it
+      await tester.pumpWidget(
+        ThemeTokens(
+          tokens: AppThemeTokens.fallback,
+          child: MaterialApp(home: WrappedStage(film: film, name: 'Subi', onClose: () {}, waiting: 'Waiting')),
+        ),
+      );
+      void clean(String where) {
+        final texts = tester.widgetList<RichText>(find.byType(RichText)).toList();
+        expect(texts, isNotEmpty, reason: where);
+        for (final r in texts) {
+          final style = (r.text as TextSpan).style!;
+          expect(style.decoration ?? TextDecoration.none, TextDecoration.none, reason: '$where: ${r.text.toPlainText()}');
+        }
+      }
+
+      await tester.pump();
+      clean('stage');
+      for (var i = 0; i < 30; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+        await tester.pump(const Duration(milliseconds: 30));
+        clean('scene $i');
+      }
+      await tester.tap(find.textContaining('Why?'));
+      await run(tester, 0.6);
+      clean('why');
+      await tester.tapAt(const Offset(195, 100));
+      await run(tester, 0.6);
+      await tester.tap(find.bySemanticsLabel('Share').first);
+      await run(tester, 0.6);
+      expect(find.text('Show my name'), findsOneWidget);
+      clean('share');
     });
 
     testWidgets('dragging the clock chooses an hour, and lets go of it', (tester) async {
@@ -263,21 +345,21 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 50));
       expect(stage(tester).time, greaterThanOrEqualTo(t));
-      expect(stage(tester).widget.film.scenes.last.id, 'clock');
+      expect(stage(tester).widget.film.scenes.last.id, 'journey');
       for (var i = 0; i < 12; i++) {
         await tester.tapAt(const Offset(380, 400));
         await tester.pump(const Duration(milliseconds: 50));
       }
-      expect(stage(tester).index, 7);
+      expect(stage(tester).index, 8);
       loads.add(WrappedLoad(fixtureWrapped(), settled: false, done: 4, total: 11));
       await run(tester, 0.2);
       expect(find.text('Adding your months, 4 of 11'), findsOneWidget);
       await run(tester, 12);
-      expect(stage(tester).index, 7, reason: 'it waits on the last known scene');
+      expect(stage(tester).index, 8, reason: 'it waits on the last known scene');
       loads.add(WrappedLoad(fixtureWrapped(), settled: true));
       await run(tester, 0.4);
-      expect(stage(tester).index, 8);
-      expect(stage(tester).widget.film.scenes.length, 14);
+      expect(stage(tester).index, 9);
+      expect(stage(tester).widget.film.scenes.length, 23);
       expect(find.textContaining('Adding your months'), findsNothing);
     });
 

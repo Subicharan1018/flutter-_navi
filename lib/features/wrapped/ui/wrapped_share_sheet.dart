@@ -179,7 +179,7 @@ class _WrappedShareSheetState extends State<WrappedShareSheet> {
             choice('This scene', !_whole, () => setState(() => _whole = false)),
             if (widget.film.settled) ...[
               const SizedBox(width: Space.sm),
-              choice('The whole film', _whole, () => setState(() => _whole = true)),
+              choice(_video ? 'The highlights' : 'All scenes', _whole, () => setState(() => _whole = true)),
             ],
           ],
         ),

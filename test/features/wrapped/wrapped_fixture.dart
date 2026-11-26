@@ -3,6 +3,7 @@ import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/wrapped/data/wrapped_models.dart';
+import 'package:navivibe/features/wrapped/data/wrapped_story.dart';
 import 'package:navivibe/features/wrapped/film/film.dart';
 import 'package:navivibe/features/wrapped/film/film_assets.dart';
 
@@ -55,6 +56,33 @@ WrappedData fixtureWrapped({bool thin = false}) {
     days: [for (final d in dates) WrappedDay(date: d, minutes: days[d]!)],
     longestStreak: 16, streakStart: '2026-03-05', streakEnd: '2026-03-20',
     bestDay: const WrappedDay(date: '2026-10-14', minutes: 412),
+    story: const WrappedStory(
+      obsession: Obsession('Vaseegara', 'Bombay Jayashri', 87, 3),
+      race: {
+        'A. R. Rahman': [80, 190, 420, 560, 700, 820, 980, 1150, 1330, 1560, 1740, 1900],
+        'Harris Jayaraj': [140, 300, 380, 500, 610, 760, 840, 930, 1080, 1200, 1300, 1400],
+        'Anirudh': [60, 120, 200, 260, 420, 560, 640, 700, 760, 810, 860, 900],
+        'Sid Sriram': [40, 90, 140, 200, 260, 300, 360, 420, 470, 520, 560, 600],
+        'Yuvan': [90, 130, 160, 190, 230, 260, 290, 310, 330, 360, 380, 400],
+        'Ilaiyaraaja': [20, 50, 80, 110, 140, 170, 190, 210, 230, 260, 280, 300],
+      },
+      loyal: Loyal('A. R. Rahman', [1, 2, 3, 4, 5, 6, 8, 9, 10, 11, 12]),
+      comeback: Comeback('Yuvan', 4, 9),
+      week: [52, 48, 61, 70, 118, 96, 84],
+      known: 46,
+      languages: [WrappedGenre(name: 'Tamil', pct: 71), WrappedGenre(name: 'English', pct: 18), WrappedGenre(name: 'Hindi', pct: 8), WrappedGenre(name: 'Malayalam', pct: 3)],
+      composers: [
+        WrappedArtist(name: 'A. R. Rahman', plays: 910, minutes: 0, songs: 14),
+        WrappedArtist(name: 'Harris Jayaraj', plays: 640, minutes: 0, songs: 9),
+        WrappedArtist(name: 'Anirudh Ravichander', plays: 420, minutes: 0, songs: 7),
+      ],
+      moods: [WrappedGenre(name: 'Romantic', pct: 46), WrappedGenre(name: 'Sad', pct: 22), WrappedGenre(name: 'Party', pct: 18), WrappedGenre(name: 'Chill', pct: 9), WrappedGenre(name: 'Happy', pct: 5)],
+      era: Era(2008, 1986, 2026, 'Mandram Vandha', 'Hangova (From "DC")'),
+      ends: Bookends(
+        WrappedPlay(title: 'Nenjukkul Peidhidum', artist: 'Harris Jayaraj', at: '2026-01-01 00:04'),
+        WrappedPlay(title: 'Munbe Vaa', artist: 'A. R. Rahman', at: '2026-11-24 12:40'),
+      ),
+    ),
   );
 }
 
@@ -76,15 +104,13 @@ Future<WrappedFilm> fixtureFilm({WrappedData? data, bool art = true}) async {
   final assets = FilmAssets();
   if (art) {
     for (var i = 0; i < d.songs.length; i++) {
-      assets.songs[i] = await FilmCover.of(await fakeArt(i));
+      assets.covers[d.songs[i].coverKey] = await fakeArt(i);
     }
     for (var i = 0; i < d.artists.length; i++) {
-      assets.artists[i] = await fakeArt(i + 1);
+      assets.people[d.artists[i].name] = await fakeArt(i + 1);
     }
   }
-  final film = WrappedFilm(d, assets);
-  assets.year = await textPoints('${d.year}', film.count);
-  return film;
+  return WrappedFilm(d, assets);
 }
 
 Widget wrappedApp(Widget child, {bool reduced = false}) {
