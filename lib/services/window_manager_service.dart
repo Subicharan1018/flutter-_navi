@@ -79,6 +79,9 @@ class WindowManagerService with WindowListener {
   @override
   void onWindowClose() {
     _writer.cancel();
+    // On Linux the quit sequence calls [flush] and waits for it before the
+    // boxes close; a second, unawaited save here could still be writing then.
+    if (PlatformUtils.isLinux) return;
     _saveWindowState();
   }
 

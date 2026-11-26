@@ -253,6 +253,10 @@ Future<void> main(List<String> args) async {
         await windowManager.hide(); // gone from the screen while the rest finishes
       },
       globalAudioHandler.player.dispose,
+      // Saves started by hiding the window or stopping the player are not
+      // awaited: let them finish, or one hits a closed box ("HiveError: Box
+      // has already been closed", seen on Arch after repeated closes).
+      () => Future<void>.delayed(const Duration(milliseconds: 400)),
       Hive.close,
     ]).install());
   }
