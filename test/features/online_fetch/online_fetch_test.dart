@@ -968,6 +968,15 @@ void main() {
       expect(find.text('Album downloaded'), findsNothing);
     });
 
+    testWidgets('the Downloads list shows a batch that has no cover (it drew a blank window)', (tester) async {
+      await tester.pumpWidget(host(const SingleChildScrollView(child: FetchDownloadsSheet()), [
+        fetchJobsProvider.overrideWith(() => _SeededJobs(FetchDownloads(batches: {2: FetchBatch.fromJson(_batch('running'))}))),
+      ]));
+      expect(tester.takeException(), isNull);
+      expect(find.text('Maari 2 (Original Motion Picture Soundtrack)'), findsOneWidget);
+      expect(find.text('2 of 3 songs'), findsOneWidget);
+    });
+
     testWidgets('a failed download shows no Play', (tester) async {
       final c = ProviderContainer(overrides: [onlineFetchEnabledProvider.overrideWith((ref) async => false)]);
       addTearDown(c.dispose);

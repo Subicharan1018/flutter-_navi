@@ -354,7 +354,8 @@ class _FetchDownloadRowState extends ConsumerState<FetchDownloadRow> with FetchS
     final title = b?.title ?? j?.title ?? 'Downloading…';
     final subtitle = b != null ? b.artist : (j?.artist ?? '');
     final status = b != null ? fetchBatchStatus(b) : fetchJobStatus(j!);
-    final cover = b?.coverUrl ?? ref.read(fetchJobsProvider.notifier).coverFor(j!.candidateId);
+    // Not `??`: a batch with no cover of its own has no job to ask about.
+    final cover = b != null ? b.coverUrl : ref.read(fetchJobsProvider.notifier).coverFor(j!.candidateId);
     final songIds = b != null
         ? (b.isFinished ? b.songIds : const <String>[])
         : (j!.songId != null && (j.phase == FetchJobPhase.ready || j.phase == FetchJobPhase.duplicate)
