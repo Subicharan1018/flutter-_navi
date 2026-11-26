@@ -7,7 +7,11 @@ import '../core/theme.dart';
 import '../providers/play_route.dart';
 import '../providers/player_provider.dart';
 import '../providers/session_sync_provider.dart';
+import '../services/android_integration.dart';
+import '../services/output_route.dart';
 import '../services/session_sync_service.dart';
+import '../widgets/ui/action_sheet.dart' show showToast;
+import 'output_button.dart' show outputGlyph;
 import '../widgets/art/navi_icons.dart';
 import '../widgets/desktop_dialogs.dart';
 
@@ -117,6 +121,7 @@ class DevicesSheet extends ConsumerWidget {
                   ),
               ]),
             ),
+          const _OutputRow(),
           if (rows.length >= 2)
             Padding(
               padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.md),
@@ -146,6 +151,60 @@ class DevicesSheet extends ConsumerWidget {
               ),
             ),
         ],
+      ),
+    );
+  }
+}
+
+/// Where this phone's own sound comes out, with the system's output picker
+/// behind it. Nothing where the platform doesn't report outputs.
+class _OutputRow extends ConsumerWidget {
+  const _OutputRow();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final route = ref.watch(outputRouteProvider);
+    if (route == null) return const SizedBox.shrink();
+    final passive = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive));
+    final t = ThemeTokens.of(context);
+    final caption = passive ? 'This phone’s output, used when music plays here' : 'This phone’s sound comes out here';
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(Space.gutter, 0, Space.gutter, Space.md),
+      child: Semantics(
+        button: true,
+        label: '${route.label}. $caption. Change output',
+        excludeSemantics: true,
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(Radii.group),
+          child: Material(
+            color: t.bgElevated,
+            child: InkWell(
+              onTap: () async {
+                HapticFeedback.selectionClick();
+                final opened = await AndroidIntegration.openOutputSwitcher();
+                if (!opened && context.mounted) showToast(context, 'Change the output from your phone’s volume panel');
+              },
+              child: ConstrainedBox(
+                constraints: const BoxConstraints(minHeight: 56),
+                child: Padding(
+                  padding: const EdgeInsets.symmetric(horizontal: Space.lg, vertical: Space.sm),
+                  child: Row(children: [
+                    NaviIcon(outputGlyph(route.kind), size: 26, color: t.textPrimary),
+                    const SizedBox(width: Space.md),
+                    Expanded(
+                      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+                        Text(route.label, style: t.body.copyWith(color: t.textPrimary), maxLines: 1, overflow: TextOverflow.ellipsis),
+                        Text(caption, style: t.footnote),
+                      ]),
+                    ),
+                    const SizedBox(width: Space.sm),
+                    Text('Change', style: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w600)),
+                  ]),
+                ),
+              ),
+            ),
+          ),
+        ),
       ),
     );
   }
