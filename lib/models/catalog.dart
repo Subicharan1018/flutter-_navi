@@ -12,6 +12,12 @@ class CatalogSong {
   final String? film;
   final String? composer;
   final String? lyricist;
+
+  /// film-credits-v1: the film's grouping key and the credit lists (empty when the server has none).
+  final String? filmKey;
+  final List<String> musicDirectors;
+  final List<String> lyricists;
+  final List<String> singers;
   final int? year;
   final String? titleNative;
 
@@ -33,6 +39,10 @@ class CatalogSong {
     this.film,
     this.composer,
     this.lyricist,
+    this.filmKey,
+    this.musicDirectors = const [],
+    this.lyricists = const [],
+    this.singers = const [],
     this.year,
     this.titleNative,
     this.bpm,
@@ -51,6 +61,10 @@ class CatalogSong {
         film: j['film'] as String?,
         composer: j['composer'] as String?,
         lyricist: j['lyricist'] as String?,
+        filmKey: j['fk'] as String?,
+        musicDirectors: _names(j['md']),
+        lyricists: _names(j['ly']),
+        singers: _names(j['sg']),
         year: (j['year'] as num?)?.toInt(),
         titleNative: j['title_native'] as String?,
         bpm: (j['bpm'] as num?)?.toDouble(),
@@ -61,6 +75,8 @@ class CatalogSong {
         ],
       );
 }
+
+List<String> _names(Object? v) => [for (final n in (v as List? ?? const [])) if (n is String && n.trim().isNotEmpty) n.trim()];
 
 /// A browse category: a language, the multilingual set, or a genre.
 class CatalogCategory {

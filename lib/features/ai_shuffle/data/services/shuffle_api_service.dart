@@ -426,10 +426,20 @@ class ShuffleApiService {
   /// The catalog document as raw JSON text plus its ETag. Pass the ETag of
   /// the copy already held: when nothing changed the server answers 304 and
   /// this returns null (the cached copy is current).
-  Future<({String body, String? etag})?> getCatalog({String? etag}) async {
+  Future<({String body, String? etag})?> getCatalog({String? etag}) => _getConditional('/catalog/songs', etag);
+
+  // ---------------------------------------------------------------------------
+  // GET /credits/films — film, year, directors, music directors, track lists
+  // ---------------------------------------------------------------------------
+
+  /// Same ETag contract as [getCatalog]. A server without film-credits-v1
+  /// answers 404, which surfaces as an error the caller treats as "no data".
+  Future<({String body, String? etag})?> getCreditsFilms({String? etag}) => _getConditional('/credits/films', etag);
+
+  Future<({String body, String? etag})?> _getConditional(String path, String? etag) async {
     return _wrap(() async {
       final response = await _dio.get<String>(
-        '/catalog/songs',
+        path,
         options: Options(
           responseType: ResponseType.plain,
           headers: {'If-None-Match': ?etag},

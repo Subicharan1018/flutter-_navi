@@ -8,6 +8,8 @@ import 'package:flutter/physics.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import '../features/film_credits/logic/credit_index.dart' show CreditRole;
+import '../features/film_credits/ui/credit_widgets.dart' show openPersonFromPlayer;
 import '../features/flow/logic/flow_controller.dart' show flowProvider;
 import '../features/flow/ui/flow_pill.dart';
 import '../features/peak_moments/ui/peak_mark_button.dart';
@@ -1139,7 +1141,12 @@ class _TitleRow extends ConsumerWidget {
               SizedBox(key: microduckTitleKey, height: onArt ? 32 : 28, child: FittingTitle(text: song.title, style: titleStyle)),
               const SizedBox(height: 2),
               if (composer != null)
-                Text(composer, maxLines: 1, overflow: TextOverflow.ellipsis, style: composerStyle),
+                // The credits line opens the music director's page (their films, by film).
+                CupertinoClickable(
+                  onTap: () => openPersonFromPlayer(context, splitComposers(song.composer).first, role: CreditRole.musicDirector),
+                  semanticLabel: 'Open ${splitComposers(song.composer).first}',
+                  child: Text(composer, maxLines: 1, overflow: TextOverflow.ellipsis, style: composerStyle),
+                ),
               Text(song.artist, maxLines: 1, overflow: TextOverflow.ellipsis, style: artistStyle),
             ],
           ),

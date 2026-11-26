@@ -13,16 +13,19 @@ package folder (`scp -r tool/server/<name> subi@100.99.105.51:~/` first); none r
                              installing it before step 3 would leave that one call site unpatched.
 5. `data-queue-v1`           re-copy (from main with the spotify_match.py import fix; 110 shuffle + 6 tg-fetcher tests).
    Not needed again if you do not want the newer matcher in its CSV matcher: the installed one keeps working.
+6. `film-credits-v1`        film / music director / lyricist / singers: web server patch (`/credits/films`, extra keys in `/catalog/songs`) + the
+                             offline job `/opt/navivibe-filmcredits`. After exportify-v1. Restart `navivibe` once; the Wikidata pass is a separate, optional
+                             command (see its README). Rollback line is printed by its installer.
    Already installed and still passing `--check` in this order: channels-primary-v1 (806 passed), weekly-exploration-v2 (43 passed).
 
 Then, once: `sudo systemctl restart tg-fetcher navivibe` (each installer prints its own restart line; one restart after the
 last install is enough).
 
 ```
-for p in server-tests-fix-v1 tgfetcher-tests-fix-v1 spotify-history-import-v1 matcher-v2 data-queue-v1; do
+for p in server-tests-fix-v1 tgfetcher-tests-fix-v1 spotify-history-import-v1 matcher-v2 data-queue-v1 film-credits-v1; do
   (cd ~/$p && bash install.sh --check) || break
 done
-for p in server-tests-fix-v1 tgfetcher-tests-fix-v1 spotify-history-import-v1 matcher-v2 data-queue-v1; do
+for p in server-tests-fix-v1 tgfetcher-tests-fix-v1 spotify-history-import-v1 matcher-v2 data-queue-v1 film-credits-v1; do
   (cd ~/$p && bash install.sh) || break
 done
 sudo systemctl restart tg-fetcher navivibe

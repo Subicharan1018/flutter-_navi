@@ -47,6 +47,7 @@ import 'album_details_screen.dart';
 import 'artist_screen.dart';
 import 'category_screen.dart';
 import 'library/composers_page.dart' show ComposerRow;
+import '../features/film_credits/ui/credits_browse.dart';
 
 /// Apple Music's Search: recent searches and Browse by genre while idle;
 /// Artists, Albums and Songs once you type.
@@ -144,7 +145,7 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
       ),
       onRefresh: query.isEmpty ? () => ref.read(catalogProvider.notifier).refresh() : null,
       slivers: query.isEmpty
-          ? [_RecentSearches(onTap: _searchFor), const _BrowseCategories()]
+          ? [_RecentSearches(onTap: _searchFor), const CreditsBrowseSection(), const _BrowseCategories()]
           : [_Results(query: query, onUsed: _remember)],
     );
   }
@@ -389,6 +390,7 @@ class _ResultsState extends ConsumerState<_Results> {
     final onUsed = widget.onUsed;
     final results = ref.watch(searchProvider(query));
     final composers = ref.watch(composerSearchProvider(query));
+    final films = ref.watch(filmSearchProvider(query));
     if (results.asData?.value case final value?) _last = value;
     final data = results.isLoading ? _last : (results.asData?.value ?? SearchResults.empty);
 
@@ -416,7 +418,7 @@ class _ResultsState extends ConsumerState<_Results> {
       for (final p in ref.watch(playlistsProvider).asData?.value ?? const <Playlist>[])
         if (needle.isNotEmpty && p.name.toLowerCase().contains(needle)) p,
     ];
-    final nothing = data.isEmpty && composers.isEmpty && playlists.isEmpty;
+    final nothing = data.isEmpty && composers.isEmpty && films.isEmpty && playlists.isEmpty;
     if (nothing && (lyricMatches.isNotEmpty || onDevice.isNotEmpty)) {
       return SliverMainAxisGroup(slivers: [
         LocalSearchSection(songs: onDevice, onUsed: onUsed),
@@ -444,8 +446,8 @@ class _ResultsState extends ConsumerState<_Results> {
 
     final svc = ref.read(subsonicServiceProvider);
     final songs = data.songs;
-    // The order results are read in: Songs, (films, once film search lands),
-    // Playlists, Albums, then artists and composers.
+    // The order results are read in: Songs, films, Playlists, Albums, then
+    // artists and composers.
     return SliverMainAxisGroup(slivers: [
       if (songs.isNotEmpty) ...[
         const SliverToBoxAdapter(child: SectionHeader(title: 'Songs')),
@@ -482,6 +484,7 @@ class _ResultsState extends ConsumerState<_Results> {
             ),
           ),
       ],
+      if (films.isNotEmpty) FilmSearchSection(query: query, onBeforeOpen: onUsed),
       if (playlists.isNotEmpty)
         SliverToBoxAdapter(
           child: MediaShelf(
