@@ -59,6 +59,8 @@ import 'favorites_screen.dart';
 import 'library/albums_page.dart';
 import '../utils/queue_actions.dart';
 import 'library/playlists_page.dart';
+import '../features/wrapped/ui/wrapped_entry.dart';
+import '../features/wrapped/ui/wrapped_screen.dart';
 import 'replay/replay_screen.dart';
 import 'playlist_details_screen.dart';
 import 'settings_screen.dart';
@@ -203,6 +205,15 @@ class _TopPicks extends ConsumerWidget {
         width: cardWidth,
         onTap: () => navigateInApp(context, const ReplayScreen()),
       ),
+      if (wrappedYearFor(homeClock()) case final wy?)
+        _FeatureCard(
+          title: 'Wrapped $wy',
+          subtitle: 'Your year, played as a story you can share.',
+          art: WrappedCardArt(year: wy, size: cardWidth),
+          panel: const Color(0xFF111111),
+          width: cardWidth,
+          onTap: () => showWrapped(context, year: wy),
+        ),
       _FeatureCard(
         title: 'Highlights',
         subtitle: ref.watch(peakMarksProvider.select((m) => m.liveCount)) == 0
