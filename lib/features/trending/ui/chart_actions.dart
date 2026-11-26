@@ -1,12 +1,10 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import '../../../core/theme.dart';
+import '../../../core/pointer_anchor.dart';
 import '../../../models/song.dart';
-import '../../../utils/queue_actions.dart';
-import '../../../widgets/art/navi_icons.dart';
-import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
-import '../../../widgets/ui/action_sheet.dart' show SheetAction, SheetGroup, showToast;
+import '../../../widgets/options_menu.dart' show showSongActions;
+import '../../../widgets/ui/action_sheet.dart' show showToast;
 import '../data/trending_models.dart';
 import '../logic/trending_providers.dart';
 
@@ -20,37 +18,28 @@ Future<void> playFromChart(BuildContext context, WidgetRef ref, TrendingChart ch
   await _play(context, ref, chart, from: entry);
 }
 
-/// Long press on a chart row: Play next / Play last for that song. A song that
-/// isn't in the library says so instead.
+/// Long press or right-click on a chart row: the app's song menu for that song
+/// (the same one every list opens). A song that isn't in the library says so
+/// instead.
 Future<void> showChartEntryMenu(BuildContext context, WidgetRef ref, ChartEntry entry) async {
   if (!entry.playable) {
     showToast(context, '${entry.title}: ${entry.unavailableLine}');
     return;
   }
-  await showPlatformSheet<void>(
-    context: context,
-    title: entry.title,
-    builder: (sheet) {
-      Future<void> queue(bool next) async {
-        Song? song;
-        try {
-          song = await ref.read(chartPlayerProvider).songFor(entry);
-        } catch (_) {}
-        if (!context.mounted) return;
-        if (song == null) {
-          showToast(context, '${entry.title}: Couldn’t load this song. Check your connection and try again.');
-          return;
-        }
-        await queueSongs(context, ref, [song], next: next);
-      }
-
-      NaviIcon glyph() => NaviIcon(NaviGlyph.queue, size: 20, color: ThemeTokens.of(sheet).textSecondary);
-      return SheetGroup(children: [
-        SheetAction(label: 'Play Next', trailing: glyph(), onTap: () => queue(true)),
-        SheetAction(label: 'Play Last', trailing: glyph(), onTap: () => queue(false)),
-      ]);
-    },
-  );
+  // Where the right-click was: the song may load too slowly for the menu to
+  // still count the click as recent.
+  final at = PointerAnchor.recent();
+  Song? song;
+  try {
+    song = await ref.read(chartPlayerProvider).songFor(entry);
+  } catch (_) {}
+  if (!context.mounted) return;
+  if (song == null) {
+    showToast(context, '${entry.title}: Couldn’t load this song. Check your connection and try again.');
+    return;
+  }
+  if (at != null) PointerAnchor.record(at);
+  await showSongActions(context, song);
 }
 
 /// Play (or shuffle) the whole chart.
