@@ -180,7 +180,8 @@ class InlineError extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+      // The page's own margin, so the line starts where its heading does.
+      padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
       child: Row(
         children: [
           Expanded(child: Text(message, style: t.footnote)),
