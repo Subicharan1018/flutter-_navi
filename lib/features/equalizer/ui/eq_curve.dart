@@ -180,7 +180,7 @@ class _EqCurveState extends State<EqCurve> {
                 ground: t.bgBase,
                 label: t.footnote.copyWith(color: t.textPrimary, fontWeight: FontWeight.w700),
                 active: active,
-                ring: _focused != null && (!PlatformUtils.isTv || _editing || _dragging == null),
+                ring: _focused != null,
                 editing: _editing,
               ),
             ),

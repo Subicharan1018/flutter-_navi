@@ -112,6 +112,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Loudness found after the fact, by song id; a null value means "asked,
   /// and the song has none".
   final Map<String, Song?> _foundGains = {};
+  final Set<String> _findingGains = {};
 
   // ── ReplayGain / crossfade / speed ──────────────────────────────────────────
   ReplayGainMode _replayGainMode = ReplayGainMode.off;
@@ -893,6 +894,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _muteForSwap = true;
     final helper = _swapHelperFactory();
     final timeline = <String>[];
+    // Read now: the swap silences the player, and a player whose slider was
+    // never moved reports its live volume as the slider.
+    final slider = player.userVolume;
     void mark(String what) =>
         timeline.add('${watch.elapsedMilliseconds}ms $what main=${player.position.inMilliseconds}'
             ' helper=${helper.position.inMilliseconds} mainState=${player.processingState.name}');
@@ -900,7 +904,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final stats = await SeamlessSwap(
         main: _PlayerVoice(player),
         helper: _PlayerVoice(helper),
-        baseVolume: () => effectiveVolume(player.userVolume, _appGain, cubic: kCubicPlayerVolume),
+        baseVolume: () => effectiveVolume(slider, _appGain, cubic: kCubicPlayerVolume),
         openHelper: (at) async {
           await helper.setFilePath(file.path);
           await helper.setVolume(0);
@@ -1366,6 +1370,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// never carry it: the library mirror first, then the server.
   Future<void> _findGain(Song song) async {
     bool has(Song? s) => s != null && (s.trackGain != null || s.albumGain != null);
+    if (!_findingGains.add(song.id)) return; // already asking
     try {
       var found = await gainLookup?.call(song.id);
       if (!has(found) && !isLocalSongId(song.id)) {
@@ -1376,6 +1381,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       // Offline: try again the next time this song comes up.
       debugPrint('⚠️ [NaviAudioHandler] loudness lookup failed: $e');
       return;
+    } finally {
+      _findingGains.remove(song.id);
     }
     if (_foundGains[song.id] != null && _tunedSong?.id == song.id) {
       _refreshReplayVolume();
