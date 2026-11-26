@@ -20,6 +20,11 @@ const String kFastStartLowFormat = 'mp3';
 /// passed over faster than this are never requested.
 const Duration kSkipSettle = Duration(milliseconds: 250);
 
+/// The same wait when the song the skip landed on is already a file on this
+/// device (downloaded, or preloaded into the play cache): opening it costs no
+/// request, so a quick skip past it wastes nothing and the wait can be short.
+const Duration kSkipSettleReady = Duration(milliseconds: 80);
+
 /// Songs shorter than this are not worth two requests.
 const int kFastStartMinDurationSec = 45;
 
@@ -34,6 +39,10 @@ const double kFastStartMinSavingSec = 0.4;
 /// Used until a download has been timed on this connection (a home-server
 /// uplink, not a LAN, so the first song of a session still fast-starts).
 const int kFastStartAssumedBytesPerSec = 256 * 1024;
+
+/// Fast Start is used only if the full copy can be expected on disk within
+/// this long (or 25% of the song, if shorter).
+const double kFastStartMaxCatchUpSec = 30;
 
 /// Nothing the swap could still help with is left in the last few seconds.
 const int kFastStartMinRemainingMs = 4000;
@@ -112,6 +121,19 @@ class FastStartPolicy {
     if (saving < kFastStartMinSavingSec) {
       return FastStartDecision(false, 'fast link (saves ${saving.toStringAsFixed(2)}s)');
     }
+    // The swap only happens once the whole full copy is on disk. A song whose
+    // full copy would take longer than this to arrive would play at the low
+    // rate for good (a 24-bit FLAC over a home uplink takes minutes).
+    if (i.durationSec > 0) {
+      final catchUpSec = full * 125 * i.durationSec / speed;
+      final limit = [kFastStartMaxCatchUpSec, i.durationSec * 0.25].reduce((a, b) => a < b ? a : b);
+      if (catchUpSec > limit) {
+        return FastStartDecision(
+          false,
+          'full copy would not catch up (${catchUpSec.toStringAsFixed(0)}s > ${limit.toStringAsFixed(0)}s)',
+        );
+      }
+    }
     return FastStartDecision(true, 'saves ~${saving.toStringAsFixed(2)}s');
   }
 
@@ -159,11 +181,16 @@ class SkipCoordinator {
   SkipCoordinator({
     required this.load,
     this.settle = kSkipSettle,
+    this.settleFor,
     this.onError,
   });
 
   final Future<void> Function(int index, bool Function() isStale) load;
   final Duration settle;
+
+  /// A shorter wait for an index that costs nothing to open (see
+  /// [kSkipSettleReady]); null or a longer answer falls back to [settle].
+  final Duration Function(int index)? settleFor;
   final void Function(Object error, StackTrace stack)? onError;
 
   Timer? _timer;
@@ -182,10 +209,12 @@ class SkipCoordinator {
     _generation++;
     _pending = index;
     _timer?.cancel();
-    if (settle == Duration.zero) {
+    final custom = settleFor?.call(index);
+    final wait = custom != null && custom < settle ? custom : settle;
+    if (wait == Duration.zero) {
       _fire();
     } else {
-      _timer = Timer(settle, _fire);
+      _timer = Timer(wait, _fire);
     }
   }
 
@@ -238,16 +267,25 @@ class FirstAudioProbe {
 
   void begin(String label) {
     _label = label;
+    _marks.clear();
     _watch
       ..reset()
       ..start();
   }
 
-  /// Returns "label: N ms" once, then null until the next [begin].
+  final List<String> _marks = [];
+
+  /// Notes a step on the way ("settled", "seek done"); shown with the result.
+  void mark(String step) {
+    if (_watch.isRunning) _marks.add('$step ${_watch.elapsedMilliseconds}');
+  }
+
+  /// Returns "label: N ms (steps)" once, then null until the next [begin].
   String? firstAudio() {
     if (!_watch.isRunning) return null;
     _watch.stop();
-    return '$_label: ${_watch.elapsedMilliseconds} ms';
+    final steps = _marks.isEmpty ? '' : ' [${_marks.join(', ')}]';
+    return '$_label: ${_watch.elapsedMilliseconds} ms$steps';
   }
 }
 
@@ -260,9 +298,3 @@ bool nextPreloadDue({required int positionMs, required int durationMs}) {
   return positionMs >= threshold;
 }
 
-/// Volume steps for a short dip around the low->full swap (never a hard cut):
-/// down to silence, and back up. [total] is split evenly over [steps] each way.
-List<double> swapRamp({int steps = 4}) => [
-  for (var i = 1; i <= steps; i++) 1 - i / steps,
-];
-const Duration kSwapRampDown = Duration(milliseconds: 120);

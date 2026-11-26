@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data' show BytesBuilder;
 
 import 'package:dio/dio.dart';
 import 'package:flutter/foundation.dart';
@@ -87,6 +89,16 @@ class PlayCache {
     }
   }
 
+  /// Sync twin of [completeFile] for the skip path (one stat, no LRU touch).
+  bool hasCompleteSync(String songId, String quality) {
+    try {
+      final f = fileFor(songId, quality);
+      return f != null && f.existsSync() && f.lengthSync() > 0;
+    } catch (_) {
+      return false;
+    }
+  }
+
   /// True when the finished copy, or at least [minBytes] of a copy being
   /// written (by the streaming source or a prefetch), is on disk: the song is
   /// already preloaded and needs no fast start.
@@ -100,6 +112,182 @@ class PlayCache {
       } catch (_) {}
     }
     return false;
+  }
+
+  // ── Head start: the first bytes of songs about to be played ────────────────
+  /// How much of a song's start is kept ahead of time (about 3-5 s of FLAC).
+  static const int headBytes = 1536 * 1024;
+
+  final Map<String, Future<void>> _headFlight = {};
+  final Map<String, _Job> _jobs = {};
+
+  File? _headFile(String songId, String quality) {
+    final f = fileFor(songId, quality);
+    return f == null ? null : File('${f.path}.head');
+  }
+
+  File? _headMeta(String songId, String quality) {
+    final f = fileFor(songId, quality);
+    return f == null ? null : File('${f.path}.head.json');
+  }
+
+  /// The saved head of a song (its size, the whole song's size and type), or
+  /// null. Cheap: two stats and one small read, no network.
+  ({File file, int length, int total, String mime})? headSync(String songId, String quality) {
+    try {
+      final file = _headFile(songId, quality);
+      final meta = _headMeta(songId, quality);
+      if (file == null || meta == null || !file.existsSync() || !meta.existsSync()) return null;
+      final m = jsonDecode(meta.readAsStringSync()) as Map<String, dynamic>;
+      final length = file.lengthSync();
+      final total = (m['total'] as num?)?.toInt() ?? 0;
+      if (length <= 0 || total <= length) return null;
+      return (file: file, length: length, total: total, mime: (m['mime'] as String?) ?? 'audio/mpeg');
+    } catch (_) {
+      return null;
+    }
+  }
+
+  /// Saves the first [headBytes] of the song so a skip onto it can start
+  /// playing at once. Needs a server that answers byte ranges (an original
+  /// file, not a live transcode); otherwise nothing is kept. Never throws.
+  Future<void> prefetchHead(String songId, String quality, Uri url) {
+    final target = fileFor(songId, quality);
+    if (target == null) return Future.value();
+    final key = target.path;
+    final running = _headFlight[key];
+    if (running != null) return running;
+    final job = _fetchHead(songId, quality, url).whenComplete(() {
+      // (a block, not `=> remove(...)`: returning the future would make it wait on itself)
+      _headFlight.remove(key);
+    });
+    _headFlight[key] = job;
+    return job;
+  }
+
+  Future<void> _fetchHead(String songId, String quality, Uri url) async {
+    final target = fileFor(songId, quality)!;
+    final head = _headFile(songId, quality)!;
+    final meta = _headMeta(songId, quality)!;
+    final token = CancelToken();
+    try {
+      if (await target.exists() || headSync(songId, quality) != null) return;
+      final dio = _dioFactory();
+      dio.options.connectTimeout = const Duration(seconds: 10);
+      dio.options.receiveTimeout = const Duration(seconds: 20);
+      final res = await dio.get<ResponseBody>(
+        url.toString(),
+        options: Options(responseType: ResponseType.stream, headers: {'Range': 'bytes=0-${headBytes - 1}'}),
+        cancelToken: token,
+      );
+      final total = int.tryParse((res.headers.value('content-range') ?? '').split('/').last) ?? 0;
+      if (res.statusCode != 206 || total <= headBytes) {
+        token.cancel('no range support');
+        return;
+      }
+      final builder = BytesBuilder(copy: false);
+      await for (final chunk in res.data!.stream) {
+        builder.add(chunk);
+        if (builder.length >= headBytes) break;
+      }
+      token.cancel('head complete');
+      if (builder.length < 64 * 1024) return;
+      final bytes = builder.takeBytes();
+      final tmp = File('${head.path}.tmp');
+      await tmp.writeAsBytes(bytes, flush: true);
+      await meta.writeAsString(jsonEncode({
+        'total': total,
+        'mime': res.headers.value('content-type') ?? 'audio/mpeg',
+      }));
+      await tmp.rename(head.path);
+    } catch (e) {
+      if (!(e is DioException && CancelToken.isCancel(e))) debugPrint('[PlayCache] head $songId: $e');
+      await _quietDelete(head);
+      await _quietDelete(meta);
+    }
+  }
+
+  /// Bytes [start, end) of the song as they arrive. Plays from the finished
+  /// file, or from the download in flight (started here from the saved head
+  /// if none is running), so the player and the cache share one request.
+  Stream<List<int>> readThrough(
+    String songId,
+    String quality,
+    Uri url, {
+    required int start,
+    required int end,
+    required int total,
+  }) async* {
+    final target = fileFor(songId, quality)!;
+    if (await target.exists()) {
+      yield* target.openRead(start, end);
+      return;
+    }
+    var job = _jobs[target.path];
+    if (job == null) {
+      unawaited(_resume(songId, quality, url, total));
+      job = _jobs[target.path];
+    }
+    // A seek far beyond the download: ask for just that part.
+    if (job == null || start > job.bytes + 2 * 1024 * 1024) {
+      yield* _remoteRange(url, start, end);
+      return;
+    }
+    var pos = start;
+    while (pos < end) {
+      final file = job.finished && await target.exists() ? target : job.file;
+      if (pos < job.bytes || job.finished) {
+        final want = [end - pos, 256 * 1024, if (!job.finished) job.bytes - pos].reduce((a, b) => a < b ? a : b);
+        final got = await _readAt(file, pos, want);
+        if (got.isNotEmpty) {
+          yield got;
+          pos += got.length;
+          continue;
+        }
+        if (job.finished) {
+          yield* _remoteRange(url, pos, end);
+          return;
+        }
+      }
+      try {
+        await job.changed.first.timeout(const Duration(milliseconds: 400), onTimeout: () {});
+      } on StateError {
+        // The download ended between the check and the wait; loop and re-read.
+      }
+    }
+  }
+
+  Future<List<int>> _readAt(File f, int pos, int len) async {
+    RandomAccessFile? raf;
+    try {
+      raf = await f.open();
+      await raf.setPosition(pos);
+      return await raf.read(len);
+    } catch (_) {
+      return const [];
+    } finally {
+      await raf?.close();
+    }
+  }
+
+  Stream<List<int>> _remoteRange(Uri url, int start, int end) async* {
+    final res = await _dioFactory().get<ResponseBody>(
+      url.toString(),
+      options: Options(responseType: ResponseType.stream, headers: {'Range': 'bytes=$start-${end - 1}'}),
+    );
+    yield* res.data!.stream;
+  }
+
+  /// Continues a song from its saved head: copies the head, then appends the
+  /// rest (a range request), and finishes like any other cached song.
+  Future<void> _resume(String songId, String quality, Uri url, int total) {
+    final target = fileFor(songId, quality)!;
+    final key = target.path;
+    final running = _inFlight[key];
+    if (running != null) return running;
+    final done = _download(songId, key, target, url, const {}, resumeTotal: total);
+    _inFlight[key] = done;
+    return done;
   }
 
   /// Downloads [url] into the cache unless it is already there or on its way.
@@ -126,29 +314,83 @@ class PlayCache {
     }
   }
 
-  Future<void> _download(String songId, String key, File target, Uri url, Set<String> keep) async {
+  Future<void> _download(
+    String songId,
+    String key,
+    File target,
+    Uri url,
+    Set<String> keep, {
+    int? resumeTotal,
+  }) async {
     final token = CancelToken();
     _tokens[key] = (songId: songId, token: token);
     final tmp = File('$key.dl');
+    final job = _jobs[key] = _Job(tmp);
     final watch = Stopwatch()..start();
     try {
       if (await target.exists()) return;
       final dio = _dioFactory();
       dio.options.connectTimeout = const Duration(seconds: 10);
       dio.options.receiveTimeout = const Duration(seconds: 60);
-      final res = await dio.download(url.toString(), tmp.path, cancelToken: token);
-      final ok = (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300;
-      if (!ok || await tmp.length() == 0) {
-        await _quietDelete(tmp);
-        return;
+      String mime;
+      if (resumeTotal != null) {
+        // From the saved head: its bytes first, then the rest of the song.
+        final head = _headFile(songId, _qualityOf(target));
+        final h = headSync(songId, _qualityOf(target));
+        if (head == null || h == null) throw StateError('head gone');
+        await head.copy(tmp.path);
+        job.advance(h.length);
+        final res = await dio.get<ResponseBody>(
+          url.toString(),
+          options: Options(responseType: ResponseType.stream, headers: {'Range': 'bytes=${h.length}-'}),
+          cancelToken: token,
+        );
+        if (res.statusCode != 206) throw StateError('range ignored (${res.statusCode})');
+        final sink = tmp.openWrite(mode: FileMode.append);
+        var written = h.length;
+        try {
+          await for (final chunk in res.data!.stream) {
+            sink.add(chunk);
+            await sink.flush();
+            written += chunk.length;
+            job.advance(written);
+          }
+        } finally {
+          await sink.close();
+        }
+        if (written != resumeTotal) throw StateError('short download $written of $resumeTotal');
+        mime = h.mime;
+      } else {
+        final res = await dio.download(
+          url.toString(),
+          tmp.path,
+          cancelToken: token,
+          onReceiveProgress: (count, _) => job.advance(count),
+        );
+        final ok = (res.statusCode ?? 0) >= 200 && (res.statusCode ?? 0) < 300;
+        if (!ok || await tmp.length() == 0) {
+          await _quietDelete(tmp);
+          return;
+        }
+        mime = res.headers.value('content-type') ?? 'audio/mpeg';
       }
       ThroughputTracker.instance.add(await tmp.length(), watch.elapsed);
       // just_audio's caching source reads the type from this sidecar.
-      await File('$key.mime').writeAsString(res.headers.value('content-type') ?? 'audio/mpeg');
+      await File('$key.mime').writeAsString(mime);
       if (await target.exists()) {
         await _quietDelete(tmp); // the streaming source finished first
       } else {
-        await tmp.rename(key);
+        // A player reading the growing file at this instant holds it open
+        // (Windows refuses the rename); it lets go within milliseconds.
+        for (var attempt = 0;; attempt++) {
+          try {
+            await tmp.rename(key);
+            break;
+          } on FileSystemException {
+            if (attempt >= 8) rethrow;
+            await Future<void>.delayed(const Duration(milliseconds: 40));
+          }
+        }
       }
       revision.value++;
       await evict(keep: keep);
@@ -156,9 +398,23 @@ class PlayCache {
       if (!(e is DioException && CancelToken.isCancel(e))) debugPrint('[PlayCache] prefetch $songId: $e');
       await _quietDelete(tmp);
     } finally {
+      job.finish();
+      _jobs.remove(key);
       _inFlight.remove(key);
       _tokens.remove(key);
+      // The head is only a stand-in until the whole song is on disk.
+      if (await target.exists()) {
+        await _quietDelete(File('$key.head'));
+        await _quietDelete(File('$key.head.json'));
+      }
     }
+  }
+
+  /// `<id>.<quality>.audio` -> quality, to find the head beside it.
+  String _qualityOf(File target) {
+    final name = target.uri.pathSegments.last; // id.quality.audio
+    final parts = name.split('.');
+    return parts.length >= 3 ? parts[1] : 'orig';
   }
 
   /// Total bytes the cache holds, partial downloads included.
@@ -238,7 +494,8 @@ class PlayCache {
     await for (final e in _dir!.list()) {
       if (e is! File) continue;
       final n = e.path;
-      if ((n.endsWith('.dl') || n.endsWith('.part')) && (await e.lastModified()).isBefore(cutoff)) {
+      final stale = n.endsWith('.dl') || n.endsWith('.part') || n.endsWith('.head') || n.endsWith('.head.json') || n.endsWith('.head.tmp');
+      if (stale && (await e.lastModified()).isBefore(cutoff)) {
         await _quietDelete(e);
       }
     }
@@ -248,5 +505,27 @@ class PlayCache {
     try {
       if (await f.exists()) await f.delete();
     } catch (_) {}
+  }
+}
+
+/// A download in flight: how many bytes of its `.dl` file are readable.
+class _Job {
+  _Job(this.file);
+  final File file;
+  int bytes = 0;
+  bool finished = false;
+  final StreamController<void> _changes = StreamController<void>.broadcast();
+
+  Stream<void> get changed => _changes.stream;
+
+  void advance(int to) {
+    if (to > bytes) bytes = to;
+    _changes.add(null);
+  }
+
+  void finish() {
+    finished = true;
+    _changes.add(null);
+    unawaited(_changes.close());
   }
 }

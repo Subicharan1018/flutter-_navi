@@ -18,12 +18,13 @@ final _dashTag = RegExp(
   caseSensitive: false,
 );
 final _nonWord = RegExp(r'[^\p{L}\p{N}]+', unicode: true);
+// Compiled once: this runs for every library song when a resolver is built.
+final _doubleQuotes = RegExp('[“”„‟«»]');
+final _singleQuotes = RegExp('[‘’‚‛]');
 
 /// Lower-case letters and digits of [title] with film/language tags removed.
 String historyTitleKey(String title) {
-  var t = title
-      .replaceAll(RegExp('[“”„‟«»]'), '"')
-      .replaceAll(RegExp('[‘’‚‛]'), "'");
+  var t = title.replaceAll(_doubleQuotes, '"').replaceAll(_singleQuotes, "'");
   // Tags can stack: "(From "X") (Tamil)". Repeat until nothing changes.
   for (var prev = ''; prev != t;) {
     prev = t;

@@ -44,8 +44,35 @@ class _FakePlayer {
 
 void main() {
   group('FastStartPolicy.decide', () {
-    test('lossless over a slow link uses fast start', () {
-      expect(FastStartPolicy.decide(_input()).use, isTrue);
+    test('a 24/96 FLAC on a 256 KB/s link skips it: the full copy would never catch up', () {
+      // ~3000 kbps, 4 minutes: ~90 MB, minutes to fetch. Playing the low copy
+      // "for the first seconds" would have meant playing it for the whole song.
+      final d = FastStartPolicy.decide(
+        _input(songKbps: 3000, bytesPerSec: 256 * 1024),
+      );
+      expect(d.use, isFalse);
+      expect(d.reason, startsWith('full copy would not catch up'));
+    });
+
+    test('a full copy that cannot arrive within 30 s (or 25% of the song) never fast-starts', () {
+      for (final bps in [64 * 1024, 150 * 1024, 256 * 1024, 400 * 1024]) {
+        for (final kbps in [900, 1400, 3000]) {
+          expect(
+            FastStartPolicy.decide(_input(songKbps: kbps, bytesPerSec: bps)).use,
+            isFalse,
+            reason: '$kbps kbps at $bps B/s',
+          );
+        }
+      }
+    });
+
+    test('a transcode that downloads within the limit is judged by its saving alone', () {
+      // 256 kbps, 4 minutes at 1 MB/s: arrives in 7.5 s, but saves only 0.1 s.
+      final d = FastStartPolicy.decide(
+        _input(suffix: 'mp3', songKbps: 256, bytesPerSec: 1024 * 1024),
+      );
+      expect(d.use, isFalse);
+      expect(d.reason, startsWith('fast link'));
     });
 
     test('setting off never uses it', () {
@@ -87,9 +114,10 @@ void main() {
     });
 
     test('lossless is never "already low", whatever its tag says', () {
+      // Skipped for the catch-up rule, not for "already low".
       expect(
-        FastStartPolicy.decide(_input(suffix: 'flac', songKbps: 700)).use,
-        isTrue,
+        FastStartPolicy.decide(_input(suffix: 'flac', songKbps: 700)).reason,
+        isNot('already low bitrate'),
       );
     });
 
@@ -105,7 +133,7 @@ void main() {
       );
       expect(
         FastStartPolicy.decide(_input(bytesPerSec: 150 * 1024)).use,
-        isTrue,
+        isFalse,
       );
     });
 
@@ -121,7 +149,8 @@ void main() {
 
     test('unknown speed assumes the default', () {
       final d = FastStartPolicy.decide(_input(bytesPerSec: null));
-      expect(d.use, isTrue);
+      expect(d.use, isFalse);
+      expect(d.reason, startsWith('full copy would not catch up'));
     });
 
     test('full kbps follows the chosen ceiling for lossless and lossy', () {
@@ -317,13 +346,6 @@ void _extra() {
       expect(nextPreloadDue(positionMs: 25000, durationMs: 200000), isFalse); // 50 s = 25%
       expect(nextPreloadDue(positionMs: 50000, durationMs: 200000), isTrue);
       expect(nextPreloadDue(positionMs: 20000, durationMs: 60000), isTrue); // 20 s later
-    });
-
-    test('swap ramp falls to silence in steps, never a hard cut', () {
-      final r = swapRamp();
-      expect(r.last, 0);
-      expect(r.first, lessThan(1));
-      expect(r.length, greaterThan(1));
     });
   });
 }

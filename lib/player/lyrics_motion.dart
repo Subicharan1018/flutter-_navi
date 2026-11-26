@@ -1,8 +1,5 @@
 import 'dart:async';
-import 'dart:ui' show ImageFilter, TileMode;
-
 import 'package:flutter/widgets.dart';
-
 /// The look of a lyric line as a function of how far it is from the sung one.
 ///
 /// [d] is the signed distance in lines: 0 is the sung line, positive lines are
@@ -16,7 +13,7 @@ abstract final class LyricsMotion {
   static const int maxDistance = 6;
 
   /// Scale of a line that is not the sung one. The sung line is 1.0.
-  static const double restScale = 0.82;
+  static const double restScale = 0.9;
 
   /// Where the sung line's top sits, as a fraction of the pane's height.
   static const double anchor = 0.3;
@@ -38,7 +35,30 @@ abstract final class LyricsMotion {
 
   static double scaleFor(double d) => 1 - (1 - restScale) * d.abs().clamp(0.0, 1.0);
 
-  static const _opacityAt = [1.0, 0.44, 0.34, 0.26, 0.20, 0.17, 0.16];
+  /// Furthest a line leans away, in radians, reached [tiltReach] lines out.
+  /// Lines below the sung one lean back at their bottom edge, lines above at
+  /// their top edge, so the page reads as the inside of a slow drum: depth from
+  /// geometry, never from blur.
+  static const double maxTilt = 0.62;
+  static const double tiltReach = 3;
+  static const double perspective = 0.0011;
+
+  /// Signed lean (radians) by signed distance; 0 on the sung line.
+  static double tiltFor(double d) => (d / tiltReach).clamp(-1.0, 1.0) * maxTilt;
+
+  /// The full per-line transform: perspective, lean, then scale. Applied about
+  /// the line's left-centre, so the sung line never swings sideways.
+  static Matrix4 transformFor(double d) {
+    final s = scaleFor(d);
+    // The sung line stays a plain affine matrix: no perspective divide to rasterise.
+    if (d == 0) return Matrix4.identity();
+    return Matrix4.identity()
+      ..setEntry(3, 2, perspective)
+      ..rotateX(tiltFor(d))
+      ..scaleByDouble(s, s, 1, 1);
+  }
+
+  static const _opacityAt = [1.0, 0.40, 0.31, 0.25, 0.21, 0.18, 0.16];
 
   /// Opacity by distance; lines already sung fade a little further.
   static double opacityFor(double d) {
@@ -48,13 +68,6 @@ abstract final class LyricsMotion {
     final base = lo == hi ? _opacityAt[lo] : _opacityAt[lo] + (_opacityAt[hi] - _opacityAt[lo]) * (a - lo);
     final behind = d < 0 ? 1 - 0.3 * (-d).clamp(0.0, 1.0) : 1.0;
     return base * behind;
-  }
-
-  /// Blur sigma by distance: none on the sung line, a little more per line
-  /// away, so the page softens toward its edges.
-  static double blurFor(double d) {
-    final a = d.abs().clamp(0.0, 4.0);
-    return a.clamp(0.0, 1.0) * 0.9 + (a - 1).clamp(0.0, 3.0) * 0.45;
   }
 
   /// How long line [to] waits before it starts moving from [from].
@@ -82,21 +95,21 @@ abstract final class LyricsMotion {
   }
 }
 
-/// Wraps one lyric line and glides its scale, opacity and blur whenever its
+/// Wraps one lyric line and glides its lean, scale and alpha whenever its
 /// [distance] from the sung line changes.
 ///
-/// One controller per line, ticking only while that line is moving; the child
-/// is built once by the parent and reused every frame, so nothing but the
-/// transform and layer properties change per frame.
+/// One controller per line, ticking only while that line is moving. [builder]
+/// gets the current alpha (0..1) to fold into its text colours; text only
+/// changes colour, so it repaints but never relays out.
 class LyricLineMotion extends StatefulWidget {
   final int distance;
-  final Widget child;
+  final Widget Function(BuildContext context, double alpha) builder;
   final Alignment alignment;
 
   const LyricLineMotion({
     super.key,
     required this.distance,
-    required this.child,
+    required this.builder,
     this.alignment = Alignment.centerLeft,
   });
 
@@ -149,21 +162,18 @@ class _LyricLineMotionState extends State<LyricLineMotion> with SingleTickerProv
 
   @override
   Widget build(BuildContext context) {
+    // No blur and no Opacity layer: the line is lean-and-scale transformed, and
+    // its alpha reaches the text through [LyricLineMotion.builder] as colour.
     return RepaintBoundary(
       child: AnimatedBuilder(
         animation: _c,
-        child: widget.child,
-        builder: (context, child) {
+        builder: (context, _) {
           final d = _d;
-          Widget w = Transform.scale(scale: LyricsMotion.scaleFor(d), alignment: widget.alignment, child: child);
-          final sigma = LyricsMotion.blurFor(d);
-          if (sigma > 0.05) {
-            w = ImageFiltered(
-              imageFilter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma, tileMode: TileMode.decal),
-              child: w,
-            );
-          }
-          return Opacity(opacity: LyricsMotion.opacityFor(d), child: w);
+          return Transform(
+            transform: LyricsMotion.transformFor(d),
+            alignment: widget.alignment,
+            child: widget.builder(context, LyricsMotion.opacityFor(d)),
+          );
         },
       ),
     );
