@@ -25,7 +25,7 @@ if [ "$(id -u)" = 0 ] && [ "${1:-}" != "--as-user" ]; then
   # Test tools.
   apt-get install -y -qq --no-install-recommends xvfb xauth openbox wmctrl x11-utils \
     dbus dbus-x11 pulseaudio pulseaudio-utils ffmpeg imagemagick desktop-file-utils \
-    locales procps libgl1-mesa-dri > /dev/null
+    locales procps libgl1-mesa-dri gdb > /dev/null
   desktop-file-validate /usr/share/applications/com.navivibe.navivibe.desktop
   echo "PASS: desktop entry is valid" >> "$report/report.txt"
   locale-gen de_DE.UTF-8 > /dev/null
@@ -172,7 +172,26 @@ wmctrl -c NaviVibe
 gone() { ! kill -0 "$app_pid" 2>/dev/null; }
 wait_for 20 gone || fail "closing the window did not end the app"
 set +e; wait "$app_pid"; code=$?; set -e
-[ "$code" = 0 ] || fail "exit code $code after closing the window"
+# A native backtrace of a crash at close, with and without a song playing.
+close_backtrace() {
+  command -v gdb > /dev/null || return 0
+  for song in "$HOME/tone one.flac" ""; do
+    say "---- backtrace at close (${song:+playing}${song:-idle}) ----"
+    gdb -batch -nx -ex 'handle SIGPIPE nostop noprint pass' -ex run -ex bt -ex 'info sharedlibrary libmpv' \
+      --args /opt/navivibe/navivibe ${song:+"$song"} > /tmp/gdb.log 2>&1 &
+    local gdb_pid=$!
+    wait_for 60 has_window || true
+    sleep 15
+    wmctrl -c NaviVibe || true
+    wait_for 60 sh -c "! kill -0 $gdb_pid 2>/dev/null" || kill "$gdb_pid"
+    sed -n '/received signal\|exited normally\|exited with/,$p' /tmp/gdb.log | cut -c1-220 | head -n 30 \
+      | tee -a "$report/backtrace.txt"
+  done
+}
+if [ "$code" != 0 ]; then
+  close_backtrace
+  fail "exit code $code after closing the window"
+fi
 no_errors "at close"
 pass "closing the window exits with code 0"
 

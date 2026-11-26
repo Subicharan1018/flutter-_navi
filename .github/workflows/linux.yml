@@ -96,12 +96,17 @@ jobs:
             annotate error 'Linux smoke test: details' "$(sed -n '/^FAIL/,$p' smoke-report/report.txt | head -c 3800)"
             annotate error 'Linux smoke test: end of report' "$(tail -c 3800 smoke-report/report.txt)"
           fi
+          if [ -f smoke-report/backtrace.txt ]; then
+            annotate error 'Linux smoke test: backtrace' "$(head -c 3800 smoke-report/backtrace.txt)"
+          fi
       # Proof branches only: a small copy of the screenshot, readable without signing in.
       - name: Screenshot as annotations
         if: always() && startsWith(github.ref, 'refs/heads/linux-ci/')
+        continue-on-error: true
         run: |
           shot=smoke-report/screen-bare.png
           [ -f "$shot" ] || exit 0
+          command -v convert > /dev/null || sudo apt-get install -y -qq imagemagick > /dev/null
           convert "$shot" -resize 640x -strip -quality 40 shot.jpg
           base64 -w0 shot.jpg | fold -w 3800 | head -n 9 | awk '{ printf "::notice title=shot-%02d::%s\n", NR, $0 }'
       - uses: actions/upload-artifact@v7.0.2
