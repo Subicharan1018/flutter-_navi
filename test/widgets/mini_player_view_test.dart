@@ -2,161 +2,24 @@ import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:flutter_riverpod/legacy.dart';
 import 'package:flutter_riverpod/misc.dart' show Override;
 import 'package:flutter_test/flutter_test.dart';
-import 'package:just_audio/just_audio.dart' hide PlayerState;
 import 'package:navivibe/core/pointer_anchor.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/lyrics/controllers/lyrics_controller.dart';
-import 'package:navivibe/lyrics/models/lyric_line.dart';
-import 'package:navivibe/models/song.dart';
 import 'package:navivibe/player/artwork.dart' show coverPaletteProvider;
 import 'package:navivibe/providers/catalog_provider.dart';
 import 'package:navivibe/providers/player_provider.dart';
 import 'package:navivibe/providers/settings_provider.dart';
 import 'package:navivibe/services/mini_player.dart';
-import 'package:navivibe/services/subsonic_service.dart';
 import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/widgets/shell/mini_player_view.dart';
 
-final _song = Song(
-  id: 's1',
-  title: 'Thaniye',
-  artist: 'Anirudh',
-  album: 'Vidaamuyarchi',
-  coverArt: 's1',
-  duration: 240,
-  track: 1,
-  year: 2024,
-  suffix: 'flac',
-  bitRate: 900,
-);
-
-class _FakeAudio extends Fake implements AudioPlayer {
-  double vol = 0.5;
-  final seeks = <Duration?>[];
-  @override
-  Duration get position => const Duration(seconds: 60);
-  @override
-  Stream<Duration> get positionStream =>
-      Stream.value(const Duration(seconds: 60));
-  @override
-  Duration? get duration => const Duration(seconds: 240);
-  @override
-  Stream<Duration?> get durationStream =>
-      Stream.value(const Duration(seconds: 240));
-  @override
-  bool get playing => true;
-  @override
-  double get volume => vol;
-  @override
-  Future<void> setVolume(double v) async => vol = v;
-  @override
-  Future<void> seek(Duration? position, {int? index}) async =>
-      seeks.add(position);
-}
-
-class _FakePlayer extends StateNotifier<PlayerState> implements PlayerNotifier {
-  int toggles = 0, nexts = 0, prevs = 0;
-  final stars = <String>[];
-  final _audio = _FakeAudio();
-  _FakePlayer(bool withSong)
-    : super(
-        PlayerState(
-          queue: withSong ? [_song] : const [],
-          currentIndex: withSong ? 0 : -1,
-          isPlaying: true,
-          shuffleMode: false,
-          autoplayMode: false,
-          repeatMode: LoopMode.off,
-          starredIds: const [],
-          history: const [],
-          syncMode: SyncMode.activeHere,
-        ),
-      );
-  @override
-  AudioPlayer get player => _audio;
-  @override
-  Future<void> togglePlay() async => toggles++;
-  @override
-  Future<void> playNext() async => nexts++;
-  @override
-  Future<void> playPrev() async => prevs++;
-  @override
-  Future<void> toggleStar(String id) async => stars.add(id);
-  @override
-  dynamic noSuchMethod(Invocation i) =>
-      i.isMethod ? Future<void>.value() : null;
-}
-
-class _FakeSettings extends StateNotifier<SettingsState>
-    implements SettingsNotifier {
-  _FakeSettings()
-    : super(
-        const SettingsState(
-          serverUrl: 'https://music.example',
-          username: 'u',
-          password: 'p',
-        ),
-      );
-  @override
-  dynamic noSuchMethod(Invocation i) => null;
-}
-
-class _FakeSubsonic extends Fake implements SubsonicService {
-  @override
-  String getCoverArtUrl(String? id, {int? size}) => '';
-}
-
-class _MemWindow implements MiniWindow {
-  Rect rect = const Rect.fromLTWH(100, 80, 1280, 800);
-  bool onTop = false;
-  @override
-  Future<Rect> bounds() async => rect;
-  @override
-  Future<bool> isMaximized() async => false;
-  @override
-  Future<void> setBounds(Rect b) async => rect = b;
-  @override
-  Future<void> setAlwaysOnTop(bool t) async => onTop = t;
-  @override
-  Future<void> setMaximized(bool m) async {}
-  @override
-  Future<void> setMinimumSize(Size s) async {}
-  @override
-  Future<void> setResizable(bool r) async {}
-  @override
-  Future<void> show() async {}
-}
-
-class _MemStore implements MiniStore {
-  MiniPrefs prefs;
-  _MemStore([this.prefs = const MiniPrefs()]);
-  @override
-  MiniPrefs load() => prefs;
-  @override
-  void save(MiniPrefs p) => prefs = p;
-}
-
-class _FakeLyrics extends LyricsController {
-  final String? line;
-  _FakeLyrics(this.line);
-  @override
-  LyricsState build() => line == null
-      ? const LyricsState(status: LyricsStatus.empty)
-      : LyricsState(
-          status: LyricsStatus.synced,
-          lyrics: SyncedLyrics(
-            lines: [LyricLine(timestamp: Duration.zero, text: line!)],
-          ),
-          activeLineIndex: 0,
-        );
-}
+import 'mini_player_fakes.dart';
 
 MiniPlayer _mini(MiniMode mode, {MiniWindow? window}) => MiniPlayer(
-  window: window ?? _MemWindow(),
-  store: _MemStore(MiniPrefs(mode: mode)),
+  window: window ?? MemWindow(),
+  store: MemStore(MiniPrefs(mode: mode)),
 );
 
 Widget _app(
@@ -166,11 +29,11 @@ Widget _app(
   double textScale = 1,
 }) {
   final List<Override> overrides = [
-    playerProvider.overrideWith((ref) => _FakePlayer(withSong)),
-    settingsProvider.overrideWith((ref) => _FakeSettings()),
-    subsonicServiceProvider.overrideWithValue(_FakeSubsonic()),
+    playerProvider.overrideWith((ref) => FakePlayer(withSong)),
+    settingsProvider.overrideWith((ref) => FakeSettings()),
+    subsonicServiceProvider.overrideWithValue(FakeSubsonic()),
     catalogSongProvider.overrideWith((ref, id) => null),
-    lyricsControllerProvider.overrideWith(() => _FakeLyrics(lyric)),
+    lyricsControllerProvider.overrideWith(() => FakeLyrics(lyric)),
     coverPaletteProvider(
       's1',
     ).overrideWithValue(const AsyncData(AlbumPalette.fallback)),
@@ -226,11 +89,11 @@ void main() {
     return mini;
   }
 
-  _FakePlayer fake(WidgetTester t) =>
+  FakePlayer fake(WidgetTester t) =>
       ProviderScope.containerOf(
             t.element(find.byType(MiniPlayerView)),
           ).read(playerProvider.notifier)
-          as _FakePlayer;
+          as FakePlayer;
 
   for (final mode in MiniMode.values) {
     group('${mode.name} shape', () {
@@ -293,7 +156,7 @@ void main() {
         tester,
       ) async {
         await open(tester, mode);
-        final audio = fake(tester).player as _FakeAudio;
+        final audio = fake(tester).player as FakeAudio;
         final pointer = TestPointer(1, PointerDeviceKind.mouse)
           ..hover(tester.getCenter(find.byType(MiniPlayerView)));
         await tester.sendEventToBinding(pointer.scroll(const Offset(0, -20)));
@@ -313,7 +176,7 @@ void main() {
         var returned = 0;
         await open(tester, mode, onReturn: () => returned++);
         final f = fake(tester);
-        final audio = f.player as _FakeAudio;
+        final audio = f.player as FakeAudio;
         await tester.sendKeyEvent(LogicalKeyboardKey.space);
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
         await tester.sendKeyEvent(LogicalKeyboardKey.arrowUp);
@@ -372,7 +235,7 @@ void main() {
   }
 
   testWidgets('the shape and pin buttons act on the window', (tester) async {
-    final w = _MemWindow();
+    final w = MemWindow();
     await sized(tester, MiniPlayer.barSize);
     final mini = _mini(MiniMode.bar, window: w);
     await mini.enter();

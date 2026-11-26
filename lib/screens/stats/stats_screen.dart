@@ -22,8 +22,10 @@ import 'widgets/trend_chart.dart';
 import 'widgets/year_grid.dart';
 
 enum StatsPeriod {
-  week('7 Days', 'weekly', 7, 'in the last 7 days'),
-  month('30 Days', 'monthly', 30, 'in the last 30 days'),
+  // The server's weekly and monthly periods are the calendar week (from
+  // Monday) and month, not the last 7 and 30 days, so the page says so.
+  week('This Week', 'weekly', 7, 'this week'),
+  month('This Month', 'monthly', 30, 'this month'),
   all('All Time', 'all', 90, 'all time');
 
   final String label;
@@ -53,9 +55,11 @@ class StatsScreen extends ConsumerStatefulWidget {
 class _StatsScreenState extends ConsumerState<StatsScreen> {
   StatsPeriod _period = StatsPeriod.week;
 
-  /// The last period that loaded, kept on screen while a newly picked one
-  /// loads so the page doesn't blank to a spinner on every switch.
-  ListeningStatsResponse? _shown;
+  /// The last response and the period it is for, kept on screen (dimmed, under
+  /// its own name) while a newly picked one loads, so the page doesn't blank to
+  /// a spinner on every switch. Its numbers are never labelled as another
+  /// period's.
+  ({StatsPeriod period, ListeningStatsResponse data})? _last;
 
   void _refresh() {
     ref.invalidate(listeningStatsProvider(_period.apiValue));
@@ -66,10 +70,17 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
   @override
   Widget build(BuildContext context) {
     var stats = ref.watch(listeningStatsProvider(_period.apiValue));
+    var shown = _period;
+    var waiting = false;
     if (stats.hasValue) {
-      _shown = stats.value;
-    } else if (stats.isLoading && _shown != null) {
-      stats = AsyncData(_shown!);
+      _last = (period: _period, data: stats.requireValue);
+    } else if (!stats.hasError && _last != null) {
+      // Not `isLoading`: that stays true while a failed request is retried.
+      waiting = true;
+      shown = _last!.period;
+      stats = AsyncData(_last!.data);
+    } else if (stats.hasError) {
+      stats = AsyncError(stats.error!, stats.stackTrace!);
     }
     final model = ref.watch(modelStatusProvider).asData?.value;
     final days = ref.watch(contributionGraphProvider).asData?.value.days ?? const <ContributionDay>[];
@@ -84,16 +95,35 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
           padding: EdgeInsets.fromLTRB(g, Space.sm, g, Space.xxl),
           sliver: SliverToBoxAdapter(
             // Windows: the period switch is a control at the left, not a page-wide bar.
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: ConstrainedBox(
-                constraints: BoxConstraints(maxWidth: desk ? 420 : double.infinity),
-                child: NaviSegmented<StatsPeriod>(
-                  segments: {for (final p in StatsPeriod.values) p: p.label},
-                  value: _period,
-                  onChanged: (p) => setState(() => _period = p),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: ConstrainedBox(
+                    constraints: BoxConstraints(maxWidth: desk ? 420 : double.infinity),
+                    child: NaviSegmented<StatsPeriod>(
+                      segments: {for (final p in StatsPeriod.values) p: p.label},
+                      value: _period,
+                      onChanged: (p) => setState(() => _period = p),
+                    ),
+                  ),
                 ),
-              ),
+                if (waiting)
+                  Padding(
+                    padding: const EdgeInsets.only(top: Space.sm),
+                    child: Semantics(
+                      liveRegion: true,
+                      child: Row(
+                        children: [
+                          const CupertinoActivityIndicator(radius: 8),
+                          const SizedBox(width: Space.sm),
+                          Text('Loading ${_period.label}…', style: ThemeTokens.of(context).footnote),
+                        ],
+                      ),
+                    ),
+                  ),
+              ],
             ),
           ),
         ),
@@ -117,14 +147,14 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
               for (final (i, w) in <Widget>[
                 FortnightChart(days: days),
                 ListeningClock(byHour: s.hourlyHeatmap),
-                TrendChart(days: days, window: _period.trendDays, totalPlays: s.totalPlays),
+                TrendChart(days: days, window: shown.trendDays, totalPlays: s.totalPlays),
                 TopArtistsCard(artists: s.topArtists),
                 TopSongsCard(tracks: s.topTracks),
                 GenreMixCard(genres: s.genreBreakdown),
                 YearGrid(days: days),
                 if (model != null) ModelStatusCard(status: model),
               ].indexed)
-                Reveal(key: ValueKey('${_period.name}-$i'), index: i < 2 ? i : 0, child: RepaintBoundary(child: w)),
+                Reveal(key: ValueKey('${shown.name}-$i'), index: i < 2 ? i : 0, child: RepaintBoundary(child: w)),
             ];
             return [
               SliverPadding(
@@ -132,10 +162,11 @@ class _StatsScreenState extends ConsumerState<StatsScreen> {
                 sliver: SliverToBoxAdapter(
                   child: SummaryHero(
                     stats: s,
-                    periodPhrase: _period.phrase,
+                    periodPhrase: shown.phrase,
+                    history: days,
                     topArtist: topName,
                     topArtistCover: topName == null ? null : ref.watch(artistCoverUrlProvider(topName)).asData?.value,
-                    dailyPlays: [for (final d in days.skip(days.length - _period.trendDays.clamp(7, 30).clamp(0, days.length))) d.count.toDouble()],
+                    dailyPlays: [for (final d in days.skip(days.length - shown.trendDays.clamp(7, 30).clamp(0, days.length))) d.count.toDouble()],
                   ),
                 ),
               ),

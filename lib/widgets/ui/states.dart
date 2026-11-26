@@ -1,4 +1,5 @@
 import 'package:flutter/cupertino.dart';
+import 'package:flutter/rendering.dart' show RenderProxyBox;
 
 import '../../core/motion.dart';
 import '../../core/theme.dart';
@@ -72,7 +73,8 @@ class MessageState extends StatelessWidget {
     // On a short viewport (a phone on its side, large text) the picture goes
     // and the padding shrinks, and the rest scrolls if it still does not fit,
     // rather than overflowing the page.
-    return LayoutBuilder(
+    return _NoIntrinsics(
+      child: LayoutBuilder(
       builder: (context, c) {
         final tight = c.maxHeight.isFinite && c.maxHeight < 420;
         return Center(
@@ -140,8 +142,31 @@ class MessageState extends StatelessWidget {
           ),
         );
       },
+      ),
     );
   }
+}
+
+/// Says it has no natural size of its own. A [LayoutBuilder] cannot answer
+/// when asked, and `SliverFillRemaining(hasScrollBody: false)` asks: the empty
+/// and error pages built that way broke (a blank grey page in a release).
+/// With this they take the space that is left, and scroll if it is too little.
+class _NoIntrinsics extends SingleChildRenderObjectWidget {
+  const _NoIntrinsics({required super.child});
+
+  @override
+  RenderObject createRenderObject(BuildContext context) => _RenderNoIntrinsics();
+}
+
+class _RenderNoIntrinsics extends RenderProxyBox {
+  @override
+  double computeMinIntrinsicWidth(double height) => 0;
+  @override
+  double computeMaxIntrinsicWidth(double height) => 0;
+  @override
+  double computeMinIntrinsicHeight(double width) => 0;
+  @override
+  double computeMaxIntrinsicHeight(double width) => 0;
 }
 
 /// A shelf that failed to load, said in one line with Try again beside it —
@@ -155,7 +180,8 @@ class InlineError extends StatelessWidget {
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Space.gutter),
+      // The page's own margin, so the line starts where its heading does.
+      padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
       child: Row(
         children: [
           Expanded(child: Text(message, style: t.footnote)),

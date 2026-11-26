@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
@@ -316,29 +317,108 @@ class MiniVolumeToast extends StatelessWidget {
   }
 }
 
-/// Drags the window from anywhere that is not a control (the mini window has
-/// no title bar), and switches shape on a double-click. Sits under the
-/// controls. After a drag, the new corner is remembered.
-class MiniDragLayer extends StatelessWidget {
+/// Drags the window from anywhere that is not a [MiniNoDrag] control (the mini
+/// window has no title bar), and switches shape on a double-click. It wraps the
+/// content, so the cover and the text cannot swallow the drag, and it watches
+/// raw pointers instead of joining the gesture arena, so buttons under it are
+/// neither delayed by a double-tap nor lose a click to a shaky hand.
+/// After a drag, the new corner is remembered.
+class MiniDragArea extends StatefulWidget {
   final MiniPlayer mini;
-  const MiniDragLayer({super.key, required this.mini});
+  final Widget child;
+  const MiniDragArea({super.key, required this.mini, required this.child});
+
+  /// How far the pointer travels before a press becomes a window drag.
+  static const double slop = 3;
+
+  @override
+  State<MiniDragArea> createState() => _MiniDragAreaState();
+}
+
+class _MiniDragAreaState extends State<MiniDragArea> {
+  /// The press that may still become a drag or a click.
+  int? _pointer;
+  Offset _from = Offset.zero;
+
+  /// Set after one click, while a second one would make it a double-click.
+  Timer? _second;
+  Offset _first = Offset.zero;
+
+  void _down(PointerDownEvent e) {
+    // Controls are deeper in the tree, so they have claimed the press already.
+    if (MiniNoDrag._claimed.remove(e.pointer)) return;
+    if (e.buttons != kPrimaryButton) return;
+    _pointer = e.pointer;
+    _from = e.position;
+  }
+
+  void _move(PointerMoveEvent e) {
+    if (e.pointer != _pointer ||
+        (e.position - _from).distance < MiniDragArea.slop) {
+      return;
+    }
+    _pointer = null;
+    _forgetClick();
+    _drag();
+  }
+
+  void _up(PointerUpEvent e) {
+    if (e.pointer != _pointer) return;
+    _pointer = null;
+    if (_second != null && (e.position - _first).distance < kDoubleTapSlop) {
+      _forgetClick();
+      widget.mini.toggleMode();
+      return;
+    }
+    _forgetClick();
+    _first = e.position;
+    _second = Timer(kDoubleTapTimeout, () => _second = null);
+  }
+
+  void _forgetClick() {
+    _second?.cancel();
+    _second = null;
+  }
 
   Future<void> _drag() async {
     try {
       await windowManager.startDragging();
-      await mini.rememberPosition();
+      await widget.mini.rememberPosition();
     } catch (_) {
       // No window (tests, a failed call): there is nothing to move.
     }
   }
 
   @override
-  Widget build(BuildContext context) => GestureDetector(
+  void dispose() {
+    _second?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Listener(
     behavior: HitTestBehavior.opaque,
-    onPanStart: (_) => _drag(),
-    onDoubleTap: mini.toggleMode,
-    child: const SizedBox.expand(),
+    onPointerDown: _down,
+    onPointerMove: _move,
+    onPointerUp: _up,
+    onPointerCancel: (e) {
+      if (e.pointer == _pointer) _pointer = null;
+    },
+    child: widget.child,
   );
+}
+
+/// Marks a control inside a [MiniDragArea]: a press that starts on it never
+/// moves the window or counts toward a double-click.
+class MiniNoDrag extends StatelessWidget {
+  final Widget child;
+  const MiniNoDrag({super.key, required this.child});
+
+  static final Set<int> _claimed = {};
+
+  @override
+  Widget build(BuildContext context) =>
+      Listener(onPointerDown: (e) => _claimed.add(e.pointer), child: child);
 }
 
 /// Keeps the volume toast and its timer, and nudges the player's volume.

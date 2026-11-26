@@ -116,7 +116,7 @@ class SpotifyImportPanel extends ConsumerWidget {
     if (!run.loaded) return _Skeleton(gutter: gutter);
     if (run.loadFailed && job == null) {
       return Padding(
-        padding: EdgeInsets.symmetric(vertical: Space.md, horizontal: gutter - Space.gutter),
+        padding: const EdgeInsets.symmetric(vertical: Space.md),
         child: InlineError(message: run.error ?? 'Couldn’t reach the server.', onRetry: ctl.load),
       );
     }
