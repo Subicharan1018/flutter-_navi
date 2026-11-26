@@ -8,6 +8,7 @@ import 'package:just_audio/just_audio.dart';
 
 import '../providers/player_provider.dart';
 import '../services/media_key_gate.dart';
+import '../services/player_volume.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/ui/voice_search_button.dart';
 
@@ -155,7 +156,7 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
     p.seek(clamped);
   }
 
-  void volumeBy(double delta) => player().setVolume((player().volume + delta).clamp(0.0, 1.0));
+  void volumeBy(double delta) => player().setUserVolume((player().userVolume + delta).clamp(0.0, 1.0));
 
 
   final bindings = <ShortcutActivator, VoidCallback>{
@@ -200,7 +201,7 @@ Map<ShortcutActivator, VoidCallback> buildNaviBindings(
       final s = ref.read(playerProvider);
       if (s.queue.isNotEmpty) notifier().toggleStar(s.queue[s.currentIndex].id);
     },
-    const SingleActivator(LogicalKeyboardKey.keyM): () => player().setVolume(player().volume > 0 ? 0 : 1),
+    const SingleActivator(LogicalKeyboardKey.keyM): () => player().setUserVolume(player().userVolume > 0 ? 0 : 1),
   });
 
   if (commands != null) {

@@ -17,6 +17,7 @@ import '../services/subsonic_service.dart';
 import '../services/listening_event_collector.dart';
 import 'settings_provider.dart';
 import '../services/navi_audio_handler.dart';
+import '../services/player_volume.dart';
 import '../services/shuffle_bag.dart';
 import '../features/rotation/logic/rotation_providers.dart' show backBiasProvider;
 import '../core/hive_boxes.dart';
@@ -531,7 +532,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         case 'seek':
           if (c.positionMs != null) await seekMs(c.positionMs!);
         case 'volume':
-          if (c.volume != null) await player.setVolume(c.volume!.clamp(0.0, 1.0));
+          if (c.volume != null) await player.setUserVolume(c.volume!.clamp(0.0, 1.0));
         case 'play_track':
           final byId = c.trackId == null ? -1 : state.queue.indexWhere((s) => s.id == c.trackId);
           final i = byId >= 0 ? byId : (c.index ?? -1);
@@ -3540,14 +3541,20 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
   final handler = ref.watch(audioHandlerProvider);
   final service = ref.read(subsonicServiceProvider);
   final collector = ref.watch(listenerCollectorProvider);
+  handler.gainLookup = (id) async {
+    final db = ref.read(appDatabaseProvider);
+    final row = await (db.select(db.songMetadata)..where((t) => t.songId.equals(id))).getSingleOrNull();
+    return row == null ? null : songFromMetadata(row);
+  };
   ref.listen(
     settingsProvider.select(
-      (s) => (s.replayGainMode, s.crossfadeSeconds, s.playbackSpeed),
+      (s) => (s.replayGainMode, s.crossfadeSeconds, s.playbackSpeed, s.loudnessLevel),
     ),
     (_, t) => handler.configureTuning(
       replayGainMode: t.$1,
       crossfadeSeconds: t.$2,
       speed: t.$3,
+      loudness: t.$4,
     ),
     fireImmediately: true,
   );

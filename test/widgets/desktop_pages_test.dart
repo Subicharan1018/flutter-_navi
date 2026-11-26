@@ -293,6 +293,7 @@ void main() {
       await tester.tap(find.text('Playback'));
       await tester.pumpAndSettle(const Duration(milliseconds: 100));
       expect(find.text('Autoplay'), findsOneWidget);
+      await tester.scrollUntilVisible(find.text('Lyrics sources'), 200, scrollable: find.byType(Scrollable).last);
       expect(find.text('Lyrics sources'), findsOneWidget, reason: 'lyrics live under playback');
       expect(tester.takeException(), isNull);
     });

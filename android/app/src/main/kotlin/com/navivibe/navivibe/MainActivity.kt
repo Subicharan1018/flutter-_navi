@@ -33,6 +33,7 @@ class MainActivity : AudioServiceActivity() {
         super.configureFlutterEngine(flutterEngine)
         saf = SafChannel(this, flutterEngine.dartExecutor.binaryMessenger)
         UpdateChannel(this, flutterEngine.dartExecutor.binaryMessenger)
+        EqChannel.register(flutterEngine.dartExecutor.binaryMessenger)
         AppNotifications.ensureChannels(this)
         val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navivibe/android")
         appChannel = channel
