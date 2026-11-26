@@ -53,7 +53,8 @@ test -n "$shlibs" || { echo "dpkg-shlibdeps found no dependencies" >&2; exit 1; 
 #   libmpv2        audio playback (media_kit opens libmpv.so.2)
 #   xdg-user-dirs  path_provider runs xdg-user-dir; without it the app cannot start
 #   ca-certificates HTTPS
-depends="$shlibs, libmpv2, xdg-user-dirs, ca-certificates"
+#   libgles2, libegl1  opened by the Flutter engine; without them no window appears
+depends="$shlibs, libmpv2, libgles2, libegl1, xdg-user-dirs, ca-certificates"
 recommends="gnome-keyring | kwalletmanager, zenity | kdialog, pulseaudio-utils, ffmpeg"
 size=$(du -sk "$root/opt" | cut -f1)
 
