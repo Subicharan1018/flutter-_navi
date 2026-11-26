@@ -27,3 +27,8 @@ for p in server-tests-fix-v1 tgfetcher-tests-fix-v1 spotify-history-import-v1 ma
 done
 sudo systemctl restart tg-fetcher navivibe
 ```
+
+## preview-feed-v1 (Swipe to fetch)
+Independent of the five above; needs only weekly-exploration-v1 and `fetch_access` (both already installed). Web server only, one restart:
+`scp -r tool/server/preview-feed-v1 subi@100.99.105.51:~/ && cd ~/preview-feed-v1 && bash install.sh --check && bash install.sh && sudo systemctl restart navivibe`
+(`--check` also runs against a scratch copy: 20 package tests + the live server's fetch/security tests.)
