@@ -119,8 +119,11 @@ class _SearchScreenState extends ConsumerState<SearchScreen> {
     return LargeTitlePage(
       title: 'Search',
       // Desktop: the field is in the top bar, so the page is just its results.
+      // In the desktop browser there is no Identify either: no empty band.
       header: PlatformUtils.isDesktop
-          ? Align(alignment: Alignment.centerRight, child: _IdentifyButton(onTap: () => showRecognizeSheet(context)))
+          ? (PlatformUtils.supportsSongRecognition
+              ? Align(alignment: Alignment.centerRight, child: _IdentifyButton(onTap: () => showRecognizeSheet(context)))
+              : null)
           : Row(
         children: [
           Expanded(
@@ -447,12 +450,17 @@ class _ResultsState extends ConsumerState<_Results> {
       if (songs.isNotEmpty) ...[
         const SliverToBoxAdapter(child: SectionHeader(title: 'Songs')),
         if (useSongTable())
-          SongTableSliver(
-            songs: songs,
-            onPlay: (song, ordered) {
-              onUsed();
-              ref.read(playerProvider.notifier).setQueue(ordered, ordered.indexOf(song), playlistName: 'Search');
-            },
+          // The page's margin, as on Songs: flush to the panes the rows read
+          // as cut off.
+          SliverPadding(
+            padding: EdgeInsets.symmetric(horizontal: pageGutter(context)),
+            sliver: SongTableSliver(
+              songs: songs,
+              onPlay: (song, ordered) {
+                onUsed();
+                ref.read(playerProvider.notifier).setQueue(ordered, ordered.indexOf(song), playlistName: 'Search');
+              },
+            ),
           )
         else
           SliverFixedExtentList(

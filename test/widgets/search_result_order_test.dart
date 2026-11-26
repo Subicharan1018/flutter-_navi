@@ -106,6 +106,15 @@ void main() {
     expect(y('Albums'), lessThan(y('Artists')));
     expect(find.text('Monsoon Drive'), findsOneWidget);
     expect(find.text('Gym'), findsNothing);
+    // The song table keeps the page's margin on both sides.
+    expect(
+      tester.getTopLeft(find.text('#')).dx,
+      greaterThanOrEqualTo(Space.xxl),
+    );
+    expect(
+      tester.getTopRight(find.text('Time')).dx,
+      lessThanOrEqualTo(900 - Space.xxl),
+    );
     await close(tester);
   });
 
