@@ -22,6 +22,7 @@ import 'utils/platform_utils.dart';
 import 'services/app_notifier.dart';
 import 'services/desktop_tray.dart';
 import 'services/desktop_registration.dart';
+import 'services/linux_connectivity.dart';
 import 'services/media_key_gate.dart';
 import 'services/open_intent.dart';
 import 'services/windows_smtc.dart';
@@ -134,8 +135,16 @@ Future<void> main(List<String> args) async {
 
   // ── Media kit: required on Linux / Windows for just_audio playback ─────────
   if (PlatformUtils.isLinux || PlatformUtils.isWindows) {
-    JustAudioMediaKit.ensureInitialized();
+    try {
+      // Linux uses the system's libmpv (package libmpv2).
+      JustAudioMediaKit.ensureInitialized();
+    } catch (e, st) {
+      // Nothing will play, but the app must still open and say why in the log.
+      debugPrint('⚠️  Audio engine unavailable ($e)\n$st');
+      CrashLog.record(e, st);
+    }
   }
+  if (PlatformUtils.isLinux) await installLinuxConnectivityFallback();
 
   // ── Desktop window setup ───────────────────────────────────────────────────
   if (PlatformUtils.supportsWindowManager) {
@@ -285,14 +294,15 @@ void _wireDesktopOpenFiles(List<String> args) {
   ]);
   final initial = audioFilesFromArgs(args);
   if (initial.isNotEmpty) unawaited(play(initial));
-  if (PlatformUtils.isWindows) {
+  if (PlatformUtils.isWindows || PlatformUtils.isLinux) {
     const MethodChannel('navivibe/open_files').setMethodCallHandler((call) async {
       if (call.method != 'open') return;
       final paths = audioFilesFromArgs(pathsFromForwarded(call.arguments));
+      debugPrint('[OpenFiles] forwarded by a second launch: ${paths.length}');
       if (paths.isNotEmpty) await play(paths);
     });
-    unawaited(registerWindowsFileTypes());
   }
+  if (PlatformUtils.isWindows) unawaited(registerWindowsFileTypes());
 }
 
 /// The global shortcut: leave the mini player, show and focus the window, and

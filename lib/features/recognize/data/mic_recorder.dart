@@ -45,6 +45,9 @@ class DeviceMicRecorder implements MicRecorder {
 
   @override
   Future<MicAccess> access({required bool request}) async {
+    // Linux has no per-app microphone permission, and permission_handler has no
+    // Linux plugin (it threw). A missing recorder shows up in [start].
+    if (Platform.isLinux) return MicAccess.granted;
     var status = await Permission.microphone.status;
     if (!status.isGranted && request) {
       status = await Permission.microphone.request();

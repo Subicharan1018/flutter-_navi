@@ -8,6 +8,7 @@ import 'package:share_plus/share_plus.dart';
 import '../../../../core/motion.dart';
 import '../../../../core/theme.dart';
 import '../../../../providers/settings_provider.dart';
+import '../../../../utils/platform_utils.dart';
 import '../../../../screens/song_picker_screen.dart';
 import '../../../../widgets/art/empty_art.dart' show EmptyArtKind;
 import '../../../../widgets/art/generated_cover.dart';
@@ -79,8 +80,13 @@ Future<void> inviteFriendToJam(BuildContext context, WidgetRef ref, String code,
   }
 }
 
-void shareJamInvite(String code) =>
-    SharePlus.instance.share(ShareParams(text: jamInviteText(code), subject: 'Join my Jam'));
+void shareJamInvite(BuildContext context, String code) {
+  if (PlatformUtils.isLinux) {
+    copyJamInvite(context, code);
+    return;
+  }
+  SharePlus.instance.share(ShareParams(text: jamInviteText(code), subject: 'Join my Jam'));
+}
 
 /// Leave, End for everyone (admin) and Clear queue (whoever may edit).
 Future<void> showJamRoomMenu(BuildContext context, WidgetRef ref, JamState jam) {
@@ -362,7 +368,7 @@ class JamCodeStrip extends ConsumerWidget {
           ],
           JamChipButton(glyph: NaviGlyph.copy, label: 'Copy', onTap: () => copyJamInvite(context, code)),
           const SizedBox(width: Space.sm),
-          JamChipButton(glyph: NaviGlyph.share, label: 'Share', onTap: () => shareJamInvite(code)),
+          JamChipButton(glyph: NaviGlyph.share, label: 'Share', onTap: () => shareJamInvite(context, code)),
         ]),
       ]),
     );

@@ -12,6 +12,7 @@ git push origin <any branch>
         ├─ version   name from pubspec (2.0.0) + build number = run number + 100  → tag v2.0.0+<n>
         ├─ android   signed APKs per ABI (arm64-v8a, armeabi-v7a, x86_64) + one universal APK
         ├─ windows   zip of the Release folder + Velopack installer (Setup.exe, full + delta nupkg)
+        ├─ linux     .deb + .tar.gz (linux.yml), installed and run in a clean container
         ├─ publish   binary patches, latest.json, SHA256SUMS.txt, release notes from commit messages → GitHub Release
         └─ cleanup   deletes old pre-releases
 ```
@@ -56,6 +57,23 @@ git push origin <any branch>
   "latest release", so it falls back to the previous one. Phones that already
   installed the bad build will not go backwards (Android refuses a lower
   `versionCode`); ship a fix as a new push instead.
+
+## Linux
+
+* **`NaviVibe-linux-x64.deb`** (Ubuntu 24.04+, Debian 13+, and distributions based on
+  them): `sudo apt install ./NaviVibe-linux-x64.deb`. A `.deb` because playback needs the
+  system's `libmpv`: apt installs it with the other dependencies. An AppImage would have
+  to carry libmpv and its large codec stack, and a Flatpak needs its own runtime and
+  sandbox rules.
+* **`NaviVibe-linux-x64.tar.gz`**: for other distributions with glibc 2.39+;
+  `README-linux.txt` inside lists the libraries to install.
+* No in-app updates on Linux.
+* The build and smoke test are in `linux.yml`; a failure there blocks the release like any
+  other platform. Dependencies are read from the binaries by `tool/linux/package_linux.sh`.
+* **Try a change without publishing:** push a branch named `linux-ci/<something>` with
+  `[skip release]` in the commit message. Only `linux.yml` and `ci.yml` run.
+* `tool/linux/smoke_test.sh` cannot check real speakers, a real GNOME/KDE session
+  (Wayland, media keys, tray area, file dialogs) or a microphone.
 
 ## How updates reach people (sizes)
 

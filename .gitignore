@@ -25,7 +25,6 @@ migrate_working_dir/
 # is commented out by default.
 #.vscode/
 ios
-linux
 macos
 # Flutter/Dart/Pub related
 **/doc/api/
@@ -47,7 +46,6 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-linux
 # Graphify - Ignore heavy machine-generated data, logs, and AST caches
 graphify-out/*.json
 graphify-out/.graphify_*

@@ -1,0 +1,12 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=NaviVibe
+GenericName=Music Player
+Comment=Music player for Navidrome and Subsonic servers
+Exec=navivibe %F
+Icon=com.navivibe.navivibe
+Terminal=false
+Categories=AudioVideo;Audio;Music;Player;
+MimeType=audio/mpeg;audio/flac;audio/x-flac;audio/mp4;audio/x-m4a;audio/ogg;audio/x-vorbis+ogg;audio/x-opus+ogg;audio/wav;audio/x-wav;
+StartupWMClass=com.navivibe.navivibe

@@ -203,7 +203,9 @@ class MiniPlayer {
       // The smallest shape is the floor, so growing to the square needs no
       // minimum change and shrinking back is never refused.
       await _window.setMinimumSize(barSize);
-      await _window.setResizable(false);
+      // GTK ignores resize requests for a non-resizable window, so on Linux
+      // the mini window stays resizable.
+      if (!PlatformUtils.isLinux) await _window.setResizable(false);
       final b = _savedBounds!;
       final s = size;
       final o = _origin;

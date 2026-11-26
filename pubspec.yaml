@@ -43,6 +43,7 @@ dependencies:
   image: ^4.1.2
   marquee: ^2.3.0
   connectivity_plus: ^7.1.1
+  connectivity_plus_platform_interface: ^2.1.0
   drift: ^2.22.1
   drift_flutter: ^0.2.8
   path_provider: ^2.1.5

@@ -39,7 +39,7 @@ Exec=$HOME/.local/share/navivibe/navivibe
 Icon=$HOME/.local/share/icons/navivibe.png
 Terminal=false
 Categories=AudioVideo;Audio;Music;Player;
-StartupWMClass=navivibe
+StartupWMClass=com.navivibe.navivibe
 EOF
 
 # Update desktop database if tool is available

@@ -2,7 +2,11 @@ import 'package:hive_ce_flutter/hive_ce_flutter.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_secure_storage/flutter_secure_storage.dart';
+import 'package:path_provider/path_provider.dart';
 import 'dart:convert';
+
+import '../utils/platform_utils.dart';
+import 'keyringless_key.dart';
 
 // =============================================================================
 // HiveBoxes — Central Hive initialization
@@ -69,6 +73,18 @@ class HiveBoxes {
   /// the app before the first screen. Then the unreadable box is dropped and
   /// recreated: the user signs in again instead of the app closing.
   static Future<Box> _openAuthBox() async {
+    // Linux keeps the key in the desktop's keyring (Secret Service). Not every
+    // desktop runs one; without this the app died before its first screen.
+    if (PlatformUtils.isLinux) {
+      try {
+        await _getEncryptionKey();
+      } catch (e) {
+        debugPrint('[Hive] ⚠️ No usable keyring ($e). Sign-in is encrypted with a key file readable only by this user.');
+        final key = await readOrCreateKeyFile(await getApplicationSupportDirectory());
+        // Its own box: whatever the keyring protects is left untouched.
+        return Hive.openBox(_keyringlessAuthBox, encryptionCipher: HiveAesCipher(key));
+      }
+    }
     try {
       return await Hive.openBox(_authBox, encryptionCipher: HiveAesCipher(await _getEncryptionKey()));
     } catch (e) {
@@ -82,6 +98,7 @@ class HiveBoxes {
   }
 
   static const _keyName = 'hive_encryption_key';
+  static const _keyringlessAuthBox = 'auth_v2_nokeyring';
 
   static Future<List<int>> _getEncryptionKey() async {
     const storage = FlutterSecureStorage();

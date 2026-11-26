@@ -293,6 +293,16 @@ jobs:
           retention-days: ${{ needs.version.outputs.publish == 'true' && 90 || 1 }}
           if-no-files-found: error
 
+  # .deb and .tar.gz, installed and run in a clean container before they are released.
+  linux:
+    needs: version
+    uses: ./.github/workflows/linux.yml
+    with:
+      name: ${{ needs.version.outputs.name }}
+      build: ${{ needs.version.outputs.build }}
+      public: ${{ needs.version.outputs.public }}
+      retention-days: ${{ needs.version.outputs.publish == 'true' && 90 || 1 }}
+
   publish:
     # A manual 'personal_build' run stops at the (1-day) workflow artifacts; every other run is released.
     # The web job runs on main only: elsewhere it is skipped, which must not block the release.
@@ -300,8 +310,9 @@ jobs:
       !cancelled() && needs.version.outputs.publish == 'true' &&
       needs.test.result == 'success' &&
       needs.android.result == 'success' && needs.windows.result == 'success' &&
+      needs.linux.result == 'success' &&
       (needs.web.result == 'success' || needs.web.result == 'skipped')
-    needs: [version, test, android, windows, web]
+    needs: [version, test, android, windows, linux, web]
     runs-on: ubuntu-24.04
     permissions:
       contents: write # only this job may create the release and tag
@@ -318,6 +329,8 @@ jobs:
         with: { name: android, path: dist }
       - uses: actions/download-artifact@v8.0.2
         with: { name: windows, path: windist }
+      - uses: actions/download-artifact@v8.0.2
+        with: { name: linux, path: lindist }
       - uses: actions/download-artifact@v8.0.2
         if: needs.web.result == 'success'
         with: { name: web, path: webdist }
@@ -386,7 +399,7 @@ jobs:
             --version "$NAME" --build "$BUILD" --tag "$TAG" \
             --asset-base "https://github.com/$REPO/releases/download/$tagurl/" \
             --notes-file notes.md --windows-dir windist --max-patches 5             --channel "$CHANNEL"
-          cp dist/*.apk windist/* out/
+          cp dist/*.apk windist/* lindist/* out/
           # Web build (main only): navivibe-web-<version>+<build>.zip
           if [ -f webdist/navivibe-web.zip ]; then cp webdist/navivibe-web.zip "out/navivibe-web-$NAME+$BUILD.zip"; fi
           ls -l out

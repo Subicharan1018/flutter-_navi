@@ -13,6 +13,8 @@ import '../../models/album.dart';
 import '../../models/playlist.dart';
 import '../../models/song.dart';
 import '../../providers/settings_provider.dart';
+import '../../utils/desktop_share.dart';
+import '../../utils/platform_utils.dart';
 import '../../widgets/art/navi_icons.dart';
 import '../../widgets/desktop_dialogs.dart';
 import '../../widgets/ui/action_sheet.dart';
@@ -153,7 +155,13 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
   Future<void> _shareLink() async {
     final url = await _link();
     if (url == null) return;
-    await SharePlus.instance.share(ShareParams(text: '${widget.target.caption}\n$url', subject: widget.target.title));
+    final text = '${widget.target.caption}\n$url';
+    if (PlatformUtils.isLinux) {
+      final done = await shareByCopying(text);
+      if (mounted) showToast(context, done);
+      return;
+    }
+    await SharePlus.instance.share(ShareParams(text: text, subject: widget.target.title));
   }
 
   Future<void> _shareCard() async {
@@ -162,6 +170,11 @@ class _ShareSheetState extends ConsumerState<_ShareSheet> {
     setState(() => _busy = true);
     try {
       final file = await _renderCard();
+      if (PlatformUtils.isLinux) {
+        final done = await shareByCopying('${widget.target.caption}\n$url', file: file);
+        if (mounted) showToast(context, done);
+        return;
+      }
       await SharePlus.instance.share(
         ShareParams(
           text: '${widget.target.caption}\n$url',

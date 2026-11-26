@@ -1,0 +1,105 @@
+name: Linux build
+
+# Builds, packages and smoke-tests the Linux app. release.yml calls it, so the
+# files join the same release as the other platforms. To try a change without
+# publishing anything, push a branch named linux-ci/<something> with
+# [skip release] in the commit message.
+on:
+  workflow_call:
+    inputs:
+      name: { type: string, required: true }
+      build: { type: string, required: true }
+      public: { type: string, required: true }
+      retention-days: { type: number, default: 90 }
+  push:
+    branches: ['linux-ci/**']
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    # 24.04 sets the oldest system the app runs on (glibc 2.39, libmpv2).
+    runs-on: ubuntu-24.04
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v6.1.0
+      - name: Install build packages
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake ninja-build pkg-config dpkg-dev \
+            libgtk-3-dev liblzma-dev libstdc++-14-dev \
+            libmpv-dev \
+            libsecret-1-dev \
+            libayatana-appindicator3-dev \
+            libkeybinder-3.0-dev
+      - uses: subosito/flutter-action@v2.23.0
+        with:
+          channel: stable
+          flutter-version: 3.47.0
+          cache: true
+      - run: flutter pub get
+      - name: Build Linux
+        env:
+          NAME: ${{ inputs.name || '0.0.0' }}
+          BUILD: ${{ inputs.build || github.run_number }}
+          PUBLIC: ${{ inputs.public || 'false' }}
+        run: |
+          set -euo pipefail
+          flags="--release --build-name=$NAME --build-number=$BUILD --dart-define=NAVI_BUILD=$BUILD"
+          if [ "$PUBLIC" = "true" ]; then flags="$flags --dart-define=PUBLIC_BUILD=true"; fi
+          flutter build linux $flags
+      - name: Package (.deb + .tar.gz)
+        env:
+          NAME: ${{ inputs.name || '0.0.0' }}
+          BUILD: ${{ inputs.build || github.run_number }}
+        run: bash tool/linux/package_linux.sh build/linux/x64/release/bundle "$NAME" "$BUILD" lindist
+      # Not "linux": nothing may download it before the smoke test has passed.
+      - uses: actions/upload-artifact@v7.0.2
+        with:
+          name: linux
+          path: lindist/*
+          retention-days: ${{ inputs.retention-days || 7 }}
+          if-no-files-found: error
+
+  # A clean Ubuntu container: no build packages that could hide a missing dependency.
+  smoke:
+    needs: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v6.1.0
+      - uses: actions/download-artifact@v8.0.2
+        with: { name: linux, path: lindist }
+      - name: Install the .deb and run the app
+        run: |
+          set -euo pipefail
+          mkdir -p smoke-report && : > smoke-report/report.txt
+          docker run --rm -v "$PWD:/work" -w /work ubuntu:24.04 \
+            bash tool/linux/smoke_test.sh lindist smoke-report
+      # Annotations can be read without signing in; job logs cannot.
+      - name: Report
+        if: always()
+        run: |
+          set -u
+          level=notice
+          grep -q '^FAIL' smoke-report/report.txt 2>/dev/null && level=error
+          body=$(tail -c 3800 smoke-report/report.txt 2>/dev/null || echo 'no report')
+          body=${body//'%'/'%25'}; body=${body//$'\r'/'%0D'}; body=${body//$'\n'/'%0A'}
+          echo "::$level title=Linux smoke test::$body"
+      # Proof branches only: a small copy of the screenshot, readable without signing in.
+      - name: Screenshot as annotations
+        if: always() && startsWith(github.ref, 'refs/heads/linux-ci/')
+        run: |
+          shot=smoke-report/screen-bare.png
+          [ -f "$shot" ] || exit 0
+          convert "$shot" -resize 640x -strip -quality 40 shot.jpg
+          base64 -w0 shot.jpg | fold -w 3800 | head -n 9 | awk '{ printf "::notice title=shot-%02d::%s\n", NR, $0 }'
+      - uses: actions/upload-artifact@v7.0.2
+        if: always()
+        with:
+          name: linux-smoke-report
+          path: smoke-report/*
+          retention-days: 7
+          if-no-files-found: ignore

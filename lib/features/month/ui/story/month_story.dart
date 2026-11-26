@@ -3,6 +3,9 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:share_plus/share_plus.dart';
 
 import '../../../../core/theme.dart';
+import '../../../../utils/desktop_share.dart';
+import '../../../../utils/platform_utils.dart';
+import '../../../../widgets/ui/action_sheet.dart' show showToast;
 import '../../../../widgets/art/navi_icons.dart';
 import '../../../../widgets/ui/states.dart';
 import '../../../listen/data/listen_models.dart';
@@ -131,9 +134,15 @@ class _SummaryPageState extends State<SummaryPage> {
     try {
       final s = widget.stats;
       final file = await renderCardPng(_key, logicalWidth: MonthSummaryCard.width, name: 'navivibe_month_${s.year}_${s.month}');
+      final text = 'My ${s.monthName} on NaviVibe: ${minutesLabel(s.totalMinutes)} listened.';
+      if (PlatformUtils.isLinux) {
+        final done = await shareByCopying(text, file: file);
+        if (mounted) showToast(context, done);
+        return;
+      }
       await SharePlus.instance.share(
         ShareParams(
-          text: 'My ${s.monthName} on NaviVibe: ${minutesLabel(s.totalMinutes)} listened.',
+          text: text,
           files: file == null ? null : [XFile(file.path, mimeType: 'image/png')],
         ),
       );
