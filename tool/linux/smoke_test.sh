@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
-# Installs the .deb in a clean Ubuntu container and runs the real app.
-# Run as root inside the container:  smoke_test.sh <dir with the .deb> <report dir>
+# Installs the package in a clean Ubuntu or Arch container and runs the real app.
+# Run as root inside the container:  smoke_test.sh <dir with the packages> <report dir>
 #
 # Checked: every library resolves from the package's own dependencies; the app
 # opens a window and stays up; audio from a file reaches PulseAudio (a null
@@ -11,30 +11,55 @@ set -euo pipefail
 
 if [ "$(id -u)" = 0 ] && [ "${1:-}" != "--as-user" ]; then
   dist=$(realpath "$1"); report=$(realpath "$2"); self=$(realpath "$0")
-  export DEBIAN_FRONTEND=noninteractive
-  apt-get update -qq
-  # The app alone first, without recommended extras: only what Depends names.
-  apt-get install -y -qq --no-install-recommends "$dist"/NaviVibe-linux-x64.deb > /dev/null
+  # shellcheck disable=SC1091
+  distro=$(. /etc/os-release && echo "$ID")
+  # The app alone first, without recommended extras: only what the package names.
+  if [ "$distro" = arch ]; then
+    package=$dist/NaviVibe-linux-x64.pkg.tar.zst
+    pacman -Syu --noconfirm --noprogressbar > /dev/null
+    pacman -U --noconfirm --noprogressbar "$package" > /dev/null
+  else
+    package=$dist/NaviVibe-linux-x64.deb
+    export DEBIAN_FRONTEND=noninteractive
+    apt-get update -qq
+    apt-get install -y -qq --no-install-recommends "$package" > /dev/null
+  fi
+  name=$(basename "$package")
+  # A line without "=>" is a library loaded by path; "not found" is a missing one.
   missing=$(LD_LIBRARY_PATH=/opt/navivibe/lib ldd /opt/navivibe/navivibe /opt/navivibe/lib/*.so | grep 'not found' | sort -u || true)
   if [ -n "$missing" ]; then
-    echo "FAIL: libraries missing after installing the .deb:" | tee -a "$report/report.txt"
+    echo "FAIL: libraries missing after installing $name:" | tee -a "$report/report.txt"
     echo "$missing" | tee -a "$report/report.txt"
     exit 1
   fi
-  echo "PASS: .deb installs and every library resolves from its Depends" >> "$report/report.txt"
+  echo "PASS: $name installs and every library resolves from its dependencies" >> "$report/report.txt"
   # Test tools.
-  apt-get install -y -qq --no-install-recommends xvfb xauth openbox wmctrl x11-utils \
-    dbus dbus-x11 pulseaudio pulseaudio-utils ffmpeg imagemagick desktop-file-utils \
-    locales procps libgl1-mesa-dri gdb > /dev/null
+  if [ "$distro" = arch ]; then
+    # The container image leaves out the locale sources that locale-gen needs.
+    sed -i '/^NoExtract/d' /etc/pacman.conf
+    pacman -S --noconfirm --noprogressbar glibc > /dev/null
+    pacman -S --noconfirm --noprogressbar --needed xorg-server-xvfb xorg-xauth openbox wmctrl \
+      xorg-xdpyinfo dbus pulseaudio libpulse ffmpeg imagemagick desktop-file-utils procps-ng mesa gdb > /dev/null
+    echo 'de_DE.UTF-8 UTF-8' >> /etc/locale.gen
+    locale-gen > /dev/null
+  else
+    apt-get install -y -qq --no-install-recommends xvfb xauth openbox wmctrl x11-utils \
+      dbus dbus-x11 pulseaudio pulseaudio-utils ffmpeg imagemagick desktop-file-utils \
+      locales procps libgl1-mesa-dri gdb > /dev/null
+    locale-gen de_DE.UTF-8 > /dev/null
+  fi
   desktop-file-validate /usr/share/applications/com.navivibe.navivibe.desktop
   echo "PASS: desktop entry is valid" >> "$report/report.txt"
-  locale-gen de_DE.UTF-8 > /dev/null
   useradd -m tester
   useradd -m tester2
   chmod 777 "$report"; chmod 666 "$report/report.txt"
   cp "$self" /tmp/smoke.sh; chmod 755 /tmp/smoke.sh
   su tester -c "bash /tmp/smoke.sh --as-user bare '$report'"
-  apt-get install -y -qq --no-install-recommends gnome-keyring libsecret-tools > /dev/null
+  if [ "$distro" = arch ]; then
+    pacman -S --noconfirm --noprogressbar --needed gnome-keyring libsecret > /dev/null
+  else
+    apt-get install -y -qq --no-install-recommends gnome-keyring libsecret-tools > /dev/null
+  fi
   su tester2 -c "bash /tmp/smoke.sh --as-user keyring '$report'"
   exit 0
 fi

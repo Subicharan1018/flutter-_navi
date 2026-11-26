@@ -1,0 +1,35 @@
+# Repackages the release build (NaviVibe-linux-x64.tar.gz) for Arch Linux.
+# tool/linux/package_arch.sh fills in the version and runs makepkg.
+pkgname=navivibe-bin
+pkgver=@VERSION@
+pkgrel=1
+pkgdesc='Music player for Navidrome and Subsonic servers'
+arch=('x86_64')
+url='https://github.com/Subicharan1018/flutter-_navi'
+license=('MIT')
+# mpv provides libmpv.so.2; libglvnd the GLES/EGL libraries the Flutter engine
+# opens at run time; xdg-user-dirs is run by path_provider (needed to start).
+depends=('gtk3' 'mpv' 'libglvnd' 'libsecret' 'libayatana-appindicator' 'libkeybinder3'
+         'xdg-user-dirs' 'ca-certificates')
+optdepends=('gnome-keyring: keep the sign-in key in a keyring (or use KWallet)'
+            'zenity: file and folder dialogs (or kdialog)'
+            'libpulse: record for "Identify a song" (also needs ffmpeg)'
+            'ffmpeg: "Identify a song"')
+provides=('navivibe')
+conflicts=('navivibe')
+# Stripping would corrupt the compiled Dart code in lib/libapp.so.
+options=('!strip' '!debug')
+source=('NaviVibe-linux-x64.tar.gz' 'LICENSE')
+sha256sums=('SKIP' 'SKIP')
+
+package() {
+  install -d "$pkgdir/opt/navivibe" "$pkgdir/usr/bin"
+  cp -a "$srcdir/NaviVibe/." "$pkgdir/opt/navivibe/"
+  local id=com.navivibe.navivibe
+  install -Dm644 "$pkgdir/opt/navivibe/$id.desktop" "$pkgdir/usr/share/applications/$id.desktop"
+  install -Dm644 "$pkgdir/opt/navivibe/$id.png" "$pkgdir/usr/share/icons/hicolor/512x512/apps/$id.png"
+  rm "$pkgdir/opt/navivibe/$id.desktop" "$pkgdir/opt/navivibe/$id.png" "$pkgdir/opt/navivibe/README-linux.txt"
+  install -Dm644 "$srcdir/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+  ln -s /opt/navivibe/navivibe "$pkgdir/usr/bin/navivibe"
+  chmod -R u=rwX,go=rX "$pkgdir"
+}
