@@ -1,3 +1,4 @@
+// ignore_for_file: deprecated_member_use
 // The song heard must be the song shown. The fake player here behaves like
 // ExoPlayer where it matters: it keeps playing the same source object while the
 // playlist around it is edited, so "heard" is read from the audio, never from
