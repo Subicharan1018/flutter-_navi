@@ -3,6 +3,7 @@ import 'package:audio_service/audio_service.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import '../utils/platform_utils.dart';
+import 'output_route.dart' show AudioDevice;
 import 'open_intent.dart';
 
 /// Android-only glue: home-screen widget state and the one-time
@@ -82,6 +83,7 @@ class AndroidIntegration {
     _channel.setMethodCallHandler((call) async {
       if (call.method == 'onIntent') await handle(call.arguments);
       if (call.method == 'downloadStopRequested') onDownloadStopRequested?.call();
+      if (call.method == 'audioRouteChanged') onAudioRouteChanged?.call();
     });
     unawaited(() async {
       try {
@@ -170,6 +172,31 @@ class AndroidIntegration {
   }
 
   static Future<void> openNotificationSettings() => _invoke('openNotificationSettings');
+
+  /// The set of outputs or the chosen one changed (headphones, Bluetooth, car).
+  static void Function()? onAudioRouteChanged;
+
+  /// Audio outputs, raw (see `outputRoute`). Empty off Android.
+  static Future<List<AudioDevice>> audioOutputs() async {
+    if (!PlatformUtils.isAndroid) return const [];
+    try {
+      return AudioDevice.parseList(await _channel.invokeMethod<Object?>('audioOutputs'));
+    } catch (e) {
+      debugPrint('[AndroidIntegration] audioOutputs failed: $e');
+      return const [];
+    }
+  }
+
+  /// Opens the system's output picker. False when this device offers none.
+  static Future<bool> openOutputSwitcher() async {
+    if (!PlatformUtils.isAndroid) return false;
+    try {
+      return await _channel.invokeMethod<bool>('openOutputSwitcher') ?? false;
+    } catch (e) {
+      debugPrint('[AndroidIntegration] openOutputSwitcher failed: $e');
+      return false;
+    }
+  }
 
   static Future<void> _invoke(String method, [Object? args]) async {
     try {

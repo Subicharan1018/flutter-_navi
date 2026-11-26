@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:just_audio/just_audio.dart';
 
+import '../core/motion.dart';
 import '../core/theme.dart';
 import '../features/everyday/recent_queues_providers.dart';
 import '../features/everyday/recent_queues_sheet.dart';
@@ -22,6 +23,7 @@ import 'artwork.dart';
 import 'edge_fade.dart';
 import 'mode_buttons.dart' show smartShuffleOnProvider;
 import 'now_playing_style.dart';
+import 'pane_flight.dart' show staggeredArrival;
 
 /// Queue and history in one scroll: history lives ABOVE the anchor (scroll
 /// up to see what played), "Playing Next" sits at the top of the viewport
@@ -37,11 +39,18 @@ class QueuePane extends ConsumerStatefulWidget {
   /// Called after a row tap jumps playback (e.g. to collapse a sheet).
   final VoidCallback? onJumped;
 
+  /// Phone Now Playing: Shuffle / Repeat / Autoplay / Reshuffle sit fixed at
+  /// the foot of the pane, where a thumb reaches, instead of under "Playing
+  /// Next". They land one after another as this (the pane's flight, 0..1)
+  /// finishes. Null keeps them in the list (desktop, sheets).
+  final Animation<double>? footerArrival;
+
   const QueuePane({
     super.key,
     required this.style,
     this.showCurrent = false,
     this.onJumped,
+    this.footerArrival,
   });
 
   @override
@@ -87,7 +96,8 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
         : const <Song>[];
     final currentSong = current < queue.length ? queue[current] : null;
 
-    return EdgeFade(
+    final footer = widget.footerArrival;
+    final list = EdgeFade(
       top: 0.03,
       bottom: 0.08,
       child: CustomScrollView(
@@ -209,7 +219,7 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
                   ),
                 ),
                 // Shuffle, repeat and autoplay act on this device's player.
-                if (!remote) const _ModePills(),
+                if (!remote && footer == null) const _ModePills(),
                 const SizedBox(height: 6),
               ],
             ),
@@ -346,13 +356,45 @@ class _QueuePaneState extends ConsumerState<QueuePane> {
         ],
       ),
     );
+    if (footer == null || remote) return list;
+    return Column(
+      children: [
+        Expanded(child: list),
+        Padding(
+          key: const ValueKey('queue_mode_footer'),
+          padding: const EdgeInsets.only(bottom: 4),
+          child: _ModePills(arrival: footer),
+        ),
+      ],
+    );
   }
 }
 
 // ── Mode pills ────────────────────────────────────────────────────────────────
 
 class _ModePills extends ConsumerWidget {
-  const _ModePills();
+  /// See [QueuePane.footerArrival].
+  final Animation<double>? arrival;
+  const _ModePills({this.arrival});
+
+  /// Item [index] lifts into place after the one before it.
+  Widget _landing(int index, Widget child) {
+    final a = arrival;
+    if (a == null) return Expanded(child: child);
+    return Expanded(
+      child: AnimatedBuilder(
+        animation: a,
+        child: child,
+        builder: (context, child) {
+          final here = staggeredArrival(a.value, index);
+          return Opacity(
+            opacity: here,
+            child: Transform.translate(offset: Offset(0, (1 - here) * 22), child: child),
+          );
+        },
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -371,8 +413,9 @@ class _ModePills extends ConsumerWidget {
       padding: const EdgeInsets.symmetric(horizontal: 16),
       child: Row(
         children: [
-          Expanded(
-            child: _Pill(
+          _landing(
+            0,
+            _Pill(
               glyph: smartShuffle ? NaviGlyph.smartShuffle : NaviGlyph.shuffle,
               label: smartShuffle ? 'Smart Shuffle' : 'Shuffle',
               active: shuffle,
@@ -382,8 +425,9 @@ class _ModePills extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: _Pill(
+          _landing(
+            1,
+            _Pill(
               glyph: NaviGlyph.repeat,
               badge: repeat == LoopMode.one ? '1' : null,
               label: switch (repeat) {
@@ -397,8 +441,9 @@ class _ModePills extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: _Pill(
+          _landing(
+            2,
+            _Pill(
               glyph: NaviGlyph.infinite,
               label: 'Autoplay',
               active: autoplay,
@@ -407,8 +452,9 @@ class _ModePills extends ConsumerWidget {
             ),
           ),
           const SizedBox(width: 8),
-          Expanded(
-            child: _Pill(
+          _landing(
+            3,
+            _Pill(
               glyph: NaviGlyph.smartShuffle,
               label: 'Smart Reshuffle',
               active: false,
@@ -569,23 +615,27 @@ class _Pill extends StatelessWidget {
                     child: CircularProgressIndicator(strokeWidth: 2, color: fg),
                   )
                 : Column(
-                    key: ValueKey(badge),
+                    key: const ValueKey('glyph'),
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Stack(
-                        clipBehavior: Clip.none,
-                        children: [
-                          NaviIcon(glyph, size: 22, color: fg),
-                          if (badge != null)
-                            Positioned(
-                              right: -5,
-                              top: -4,
-                              child: Text(
-                                badge!,
-                                style: naviText(10, FontWeight.w800, fg),
+                      // A small pop answers the thumb when a mode changes.
+                      Pulse(
+                        trigger: (active, badge, glyph),
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            NaviIcon(glyph, size: 22, color: fg),
+                            if (badge != null)
+                              Positioned(
+                                right: -5,
+                                top: -4,
+                                child: Text(
+                                  badge!,
+                                  style: naviText(10, FontWeight.w800, fg),
+                                ),
                               ),
-                            ),
-                        ],
+                          ],
+                        ),
                       ),
                       const SizedBox(height: 5),
                       AnimatedContainer(

@@ -26,6 +26,8 @@ import '../player/cover_quality.dart';
 import '../player/full_bleed_art.dart';
 import '../player/lyrics_pane.dart';
 import '../player/now_playing_style.dart';
+import '../player/output_button.dart';
+import '../player/pane_flight.dart';
 import '../player/mode_buttons.dart';
 import '../player/player_controls.dart';
 import '../player/queue_pane.dart';
@@ -38,8 +40,6 @@ import '../utils/platform_utils.dart';
 import '../widgets/desktop_dialogs.dart';
 import '../widgets/mascot/microduck_strip.dart';
 import '../widgets/options_menu.dart';
-import '../player/devices_sheet.dart';
-import '../player/playing_on.dart';
 import '../player/remote_view.dart';
 
 // =============================================================================
@@ -181,15 +181,15 @@ class NowPlayingScreen extends ConsumerStatefulWidget {
   ConsumerState<NowPlayingScreen> createState() => _NowPlayingScreenState();
 }
 
-class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with SingleTickerProviderStateMixin {
+class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with TickerProviderStateMixin {
   _Pane _pane = _Pane.none;
   _Pane _shownPane = _Pane.lyrics; // what the pane slot renders (kept during close)
-  /// 0 = player, 1 = Lyrics/Queue open; driven by springs (see [_flyTo]).
-  late final AnimationController _paneAnim = AnimationController(vsync: this);
+  /// Phone: 0 = player, 1 = Lyrics/Queue open.
+  late final PaneFlight _flight = PaneFlight(this);
 
   @override
   void dispose() {
-    _paneAnim.dispose();
+    _flight.dispose();
     super.dispose();
   }
 
@@ -213,16 +213,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
     _flyTo(0);
   }
 
-  /// The cover-to-header flight runs on a spring that starts from the
-  /// flight's current velocity, so tapping Lyrics again mid-flight turns the
-  /// motion around smoothly instead of restarting a curve from rest.
-  void _flyTo(double target) {
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
-      _paneAnim.value = target;
-      return;
-    }
-    _paneAnim.animateWith(SpringSimulation(Motion.flight, _paneAnim.value, target, _paneAnim.velocity));
-  }
+  void _flyTo(double target) => _flight.to(context, target);
 
   @override
   Widget build(BuildContext context) {
@@ -283,9 +274,9 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
                       // An opaque tint; the living field only comes in while
                       // Lyrics or Queue are open, as the art leaves.
                       AnimatedBuilder(
-                        animation: _paneAnim,
+                        animation: _flight.position,
                         builder: (context, _) {
-                          final t = Curves.easeInOutCubic.transform(_paneAnim.value);
+                          final t = _flight.position.value.clamp(0.0, 1.0);
                           return Stack(
                             fit: StackFit.expand,
                             children: [
@@ -327,7 +318,7 @@ class _NowPlayingScreenState extends ConsumerState<NowPlayingScreen> with Single
                           bleedTop: bleed ? MediaQuery.paddingOf(context).top : null,
                           pane: _pane,
                           shownPane: _shownPane,
-                          paneAnim: _paneAnim,
+                          flight: _flight,
                           onTogglePane: _togglePane,
                           onClosePane: _closePane,
                         ),
@@ -360,7 +351,7 @@ class _PhoneLayout extends ConsumerWidget {
   final double? bleedTop;
   final _Pane pane;
   final _Pane shownPane;
-  final AnimationController paneAnim;
+  final PaneFlight flight;
   final ValueChanged<_Pane> onTogglePane;
   final VoidCallback onClosePane;
 
@@ -370,7 +361,7 @@ class _PhoneLayout extends ConsumerWidget {
     required this.bleedTop,
     required this.pane,
     required this.shownPane,
-    required this.paneAnim,
+    required this.flight,
     required this.onTogglePane,
     required this.onClosePane,
   });
@@ -412,7 +403,6 @@ class _PhoneLayout extends ConsumerWidget {
             padding: const EdgeInsets.fromLTRB(28, 4, 28, 0),
             child: Column(
               children: [
-                const PlayingOnChip(gap: 6),
                 PeakScrubber(
                   scrubberKey: microduckTrackKey,
                   player: notifier.player,
@@ -420,7 +410,8 @@ class _PhoneLayout extends ConsumerWidget {
                   stream: ref.watch(streamQualityProvider),
                 ),
                 const SizedBox(height: 6),
-                // Apple Music's three: shuffle and repeat live in the queue.
+                // Apple Music's three: shuffle and repeat live at the foot of
+                // the queue, just above the scrubber.
                 TransportControls(
                   playing: playing,
                   onPlayPause: notifier.togglePlay,
@@ -437,23 +428,26 @@ class _PhoneLayout extends ConsumerWidget {
           ),
         ),
         Expanded(
-          child: _Stage(
-            song: song,
-            playing: playing,
-            // Status bar + grabber + the chip row (Flow's 44 dp targets, or
-            // the smaller "Playing from" pill) above the stage.
-            bleedTop: bleedTop == null ? null : bleedTop! + _Grabber.height + (flowActive ? 50 : smart != null ? 42 : 0),
-            pane: pane,
-            shownPane: shownPane,
-            paneAnim: paneAnim,
-            onClosePane: onClosePane,
-            dismissible: dismissible,
-            previous: previous,
-            next: next,
-            onNext: notifier.playNext,
-            // The swipe shows the queue's previous cover, so it plays exactly
-            // that song (the ⏮ button keeps "restart, then previous").
-            onPrevious: () => notifier.jumpTo(index - 1),
+          child: FadeTransition(
+            opacity: flight.settle,
+            child: _Stage(
+              song: song,
+              playing: playing,
+              // Status bar + grabber + the chip row (Flow's 44 dp targets, or
+              // the smaller "Playing from" pill) above the stage.
+              bleedTop: bleedTop == null ? null : bleedTop! + _Grabber.height + (flowActive ? 50 : smart != null ? 42 : 0),
+              pane: pane,
+              shownPane: shownPane,
+              paneAnim: flight.position,
+              onClosePane: onClosePane,
+              dismissible: dismissible,
+              previous: previous,
+              next: next,
+              onNext: notifier.playNext,
+              // The swipe shows the queue's previous cover, so it plays exactly
+              // that song (the ⏮ button keeps "restart, then previous").
+              onPrevious: () => notifier.jumpTo(index - 1),
+            ),
           ),
         ),
         // Its own slot between the grabber and the stage, so it never lands on the
@@ -606,7 +600,7 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
     // Same spatial model as the swipe for every other change: when the old
     // song is now a neighbour, the new cover arrives from that side. A jump
     // to an unrelated song keeps the cross-fade.
-    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final reduce = !context.motionFullNow;
     final forward = widget.previous?.id == old.song.id;
     final back = widget.next?.id == old.song.id;
     if (reduce || widget.pane != _Pane.none || !(forward || back)) return;
@@ -681,7 +675,7 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
 
   @override
   Widget build(BuildContext context) {
-    final reduce = MediaQuery.maybeDisableAnimationsOf(context) ?? false;
+    final reduce = !context.motionFull;
     WidgetsBinding.instance.addPostFrameCallback((_) => _measureTint());
     return LayoutBuilder(
       key: _stageKey,
@@ -728,20 +722,22 @@ class _StageState extends State<_Stage> with SingleTickerProviderStateMixin {
         final pane = AnimatedSwitcher(
           duration: const Duration(milliseconds: 260),
           child: widget.shownPane == _Pane.queue
-              ? const QueuePane(key: ValueKey('queue'), style: NowPlayingStyle.onArtwork)
+              ? QueuePane(key: const ValueKey('queue'), style: NowPlayingStyle.onArtwork, footerArrival: widget.paneAnim)
               : const LyricsPane(key: ValueKey('lyrics'), style: NowPlayingStyle.onArtwork),
         );
 
         return AnimatedBuilder(
           animation: Listenable.merge([widget.paneAnim, _swipe]),
           builder: (context, _) {
-            final t = Curves.easeInOutCubic.transform(widget.paneAnim.value);
+            // The spring is already eased: reading it directly keeps the motion
+            // continuous (in speed too) when a tap turns it around.
+            final t = widget.paneAnim.value.clamp(0.0, 1.0);
             final artRect = Rect.lerp(big, small, t)!;
             final titleLeft = _lerp(28, small.right + 14, t);
             final titleTop = _lerp(titleTop0, _headerTop + 4, t);
             final titleScale = _lerp(1, 0.8, t);
             final paneTop = small.bottom + 12;
-            final paneT = Curves.easeOutCubic.transform(((widget.paneAnim.value - 0.25) / 0.75).clamp(0.0, 1.0));
+            final paneT = paneArrival(t);
             final inPlayer = widget.pane == _Pane.none && widget.paneAnim.value == 0;
             final dx = _swipe.value * (1 - t);
             // Covers shrink a touch as they leave the centre, like a deck.
@@ -1020,7 +1016,7 @@ class _SpringScaleState extends State<_SpringScale> with SingleTickerProviderSta
   void didUpdateWidget(_SpringScale old) {
     super.didUpdateWidget(old);
     if (widget.target == old.target) return;
-    if (MediaQuery.maybeDisableAnimationsOf(context) ?? false) {
+    if (!context.motionFullNow) {
       _scale.value = widget.target;
     } else {
       _scale.animateWith(SpringSimulation(Motion.cover, _scale.value, widget.target, _scale.velocity));
@@ -1205,48 +1201,48 @@ class _BottomRow extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final remote = ref.watch(playerProvider.select((s) => s.syncMode == SyncMode.passive));
     final sleeping = ref.watch(sleepTimerProvider.select((s) => s.active));
     Color c(bool on) => on ? Colors.white : Colors.white.withValues(alpha: 0.72);
     final double size = rounded ? 56 : 48;
     final Color? rest = rounded ? AppThemeTokens.onArtworkFaint : null;
+    // Equal thirds, tops aligned: the output's name under the middle button
+    // never moves the other two.
     return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceAround,
+      crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        GlyphButton(
-          size: size,
-          restFill: rest,
-          semanticLabel: 'Lyrics',
-          selected: pane == _Pane.lyrics,
-          onTap: () => onTogglePane(_Pane.lyrics),
-          child: NaviIcon(NaviGlyph.lyrics, size: 24, color: c(pane == _Pane.lyrics)),
-        ),
-        GlyphButton(
-          size: size,
-          restFill: rest,
-          semanticLabel: 'Devices',
-          selected: remote,
-          onTap: () => showDevicesSheet(context),
-          child: Stack(
-            clipBehavior: Clip.none,
-            children: [
-              NaviIcon(NaviGlyph.headphones, size: 24, color: c(remote)),
-              if (sleeping)
-                const Positioned(
-                  right: -5,
-                  top: -3,
-                  child: NaviIcon(NaviGlyph.moon, size: 11, color: Colors.white),
-                ),
-            ],
+        Expanded(
+          child: Center(
+            child: GlyphButton(
+              size: size,
+              restFill: rest,
+              semanticLabel: 'Lyrics',
+              selected: pane == _Pane.lyrics,
+              onTap: () => onTogglePane(_Pane.lyrics),
+              child: NaviIcon(NaviGlyph.lyrics, size: 24, color: c(pane == _Pane.lyrics)),
+            ),
           ),
         ),
-        GlyphButton(
-          size: size,
-          restFill: rest,
-          semanticLabel: 'Queue',
-          selected: pane == _Pane.queue,
-          onTap: () => onTogglePane(_Pane.queue),
-          child: NaviIcon(NaviGlyph.queue, size: 24, color: c(pane == _Pane.queue)),
+        Expanded(
+          child: OutputButton(
+            size: size,
+            restFill: rest,
+            reserveCaption: rounded,
+            mark: sleeping
+                ? const Positioned(right: -5, top: -3, child: NaviIcon(NaviGlyph.moon, size: 11, color: Colors.white))
+                : null,
+          ),
+        ),
+        Expanded(
+          child: Center(
+            child: GlyphButton(
+              size: size,
+              restFill: rest,
+              semanticLabel: 'Queue',
+              selected: pane == _Pane.queue,
+              onTap: () => onTogglePane(_Pane.queue),
+              child: NaviIcon(NaviGlyph.queue, size: 24, color: c(pane == _Pane.queue)),
+            ),
+          ),
         ),
       ],
     );
@@ -1266,12 +1262,85 @@ class _WideLayout extends ConsumerStatefulWidget {
   ConsumerState<_WideLayout> createState() => _WideLayoutState();
 }
 
-class _WideLayoutState extends ConsumerState<_WideLayout> {
+class _WideLayoutState extends ConsumerState<_WideLayout> with TickerProviderStateMixin {
   _Pane _pane = _Pane.lyrics;
+  _Pane _shownPane = _Pane.lyrics; // what the pane column renders (kept during close)
+  late final PaneFlight _flight = PaneFlight(this, initial: 1);
+
+  @override
+  void dispose() {
+    _flight.dispose();
+    super.dispose();
+  }
+
+  void _toggle(_Pane p) {
+    setState(() {
+      _pane = _pane == p ? _Pane.none : p;
+      if (_pane != _Pane.none) _shownPane = _pane;
+    });
+    _flight.to(context, _pane == _Pane.none ? 0 : 1);
+  }
 
   @override
   Widget build(BuildContext context) {
     final notifier = ref.read(playerProvider.notifier);
+    final maxPlayer = PlatformUtils.isTv ? 520.0 : 440.0;
+    // Built once per layout build and only moved on each animation frame.
+    final player = Center(
+      child: LayoutBuilder(builder: (context, c) {
+        // Cover takes what the controls below leave (they need ~356dp with the composer line).
+        final art = math.max(160.0, math.min(c.maxWidth, c.maxHeight - 356));
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            _Cover(
+              song: widget.song,
+              size: art,
+              radius: 14,
+              scale: widget.playing ? 1 : 0.9,
+            ),
+            const SizedBox(height: 28),
+            _TitleRow(song: widget.song),
+            const SizedBox(height: 14),
+            PeakScrubber(
+              scrubberKey: microduckTrackKey,
+              player: notifier.player,
+              song: widget.song,
+              stream: ref.watch(streamQualityProvider),
+            ),
+            const SizedBox(height: 4),
+            TransportControls(
+              playing: widget.playing,
+              onPlayPause: notifier.togglePlay,
+              onPrevious: notifier.playPrev,
+              onNext: notifier.playNext,
+              scale: PlatformUtils.isTv ? 1.0 : 0.86,
+              leading: const ShuffleModeButton(scale: 0.9),
+              trailing: const RepeatModeButton(scale: 0.9),
+            ),
+            const SizedBox(height: 8),
+            VolumeBar(player: notifier.player),
+            const SizedBox(height: 12),
+            _BottomRow(pane: _pane, onTogglePane: _toggle),
+          ],
+        );
+      }),
+    );
+    final pane = AnimatedSwitcher(
+      duration: const Duration(milliseconds: 280),
+      child: _shownPane == _Pane.queue
+          ? const QueuePane(
+              key: ValueKey('wq'),
+              style: NowPlayingStyle.onArtwork,
+              showCurrent: true,
+            )
+          : LyricsPane(
+              key: const ValueKey('wl'),
+              style: NowPlayingStyle.onArtwork,
+              fontSize: PlatformUtils.isTv ? 46 : 38,
+              padding: const EdgeInsets.fromLTRB(8, 120, 8, 0),
+            ),
+    );
     return SafeArea(
       child: Column(
         children: [
@@ -1290,83 +1359,40 @@ class _WideLayoutState extends ConsumerState<_WideLayout> {
           ),
           Expanded(
             child: Padding(
-              // With nothing open beside it, the player stands alone in the middle.
-              padding: EdgeInsets.fromLTRB(_pane == _Pane.none ? 40 : 64, 0, 40, 28),
-              child: Row(
-                children: [
-                  Expanded(
-                    flex: 5,
-                    child: Center(
-                      child: ConstrainedBox(
-                        constraints: BoxConstraints(maxWidth: PlatformUtils.isTv ? 520 : 440),
-                        child: LayoutBuilder(builder: (context, c) {
-                          // Cover takes what the controls below leave (they need ~356dp with the composer line).
-                          final art = math.max(160.0, math.min(c.maxWidth, c.maxHeight - 356));
-                          return Column(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              _Cover(
-                                song: widget.song,
-                                size: art,
-                                radius: 14,
-                                scale: widget.playing ? 1 : 0.9,
+              padding: const EdgeInsets.only(bottom: 28),
+              // With nothing open beside it, the player stands alone in the
+              // middle; opening a pane slides it left in one motion.
+              child: FadeTransition(
+                opacity: _flight.settle,
+                child: LayoutBuilder(builder: (context, c) {
+                  return AnimatedBuilder(
+                    animation: _flight.position,
+                    builder: (context, _) {
+                      final t = _flight.position.value.clamp(0.0, 1.0);
+                      final g = WideGeometry.at(c.biggest, t, maxPlayer: maxPlayer);
+                      final open = paneArrival(t);
+                      return Stack(
+                        clipBehavior: Clip.none,
+                        children: [
+                          Positioned.fromRect(
+                            key: const ValueKey('np_wide_player'),
+                            rect: g.player,
+                            child: player,
+                          ),
+                          if (_pane != _Pane.none || t > 0)
+                            Positioned.fromRect(
+                              key: const ValueKey('np_wide_pane'),
+                              rect: g.pane,
+                              child: IgnorePointer(
+                                ignoring: _pane == _Pane.none,
+                                child: Opacity(opacity: open, child: pane),
                               ),
-                              const SizedBox(height: 28),
-                              _TitleRow(song: widget.song),
-                              const SizedBox(height: 14),
-                              PeakScrubber(
-                                scrubberKey: microduckTrackKey,
-                                player: notifier.player,
-                                song: widget.song,
-                                stream: ref.watch(streamQualityProvider),
-                              ),
-                              const SizedBox(height: 4),
-                              TransportControls(
-                                playing: widget.playing,
-                                onPlayPause: notifier.togglePlay,
-                                onPrevious: notifier.playPrev,
-                                onNext: notifier.playNext,
-                                scale: PlatformUtils.isTv ? 1.0 : 0.86,
-                                leading: const ShuffleModeButton(scale: 0.9),
-                                trailing: const RepeatModeButton(scale: 0.9),
-                              ),
-                              const SizedBox(height: 8),
-                              VolumeBar(player: notifier.player),
-                              const SizedBox(height: 12),
-                              _BottomRow(
-                                pane: _pane,
-                                onTogglePane: (p) => setState(() => _pane = _pane == p ? _Pane.none : p),
-                              ),
-                            ],
-                          );
-                        }),
-                      ),
-                    ),
-                  ),
-                  if (_pane != _Pane.none) ...[
-                    const SizedBox(width: 56),
-                    Expanded(
-                      flex: 6,
-                      child: AnimatedSwitcher(
-                        duration: const Duration(milliseconds: 280),
-                        child: switch (_pane) {
-                          _Pane.queue => const QueuePane(
-                              key: ValueKey('wq'),
-                              style: NowPlayingStyle.onArtwork,
-                              showCurrent: true,
                             ),
-                          _Pane.lyrics => LyricsPane(
-                              key: const ValueKey('wl'),
-                              style: NowPlayingStyle.onArtwork,
-                              fontSize: PlatformUtils.isTv ? 46 : 38,
-                              padding: const EdgeInsets.fromLTRB(8, 120, 8, 0),
-                            ),
-                          _Pane.none => const SizedBox.shrink(),
-                        },
-                      ),
-                    ),
-                  ],
-                ],
+                        ],
+                      );
+                    },
+                  );
+                }),
               ),
             ),
           ),

@@ -11,6 +11,7 @@ import io.flutter.plugin.common.MethodChannel
 class MainActivity : AudioServiceActivity() {
     private var saf: SafChannel? = null
     private var appChannel: MethodChannel? = null
+    private var route: AudioRoute? = null
 
     // The intent that opened the app, kept until Dart asks for it once.
     private var pendingIntent: Map<String, Any?>? = null
@@ -35,6 +36,8 @@ class MainActivity : AudioServiceActivity() {
         AppNotifications.ensureChannels(this)
         val channel = MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "com.navivibe/android")
         appChannel = channel
+        route?.stop()
+        route = AudioRoute(applicationContext) { runOnUiThread { channel.invokeMethod("audioRouteChanged", null) } }.also { it.start() }
         DownloadService.onStopRequested = {
             runOnUiThread { channel.invokeMethod("downloadStopRequested", null) }
         }
@@ -66,6 +69,8 @@ class MainActivity : AudioServiceActivity() {
                         DownloadService.stop(this)
                         result.success(null)
                     }
+                    "audioOutputs" -> result.success(route?.outputs() ?: emptyList<Any>())
+                    "openOutputSwitcher" -> result.success(AudioRoute.openSwitcher(this))
                     "notificationsEnabled" -> result.success(AppNotifications.enabled(this))
                     "openNotificationSettings" -> {
                         AppNotifications.openSettings(this)
