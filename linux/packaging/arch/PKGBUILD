@@ -9,8 +9,10 @@ url='https://github.com/Subicharan1018/flutter-_navi'
 license=('MIT')
 # mpv provides libmpv.so.2; libglvnd the GLES/EGL libraries the Flutter engine
 # opens at run time; xdg-user-dirs is run by path_provider (needed to start).
-depends=('gtk3' 'mpv' 'libglvnd' 'libsecret' 'libayatana-appindicator' 'libkeybinder3'
-         'xdg-user-dirs' 'ca-certificates')
+# The binary is linked on Ubuntu, so it names the indicator and ido libraries
+# itself; Arch's appindicator no longer pulls them in.
+depends=('gtk3' 'mpv' 'libglvnd' 'libsecret' 'libayatana-appindicator' 'libayatana-indicator'
+         'ayatana-ido' 'libkeybinder3' 'xdg-user-dirs' 'ca-certificates')
 optdepends=('gnome-keyring: keep the sign-in key in a keyring (or use KWallet)'
             'zenity: file and folder dialogs (or kdialog)'
             'libpulse: record for "Identify a song" (also needs ffmpeg)'

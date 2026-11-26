@@ -65,6 +65,12 @@ git push origin <any branch>
   system's `libmpv`: apt installs it with the other dependencies. An AppImage would have
   to carry libmpv and its large codec stack, and a Flatpak needs its own runtime and
   sandbox rules.
+* **`NaviVibe-linux-x64.pkg.tar.zst`** (Arch and based on it): `sudo pacman -U ./…`
+  after `sudo pacman -Syu`. The same binaries, repackaged by
+  `tool/linux/package_arch.sh` from `linux/packaging/arch/PKGBUILD`, whose dependency
+  list is written by hand; the Arch smoke test fails if a library is missing. Arch is
+  rolling, so a change there can fail this job (and with it the release) with no change
+  here. Not published to the AUR.
 * **`NaviVibe-linux-x64.tar.gz`**: for other distributions with glibc 2.39+;
   `README-linux.txt` inside lists the libraries to install.
 * No in-app updates on Linux.

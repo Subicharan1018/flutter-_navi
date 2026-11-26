@@ -5,6 +5,12 @@ use NaviVibe-linux-x64.deb instead of this archive. It installs everything:
 
     sudo apt install ./NaviVibe-linux-x64.deb
 
+Arch Linux and distributions based on it: use NaviVibe-linux-x64.pkg.tar.zst.
+Update the system first (the package is tested against current Arch):
+
+    sudo pacman -Syu
+    sudo pacman -U ./NaviVibe-linux-x64.pkg.tar.zst
+
 Other distributions: unpack this archive anywhere and run ./navivibe.
 Needs glibc 2.39 or newer and these libraries from your distribution
 (Ubuntu names):
