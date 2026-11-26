@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart' show CupertinoActivityIndicator;
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -155,9 +156,11 @@ void main() {
     testWidgets('every scene moves: two moments are never the same picture', (tester) async {
       await tester.runAsync(() async {
         final film = await fixtureFilm();
-        for (var i = 0; i < film.scenes.length; i++) {
-          expect(await _raw(film, i, film.scenes[i].still), isNot(await _raw(film, i, film.scenes[i].still + 0.4)), reason: film.scenes[i].id);
-        }
+        final still = [
+          for (var i = 0; i < film.scenes.length; i++)
+            if (listEquals(await _raw(film, i, film.scenes[i].still), await _raw(film, i, film.scenes[i].still + 0.4))) film.scenes[i].id,
+        ];
+        expect(still, isEmpty);
         film.dispose();
       });
     });

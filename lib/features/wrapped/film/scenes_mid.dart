@@ -494,7 +494,8 @@ class ReelScene extends FilmScene {
         Paint()..shader = ui.Gradient.linear(Offset(x, 0), Offset(x + f.w / 12, 0), const [Color(0xFF4A0612), Color(0xFF8E1428), Color(0xFF4A0612)], const [0, 0.5, 1]),
       );
     }
-    f.glow(Offset(f.w / 2, f.h * 0.35), f.w * 0.75, const Color(0x66FFD27A));
+    // the projector's light flickers, the way film does
+    f.glow(Offset(f.w / 2, f.h * 0.35), f.w * 0.75, Tone.gold.withValues(alpha: 0.34 + 0.08 * math.sin(f.t * 17) + 0.04 * math.sin(f.t * 41)));
     final fh = 172 * u, fw = 236 * u;
     final travel = (1 - ramp(f.t, 0.2, 4.2, Curves.easeOutQuart)) * list.length * 3 * fh - f.touch.spin * 90 * u;
     final mid = f.h * 0.4, left = f.w / 2 - fw / 2;

@@ -140,7 +140,7 @@ class ScoreboardScene extends FilmScene {
       final here = l.months.contains(m) && m <= lit;
       if (here) score++;
       final p = Offset(board.left + 24 * u + ((m - 1) % 6 + 0.5) * w, board.top + (m <= 6 ? 0.36 : 0.74) * board.height);
-      final pop = here ? 1 + 0.35 * clamp01(1 - (lit - m)) : 1.0;
+      final pop = here ? 1 + 0.35 * clamp01(1 - (lit - m)) + 0.05 * math.sin(f.t * 4 + m) : 1.0;
       if (here) f.glow(p, 34 * u, const Color(0x66FFB627));
       c.drawCircle(p, 17 * u * pop, fill(here ? Tone.gold : const Color(0xFF1A2236)));
       f.film.line(c, monthNames[m - 1].substring(0, 3), p.dx, p.dy - 6.5 * u, 11 * u, weight: FontWeight.w800, align: 0.5, color: here ? const Color(0xFF2A1A00) : const Color(0xFF7F8BA8));
@@ -281,7 +281,7 @@ class ShoreScene extends FilmScene {
     f.film.counter(f, best.minutes, listeningTime, x: 24 * u, y: f.h * 0.09 + 84 * u, size: 66 * u, from: 3.0, to: 5.2);
     if (usual > 0) {
       final times = best.minutes / (usual * best.minutes);
-      if (times >= 1.5) f.film.kinetic(f, '${times.toStringAsFixed(times >= 10 ? 0 : 1)} times a usual day', x: 24 * u, y: f.h * 0.87, size: 22 * u, at: 5.4, color: const Color(0xFF0A2E5E), lines: 1);
+      if (times >= 1.5) f.film.kinetic(f, '${times.toStringAsFixed(times >= 10 ? 0 : 1)} times a usual day', x: 24 * u, y: f.h * 0.87, size: 22 * u, at: 5.4, lines: 1);
     }
   }
 }
@@ -513,7 +513,9 @@ class MixtapeScene extends FilmScene {
       c.save();
       c.clipRect(Rect.fromLTWH(box.left + box.width * i / n, box.top + shift, box.width / n + 0.5, box.height));
       c.translate(0, shift);
-      f.film.picture(c, image, box, tile: true);
+      // a slow drift across the cover once it is whole
+      final drift = 1.04 + 0.03 * math.sin(f.t * 0.7);
+      f.film.picture(c, image, Rect.fromCenter(center: box.center + Offset(math.sin(f.t * 0.5) * 6 * f.u, 0), width: box.width * drift, height: box.height * drift), tile: true);
       c.restore();
     }
   }
