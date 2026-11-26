@@ -363,6 +363,13 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// of another one: a routed play, a handover, a remote button. Said once, in
   /// words. Queue edits are explained by the remote queue instead.
   void _onSyncResult(CommandResult r) {
+    if (!r.ok && r.action == 'transfer') {
+      // Our claim was refused: stop acting as host so Play can claim again.
+      _claimedAt = null;
+      _claimIsOwn = false;
+      final server = _ref.read(sessionSyncServiceProvider).currentState;
+      if (server.activeDevice != null && server.activeDevice != _myDeviceId) _onSyncStateChanged(server);
+    }
     if (r.ok || r.action.startsWith('queue_')) return;
     _ref.read(playNoticeProvider.notifier).say(r.message);
   }
@@ -424,7 +431,16 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// paused, and say ready. The current host keeps playing until then, so the handover
   /// has no gap; if anything here fails the server times out and nothing moves.
   Future<void> _onPrepareTransfer(PrepareTransfer p) async {
-    if (state.syncMode == SyncMode.activeHere) return;
+    // The server also sends this for a claim this device made while another one
+    // was still host. What plays here is then already what was asked for: answer
+    // at once and load nothing. Staying silent left the transfer pending until
+    // it timed out (every claim meanwhile was refused as `busy`, and playback
+    // here was paused); loading the room's song replaced the listener's queue
+    // under the one on screen.
+    if (_playingOurOwnClaim) {
+      _ref.read(sessionSyncServiceProvider).sendReady(p.transferId);
+      return;
+    }
     try {
       // The server waits only a few seconds for "ready". Load just the song that is
       // playing and the next few (from this device's library copy where it can,
@@ -433,18 +449,24 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       if (w.first.isEmpty) return;
       final songs = await _resolveForHandover(w.first);
       if (songs.isEmpty) return;
-      // Loading is not listening: the media-item events it causes must not be counted as plays.
-      _suppressDepth++;
-      try {
-        await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
-        await _audioHandler.pause();
-        await _audioHandler.seek(Duration(milliseconds: p.positionMs));
-        state = state.copyWith(queue: songs, currentIndex: 0);
-      } finally {
-        _suppressDepth--;
-      }
+      // In the queue lock: a song tapped here while this loaded would otherwise
+      // be overwritten in the player while staying on screen.
+      final loaded = await _queueLock.run(() async {
+        if (_playingOurOwnClaim) return false; // something was started here meanwhile
+        // Loading is not listening: the media-item events it causes must not be counted as plays.
+        _suppressDepth++;
+        try {
+          await _audioHandler.setQueue(songs, 0, unshuffledSongs: songs);
+          await _audioHandler.pause();
+          await _audioHandler.seek(Duration(milliseconds: p.positionMs));
+          state = state.copyWith(queue: songs, currentIndex: 0);
+          return true;
+        } finally {
+          _suppressDepth--;
+        }
+      });
       _ref.read(sessionSyncServiceProvider).sendReady(p.transferId);
-      if (w.rest.isNotEmpty) unawaited(_fillUpcomingAfterHandover(w.rest));
+      if (loaded && w.rest.isNotEmpty) unawaited(_fillUpcomingAfterHandover(w.rest));
     } catch (e) {
       debugPrint('[PlayerNotifier] ⚠️ Could not prepare for a handover: $e');
     }
@@ -664,6 +686,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (deviceId == _myDeviceId) {
       if (state.syncMode == SyncMode.activeHere) return;
       _claimedAt = DateTime.now();
+      _claimIsOwn = false; // "move it here": the other device's song is what is wanted
       sync.transferPlayback(deviceId, deviceName: sync.deviceName, force: true);
       return;
     }
@@ -683,6 +706,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (state.syncMode != SyncMode.passive) return; // only meaningful when stealing from another active device
     _myDeviceId ??= await _deviceIdProvider();
     if (_myDeviceId != null) {
+      _claimIsOwn = false;
       try {
         _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!, force: true);
       } catch (e) {
@@ -719,6 +743,20 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     if (isMineNow) {
       _claimedAt = null;
+      if (_claimIsOwn) {
+        // Our own claim came through. The server's picture is still the old
+        // host's song: report what really plays here instead of loading that.
+        _claimIsOwn = false;
+        state = state.copyWith(syncMode: SyncMode.activeHere);
+        _pushUpdate(
+          trackId: state.currentSong?.id,
+          positionMs: player.position.inMilliseconds,
+          isPlaying: state.isPlaying,
+          queue: state.queue.map((s) => s.id).toList(),
+        );
+        if (state.isPlaying) _startPositionTick();
+        return;
+      }
       // Host according to the server while this device is not playing: resume where it is
       // (after a restart inside the grace period, or a reconnect that found us still host).
       final reconcile = state.syncMode != SyncMode.activeHere &&
@@ -738,6 +776,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         _stopLocalPlaybackOnly();
       }
       _stopPositionTick();
+      _claimIsOwn = false;
       state = state.copyWith(
         syncMode: SyncMode.passive,
         remoteTrackId: syncState.trackId,
@@ -770,6 +809,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     final id = _myDeviceId;
     if (id == null || !state.isPlaying) return;
     _claimedAt = DateTime.now();
+    _claimIsOwn = true;
     final sync = _ref.read(sessionSyncServiceProvider);
     sync.transferPlayback(id, deviceName: sync.deviceName);
     _pushUpdate(
@@ -816,9 +856,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       artist: syncState.artist,
       album: syncState.album,
     );
-    if (syncState.isPlaying) {
-      await _audioHandler.play();
-    }
+    if (syncState.isPlaying) _startPlayback();
     _startPositionTick();
   }
 
@@ -895,10 +933,19 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// on it paused this phone, then the confirmation reloaded and re-seeked
   /// the track — the one-second drop on every change.
   DateTime? _claimedAt;
-  static const Duration _claimGrace = Duration(seconds: 4);
+
+  /// Longer than the server waits for `ready` (5 s) before it gives up.
+  static const Duration _claimGrace = Duration(seconds: 6);
 
   bool get _claimPending =>
       _claimedAt != null && DateTime.now().difference(_claimedAt!) < _claimGrace;
+
+  /// The pending claim is for audio this device starts itself (Play, a tapped
+  /// song), as opposed to "move the other device's playback here".
+  bool _claimIsOwn = false;
+
+  bool get _playingOurOwnClaim =>
+      state.syncMode == SyncMode.activeHere || (_claimIsOwn && _claimPending);
 
   /// Code that runs by itself (a restored queue, an autoplay refill, a Jam, a
   /// remote state) may take playback only inside this window, opened with
@@ -913,6 +960,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
   /// must not start: another device holds it and nobody here asked to take it.
   Future<bool> _ensureActiveDevice() async {
     if (state.syncMode == SyncMode.activeHere) return true;
+    // One claim at a time: a second one while the first is on its way is
+    // refused by the server (`busy`, "Playback is already moving").
+    if (_claimIsOwn && _claimPending) return true;
     final stealing = state.syncMode == SyncMode.passive;
     if (stealing && !_mayClaim) {
       debugPrint('[PlayerNotifier] ⏭ another device is playing and nobody asked to take over; not claiming');
@@ -921,6 +971,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     _myDeviceId ??= await _deviceIdProvider();
     if (_myDeviceId != null) {
       _claimedAt = DateTime.now();
+      _claimIsOwn = true;
       try {
         // Taking it from a playing device is a person's decision: say so.
         _ref.read(sessionSyncServiceProvider).transferPlayback(_myDeviceId!, force: stealing);
@@ -974,8 +1025,9 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (!await _ensureActiveDevice()) return;
     await _loadRemoteSongIfEmpty();
     if (_staged != null && !await loadStagedRestore()) return; // still offline: stay paused
-    await _audioHandler.play();
+    // State first: the player's own events correct it if audio is refused.
     state = state.copyWith(isPlaying: true, syncMode: SyncMode.activeHere);
+    _startPlayback();
     _pushUpdate(
       trackId: state.currentSong?.id,
       positionMs: player.position.inMilliseconds,
@@ -983,6 +1035,15 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
       queue: state.queue.map((s) => s.id).toList(),
     );
     _startPositionTick();
+  }
+
+  /// Not awaited anywhere: just_audio's play() completes only when playback
+  /// pauses or ends, and never when Android refuses audio focus (a phone call).
+  /// Waiting for it left this device "not yet host" for the whole song.
+  void _startPlayback() {
+    unawaited(_audioHandler.play().catchError((Object e) {
+      debugPrint('[PlayerNotifier] ⚠️ play failed: $e');
+    }));
   }
 
   Future<void> pause() async {
@@ -2189,6 +2250,10 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
   String? get currentPlaylistName => _currentPlaylistName;
 
+  /// The song this device's screens show as playing; null while another device
+  /// is the one shown.
+  Song? get shownSong => state.syncMode == SyncMode.passive ? null : state.currentSong;
+
   // ---------------------------------------------------------------------------
   // Queue management
   // ---------------------------------------------------------------------------
@@ -3249,32 +3314,40 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
         return;
       }
 
-      // Capture boundary synchronously at append time (same tick as newQueue
-      // construction) so it accurately reflects the first freshly-appended
-      // song regardless of any concurrent queue mutations during the fetch.
-      final lenBeforeAppend = state.queue.length;
-      final newQueue = [...state.queue, ...fresh];
-      state = state.copyWith(queue: newQueue);
-      await _audioHandler.addAllToQueue(fresh);
+      await _queueLock.run(() async {
+        // The queue was replaced while we looked: these songs belong to the old one.
+        if (!state.queue.any((s) => s.id == seedSong.id)) return;
 
-      debugPrint(
-        '[AUTOPLAY] Appended ${fresh.length} songs. Queue: ${newQueue.length}',
-      );
+        // Capture boundary synchronously at append time (same tick as newQueue
+        // construction) so it accurately reflects the first freshly-appended
+        // song regardless of any concurrent queue mutations during the fetch.
+        final lenBeforeAppend = state.queue.length;
+        final newQueue = [...state.queue, ...fresh];
+        state = state.copyWith(queue: newQueue);
+        await _audioHandler.addAllToQueue(fresh);
 
-      final currentIndexNow = state.currentIndex;
-      final wasAtEnd = currentIndexNow >= lenBeforeAppend - 1;
-      final userNavigatedAway = currentIndexNow < indexBeforeFetch;
+        debugPrint(
+          '[AUTOPLAY] Appended ${fresh.length} songs. Queue: ${newQueue.length}',
+        );
 
-      if (wasAtEnd && !userNavigatedAway) {
-        // Give just_audio a frame to process the new source items
-        await Future.delayed(const Duration(milliseconds: 50));
-        final nextIndex = lenBeforeAppend;
-        if (nextIndex < state.queue.length) {
-          await player.seek(Duration.zero, index: nextIndex);
-          await player.play();
-          state = state.copyWith(currentIndex: nextIndex);
+        final currentIndexNow = state.currentIndex;
+        final wasAtEnd = currentIndexNow >= lenBeforeAppend - 1;
+        final userNavigatedAway = currentIndexNow < indexBeforeFetch;
+
+        if (wasAtEnd && !userNavigatedAway) {
+          // Give just_audio a frame to process the new source items
+          await Future.delayed(const Duration(milliseconds: 50));
+          final nextIndex = lenBeforeAppend;
+          if (nextIndex < state.queue.length) {
+            // Through the handler: a queue index is not a player source index
+            // (long queues load a window of it, desktop loads one song), so
+            // seeking the player directly played another song, or none.
+            await _audioHandler.jumpToIndex(nextIndex);
+            _startPlayback();
+            state = state.copyWith(currentIndex: nextIndex);
+          }
         }
-      }
+      });
     } catch (e) {
       debugPrint('[AUTOPLAY] Failed: $e');
     } finally {
@@ -3392,7 +3465,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
           );
           _syncQueueFromAudioHandler();
           _drainPoolOfQueuedSongs();
-          _prunePlayedSongs();
+          await _prunePlayedSongs();
         } finally {
           _suppressDepth--;
         }
@@ -3405,7 +3478,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     }
   }
 
-  void _prunePlayedSongs() {
+  Future<void> _prunePlayedSongs() async {
     if (state.queue.length <= _maxQueueSize) return;
 
     final targetPruneCount = state.queue.length - _maxQueueSize;
@@ -3417,7 +3490,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
 
     debugPrint('[PRUNING] Pruning $pruneCount songs from queue of size ${state.queue.length}');
 
-    unawaited(_audioHandler.pruneRange(0, pruneCount));
+    final pruned = _audioHandler.pruneRange(0, pruneCount);
 
     final newQueue = List<Song>.from(state.queue)..removeRange(0, pruneCount);
     final newIndex = state.currentIndex - pruneCount;
@@ -3434,6 +3507,7 @@ class PlayerNotifier extends StateNotifier<PlayerState> {
     if (_pendingIndexAfterShuffle != null) {
       _pendingIndexAfterShuffle = (_pendingIndexAfterShuffle! - pruneCount).clamp(0, newQueue.length - 1);
     }
+    await pruned;
   }
 
   void clearHistory() => _clearHistory();
@@ -3486,6 +3560,9 @@ final playerProvider = StateNotifierProvider<PlayerNotifier, PlayerState>((
   handler.setNetworkDown(ref.read(isOfflineProvider));
   final notifier =
       PlayerNotifier(ref, handler, service, collector, ownsAudioHandler: false);
+  // So the handler can tell when the screen names another song than it plays.
+  handler.uiSongId = () => notifier.mounted && notifier.shownSong != null ? notifier.shownSong!.id : null;
+  ref.onDispose(() => handler.uiSongId = null);
   ref.listen<SubsonicService>(
     subsonicServiceProvider,
     (_, next) => notifier.useSubsonicService(next),

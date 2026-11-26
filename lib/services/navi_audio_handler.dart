@@ -3,6 +3,7 @@
 import 'dart:async';
 import 'dart:collection';
 import 'dart:io' show Platform;
+import 'package:collection/collection.dart';
 import 'package:flutter/foundation.dart';
 import 'package:just_audio/just_audio.dart';
 import 'package:audio_service/audio_service.dart';
@@ -23,6 +24,8 @@ import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
 import 'shuffle_bag.dart';
 import 'playback_tuning.dart';
+import 'playback_identity_log.dart';
+import '../utils/async_lock.dart';
 import '../core/hive_boxes.dart';
 import 'auto/browse_tree.dart';
 import 'auto/car_browser.dart';
@@ -136,7 +139,29 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Debounces skips; only the song the listener rests on is opened.
   late final SkipCoordinator _skips;
   bool _explicitJump = false;
-  int? _landing;
+
+  /// The song a skip or tap is on its way to, held as the song itself, not as a
+  /// position: the queue can be reordered, shuffled or trimmed before it is
+  /// opened, and an index kept from before then names another song (the screen
+  /// showed one song while a different one played). [_targetHint] is where it
+  /// was last seen.
+  Song? _target;
+  int _targetHint = 0;
+
+  /// One change to the queue and the player's sources at a time. The sources the
+  /// player holds are always `queue[_playlistOffset ..< _playlistOffset + n]`,
+  /// and a change is two or more platform calls; two interleaved changes left
+  /// that rule broken, so every later song played under another song's name.
+  /// Not re-entrant: bodies call only the `...Unlocked` methods, and never
+  /// await `player.play()` (see [_resume]).
+  final AsyncLock _sources = AsyncLock();
+
+  /// Writes down any time the song heard and the song shown differ.
+  final PlaybackIdentityLog identityLog = PlaybackIdentityLog();
+
+  /// The song the app's own screens show (set by the player provider).
+  String? Function()? uiSongId;
+  Timer? _identityTimer;
 
   Timer? _warmTimer;
   final FirstAudioProbe _probe = FirstAudioProbe();
@@ -294,8 +319,109 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
           _publishMediaItem(source.tag as MediaItem);
         }
         _publishCarQueue();
+        _scheduleIdentityCheck();
       }));
     }
+  }
+
+  // ── Heard == shown ─────────────────────────────────────────────────────────
+
+  /// The id of the song in the player itself, read from its loaded sources
+  /// rather than from the queue. Null when nothing is loaded.
+  String? get _heardSongId {
+    try {
+      Object? tag;
+      if (_isDesktopBridge) {
+        final source = player.audioSource;
+        tag = source is IndexedAudioSource ? source.tag : null;
+      } else {
+        final i = player.currentIndex;
+        final pl = _playlist;
+        if (pl == null || i == null || i < 0 || i >= pl.children.length) return null;
+        tag = pl.children[i].sequence.firstOrNull?.tag;
+      }
+      return tag is MediaItem ? tag.id : null;
+    } catch (_) {
+      return null; // test doubles that stub only part of the player
+    }
+  }
+
+  /// Compares once everything has been quiet for a moment: while a skip or an
+  /// edit is under way the two are expected to differ.
+  void _scheduleIdentityCheck() {
+    _identityTimer?.cancel();
+    _identityTimer = Timer(const Duration(seconds: 2), checkIdentity);
+  }
+
+  /// True when the song heard differs from the one shown; logged with the
+  /// recent operations (see [PlaybackIdentityLog]).
+  bool checkIdentity() {
+    if (_skips.isBusy || _target != null || _sources.isLocked || _surgery) {
+      _scheduleIdentityCheck();
+      return false;
+    }
+    final index = currentIndex;
+    final heard = _heardSongId;
+    String? onScreen;
+    try {
+      onScreen = uiSongId?.call();
+    } catch (_) {}
+    return identityLog.check(
+      heard: heard,
+      current: index >= 0 && index < _currentQueue.length ? _currentQueue[index].id : null,
+      published: mediaItem.valueOrNull?.id,
+      onScreen: onScreen,
+      detail: 'index=$index offset=$_playlistOffset loaded=${_playlist?.children.length} queue=${_currentQueue.length}',
+    );
+  }
+
+  /// Shows the song the player really has, after a change that did not land.
+  void _publishHeard() {
+    final i = currentIndex;
+    if (i >= 0 && i < _currentQueue.length && _currentQueue[i].id == _heardSongId) {
+      _publishPending(i);
+    }
+  }
+
+  /// Runs a queue change under [_sources].
+  Future<void> _edit(String op, Future<void> Function() body) => _sources.run(() async {
+        identityLog.note('$op @$currentIndex/${_currentQueue.length} off=$_playlistOffset');
+        await body();
+        _scheduleIdentityCheck();
+      });
+
+  /// Starts playback without waiting for it. just_audio's play() completes only
+  /// when playback pauses or ends, and not at all when Android refuses audio
+  /// focus (during a phone call): awaiting it held whatever came after.
+  void _resume() {
+    try {
+      unawaited(player.play().catchError((Object e) {
+        debugPrint('⚠️ [NaviAudioHandler] play failed: $e');
+      }));
+    } catch (e) {
+      debugPrint('⚠️ [NaviAudioHandler] play failed: $e');
+    }
+  }
+
+  /// Where [_target] is in the queue now: the same object, else the copy of that
+  /// song nearest to where it was; if it was removed, whatever took its place.
+  int? get _targetIndex {
+    final song = _target;
+    if (song == null || _currentQueue.isEmpty) return null;
+    final hint = _targetHint.clamp(0, _currentQueue.length - 1);
+    if (identical(_currentQueue[hint], song)) return hint;
+    var best = -1;
+    for (var i = 0; i < _currentQueue.length; i++) {
+      final s = _currentQueue[i];
+      if (identical(s, song)) return i;
+      if (s.id == song.id && (best < 0 || (i - hint).abs() < (best - hint).abs())) best = i;
+    }
+    return best >= 0 ? best : hint;
+  }
+
+  void _aimAt(int index) {
+    _target = _currentQueue[index];
+    _targetHint = index;
   }
 
   void _broadcastState() {
@@ -535,7 +661,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         ? 0
         : (cur - 20).clamp(0, _currentQueue.length - _carQueueMax);
     final end = (start + _carQueueMax).clamp(0, _currentQueue.length);
-    final key = '$start|$end|${_currentQueue[start].id}|${_currentQueue[end - 1].id}|${_currentQueue.length}';
+    // Every id counts: a reorder in the middle left the car showing the old
+    // order, so tapping a row there played a different song.
+    final order = Object.hashAll([for (var i = start; i < end; i++) _currentQueue[i].id]);
+    final key = '$start|$end|$order|${_currentQueue.length}';
     if (key == _carQueueKey) return;
     _carQueueKey = key;
     _carQueueOffset = start;
@@ -565,7 +694,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> skipToNext() {
     if (_isDesktopBridge) return _desktopSkipToNext();
     if (_currentQueue.isEmpty) return player.seekToNext();
-    var next = (_skips.pendingIndex ?? currentIndex) + 1;
+    var next = currentIndex + 1;
     if (next >= _currentQueue.length) {
       if (_repeatMode != LoopMode.all) return player.seekToNext();
       next = 0;
@@ -580,7 +709,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_currentQueue.isEmpty) return player.seekToPrevious();
     // More than 3 s in: previous restarts the song, nothing to load.
     if (!_skips.hasPending && player.position.inSeconds > 3) return player.seekToPrevious();
-    var prev = (_skips.pendingIndex ?? currentIndex) - 1;
+    var prev = currentIndex - 1;
     if (prev < 0) {
       if (_repeatMode != LoopMode.all) return player.seekToPrevious();
       prev = _currentQueue.length - 1;
@@ -594,6 +723,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   void _requestSkip(int index) {
     // The clock starts at the tap, so the settle wait is part of the number.
     _beginProbe('skip from tap');
+    identityLog.note('skip to $index ${_currentQueue[index].id}');
+    _aimAt(index);
     _publishPending(index);
     _skips.request(index);
   }
@@ -616,64 +747,96 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _broadcastState();
   }
 
-  /// Opens [index] now that it is the song the listener settled on.
+  /// Opens the song the listener settled on. [index] is where it was when asked
+  /// for; the song is looked up again at every step, since the queue may move.
   Future<void> _settleLoad(int index, bool Function() stale) async {
     final explicit = _explicitJump;
     _explicitJump = false;
-    if (index < 0 || index >= _currentQueue.length) return;
     final wasPlaying = player.playing;
-    _landing = index;
+    var failed = true;
     try {
-      await _landOn(index, stale, explicit: explicit, wasPlaying: wasPlaying);
+      await _landOn(stale, explicit: explicit, wasPlaying: wasPlaying);
+      failed = false;
     } finally {
-      if (_landing == index) _landing = null;
+      // A newer skip owns the target; otherwise it has landed, or failed and
+      // the screen must go back to the song that is really playing.
+      if (!stale()) {
+        _target = null;
+        if (failed) {
+          identityLog.note('load of $index failed');
+          _publishHeard();
+        }
+        _scheduleIdentityCheck();
+      }
     }
   }
 
   Future<void> _landOn(
-    int index,
     bool Function() stale, {
     required bool explicit,
     required bool wasPlaying,
   }) async {
+    var index = _targetIndex;
+    if (index == null) return;
     // Skipped forward and back within the settle time: nothing to load.
-    if (!explicit && !_isDesktopBridge && _playlist != null && index == _playlistOffset + (player.currentIndex ?? -1)) {
+    if (!explicit && !_isDesktopBridge && _playlist != null && _heardSongId == _currentQueue[index].id &&
+        index == _playlistOffset + (player.currentIndex ?? -1)) {
       _publishPending(index);
       return;
     }
     if (!_probe.running) _beginProbe(explicit ? 'tap' : 'skip');
     _probe.mark('settled');
     final paths = await _precomputeOfflinePaths(_currentQueue);
-    if (stale()) return;
+    index = _targetIndex;
+    if (stale() || index == null) return;
     _probe.mark('paths');
     await _prepareLanding(index, paths);
     if (stale()) return;
     _probe.mark('decided');
     if (_isDesktopBridge) {
+      index = _targetIndex;
+      if (index == null) return;
       await _desktopLoadTrack(index, paths);
       if (stale()) return;
-      if (wasPlaying && !player.playing) await player.play();
+      if (wasPlaying && !player.playing) _resume();
     } else {
-      final local = index - _playlistOffset;
-      final pl = _playlist;
-      if (local >= 0 && pl != null && local < pl.children.length) {
-        if (player.currentIndex != local) {
-          await _setChildLow(local, index);
-          if (_fastSongId != _currentQueue[index].id) await _useHeadChild(local, index);
+      var rebuilt = false;
+      await _sources.run(() async {
+        final index = _targetIndex;
+        if (stale() || index == null) return;
+        final local = index - _playlistOffset;
+        final pl = _playlist;
+        if (local >= 0 && pl != null && local < pl.children.length && _childIsSong(local, _currentQueue[index])) {
+          if (player.currentIndex != local) {
+            await _setChildLow(local, index);
+            if (_fastSongId != _currentQueue[index].id) await _useHeadChild(local, index);
+          }
+          if (stale()) return;
+          _probe.mark('child');
+          await player.seek(Duration.zero, index: local);
+          _probe.mark('seek');
+          await _restoreLowChildren();
+        } else {
+          await _rebuildSourceUnlocked(index, decided: true);
+          rebuilt = true;
         }
-        if (stale()) return;
-        _probe.mark('child');
-        await player.seek(Duration.zero, index: local);
-        _probe.mark('seek');
-        await _restoreLowChildren();
-      } else {
-        await _rebuildSource(index, decided: true);
-        if (stale()) return;
-        if (wasPlaying) await player.play();
-      }
+      });
+      if (stale()) return;
+      if (rebuilt && wasPlaying) _resume();
     }
-    if (!stale()) _armProbe();
-    _startFullFetch(index);
+    if (stale()) return;
+    // Show what was opened: edits while it loaded may have moved it.
+    final landed = _targetIndex;
+    if (landed == null) return;
+    _publishPending(landed);
+    _armProbe();
+    _startFullFetch(landed);
+  }
+
+  /// Whether loaded source [local] is [song]'s (a source with no tag is trusted).
+  bool _childIsSong(int local, Song song) {
+    final tag = _playlist!.children[local].sequence.firstOrNull?.tag;
+    return tag is! MediaItem || tag.id == song.id;
   }
 
   /// Decides fast start for the song about to play and drops the previous
@@ -882,8 +1045,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (!player.playing || file == null) {
       // Paused: nobody can hear a gap, so reload in place at the same position.
       _fastSongId = null;
-      _fastGen++;
-      await _rebuildSource(currentIndex, initialPosition: pos, decided: true);
+      final reloadGen = ++_fastGen;
+      await _sources.run(() async {
+        if (_fastGen != reloadGen || _currentSongOrNull()?.id != song.id) return;
+        await _rebuildSourceUnlocked(currentIndex, initialPosition: pos, decided: true);
+      });
       return;
     }
     final watch = Stopwatch()..start();
@@ -910,8 +1076,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         },
         reloadMain: (at) async {
           mark('main reload begin');
-          await _rebuildSource(currentIndex, initialPosition: at, decided: true);
-          if (!player.playing) unawaited(player.play());
+          await _sources.run(() async {
+            if (_fastGen != swapGen || _currentSongOrNull()?.id != song.id) return;
+            await _rebuildSourceUnlocked(currentIndex, initialPosition: at, decided: true);
+          });
+          if (!player.playing) _resume();
           mark('main reload end');
         },
         closeHelper: () async {
@@ -1244,14 +1413,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     for (int i = 0; i < songs.length; i++) {
       debugPrint('   ${i + 1}. ${songs[i].title}');
     }
-    _currentQueue = List.from(songs);
-    _unshuffledQueue = List.from(unshuffledSongs ?? songs);
-    // MEM-OPT: Invalidate the offline paths cache when the queue is replaced.
-    _offlinePathsCache = null;
-    _offlinePathsQueueLength = 0;
     _skips.cancel();
+    _target = null;
     _beginProbe('tap');
-    await _rebuildSource(startIndex);
+    await _edit('setQueue ${songs.length} start $startIndex', () async {
+      _currentQueue = List.from(songs);
+      _unshuffledQueue = List.from(unshuffledSongs ?? songs);
+      // MEM-OPT: Invalidate the offline paths cache when the queue is replaced.
+      _offlinePathsCache = null;
+      _offlinePathsQueueLength = 0;
+      await _rebuildSourceUnlocked(startIndex);
+    });
     _armProbe();
     _applyVolume();
   }
@@ -1266,7 +1438,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   Future<void> loadStaged(int index, Duration position) async {
-    await _rebuildSource(index, initialPosition: position);
+    await _edit('loadStaged $index', () => _rebuildSourceUnlocked(index, initialPosition: position));
     _applyVolume();
   }
 
@@ -1420,9 +1592,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> updateQueuePreservingCurrent(
     List<Song> newQueue,
     int newCurrentIndex,
+  ) => _edit('replaceAroundCurrent ${newQueue.length} at $newCurrentIndex',
+      () => _updateQueuePreservingCurrentUnlocked(newQueue, newCurrentIndex));
+
+  Future<void> _updateQueuePreservingCurrentUnlocked(
+    List<Song> newQueue,
+    int newCurrentIndex,
   ) async {
     debugPrint('🎵 [NaviAudioHandler] updateQueuePreservingCurrent: ${newQueue.length} songs, current: $newCurrentIndex');
-    
+
     _currentQueue = List.from(newQueue);
     if (_unshuffledQueue.isEmpty) {
       _unshuffledQueue = List.from(newQueue);
@@ -1437,17 +1615,21 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
 
     if (_playlist == null) {
-      await _rebuildSource(newCurrentIndex);
-      return;
-    }
-
-    final oldSequenceIndex = player.currentIndex;
-    if (oldSequenceIndex == null) {
-      await _rebuildSource(newCurrentIndex);
+      await _rebuildSourceUnlocked(newCurrentIndex);
       return;
     }
 
     final offlinePaths = await _precomputeOfflinePaths(newQueue);
+
+    // Read after the wait above, and only keep the source if it really is the
+    // song the new queue puts at [newCurrentIndex].
+    final oldSequenceIndex = player.currentIndex;
+    if (oldSequenceIndex == null ||
+        oldSequenceIndex >= _playlist!.children.length ||
+        !_childIsSong(oldSequenceIndex, newQueue[newCurrentIndex])) {
+      await _rebuildSourceUnlocked(newCurrentIndex);
+      return;
+    }
 
     // 1. Remove all children after oldSequenceIndex
     final initialLen = _playlist!.children.length;
@@ -1485,8 +1667,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// Clears the audio source and queue. Must be called AFTER player.stop().
   Future<void> clearQueue() async {
+    _skips.cancel();
+    _target = null;
     _currentQueue.clear();
-    _playlist = ConcatenatingAudioSource(children: []);
+    _playlist = null;
     _playlistOffset = 0;
     if (_isDesktopBridge) {
       _desktopCompletionSub?.cancel();
@@ -1496,7 +1680,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  Future<void> _rebuildSource(
+  Future<void> _rebuildSourceUnlocked(
     int startIndex, {
     Duration? initialPosition,
     bool decided = false,
@@ -1584,6 +1768,15 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // Desktop single-source bridge
   // ---------------------------------------------------------------------------
 
+  int _indexOfSong(Song song, int hint) {
+    if (hint < _currentQueue.length && _currentQueue[hint].id == song.id) return hint;
+    var best = -1;
+    for (var i = 0; i < _currentQueue.length; i++) {
+      if (_currentQueue[i].id == song.id && (best < 0 || (i - hint).abs() < (best - hint).abs())) best = i;
+    }
+    return best;
+  }
+
   /// Loads the track on desktop. False when loading failed (error or timeout,
   /// already handled by skipping on); a load a newer request replaced is not a failure.
   Future<bool> _desktopLoadTrack(
@@ -1625,13 +1818,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         debugPrint('⚡ [Desktop] Load for track $index superseded by generation $_desktopLoadGeneration');
         return true;
       }
-      _desktopIndex = index;
-      _emitDesktopMediaItem(index);
-      _trackRecentlyPlayed(_currentQueue[index].id);
-      _scheduleWarm(index);
-      debugPrint(
-        '🎵 [Desktop] Loaded track $index: ${_currentQueue[index].title}',
-      );
+      // The queue may have been edited while this loaded: the song keeps
+      // playing wherever it is now, not at the position it was asked for.
+      final at = _indexOfSong(song, index);
+      if (at < 0) return true;
+      _desktopIndex = at;
+      _desktopTargetIndex = at;
+      _emitDesktopMediaItem(at);
+      _trackRecentlyPlayed(song.id);
+      _scheduleWarm(at);
+      _scheduleIdentityCheck();
+      debugPrint('🎵 [Desktop] Loaded track $at: ${song.title}');
       return true;
     } on PlayerInterruptedException {
       // Expected when a newer load supersedes this one (e.g. rapid Next press).
@@ -1831,8 +2028,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Current index — Desktop uses _desktopIndex, other platforms use player.currentIndex.
   /// While a skip is settling this is the song skipped to, the one the UI shows.
   int get currentIndex =>
-      _skips.pendingIndex ??
-      _landing ??
+      _targetIndex ??
       (_isDesktopBridge ? _desktopIndex : (_playlistOffset + (player.currentIndex ?? 0)));
 
   /// Platform-adaptive index jump.
@@ -1852,6 +2048,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _desktopLoading = true;
       _emitDesktopMediaItem(index);
     }
+    identityLog.note('jump to $index ${_currentQueue[index].id}');
+    _aimAt(index);
     _explicitJump = true;
     return _skips.loadNow(index);
   }
@@ -1880,8 +2078,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (_playlist == null) {
       final savedPosition = player.position;
       final wasPlaying = player.playing;
-      await _rebuildSource(anchorIndex, initialPosition: savedPosition);
-      if (wasPlaying) await player.play();
+      await _rebuildSourceUnlocked(anchorIndex, initialPosition: savedPosition);
+      if (wasPlaying) _resume();
       return;
     }
 
@@ -1906,11 +2104,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final List<Song> window = _playlistOffset < windowEnd
         ? _currentQueue.sublist(_playlistOffset, windowEnd)
         : const <Song>[];
-    final liveSet = {
+    final loadedIds = [
       for (final src in _playlist!.children)
         if (src.sequence.isNotEmpty && src.sequence.first.tag is MediaItem) (src.sequence.first.tag as MediaItem).id,
-    };
-    final sameSongs = window.length == playlistLen && window.every((s) => liveSet.contains(s.id));
+    ]..sort();
+    final windowIds = [for (final s in window) s.id]..sort();
+    // The same songs the same number of times: moves alone can then match them.
+    final sameSongs = window.length == playlistLen && const ListEquality<String>().equals(loadedIds, windowIds);
 
     // Guard: if the loaded sources hold different songs from the queue
     // window, move-based reorder is unsafe — fall back to a full source
@@ -1926,16 +2126,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         // The playing song is loaded: replace everything around it without
         // touching it, so the audio never stops.
         debugPrint('ℹ️ [Reorder] sources differ from queue — replacing around the playing song');
-        await updateQueuePreservingCurrent(List<Song>.from(_currentQueue), activeIdx);
+        await _updateQueuePreservingCurrentUnlocked(List<Song>.from(_currentQueue), activeIdx);
         return;
       }
       debugPrint('⚠️ [Reorder] playing song not loaded — rebuilding source at anchor $anchorIndex');
       final savedPosition = player.position;
-      await _rebuildSource(
+      await _rebuildSourceUnlocked(
         (activeIdx >= 0 ? activeIdx : currentIndex).clamp(0, n - 1),
         initialPosition: savedPosition,
       );
-      if (player.playing) player.play();
+      if (player.playing) _resume();
       return;
     }
 
@@ -1981,8 +2181,43 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await insertAllNext([song]);
   }
 
-  Future<void> insertAllNext(List<Song> songs, {int? atIndex}) async {
-    if (songs.isEmpty) return;
+  // The loaded sources are a window on the queue:
+  // `queue[_playlistOffset ..< _playlistOffset + children.length]`. It may stop
+  // short of the queue's end (long queues load 100 songs). These two keep that
+  // true through every edit; anything outside the window only moves the offset.
+
+  /// [songs] have just been inserted into the queue at [at].
+  Future<void> _windowInsert(int at, List<Song> songs) async {
+    final pl = _playlist;
+    if (pl == null) return;
+    final local = at - _playlistOffset;
+    if (local < 0) {
+      _playlistOffset += songs.length;
+    } else if (local <= pl.children.length) {
+      await pl.insertAll(local, songs.map(_toSource).toList());
+    }
+    // Beyond the window: appending a source here would put this song's audio
+    // where a different song belongs. It is loaded when the window gets there.
+  }
+
+  /// Queue items [start, end) have just been removed.
+  Future<void> _windowRemove(int start, int end) async {
+    final pl = _playlist;
+    if (pl == null) return;
+    final offset = _playlistOffset;
+    final length = pl.children.length;
+    final before = (end < offset ? end : offset) - start;
+    final localStart = (start > offset ? start : offset) - offset;
+    final localEnd = (end < offset + length ? end : offset + length) - offset;
+    if (before > 0) _playlistOffset -= before;
+    if (localEnd > localStart) await pl.removeRange(localStart, localEnd);
+  }
+
+  Future<void> insertAllNext(List<Song> songs, {int? atIndex}) =>
+      songs.isEmpty ? Future.value() : _edit('insert ${songs.length} at ${atIndex ?? 'next'}',
+          () => _insertAllNextUnlocked(songs, atIndex: atIndex));
+
+  Future<void> _insertAllNextUnlocked(List<Song> songs, {int? atIndex}) async {
     final wasEmpty = _currentQueue.isEmpty;
     final targetIndex = (atIndex ?? (currentIndex + 1)).clamp(0, _currentQueue.length);
 
@@ -1992,7 +2227,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     if (_isDesktopBridge) {
       if (wasEmpty) {
-        await _rebuildSource(0);
+        await _rebuildSourceUnlocked(0);
       } else if (targetIndex <= _desktopIndex) {
         _desktopIndex += songs.length;
         _desktopTargetIndex += songs.length;
@@ -2002,17 +2237,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
     if (_playlist != null) {
       if (wasEmpty) {
-        await _rebuildSource(0);
-      } else if (_playlistOffset == 0) {
-        final sources = songs.map(_toSource).toList();
-        await _playlist!.insertAll(targetIndex, sources);
+        await _rebuildSourceUnlocked(0);
       } else {
-        if (targetIndex < _playlistOffset) {
-          _playlistOffset += songs.length;
-        } else if (targetIndex <= _playlistOffset + _playlist!.children.length) {
-          final sources = songs.map(_toSource).toList();
-          await _playlist!.insertAll(targetIndex - _playlistOffset, sources);
-        }
+        await _windowInsert(targetIndex, songs);
       }
     }
   }
@@ -2021,20 +2248,26 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     await addAllToQueue([song]);
   }
 
-  Future<void> addAllToQueue(List<Song> songs) async {
-    if (songs.isEmpty) return;
+  Future<void> addAllToQueue(List<Song> songs) =>
+      songs.isEmpty ? Future.value() : _edit('append ${songs.length}', () => _addAllToQueueUnlocked(songs));
+
+  Future<void> _addAllToQueueUnlocked(List<Song> songs) async {
     final wasEmpty = _currentQueue.isEmpty;
+    final end = _currentQueue.length;
     _currentQueue.addAll(songs);
     _unshuffledQueue.addAll(songs);
 
-    if (_playlist != null) {
-      await _playlist!.addAll(songs.map(_toSource).toList());
-    } else if (wasEmpty) {
-      await _rebuildSource(0);
+    if (wasEmpty) {
+      await _rebuildSourceUnlocked(0);
+    } else {
+      await _windowInsert(end, songs);
     }
   }
 
-  Future<void> removeFromQueue(int index) async {
+  Future<void> removeFromQueue(int index) =>
+      _edit('remove $index', () => _removeFromQueueUnlocked(index));
+
+  Future<void> _removeFromQueueUnlocked(int index) async {
     if (index < 0 || index >= _currentQueue.length) return;
 
     bool needsRebuild = true;
@@ -2060,23 +2293,18 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (unIdx != -1) _unshuffledQueue.removeAt(unIdx);
 
     if (_playlist != null) {
-      if (_playlistOffset == 0) {
-        await _playlist!.removeAt(index);
-      } else {
-        if (index < _playlistOffset) {
-          _playlistOffset--;
-        } else if (index < _playlistOffset + _playlist!.children.length) {
-          await _playlist!.removeAt(index - _playlistOffset);
-        }
-      }
+      await _windowRemove(index, index + 1);
     } else if (needsRebuild) {
-      await _rebuildSource(
+      await _rebuildSourceUnlocked(
         currentIndex.clamp(0, _currentQueue.length - 1),
       );
     }
   }
 
-  Future<void> pruneRange(int start, int end) async {
+  Future<void> pruneRange(int start, int end) =>
+      _edit('prune $start..$end', () => _pruneRangeUnlocked(start, end));
+
+  Future<void> _pruneRangeUnlocked(int start, int end) async {
     if (start < 0 || end > _currentQueue.length || start >= end) return;
 
     final removedSongs = _currentQueue.sublist(start, end);
@@ -2100,29 +2328,16 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
     }
 
-    if (_playlist != null) {
-      if (_playlistOffset == 0) {
-        await _playlist!.removeRange(start, end);
-      } else {
-        // A windowed queue: songs before the loaded window just shift the
-        // offset; only the part inside the window touches the sources. (This
-        // used to rebuild the whole source, restarting the playing song.)
-        final oldOffset = _playlistOffset;
-        final len = _playlist!.children.length;
-        final beforeWindow = (end < oldOffset ? end : oldOffset) - start;
-        final localStart = (start > oldOffset ? start : oldOffset) - oldOffset;
-        final localEnd = ((end < oldOffset + len ? end : oldOffset + len) - oldOffset);
-        if (beforeWindow > 0) _playlistOffset -= beforeWindow;
-        if (localEnd > localStart) await _playlist!.removeRange(localStart, localEnd);
-      }
-    }
+    await _windowRemove(start, end);
   }
 
   Future<void> reorderQueue(
     int oldIndex,
     int newIndex, {
     bool isShuffleMode = false,
-  }) async {
+  }) => _edit('move $oldIndex to $newIndex', () => _reorderQueueUnlocked(oldIndex, newIndex));
+
+  Future<void> _reorderQueueUnlocked(int oldIndex, int newIndex) async {
     if (oldIndex < 0 || oldIndex >= _currentQueue.length) return;
     if (newIndex < 0 || newIndex >= _currentQueue.length) return;
 
@@ -2144,6 +2359,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       }
     }
 
+    // Where the window ends and what is playing, before the queue moves.
+    final pl = _playlist;
+    final length = pl?.children.length ?? 0;
+    final from = oldIndex - _playlistOffset;
+    final to = newIndex - _playlistOffset;
+    final movesPlaying = pl != null && player.currentIndex == from;
+
     final song = _currentQueue.removeAt(oldIndex);
     _currentQueue.insert(newIndex, song);
 
@@ -2154,24 +2376,26 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       _unshuffledQueue.insert(targetUnIdx, unSong);
     }
 
-    if (_playlist != null) {
-      if (_playlistOffset == 0) {
-        await _playlist!.move(oldIndex, newIndex);
-      } else {
-        final savedPosition = player.position;
-        await _rebuildSource(
-          currentIndex.clamp(0, _currentQueue.length - 1),
-          initialPosition: savedPosition,
-        );
-        if (player.playing) player.play();
-      }
+    if (pl == null) return;
+    if (from >= 0 && from < length && to >= 0 && to < length) {
+      await pl.move(from, to);
+    } else if (movesPlaying) {
+      // The playing song was dragged outside the loaded window.
+      final savedPosition = player.position;
+      await _rebuildSourceUnlocked(newIndex, initialPosition: savedPosition);
+      if (player.playing) _resume();
+    } else {
+      await _windowRemove(oldIndex, oldIndex + 1);
+      await _windowInsert(newIndex, [song]);
     }
   }
 
   // ---------------------------------------------------------------------------
   // 1. Standard Fisher-Yates
   // ---------------------------------------------------------------------------
-  Future<void> standardShuffle() async {
+  Future<void> standardShuffle() => _edit('shuffle standard', _standardShuffle);
+
+  Future<void> _standardShuffle() async {
     if (_currentQueue.isEmpty) return;
     final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
@@ -2186,7 +2410,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   /// True Shuffle: unheard songs (per ShuffleBag) first, then the heard ones,
   /// each in uniform random order; the playing song stays first.
-  Future<void> bagShuffle(Set<String> heard) async {
+  Future<void> bagShuffle(Set<String> heard) => _edit('shuffle bag', () => _bagShuffle(heard));
+
+  Future<void> _bagShuffle(Set<String> heard) async {
     if (_currentQueue.isEmpty) return;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
     final currentSong = _currentQueue[safeIndex];
@@ -2201,7 +2427,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ---------------------------------------------------------------------------
   // 2. Dithered Position Shuffle
   // ---------------------------------------------------------------------------
-  Future<void> ditheredPositionShuffle(ShufflePreference preference) async {
+  Future<void> ditheredPositionShuffle(ShufflePreference preference) =>
+      _edit('shuffle dithered', () => _ditheredPositionShuffle(preference));
+
+  Future<void> _ditheredPositionShuffle(ShufflePreference preference) async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Dithered Position ($preference)');
     final currentIndex = this.currentIndex;
@@ -2225,7 +2454,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ---------------------------------------------------------------------------
   // 3. Merge-Shuffle
   // ---------------------------------------------------------------------------
-  Future<void> mergeShuffle(ShufflePreference preference) async {
+  Future<void> mergeShuffle(ShufflePreference preference) =>
+      _edit('shuffle merge', () => _mergeShuffle(preference));
+
+  Future<void> _mergeShuffle(ShufflePreference preference) async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Merge-Shuffle ($preference)');
     final currentIndex = this.currentIndex;
@@ -2246,7 +2478,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ---------------------------------------------------------------------------
   // 4. Weighted Shuffle
   // ---------------------------------------------------------------------------
-  Future<void> youtubeWeightedShuffle() async {
+  Future<void> youtubeWeightedShuffle() => _edit('shuffle weighted', _youtubeWeightedShuffle);
+
+  Future<void> _youtubeWeightedShuffle() async {
     if (_currentQueue.isEmpty) return;
     debugPrint('🚀 [SHUFFLE] Weighted Shuffle (O(n log n))');
     final currentIndex = this.currentIndex;
@@ -2263,9 +2497,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ---------------------------------------------------------------------------
   // 5. Album-Aware Shuffle
   // ---------------------------------------------------------------------------
-  Future<void> albumAwareShuffle({
-    bool shuffleTracksWithinAlbum = false,
-  }) async {
+  Future<void> albumAwareShuffle({bool shuffleTracksWithinAlbum = false}) =>
+      _edit('shuffle album', () => _albumAwareShuffle(shuffleTracksWithinAlbum));
+
+  Future<void> _albumAwareShuffle(bool shuffleTracksWithinAlbum) async {
     if (_currentQueue.isEmpty) return;
     debugPrint(
       '🚀 [SHUFFLE] Album-Aware (shuffleTracks=$shuffleTracksWithinAlbum)',
@@ -2288,7 +2523,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ---------------------------------------------------------------------------
   // 6. Recency-Dampened Weighted Shuffle
   // ---------------------------------------------------------------------------
-  Future<void> recencyDampenedWeightedShuffle() async {
+  Future<void> recencyDampenedWeightedShuffle() =>
+      _edit('shuffle recency', _recencyDampenedWeightedShuffle);
+
+  Future<void> _recencyDampenedWeightedShuffle() async {
     if (_currentQueue.isEmpty) return;
     debugPrint(
       '🚀 [SHUFFLE] Recency-Dampened Weighted Shuffle '
@@ -2334,6 +2572,18 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     required List<Song> orderedFuture,
     required int anchorIndex,
     bool preferMoveBasedReorder = false,
+  }) => _edit('smart order', () => _commitSmartLocalOrder(
+        pastAndPresent: pastAndPresent,
+        orderedFuture: orderedFuture,
+        anchorIndex: anchorIndex,
+        preferMoveBasedReorder: preferMoveBasedReorder,
+      ));
+
+  Future<void> _commitSmartLocalOrder({
+    required List<Song> pastAndPresent,
+    required List<Song> orderedFuture,
+    required int anchorIndex,
+    required bool preferMoveBasedReorder,
   }) async {
     debugPrint('🎵 [NaviAudioHandler] commitSmartLocalOrder: past=${pastAndPresent.length}, future=${orderedFuture.length}');
     for (int i = 0; i < orderedFuture.length; i++) {
@@ -2361,7 +2611,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   // ---------------------------------------------------------------------------
   // 8. Unshuffle
   // ---------------------------------------------------------------------------
-  Future<void> unshuffle() async {
+  Future<void> unshuffle() => _edit('unshuffle', _unshuffle);
+
+  Future<void> _unshuffle() async {
     if (_currentQueue.isEmpty || _unshuffledQueue.isEmpty) return;
     final currentIndex = this.currentIndex;
     final safeIndex = currentIndex.clamp(0, _currentQueue.length - 1);
@@ -2518,13 +2770,12 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
         // "failed once" mark stays and a second failure on this track skips it.
         if (!await _desktopLoadTrack(index, offlinePaths, initialPosition: pos)) return;
       } else {
-        await _rebuildSource(index, initialPosition: pos);
+        await _edit('recover $index', () => _rebuildSourceUnlocked(currentIndex, initialPosition: pos));
       }
 
-      // 3. Resume if it was playing
-      if (wasPlaying) {
-        await player.play();
-      }
+      // 3. Resume if it was playing. Not awaited: that held _isRecovering for
+      // as long as the song played, so a second stall was never recovered.
+      if (wasPlaying) _resume();
       _lastFailedIndex = null;
       debugPrint('✅ [NaviAudioHandler] Stuck player recovery successful!');
     } catch (e) {
@@ -2538,15 +2789,13 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   Future<void> _safeSkipToNext(bool wasPlaying) async {
     try {
       await skipToNext();
-      if (wasPlaying) {
-        await player.play();
-      }
+      if (wasPlaying) _resume();
     } catch (e2) {
       debugPrint('❌ [NaviAudioHandler] Skip to next track failed: $e2. Attempting jumpToIndex...');
       try {
         final nextIdx = (currentIndex + 1).clamp(0, _currentQueue.length - 1);
         await jumpToIndex(nextIdx);
-        if (wasPlaying) await player.play();
+        if (wasPlaying) _resume();
       } catch (e3) {
         debugPrint('❌ [NaviAudioHandler] jumpToIndex fallback also failed: $e3.');
       }
@@ -2558,6 +2807,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _stuckTimer?.cancel();
     _stuckTimer = null;
     _warmTimer?.cancel();
+    _identityTimer?.cancel();
     _skips.dispose();
     await _probeSub?.cancel();
     await _fadeSub?.cancel();
