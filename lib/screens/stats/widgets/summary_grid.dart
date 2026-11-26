@@ -1,6 +1,7 @@
 import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
+import '../../../features/ai_shuffle/data/models/contribution_graph_response.dart';
 import '../../../features/ai_shuffle/data/models/listening_stats_response.dart';
 import '../../../utils/format.dart';
 import '../../../widgets/art/navi_icons.dart';
@@ -32,6 +33,10 @@ class SummaryHero extends StatelessWidget {
   /// That artist's picture; it is what the sheet is frosted over.
   final String? topArtistCover;
 
+  /// The whole daily history. The streak is read from it (see
+  /// [listeningStreak]); until it loads, the period's own figure stands in.
+  final List<ContributionDay> history;
+
   const SummaryHero({
     super.key,
     required this.stats,
@@ -39,11 +44,25 @@ class SummaryHero extends StatelessWidget {
     this.dailyPlays = const [],
     this.topArtist,
     this.topArtistCover,
+    this.history = const [],
   });
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
+    final now = DateTime.now();
+    final streak =
+        history.isEmpty ? stats.streakDays : listeningStreak(history, now);
+    final played = {
+      for (final d in history)
+        if (d.count > 0) d.date,
+    };
+    final listened = history.isEmpty
+        ? null
+        : [
+            for (var ago = StreakTicket.days - 1; ago >= 0; ago--)
+              played.contains(isoDate(DateTime(now.year, now.month, now.day - ago))),
+          ];
     final skip = (stats.skipRate * 100).round().clamp(0, 100);
     // Only a skip rate that says something's off is worth colouring.
     final skipColor = skip > 30 ? t.danger : t.accent;
@@ -51,7 +70,7 @@ class SummaryHero extends StatelessWidget {
     return Semantics(
       container: true,
       label: '${listeningTime(stats.totalMinutes)} listened $periodPhrase. '
-          '${stats.totalPlays} plays, $skip percent skipped, ${stats.streakDays} day streak.',
+          '${stats.totalPlays} plays, $skip percent skipped, $streak day streak.',
       child: ExcludeSemantics(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -123,7 +142,7 @@ class SummaryHero extends StatelessWidget {
               ),
             ),
             const SizedBox(height: Space.lg),
-            StreakTicket(streak: stats.streakDays),
+            StreakTicket(streak: streak, listened: listened),
           ],
         ),
       ),

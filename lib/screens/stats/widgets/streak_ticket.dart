@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart' show listEquals;
 import 'package:flutter/widgets.dart';
 
 import '../../../core/theme.dart';
@@ -14,12 +15,17 @@ import 'stat_card.dart' show figureStyle;
 class StreakTicket extends StatelessWidget {
   static const int days = 14;
   final int streak;
-  const StreakTicket({super.key, required this.streak});
+
+  /// The last [days] days, oldest first, true where something was played.
+  /// Without the history, the days of the streak are the ones punched.
+  final List<bool>? listened;
+  const StreakTicket({super.key, required this.streak, this.listened});
 
   @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
-    final lit = streak.clamp(0, days);
+    final punched = listened ??
+        [for (var i = 0; i < days; i++) i >= days - streak.clamp(0, days)];
     final ink = t.onAccent;
     return Semantics(
       container: true,
@@ -67,7 +73,7 @@ class StreakTicket extends StatelessWidget {
                                 animation: p,
                                 builder: (context, _) => CustomPaint(
                                   size: const Size(double.infinity, 14),
-                                  painter: _PunchPainter(lit, ink, p.value),
+                                  painter: _PunchPainter(punched, ink, p.value),
                                 ),
                               ),
                             ),
@@ -111,10 +117,10 @@ class _TicketClipper extends CustomClipper<Path> {
 }
 
 class _PunchPainter extends CustomPainter {
-  final int lit;
+  final List<bool> punched;
   final Color ink;
   final double t;
-  const _PunchPainter(this.lit, this.ink, this.t);
+  const _PunchPainter(this.punched, this.ink, this.t);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -126,16 +132,18 @@ class _PunchPainter extends CustomPainter {
       ..strokeWidth = 1
       ..color = ink.withValues(alpha: 0.25);
     final hole = Paint()..color = ink;
+    final lit = punched.where((p) => p).length;
+    var order = 0;
     for (var i = 0; i < n; i++) {
       final c = Offset(slot * (i + 0.5), size.height / 2);
       canvas.drawCircle(c, r, ring);
-      if (i < n - lit) continue;
-      final order = i - (n - lit);
-      final k = ((t * (lit + 2) - order) / 2).clamp(0.0, 1.0);
+      if (!punched[i]) continue;
+      final k = ((t * (lit + 2) - order++) / 2).clamp(0.0, 1.0);
       if (k > 0) canvas.drawCircle(c, r * k, hole);
     }
   }
 
   @override
-  bool shouldRepaint(_PunchPainter old) => old.t != t || old.lit != lit || old.ink != ink;
+  bool shouldRepaint(_PunchPainter old) =>
+      old.t != t || !listEquals(old.punched, punched) || old.ink != ink;
 }
