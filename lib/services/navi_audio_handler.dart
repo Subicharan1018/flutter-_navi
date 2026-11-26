@@ -17,7 +17,7 @@ import 'seamless_swap.dart';
 import 'head_start_source.dart';
 import '../features/local_library/logic/local_models.dart' show isLocalSongId;
 import '../providers/settings_provider.dart';
-import '../features/local_library/logic/local_index.dart';
+import '../features/local_library/logic/local_index.dart'; // also pendingLocalCoverId
 import '../player/audio_quality.dart';
 import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
@@ -1127,11 +1127,17 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     );
   }
 
+  /// The cover for the notification / MPRIS. Null when there is no address the
+  /// system could load: no cover, or a device song's cover that is not indexed
+  /// yet (its in-app placeholder made audio_service log a download exception).
+  Uri? _mediaArtUri(Song song, String? localCoverPath) {
+    if (localCoverPath != null) return Uri.file(localCoverPath);
+    final url = subsonicService.getCoverArtUrl(song.coverArt, size: 600);
+    return url.isEmpty || pendingLocalCoverId(url) != null ? null : Uri.parse(url);
+  }
+
   MediaItem _mediaTag(Song song, {required bool isLocal}) {
-    final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
-    final artUri = localCoverPath != null
-        ? Uri.file(localCoverPath)
-        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt, size: 600));
+    final artUri = _mediaArtUri(song, OfflineService().getLocalCoverArtPath(song.id));
     return MediaItem(
       id: song.id,
       title: song.title,
@@ -1679,9 +1685,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     if (index < 0 || index >= _currentQueue.length) return;
     final song = _currentQueue[index];
     final localCoverPath = OfflineService().getLocalCoverArtPath(song.id);
-    final artUri = localCoverPath != null
-        ? Uri.file(localCoverPath)
-        : Uri.parse(subsonicService.getCoverArtUrl(song.coverArt, size: 600));
+    final artUri = _mediaArtUri(song, localCoverPath);
     mediaItem.add(
       MediaItem(
         id: song.id,

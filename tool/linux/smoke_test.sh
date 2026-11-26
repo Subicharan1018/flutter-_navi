@@ -123,7 +123,10 @@ loudness() {
 loud() { local v; v=$(loudness); [ -n "$v" ] && awk -v v="$v" 'BEGIN { exit !(v > -50) }'; }
 no_errors() {
   local bad
-  bad=$(grep -nE 'Unhandled [Ee]xception|EXCEPTION CAUGHT|\[ERROR:flutter|Failed assertion|MissingPluginException|-CRITICAL \*\*|Segmentation fault|Audio engine unavailable|AudioService\.init failed|OfflineService\.initialize failed|Non-numeric locale' "$log" || true)
+  # One line is allowed: Flutter's GTK engine prints the atk_socket_embed
+  # assertion when there is no accessibility bus (a container has none).
+  bad=$(grep -nE 'Unhandled [Ee]xception|EXCEPTION CAUGHT|\[ERROR:flutter|Failed assertion|MissingPluginException|-CRITICAL \*\*|Segmentation fault|Error loading artUri|^#0 |Audio engine unavailable|AudioService\.init failed|OfflineService\.initialize failed|Non-numeric locale' "$log" \
+    | grep -v "atk_socket_embed: assertion 'plug_id != NULL' failed" || true)
   [ -z "$bad" ] || fail "errors in the log ($1):
 $bad"
   local crash
