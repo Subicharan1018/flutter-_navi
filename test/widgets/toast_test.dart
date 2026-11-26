@@ -2,6 +2,7 @@
 // stacked, and never over the player controls at the bottom of the screen.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:navivibe/utils/platform_utils.dart';
 import 'package:navivibe/widgets/ui/action_sheet.dart';
 
 void main() {
@@ -107,6 +108,18 @@ void main() {
         expect(find.text(busy), findsNothing);
       });
     }
+
+    testWidgets('on desktop there is a close button too', (tester) async {
+      PlatformUtils.debugDesktopOverride = true;
+      addTearDown(() => PlatformUtils.debugDesktopOverride = null);
+      await pumpPage(tester);
+      showToastWithAction(page, 'Removed', actionLabel: 'Undo', onAction: () => undone++);
+      await enter(tester);
+      await tester.tap(find.byTooltip('Dismiss'));
+      await pass(tester, const Duration(milliseconds: 100));
+      expect(find.text('Removed'), findsNothing);
+      expect(undone, 0);
+    });
 
     testWidgets('clicked', (tester) async {
       await pumpPage(tester);
