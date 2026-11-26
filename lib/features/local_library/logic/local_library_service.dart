@@ -191,7 +191,7 @@ class LocalLibraryService {
   Future<void> rematch() async {
     final local = await _db.select(_db.localSongs).get();
     if (local.isEmpty) {
-      LocalLibraryIndex.instance.clear();
+      LocalLibraryIndex.instance.replace(paths: const {}, covers: const {});
       return;
     }
     final server = await _db.select(_db.songMetadata).get();

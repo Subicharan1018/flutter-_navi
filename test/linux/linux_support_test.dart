@@ -5,6 +5,7 @@ import 'package:connectivity_plus_platform_interface/connectivity_plus_platform_
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:navivibe/core/keyringless_key.dart';
+import 'package:navivibe/features/local_library/logic/local_index.dart';
 import 'package:navivibe/services/linux_connectivity.dart';
 import 'package:navivibe/services/linux_shutdown.dart';
 import 'package:navivibe/utils/desktop_share.dart';
@@ -77,6 +78,16 @@ void main() {
       await installLinuxConnectivityFallback();
       expect(ConnectivityPlatform.instance, same(works));
     });
+  });
+
+  test('a file the app was opened with survives the library loading afterwards', () {
+    final index = LocalLibraryIndex.instance..clear();
+    addTearDown(index.clear);
+    index.register('local:opened', '/music/opened.flac');
+    index.replace(paths: const {}, covers: const {});
+    expect(index.pathFor('local:opened'), '/music/opened.flac');
+    index.replace(paths: const {'local:opened': '/library/opened.flac'}, covers: const {});
+    expect(index.pathFor('local:opened'), '/library/opened.flac');
   });
 
   group('quitting', () {

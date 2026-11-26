@@ -20,7 +20,12 @@ class LocalLibraryIndex {
 
   /// File path or `content://` URI to play for [songId], if one is on the
   /// device.
-  String? pathFor(String songId) => _paths[songId];
+  String? pathFor(String songId) => _paths[songId] ?? _opened[songId];
+
+  /// Files registered one by one. Kept apart from the scanned library: that
+  /// loads a moment after launch, and replacing it used to drop the file the
+  /// app had just been opened with, which was then asked of the server.
+  final Map<String, String> _opened = {};
 
   /// Saved cover of a local song (by its `local:` id).
   String? coverFor(String songId) => _covers[songId];
@@ -36,11 +41,15 @@ class LocalLibraryIndex {
   /// Adds one file (for example one opened from a file manager) without
   /// touching the scanned library.
   void register(String songId, String path) {
-    _paths = Map.unmodifiable({..._paths, songId: path});
+    _opened[songId] = path;
     revision.value++;
   }
 
-  void clear() => replace(paths: const {}, covers: const {});
+  /// Forgets everything, opened files too.
+  void clear() {
+    _opened.clear();
+    replace(paths: const {}, covers: const {});
+  }
 
   /// What `just_audio` opens for a stored location.
   static Uri uriFor(String path) => path.startsWith('content://') ? Uri.parse(path) : Uri.file(path);
