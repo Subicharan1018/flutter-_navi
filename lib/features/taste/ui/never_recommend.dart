@@ -6,6 +6,7 @@ import '../../../models/song.dart';
 import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/desktop_dialogs.dart' show showPlatformSheet;
 import '../../../widgets/ui/action_sheet.dart' show SheetAction, SheetGroup, showToast;
+import '../../../widgets/ui/toast.dart' show showToastOn;
 import '../../listen/data/listen_models.dart';
 import '../logic/taste_providers.dart';
 
@@ -42,7 +43,8 @@ Future<void> showNeverRecommend(BuildContext context, ProviderContainer ref, Son
 
 /// Adds [e]; the confirmation carries Undo. Failures say so.
 Future<void> addNeverRecommend(BuildContext context, ProviderContainer ref, TasteExclusion e) async {
-  final messenger = ScaffoldMessenger.maybeOf(context);
+  // Taken now: the sheet this was tapped in may be gone after the request.
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
   final notifier = ref.read(tasteExclusionsProvider.notifier);
   try {
     await notifier.add(e);
@@ -50,11 +52,11 @@ Future<void> addNeverRecommend(BuildContext context, ProviderContainer ref, Tast
     if (context.mounted) showToast(context, 'Couldn’t save that. Check your connection and try again.');
     return;
   }
-  messenger
-    ?..clearSnackBars()
-    ..showSnackBar(SnackBar(
-      content: Text('Won’t recommend ${e.kind == TasteKind.song ? 'this song' : e.label} again'),
-      duration: const Duration(seconds: 5),
-      action: SnackBarAction(label: 'Undo', onPressed: () => notifier.remove(e)),
-    ));
+  if (overlay == null || !overlay.mounted) return;
+  showToastOn(
+    overlay,
+    'Won’t recommend ${e.kind == TasteKind.song ? 'this song' : e.label} again',
+    actionLabel: 'Undo',
+    onAction: () => notifier.remove(e),
+  );
 }

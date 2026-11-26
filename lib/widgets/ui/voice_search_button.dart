@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../../services/voice_input.dart';
 import '../../utils/platform_utils.dart';
 import '../art/navi_icons.dart';
+import 'action_sheet.dart' show showToast;
 
 /// Bumped by the remote's voice / search key; a field that opted in
 /// (`listenForVoiceKey`) starts listening when it changes.
@@ -105,9 +106,7 @@ class VoiceSearchButtonState extends State<VoiceSearchButton> with SingleTickerP
         tv ? 'Voice typing isn’t available here. Use the on-screen keyboard.' : 'Voice typing isn’t available on this device.',
       VoiceFailure.error => 'Couldn’t hear that. Try again.',
     };
-    ScaffoldMessenger.maybeOf(context)
-      ?..hideCurrentSnackBar()
-      ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 3)));
+    showToast(context, message);
   }
 
   @override
