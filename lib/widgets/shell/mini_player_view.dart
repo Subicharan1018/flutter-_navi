@@ -102,6 +102,16 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
   }
 
   @override
+  void initState() {
+    super.initState();
+    // The app underneath still holds the keyboard, so autofocus alone is
+    // ignored: take it.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _focus.requestFocus();
+    });
+  }
+
+  @override
   Widget build(BuildContext context) {
     final t = ThemeTokens.of(context);
     final mq = MediaQuery.of(context);
@@ -120,53 +130,57 @@ class _MiniPlayerViewState extends ConsumerState<MiniPlayerView> {
           maxScaleFactor: MiniPlayerView.maxTextScale,
         ),
       ),
-      child: CallbackShortcuts(
-        bindings: {
-          const SingleActivator(LogicalKeyboardKey.space): _n.togglePlay,
-          const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
-              _seekBy(const Duration(seconds: -5)),
-          const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
-              _seekBy(const Duration(seconds: 5)),
-          const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
-              _n.playPrev,
-          const SingleActivator(LogicalKeyboardKey.arrowRight, control: true):
-              _n.playNext,
-          const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
-              _volume.nudge(_n.player, 0.05),
-          const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
-              _volume.nudge(_n.player, -0.05),
-          const SingleActivator(LogicalKeyboardKey.keyL): _star,
-          const SingleActivator(LogicalKeyboardKey.escape): widget.onReturn,
-        },
-        child: Focus(
-          focusNode: _focus,
-          autofocus: true,
-          child: Listener(
-            onPointerSignal: (e) {
-              if (e is PointerScrollEvent && e.scrollDelta.dy != 0) {
-                _volume.nudge(_n.player, e.scrollDelta.dy < 0 ? 0.05 : -0.05);
-              }
-            },
-            child: MouseRegion(
-              onEnter: (_) => _hover.value = true,
-              onExit: (_) => _hover.value = false,
-              child: ColoredBox(
-                color: t.bgBase,
-                child: _FadeIn(
-                  child: Stack(
-                    fit: StackFit.expand,
-                    children: [
-                      MiniDragLayer(mini: _mini),
-                      body,
-                      Positioned(
-                        top: 10,
-                        left: 0,
-                        right: 0,
-                        child: Center(
-                          child: MiniVolumeToast(level: _volume.toast),
+      // The host sits in MaterialApp.builder, above the Navigator: nothing
+      // there gives the tooltips an Overlay or the text a style (without a
+      // Material it is drawn with the framework's yellow debug underline).
+      child: Overlay.wrap(
+        child: CallbackShortcuts(
+          bindings: {
+            const SingleActivator(LogicalKeyboardKey.space): _n.togglePlay,
+            const SingleActivator(LogicalKeyboardKey.arrowLeft): () =>
+                _seekBy(const Duration(seconds: -5)),
+            const SingleActivator(LogicalKeyboardKey.arrowRight): () =>
+                _seekBy(const Duration(seconds: 5)),
+            const SingleActivator(LogicalKeyboardKey.arrowLeft, control: true):
+                _n.playPrev,
+            const SingleActivator(LogicalKeyboardKey.arrowRight, control: true):
+                _n.playNext,
+            const SingleActivator(LogicalKeyboardKey.arrowUp): () =>
+                _volume.nudge(_n.player, 0.05),
+            const SingleActivator(LogicalKeyboardKey.arrowDown): () =>
+                _volume.nudge(_n.player, -0.05),
+            const SingleActivator(LogicalKeyboardKey.keyL): _star,
+            const SingleActivator(LogicalKeyboardKey.escape): widget.onReturn,
+          },
+          child: Focus(
+            focusNode: _focus,
+            autofocus: true,
+            child: Listener(
+              onPointerSignal: (e) {
+                if (e is PointerScrollEvent && e.scrollDelta.dy != 0) {
+                  _volume.nudge(_n.player, e.scrollDelta.dy < 0 ? 0.05 : -0.05);
+                }
+              },
+              child: MouseRegion(
+                onEnter: (_) => _hover.value = true,
+                onExit: (_) => _hover.value = false,
+                child: Material(
+                  color: t.bgBase,
+                  child: _FadeIn(
+                    child: Stack(
+                      fit: StackFit.expand,
+                      children: [
+                        MiniDragArea(mini: _mini, child: body),
+                        Positioned(
+                          top: 10,
+                          left: 0,
+                          right: 0,
+                          child: Center(
+                            child: MiniVolumeToast(level: _volume.toast),
+                          ),
                         ),
-                      ),
-                    ],
+                      ],
+                    ),
                   ),
                 ),
               ),
@@ -204,32 +218,34 @@ class _WindowButtons extends StatelessWidget {
   const _WindowButtons({required this.mini, required this.onReturn});
 
   @override
-  Widget build(BuildContext context) => Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      ValueListenableBuilder<bool>(
-        valueListenable: mini.pinned,
-        builder: (context, pinned, _) => BarIconButton(
-          icon: pinned ? NaviGlyph.pin : NaviGlyph.pinOff,
-          tooltip: pinned ? 'Stop keeping on top' : 'Keep on top',
-          active: pinned,
-          onTap: mini.togglePinned,
+  Widget build(BuildContext context) => MiniNoDrag(
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ValueListenableBuilder<bool>(
+          valueListenable: mini.pinned,
+          builder: (context, pinned, _) => BarIconButton(
+            icon: pinned ? NaviGlyph.pin : NaviGlyph.pinOff,
+            tooltip: pinned ? 'Stop keeping on top' : 'Keep on top',
+            active: pinned,
+            onTap: mini.togglePinned,
+          ),
         ),
-      ),
-      ValueListenableBuilder<MiniMode>(
-        valueListenable: mini.mode,
-        builder: (context, mode, _) => BarIconButton(
-          icon: mode == MiniMode.bar ? NaviGlyph.photo : NaviGlyph.listView,
-          tooltip: mode == MiniMode.bar ? 'Show the cover' : 'Show the strip',
-          onTap: mini.toggleMode,
+        ValueListenableBuilder<MiniMode>(
+          valueListenable: mini.mode,
+          builder: (context, mode, _) => BarIconButton(
+            icon: mode == MiniMode.bar ? NaviGlyph.photo : NaviGlyph.listView,
+            tooltip: mode == MiniMode.bar ? 'Show the cover' : 'Show the strip',
+            onTap: mini.toggleMode,
+          ),
         ),
-      ),
-      BarIconButton(
-        icon: NaviGlyph.expand,
-        tooltip: 'Back to full player',
-        onTap: onReturn,
-      ),
-    ],
+        BarIconButton(
+          icon: NaviGlyph.expand,
+          tooltip: 'Back to full player',
+          onTap: onReturn,
+        ),
+      ],
+    ),
   );
 }
 
@@ -240,25 +256,27 @@ class _Transport extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final playing = ref.watch(playerProvider.select((s) => s.isPlaying));
     final n = ref.read(playerProvider.notifier);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        BarIconButton(
-          icon: NaviGlyph.previous,
-          tooltip: 'Previous (Ctrl+←)',
-          size: 20,
-          onTap: n.playPrev,
-        ),
-        const SizedBox(width: Space.xs),
-        BarPlayButton(playing: playing, onTap: n.togglePlay),
-        const SizedBox(width: Space.xs),
-        BarIconButton(
-          icon: NaviGlyph.next,
-          tooltip: 'Next (Ctrl+→)',
-          size: 20,
-          onTap: n.playNext,
-        ),
-      ],
+    return MiniNoDrag(
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          BarIconButton(
+            icon: NaviGlyph.previous,
+            tooltip: 'Previous (Ctrl+←)',
+            size: 20,
+            onTap: n.playPrev,
+          ),
+          const SizedBox(width: Space.xs),
+          BarPlayButton(playing: playing, onTap: n.togglePlay),
+          const SizedBox(width: Space.xs),
+          BarIconButton(
+            icon: NaviGlyph.next,
+            tooltip: 'Next (Ctrl+→)',
+            size: 20,
+            onTap: n.playNext,
+          ),
+        ],
+      ),
     );
   }
 }
@@ -272,12 +290,14 @@ class _Star extends ConsumerWidget {
     final starred = ref.watch(
       playerProvider.select((s) => s.starredIds.contains(song.id)),
     );
-    return BarIconButton(
-      icon: NaviGlyph.star,
-      filled: starred,
-      active: starred,
-      tooltip: starred ? 'Remove from Favorites (L)' : 'Favorite (L)',
-      onTap: () => ref.read(playerProvider.notifier).toggleStar(song.id),
+    return MiniNoDrag(
+      child: BarIconButton(
+        icon: NaviGlyph.star,
+        filled: starred,
+        active: starred,
+        tooltip: starred ? 'Remove from Favorites (L)' : 'Favorite (L)',
+        onTap: () => ref.read(playerProvider.notifier).toggleStar(song.id),
+      ),
     );
   }
 }
@@ -307,7 +327,9 @@ class _Strip extends ConsumerWidget {
             right: 0,
             bottom: -8,
             height: 28,
-            child: DesktopSeekBar(song: s, showLabels: false, thickness: 3),
+            child: MiniNoDrag(
+              child: DesktopSeekBar(song: s, showLabels: false, thickness: 3),
+            ),
           ),
         Positioned.fill(
           child: Row(
@@ -456,7 +478,7 @@ class _Square extends ConsumerWidget {
                     const _Transport(),
                   ],
                 ),
-                DesktopSeekBar(song: s),
+                MiniNoDrag(child: DesktopSeekBar(song: s)),
               ],
             ],
           ),
