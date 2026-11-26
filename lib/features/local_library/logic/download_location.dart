@@ -118,7 +118,9 @@ class MoveResult {
 /// Moves every file in [from] into [to] (rename when both are on one volume,
 /// copy then delete otherwise), reporting (done, total). A file that cannot be
 /// moved stays where it is and is counted in [MoveResult.failed], so a
-/// partial move never loses a download. Files already in [to] are kept.
+/// partial move never loses a download. Safe to interrupt and run again: a copy
+/// only takes its final name once it is complete. A file already in [to] is
+/// kept, unless it is shorter than the one being moved (a copy cut short).
 Future<MoveResult> moveDirectoryFiles(
   String from,
   String to, {
@@ -138,18 +140,22 @@ Future<MoveResult> moveDirectoryFiles(
     final f = files[i];
     final target = File('$to${Platform.pathSeparator}${f.uri.pathSegments.last}');
     try {
-      if (await target.exists()) {
+      final partial = File('${target.path}.moving');
+      if (await partial.exists()) await partial.delete();
+      if (await target.exists() && await target.length() >= await f.length()) {
         await f.delete();
       } else {
         try {
           await f.rename(target.path);
         } on FileSystemException {
-          // Different volume: copy, verify the size, then remove the original.
-          await f.copy(target.path);
-          if (await target.length() != await f.length()) {
-            await target.delete();
+          // Different volume: copy beside the final name, verify the size, and
+          // only then take the name and remove the original.
+          await f.copy(partial.path);
+          if (await partial.length() != await f.length()) {
+            await partial.delete();
             throw const FileSystemException('Copy was incomplete');
           }
+          await partial.rename(target.path);
           await f.delete();
         }
       }

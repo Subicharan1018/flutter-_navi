@@ -76,10 +76,15 @@ class ControlledAudioPlayer extends Fake implements AudioPlayer {
     _playingController.add(false);
   }
 
+  /// What just_audio really does: play() completes only when playback pauses,
+  /// and never when Android refuses audio focus (a phone call).
+  bool playNeverReturns = false;
+
   @override
-  Future<void> play() async {
+  Future<void> play() {
     _playing = true;
     _playingController.add(true);
+    return playNeverReturns ? Completer<void>().future : Future<void>.value();
   }
 
   @override
@@ -1123,6 +1128,106 @@ void main() {
       final withTitle = fakeSyncService.pushedUpdates.where((u) => u['track_title'] == 'Hello');
       expect(withTitle, isNotEmpty);
       notifier.dispose();
+    });
+  });
+
+  // ── Taking playback here while the session server still names another host ──
+  // A protocol-3 server answers that claim with `exec prepare` to this very
+  // device and waits (5 s) for `ready`; a second claim meanwhile is `busy`.
+  group('claiming playback with Play', () {
+    final local = [_createSong('mine-1', 'Mine 1'), _createSong('mine-2', 'Mine 2')];
+    const prepare = PrepareTransfer(transferId: 'own', epoch: 2, trackId: 'their-1', positionMs: 90000, queue: ['their-1', 'their-2']);
+
+    Future<PlayerNotifier> passiveWithOwnQueue() async {
+      UserActivity.debugSet(DateTime.now());
+      addTearDown(() => UserActivity.debugSet(null));
+      when(() => mockSubsonicService.getSongs(any())).thenAnswer((i) async =>
+          [for (final id in i.positionalArguments.first as List<String>) _createSong(id, 'Theirs $id')]);
+      final container = createContainer();
+      final ref = container.read(Provider((ref) => ref));
+      final notifier = PlayerNotifier(ref, audioHandler, mockSubsonicService, mockCollector, deviceIdProvider: () async => 'device-me');
+      addTearDown(notifier.dispose);
+      await Future.delayed(Duration.zero);
+      fakeSyncService.emitSyncState(const PlaybackState(activeDevice: 'device-pc', trackId: 'their-1', epoch: 1, version: 1));
+      await Future.delayed(Duration.zero);
+      audioHandler.currentQueue = [...local];
+      notifier.state = notifier.state.copyWith(queue: [...local], currentIndex: 0);
+      return notifier;
+    }
+
+    Future<void> settle() => Future.delayed(const Duration(milliseconds: 40));
+
+    test('Play does not wait for the song to end before it takes the seat', () async {
+      final notifier = await passiveWithOwnQueue();
+      audioHandler.player.playNeverReturns = true;
+      await notifier.play().timeout(const Duration(seconds: 1));
+      expect(notifier.state.syncMode, SyncMode.activeHere);
+      expect(notifier.state.isPlaying, isTrue);
+    });
+
+    test('the prepare for our own claim is answered at once and replaces nothing', () async {
+      final notifier = await passiveWithOwnQueue();
+      audioHandler.player.playNeverReturns = true;
+      unawaited(notifier.play());
+      await settle();
+      fakeSyncService.emitPrepare(prepare);
+      await settle();
+      expect(fakeSyncService.readySent, ['own']);
+      expect(notifier.state.queue.map((s) => s.id), ['mine-1', 'mine-2']);
+      expect(audioHandler.currentQueue.map((s) => s.id), ['mine-1', 'mine-2'], reason: 'what is heard stays what is shown');
+      expect(audioHandler.player.playing, isTrue);
+    });
+
+    test('the same for a song tapped with "Play here instead"', () async {
+      final notifier = await passiveWithOwnQueue();
+      await notifier.setQueue(local, 1); // routed to the other device
+      await notifier.playHereInstead();
+      fakeSyncService.emitPrepare(prepare);
+      await settle();
+      expect(fakeSyncService.readySent, ['own']);
+      expect(audioHandler.currentQueue.map((s) => s.id), ['mine-1', 'mine-2']);
+      expect(notifier.state.currentSong?.id, 'mine-2');
+      expect(audioHandler.player.playing, isTrue);
+    });
+
+    test('Play, pause, Play while the claim is on its way sends one claim', () async {
+      final notifier = await passiveWithOwnQueue();
+      audioHandler.player.playNeverReturns = true;
+      unawaited(notifier.togglePlay());
+      await settle();
+      unawaited(notifier.pause());
+      await settle();
+      unawaited(notifier.togglePlay());
+      await settle();
+      expect(fakeSyncService.transferredDevices, ['device-me']);
+      expect(audioHandler.player.playing, isTrue);
+    });
+
+    test('once the server hands over, it is told what really plays here', () async {
+      final notifier = await passiveWithOwnQueue();
+      await notifier.play();
+      fakeSyncService.emitPrepare(prepare);
+      await settle();
+      fakeSyncService.pushedUpdates.clear();
+      // The commit still carries the old host's song.
+      fakeSyncService.emitSyncState(const PlaybackState(
+          activeDevice: 'device-me', trackId: 'their-1', queue: ['their-1', 'their-2'], positionMs: 90000, isPlaying: true, epoch: 2, version: 3));
+      await settle();
+      expect(notifier.state.currentSong?.id, 'mine-1');
+      final report = fakeSyncService.pushedUpdates.lastWhere((u) => u['queue'] != null);
+      expect(report['track_id'], 'mine-1');
+      expect(report['queue'], ['mine-1', 'mine-2']);
+    });
+
+    test('a refused claim can be tried again', () async {
+      final notifier = await passiveWithOwnQueue();
+      await notifier.play();
+      fakeSyncService.emitResult(const CommandResult(ok: false, action: 'transfer', reason: 'timeout'));
+      fakeSyncService.emitSyncState(const PlaybackState(activeDevice: 'device-pc', trackId: 'their-1', epoch: 1, version: 2));
+      await settle();
+      expect(notifier.state.syncMode, SyncMode.passive, reason: 'the server kept the other host: do not pretend');
+      await notifier.play();
+      expect(fakeSyncService.transferredDevices, ['device-me', 'device-me']);
     });
   });
 

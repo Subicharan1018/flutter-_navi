@@ -216,6 +216,14 @@ class MockAudioHandler extends Mock implements NaviAudioHandler {
   }
 
   @override
+  Future<void> jumpToIndex(int index) async {
+    await player.seek(Duration.zero, index: index);
+  }
+
+  @override
+  Future<void> play() => player.play();
+
+  @override
   Future<void> skipToNext() async {
     await player.seekToNext();
     if (player.currentIndex != null && player.currentIndex! < currentQueue.length) {

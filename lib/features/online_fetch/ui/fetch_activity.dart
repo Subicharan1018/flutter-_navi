@@ -15,6 +15,7 @@ import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/cover_art.dart';
 import '../../../widgets/desktop_dialogs.dart';
 import '../../../widgets/ui/action_sheet.dart';
+import '../../../widgets/ui/toast.dart' show showToastOn;
 import '../data/fetch_models.dart';
 import '../data/online_fetch_api.dart';
 import '../logic/online_fetch_providers.dart';
@@ -462,9 +463,9 @@ class _AddSongsSheetState extends ConsumerState<_AddSongsSheet> {
       ref.invalidate(songsInPlaylistProvider(playlistId));
       ref.invalidate(playlistsProvider);
       if (!mounted) return;
-      final messenger = ScaffoldMessenger.maybeOf(context);
+      final overlay = Overlay.maybeOf(context, rootOverlay: true);
       Navigator.of(context).pop();
-      messenger?.showSnackBar(SnackBar(content: Text('Added ${widget.songs.length} songs to $playlistName')));
+      if (overlay != null) showToastOn(overlay, 'Added ${widget.songs.length} songs to $playlistName');
     } catch (_) {
       if (mounted) {
         setState(() => _busy = false);

@@ -12,6 +12,7 @@ import '../../../providers/player_provider.dart';
 import '../../../providers/settings_provider.dart';
 import '../../../widgets/art/navi_icons.dart';
 import '../../../widgets/desktop_dialogs.dart';
+import '../../../widgets/ui/action_sheet.dart' show showToast;
 import '../../../widgets/ui/controls.dart';
 import '../../../widgets/ui/media.dart';
 import '../../../widgets/ui/states.dart';
@@ -98,9 +99,7 @@ class _OnlineSearchSheetState extends ConsumerState<OnlineSearchSheet> {
       await ref.read(playerProvider.notifier).setQueue([song], 0, playlistName: 'Search');
     } on Exception catch (e) {
       if (mounted) {
-        ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(
-          content: Text(e is OnlineFetchException ? e.message : 'Couldn’t start playback. Try again.'),
-        ));
+        showToast(context, e is OnlineFetchException ? e.message : 'Couldn’t start playback. Try again.');
       }
     }
   }

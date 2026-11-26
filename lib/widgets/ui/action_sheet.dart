@@ -5,6 +5,7 @@ import '../../core/theme.dart';
 import '../art/navi_icons.dart';
 import '../cover_art.dart';
 import '../desktop_dialogs.dart';
+import 'toast.dart';
 
 /// Header of an action sheet: the item's artwork, title and subtitle, so the
 /// person always sees what the actions apply to.
@@ -345,23 +346,13 @@ Future<bool> confirmDestructive(
 
 /// Brief confirmation toast after an action ("Added to Queue").
 void showToast(BuildContext context, String message) {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  if (messenger == null) return;
-  messenger
-    ..clearSnackBars()
-    ..showSnackBar(SnackBar(content: Text(message), duration: const Duration(seconds: 2)));
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay != null) showToastOn(overlay, message);
 }
 
 /// A toast with one action ("Saved" · Undo). Stays a little longer, so the
 /// action can be reached.
 void showToastWithAction(BuildContext context, String message, {required String actionLabel, required VoidCallback onAction}) {
-  final messenger = ScaffoldMessenger.maybeOf(context);
-  if (messenger == null) return;
-  messenger
-    ..clearSnackBars()
-    ..showSnackBar(SnackBar(
-      content: Text(message),
-      duration: const Duration(seconds: 6),
-      action: SnackBarAction(label: actionLabel, onPressed: onAction),
-    ));
+  final overlay = Overlay.maybeOf(context, rootOverlay: true);
+  if (overlay != null) showToastOn(overlay, message, actionLabel: actionLabel, onAction: onAction);
 }
