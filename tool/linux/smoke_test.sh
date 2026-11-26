@@ -146,11 +146,26 @@ loudness() {
     | sed -n 's/.*max_volume: \(-\?[0-9.]*\) dB.*/\1/p'
 }
 loud() { local v; v=$(loudness); [ -n "$v" ] && awk -v v="$v" 'BEGIN { exit !(v > -50) }'; }
+# Without a keyring, Arch's libsecret logs an unref assertion on its way to
+# "no such service". Dropped only there, and only when that warning follows.
+log_without_libsecret_noise() {
+  if [ "$scenario" != bare ]; then cat "$log"; return; fi
+  awk '
+    held != "" {
+      if ($0 ~ /^[[:space:]]*$/) { next }
+      if ($0 !~ /libsecret_error: secret_service_get_sync/) print held
+      held = ""
+    }
+    /GLib-GObject-CRITICAL .*g_object_unref: assertion .G_IS_OBJECT \(object\). failed/ { held = $0; next }
+    { print }
+    END { if (held != "") print held }
+  ' "$log"
+}
 no_errors() {
   local bad
   # One line is allowed: Flutter's GTK engine prints the atk_socket_embed
   # assertion when there is no accessibility bus (a container has none).
-  bad=$(grep -nE 'Unhandled [Ee]xception|EXCEPTION CAUGHT|\[ERROR:flutter|Failed assertion|MissingPluginException|-CRITICAL \*\*|Segmentation fault|Error loading artUri|^#0 |Audio engine unavailable|AudioService\.init failed|OfflineService\.initialize failed|Non-numeric locale' "$log" \
+  bad=$(log_without_libsecret_noise | grep -nE 'Unhandled [Ee]xception|EXCEPTION CAUGHT|\[ERROR:flutter|Failed assertion|MissingPluginException|-CRITICAL \*\*|Segmentation fault|Error loading artUri|^#0 |Audio engine unavailable|AudioService\.init failed|OfflineService\.initialize failed|Non-numeric locale' \
     | grep -v "atk_socket_embed: assertion 'plug_id != NULL' failed" || true)
   [ -z "$bad" ] || fail "errors in the log ($1):
 $bad"
