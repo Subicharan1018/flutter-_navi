@@ -16,7 +16,12 @@ import '../features/recognize/ui/recognize_sheet.dart';
 import '../lyrics/controllers/lyrics_search_provider.dart';
 import '../lyrics/models/lyric_translation.dart';
 import '../models/catalog.dart';
+import '../models/playlist.dart';
 import '../models/search_results.dart';
+import '../providers/library_provider.dart' show playlistsProvider;
+import '../utils/format.dart' show songCount;
+import 'library/playlists_page.dart' show showPlaylistMenu;
+import 'playlist_details_screen.dart';
 import '../models/song.dart';
 import '../player/artwork.dart' show coverPaletteProvider;
 import '../providers/catalog_provider.dart';
@@ -55,13 +60,16 @@ class SearchScreen extends ConsumerStatefulWidget {
 class _SearchScreenState extends ConsumerState<SearchScreen> {
   static const _debounce = Duration(milliseconds: 300);
 
-  late final _controller = TextEditingController(text: ref.read(searchQueryProvider));
+  late final TextEditingController _controller;
   final _fieldFocus = FocusNode(debugLabel: 'search-field');
   Timer? _timer;
 
   @override
   void initState() {
     super.initState();
+    // Here, not lazily: Windows never builds the field, so a lazy one was
+    // first made inside dispose(), where reading `ref` throws.
+    _controller = TextEditingController(text: ref.read(searchQueryProvider));
     searchFieldRequest.addListener(_onFieldRequest);
     _onFieldRequest();
   }
@@ -399,14 +407,21 @@ class _ResultsState extends ConsumerState<_Results> {
       return const SliverToBoxAdapter(child: TrackListSkeleton());
     }
     final lyricMatches = ref.watch(lyricsSearchProvider(query)).asData?.value ?? const <LyricMatch>[];
-    if (data.isEmpty && composers.isEmpty && (lyricMatches.isNotEmpty || onDevice.isNotEmpty)) {
+    // search3 has no playlists: match their names here.
+    final needle = query.trim().toLowerCase();
+    final playlists = [
+      for (final p in ref.watch(playlistsProvider).asData?.value ?? const <Playlist>[])
+        if (needle.isNotEmpty && p.name.toLowerCase().contains(needle)) p,
+    ];
+    final nothing = data.isEmpty && composers.isEmpty && playlists.isEmpty;
+    if (nothing && (lyricMatches.isNotEmpty || onDevice.isNotEmpty)) {
       return SliverMainAxisGroup(slivers: [
         LocalSearchSection(songs: onDevice, onUsed: onUsed),
         if (lyricMatches.isNotEmpty) _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),
         SliverToBoxAdapter(child: SearchOnlineRow(query: query)),
       ]);
     }
-    if (data.isEmpty && composers.isEmpty) {
+    if (nothing) {
       final online = ref.watch(onlineFetchEnabledProvider).asData?.value ?? false;
       if (online && looksLikeLink(query)) {
         // A pasted playlist link: offer to send it rather than "no results".
@@ -426,26 +441,57 @@ class _ResultsState extends ConsumerState<_Results> {
 
     final svc = ref.read(subsonicServiceProvider);
     final songs = data.songs;
+    // The order results are read in: Songs, (films, once film search lands),
+    // Playlists, Albums, then artists and composers.
     return SliverMainAxisGroup(slivers: [
-      if (data.artists.isNotEmpty)
+      if (songs.isNotEmpty) ...[
+        const SliverToBoxAdapter(child: SectionHeader(title: 'Songs')),
+        if (useSongTable())
+          SongTableSliver(
+            songs: songs,
+            onPlay: (song, ordered) {
+              onUsed();
+              ref.read(playerProvider.notifier).setQueue(ordered, ordered.indexOf(song), playlistName: 'Search');
+            },
+          )
+        else
+          SliverFixedExtentList(
+            itemExtent: SongTile.extent,
+            delegate: SliverChildBuilderDelegate(
+              (context, i) => Entrance(
+                group: 'search',
+                index: i,
+                rise: 8,
+                child: SongTile(
+                  song: songs[i],
+                  onTap: () {
+                    onUsed();
+                    ref.read(playerProvider.notifier).setQueue(songs, i, playlistName: 'Search');
+                  },
+                ),
+              ),
+              childCount: songs.length,
+            ),
+          ),
+      ],
+      if (playlists.isNotEmpty)
         SliverToBoxAdapter(
           child: MediaShelf(
-            title: 'Artists',
-            cardSize: 110,
-            hasSubtitle: false,
-            itemCount: data.artists.length,
+            title: 'Playlists',
+            itemCount: playlists.length,
             itemBuilder: (context, i) {
-              final a = data.artists[i];
+              final p = playlists[i];
               return MediaCard(
-                title: a.name,
-                artUrl: svc.getCoverArtUrl(a.coverArtId),
-                size: 110,
-                circular: true,
-                placeholderIcon: NaviGlyph.person,
+                title: p.name,
+                subtitle: songCount(p.songCount),
+                artUrl: svc.getCoverArtUrl(p.coverArt ?? p.id),
+                size: 150,
+                placeholderIcon: NaviGlyph.playlist,
                 onTap: () {
                   onUsed();
-                  navigateInApp(context, ArtistScreen(artistId: a.id, name: a.name));
+                  navigateInApp(context, PlaylistDetailsScreen(playlist: p));
                 },
+                onLongPress: () => showPlaylistMenu(context, ref, p),
               );
             },
           ),
@@ -481,42 +527,35 @@ class _ResultsState extends ConsumerState<_Results> {
             },
           ),
         ),
+      if (data.artists.isNotEmpty)
+        SliverToBoxAdapter(
+          child: MediaShelf(
+            title: 'Artists',
+            cardSize: 110,
+            hasSubtitle: false,
+            itemCount: data.artists.length,
+            itemBuilder: (context, i) {
+              final a = data.artists[i];
+              return MediaCard(
+                title: a.name,
+                artUrl: svc.getCoverArtUrl(a.coverArtId),
+                size: 110,
+                circular: true,
+                placeholderIcon: NaviGlyph.person,
+                onTap: () {
+                  onUsed();
+                  navigateInApp(context, ArtistScreen(artistId: a.id, name: a.name));
+                },
+              );
+            },
+          ),
+        ),
       if (composers.isNotEmpty) ...[
         const SliverToBoxAdapter(child: SectionHeader(title: 'Composers')),
         SliverList.list(children: [
           for (final (i, c) in composers.indexed)
             ComposerRow(composer: c, showSeparator: i < composers.length - 1, onBeforeOpen: onUsed),
         ]),
-      ],
-      if (songs.isNotEmpty) ...[
-        const SliverToBoxAdapter(child: SectionHeader(title: 'Songs')),
-        if (useSongTable())
-          SongTableSliver(
-            songs: songs,
-            onPlay: (song, ordered) {
-              onUsed();
-              ref.read(playerProvider.notifier).setQueue(ordered, ordered.indexOf(song), playlistName: 'Search');
-            },
-          )
-        else
-          SliverFixedExtentList(
-            itemExtent: SongTile.extent,
-            delegate: SliverChildBuilderDelegate(
-              (context, i) => Entrance(
-                group: 'search',
-                index: i,
-                rise: 8,
-                child: SongTile(
-                  song: songs[i],
-                  onTap: () {
-                    onUsed();
-                    ref.read(playerProvider.notifier).setQueue(songs, i, playlistName: 'Search');
-                  },
-                ),
-              ),
-              childCount: songs.length,
-            ),
-          ),
       ],
       LocalSearchSection(songs: onDevice, onUsed: onUsed),
       if (lyricMatches.isNotEmpty) _LyricMatches(matches: lyricMatches, query: query, onUsed: onUsed),

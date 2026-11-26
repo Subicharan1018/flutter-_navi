@@ -33,12 +33,13 @@ enum FetchKind {
 }
 
 /// What to search online for. [song] is the default; the others list whole
-/// albums, artists, playlists or record labels.
+/// albums, artists, playlists or record labels. Declared in the order the
+/// tabs show them.
 enum FetchSearchType {
   song('Songs', 'Song, film or artist'),
+  playlist('Playlists', 'Playlist'),
   album('Albums', 'Album or film'),
   artist('Artists', 'Artist'),
-  playlist('Playlists', 'Playlist'),
   label('Labels', 'Record label');
 
   const FetchSearchType(this.title, this.placeholder);
