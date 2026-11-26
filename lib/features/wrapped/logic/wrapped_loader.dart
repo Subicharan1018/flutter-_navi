@@ -16,7 +16,7 @@ abstract class WrappedStore {
 
 /// Where an account's year is kept: one copy per server, user and year.
 String wrappedStoreKey(String serverUrl, String username, int year) =>
-    'wrapped_v2_${serverUrl.trim().toLowerCase()}|${username.trim().toLowerCase()}_$year';
+    'wrapped_v3_${serverUrl.trim().toLowerCase()}|${username.trim().toLowerCase()}_$year';
 
 /// How far a Wrapped has got. Until it is [settled] the days (streak, biggest day) are not known yet.
 class WrappedLoad {

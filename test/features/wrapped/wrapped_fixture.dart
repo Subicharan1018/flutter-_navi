@@ -28,9 +28,9 @@ WrappedData fixtureWrapped({bool thin = false}) {
     year: 2026, totalMinutes: 41230, totalPlays: 9120, uniqueSongs: 1480, uniqueArtists: 312, listeningDays: 318, skipRate: 0.18, peakHour: 23,
     hourly: [for (var h = 0; h < 24; h++) h == 23 ? 900 : (h >= 21 || h <= 1) ? 500 - (h % 7) * 30 : 80 + (h * 37) % 160],
     songs: const [
-      WrappedSong(title: 'Munbe Vaa', artist: 'A. R. Rahman', plays: 212, minutes: 960),
-      WrappedSong(title: 'Kadhal Sadugudu', artist: 'Harris Jayaraj', plays: 180, minutes: 820),
-      WrappedSong(title: 'Vaseegara', artist: 'Bombay Jayashri', plays: 161, minutes: 700),
+      WrappedSong(title: 'Munbe Vaa', artist: 'A. R. Rahman', plays: 212, minutes: 960, album: 'Sillunu Oru Kaadhal'),
+      WrappedSong(title: 'Kadhal Sadugudu', artist: 'Harris Jayaraj', plays: 180, minutes: 820, album: 'Alaipayuthey'),
+      WrappedSong(title: 'Vaseegara', artist: 'Bombay Jayashri', plays: 161, minutes: 700, album: 'Minnale'),
       WrappedSong(title: 'Nenjukkul Peidhidum', artist: 'Harris Jayaraj', plays: 140, minutes: 640),
       WrappedSong(title: 'Anbil Avan', artist: 'A. R. Rahman', plays: 122, minutes: 530),
     ],
@@ -51,12 +51,19 @@ WrappedData fixtureWrapped({bool thin = false}) {
     ],
     months: [
       for (var m = 1; m <= 12; m++)
-        WrappedMonth(month: m, minutes: [2100, 1800, 4800, 3000, 2500, 2200, 3100, 3500, 3900, 5200, 4300, 3800][m - 1], topGenre: 'Tamil film', topSong: 'Munbe Vaa'),
+        WrappedMonth(month: m, minutes: [2100, 1800, 4800, 3000, 2500, 2200, 3100, 3500, 3900, 5200, 4300, 3800][m - 1], topGenre: 'Tamil film', topSong: 'Munbe Vaa', topArtist: 'A. R. Rahman'),
     ],
     days: [for (final d in dates) WrappedDay(date: d, minutes: days[d]!)],
     longestStreak: 16, streakStart: '2026-03-05', streakEnd: '2026-03-20',
     bestDay: const WrappedDay(date: '2026-10-14', minutes: 412),
     story: const WrappedStory(
+      bpm: 96,
+      albums: [
+        WrappedAlbum('Sillunu Oru Kaadhal', 'A. R. Rahman', 334, 2, 'Munbe Vaa|A. R. Rahman'),
+        WrappedAlbum('Alaipayuthey', 'Harris Jayaraj', 180, 1, 'Kadhal Sadugudu|Harris Jayaraj'),
+        WrappedAlbum('Minnale', 'Bombay Jayashri', 161, 1, 'Vaseegara|Bombay Jayashri'),
+        WrappedAlbum('Ghajini', 'Harris Jayaraj', 140, 1, 'Nenjukkul Peidhidum|Harris Jayaraj'),
+      ],
       obsession: Obsession('Vaseegara', 'Bombay Jayashri', 87, 3),
       race: {
         'A. R. Rahman': [80, 190, 420, 560, 700, 820, 980, 1150, 1330, 1560, 1740, 1900],
@@ -104,12 +111,15 @@ Future<WrappedFilm> fixtureFilm({WrappedData? data, bool art = true}) async {
   final assets = FilmAssets();
   if (art) {
     for (var i = 0; i < d.songs.length; i++) {
-      assets.covers[d.songs[i].coverKey] = await fakeArt(i);
+      final art = await fakeArt(i);
+      assets.covers[d.songs[i].coverKey] = art;
+      assets.hues[d.songs[i].coverKey] = await imageHue(art);
     }
     for (var i = 0; i < d.artists.length; i++) {
       assets.people[d.artists[i].name] = await fakeArt(i + 1);
     }
   }
+  assets.year = await textPoints('${d.year}', 1300);
   return WrappedFilm(d, assets);
 }
 

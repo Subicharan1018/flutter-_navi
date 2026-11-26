@@ -47,6 +47,7 @@ final wrappedProvider = StreamProvider.autoDispose.family<WrappedLoad, int>(retr
         composer: (meta?.composer?.trim().isNotEmpty ?? false) ? meta!.composer : song.composer,
         languages: [for (final c in codes) languageNames[c] ?? c.toUpperCase()],
         mood: meta?.moods.firstOrNull,
+        bpm: meta?.bpm,
       );
     },
     endsOf: (y) async {

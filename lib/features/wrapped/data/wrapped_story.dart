@@ -9,7 +9,18 @@ class SongFacts {
   final String? composer;
   final List<String> languages;
   final String? mood;
-  const SongFacts({this.year, this.composer, this.languages = const [], this.mood});
+  final double? bpm;
+  const SongFacts({this.year, this.composer, this.languages = const [], this.mood, this.bpm});
+}
+
+/// An album you came back to: [cover] is the "title|artist" of its most played song.
+class WrappedAlbum {
+  final String name;
+  final String artist;
+  final int plays;
+  final int songs;
+  final String cover;
+  const WrappedAlbum(this.name, this.artist, this.plays, this.songs, this.cover);
 }
 
 /// A song that took over a month.
@@ -94,7 +105,15 @@ class WrappedStory {
   final Era? era;
   final Bookends? ends;
 
+  /// Albums of your most played songs, by their plays.
+  final List<WrappedAlbum> albums;
+
+  /// Beats a minute of your number one, when the server has analysed it.
+  final double? bpm;
+
   const WrappedStory({
+    this.albums = const [],
+    this.bpm,
     this.obsession,
     this.race = const {},
     this.loyal,
@@ -120,6 +139,10 @@ class WrappedStory {
     'mo': [for (final g in moods) g.toJson()],
     if (era case final e?) 'e': [e.middle, e.oldest, e.newest, e.oldestTitle, e.newestTitle],
     if (ends case final b?) 'b': [b.first.toJson(), b.last.toJson()],
+    'al': [
+      for (final a in albums) [a.name, a.artist, a.plays, a.songs, a.cover],
+    ],
+    'bpm': ?bpm,
   };
 
   factory WrappedStory.fromJson(Map<String, dynamic> j) {
@@ -130,6 +153,11 @@ class WrappedStory {
     int n(Object? v) => (v as num).toInt();
     final o = j['o'] as List?, l = j['l'] as Map?, c = j['c'] as List?, e = j['e'] as List?, b = j['b'] as List?;
     return WrappedStory(
+      albums: [
+        for (final a in (j['al'] as List? ?? const []))
+          if (a is List && a.length == 5) WrappedAlbum('${a[0]}', '${a[1]}', n(a[2]), n(a[3]), '${a[4]}'),
+      ],
+      bpm: (j['bpm'] as num?)?.toDouble(),
       obsession: o == null ? null : Obsession('${o[0]}', '${o[1]}', n(o[2]), n(o[3])),
       race: {for (final x in ((j['r'] as Map?) ?? const {}).entries) '${x.key}': [for (final v in x.value as List) n(v)]},
       loyal: l == null ? null : Loyal('${l['n']}', [for (final v in l['m'] as List) n(v)]),
@@ -201,11 +229,27 @@ WrappedStory buildStory({
     week = [for (var i = 0; i < 7; i++) n[i] == 0 ? 0 : (sum[i] / n[i]).round()];
   }
 
+  final byAlbum = <String, (String, int, int, String, int)>{}; // name -> artist, plays, songs, cover, cover plays
+  for (final s in pool) {
+    if (s.album.trim().isEmpty) continue;
+    final was = byAlbum[s.album];
+    byAlbum[s.album] = was == null
+        ? (s.artist, s.plays, 1, s.coverKey, s.plays)
+        : (was.$1, was.$2 + s.plays, was.$3 + 1, s.plays > was.$5 ? s.coverKey : was.$4, math.max(was.$5, s.plays));
+  }
+  final albumNames = byAlbum.keys.toList()..sort((a, b) => byAlbum[b]!.$2.compareTo(byAlbum[a]!.$2));
+  final albums = [
+    for (final k in albumNames.take(8)) WrappedAlbum(k, byAlbum[k]!.$1, byAlbum[k]!.$2, byAlbum[k]!.$3, byAlbum[k]!.$4),
+  ];
+  final bpm = pool.isEmpty ? null : facts[pool.first.coverKey]?.bpm;
+
   final known = [
     for (final s in pool)
       if (facts[s.coverKey] case final f?) (s, f),
   ];
-  if (known.length < 3) return WrappedStory(obsession: obsession, race: race, loyal: loyal, comeback: comeback, week: week, ends: ends);
+  if (known.length < 3) {
+    return WrappedStory(obsession: obsession, race: race, loyal: loyal, comeback: comeback, week: week, ends: ends, albums: albums, bpm: bpm);
+  }
 
   List<WrappedGenre> shares(String? Function(SongFacts) of) {
     final by = <String, int>{};
@@ -260,5 +304,7 @@ WrappedStory buildStory({
     moods: shares((f) => f.mood),
     era: era,
     ends: ends,
+    albums: albums,
+    bpm: bpm,
   );
 }

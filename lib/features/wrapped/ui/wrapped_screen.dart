@@ -44,7 +44,7 @@ class WrappedScreen extends ConsumerStatefulWidget {
 }
 
 class _WrappedScreenState extends ConsumerState<WrappedScreen> {
-  late final WrappedFilm _film = WrappedFilm(emptyWrapped(widget.year), FilmAssets(), grains: PlatformUtils.isConstrained ? 260 : 520, settled: false);
+  late final WrappedFilm _film = WrappedFilm(emptyWrapped(widget.year), FilmAssets(), quality: PlatformUtils.isConstrained ? 0.5 : 1, settled: false);
   final ValueNotifier<int> _arrivals = ValueNotifier(0);
   final Set<String> _wanted = {};
   final Set<String> _asked = {};
@@ -55,6 +55,11 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) => debugPrint('[Wrapped] intro on screen ${_clock.elapsedMilliseconds} ms'));
+    textPoints('${widget.year}', 1300).then((p) {
+      if (!mounted) return;
+      _film.assets.year = p;
+      _arrivals.value++;
+    });
     ref.listenManual(wrappedProvider(widget.year), fireImmediately: true, (_, next) {
       final load = next.asData?.value;
       if (load == null || identical(load, _load)) return;
@@ -67,8 +72,13 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
   }
 
   void _wantArt(WrappedData d) {
-    final o = d.story.obsession;
-    for (final key in {for (final s in d.songs.take(5)) s.coverKey, if (o != null) '${o.title}|${o.artist}'}) {
+    final o = d.story.obsession, b = d.busiestMonth;
+    for (final key in {
+      for (final s in d.songs.take(5)) s.coverKey,
+      if (o != null) '${o.title}|${o.artist}',
+      for (final a in d.story.albums.take(5)) a.cover,
+      if (b != null && b.topSong != null && b.topArtist != null) '${b.topSong}|${b.topArtist}',
+    }) {
       if (!_wanted.add('s$key')) continue;
       ref.listenManual(songCoverUrlProvider(key), fireImmediately: true, (_, v) => _fetch('s$key', v.asData?.value, (url) => _picture(_film.assets.covers, key, url, 640)));
     }
@@ -90,6 +100,8 @@ class _WrappedScreenState extends ConsumerState<WrappedScreen> {
     if (image == null) return;
     if (!mounted) return image.dispose();
     into[key] = image;
+    if (identical(into, _film.assets.covers)) _film.assets.hues[key] = await imageHue(image);
+    if (!mounted) return;
     _arrivals.value++;
     debugPrint('[Wrapped] picture ${_film.assets.covers.length + _film.assets.people.length} at ${_clock.elapsedMilliseconds} ms');
   }

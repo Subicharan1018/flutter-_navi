@@ -8,14 +8,15 @@ class WrappedSong {
   final String artist;
   final int plays;
   final int minutes;
-  const WrappedSong({required this.title, required this.artist, required this.plays, required this.minutes});
+  final String album;
+  const WrappedSong({required this.title, required this.artist, required this.plays, required this.minutes, this.album = ''});
 
   /// The key the cover providers use ("title|artist").
   String get coverKey => '$title|$artist';
 
-  Map<String, dynamic> toJson() => {'t': title, 'a': artist, 'p': plays, 'm': minutes};
+  Map<String, dynamic> toJson() => {'t': title, 'a': artist, 'p': plays, 'm': minutes, if (album.isNotEmpty) 'l': album};
   factory WrappedSong.fromJson(Map<String, dynamic> j) =>
-      WrappedSong(title: '${j['t'] ?? ''}', artist: '${j['a'] ?? ''}', plays: _i(j['p']), minutes: _i(j['m']));
+      WrappedSong(title: '${j['t'] ?? ''}', artist: '${j['a'] ?? ''}', plays: _i(j['p']), minutes: _i(j['m']), album: '${j['l'] ?? ''}');
 }
 
 class WrappedArtist {
@@ -45,11 +46,17 @@ class WrappedMonth {
   final int minutes;
   final String? topGenre;
   final String? topSong;
-  const WrappedMonth({required this.month, required this.minutes, this.topGenre, this.topSong});
+  final String? topArtist;
+  const WrappedMonth({required this.month, required this.minutes, this.topGenre, this.topSong, this.topArtist});
 
-  Map<String, dynamic> toJson() => {'mo': month, 'm': minutes, 'g': topGenre, 's': topSong};
-  factory WrappedMonth.fromJson(Map<String, dynamic> j) =>
-      WrappedMonth(month: _i(j['mo']), minutes: _i(j['m']), topGenre: j['g'] as String?, topSong: j['s'] as String?);
+  Map<String, dynamic> toJson() => {'mo': month, 'm': minutes, 'g': topGenre, 's': topSong, 'a': topArtist};
+  factory WrappedMonth.fromJson(Map<String, dynamic> j) => WrappedMonth(
+    month: _i(j['mo']),
+    minutes: _i(j['m']),
+    topGenre: j['g'] as String?,
+    topSong: j['s'] as String?,
+    topArtist: j['a'] as String?,
+  );
 }
 
 /// One day with music: `date` is `yyyy-mm-dd`.

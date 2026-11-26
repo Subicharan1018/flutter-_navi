@@ -3,25 +3,28 @@ import 'dart:ui' as ui;
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/foundation.dart';
-import 'package:flutter/material.dart' show Material, MaterialType;
+import 'package:flutter/material.dart' show Material;
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/services.dart';
 
 import '../../../core/theme.dart';
 import '../../../widgets/art/navi_icons.dart';
 import '../film/film.dart';
-import 'wrapped_share_sheet.dart';
+import 'wrapped_share_hub.dart';
+import 'wrapped_share_sheet.dart' show WrappedPanel;
 
 /// When a scene lands something you should feel it.
 const _thumps = <String, List<double>>{
-  'intro': [3.3],
+  'intro': [0.9, 2.9],
   'minutes': [1.5, 5.4],
-  'guess': [2.8, 5.5],
+  'guess': [9.0],
   'number-one': [2.6],
   'top5': [2.6, 3.7, 4.7, 5.8, 6.8],
-  'clock': [3.4],
-  'journey': [5.0],
+  'artists': [0.4, 0.62, 0.84, 1.06, 1.28, 1.5],
+  'clock': [4.0],
+  'journey': [5.6],
   'race': [7.6],
+  'albums': [1.9, 3.4, 4.9, 6.4, 7.9],
   'obsession': [5.0],
   'bookends': [5.1],
   'composers': [3.2],
@@ -30,10 +33,11 @@ const _thumps = <String, List<double>>{
   'week': [2.6],
   'streak': [5.4],
   'loyalty': [4.0, 6.2],
-  'best-day': [1.1, 5.1],
-  'discovery': [0.5, 1.4, 2.3, 3.2, 4.1, 5.0, 5.8],
-  'personality': [3.7],
-  'finale': [0.9],
+  'best-day': [2.2, 5.2],
+  'discovery': [1.0, 3.6],
+  'totals': [6.1],
+  'personality': [1.9],
+  'finale': [0.9, 3.4],
 };
 
 /// Plays the film and lets you touch it. Tap the edges to move, tap or drag the middle to play the scene, hold to
@@ -63,7 +67,7 @@ class WrappedStage extends StatefulWidget {
 class WrappedStageState extends State<WrappedStage> with SingleTickerProviderStateMixin {
   late final Ticker _ticker = createTicker(_tick);
   final ValueNotifier<int> _beat = ValueNotifier(0);
-  final FilmTouch _touch = FilmTouch();
+  final FilmTouch _touch = FilmTouch()..live = true;
   Duration _last = Duration.zero;
   int _index = 0;
   int? _from;
@@ -151,7 +155,8 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
         ..scrubX = null
         ..spin = 0
         ..guess = null
-        ..kick = 9;
+        ..kick = 9
+        ..trail.clear();
     });
     _report();
   }
@@ -171,7 +176,10 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
     }
     if (_scene.particles && _frames.length >= 45) {
       final slow = _frames.skip(_frames.length - 45).where((v) => v > 16700).length;
-      if (slow > 9 && widget.film.grains > 180) widget.film.grains = (widget.film.grains * 0.65).round();
+      if (slow > 9 && widget.film.quality > 0.3) {
+        widget.film.quality = math.max(0.3, widget.film.quality * 0.7);
+        _frames.clear();
+      }
     }
   }
 
@@ -181,7 +189,7 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
       final slow = sorted.where((v) => v > 16700).length;
       debugPrint(
         '[Wrapped] frames $_measured n=${sorted.length} slow=$slow (${(100 * slow / sorted.length).toStringAsFixed(1)}%) '
-        'p50=${(sorted[sorted.length ~/ 2] / 1000).toStringAsFixed(1)} p90=${(sorted[sorted.length * 9 ~/ 10] / 1000).toStringAsFixed(1)} max=${(sorted.last / 1000).toStringAsFixed(1)} grains=${widget.film.grains}',
+        'p50=${(sorted[sorted.length ~/ 2] / 1000).toStringAsFixed(1)} p90=${(sorted[sorted.length * 9 ~/ 10] / 1000).toStringAsFixed(1)} max=${(sorted.last / 1000).toStringAsFixed(1)} quality=${widget.film.quality.toStringAsFixed(2)}',
       );
     }
     _frames.clear();
@@ -210,16 +218,25 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
     _touch
       ..kick = 0
       ..kickAt = p;
+    if (_touch.wantsShare) {
+      _touch.wantsShare = false;
+      _share();
+      return;
+    }
     _touch.guess != before && _touch.guess == 0 ? HapticFeedback.heavyImpact() : HapticFeedback.mediumImpact();
   }
 
   void _panStart(Offset p) {
     _start = p;
     _touch.finger = p;
+    _touch.trail
+      ..add(null)
+      ..add(p);
   }
 
   void _panUpdate(Offset p, Offset delta) {
     _touch.finger = p;
+    if (_touch.trail.length < 4000) _touch.trail.add(p);
     final u = _size.width / 360;
     _touch.spin += delta.dx / (90 * u);
     _touch.tiltX = (_touch.tiltX + delta.dx / (130 * u)).clamp(-1.0, 1.0);
@@ -261,9 +278,14 @@ class WrappedStageState extends State<WrappedStage> with SingleTickerProviderSta
   Future<void> _share() async {
     if (_busy) return;
     _busy = true;
-    await showCupertinoModalPopup<void>(
-      context: context,
-      builder: (_) => WrappedShareSheet(film: widget.film, index: _index, name: widget.name),
+    await Navigator.of(context).push(
+      PageRouteBuilder<void>(
+        transitionDuration: Motion.slow,
+        pageBuilder: (_, _, _) => WrappedShareHub(film: widget.film, index: _index, name: widget.name),
+        transitionsBuilder: (context, a, _, child) => MediaQuery.disableAnimationsOf(context)
+            ? child
+            : SlideTransition(position: Tween(begin: const Offset(0, 1), end: Offset.zero).animate(CurvedAnimation(parent: a, curve: Motion.ease)), child: child),
+      ),
     );
     _busy = false;
   }

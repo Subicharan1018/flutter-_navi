@@ -52,7 +52,7 @@ WrappedData buildWrapped(YearlyReplayResponse y, List<MonthlyReplayResponse> mon
     if (bestDay == null || d.minutes > bestDay.minutes) bestDay = d;
   }
 
-  final pool = [for (final t in y.topTracks) WrappedSong(title: t.title, artist: t.artist, plays: t.playCount, minutes: t.totalMinutes.round())];
+  final pool = [for (final t in y.topTracks) WrappedSong(title: t.title, artist: t.artist, plays: t.playCount, minutes: t.totalMinutes.round(), album: t.album)];
   return WrappedData(
     story: buildStory(months: months, days: days, pool: pool, facts: facts, ends: ends),
     year: y.year,
@@ -75,6 +75,7 @@ WrappedData buildWrapped(YearlyReplayResponse y, List<MonthlyReplayResponse> mon
           minutes: (byMonth[m]?.totalMinutes ?? cards[m]?.totalMinutes ?? 0).round(),
           topGenre: byMonth[m]?.topGenres.firstOrNull?.genre ?? cards[m]?.topGenre,
           topSong: byMonth[m]?.topTracks.firstOrNull?.title ?? cards[m]?.topTrack?.title,
+          topArtist: byMonth[m]?.topTracks.firstOrNull?.artist ?? cards[m]?.topTrack?.artist,
         ),
     ],
     days: days,

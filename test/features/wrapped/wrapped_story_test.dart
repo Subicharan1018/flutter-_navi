@@ -82,6 +82,21 @@ void main() {
     });
   });
 
+  test('albums add up the plays of their songs, and the number one has its tempo', () {
+    final s = buildStory(
+      months: const [],
+      pool: [
+        const WrappedSong(title: 'A', artist: 'X', plays: 50, minutes: 1, album: 'One'),
+        const WrappedSong(title: 'B', artist: 'X', plays: 40, minutes: 1, album: 'Two'),
+        const WrappedSong(title: 'C', artist: 'X', plays: 30, minutes: 1, album: 'Two'),
+        const WrappedSong(title: 'D', artist: 'Y', plays: 5, minutes: 1),
+      ],
+      facts: const {'A|X': SongFacts(bpm: 96)},
+    );
+    expect(s.albums.map((a) => (a.name, a.plays, a.songs, a.cover)), [('Two', 70, 2, 'B|X'), ('One', 50, 1, 'A|X')]);
+    expect(s.bpm, 96);
+  });
+
   group('bookends', () {
     WrappedPlay p(String t, String at) => WrappedPlay(title: t, artist: 'A', at: at);
     test('are kept only when the neighbour proves the first is the first', () {

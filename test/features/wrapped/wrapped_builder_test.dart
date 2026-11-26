@@ -85,6 +85,8 @@ void main() {
     expect(w.months.length, 12);
     expect(w.months[2].topGenre, 'Jazz');
     expect(w.months[2].topSong, 'T3');
+    expect(w.months[2].topArtist, 'X');
+    expect(w.songs.first.album, 'L1');
     expect(w.months[2].minutes, 20);
     expect(w.months[0].minutes, 0);
     expect(w.months[0].topGenre, isNull);

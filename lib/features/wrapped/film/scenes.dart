@@ -1,8 +1,8 @@
 import '../data/wrapped_models.dart';
 import 'film.dart';
-import 'scenes_listening.dart';
-import 'scenes_music.dart';
-import 'scenes_you.dart';
+import 'scenes_end.dart';
+import 'scenes_mid.dart';
+import 'scenes_open.dart';
 
 const monthNames = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 
@@ -36,22 +36,23 @@ String nice(String title) {
 }
 
 /// The film, in order. A scene with nothing behind it is left out. Until the year is [settled] the film runs only as
-/// far as what is known, so nothing is ever added behind you: more of it appears ahead.
+/// far as what is known, so nothing is ever added behind you: more of it appears ahead. Neighbours never share a colour world.
 List<FilmScene> filmScenes(WrappedData d, {bool settled = true}) {
-  if (d.isEmpty) return settled ? [TunnelScene(), SandScene(), ReceiptScene(), SigilScene(d), MixtapeScene()] : [TunnelScene()];
+  if (d.isEmpty) return settled ? [IgniteScene(), SandScene(), ReceiptScene(), SpiritScene(d), MixtapeScene()] : [IgniteScene()];
   final s = d.story;
   return [
-    TunnelScene(),
+    IgniteScene(),
     SandScene(),
-    if (d.songs.length >= 3) CardsScene(),
+    if (d.songs.length >= 3) ScratchScene(),
     if (d.songs.isNotEmpty) TurntableScene(),
     if (d.songs.length >= 2) FlapScene(d),
-    if (d.artists.isNotEmpty) SolarScene(),
+    if (d.artists.isNotEmpty) PinboardScene(),
     if (d.genres.isNotEmpty) RibbonScene(),
-    if (d.hourly.any((v) => v > 0)) AstrolabeScene(),
+    if (d.hourly.any((v) => v > 0)) SkylineScene(),
     if (d.busiestMonth != null) RidgeScene(),
     if (settled) ...[
       if (s.race.length >= 3) RaceScene(d),
+      if (s.albums.length >= 2) CrateScene(),
       if (s.obsession != null) ObsessionScene(),
       if (s.ends != null) CassetteScene(),
       if (s.composers.length >= 2) ReelScene(),
@@ -60,10 +61,11 @@ List<FilmScene> filmScenes(WrappedData d, {bool settled = true}) {
       if (s.era != null) TunerScene(),
       if (s.week.any((v) => v > 0)) FadersScene(),
       if (d.days.isNotEmpty) CalendarScene(),
+      if (d.uniqueSongs > 0) WarpScene(),
       if (s.loyal != null) ScoreboardScene(),
-      if (d.bestDay != null) TicketScene(),
+      if (d.bestDay != null) ShoreScene(d),
       ReceiptScene(),
-      SigilScene(d),
+      SpiritScene(d),
       MixtapeScene(),
     ],
   ];

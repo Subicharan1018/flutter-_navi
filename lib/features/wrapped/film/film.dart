@@ -48,6 +48,15 @@ class FilmTouch {
   Offset? kickAt;
   double kick = 9; // seconds since the last tap on the scene
 
+  /// Every point a finger has dragged through on this scene; null between strokes.
+  final List<Offset?> trail = [];
+
+  /// True on screen; pictures and videos have no buttons in them.
+  bool live = false;
+
+  /// Set by a scene when a tap asked for the share screen.
+  bool wantsShare = false;
+
   void tick(double dt) => kick += dt;
 
   /// 1 at the tap, gone within [over] seconds.
@@ -57,12 +66,72 @@ class FilmTouch {
 /// One particle, reused for every particle of every frame.
 class Dot {
   double x = 0, y = 0, r = 1, a = 1;
-  void set(double px, double py, double radius, double alpha) {
+  int rgb = 0xFFFFFF;
+  void set(double px, double py, double radius, double alpha, [int colour = 0xFFFFFF]) {
     x = px;
     y = py;
     r = radius;
     a = alpha;
+    rgb = colour;
   }
+}
+
+/// The colours a scene is lit with: a deep ground, a mid tone, a vivid accent and a light one. Read from a cover when
+/// there is one, otherwise picked from [Tone.vivid] so every scene has colour of its own.
+class Tone {
+  final Color deep, base, vivid, light;
+  const Tone(this.deep, this.base, this.vivid, this.light);
+
+  /// From any colour: deep enough under white text (4.5:1 or better), the colour itself, and a pale tint.
+  factory Tone.of(Color c) {
+    final h = HSLColor.fromColor(c);
+    final s = math.max(0.45, h.saturation);
+    return Tone(
+      h.withSaturation(math.min(0.8, s)).withLightness(0.13).toColor(),
+      h.withSaturation(s).withLightness(0.3).toColor(),
+      h.withSaturation(math.min(1, s + 0.15)).withLightness(0.58).toColor(),
+      h.withSaturation(s * 0.7).withLightness(0.86).toColor(),
+    );
+  }
+
+  // A curated set for scenes with no cover: warm and cool in turn, and never a Spotify green.
+  static const ember = Color(0xFFFF6B2C);
+  static const gold = Color(0xFFFFB627);
+  static const coral = Color(0xFFFF5470);
+  static const magenta = Color(0xFFE83E8C);
+  static const violet = Color(0xFF8A5CFF);
+  static const indigo = Color(0xFF4458FF);
+  static const azure = Color(0xFF1FA2FF);
+  static const teal = Color(0xFF14C8C8);
+  static const lime = Color(0xFFC6F432);
+  static const cream = Color(0xFFF6EBD6);
+}
+
+/// The hue of an image, read from a 12 x 12 copy: its most vivid well-lit pixel, else its average.
+Future<Color> imageHue(ui.Image image) async {
+  final rec = ui.PictureRecorder();
+  Canvas(rec).drawImageRect(image, Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()), const Rect.fromLTWH(0, 0, 12, 12), Paint()..filterQuality = FilterQuality.medium);
+  final pic = rec.endRecording();
+  final small = await pic.toImage(12, 12);
+  pic.dispose();
+  final b = (await small.toByteData(format: ui.ImageByteFormat.rawRgba))!;
+  small.dispose();
+  var best = -1.0;
+  var pick = const Color(0xFF808080);
+  var r = 0, g = 0, bl = 0;
+  for (var i = 0; i < 144; i++) {
+    final c = Color.fromARGB(255, b.getUint8(i * 4), b.getUint8(i * 4 + 1), b.getUint8(i * 4 + 2));
+    r += b.getUint8(i * 4);
+    g += b.getUint8(i * 4 + 1);
+    bl += b.getUint8(i * 4 + 2);
+    final h = HSLColor.fromColor(c);
+    final score = h.saturation * (1 - (h.lightness - 0.5).abs() * 1.6);
+    if (score > best) {
+      best = score;
+      pick = c;
+    }
+  }
+  return best > 0.18 ? pick : Color.fromARGB(255, r ~/ 144, g ~/ 144, bl ~/ 144);
 }
 
 /// One frame's canvas and clock, handed to a scene.
@@ -83,6 +152,25 @@ class FilmFrame {
   WrappedData get d => film.data;
   FilmAssets get assets => film.assets;
   FilmFrame at(double time) => FilmFrame(film, canvas, size, time, touch, name);
+
+  /// A cover's colours, or the [fallback] hue's.
+  Tone tone(String? coverKey, Color fallback) => Tone.of(coverKey == null ? fallback : (assets.hues[coverKey] ?? fallback));
+
+  /// The whole frame as a gradient from [top] to [bottom].
+  void sky(Color top, Color bottom, {Color? middle}) => canvas.drawRect(
+    Offset.zero & size,
+    Paint()..shader = ui.Gradient.linear(Offset.zero, Offset(0, h), [top, ?middle, bottom], middle == null ? null : const [0, 0.55, 1]),
+  );
+
+  /// A soft pool of [color] light: one radial gradient, no blur.
+  void glow(Offset at, double radius, Color color) => canvas.drawCircle(
+    at,
+    radius,
+    Paint()..shader = ui.Gradient.radial(at, radius, [color, color.withValues(alpha: 0)]),
+  );
+
+  /// Particles for this phone: [n] at full quality, fewer when frames run slow.
+  int grains(int n) => math.max(60, (n * film.quality).round());
 }
 
 abstract class FilmScene {
@@ -122,8 +210,8 @@ class WrappedFilm {
   bool settled;
   final FilmAssets assets;
 
-  /// Particles for the two scenes that use them. Lowered on a phone that cannot keep up.
-  int grains;
+  /// 0.3..1: how many of their particles the particle scenes draw. Lowered on a phone that cannot keep up.
+  double quality;
   late List<FilmScene> scenes = filmScenes(data, settled: settled);
   late final ui.Image _sprite = _makeSprite();
   Float32List _transforms = Float32List(0), _rects = Float32List(0);
@@ -131,7 +219,7 @@ class WrappedFilm {
   final Dot _dot = Dot();
   final Map<String, TextPainter> _text = {};
 
-  WrappedFilm(this.data, this.assets, {this.grains = 520, this.settled = true});
+  WrappedFilm(this.data, this.assets, {this.quality = 1, this.settled = true});
 
   /// More of the year has arrived: the scenes ahead appear, the ones so far stay where they are.
   void update(WrappedData data, {required bool settled}) {
@@ -249,7 +337,7 @@ class WrappedFilm {
       _transforms[i * 4 + 1] = 0;
       _transforms[i * 4 + 2] = _dot.x - _dot.r;
       _transforms[i * 4 + 3] = _dot.y - _dot.r;
-      _colors[i] = ((clamp01(_dot.a) * 255).round() << 24) | 0xFFFFFF;
+      _colors[i] = ((clamp01(_dot.a) * 255).round() << 24) | _dot.rgb;
     }
     c.drawRawAtlas(_sprite, _transforms, _rects, _colors, BlendMode.modulate, null, Paint()..filterQuality = FilterQuality.low);
   }

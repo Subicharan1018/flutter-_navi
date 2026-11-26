@@ -11,7 +11,8 @@ import 'package:navivibe/features/wrapped/film/film_export.dart';
 import 'package:navivibe/core/theme.dart';
 import 'package:navivibe/features/wrapped/film/film_assets.dart';
 import 'package:navivibe/features/wrapped/film/scenes.dart';
-import 'package:navivibe/features/wrapped/film/scenes_music.dart';
+import 'package:navivibe/features/wrapped/film/scenes_open.dart';
+import 'package:navivibe/features/wrapped/ui/wrapped_share_hub.dart';
 import 'package:navivibe/features/wrapped/data/wrapped_models.dart';
 import 'package:navivibe/features/wrapped/logic/wrapped_loader.dart';
 import 'package:navivibe/features/wrapped/logic/wrapped_providers.dart';
@@ -74,15 +75,47 @@ void main() {
 
   group('the film', () {
     test('a thin year keeps only the scenes it can fill', () {
-      expect(filmScenes(fixtureWrapped(thin: true)).map((s) => s.id), ['intro', 'minutes', 'discovery', 'personality', 'finale']);
-      expect(filmScenes(fixtureWrapped()).length, 23);
+      expect(filmScenes(fixtureWrapped(thin: true)).map((s) => s.id), ['intro', 'minutes', 'discovery', 'totals', 'personality', 'finale']);
+      expect(filmScenes(fixtureWrapped()).length, 25);
     });
 
     test('particles only where they are the thing itself, and no two scenes are drawn the same way', () {
       final s = filmScenes(fixtureWrapped());
-      expect([for (final x in s) if (x.particles) x.id], ['minutes', 'artists']);
+      expect([for (final x in s) if (x.particles) x.id], ['intro', 'minutes', 'discovery', 'best-day', 'personality']);
       expect(s.map((x) => x.technique).toSet().length, s.length);
-      expect(WrappedFilm(fixtureWrapped(), FilmAssets()).grains, lessThanOrEqualTo(520));
+    });
+
+    test('the owner’s scenes are where they asked for them', () {
+      final ids = [for (final s in filmScenes(fixtureWrapped())) s.id];
+      expect(ids, [
+        'intro', 'minutes', 'guess', 'number-one', 'top5', 'artists', 'genres', 'clock', 'journey', 'race', 'albums', 'obsession', 'bookends',
+        'composers', 'languages', 'moods', 'era', 'week', 'streak', 'discovery', 'loyalty', 'best-day', 'totals', 'personality', 'finale',
+      ]);
+    });
+
+    test('a slow phone draws fewer particles, never none', () {
+      final film = WrappedFilm(fixtureWrapped(), FilmAssets(), quality: 0.3);
+      final f = FilmFrame(film, Canvas(ui.PictureRecorder()), const Size(360, 780), 1, FilmTouch(), null);
+      expect(f.grains(1500), 450);
+      expect(f.grains(100), 60);
+    });
+
+    test('every scene’s colours are its own: no two neighbours share a ground', () async {
+      final film = await fixtureFilm();
+      final grounds = <Color>[];
+      for (var i = 0; i < film.scenes.length; i++) {
+        final rec = ui.PictureRecorder();
+        film.paint(Canvas(rec), const Size(36, 78), index: i, t: film.scenes[i].still);
+        final img = await rec.endRecording().toImage(36, 78);
+        final b = (await img.toByteData())!;
+        // the top-left corner is the ground in every scene
+        grounds.add(Color.fromARGB(255, b.getUint8(36 * 4 + 4), b.getUint8(36 * 4 + 5), b.getUint8(36 * 4 + 6)));
+      }
+      for (var i = 1; i < grounds.length; i++) {
+        expect(grounds[i] == grounds[i - 1], isFalse, reason: '${film.scenes[i - 1].id} and ${film.scenes[i].id}');
+      }
+      expect(grounds.where((g) => g.r == g.g && g.g == g.b).length, lessThan(3), reason: 'colour, not grey');
+      film.dispose();
     });
 
     test('every scene says how it was worked out, what to share and what to read aloud', () {
@@ -102,9 +135,9 @@ void main() {
       expect(nice('Love (Remix)'), 'Love (Remix)');
     });
 
-    test('the cards end where their shuffle says, each in its own place', () {
-      expect({for (var c = 0; c < 3; c++) CardsScene.place(c, CardsScene.ready).$1}, {0.0, 1.0, 2.0});
-      expect([for (var c = 0; c < 3; c++) CardsScene.place(c, 0).$1], [0, 1, 2]);
+    test('the tickets are never simply in rank order', () {
+      expect(ScratchScene.order(fixtureWrapped()).toSet(), {0, 1, 2});
+      expect(ScratchScene.order(fixtureWrapped()), isNot([0, 1, 2]));
     });
 
     testWidgets('the same moment always paints the same picture', (tester) async {
@@ -145,7 +178,7 @@ void main() {
 
     test('a still is taken after the numbers have landed', () {
       final s = {for (final s in filmScenes(fixtureWrapped())) s.id: s.still};
-      for (final (id, lands) in [('minutes', 5.4), ('number-one', 5.0), ('top5', 6.7), ('race', 7.6), ('obsession', 5.0), ('era', 4.0), ('week', 3.6), ('streak', 5.4), ('loyalty', 4.0), ('best-day', 5.0), ('discovery', 5.4)]) {
+      for (final (id, lands) in [('minutes', 5.4), ('number-one', 5.0), ('top5', 6.7), ('race', 7.6), ('obsession', 5.0), ('era', 4.0), ('week', 3.6), ('streak', 5.4), ('loyalty', 4.0), ('best-day', 5.2), ('discovery', 3.6), ('totals', 6.1), ('guess', 9.6)]) {
         expect(s[id], greaterThanOrEqualTo(lands), reason: id);
       }
     });
@@ -159,7 +192,7 @@ void main() {
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.pump();
       expect(stage.index, 2);
-      for (var i = 0; i < 20; i++) {
+      for (var i = 0; i < 30; i++) {
         await tester.tapAt(const Offset(380, 400));
         await tester.pump(const Duration(milliseconds: 50));
       }
@@ -189,21 +222,44 @@ void main() {
       expect(stage.touch.punch(), 0);
     });
 
-    testWidgets('cards cannot be picked while they move; a pick is kept and the film moves on', (tester) async {
-      final (_, stage) = await open(tester);
+    testWidgets('a tap is not a guess; scratching the foil is, and the film moves on', (tester) async {
+      final (film, stage) = await open(tester);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
       await run(tester, 2);
-      await tester.tapAt(const Offset(195, 397));
-      await tester.pump();
-      expect(stage.touch.guess, isNull);
-      await run(tester, 4.5);
-      await tester.tapAt(const Offset(195, 397));
-      await tester.pump();
-      final middle = [0, 1, 2].firstWhere((c) => CardsScene.place(c, 9).$1 == 1);
-      expect(stage.touch.guess, middle);
+      // the middle ticket's foil: right part of the second ticket
+      const h = 844.0;
+      final y = h * 0.2 + h * 0.205 + h * 0.09;
+      await tester.tapAt(Offset(300, y));
+      await run(tester, 0.1);
+      expect(stage.touch.guess, isNull, reason: 'one tap is too small a scratch');
+      final g = await tester.startGesture(const Offset(225, 0) + Offset(0, y - 30));
+      for (var i = 0; i < 6; i++) {
+        await g.moveTo(Offset(i.isEven ? 360 : 225, y - 30 + i * 12));
+        await tester.pump(const Duration(milliseconds: 16));
+      }
+      await g.up();
+      await run(tester, 0.1);
+      expect(stage.touch.guess, ScratchScene.order(film.data)[1]);
       await run(tester, 4);
       expect(stage.index, 3);
+    });
+
+    testWidgets('the end button opens the share hub with the highlights picked', (tester) async {
+      final (film, stage) = await open(tester);
+      for (var i = 0; i < 30; i++) {
+        await tester.sendKeyEvent(LogicalKeyboardKey.arrowRight);
+      }
+      await run(tester, 4.5);
+      expect(film.scenes[stage.index].id, 'finale');
+      await tester.tapAt(const Offset(195, 844 - 105));
+      await run(tester, 0.8);
+      expect(find.text('Share your Wrapped'), findsOneWidget);
+      final hub = tester.state<WrappedShareHubState>(find.byType(WrappedShareHub));
+      expect(hub.picks.length, 7);
+      await tester.tap(find.bySemanticsLabel('Back to the film'));
+      await run(tester, 0.8);
+      expect(find.byType(WrappedShareHub), findsNothing);
     });
 
     testWidgets('a tap sends the departures board round again', (tester) async {
@@ -359,7 +415,7 @@ void main() {
       loads.add(WrappedLoad(fixtureWrapped(), settled: true));
       await run(tester, 0.4);
       expect(stage(tester).index, 9);
-      expect(stage(tester).widget.film.scenes.length, 23);
+      expect(stage(tester).widget.film.scenes.length, 25);
       expect(find.textContaining('Adding your months'), findsNothing);
     });
 
