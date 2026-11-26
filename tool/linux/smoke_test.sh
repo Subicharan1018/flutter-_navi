@@ -172,28 +172,48 @@ wmctrl -c NaviVibe
 gone() { ! kill -0 "$app_pid" 2>/dev/null; }
 wait_for 20 gone || fail "closing the window did not end the app"
 set +e; wait "$app_pid"; code=$?; set -e
-# A native backtrace of a crash at close, with and without a song playing.
+# A native backtrace of a crash at close: the crash is a race, so try a few times.
 close_backtrace() {
   command -v gdb > /dev/null || return 0
-  for song in "$HOME/tone one.flac" ""; do
-    say "---- backtrace at close (${song:+playing}${song:-idle}) ----"
-    gdb -batch -nx -ex 'handle SIGPIPE nostop noprint pass' -ex run -ex bt -ex 'info sharedlibrary libmpv' \
-      --args /opt/navivibe/navivibe ${song:+"$song"} > /tmp/gdb.log 2>&1 &
-    local gdb_pid=$!
+  local i gdb_pid
+  for i in $(seq 1 10); do
+    gdb -batch -nx -ex 'handle SIGPIPE nostop noprint pass' -ex run -ex bt -ex 'thread apply all bt 8' \
+      --args /opt/navivibe/navivibe "$HOME/tone one.flac" > /tmp/gdb-$scenario.log 2>&1 &
+    gdb_pid=$!
     wait_for 60 has_window || true
-    sleep 15
+    sleep 6
     wmctrl -c NaviVibe || true
     wait_for 60 sh -c "! kill -0 $gdb_pid 2>/dev/null" || kill "$gdb_pid"
-    sed -n '/received signal\|exited normally\|exited with/,$p' /tmp/gdb.log | cut -c1-220 | head -n 30 \
-      | tee -a "$report/backtrace.txt"
+    if grep -q 'received signal SIG\(SEGV\|ABRT\)' /tmp/gdb-$scenario.log; then
+      sed -n '/received signal SIG\(SEGV\|ABRT\)/,$p' /tmp/gdb-$scenario.log | grep -v '^\[' | cut -c1-200 \
+        | head -n 60 >> "$report/backtrace.txt"
+      return 0
+    fi
   done
+  echo "no crash in 10 runs under gdb" >> "$report/backtrace.txt"
 }
-if [ "$code" != 0 ]; then
-  close_backtrace
-  fail "exit code $code after closing the window"
-fi
+close_failures() { close_backtrace; fail "$1"; }
+[ "$code" = 0 ] || close_failures "exit code $code after closing the window"
 no_errors "at close"
 pass "closing the window exits with code 0"
+
+# A crash at close can be a race: close a playing app again and again.
+codes=""
+bad=0
+for i in $(seq 1 8); do
+  start_app "$HOME/tone one.flac"
+  wait_for 60 has_window || fail "no window in close run $i"
+  wait_for 45 sink_input || fail "no audio in close run $i"
+  sleep $((i % 4 + 1))
+  wmctrl -c NaviVibe
+  wait_for 20 gone || fail "close run $i did not end the app"
+  set +e; wait "$app_pid"; c=$?; set -e
+  codes="$codes $c"
+  [ "$c" = 0 ] || bad=$((bad + 1))
+done
+[ "$bad" = 0 ] || close_failures "$bad of 8 closes while playing crashed (exit codes:$codes)"
+no_errors "repeated closes"
+pass "closed while playing 8 more times, every exit code 0"
 
 # Second start, on the data the first run left behind.
 start_app
