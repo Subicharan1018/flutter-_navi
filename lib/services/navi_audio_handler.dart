@@ -23,7 +23,10 @@ import '../offline_service.dart';
 import 'shuffle_algorithms.dart';
 import 'shuffle_bag.dart';
 import 'playback_tuning.dart';
+import 'player_volume.dart';
 import '../core/hive_boxes.dart';
+import '../features/equalizer/data/platform_eq_engine.dart';
+import '../features/equalizer/logic/equalizer_service.dart';
 import 'auto/browse_tree.dart';
 import 'auto/car_browser.dart';
 import 'open_intent.dart';
@@ -98,12 +101,21 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   /// Timer to detect stuck playback in loading or buffering state.
   Timer? _stuckTimer;
 
-  /// Android system equalizer, or null on other platforms (and when a test
-  /// injects its own [AudioPlayer]).
-  final AndroidEqualizer? equalizer;
+  /// The equalizer. Unsupported (no engine) on web, and when a test injects
+  /// its own [AudioPlayer].
+  late final EqualizerService equalizer;
+
+  /// Looks up a song's loudness tags in the local library mirror, for queue
+  /// entries that were built without them. Set by audioHandlerProvider.
+  Future<Song?> Function(String id)? gainLookup;
+
+  /// Loudness found after the fact, by song id; a null value means "asked,
+  /// and the song has none".
+  final Map<String, Song?> _foundGains = {};
 
   // ── ReplayGain / crossfade / speed ──────────────────────────────────────────
   ReplayGainMode _replayGainMode = ReplayGainMode.off;
+  LoudnessLevel _loudness = LoudnessLevel.normal;
   int _fadeSeconds = 0;
   double _replayVolume = 1.0;
   double _fadeFactor = 1.0;
@@ -143,32 +155,14 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   StreamSubscription<Duration>? _probeSub;
 
   NaviAudioHandler(
-    SubsonicService subsonicService, {
+    this.subsonicService, {
     AudioPlayer? player,
     TranscodingService? transcodingService,
+    EqualizerService? equalizer,
     Duration skipSettle = kSkipSettle,
-  }) : this._(
-         subsonicService,
-         player,
-         transcodingService,
-         player == null && PlatformUtils.isAndroid
-             ? AndroidEqualizer()
-             : null,
-         skipSettle,
-       );
-
-  NaviAudioHandler._(
-    this.subsonicService,
-    AudioPlayer? player,
-    TranscodingService? transcodingService,
-    this.equalizer,
-    Duration skipSettle,
-  ) : player =
+  }) : player =
            player ??
            AudioPlayer(
-             audioPipeline: equalizer == null
-                 ? null
-                 : AudioPipeline(androidAudioEffects: [equalizer]),
              // Lossless over a shared home uplink: read far ahead (up to 2 min,
              // ~15–20 MB of FLAC) so short congestion never reaches the ears.
              // Time wins over ExoPlayer's default byte cap, which would
@@ -187,6 +181,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
              ),
            ),
        _transcodingService = transcodingService ?? TranscodingService() {
+    this.equalizer = equalizer ??
+        EqualizerService(player == null ? platformEqEngine(this.player) : null);
+    this.equalizer.onApplied = _applyVolume;
+    this.equalizer.load();
     _skips = SkipCoordinator(
       load: _settleLoad,
       settle: skipSettle,
@@ -690,7 +688,9 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     final warm = cacheOn && !onDevice && !cached && await PlayCache.instance.isWarm(song.id, quality);
     final decision = FastStartPolicy.decide(FastStartInput(
       // The full copy has to land in the play cache for the swap.
-      enabled: fastStartEnabled && cacheOn && PlayCache.instance.fileFor(song.id, quality) != null,
+      // Not with the equalizer on: the swap's second player has none, so the
+      // sound would change tone for the moment it carries the song.
+      enabled: fastStartEnabled && !equalizer.isActive && cacheOn && PlayCache.instance.fileFor(song.id, quality) != null,
       durationSec: song.duration,
       suffix: song.suffix,
       songKbps: song.bitRate,
@@ -900,7 +900,7 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
       final stats = await SeamlessSwap(
         main: _PlayerVoice(player),
         helper: _PlayerVoice(helper),
-        baseVolume: () => (_replayVolume * _fadeFactor).clamp(0.0, 1.0).toDouble(),
+        baseVolume: () => effectiveVolume(player.userVolume, _appGain, cubic: kCubicPlayerVolume),
         openHelper: (at) async {
           await helper.setFilePath(file.path);
           await helper.setVolume(0);
@@ -1279,8 +1279,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     required ReplayGainMode replayGainMode,
     required int crossfadeSeconds,
     required double speed,
+    LoudnessLevel loudness = LoudnessLevel.normal,
   }) {
     _replayGainMode = replayGainMode;
+    _loudness = loudness;
     _fadeSeconds = clampCrossfadeSeconds(crossfadeSeconds);
     _refreshReplayVolume();
     if (_fadeSeconds > 0) {
@@ -1315,33 +1317,10 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     }
   }
 
-  bool _equalizerRestored = false;
-
-  /// Re-applies the saved equalizer on/off state and band gains. The native
-  /// effect only exists once audio has loaded, so this runs on the first track.
-  Future<void> _restoreEqualizer() async {
-    final eq = equalizer;
-    if (eq == null || _equalizerRestored) return;
-    _equalizerRestored = true;
-    try {
-      final prefs = HiveBoxes.prefs;
-      await eq.setEnabled(prefs.get(HiveBoxes.kEqualizerEnabled) == true);
-      final saved = prefs.get(HiveBoxes.kEqualizerGains);
-      if (saved is List) {
-        final bands = (await eq.parameters).bands;
-        for (var i = 0; i < bands.length && i < saved.length; i++) {
-          final g = saved[i];
-          if (g is num) await bands[i].setGain(g.toDouble());
-        }
-      }
-    } catch (e) {
-      debugPrint('⚠️ [NaviAudioHandler] Equalizer restore failed: $e');
-    }
-  }
-
   void _onMediaItemChanged(MediaItem? item) {
     if (item == null) return;
-    unawaited(_restoreEqualizer());
+    // A no-op unless an earlier attempt failed (the native side not up yet).
+    unawaited(equalizer.sync());
     final index = _currentGlobalIndex();
     Song? song;
     if (index != null && index < _currentQueue.length) {
@@ -1360,11 +1339,53 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
   }
 
   void _refreshReplayVolume() {
-    final song = _tunedSong;
+    var song = _tunedSong;
+    if (song != null &&
+        _replayGainMode != ReplayGainMode.off &&
+        song.trackGain == null &&
+        song.albumGain == null) {
+      if (_foundGains.containsKey(song.id)) {
+        song = _foundGains[song.id] ?? song;
+      } else {
+        // Meanwhile it plays at the untagged level, which is close to most
+        // songs' real one.
+        unawaited(_findGain(song));
+      }
+    }
     _replayVolume = song == null
         ? 1.0
-        : replayGainVolume(song, _replayGainMode);
+        : replayGainVolume(
+            song,
+            _replayGainMode,
+            preampDb: _loudness.preampDb,
+            untaggedDb: kUntaggedGainDb,
+          );
   }
+
+  /// Songs from caches written before loudness was kept, and from sources that
+  /// never carry it: the library mirror first, then the server.
+  Future<void> _findGain(Song song) async {
+    bool has(Song? s) => s != null && (s.trackGain != null || s.albumGain != null);
+    try {
+      var found = await gainLookup?.call(song.id);
+      if (!has(found) && !isLocalSongId(song.id)) {
+        found = await subsonicService.getSong(song.id);
+      }
+      _foundGains[song.id] = has(found) ? found : null;
+    } catch (e) {
+      // Offline: try again the next time this song comes up.
+      debugPrint('⚠️ [NaviAudioHandler] loudness lookup failed: $e');
+      return;
+    }
+    if (_foundGains[song.id] != null && _tunedSong?.id == song.id) {
+      _refreshReplayVolume();
+      _applyVolume();
+    }
+  }
+
+  /// The amplitude factor the app puts on top of the listener's own volume.
+  double get _appGain =>
+      (_replayVolume * _fadeFactor * equalizer.headroom).clamp(0.0, 1.0).toDouble();
 
   int? _currentGlobalIndex() {
     if (_isDesktopBridge) return _desktopIndex;
@@ -1405,11 +1426,11 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
 
   void _applyVolume() {
     if (_muteForSwap) return;
-    final v = (_replayVolume * _fadeFactor).clamp(0.0, 1.0).toDouble();
+    final v = _appGain;
     if ((_appliedVolume - v).abs() < 0.001) return;
     _appliedVolume = v;
     try {
-      unawaited(Future<void>.value(player.setVolume(v)).catchError((_) {}));
+      unawaited(Future<void>.value(player.setAppGain(v)).catchError((_) {}));
     } catch (e) {
       debugPrint('⚠️ [NaviAudioHandler] setVolume failed: $e');
     }
@@ -2559,6 +2580,8 @@ class NaviAudioHandler extends BaseAudioHandler with QueueHandler, SeekHandler {
     _stuckTimer = null;
     _warmTimer?.cancel();
     _skips.dispose();
+    equalizer.onApplied = null;
+    equalizer.dispose();
     await _probeSub?.cancel();
     await _fadeSub?.cancel();
     _fadeSub = null;

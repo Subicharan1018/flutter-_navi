@@ -18,6 +18,7 @@ import '../../player/player_controls.dart' show formatClock;
 import '../../providers/player_provider.dart';
 import '../../providers/settings_provider.dart';
 import '../../services/mini_player.dart';
+import '../../services/player_volume.dart';
 import '../art/navi_icons.dart';
 
 // =============================================================================
@@ -348,8 +349,8 @@ class MiniVolume {
 
   /// Changes the volume by [delta] (0.05 = one wheel notch) and shows it.
   void nudge(AudioPlayer player, double delta) {
-    final v = (player.volume + delta).clamp(0.0, 1.0);
-    player.setVolume(v);
+    final v = (player.userVolume + delta).clamp(0.0, 1.0);
+    player.setUserVolume(v);
     toast.value = v;
     _timer?.cancel();
     _timer = Timer(

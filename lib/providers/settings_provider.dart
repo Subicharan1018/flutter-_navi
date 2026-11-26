@@ -123,6 +123,9 @@ class SettingsState {
   /// Volume normalisation from the file's ReplayGain tags.
   final ReplayGainMode replayGainMode;
 
+  /// How loud normalised music plays; only used when [replayGainMode] is on.
+  final LoudnessLevel loudnessLevel;
+
   /// Fade length between tracks in seconds; 0 keeps playback gapless.
   final int crossfadeSeconds;
 
@@ -156,6 +159,7 @@ class SettingsState {
     this.fluidBgEnabled = true,
     this.motionLevel = MotionLevel.full,
     this.replayGainMode = ReplayGainMode.off,
+    this.loudnessLevel = LoudnessLevel.normal,
     this.crossfadeSeconds = 0,
     this.playbackSpeed = 1.0,
     this.fastStart = false,
@@ -176,6 +180,7 @@ class SettingsState {
     bool? fluidBgEnabled,
     MotionLevel? motionLevel,
     ReplayGainMode? replayGainMode,
+    LoudnessLevel? loudnessLevel,
     int? crossfadeSeconds,
     double? playbackSpeed,
     bool? fastStart,
@@ -196,6 +201,7 @@ class SettingsState {
       fluidBgEnabled: fluidBgEnabled ?? this.fluidBgEnabled,
       motionLevel: motionLevel ?? this.motionLevel,
       replayGainMode: replayGainMode ?? this.replayGainMode,
+      loudnessLevel: loudnessLevel ?? this.loudnessLevel,
       crossfadeSeconds: crossfadeSeconds ?? this.crossfadeSeconds,
       playbackSpeed: playbackSpeed ?? this.playbackSpeed,
       fastStart: fastStart ?? this.fastStart,
@@ -280,6 +286,10 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
       replayGainMode: ReplayGainMode.values.firstWhere(
         (e) => e.name == p.get(HiveBoxes.kReplayGainMode)?.toString(),
         orElse: () => ReplayGainMode.off,
+      ),
+      loudnessLevel: LoudnessLevel.values.firstWhere(
+        (e) => e.name == p.get(HiveBoxes.kLoudnessLevel)?.toString(),
+        orElse: () => LoudnessLevel.normal,
       ),
       crossfadeSeconds: clampCrossfadeSeconds(
         p.get(HiveBoxes.kCrossfadeSeconds) is num
@@ -388,6 +398,11 @@ class SettingsNotifier extends StateNotifier<SettingsState> {
   Future<void> setReplayGainMode(ReplayGainMode mode) async {
     await HiveBoxes.prefs.put(HiveBoxes.kReplayGainMode, mode.name);
     state = state.copyWith(replayGainMode: mode);
+  }
+
+  Future<void> setLoudnessLevel(LoudnessLevel level) async {
+    await HiveBoxes.prefs.put(HiveBoxes.kLoudnessLevel, level.name);
+    state = state.copyWith(loudnessLevel: level);
   }
 
   Future<void> setFastStart(bool on) async {

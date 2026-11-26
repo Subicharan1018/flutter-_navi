@@ -28,7 +28,7 @@ class AppDatabase extends _$AppDatabase {
   AppDatabase.forTesting(super.executor);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   /// Tables from schema 3 that were written but never read (co-play pairs,
   /// suggest feedback, song weights) or never used at all (recommendation
@@ -88,6 +88,20 @@ class AppDatabase extends _$AppDatabase {
             songMetadata.bitDepth,
             songMetadata.samplingRate,
             songMetadata.channelCount,
+          ]) {
+            try {
+              await m.addColumn(songMetadata, column);
+            } catch (_) {
+              // Already there.
+            }
+          }
+        }
+        if (from < 8) {
+          for (final column in [
+            songMetadata.trackGain,
+            songMetadata.albumGain,
+            songMetadata.trackPeak,
+            songMetadata.albumPeak,
           ]) {
             try {
               await m.addColumn(songMetadata, column);

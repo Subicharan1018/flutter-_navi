@@ -102,6 +102,10 @@ Future<void> _cacheSongs(AppDatabase db, List<Song> songs) async {
           bitDepth: Value(song.bitDepth),
           samplingRate: Value(song.samplingRate),
           channelCount: Value(song.channelCount),
+          trackGain: Value(song.trackGain),
+          albumGain: Value(song.albumGain),
+          trackPeak: Value(song.trackPeak),
+          albumPeak: Value(song.albumPeak),
         ),
         mode: InsertMode.insertOrReplace,
       );
@@ -144,6 +148,10 @@ Song songFromMetadata(SongMetadataEntity r) => Song(
       bitDepth: r.bitDepth,
       samplingRate: r.samplingRate,
       channelCount: r.channelCount,
+      trackGain: r.trackGain,
+      albumGain: r.albumGain,
+      trackPeak: r.trackPeak,
+      albumPeak: r.albumPeak,
     );
 
 /// After a complete sync: drop mirrored songs the server no longer has (a

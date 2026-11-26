@@ -149,7 +149,10 @@ class HiveBoxes {
   static const kPlaybackSpeed = 'playback_speed';
   static const kFastStart = 'fast_start';
   static const kEqualizerEnabled = 'equalizer_enabled';
-  static const kEqualizerGains = 'equalizer_gains';
+  static const kEqualizerCurve = 'equalizer_curve'; // six gains, dB
+  static const kEqualizerPreset = 'equalizer_preset';
+  static const kEqualizerPresets = 'equalizer_custom_presets';
+  static const kLoudnessLevel = 'loudness_level';
 
   // ---------------------------------------------------------------------------
   // Audio keys

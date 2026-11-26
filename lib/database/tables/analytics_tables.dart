@@ -46,6 +46,13 @@ class SongMetadata extends Table {
   IntColumn get samplingRate => integer().withDefault(const Constant(0))();
   IntColumn get channelCount => integer().withDefault(const Constant(0))();
 
+  // ReplayGain (schema 8), for volume normalisation. Null = untagged, or a
+  // row not yet re-synced.
+  RealColumn get trackGain => real().nullable()();
+  RealColumn get albumGain => real().nullable()();
+  RealColumn get trackPeak => real().nullable()();
+  RealColumn get albumPeak => real().nullable()();
+
   @override
   Set<Column> get primaryKey => {songId};
 }

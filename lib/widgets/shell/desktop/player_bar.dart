@@ -16,6 +16,7 @@ import '../../../providers/settings_provider.dart';
 import '../../../screens/now_playing_screen.dart';
 import '../../../player/player_controls.dart' show formatClock;
 import '../../../services/mini_player.dart';
+import '../../../services/player_volume.dart';
 import '../../art/navi_icons.dart';
 import '../shortcuts_help.dart';
 import 'now_playing_panel.dart';
@@ -475,7 +476,7 @@ class DesktopVolume extends StatefulWidget {
 }
 
 class _DesktopVolumeState extends State<DesktopVolume> {
-  late double _v = widget.player.volume;
+  late double _v = widget.player.userVolume;
   StreamSubscription<double>? _sub;
   double _beforeMute = 0.7;
   bool _hover = false;
@@ -484,7 +485,7 @@ class _DesktopVolumeState extends State<DesktopVolume> {
   @override
   void initState() {
     super.initState();
-    _sub = widget.player.volumeStream.listen((v) {
+    _sub = widget.player.userVolumeStream.listen((v) {
       if (mounted && (v - _v).abs() > 0.004) setState(() => _v = v);
     });
   }
@@ -498,7 +499,7 @@ class _DesktopVolumeState extends State<DesktopVolume> {
   void _set(double v) {
     v = v.clamp(0.0, 1.0);
     setState(() => _v = v);
-    widget.player.setVolume(v);
+    widget.player.setUserVolume(v);
   }
 
   void _toggleMute() {

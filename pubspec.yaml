@@ -78,6 +78,9 @@ dependencies:
 # until smtc_windows is upgraded; a test (test/services/smtc_frb_pin_test.dart) fails if it drifts.
 dependency_overrides:
   flutter_rust_bridge: 2.11.1
+  # 2.1.0 plus a way to set mpv's audio filter, for the desktop equalizer.
+  just_audio_media_kit:
+    path: packages/just_audio_media_kit
 
 dev_dependencies:
   flutter_test:

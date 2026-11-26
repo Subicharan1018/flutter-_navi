@@ -8,6 +8,7 @@ import '../core/focus/navi_focus.dart';
 import '../core/motion.dart';
 import '../core/theme.dart';
 import '../models/song.dart';
+import '../services/player_volume.dart';
 import '../utils/platform_utils.dart';
 import '../widgets/art/navi_icons.dart';
 import 'audio_quality.dart';
@@ -613,13 +614,13 @@ class VolumeBar extends StatefulWidget {
 }
 
 class _VolumeBarState extends State<VolumeBar> {
-  late double _v = widget.player.volume;
+  late double _v = widget.player.userVolume;
   StreamSubscription<double>? _sub;
 
   @override
   void initState() {
     super.initState();
-    _sub = widget.player.volumeStream.listen((v) {
+    _sub = widget.player.userVolumeStream.listen((v) {
       if (mounted && (v - _v).abs() > 0.005) setState(() => _v = v);
     });
   }
@@ -632,7 +633,7 @@ class _VolumeBarState extends State<VolumeBar> {
 
   void _set(double v) {
     setState(() => _v = v);
-    widget.player.setVolume(v);
+    widget.player.setUserVolume(v);
   }
 
   @override

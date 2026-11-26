@@ -13,6 +13,7 @@ import '../core/focus/navi_focus.dart';
 import '../utils/platform_utils.dart';
 import '../features/everyday/profile_picker_screen.dart';
 import '../features/exportify_import/ui/exportify_import_section.dart';
+import '../features/equalizer/ui/equalizer_screen.dart';
 import '../features/album_overnight/ui/album_overnight_settings.dart';
 import '../features/weekly_exploration/ui/weekly_exploration_settings.dart';
 import '../features/flow/ui/flow_settings.dart';
@@ -538,6 +539,29 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                   if (v != null) notifier.setReplayGainMode(v);
                 },
               ),
+              if (s.replayGainMode != ReplayGainMode.off)
+                GroupedRow(
+                  title: 'Loudness Level',
+                  icon: NaviGlyph.speaker,
+                  value: s.loudnessLevel.label,
+                  onTap: () async {
+                    final v = await showChoiceSheet<LoudnessLevel>(
+                      context,
+                      title: 'Loudness Level',
+                      options: LoudnessLevel.values,
+                      selected: s.loudnessLevel,
+                      label: (l) => l.label,
+                      detail: (l) => l.summary,
+                    );
+                    if (v != null) notifier.setLoudnessLevel(v);
+                  },
+                ),
+              if (ref.read(audioHandlerProvider).equalizer.isSupported)
+                GroupedRow(
+                  title: 'Equalizer',
+                  icon: NaviGlyph.sliders,
+                  onTap: () => navigateInApp(context, const EqualizerScreen(), title: 'Equalizer'),
+                ),
               GroupedRow(
                 title: 'Crossfade',
                 icon: NaviGlyph.aiShuffle,

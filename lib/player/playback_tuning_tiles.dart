@@ -1,13 +1,13 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
-import 'package:just_audio/just_audio.dart';
 
-import '../core/hive_boxes.dart';
 import '../core/theme.dart';
+import '../features/equalizer/ui/equalizer_screen.dart';
 import '../providers/player_provider.dart';
 import '../providers/settings_provider.dart';
 import '../services/playback_tuning.dart';
 import '../widgets/art/navi_icons.dart';
+import '../widgets/desktop_dialogs.dart';
 
 String formatSpeed(double speed) {
   final s = speed.toStringAsFixed(2);
@@ -92,167 +92,25 @@ class _SpeedSheet extends ConsumerWidget {
   }
 }
 
-/// Now Playing "more" row: Android equalizer. Renders nothing elsewhere.
+/// Now Playing "more" row: the equalizer. Renders nothing where there is none.
 class EqualizerTile extends ConsumerWidget {
   const EqualizerTile({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final eq = ref.watch(audioHandlerProvider).equalizer;
-    if (eq == null) return const SizedBox.shrink();
+    if (!eq.isSupported) return const SizedBox.shrink();
     final t = ThemeTokens.of(context);
     return ListTile(
       leading: NaviIcon(NaviGlyph.sliders, color: t.textSecondary),
       title: const Text('Equalizer'),
       trailing: NaviIcon(NaviGlyph.chevron, color: t.textMuted),
-      onTap: () => showModalBottomSheet<void>(
+      onTap: () => showPlatformSheet<void>(
         context: context,
-        isScrollControlled: true,
-        builder: (_) => _EqualizerSheet(equalizer: eq),
+        title: 'Equalizer',
+        maxWidth: 760,
+        builder: (_) => EqualizerPanel(equalizer: eq),
       ),
-    );
-  }
-}
-
-class _EqualizerSheet extends StatefulWidget {
-  final AndroidEqualizer equalizer;
-  const _EqualizerSheet({required this.equalizer});
-
-  @override
-  State<_EqualizerSheet> createState() => _EqualizerSheetState();
-}
-
-class _EqualizerSheetState extends State<_EqualizerSheet> {
-  late final Future<AndroidEqualizerParameters> _params =
-      widget.equalizer.parameters;
-  late bool _enabled = HiveBoxes.prefs.get(HiveBoxes.kEqualizerEnabled) == true;
-
-  Future<void> _setEnabled(bool v) async {
-    setState(() => _enabled = v);
-    await widget.equalizer.setEnabled(v);
-    await HiveBoxes.prefs.put(HiveBoxes.kEqualizerEnabled, v);
-  }
-
-  Future<void> _setBand(
-    AndroidEqualizerParameters p,
-    AndroidEqualizerBand band,
-    double gain,
-  ) async {
-    await band.setGain(gain);
-    await HiveBoxes.prefs.put(HiveBoxes.kEqualizerGains, [
-      for (final b in p.bands) b.gain,
-    ]);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    return SafeArea(
-      top: false,
-      child: Padding(
-        padding: const EdgeInsets.fromLTRB(24, 0, 24, 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    'Equalizer',
-                    style: naviText(20, FontWeight.w700, t.textPrimary),
-                  ),
-                ),
-                Switch(
-                  value: _enabled,
-                  activeTrackColor: t.accent,
-                  onChanged: _setEnabled,
-                ),
-              ],
-            ),
-            FutureBuilder<AndroidEqualizerParameters>(
-              future: _params,
-              builder: (context, snap) {
-                final p = snap.data;
-                if (p == null) {
-                  return Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 24),
-                    child: Text(
-                      snap.hasError
-                          ? 'The equalizer isn’t available yet. Start a song, then try again.'
-                          : 'Loading bands…',
-                      style: TextStyle(color: t.textMuted),
-                    ),
-                  );
-                }
-                return SizedBox(
-                  height: 220,
-                  child: Row(
-                    children: [
-                      for (final band in p.bands)
-                        Expanded(
-                          child: _BandSlider(
-                            band: band,
-                            min: p.minDecibels,
-                            max: p.maxDecibels,
-                            enabled: _enabled,
-                            onChangeEnd: (g) => _setBand(p, band, g),
-                          ),
-                        ),
-                    ],
-                  ),
-                );
-              },
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _BandSlider extends StatelessWidget {
-  final AndroidEqualizerBand band;
-  final double min;
-  final double max;
-  final bool enabled;
-  final ValueChanged<double> onChangeEnd;
-  const _BandSlider({
-    required this.band,
-    required this.min,
-    required this.max,
-    required this.enabled,
-    required this.onChangeEnd,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final t = ThemeTokens.of(context);
-    final hz = band.centerFrequency;
-    final label = hz >= 1000
-        ? '${(hz / 1000).toStringAsFixed(hz % 1000 == 0 ? 0 : 1)}k'
-        : hz.round().toString();
-    return Column(
-      children: [
-        Expanded(
-          child: StreamBuilder<double>(
-            stream: band.gainStream,
-            initialData: band.gain,
-            builder: (context, snap) => RotatedBox(
-              quarterTurns: 3,
-              child: Slider(
-                value: (snap.data ?? 0).clamp(min, max).toDouble(),
-                min: min,
-                max: max,
-                activeColor: t.accent,
-                onChanged: enabled ? band.setGain : null,
-                onChangeEnd: enabled ? onChangeEnd : null,
-              ),
-            ),
-          ),
-        ),
-        Text(label, style: TextStyle(color: t.textMuted, fontSize: 11)),
-      ],
     );
   }
 }

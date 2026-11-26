@@ -1041,6 +1041,50 @@ class $SongMetadataTable extends SongMetadata
     requiredDuringInsert: false,
     defaultValue: const Constant(0),
   );
+  static const VerificationMeta _trackGainMeta = const VerificationMeta(
+    'trackGain',
+  );
+  @override
+  late final GeneratedColumn<double> trackGain = GeneratedColumn<double>(
+    'track_gain',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _albumGainMeta = const VerificationMeta(
+    'albumGain',
+  );
+  @override
+  late final GeneratedColumn<double> albumGain = GeneratedColumn<double>(
+    'album_gain',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _trackPeakMeta = const VerificationMeta(
+    'trackPeak',
+  );
+  @override
+  late final GeneratedColumn<double> trackPeak = GeneratedColumn<double>(
+    'track_peak',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _albumPeakMeta = const VerificationMeta(
+    'albumPeak',
+  );
+  @override
+  late final GeneratedColumn<double> albumPeak = GeneratedColumn<double>(
+    'album_peak',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
   @override
   List<GeneratedColumn> get $columns => [
     songId,
@@ -1061,6 +1105,10 @@ class $SongMetadataTable extends SongMetadata
     bitDepth,
     samplingRate,
     channelCount,
+    trackGain,
+    albumGain,
+    trackPeak,
+    albumPeak,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -1203,6 +1251,30 @@ class $SongMetadataTable extends SongMetadata
         ),
       );
     }
+    if (data.containsKey('track_gain')) {
+      context.handle(
+        _trackGainMeta,
+        trackGain.isAcceptableOrUnknown(data['track_gain']!, _trackGainMeta),
+      );
+    }
+    if (data.containsKey('album_gain')) {
+      context.handle(
+        _albumGainMeta,
+        albumGain.isAcceptableOrUnknown(data['album_gain']!, _albumGainMeta),
+      );
+    }
+    if (data.containsKey('track_peak')) {
+      context.handle(
+        _trackPeakMeta,
+        trackPeak.isAcceptableOrUnknown(data['track_peak']!, _trackPeakMeta),
+      );
+    }
+    if (data.containsKey('album_peak')) {
+      context.handle(
+        _albumPeakMeta,
+        albumPeak.isAcceptableOrUnknown(data['album_peak']!, _albumPeakMeta),
+      );
+    }
     return context;
   }
 
@@ -1284,6 +1356,22 @@ class $SongMetadataTable extends SongMetadata
         DriftSqlType.int,
         data['${effectivePrefix}channel_count'],
       )!,
+      trackGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}track_gain'],
+      ),
+      albumGain: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}album_gain'],
+      ),
+      trackPeak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}track_peak'],
+      ),
+      albumPeak: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}album_peak'],
+      ),
     );
   }
 
@@ -1313,6 +1401,10 @@ class SongMetadataEntity extends DataClass
   final int bitDepth;
   final int samplingRate;
   final int channelCount;
+  final double? trackGain;
+  final double? albumGain;
+  final double? trackPeak;
+  final double? albumPeak;
   const SongMetadataEntity({
     required this.songId,
     required this.trackName,
@@ -1332,6 +1424,10 @@ class SongMetadataEntity extends DataClass
     required this.bitDepth,
     required this.samplingRate,
     required this.channelCount,
+    this.trackGain,
+    this.albumGain,
+    this.trackPeak,
+    this.albumPeak,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -1364,6 +1460,18 @@ class SongMetadataEntity extends DataClass
     map['bit_depth'] = Variable<int>(bitDepth);
     map['sampling_rate'] = Variable<int>(samplingRate);
     map['channel_count'] = Variable<int>(channelCount);
+    if (!nullToAbsent || trackGain != null) {
+      map['track_gain'] = Variable<double>(trackGain);
+    }
+    if (!nullToAbsent || albumGain != null) {
+      map['album_gain'] = Variable<double>(albumGain);
+    }
+    if (!nullToAbsent || trackPeak != null) {
+      map['track_peak'] = Variable<double>(trackPeak);
+    }
+    if (!nullToAbsent || albumPeak != null) {
+      map['album_peak'] = Variable<double>(albumPeak);
+    }
     return map;
   }
 
@@ -1395,6 +1503,18 @@ class SongMetadataEntity extends DataClass
       bitDepth: Value(bitDepth),
       samplingRate: Value(samplingRate),
       channelCount: Value(channelCount),
+      trackGain: trackGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackGain),
+      albumGain: albumGain == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumGain),
+      trackPeak: trackPeak == null && nullToAbsent
+          ? const Value.absent()
+          : Value(trackPeak),
+      albumPeak: albumPeak == null && nullToAbsent
+          ? const Value.absent()
+          : Value(albumPeak),
     );
   }
 
@@ -1422,6 +1542,10 @@ class SongMetadataEntity extends DataClass
       bitDepth: serializer.fromJson<int>(json['bitDepth']),
       samplingRate: serializer.fromJson<int>(json['samplingRate']),
       channelCount: serializer.fromJson<int>(json['channelCount']),
+      trackGain: serializer.fromJson<double?>(json['trackGain']),
+      albumGain: serializer.fromJson<double?>(json['albumGain']),
+      trackPeak: serializer.fromJson<double?>(json['trackPeak']),
+      albumPeak: serializer.fromJson<double?>(json['albumPeak']),
     );
   }
   @override
@@ -1446,6 +1570,10 @@ class SongMetadataEntity extends DataClass
       'bitDepth': serializer.toJson<int>(bitDepth),
       'samplingRate': serializer.toJson<int>(samplingRate),
       'channelCount': serializer.toJson<int>(channelCount),
+      'trackGain': serializer.toJson<double?>(trackGain),
+      'albumGain': serializer.toJson<double?>(albumGain),
+      'trackPeak': serializer.toJson<double?>(trackPeak),
+      'albumPeak': serializer.toJson<double?>(albumPeak),
     };
   }
 
@@ -1468,6 +1596,10 @@ class SongMetadataEntity extends DataClass
     int? bitDepth,
     int? samplingRate,
     int? channelCount,
+    Value<double?> trackGain = const Value.absent(),
+    Value<double?> albumGain = const Value.absent(),
+    Value<double?> trackPeak = const Value.absent(),
+    Value<double?> albumPeak = const Value.absent(),
   }) => SongMetadataEntity(
     songId: songId ?? this.songId,
     trackName: trackName ?? this.trackName,
@@ -1487,6 +1619,10 @@ class SongMetadataEntity extends DataClass
     bitDepth: bitDepth ?? this.bitDepth,
     samplingRate: samplingRate ?? this.samplingRate,
     channelCount: channelCount ?? this.channelCount,
+    trackGain: trackGain.present ? trackGain.value : this.trackGain,
+    albumGain: albumGain.present ? albumGain.value : this.albumGain,
+    trackPeak: trackPeak.present ? trackPeak.value : this.trackPeak,
+    albumPeak: albumPeak.present ? albumPeak.value : this.albumPeak,
   );
   SongMetadataEntity copyWithCompanion(SongMetadataCompanion data) {
     return SongMetadataEntity(
@@ -1516,6 +1652,10 @@ class SongMetadataEntity extends DataClass
       channelCount: data.channelCount.present
           ? data.channelCount.value
           : this.channelCount,
+      trackGain: data.trackGain.present ? data.trackGain.value : this.trackGain,
+      albumGain: data.albumGain.present ? data.albumGain.value : this.albumGain,
+      trackPeak: data.trackPeak.present ? data.trackPeak.value : this.trackPeak,
+      albumPeak: data.albumPeak.present ? data.albumPeak.value : this.albumPeak,
     );
   }
 
@@ -1539,13 +1679,17 @@ class SongMetadataEntity extends DataClass
           ..write('bitRate: $bitRate, ')
           ..write('bitDepth: $bitDepth, ')
           ..write('samplingRate: $samplingRate, ')
-          ..write('channelCount: $channelCount')
+          ..write('channelCount: $channelCount, ')
+          ..write('trackGain: $trackGain, ')
+          ..write('albumGain: $albumGain, ')
+          ..write('trackPeak: $trackPeak, ')
+          ..write('albumPeak: $albumPeak')
           ..write(')'))
         .toString();
   }
 
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     songId,
     trackName,
     artistName,
@@ -1564,7 +1708,11 @@ class SongMetadataEntity extends DataClass
     bitDepth,
     samplingRate,
     channelCount,
-  );
+    trackGain,
+    albumGain,
+    trackPeak,
+    albumPeak,
+  ]);
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
@@ -1586,7 +1734,11 @@ class SongMetadataEntity extends DataClass
           other.bitRate == this.bitRate &&
           other.bitDepth == this.bitDepth &&
           other.samplingRate == this.samplingRate &&
-          other.channelCount == this.channelCount);
+          other.channelCount == this.channelCount &&
+          other.trackGain == this.trackGain &&
+          other.albumGain == this.albumGain &&
+          other.trackPeak == this.trackPeak &&
+          other.albumPeak == this.albumPeak);
 }
 
 class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
@@ -1608,6 +1760,10 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
   final Value<int> bitDepth;
   final Value<int> samplingRate;
   final Value<int> channelCount;
+  final Value<double?> trackGain;
+  final Value<double?> albumGain;
+  final Value<double?> trackPeak;
+  final Value<double?> albumPeak;
   final Value<int> rowid;
   const SongMetadataCompanion({
     this.songId = const Value.absent(),
@@ -1628,6 +1784,10 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     this.bitDepth = const Value.absent(),
     this.samplingRate = const Value.absent(),
     this.channelCount = const Value.absent(),
+    this.trackGain = const Value.absent(),
+    this.albumGain = const Value.absent(),
+    this.trackPeak = const Value.absent(),
+    this.albumPeak = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   SongMetadataCompanion.insert({
@@ -1649,6 +1809,10 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     this.bitDepth = const Value.absent(),
     this.samplingRate = const Value.absent(),
     this.channelCount = const Value.absent(),
+    this.trackGain = const Value.absent(),
+    this.albumGain = const Value.absent(),
+    this.trackPeak = const Value.absent(),
+    this.albumPeak = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : songId = Value(songId),
        trackName = Value(trackName),
@@ -1675,6 +1839,10 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     Expression<int>? bitDepth,
     Expression<int>? samplingRate,
     Expression<int>? channelCount,
+    Expression<double>? trackGain,
+    Expression<double>? albumGain,
+    Expression<double>? trackPeak,
+    Expression<double>? albumPeak,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -1696,6 +1864,10 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
       if (bitDepth != null) 'bit_depth': bitDepth,
       if (samplingRate != null) 'sampling_rate': samplingRate,
       if (channelCount != null) 'channel_count': channelCount,
+      if (trackGain != null) 'track_gain': trackGain,
+      if (albumGain != null) 'album_gain': albumGain,
+      if (trackPeak != null) 'track_peak': trackPeak,
+      if (albumPeak != null) 'album_peak': albumPeak,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -1719,6 +1891,10 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     Value<int>? bitDepth,
     Value<int>? samplingRate,
     Value<int>? channelCount,
+    Value<double?>? trackGain,
+    Value<double?>? albumGain,
+    Value<double?>? trackPeak,
+    Value<double?>? albumPeak,
     Value<int>? rowid,
   }) {
     return SongMetadataCompanion(
@@ -1740,6 +1916,10 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
       bitDepth: bitDepth ?? this.bitDepth,
       samplingRate: samplingRate ?? this.samplingRate,
       channelCount: channelCount ?? this.channelCount,
+      trackGain: trackGain ?? this.trackGain,
+      albumGain: albumGain ?? this.albumGain,
+      trackPeak: trackPeak ?? this.trackPeak,
+      albumPeak: albumPeak ?? this.albumPeak,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -1801,6 +1981,18 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
     if (channelCount.present) {
       map['channel_count'] = Variable<int>(channelCount.value);
     }
+    if (trackGain.present) {
+      map['track_gain'] = Variable<double>(trackGain.value);
+    }
+    if (albumGain.present) {
+      map['album_gain'] = Variable<double>(albumGain.value);
+    }
+    if (trackPeak.present) {
+      map['track_peak'] = Variable<double>(trackPeak.value);
+    }
+    if (albumPeak.present) {
+      map['album_peak'] = Variable<double>(albumPeak.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -1828,6 +2020,10 @@ class SongMetadataCompanion extends UpdateCompanion<SongMetadataEntity> {
           ..write('bitDepth: $bitDepth, ')
           ..write('samplingRate: $samplingRate, ')
           ..write('channelCount: $channelCount, ')
+          ..write('trackGain: $trackGain, ')
+          ..write('albumGain: $albumGain, ')
+          ..write('trackPeak: $trackPeak, ')
+          ..write('albumPeak: $albumPeak, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -3822,6 +4018,10 @@ typedef $$SongMetadataTableCreateCompanionBuilder =
       Value<int> bitDepth,
       Value<int> samplingRate,
       Value<int> channelCount,
+      Value<double?> trackGain,
+      Value<double?> albumGain,
+      Value<double?> trackPeak,
+      Value<double?> albumPeak,
       Value<int> rowid,
     });
 typedef $$SongMetadataTableUpdateCompanionBuilder =
@@ -3844,6 +4044,10 @@ typedef $$SongMetadataTableUpdateCompanionBuilder =
       Value<int> bitDepth,
       Value<int> samplingRate,
       Value<int> channelCount,
+      Value<double?> trackGain,
+      Value<double?> albumGain,
+      Value<double?> trackPeak,
+      Value<double?> albumPeak,
       Value<int> rowid,
     });
 
@@ -3943,6 +4147,26 @@ class $$SongMetadataTableFilterComposer
 
   ColumnFilters<int> get channelCount => $composableBuilder(
     column: $table.channelCount,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get trackGain => $composableBuilder(
+    column: $table.trackGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get albumGain => $composableBuilder(
+    column: $table.albumGain,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get trackPeak => $composableBuilder(
+    column: $table.trackPeak,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get albumPeak => $composableBuilder(
+    column: $table.albumPeak,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4045,6 +4269,26 @@ class $$SongMetadataTableOrderingComposer
     column: $table.channelCount,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<double> get trackGain => $composableBuilder(
+    column: $table.trackGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get albumGain => $composableBuilder(
+    column: $table.albumGain,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get trackPeak => $composableBuilder(
+    column: $table.trackPeak,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<double> get albumPeak => $composableBuilder(
+    column: $table.albumPeak,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$SongMetadataTableAnnotationComposer
@@ -4117,6 +4361,18 @@ class $$SongMetadataTableAnnotationComposer
     column: $table.channelCount,
     builder: (column) => column,
   );
+
+  GeneratedColumn<double> get trackGain =>
+      $composableBuilder(column: $table.trackGain, builder: (column) => column);
+
+  GeneratedColumn<double> get albumGain =>
+      $composableBuilder(column: $table.albumGain, builder: (column) => column);
+
+  GeneratedColumn<double> get trackPeak =>
+      $composableBuilder(column: $table.trackPeak, builder: (column) => column);
+
+  GeneratedColumn<double> get albumPeak =>
+      $composableBuilder(column: $table.albumPeak, builder: (column) => column);
 }
 
 class $$SongMetadataTableTableManager
@@ -4172,6 +4428,10 @@ class $$SongMetadataTableTableManager
                 Value<int> bitDepth = const Value.absent(),
                 Value<int> samplingRate = const Value.absent(),
                 Value<int> channelCount = const Value.absent(),
+                Value<double?> trackGain = const Value.absent(),
+                Value<double?> albumGain = const Value.absent(),
+                Value<double?> trackPeak = const Value.absent(),
+                Value<double?> albumPeak = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongMetadataCompanion(
                 songId: songId,
@@ -4192,6 +4452,10 @@ class $$SongMetadataTableTableManager
                 bitDepth: bitDepth,
                 samplingRate: samplingRate,
                 channelCount: channelCount,
+                trackGain: trackGain,
+                albumGain: albumGain,
+                trackPeak: trackPeak,
+                albumPeak: albumPeak,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4214,6 +4478,10 @@ class $$SongMetadataTableTableManager
                 Value<int> bitDepth = const Value.absent(),
                 Value<int> samplingRate = const Value.absent(),
                 Value<int> channelCount = const Value.absent(),
+                Value<double?> trackGain = const Value.absent(),
+                Value<double?> albumGain = const Value.absent(),
+                Value<double?> trackPeak = const Value.absent(),
+                Value<double?> albumPeak = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => SongMetadataCompanion.insert(
                 songId: songId,
@@ -4234,6 +4502,10 @@ class $$SongMetadataTableTableManager
                 bitDepth: bitDepth,
                 samplingRate: samplingRate,
                 channelCount: channelCount,
+                trackGain: trackGain,
+                albumGain: albumGain,
+                trackPeak: trackPeak,
+                albumPeak: albumPeak,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0
